@@ -1,20 +1,34 @@
 import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View } from 'react-native';
+import { AuthProvider } from './src/contexts/AuthContext';
+import { ThemeProvider } from './src/contexts/ThemeContext';
+import { useSpartanFonts } from './hooks/useFonts';
+import { View, ActivityIndicator } from 'react-native';
+import { SpartanLayout } from './app/_layout';
+import Index from './app/index';
+
+function AppContent() {
+  const fontsLoaded = useSpartanFonts();
+
+  if (!fontsLoaded) {
+    return (
+      <SpartanLayout>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <ActivityIndicator size="large" color="#CD7F32" />
+        </View>
+      </SpartanLayout>
+    );
+  }
+
+  return <Index />;
+}
 
 export default function App() {
   return (
-    <View style={styles.container}>
-      <Text>Open up App.tsx to start working on your app!</Text>
-      <StatusBar style="auto" />
-    </View>
+    <ThemeProvider>
+      <AuthProvider>
+        <AppContent />
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#fff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-});
