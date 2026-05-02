@@ -20,19 +20,6 @@ import {
   getOrdinalRank,
 } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
-import { RITES_OF_PASSAGE } from '../lib/trials';
-
-const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
-  0: { desc: 'Master the basics: Inverted Rows, Squats, Bench Dips, Knee Push-ups', difficulty: 1 },
-  1: { desc: 'Build foundation: Assisted Pull-ups, Push-ups, Lunges, Dips', difficulty: 2 },
-  2: { desc: 'Develop strength: Pull-ups, Push-ups, Squats, Dips with higher volume', difficulty: 3 },
-  3: { desc: 'Intermediate level: Unassisted Pull-ups, Full Push-ups, Jump Squats', difficulty: 4 },
-  4: { desc: 'Advanced strength: Weighted movements, higher rep ranges', difficulty: 5 },
-  5: { desc: 'Elite tier: Complex movements, muscle-ups preparation', difficulty: 6 },
-  6: { desc: 'Platinum-Heart: Full Muscle-ups, advanced calisthenics', difficulty: 7 },
-  7: { desc: 'Diamond-tier: High volume muscle-ups, elite conditioning', difficulty: 8 },
-  8: { desc: 'Titan/Demigod: Maximum strength, endurance mastery', difficulty: 9 },
-};
 
 interface LeaderboardScreenProps {
   onClose: () => void;
@@ -61,13 +48,6 @@ export function LeaderboardScreen({
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState(0);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
-
-  // Safe tier name accessor with bounds checking
-  const getTierName = (tier: number, cat: 'strength' | 'power') => {
-    const names = cat === 'strength' ? TIER_NAMES : POWER_TIER_NAMES;
-    const safeIndex = Math.max(0, Math.min(tier, names.length - 1));
-    return names[safeIndex] || 'UNKNOWN';
-  };
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier ?? 0);
 
@@ -99,11 +79,26 @@ export function LeaderboardScreen({
   const isCurrentTier = selectedTier === (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));
 
   return (
-    <ScrollView style={styles.container}>
+    <View style={styles.container}>
       {/* Back Button in Upper Left */}
       <View style={styles.backButtonContainer}>
         <TouchableOpacity style={[styles.backButton, { borderColor: theme.card.border }]} onPress={onClose}>
           <Text style={[styles.backButtonText, { color: theme.text.secondary }]}>←</Text>
+        </TouchableOpacity>
+      </View>
+
+      {/* Tier Name - Upper Center */}
+      <View style={styles.tierNameHeader}>
+        <TouchableOpacity 
+          style={[styles.tierNameHeaderFrame, { borderColor: theme.accent }]}
+          onPress={() => {
+            setModalTier(selectedTier);
+            setShowTierModal(true);
+          }}
+        >
+          <Text style={[styles.tierNameHeaderText, { color: theme.accent }]}>
+            {(category === 'strength' ? TIER_NAMES[selectedTier] : POWER_TIER_NAMES[selectedTier]).toUpperCase()}
+          </Text>
         </TouchableOpacity>
       </View>
 
@@ -115,9 +110,8 @@ export function LeaderboardScreen({
             category === 'strength' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
           ]}
           onPress={() => {
-            const newTier = Math.min(profile?.strength_tier || 0, TIER_NAMES.length - 1);
             setCategory('strength');
-            setSelectedTier(newTier);
+            setSelectedTier(profile?.strength_tier || 0);
           }}
         >
           <Text style={[
@@ -134,9 +128,8 @@ export function LeaderboardScreen({
             !isPowerUnlocked && { opacity: 0.5 }
           ]}
           onPress={() => {
-            const newTier = Math.min(profile?.power_tier || 0, POWER_TIER_NAMES.length - 1);
             setCategory('power');
-            setSelectedTier(newTier);
+            setSelectedTier(profile?.power_tier || 0);
           }}
         >
           <View style={styles.row}>
@@ -158,26 +151,19 @@ export function LeaderboardScreen({
               style={[
                 styles.tierTab, 
                 { borderColor: theme.card.border },
-                selectedTier === tier && { backgroundColor: 'transparent', borderColor: theme.accent, borderWidth: 2 }
+                selectedTier === tier && { backgroundColor: theme.accent }
               ]}
               onPress={() => setSelectedTier(tier)}
             >
-              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <Text
-                  style={[
-                    styles.tierTabText,
-                    selectedTier === tier && { color: '#FFFFFF' },
-                    { color: theme.text.primary }
-                  ]}
-                >
-                  {tier + 1}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
-                  {Array.from({ length: Math.min(tier + 1, 5) }).map((_, i) => (
-                    <View key={i} style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.accent }} />
-                  ))}
-                </View>
-              </View>
+              <Text
+                style={[
+                  styles.tierTabText,
+                  selectedTier === tier && { color: '#FFFFFF' },
+                  { color: theme.text.primary }
+                ]}
+              >
+                {category === 'strength' ? TIER_NAMES[tier][0] : POWER_TIER_NAMES[tier][0]}
+              </Text>
             </TouchableOpacity>
           ))}
           {category === 'strength' && profile?.strength_tier === 8 && (
@@ -199,7 +185,7 @@ export function LeaderboardScreen({
           }}
         >
           <Text style={[styles.currentTierName, { color: theme.accent }]}>
-            {getTierName(selectedTier, category).toUpperCase()}
+            {(category === 'strength' ? TIER_NAMES[selectedTier] : POWER_TIER_NAMES[selectedTier]).toUpperCase()}
           </Text>
         </TouchableOpacity>
       </View>
@@ -246,17 +232,10 @@ export function LeaderboardScreen({
           ) : (
             <>
               <Text style={[styles.statCircleValue, { color: '#64C8FF' }]}>
-                {(() => {
-                  const userAbove = entries.find(e => e.rank === ((personalBest?.rank ?? 0) - 1));
-                  if (!userAbove || !personalBest?.best_time_seconds) return '-';
-                  if (category === 'power') {
-                    const gap = (userAbove.best_time_seconds || 0) - (personalBest.best_time_seconds || 0);
-                    return `+${Math.max(0, gap)}`;
-                  } else {
-                    const gap = (personalBest.best_time_seconds || 0) - (userAbove.best_time_seconds || 0);
-                    return `-${formatLeaderboardTime(Math.max(0, gap))}`;
-                  }
-                })()}
+                {category === 'power'
+                  ? `+${(entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0) - (personalBest.best_time_seconds || 0)}`
+                  : `-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0))}`
+                }
               </Text>
               <Text style={[styles.statCircleUnit, { color: '#64C8FF' }]}>
                 {category === 'power' ? 'PTS NEEDED' : 'TIME TO BEAT'}
@@ -525,84 +504,15 @@ export function LeaderboardScreen({
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
-                <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {getTierName(modalTier, category).toUpperCase()}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowTierModal(false)}
-              >
-                <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.modalTierLabel, { color: theme.text.secondary }]}>
-              Tier {modalTier}
-            </Text>
-
-            {/* Difficulty Section */}
-            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
-              <View style={styles.modalDifficultyRow}>
-                <View style={[styles.modalDifficultyBar, { backgroundColor: theme.background.secondary }]}>
-                  <View
-                    style={[
-                      styles.modalDifficultyFill,
-                      {
-                        backgroundColor: theme.accent,
-                        width: `${((TIER_REQUIREMENTS[modalTier]?.difficulty || 1) / 9) * 100}%` 
-                      }
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
-                  {TIER_REQUIREMENTS[modalTier]?.difficulty || 1}/9
-                </Text>
-              </View>
-            </View>
-
-            {/* Requirements Section */}
-            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
-              <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {TIER_REQUIREMENTS[modalTier]?.desc || 'Complete the trial to advance'}
-              </Text>
-            </View>
-
-            {/* Trial Movements Preview */}
-            {RITES_OF_PASSAGE[modalTier] && (
-              <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-                <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
-                <View style={styles.movementsList}>
-                  {RITES_OF_PASSAGE[modalTier].movements.slice(0, 4).map((movement, idx) => (
-                    <View key={idx} style={styles.movementItem}>
-                      <View style={[styles.movementDot, { backgroundColor: theme.accent }]} />
-                      <Text style={[styles.movementText, { color: theme.text.secondary }]}>
-                        {movement.name}: {movement.reps}x
-                      </Text>
-                    </View>
-                  ))}
-                  {RITES_OF_PASSAGE[modalTier].movements.length > 4 && (
-                    <Text style={[styles.moreText, { color: theme.text.tertiary }]}>
-                      +{RITES_OF_PASSAGE[modalTier].movements.length - 4} more...
-                    </Text>
-                  )}
-                </View>
-              </View>
-            )}
-
-            {/* READY TO LEAP Button */}
             <TouchableOpacity
-              style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
+              style={styles.modalLeapButton}
               onPress={() => {
                 setShowTierModal(false);
                 if (modalTier === 8) {
+                  // For Demigod tier, start eternal mode
                   onStartEternal();
                 } else {
+                  // For other tiers, start practice mode
                   onPracticeTier(modalTier);
                 }
               }}
@@ -612,7 +522,7 @@ export function LeaderboardScreen({
           </View>
         </View>
       </Modal>
-    </ScrollView>
+    </View>
   );
 }
 
@@ -629,8 +539,7 @@ const styles = StyleSheet.create({
   categoryToggleContainer: {
     flexDirection: 'row',
     paddingHorizontal: 24,
-    marginTop: 100,
-    paddingTop: 16,
+    paddingTop: 100,
     paddingBottom: 16,
     gap: 16,
   },
@@ -672,7 +581,6 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderRadius: 8,
     alignItems: 'center',
-    alignSelf: 'center',
   },
   warriorsHeadline: {
     alignItems: 'center',
@@ -925,17 +833,9 @@ const styles = StyleSheet.create({
   modalContent: {
     margin: 20,
     padding: 24,
-    borderRadius: 20,
+    borderRadius: 16,
     alignItems: 'center',
     maxWidth: 400,
-    backgroundColor: 'rgba(18, 18, 26, 0.95)',
-    borderWidth: 1,
-    borderColor: 'rgba(100, 180, 255, 0.3)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.44,
-    shadowRadius: 24,
-    elevation: 16,
   },
   modalTitle: {
     fontSize: 24,
@@ -992,86 +892,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     letterSpacing: 1,
     color: '#FFFFFF',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  modalTitleFrame: {
-    borderWidth: 2,
-    borderRadius: 8,
-    paddingHorizontal: 16,
-    paddingVertical: 6,
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
-  modalTierLabel: {
-    fontSize: 12,
-    letterSpacing: 1,
-    marginBottom: 16,
-  },
-  modalSection: {
-    borderTopWidth: 1,
-    paddingVertical: 12,
-  },
-  modalSectionTitle: {
-    fontSize: 10,
-    letterSpacing: 2,
-    marginBottom: 8,
-  },
-  modalDifficultyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  modalDifficultyBar: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-  },
-  modalDifficultyFill: {
-    height: '100%',
-    borderRadius: 3,
-  },
-  modalDifficultyValue: {
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  modalDesc: {
-    fontSize: 13,
-    lineHeight: 20,
-  },
-  movementsList: {
-    gap: 6,
-  },
-  movementItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  movementDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  movementText: {
-    fontSize: 13,
-  },
-  moreText: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  closeButton: {
-    padding: 8,
-  },
-  closeButtonText: {
-    fontSize: 18,
   },
   // Time to Beat Section
   timeToBeatCard: {
@@ -1229,10 +1049,10 @@ const styles = StyleSheet.create({
   },
   // New Layout Styles
   tierSelectorRow: {
-    flexDirection: 'column',
+    flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 16,
-    marginTop: 16,
+    marginTop: 80,
     marginBottom: 16,
     gap: 12,
   },
@@ -1300,8 +1120,7 @@ const styles = StyleSheet.create({
   },
   // Preview List (first 5 entries)
   listPreview: {
-    maxHeight: 500,
-    flexGrow: 0,
+    maxHeight: 320,
   },
   // See More Button
   seeMoreButton: {

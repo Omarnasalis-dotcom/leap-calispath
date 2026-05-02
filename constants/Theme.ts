@@ -23,17 +23,17 @@ export interface ThemeColors {
 export const SpartanTheme = {
   dark: {
     background: {
-      primary: '#0F0F0F',
-      secondary: '#000000',
+      primary: '#0A0A0F',
+      secondary: '#12121A',
     },
     card: {
-      background: 'rgba(255, 255, 255, 0.03)',
-      border: 'rgba(205, 127, 50, 0.15)',
+      background: 'rgba(255, 255, 255, 0.04)',
+      border: 'rgba(100, 180, 255, 0.2)',
     },
     text: {
       primary: '#FFFFFF',
-      secondary: 'rgba(255, 255, 255, 0.7)',
-      tertiary: 'rgba(255, 255, 255, 0.4)',
+      secondary: 'rgba(255, 255, 255, 0.65)',
+      tertiary: 'rgba(255, 255, 255, 0.35)',
     },
     accent: '#CD7F32',
     statusBar: 'light-content' as const,

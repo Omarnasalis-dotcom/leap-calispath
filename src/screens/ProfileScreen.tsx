@@ -6,13 +6,25 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
-  Alert,
   ActivityIndicator,
+  Modal,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { TIER_NAMES } from '../types';
-import { formatTime } from '../lib/trials';
+import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
+import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
+
+const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
+  0: { desc: 'Master the basics: Inverted Rows, Squats, Bench Dips, Knee Push-ups', difficulty: 1 },
+  1: { desc: 'Build foundation: Assisted Pull-ups, Push-ups, Lunges, Dips', difficulty: 2 },
+  2: { desc: 'Develop strength: Pull-ups, Push-ups, Squats, Dips with higher volume', difficulty: 3 },
+  3: { desc: 'Intermediate level: Unassisted Pull-ups, Full Push-ups, Jump Squats', difficulty: 4 },
+  4: { desc: 'Advanced strength: Weighted movements, higher rep ranges', difficulty: 5 },
+  5: { desc: 'Elite tier: Complex movements, muscle-ups preparation', difficulty: 6 },
+  6: { desc: 'Platinum-Heart: Full Muscle-ups, advanced calisthenics', difficulty: 7 },
+  7: { desc: 'Diamond-tier: High volume muscle-ups, elite conditioning', difficulty: 8 },
+  8: { desc: 'Titan/Demigod: Maximum strength, endurance mastery', difficulty: 9 },
+};
 import { getTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 
@@ -30,6 +42,8 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
   const [category, setCategory] = useState<'strength' | 'power'>('strength');
   const [isSwitchingWorld, setIsSwitchingWorld] = useState(false);
   const [showLevelReveal, setShowLevelReveal] = useState(false);
+  const [showTierModal, setShowTierModal] = useState(false);
+  const [modalTier, setModalTier] = useState<number | null>(null);
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
 
@@ -65,14 +79,11 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
   }, [selectedTier, user, profile, category]);
 
   async function handleSignOut() {
-    Alert.alert(
-      'Leave the Arena?',
-      'Your progress is saved. Return when ready.',
-      [
-        { text: 'Stay', style: 'cancel' },
-        { text: 'Sign Out', style: 'destructive', onPress: signOut },
-      ]
-    );
+    try {
+      await signOut();
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
   }
 
   if (!profile) return null;
@@ -84,30 +95,36 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
   const activeCurrentTier = category === 'strength' ? currentTier : currentPowerTier;
   const isLocked = selectedTier > activeCurrentTier;
   const isLowerTier = selectedTier < activeCurrentTier;
-  const tierName = TIER_NAMES[selectedTier] || 'Unknown';
+  const tierName = category === 'strength' 
+    ? TIER_NAMES[selectedTier] || 'Unknown'
+    : POWER_TIER_NAMES[selectedTier] || 'Unknown';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <ScrollView>
         <View style={styles.header}>
         {/* User Avatar with Tier Info */}
-        <TouchableOpacity style={styles.avatarSection}>
+        <View style={styles.avatarSection}>
           <View style={styles.avatarWrapper}>
             <View style={[styles.avatarContainer, { borderColor: theme.accent }]}>
               <Text style={[styles.avatarInitial, { color: theme.accent }]}>
                 {profile.display_name ? profile.display_name[0].toUpperCase() : profile.email[0].toUpperCase()}
               </Text>
-              <Text style={[styles.avatarName, { color: theme.accent }]}>
-                {profile.display_name || 'Warrior'}
-              </Text>
             </View>
             
-            {/* Military-style Tier Badges around the border */}
-            {Array.from({ length: activeCurrentTier + 1 }).map((_, i) => {
-              // Calculate position around the circle
-              const totalBadges = activeCurrentTier + 1;
-              const angle = (i * (360 / totalBadges)) - 90; // Start from top
-              const radius = 34; // Slightly larger than avatar radius (30)
+            {/* Tier Orbit Ring */}
+            <View style={[styles.orbitRing, { borderColor: theme.accent }]} />
+            
+            {/* Tier Level Indicator */}
+            <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent }]}>
+              <Text style={styles.tierLevelText}>{activeCurrentTier}</Text>
+            </View>
+            
+            {/* Glowing Tier Dots around the border */}
+            {Array.from({ length: Math.min(activeCurrentTier + 1, 9) }).map((_, i) => {
+              const totalDots = Math.min(activeCurrentTier + 1, 9);
+              const angle = (i * (360 / totalDots)) - 90;
+              const radius = 38;
               const x = radius * Math.cos(angle * (Math.PI / 180));
               const y = radius * Math.sin(angle * (Math.PI / 180));
               
@@ -115,13 +132,13 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
                 <View 
                   key={i} 
                   style={[
-                    styles.militaryBadge, 
+                    styles.avatarTierDot, 
                     { 
                       backgroundColor: theme.accent,
+                      shadowColor: theme.accent,
                       transform: [
                         { translateX: x },
                         { translateY: y },
-                        { rotate: `${angle + 90}deg` } // Point towards/away from center
                       ]
                     }
                   ]}
@@ -129,51 +146,88 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
               );
             })}
           </View>
-          <Text style={[styles.avatarName, { color: theme.text.primary, marginTop: 4 }]}>
-            {profile.display_name || 'Warrior'}
+          
+          {/* Name Frame */}
+          <View style={[styles.nameFrame, { borderColor: theme.accent }]}>
+            <Text style={[styles.avatarNameMain, { color: theme.accent }]}>
+              {profile.display_name?.toUpperCase() || 'WARRIOR'}
+            </Text>
+          </View>
+          
+          <Text style={[styles.avatarTierMain, { color: theme.text.secondary }]}>
+            {TIER_NAMES[activeCurrentTier].toUpperCase()} • TIER {activeCurrentTier}
           </Text>
-          <Text style={[styles.avatarTier, { color: theme.accent }]}>
-            {TIER_NAMES[activeCurrentTier].toUpperCase()} - {category.toUpperCase()} TIER {activeCurrentTier}
-          </Text>
-        </TouchableOpacity>
+        </View>
       </View>
 
-      {/* Category Toggle */}
-      <View style={styles.categoryToggle}>
-        <TouchableOpacity 
-          disabled={isSwitchingWorld}
-          style={[
-            styles.categoryTab, 
-            category === 'strength' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
-          ]}
-          onPress={() => handleCategorySwitch('strength')}
-        >
-          <Text style={[
-            styles.categoryText, 
-            { color: category === 'strength' ? theme.accent : theme.text.tertiary }
-          ]}>STRENGTH</Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity 
-          disabled={!isPowerUnlocked || isSwitchingWorld}
-          style={[
-            styles.categoryTab, 
-            category === 'power' && { borderBottomColor: theme.accent, borderBottomWidth: 2 },
-            !isPowerUnlocked && { opacity: 0.5 }
-          ]}
-          onPress={() => handleCategorySwitch('power')}
-        >
-          <View style={styles.row}>
-            {!isPowerUnlocked && <Text style={{ fontSize: 10, marginRight: 4 }}>🔒</Text>}
+      {/* World Selector - Pill Style */}
+      <View style={styles.worldSelectorContainer}>
+        <View style={[styles.worldSelector, { backgroundColor: theme.background.secondary }]}>
+          {/* Strength World Pill */}
+          <TouchableOpacity 
+            disabled={isSwitchingWorld}
+            style={[
+              styles.worldPill,
+              category === 'strength' && { 
+                backgroundColor: theme.accent,
+                shadowColor: theme.accent,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.4,
+                shadowRadius: 4,
+                elevation: 4,
+              }
+            ]}
+            onPress={() => handleCategorySwitch('strength')}
+          >
             <Text style={[
-              styles.categoryText, 
-              { color: category === 'power' ? theme.accent : theme.text.tertiary }
+              styles.worldIcon,
+              category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
+            ]}>⚔️</Text>
+            <Text style={[
+              styles.worldText,
+              category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
+            ]}>STRENGTH</Text>
+          </TouchableOpacity>
+
+          {/* Power World Pill */}
+          <TouchableOpacity 
+            disabled={!isPowerUnlocked || isSwitchingWorld}
+            style={[
+              styles.worldPill,
+              category === 'power' && { 
+                backgroundColor: theme.accent,
+                shadowColor: theme.accent,
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.4,
+                shadowRadius: 4,
+                elevation: 4,
+              },
+              !isPowerUnlocked && { opacity: 0.4 }
+            ]}
+            onPress={() => handleCategorySwitch('power')}
+          >
+            <Text style={[
+              styles.worldIcon,
+              category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
+            ]}>⚡</Text>
+            <Text style={[
+              styles.worldText,
+              category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
             ]}>POWER</Text>
-          </View>
-          {!isPowerUnlocked && (
-            <Text style={styles.unlockHint}>Reach Platinum-Heart to unlock</Text>
-          )}
-        </TouchableOpacity>
+            {!isPowerUnlocked && (
+              <View style={styles.worldLockBadge}>
+                <Text style={styles.worldLockIcon}>🔒</Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+        
+        {/* Unlock hint below selector */}
+        {!isPowerUnlocked && (
+          <Text style={[styles.worldUnlockHint, { color: theme.text.tertiary }]}>
+            🔒 Reach Platinum-Heart to unlock Power World
+          </Text>
+        )}
       </View>
 
       {/* Tier Selector - Category-specific Tiers */}
@@ -189,14 +243,11 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.tierList}
         >
-          {Object.entries(TIER_NAMES).map(([index, name]) => {
+          {Object.entries(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map(([index, name]) => {
             const tierIndex = parseInt(index);
             const isSelected = selectedTier === tierIndex;
-            const isCurrent = currentTier === tierIndex;
-            const isLockedItem = tierIndex > currentTier;
-            
-            // Only show tiers that are unlocked in the current category
-            if (tierIndex > currentTier) return null;
+            const isCurrent = activeCurrentTier === tierIndex;
+            const isLockedItem = tierIndex > activeCurrentTier;
             
             return (
               <TouchableOpacity
@@ -238,7 +289,13 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
       </View>
 
       {/* Selected Tier Card */}
-      <View style={[styles.rankCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+      <TouchableOpacity 
+        style={[styles.rankCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
+        onPress={() => {
+          setModalTier(selectedTier);
+          setShowTierModal(true);
+        }}
+      >
         <View style={[styles.sealPlaceholder, { 
           borderColor: isLocked ? theme.card.border : theme.accent, 
           backgroundColor: theme.background.secondary 
@@ -258,7 +315,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
              `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
           </Text>
         </View>
-      </View>
+      </TouchableOpacity>
 
       {/* Stats Grid */}
       <View style={styles.statsContainer}>
@@ -278,10 +335,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
             </View>
             <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
               <Text style={[styles.statValue, { color: isLocked ? theme.text.tertiary : theme.text.primary }]}>
-                {isLocked ? '--:--' : (() => {
-                  const bestTime = profile.best_times?.[`tier_${selectedTier}`];
-                  return (bestTime && typeof bestTime === 'number' && bestTime > 0) ? formatTime(bestTime) : '--:--';
-                })()}
+                {isLocked ? '--:--' : (leaderboardBestTime && leaderboardBestTime > 0 ? formatTime(leaderboardBestTime) : '--:--')}
               </Text>
               <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>BEST TIME</Text>
             </View>
@@ -434,43 +488,143 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
           LEAVE THE ARENA
         </Text>
       </TouchableOpacity>
-      </View>
       </ScrollView>
 
-      {/* World Switching Overlay */}
+      {/* Tier Details Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showTierModal}
+        onRequestClose={() => setShowTierModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
+            {/* Modal Header */}
+            <View style={styles.modalHeader}>
+              <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
+                <Text style={[styles.modalTitle, { color: theme.accent }]}>
+                  {modalTier !== null ? TIER_NAMES[modalTier].toUpperCase() : 'TIER'}
+                </Text>
+              </View>
+              <TouchableOpacity 
+                style={styles.closeButton} 
+                onPress={() => setShowTierModal(false)}
+              >
+                <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <Text style={[styles.modalTierLabel, { color: theme.text.secondary }]}>
+              Tier {modalTier}
+            </Text>
+
+            {/* Difficulty Section */}
+            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
+              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
+              <View style={styles.modalDifficultyRow}>
+                <View style={[styles.modalDifficultyBar, { backgroundColor: theme.background.secondary }]}>
+                  <View 
+                    style={[
+                      styles.modalDifficultyFill, 
+                      { 
+                        backgroundColor: theme.accent,
+                        width: modalTier !== null ? `${((TIER_REQUIREMENTS[modalTier]?.difficulty || 1) / 9) * 100}%` : '11%'
+                      }
+                    ]} 
+                  />
+                </View>
+                <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
+                  {modalTier !== null ? TIER_REQUIREMENTS[modalTier]?.difficulty : 1}/9
+                </Text>
+              </View>
+            </View>
+
+            {/* Requirements Section */}
+            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
+              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
+              <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
+                {modalTier !== null ? TIER_REQUIREMENTS[modalTier]?.desc : 'Complete the trial to advance'}
+              </Text>
+            </View>
+
+            {/* Trial Movements Preview */}
+            {modalTier !== null && RITES_OF_PASSAGE[modalTier] && (
+              <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
+                <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
+                <View style={styles.movementsList}>
+                  {RITES_OF_PASSAGE[modalTier].movements.slice(0, 4).map((movement, idx) => (
+                    <View key={idx} style={styles.movementItem}>
+                      <View style={[styles.movementDot, { backgroundColor: theme.accent }]} />
+                      <Text style={[styles.movementText, { color: theme.text.secondary }]}>
+                        {movement.name}: {movement.reps}x
+                      </Text>
+                    </View>
+                  ))}
+                  {RITES_OF_PASSAGE[modalTier].movements.length > 4 && (
+                    <Text style={[styles.moreText, { color: theme.text.tertiary }]}>
+                      +{RITES_OF_PASSAGE[modalTier].movements.length - 4} more...
+                    </Text>
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* LEAP NOW Button - Only show if tier is not locked */}
+            {modalTier !== null && modalTier <= activeCurrentTier && (
+              <TouchableOpacity 
+                style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
+                onPress={() => {
+                  setShowTierModal(false);
+                  if (onStartTrial) {
+                    onStartTrial(modalTier);
+                  }
+                }}
+              >
+                <Text style={styles.modalLeapButtonText}>LEAP NOW</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </View>
+      </Modal>
+
+      {/* World Switching Overlay - Modern Design */}
       {isSwitchingWorld && (
         <View style={[styles.switchingOverlay, { backgroundColor: theme.background.primary }]}>
-          {showLevelReveal ? (
-            <View style={styles.levelReveal}>
-              <Text style={[styles.worldTitle, { color: theme.accent }]}>
-                {category === 'strength' ? 'STRENGTH WORLD' : 'POWER WORLD'}
+          <View style={styles.worldTransition}>
+            {/* From World */}
+            <View style={[styles.worldBlock, { opacity: 0.3 }]}>
+              <Text style={styles.worldBlockIcon}>
+                {category === 'strength' ? '⚔️' : '⚡'}
               </Text>
-              
-              <View style={[styles.levelDisplay, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.levelLabel, { color: theme.text.tertiary }]}>CURRENT LEVEL</Text>
-                <Text style={[styles.levelValue, { color: theme.accent }]}>
-                  {category === 'strength' 
-                    ? `Tier ${profile?.strength_tier || 0} - ${TIER_NAMES[profile?.strength_tier || 0]}`
-                    : `Tier ${profile?.power_tier || 0} - ${TIER_NAMES[profile?.power_tier || 0]}`
-                  }
-                </Text>
-              </View>
+              <Text style={[styles.worldBlockName, { color: theme.text.tertiary }]}>
+                {category === 'strength' ? 'STRENGTH' : 'POWER'}
+              </Text>
+            </View>
 
-              <View style={[styles.transitioningTo, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.transitioningLabel, { color: theme.text.tertiary }]}>TRANSITIONING TO</Text>
-                <Text style={[styles.transitioningValue, { color: theme.accent }]}>
-                  {category === 'strength' ? 'POWER WORLD' : 'STRENGTH WORLD'}
-                </Text>
-              </View>
-            </View>
-          ) : (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={theme.accent} />
-              <Text style={[styles.switchingText, { color: theme.text.secondary }]}>
-                Entering {category === 'strength' ? 'Power' : 'Strength'} World...
+            {/* To World */}
+            <View style={[styles.worldBlock, styles.worldBlockActive]}>
+              <View style={[styles.worldBlockGlow, { shadowColor: theme.accent }]} />
+              <Text style={styles.worldBlockIconLarge}>
+                {category === 'strength' ? '⚡' : '⚔️'}
+              </Text>
+              <Text style={[styles.worldBlockNameLarge, { color: theme.accent }]}>
+                {category === 'strength' ? 'POWER WORLD' : 'STRENGTH WORLD'}
+              </Text>
+              <Text style={[styles.worldBlockSubtitle, { color: theme.text.secondary }]}>
+                Entering...
               </Text>
             </View>
-          )}
+
+            {/* Progress Bar */}
+            <View style={styles.progressContainer}>
+              <View style={[styles.progressBar, { backgroundColor: theme.card.background }]}>
+                <View style={[styles.progressFill, { backgroundColor: theme.accent, width: showLevelReveal ? '60%' : '90%' }]} />
+              </View>
+              <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
+                {showLevelReveal ? 'Preparing transition...' : 'Loading world data...'}
+              </Text>
+            </View>
+          </View>
         </View>
       )}
     </View>
@@ -514,11 +668,41 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1,
   },
-  militaryBadge: {
+  orbitRing: {
     position: 'absolute',
-    width: 8,
-    height: 4,
-    borderRadius: 1,
+    width: 76,
+    height: 76,
+    borderRadius: 38,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    opacity: 0.3,
+  },
+  tierLevelBadge: {
+    position: 'absolute',
+    bottom: -4,
+    right: -4,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+  },
+  tierLevelText: {
+    fontSize: 12,
+    fontWeight: '900',
+    color: '#000',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  avatarTierDot: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 4,
+    elevation: 4,
   },
   avatarInitial: {
     fontSize: 18,
@@ -540,17 +724,24 @@ const styles = StyleSheet.create({
     borderRadius: 3,
     margin: 1,
   },
-  avatarName: {
-    fontSize: 8,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans-Bold',
-    marginTop: 2,
+  nameFrame: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    marginTop: 12,
+    marginBottom: 8,
   },
-  avatarTier: {
-    fontSize: 10,
-    fontWeight: '700',
+  avatarNameMain: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  avatarTierMain: {
+    fontSize: 12,
+    letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-Bold',
-    letterSpacing: 1,
   },
   headerSeal: {
     width: 60,
@@ -810,27 +1001,55 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-Regular',
   },
-  categoryToggle: {
-    flexDirection: 'row',
+  worldSelectorContainer: {
     paddingHorizontal: 16,
-    marginBottom: 16,
-    gap: 16,
-  },
-  categoryTab: {
-    paddingVertical: 8,
+    marginBottom: 20,
     alignItems: 'center',
   },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 2,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
+  worldSelector: {
+    flexDirection: 'row',
+    padding: 4,
+    borderRadius: 28,
+    gap: 4,
   },
-  unlockHint: {
-    fontSize: 8,
-    color: '#888',
-    marginTop: 2,
+  worldPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+    gap: 8,
+    position: 'relative',
+  },
+  worldIcon: {
+    fontSize: 16,
+  },
+  worldText: {
+    fontSize: 11,
+    letterSpacing: 1.5,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  worldLockBadge: {
+    position: 'absolute',
+    top: -4,
+    right: -4,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#000',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: '#333',
+  },
+  worldLockIcon: {
+    fontSize: 10,
+  },
+  worldUnlockHint: {
+    fontSize: 10,
+    marginTop: 8,
     fontFamily: 'PlusJakartaSans-Regular',
+    letterSpacing: 0.5,
   },
   row: {
     flexDirection: 'row',
@@ -922,7 +1141,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Regular',
   },
-  // World Switching Overlay
+  // World Switching Overlay - Modern Design
   switchingOverlay: {
     position: 'absolute',
     top: 0,
@@ -933,64 +1152,196 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     zIndex: 1000,
   },
-  levelReveal: {
+  worldTransition: {
     alignItems: 'center',
+    justifyContent: 'center',
     gap: 24,
+    paddingHorizontal: 32,
   },
-  worldTitle: {
-    fontSize: 32,
-    fontWeight: '900',
-    letterSpacing: 4,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    marginBottom: 16,
-  },
-  levelDisplay: {
-    padding: 24,
-    borderRadius: 16,
-    borderWidth: 2,
+  worldBlock: {
     alignItems: 'center',
-    minWidth: 280,
+    gap: 8,
   },
-  levelLabel: {
-    fontSize: 12,
+  worldBlockActive: {
+    transform: [{ scale: 1.1 }],
+  },
+  worldBlockGlow: {
+    position: 'absolute',
+    width: 120,
+    height: 120,
+    borderRadius: 60,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+    elevation: 10,
+  },
+  worldBlockIcon: {
+    fontSize: 48,
+    opacity: 0.5,
+  },
+  worldBlockIconLarge: {
+    fontSize: 72,
+    marginBottom: 8,
+  },
+  worldBlockName: {
+    fontSize: 14,
     fontWeight: '700',
     letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-Bold',
-    marginBottom: 8,
   },
-  levelValue: {
+  worldBlockNameLarge: {
     fontSize: 20,
     fontWeight: '900',
-    textAlign: 'center',
+    letterSpacing: 3,
     fontFamily: 'PlusJakartaSans-ExtraBold',
+    marginBottom: 4,
   },
-  transitioningTo: {
-    padding: 20,
-    borderRadius: 16,
-    borderWidth: 2,
-    alignItems: 'center',
-    minWidth: 280,
-  },
-  transitioningLabel: {
+  worldBlockSubtitle: {
     fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 2,
-    fontFamily: 'PlusJakartaSans-Bold',
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  progressContainer: {
+    width: '100%',
+    maxWidth: 280,
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 16,
+  },
+  progressBar: {
+    width: '100%',
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 11,
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  // Tier Details Modal
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    borderRadius: 20,
+    padding: 24,
+    width: '100%',
+    maxWidth: 360,
+    borderWidth: 1,
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: 8,
   },
-  transitioningValue: {
-    fontSize: 18,
+  modalTitleFrame: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+  },
+  modalTitle: {
+    fontSize: 16,
     fontWeight: '900',
+    letterSpacing: 3,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  loadingContainer: {
-    alignItems: 'center',
-    gap: 16,
+  closeButton: {
+    padding: 8,
   },
-  switchingText: {
-    fontSize: 16,
+  closeButtonText: {
+    fontSize: 20,
     fontWeight: '700',
+  },
+  modalTierLabel: {
+    fontSize: 14,
+    letterSpacing: 2,
+    marginBottom: 20,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  modalSection: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+  },
+  modalSectionTitle: {
+    fontSize: 10,
+    letterSpacing: 2,
+    marginBottom: 12,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  modalDifficultyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  modalDifficultyBar: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  modalDifficultyFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  modalDifficultyValue: {
+    fontSize: 11,
     letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Bold',
+    width: 30,
+    textAlign: 'right',
+  },
+  modalDesc: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  movementsList: {
+    gap: 8,
+  },
+  movementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  movementDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  movementText: {
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  moreText: {
+    fontSize: 11,
+    fontStyle: 'italic',
+    marginTop: 4,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  modalLeapButton: {
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  modalLeapButtonText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 3,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
 });

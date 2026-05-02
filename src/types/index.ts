@@ -23,25 +23,40 @@ export interface Profile {
   updated_at: string;
 }
 
-export type TierRank = 
-  | 'Iron-Bound'   // Tier 1
-  | 'Steel-Wrought' // Tier 2
-  | 'Bronze-Clad'   // Tier 3
-  | 'Silver-Will'   // Tier 4
-  | 'Gold-Soul'     // Tier 5
+export type TierRank =
+  | 'Helot'          // Tier 0
+  | 'Iron-Bound'     // Tier 1
+  | 'Steel-Wrought'  // Tier 2
+  | 'Bronze-Clad'    // Tier 3
+  | 'Silver-Will'    // Tier 4
+  | 'Gold-Soul'      // Tier 5
   | 'Platinum-Heart' // Tier 6
   | 'Obsidian-Core'  // Tier 7
   | 'Eternity'       // Tier 8
 
 export const TIER_NAMES = [
-  'Iron-Bound',
-  'Steel-Wrought', 
-  'Bronze-Clad',
-  'Silver-Will',
-  'Gold-Soul',
-  'Platinum-Heart',
-  'Obsidian-Core',
-  'Eternity'
+  'Helot',          // Tier 0
+  'Iron-Bound',     // Tier 1
+  'Steel-Wrought',  // Tier 2
+  'Bronze-Clad',    // Tier 3
+  'Silver-Will',    // Tier 4
+  'Gold-Soul',      // Tier 5
+  'Platinum-Heart', // Tier 6
+  'Obsidian-Core',  // Tier 7
+  'Eternity'        // Tier 8
+];
+
+// Power World tier names (different from Strength) - 9 tiers total
+export const POWER_TIER_NAMES = [
+  'Spark',    // Tier 0
+  'Surge',    // Tier 1
+  'Pulse',    // Tier 2
+  'Current',  // Tier 3
+  'Volt',     // Tier 4
+  'Amp',      // Tier 5
+  'Watt',     // Tier 6
+  'Tesla',    // Tier 7
+  'Voltaic'   // Tier 8
 ];
 
 export interface AuthContextType {

@@ -153,6 +153,10 @@ export default function Index() {
             setPracticeTier(tier);
             setTrialMode('practice');
             setShowTrial(true);
+          } else if ((profile?.strength_tier || 0) === 8) {
+            // Eternal mode for Demigod tier (Tier 8)
+            setTrialMode('eternal');
+            setShowTrial(true);
           } else {
             // Progression mode for current tier
             setTrialMode('progression');

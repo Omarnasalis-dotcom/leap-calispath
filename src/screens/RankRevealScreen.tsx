@@ -9,6 +9,18 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES, Profile } from '../types';
 
+const TIER_DESCRIPTIONS: Record<number, { desc: string; difficulty: number }> = {
+  0: { desc: 'The starting point of every warrior', difficulty: 1 },
+  1: { desc: 'Basic strength foundation established', difficulty: 2 },
+  2: { desc: 'Emerging physical capability', difficulty: 3 },
+  3: { desc: 'Solid strength base achieved', difficulty: 4 },
+  4: { desc: 'Intermediate warrior strength', difficulty: 5 },
+  5: { desc: 'Advanced calisthenics mastery', difficulty: 6 },
+  6: { desc: 'Elite strength tier unlocked', difficulty: 7 },
+  7: { desc: 'Exceptional warrior capacity', difficulty: 8 },
+  8: { desc: 'Near-legendary strength attained', difficulty: 9 },
+};
+
 interface RankRevealScreenProps {
   profile: Profile;
   onContinue: () => void;
@@ -48,28 +60,47 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
             { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
           ]}
         >
-          <View style={[styles.seal, { borderColor: theme.accent, backgroundColor: theme.background.secondary }]}>
-            <Text style={[styles.sealText, { color: theme.accent }]}>{tierName[0]}</Text>
+          {/* Temple Icon */}
+          <View style={styles.iconContainer}>
+            <View style={[styles.iconGlow, { shadowColor: theme.accent }]} />
+            <Text style={styles.templeIcon}>🏛️</Text>
           </View>
 
-          <Text style={[styles.helotTitle, { color: theme.accent }]}>HELOT.</Text>
+          {/* Title Frame */}
+          <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
+            <Text style={[styles.welcomeTitle, { color: theme.accent }]}>
+              WELCOME{profile.display_name ? ` ${profile.display_name.toUpperCase()}` : ''}
+            </Text>
+          </View>
 
-          <Text style={[styles.helotPoem, { color: theme.text.secondary }]}>
-            Every Eternity{'\n'}
-            started exactly here.
+          <Text style={[styles.helotRank, { color: theme.text.primary }]}>HELOT</Text>
+          
+          <Text style={[styles.helotDifficulty, { color: theme.text.tertiary }]}>
+            Difficulty: Beginner • Tier 0
           </Text>
 
-          <Text style={[styles.helotPoemSubtle, { color: theme.text.tertiary }]}>
-            The path does not open{'\n'}
-            with victory.{'\n'}
-            It opens with the{'\n'}
-            first step forward.
+          {/* Story Card */}
+          <View style={[styles.storyCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+            <Text style={[styles.storyQuote, { color: theme.text.secondary }]}>
+              "Every Eternity started exactly here."
+            </Text>
+            <View style={[styles.divider, { backgroundColor: theme.accent }]} />
+            <Text style={[styles.storyText, { color: theme.text.tertiary }]}>
+              The path does not open with victory. It opens with the first step forward.
+            </Text>
+          </View>
+
+          {/* CTA */}
+          <Text style={[styles.helotCta, { color: theme.text.secondary }]}>
+            Your first trial awaits.
           </Text>
 
-          <Text style={[styles.helotCta, { color: theme.text.secondary }]}>Your first trial awaits.</Text>
-
-          <TouchableOpacity style={[styles.beginButton, { backgroundColor: theme.accent }]} onPress={onContinue}>
-            <Text style={styles.beginButtonText}>BEGIN THE AGOGE</Text>
+          {/* LEAP NOW Button */}
+          <TouchableOpacity 
+            style={[styles.leapButton, { backgroundColor: theme.accent }]} 
+            onPress={onContinue}
+          >
+            <Text style={styles.leapButtonText}>LEAP NOW</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -84,25 +115,64 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
           { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
         ]}
       >
-        <View style={[styles.seal, { borderColor: theme.accent, backgroundColor: theme.background.secondary }]}>
-          <Text style={[styles.sealText, { color: theme.accent }]}>{tierName[0]}</Text>
+        {/* Rank Seal */}
+        <View style={[styles.rankSeal, { borderColor: theme.accent, backgroundColor: theme.background.secondary }]}>
+          <Text style={[styles.rankSealText, { color: theme.accent }]}>{tierName[0]}</Text>
         </View>
 
-        <View style={styles.rankHeader}>
-          <View style={[styles.rankDot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.rankLabel, { color: theme.text.tertiary }]}>YOUR RANK</Text>
+        {/* Title Frame */}
+        <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
+          <Text style={[styles.rankFrameTitle, { color: theme.accent }]}>RANK ASSIGNED</Text>
         </View>
-        <Text style={[styles.tierName, { color: theme.accent }]}>{tierName.toUpperCase()}</Text>
-        <Text style={[styles.tierNumber, { color: theme.text.secondary }]}>Tier {currentTier}</Text>
 
-        {currentTier >= 6 && category === 'strength' && (
-          <Text style={[styles.strategosHint, { color: theme.accent }]}>
-            The Power World awaits, Platinum-Heart.
+        <Text style={[styles.assignedTier, { color: theme.text.primary }]}>{tierName.toUpperCase()}</Text>
+        <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>Tier {currentTier}</Text>
+
+        {/* Tier Description & Difficulty */}
+        <View style={[styles.tierInfoCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+          <Text style={[styles.tierDesc, { color: theme.text.secondary }]}>
+            {TIER_DESCRIPTIONS[currentTier]?.desc || 'Warrior rank achieved'}
           </Text>
-        )}
+          
+          <View style={styles.difficultyRow}>
+            <Text style={[styles.difficultyLabel, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
+            <View style={[styles.difficultyBar, { backgroundColor: theme.background.secondary }]}>
+              <View 
+                style={[
+                  styles.difficultyFill, 
+                  { 
+                    backgroundColor: theme.accent, 
+                    width: `${(TIER_DESCRIPTIONS[currentTier]?.difficulty || 1) * 11}%` 
+                  }
+                ]} 
+              />
+            </View>
+            <Text style={[styles.difficultyValue, { color: theme.accent }]}>
+              {TIER_DESCRIPTIONS[currentTier]?.difficulty || 1}/9
+            </Text>
+          </View>
+        </View>
 
-        <TouchableOpacity style={[styles.continueButton, { backgroundColor: theme.accent }]} onPress={onContinue}>
-          <Text style={styles.continueButtonText}>CONTINUE</Text>
+        {/* Achievement Card */}
+        <View style={[styles.achievementCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+          <Text style={[styles.achievementText, { color: theme.text.secondary }]}>
+            You have proven your strength. The arena welcomes you.
+          </Text>
+          {currentTier >= 6 && category === 'strength' && (
+            <View style={[styles.bonusBadge, { backgroundColor: theme.accent }]}>
+              <Text style={styles.bonusText}>POWER WORLD UNLOCKED</Text>
+            </View>
+          )}
+        </View>
+
+        {/* LEAP NOW Button */}
+        <TouchableOpacity 
+          style={[styles.leapButton, { backgroundColor: theme.accent }]} 
+          onPress={onContinue}
+        >
+          <Text style={styles.leapButtonText}>
+            {currentTier === 6 && category === 'strength' ? 'LEAP TO POWER WORLD' : 'LEAP NOW'}
+          </Text>
         </TouchableOpacity>
       </Animated.View>
     </View>
@@ -118,103 +188,208 @@ const styles = StyleSheet.create({
   content: {
     alignItems: 'center',
     padding: 24,
+    width: '100%',
   },
-  seal: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    alignItems: 'center',
+  // Icon
+  iconContainer: {
+    width: 100,
+    height: 100,
     justifyContent: 'center',
-    marginBottom: 32,
+    alignItems: 'center',
+    marginBottom: 24,
+    position: 'relative',
   },
-  sealText: {
-    fontSize: 56,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
+  iconGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 25,
+    elevation: 12,
   },
-  helotTitle: {
-    fontSize: 32,
+  templeIcon: {
+    fontSize: 60,
+  },
+  // Title Frame
+  titleFrame: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 10,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+  },
+  welcomeTitle: {
+    fontSize: 18,
     fontWeight: '900',
     letterSpacing: 4,
-    marginBottom: 24,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  helotPoem: {
+  rankFrameTitle: {
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 3,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  // Helot Screen
+  helotRank: {
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: 6,
+    marginBottom: 4,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  helotDifficulty: {
+    fontSize: 11,
+    letterSpacing: 1,
+    marginBottom: 24,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  storyCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 24,
+    width: '100%',
+    maxWidth: 320,
+    marginBottom: 24,
+  },
+  storyQuote: {
     fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
-    marginBottom: 24,
+    fontStyle: 'italic',
+    marginBottom: 16,
     fontFamily: 'PlusJakartaSans-Regular',
   },
-  helotPoemSubtle: {
+  divider: {
+    height: 1,
+    width: 60,
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  storyText: {
     fontSize: 14,
     textAlign: 'center',
     lineHeight: 22,
-    marginBottom: 32,
     fontFamily: 'PlusJakartaSans-Regular',
   },
   helotCta: {
-    fontSize: 16,
-    marginBottom: 32,
+    fontSize: 14,
+    letterSpacing: 1,
+    marginBottom: 24,
     fontFamily: 'PlusJakartaSans-Medium',
   },
-  beginButton: {
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-  },
-  beginButtonText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 3,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  rankHeader: {
-    flexDirection: 'row',
+  // Ranked Screen
+  rankSeal: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 3,
     alignItems: 'center',
-    marginBottom: 12,
+    justifyContent: 'center',
+    marginBottom: 24,
   },
-  rankDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    marginRight: 8,
+  rankSealText: {
+    fontSize: 48,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  rankLabel: {
-    fontSize: 14,
-    letterSpacing: 4,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  tierName: {
-    fontSize: 36,
+  assignedTier: {
+    fontSize: 32,
     fontWeight: '900',
     letterSpacing: 4,
     marginBottom: 8,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  tierNumber: {
+  tierLabel: {
+    fontSize: 16,
+    marginBottom: 16,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  tierInfoCard: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+    width: '100%',
+    maxWidth: 320,
+    marginBottom: 16,
+  },
+  tierDesc: {
+    fontSize: 13,
+    textAlign: 'center',
+    lineHeight: 20,
+    marginBottom: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  difficultyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  difficultyLabel: {
+    fontSize: 9,
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-Bold',
+    width: 55,
+  },
+  difficultyBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    overflow: 'hidden',
+  },
+  difficultyFill: {
+    height: '100%',
+    borderRadius: 2,
+  },
+  difficultyValue: {
+    fontSize: 9,
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-Bold',
+    width: 25,
+    textAlign: 'right',
+  },
+  achievementCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 20,
+    width: '100%',
+    maxWidth: 320,
+    marginBottom: 24,
+    alignItems: 'center',
+  },
+  achievementText: {
+    fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 22,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  bonusBadge: {
+    marginTop: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  bonusText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1,
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  // Common Button
+  leapButton: {
+    borderRadius: 12,
+    paddingVertical: 18,
+    paddingHorizontal: 48,
+    alignSelf: 'center',
+  },
+  leapButtonText: {
     fontSize: 18,
-    marginBottom: 32,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  strategosHint: {
-    fontSize: 14,
-    fontStyle: 'italic',
-    marginBottom: 32,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  continueButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 8,
-  },
-  continueButtonText: {
-    fontSize: 14,
     fontWeight: '900',
     color: '#FFFFFF',
-    letterSpacing: 2,
-    fontFamily: 'PlusJakartaSans-Bold',
+    letterSpacing: 4,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
 });

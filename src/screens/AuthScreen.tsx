@@ -160,13 +160,16 @@ export function AuthScreen() {
             { opacity: fadeAnim }
           ]}
         >
-          <Text style={[styles.title, { color: theme.text.primary }]}>
-            {isSignUp ? 'JOIN THE AGOGE' : 'READY TO LEAP'}
-          </Text>
+          {/* Title Frame */}
+          <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
+            <Text style={[styles.title, { color: theme.accent }]}>
+              {isSignUp ? 'JOIN THE LEAP' : 'READY TO LEAP'}
+            </Text>
+          </View>
           
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
             {isSignUp 
-              ? 'Begin your journey to Spartan strength' 
+              ? 'Begin your Calisthenics journey' 
               : 'Return to your training grounds'
             }
           </Text>
@@ -241,13 +244,20 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
+  titleFrame: {
+    borderWidth: 2,
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    marginBottom: 16,
+    alignSelf: 'center',
+  },
   title: {
-    fontSize: 31,
+    fontSize: 22,
     fontWeight: '900',
-    color: '#CD7F32',
-    letterSpacing: 4,
-    marginBottom: 8,
+    letterSpacing: 3,
     textAlign: 'center',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   subtitle: {
     fontSize: 14,
