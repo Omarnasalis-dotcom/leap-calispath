@@ -16,7 +16,7 @@ export function ThemeToggle({ style }: ThemeToggleProps) {
       activeOpacity={0.7}
     >
       <Text style={[styles.icon, { color: theme.text.primary }]}>
-        {mode === 'dark' ? '🌙' : '☀️'}
+        {mode === 'dark' ? '🔦' : '🕯️'}
       </Text>
     </TouchableOpacity>
   );

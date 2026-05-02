@@ -211,11 +211,11 @@ export function LeaderboardScreen({
       {/* Stats Dashboard - 3 Big Circles - Always Visible */}
       <View style={styles.statsDashboard}>
         {/* Best Time Circle */}
-        <View style={[styles.statCircle, { borderColor: '#64C8FF' }]}>
-          <Text style={[styles.statCircleLabel, { color: '#64C8FF' }]}>
+        <View style={[styles.statCircle, { borderColor: theme.accent, backgroundColor: 'rgba(205, 127, 50, 0.08)' }]}>
+          <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>
             {category === 'power' ? 'BEST SCORE' : 'BEST TIME'}
           </Text>
-          <Text style={[styles.statCircleValue, { color: '#64C8FF' }]}>
+          <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
             {personalBest?.best_time_seconds
               ? (category === 'power' 
                   ? personalBest.best_time_seconds 
@@ -224,32 +224,32 @@ export function LeaderboardScreen({
               : '-'
             }
           </Text>
-          <Text style={[styles.statCircleUnit, { color: '#64C8FF' }]}>
-            {category === 'power' ? 'PTS' : 'MIN'}
+          <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
+            {category === 'power' ? 'PTS' : (personalBest?.best_time_seconds && personalBest.best_time_seconds < 60 ? 'SEC' : 'MIN')}
           </Text>
         </View>
         
         {/* Rank Circle */}
-        <View style={[styles.statCircle, { borderColor: '#64C8FF' }]}>
-          <Text style={[styles.statCircleLabel, { color: '#64C8FF' }]}>YOUR RANK</Text>
-          <Text style={[styles.statCircleValue, { color: '#64C8FF' }]}>
+        <View style={[styles.statCircle, { borderColor: theme.accent, backgroundColor: 'rgba(205, 127, 50, 0.08)', width: 130, height: 130, borderRadius: 65 }]}>
+          <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>YOUR RANK</Text>
+          <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
             #{personalBest?.rank || '-'}
           </Text>
-          <Text style={[styles.statCircleUnit, { color: '#64C8FF' }]}>
+          <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
             OF {entries.length || 0}
           </Text>
         </View>
         
         {/* Gap to Rank Up Circle */}
-        <View style={[styles.statCircle, { borderColor: '#64C8FF' }]}>
-          <Text style={[styles.statCircleLabel, { color: '#64C8FF' }]}>GAP TO RANK UP</Text>
+        <View style={[styles.statCircle, { borderColor: personalBest?.rank === 1 ? '#2ECC71' : '#8B0000', backgroundColor: personalBest?.rank === 1 ? 'rgba(46, 204, 113, 0.08)' : 'rgba(139, 0, 0, 0.08)' }]}>
+          <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>GAP TO RANK UP</Text>
           {!personalBest?.rank ? (
-            <Text style={[styles.statCircleValue, { color: '#64C8FF', fontSize: 14 }]}>COMPLETE TRIAL</Text>
+            <Text style={[styles.statCircleValue, { color: theme.accent, fontSize: 11, textAlign: 'center', lineHeight: 16 }]}>COMPLETE{'\n'}TRIAL</Text>
           ) : personalBest.rank === 1 ? (
-            <Text style={[styles.statCircleValue, { color: '#64C8FF', fontSize: 20 }]}>👑 KING</Text>
+            <Text style={[styles.statCircleValue, { color: '#2ECC71', fontSize: 20 }]}>👑 KING</Text>
           ) : (
             <>
-              <Text style={[styles.statCircleValue, { color: '#64C8FF' }]}>
+              <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
                 {(() => {
                   const userAbove = entries.find(e => e.rank === ((personalBest?.rank ?? 0) - 1));
                   if (!userAbove || !personalBest?.best_time_seconds) return '-';
@@ -262,7 +262,7 @@ export function LeaderboardScreen({
                   }
                 })()}
               </Text>
-              <Text style={[styles.statCircleUnit, { color: '#64C8FF' }]}>
+              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
                 {category === 'power' ? 'PTS NEEDED' : 'TIME TO BEAT'}
               </Text>
             </>
@@ -272,12 +272,28 @@ export function LeaderboardScreen({
 
       {/* Practice/Eternal Buttons */}
       <View style={styles.actionButtons}>
-        {canPractice && category === 'strength' && (
+        {isCurrentTier && category === 'strength' && !isDemigodEternal && (
           <TouchableOpacity
-            style={styles.practiceButton}
+            style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onPracticeTier(selectedTier)}
           >
-            <Text style={styles.practiceButtonText}>PRACTICE THIS TIER</Text>
+            <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>COMPETE THIS TIER</Text>
+          </TouchableOpacity>
+        )}
+        {isCurrentTier && category === 'power' && (
+          <TouchableOpacity
+            style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
+            onPress={() => onPracticeTier(selectedTier)}
+          >
+            <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>COMPETE THIS TIER</Text>
+          </TouchableOpacity>
+        )}
+        {canPractice && category === 'strength' && (
+          <TouchableOpacity
+            style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
+            onPress={() => onPracticeTier(selectedTier)}
+          >
+            <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>PRACTICE THIS TIER</Text>
           </TouchableOpacity>
         )}
         {canPractice && category === 'power' && (
@@ -419,14 +435,14 @@ export function LeaderboardScreen({
                 {/* Time Circles - Side by Side */}
                 <View style={styles.timeCirclesContainer}>
                   {/* Best Time Circle */}
-                  <View style={[styles.timeCircle, { backgroundColor: 'rgba(100, 200, 255, 0.15)', borderColor: '#64C8FF' }]}>
-                    <Text style={[styles.timeCircleValue, { color: '#64C8FF' }]}>
+                  <View style={[styles.timeCircle, { backgroundColor: 'rgba(205, 127, 50, 0.1)', borderColor: theme.accent }]}>
+                    <Text style={[styles.timeCircleValue, { color: theme.accent }]}>
                       {category === 'power' 
                         ? `${entry.best_time_seconds}`
                         : formatLeaderboardTime(entry.best_time_seconds).replace(':', "'") + '"'
                       }
                     </Text>
-                    <Text style={[styles.timeCircleLabel, { color: '#64C8FF' }]}>
+                    <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>
                       {category === 'power' ? 'PTS' : 'TIME'}
                     </Text>
                   </View>
@@ -451,7 +467,7 @@ export function LeaderboardScreen({
           style={styles.seeMoreButton}
           onPress={() => setShowLeaderboardModal(true)}
         >
-          <Text style={styles.seeMoreText}>SEE MORE</Text>
+          <Text style={[styles.seeMoreText, { color: theme.accent }]}>SEE MORE</Text>
         </TouchableOpacity>
       )}
 
@@ -1265,17 +1281,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-around',
     paddingHorizontal: 16,
+    marginTop: 16,
     marginBottom: 16,
-    gap: 12,
+    gap: 8,
   },
   statCircle: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 3,
-    backgroundColor: 'rgba(100, 200, 255, 0.1)',
+    width: 110,
+    height: 110,
+    borderRadius: 55,
+    borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
+    padding: 6,
   },
   statCircleLabel: {
     fontSize: 8,
@@ -1333,7 +1350,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     borderRadius: 20,
-    backgroundColor: 'rgba(100, 200, 255, 0.2)',
+    backgroundColor: 'rgba(205, 127, 50, 0.2)',
     marginTop: 12,
     marginBottom: 8,
   },
@@ -1341,7 +1358,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '700',
     letterSpacing: 1,
-    color: '#64C8FF',
     fontFamily: 'PlusJakartaSans-Bold',
   },
   // Full Leaderboard Modal
