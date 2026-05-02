@@ -97,7 +97,7 @@ export function TrialScreen({
   }, [showDishonor]);
 
   // Determine which tier to use
-  const nextTier = profile ? profile.strength_tier + 1 : 0;
+  const nextTier = profile ? profile.strength_tier : 0;
   const targetTier = mode === 'practice' && practiceTier !== null
     ? practiceTier
     : mode === 'eternal'
@@ -197,7 +197,7 @@ export function TrialScreen({
   async function handleClaimRank() {
     if (!user || !trial || !profile) return;
 
-    const minTime = TIER_MIN_TIMES[trial.tier] ?? 60;
+const minTime = TIER_MIN_TIMES[trial.tier] ?? 60;
     if (timeSeconds < minTime) {
       setShowDishonor(true);
       return;
@@ -229,7 +229,7 @@ export function TrialScreen({
         const { error } = await supabase
           .from('profiles')
           .update({
-            strength_tier: trial.tier,
+            strength_tier: trial.tier + 1,
             best_times: newBestTimes,
             trials_attempted: profile.trials_attempted + 1,
             trials_passed: profile.trials_passed + 1,

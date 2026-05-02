@@ -30,7 +30,7 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 
 interface ProfileScreenProps {
   onStartTrial?: (tier?: number) => void;
-  onViewLeaderboards?: (category: 'strength' | 'power') => void;
+  onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
   onStartPowerAssessment?: () => void;
 }
 
@@ -437,7 +437,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
                 borderColor: theme.text.primary,
               }
             ]} 
-            onPress={() => onViewLeaderboards(category)}
+            onPress={() => onViewLeaderboards(category, selectedTier)}
           >
             <Text style={[styles.actionButtonText, { color: theme.text.primary }]}>VIEW LEADERBOARDS</Text>
             <Text style={[styles.arrow, { color: theme.text.primary }]}>→</Text>

@@ -23,6 +23,7 @@ export default function Index() {
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
+  const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
   
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
@@ -100,6 +101,7 @@ export default function Index() {
     return (
       <SpartanLayout>
         <LeaderboardScreen
+          key={`${leaderboardCategory}-${leaderboardTier}`}
           onClose={() => setShowLeaderboards(false)}
           onPracticeTier={(tier) => {
             setPracticeTier(tier);
@@ -113,6 +115,7 @@ export default function Index() {
             setShowTrial(true);
           }}
           initialCategory={leaderboardCategory}
+          initialTier={leaderboardTier}
         />
       </SpartanLayout>
     );
@@ -163,8 +166,9 @@ export default function Index() {
             setShowTrial(true);
           }
         }}
-        onViewLeaderboards={(category) => {
+        onViewLeaderboards={(category, tier) => {
           setLeaderboardCategory(category);
+          setLeaderboardTier(tier);
           setShowLeaderboards(true);
         }}
         onStartPowerAssessment={() => setShowPowerAssessment(true)}

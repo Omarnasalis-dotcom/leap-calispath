@@ -37,8 +37,9 @@ const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = 
 interface LeaderboardScreenProps {
   onClose: () => void;
   onPracticeTier: (tier: number) => void;
-  onStartEternal: () => void; // For Tier 8 Demigod Eternal
+  onStartEternal: () => void;
   initialCategory?: 'strength' | 'power';
+  initialTier?: number;
 }
 
 export function LeaderboardScreen({
@@ -46,12 +47,14 @@ export function LeaderboardScreen({
   onPracticeTier,
   onStartEternal,
   initialCategory = 'strength',
+  initialTier,
 }: LeaderboardScreenProps) {
   const { profile, user } = useAuth();
   const { theme } = useTheme();
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
   const [selectedTier, setSelectedTier] = useState(
-    initialCategory === 'strength' 
+    initialTier !== undefined ? initialTier :
+    initialCategory === 'strength'
       ? (profile?.strength_tier || 0)
       : (profile?.power_tier || 0)
   );
@@ -149,60 +152,61 @@ export function LeaderboardScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Combined Tier Selector with Tier Name */}
-      <View style={styles.tierSelectorRow}>
-        <ScrollView horizontal style={styles.tierSelector} showsHorizontalScrollIndicator={false}>
-          {unlockedTiers.map((tier) => (
+<ScrollView
+        horizontal
+        style={styles.tierSelector}
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
+      >
+        {(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map((name, tierIndex) => {
+          const isUnlocked = tierIndex <= (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));
+          return (
             <TouchableOpacity
-              key={tier}
+              key={tierIndex}
               style={[
-                styles.tierTab, 
-                { borderColor: theme.card.border },
-                selectedTier === tier && { backgroundColor: 'transparent', borderColor: theme.accent, borderWidth: 2 }
+                styles.tierItem,
+                { backgroundColor: theme.card.background, borderColor: theme.card.border },
+                selectedTier === tierIndex && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
+                !isUnlocked && { opacity: 0.5 }
               ]}
-              onPress={() => setSelectedTier(tier)}
+              onPress={() => setSelectedTier(tierIndex)}
             >
-              <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-                <Text
-                  style={[
-                    styles.tierTabText,
-                    selectedTier === tier && { color: '#FFFFFF' },
-                    { color: theme.text.primary }
-                  ]}
-                >
-                  {tier + 1}
-                </Text>
-                <View style={{ flexDirection: 'row', gap: 2, marginTop: 2 }}>
-                  {Array.from({ length: Math.min(tier + 1, 5) }).map((_, i) => (
-                    <View key={i} style={{ width: 3, height: 3, borderRadius: 2, backgroundColor: theme.accent }} />
-                  ))}
+              <Text style={[
+                styles.tierItemName,
+                { color: theme.text.tertiary },
+                selectedTier === tierIndex && { color: theme.accent }
+              ]}>
+                {name.toUpperCase()}
+              </Text>
+              <Text style={[
+                styles.tierItemNumber,
+                { color: theme.text.tertiary },
+                selectedTier === tierIndex && { color: theme.accent }
+              ]}>
+                Tier {tierIndex}
+              </Text>
+              {!isUnlocked && (
+                <View style={{ position: 'absolute', top: 4, right: 4 }}>
+                  <Text style={{ fontSize: 8 }}>🔒</Text>
                 </View>
-              </View>
+              )}
             </TouchableOpacity>
-          ))}
-          {category === 'strength' && profile?.strength_tier === 8 && (
-            <TouchableOpacity
-              style={[styles.tierTab, selectedTier === 8 && styles.tierTabActive]}
-              onPress={() => setSelectedTier(8)}
-            >
-              <Text style={[styles.tierTabText, selectedTier === 8 && styles.tierTabTextActive]}>D</Text>
-            </TouchableOpacity>
-          )}
-        </ScrollView>
-        
-        {/* Tier Name Frame */}
-        <TouchableOpacity 
-          style={[styles.tierNameFrame, { borderColor: theme.accent }]}
-          onPress={() => {
-            setModalTier(selectedTier);
-            setShowTierModal(true);
-          }}
-        >
-          <Text style={[styles.currentTierName, { color: theme.accent }]}>
-            {getTierName(selectedTier, category).toUpperCase()}
-          </Text>
-        </TouchableOpacity>
-      </View>
+          );
+        })}
+      </ScrollView>
+
+      {/* Tier Name Frame */}
+      <TouchableOpacity
+        style={[styles.tierNameFrame, { borderColor: theme.accent }]}
+        onPress={() => {
+          setModalTier(selectedTier);
+          setShowTierModal(true);
+        }}
+      >
+        <Text style={[styles.currentTierName, { color: theme.accent }]}>
+          {getTierName(selectedTier, category).toUpperCase()}
+        </Text>
+      </TouchableOpacity>
 
       {/* Stats Dashboard - 3 Big Circles - Always Visible */}
       <View style={styles.statsDashboard}>
@@ -657,6 +661,26 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginTop: 80,
     marginBottom: 20,
+  },
+  tierItem: {
+    width: 80,
+    height: 70,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  tierItemName: {
+    fontSize: 9,
+    fontWeight: '700',
+    marginBottom: 4,
+    textAlign: 'center',
+  },
+  tierItemNumber: {
+    fontSize: 10,
+    fontWeight: '700',
   },
   currentTierDisplay: {
     alignItems: 'center',
