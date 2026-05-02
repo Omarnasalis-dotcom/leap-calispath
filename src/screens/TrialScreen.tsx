@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   Alert,
   Animated,
+  Easing,
   Platform,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +16,18 @@ import { supabase } from '../lib/supabase';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
+
+const TIER_MIN_TIMES: Record<number, number> = {
+  0: 72,
+  1: 197,
+  2: 273,
+  3: 300,
+  4: 285,
+  5: 312,
+  6: 338,
+  7: 508,
+  8: 712,
+};
 
 type TrialMode = 'progression' | 'practice' | 'eternal';
 
@@ -40,9 +53,48 @@ export function TrialScreen({
   const [hasStarted, setHasStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
+  const [showDishonor, setShowDishonor] = useState(false);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const lightningAnim = useRef(new Animated.Value(0)).current;
+  const dishonorOpacity = useRef(new Animated.Value(0)).current;
+  const dishonorScale = useRef(new Animated.Value(0.8)).current;
+  const lineWidth = useRef(new Animated.Value(0)).current;
+  const textOpacity = useRef(new Animated.Value(0)).current;
+  const buttonOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (showDishonor) {
+      Animated.sequence([
+        Animated.timing(dishonorOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(dishonorScale, {
+          toValue: 1,
+          duration: 600,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }),
+        Animated.timing(lineWidth, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: false,
+        }),
+        Animated.timing(textOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(buttonOpacity, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [showDishonor]);
 
   // Determine which tier to use
   const nextTier = profile ? profile.strength_tier + 1 : 0;
@@ -145,6 +197,12 @@ export function TrialScreen({
   async function handleClaimRank() {
     if (!user || !trial || !profile) return;
 
+    const minTime = TIER_MIN_TIMES[trial.tier] ?? 60;
+    if (timeSeconds < minTime) {
+      setShowDishonor(true);
+      return;
+    }
+
     setLoading(true);
     setIsRunning(false);
 
@@ -213,6 +271,142 @@ export function TrialScreen({
       <View style={styles.container}>
         <Text style={[styles.loadingText, { color: theme.text.secondary }]}>Loading trial...</Text>
       </View>
+    );
+  }
+
+  if (showDishonor) {
+    return (
+      <Animated.View style={{
+        flex: 1,
+        backgroundColor: '#0A0A0F',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 32,
+        opacity: dishonorOpacity,
+      }}>
+        {/* Background red glow */}
+        <View style={{
+          position: 'absolute',
+          width: 300,
+          height: 300,
+          borderRadius: 150,
+          backgroundColor: 'rgba(139, 0, 0, 0.08)',
+          top: '25%',
+        }} />
+
+        <Animated.View style={{
+          transform: [{ scale: dishonorScale }],
+          alignItems: 'center',
+          width: '100%',
+        }}>
+          {/* Sword Icon with glow */}
+          <View style={{
+            width: 120,
+            height: 120,
+            borderRadius: 60,
+            backgroundColor: 'rgba(139,0,0,0.15)',
+            borderWidth: 1,
+            borderColor: 'rgba(139,0,0,0.3)',
+            justifyContent: 'center',
+            alignItems: 'center',
+            marginBottom: 40,
+            shadowColor: '#8B0000',
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.8,
+            shadowRadius: 20,
+          }}>
+            <Text style={{ fontSize: 56 }}>⚔️</Text>
+          </View>
+
+          {/* Animated top line */}
+          <Animated.View style={{
+            height: 1,
+            backgroundColor: '#8B0000',
+            marginBottom: 20,
+            width: lineWidth.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', '80%'],
+            }),
+          }} />
+
+          {/* Title */}
+          <Text style={{
+            fontSize: 40,
+            fontWeight: '900',
+            color: '#8B0000',
+            letterSpacing: 12,
+            marginBottom: 8,
+            textAlign: 'center',
+          }}>
+            DISHONOR
+          </Text>
+
+          {/* Subtitle */}
+          <Text style={{
+            fontSize: 11,
+            color: 'rgba(139,0,0,0.6)',
+            letterSpacing: 4,
+            marginBottom: 20,
+          }}>
+            TRIAL INVALIDATED
+          </Text>
+
+          {/* Animated bottom line */}
+          <Animated.View style={{
+            height: 1,
+            backgroundColor: '#8B0000',
+            marginBottom: 48,
+            width: lineWidth.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['0%', '80%'],
+            }),
+          }} />
+
+          {/* Message */}
+          <Animated.Text style={{
+            fontSize: 15,
+            color: 'rgba(255,255,255,0.65)',
+            textAlign: 'center',
+            lineHeight: 32,
+            marginBottom: 64,
+            opacity: textOpacity,
+            fontStyle: 'italic',
+          }}>
+            A true warrior earns their rank.{'\n'}
+            Your time defies human limits —{'\n'}
+            this trial has been struck from{'\n'}
+            the records.{'\n\n'}
+            <Text style={{ color: 'rgba(255,255,255,0.9)', fontStyle: 'normal', fontWeight: '700' }}>
+              Train harder. Compete with honor.
+            </Text>
+          </Animated.Text>
+
+          {/* Button */}
+          <Animated.View style={{ width: '100%', opacity: buttonOpacity }}>
+            <TouchableOpacity
+              style={{
+                width: '100%',
+                paddingVertical: 18,
+                borderRadius: 4,
+                borderWidth: 1,
+                borderColor: '#8B0000',
+                backgroundColor: 'rgba(139,0,0,0.1)',
+                alignItems: 'center',
+              }}
+              onPress={onAbandon}
+            >
+              <Text style={{
+                color: '#CC0000',
+                fontWeight: '900',
+                letterSpacing: 4,
+                fontSize: 13,
+              }}>
+                RETURN TO TRAINING
+              </Text>
+            </TouchableOpacity>
+          </Animated.View>
+        </Animated.View>
+      </Animated.View>
     );
   }
 
