@@ -12,6 +12,7 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
+import { POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
 
 const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
@@ -25,27 +26,44 @@ const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = 
   7: { desc: 'Diamond-tier: High volume muscle-ups, elite conditioning', difficulty: 8 },
   8: { desc: 'Titan/Demigod: Maximum strength, endurance mastery', difficulty: 9 },
 };
+
+const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
+  0: { desc: 'Minimum to compete: 0 pts — Entry level power tier.', difficulty: 1 },
+  1: { desc: 'Minimum to compete: 17.5 pts', difficulty: 2 },
+  2: { desc: 'Minimum to compete: 27.5 pts', difficulty: 3 },
+  3: { desc: 'Minimum to compete: 45 pts', difficulty: 4 },
+  4: { desc: 'Minimum to compete: 70 pts', difficulty: 5 },
+  5: { desc: 'Minimum to compete: 100 pts', difficulty: 6 },
+  6: { desc: 'Minimum to compete: 140 pts', difficulty: 7 },
+  7: { desc: 'Minimum to compete: 190 pts', difficulty: 8 },
+  8: { desc: 'Minimum to compete: 290 pts', difficulty: 9 },
+};
+
 import { getTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
+import { isStaticWorldUnlocked } from '../lib/staticLogic';
 
 interface ProfileScreenProps {
   onStartTrial?: (tier?: number) => void;
   onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
+  onViewStaticWorld?: () => void;
   onStartPowerAssessment?: () => void;
+  initialCategory?: 'strength' | 'power';
 }
 
-export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAssessment }: ProfileScreenProps) {
+export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWorld, onStartPowerAssessment, initialCategory = 'strength' }: ProfileScreenProps) {
   const { profile, signOut, user } = useAuth();
   const { theme } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
-  const [category, setCategory] = useState<'strength' | 'power'>('strength');
+  const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
   const [isSwitchingWorld, setIsSwitchingWorld] = useState(false);
   const [showLevelReveal, setShowLevelReveal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
+  const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
 
   const handleCategorySwitch = async (newCategory: 'strength' | 'power') => {
     if (newCategory === category || (newCategory === 'power' && !isPowerUnlocked)) return;
@@ -219,6 +237,27 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
                 <Text style={styles.worldLockIcon}>🔒</Text>
               </View>
             )}
+          </TouchableOpacity>
+
+          {/* Static World Button */}
+          <TouchableOpacity
+            disabled={true}
+            style={[
+              styles.worldPill,
+              { opacity: 0.5 }
+            ]}
+          >
+            <Text style={[
+              styles.worldIcon,
+              { color: theme.text.secondary }
+            ]}>🧊</Text>
+            <Text style={[
+              styles.worldText,
+              { color: theme.text.secondary }
+            ]}>STATIC</Text>
+            <View style={styles.worldLockBadge}>
+              <Text style={styles.worldLockIcon}>🔒</Text>
+            </View>
           </TouchableOpacity>
         </View>
         
@@ -503,7 +542,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
             <View style={styles.modalHeader}>
               <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
                 <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {modalTier !== null ? TIER_NAMES[modalTier].toUpperCase() : 'TIER'}
+                  {modalTier !== null ? (category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]).toUpperCase() : 'TIER'}
                 </Text>
               </View>
               <TouchableOpacity 
@@ -528,13 +567,13 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
                       styles.modalDifficultyFill, 
                       { 
                         backgroundColor: theme.accent,
-                        width: modalTier !== null ? `${((TIER_REQUIREMENTS[modalTier]?.difficulty || 1) / 9) * 100}%` : '11%'
+                        width: modalTier !== null ? `${(((category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty || 1) / 9) * 100}%` : '11%'
                       }
                     ]} 
                   />
                 </View>
                 <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
-                  {modalTier !== null ? TIER_REQUIREMENTS[modalTier]?.difficulty : 1}/9
+                  {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty : 1}/9
                 </Text>
               </View>
             </View>
@@ -543,12 +582,12 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
               <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
               <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {modalTier !== null ? TIER_REQUIREMENTS[modalTier]?.desc : 'Complete the trial to advance'}
+                {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.desc : 'Complete the trial to advance'}
               </Text>
             </View>
 
             {/* Trial Movements Preview */}
-            {modalTier !== null && RITES_OF_PASSAGE[modalTier] && (
+            {category === 'strength' && modalTier !== null && RITES_OF_PASSAGE[modalTier] && (
               <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
                 <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
                 <View style={styles.movementsList}>
@@ -574,9 +613,12 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onStartPowerAs
               <TouchableOpacity 
                 style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
                 onPress={() => {
+                  console.log('LEAP NOW pressed, category:', category);
                   setShowTierModal(false);
-                  if (onStartTrial) {
-                    onStartTrial(modalTier);
+                  if (category === 'power') {
+                    if (onStartPowerAssessment) onStartPowerAssessment();
+                  } else {
+                    if (onStartTrial) onStartTrial(modalTier);
                   }
                 }}
               >

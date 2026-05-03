@@ -61,6 +61,56 @@ export async function getTierLeaderboard(
 }
 
 /**
+ * Get Power tier leaderboard
+ * Rank by total score (highest wins)
+ */
+export async function getPowerTierLeaderboard(
+  tier: number,
+  currentUserId: string
+): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
+  const { data, error } = await supabase
+    .from('power_assessments')
+    .select(`
+      user_id,
+      pullup_1rm,
+      dip_1rm,
+      squat_1rm,
+      muscleup_1rm,
+      power_tier,
+      profiles:user_id (display_name)
+    `)
+    .eq('power_tier', tier)
+    .order('pullup_1rm', { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    console.error('Error fetching power leaderboard:', error);
+    return { entries: [], personalBest: null };
+  }
+
+  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+    user_id: record.user_id,
+    display_name: record.profiles?.display_name || 'Unknown Warrior',
+    tier,
+    best_time_seconds: record.pullup_1rm + record.dip_1rm + record.squat_1rm + (record.muscleup_1rm * 2),
+    rank: index + 1,
+    is_current_user: record.user_id === currentUserId,
+  }));
+
+  const personalEntry = entries.find(e => e.is_current_user);
+  const personalBest: PersonalBest | null = personalEntry
+    ? {
+        tier,
+        best_time_seconds: personalEntry.best_time_seconds,
+        rank: personalEntry.rank,
+        total_attempts: 1,
+      }
+    : null;
+
+  return { entries, personalBest };
+}
+
+/**
  * Get user's personal best times for all tiers they've attempted
  */
 export async function getUserPersonalBests(userId: string): Promise<PersonalBest[]> {
@@ -120,4 +170,99 @@ export function getOrdinalRank(rank: number): string {
   const suffixes = ['th', 'st', 'nd', 'rd'];
   const v = rank % 100;
   return rank + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
+}
+
+export async function getStaticMovementLeaderboard(
+  movementId: string,
+  currentUserId: string
+): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
+  const { data, error } = await supabase
+    .from('static_holds')
+    .select(`
+      user_id,
+      hold_seconds,
+      points,
+      profiles:user_id (display_name)
+    `)
+    .eq('movement_id', movementId)
+    .order('points', { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    console.error('Error fetching static leaderboard:', error);
+    return { entries: [], personalBest: null };
+  }
+
+  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+    user_id: record.user_id,
+    display_name: record.profiles?.display_name || 'Unknown Warrior',
+    tier: 0,
+    best_time_seconds: record.hold_seconds,
+    rank: index + 1,
+    is_current_user: record.user_id === currentUserId,
+  }));
+
+  const personalEntry = entries.find(e => e.is_current_user);
+  const personalBest: PersonalBest | null = personalEntry
+    ? {
+        tier: 0,
+        best_time_seconds: personalEntry.best_time_seconds,
+        rank: personalEntry.rank,
+        total_attempts: 1,
+      }
+    : null;
+
+  return { entries, personalBest };
+}
+
+export async function getStaticLevelLeaderboard(
+  level: 1 | 2 | 3,
+  currentUserId: string,
+  movements: string[]
+): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
+  const { data, error } = await supabase
+    .from('static_holds')
+    .select(`
+      user_id,
+      movement_id,
+      points,
+      profiles:user_id (display_name)
+    `)
+    .in('movement_id', movements);
+
+  if (error || !data) {
+    console.error('Error fetching static level leaderboard:', error);
+    return { entries: [], personalBest: null };
+  }
+
+  const userScores = new Map<string, { total: number; display_name: string }>();
+  for (const record of data) {
+    const existing = userScores.get(record.user_id) || { total: 0, display_name: record.profiles?.display_name || 'Unknown Warrior' };
+    existing.total += record.points;
+    userScores.set(record.user_id, existing);
+  }
+
+  const sorted = Array.from(userScores.entries())
+    .sort((a, b) => b[1].total - a[1].total);
+
+  const entries: LeaderboardEntry[] = sorted.map(([user_id, data], index) => ({
+    user_id,
+    display_name: data.display_name,
+    tier: level,
+    best_time_seconds: data.total,
+    rank: index + 1,
+    is_current_user: user_id === currentUserId,
+  }));
+
+  const personalEntry = entries.find(e => e.is_current_user);
+  const personalBest: PersonalBest | null = personalEntry
+    ? {
+        tier: level,
+        best_time_seconds: personalEntry.best_time_seconds,
+        rank: personalEntry.rank,
+        total_attempts: 1,
+      }
+    : null;
+
+  return { entries, personalBest };
 }

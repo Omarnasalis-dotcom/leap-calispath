@@ -51,3 +51,51 @@ export const TIER_DESCRIPTIONS: Record<number, TierDescription> = {
     description: 'Godlike. The pinnacle of bodyweight strength, often requiring weighted resistance to satisfy trial conditions.'
   }
 };
+
+export const POWER_TIER_DESCRIPTIONS: Record<number, TierDescription> = {
+  0: {
+    name: 'Spark',
+    subtitle: 'The Ignition',
+    description: 'The first surge of power. Learning to move weight, building the foundation of explosive strength.'
+  },
+  1: {
+    name: 'Surge',
+    subtitle: 'The First Push',
+    description: 'Consistent output emerging. Basic weighted movements executed with control and intent.'
+  },
+  2: {
+    name: 'Pulse',
+    subtitle: 'The Rhythm',
+    description: 'Power becomes repeatable. Weighted pull and press movements show real strength development.'
+  },
+  3: {
+    name: 'Current',
+    subtitle: 'The Flow',
+    description: 'Strength flows consistently across all movements. The muscle-up weighted threshold is approaching.'
+  },
+  4: {
+    name: 'Volt',
+    subtitle: 'The Charge',
+    description: 'Weighted muscle-ups entered. A significant milestone — explosive pulling power is now measurable.'
+  },
+  5: {
+    name: 'Amp',
+    subtitle: 'The Force',
+    description: 'High output across all 4 pillars. Weighted muscle-ups becoming a true strength indicator.'
+  },
+  6: {
+    name: 'Watt',
+    subtitle: 'The Power',
+    description: 'Elite level output. Heavy loads across all movements. Few warriors reach this threshold.'
+  },
+  7: {
+    name: 'Tesla',
+    subtitle: 'The Surge Supreme',
+    description: 'Near-maximum human output in weighted calisthenics. A rare combination of strength and control.'
+  },
+  8: {
+    name: 'Voltaic',
+    subtitle: 'Peak Power',
+    description: 'The pinnacle of weighted calisthenics strength. Maximum output across all 4 pillars. Legendary status.'
+  },
+};

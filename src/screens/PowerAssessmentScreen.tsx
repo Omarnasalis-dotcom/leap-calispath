@@ -7,6 +7,7 @@ import {
   TextInput,
   ScrollView,
   Alert,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -40,13 +41,17 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
     setLoading(true);
     
     try {
+      // Only update tier if new tier is higher than current
+      const currentPowerTier = profile?.power_tier ?? 0;
+      const finalTier = Math.max(newTier, currentPowerTier);
+      
       // Update power_pbs and power_points in database
       const { error } = await supabase
         .from('profiles')
         .update({
           power_pbs: inputs,
           power_points: totalScore,
-          power_tier: newTier,
+          power_tier: finalTier,
           power_assessed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -54,10 +59,35 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
 
       if (error) throw error;
       
+      // Only save to leaderboard if score improved
+      const { data: existing } = await supabase
+        .from('power_assessments')
+        .select('pullup_1rm, dip_1rm, squat_1rm, muscleup_1rm')
+        .eq('user_id', user.id)
+        .single();
+
+      const existingScore = existing 
+        ? (existing.pullup_1rm + existing.dip_1rm + existing.squat_1rm + (existing.muscleup_1rm * 2))
+        : 0;
+
+      if (totalScore > existingScore) {
+        await supabase
+          .from('power_assessments')
+          .upsert({
+            user_id: user.id,
+            power_tier: finalTier,
+            pullup_1rm: inputs.pull_up,
+            dip_1rm: inputs.dip,
+            squat_1rm: inputs.squat,
+            muscleup_1rm: inputs.muscle_up,
+            assessed_at: new Date().toISOString(),
+          }, { onConflict: 'user_id' });
+      }
+      
       // Refresh local profile
       await refreshProfile();
       
-      onComplete(newTier);
+      onComplete(finalTier);
     } catch (error) {
       console.error('Error saving power assessment:', error);
       Alert.alert('Error', 'Failed to save your power assessment. Please try again.');
@@ -67,14 +97,20 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   }
 
   function handleAbandon() {
-    Alert.alert(
-      'Abandon Assessment?',
-      'Your progress will not be saved.',
-      [
-        { text: 'Continue', style: 'cancel' },
-        { text: 'Abandon', style: 'destructive', onPress: onAbandon },
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm('Abandon Assessment? Your progress will not be saved.')) {
+        onAbandon();
+      }
+    } else {
+      Alert.alert(
+        'Abandon Assessment?',
+        'Your progress will not be saved.',
+        [
+          { text: 'Continue', style: 'cancel' },
+          { text: 'Abandon', style: 'destructive', onPress: onAbandon },
+        ]
+      );
+    }
   }
 
   return (
@@ -289,7 +325,8 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
   },
   actions: {
-    paddingHorizontal: 24,
+    padding: 24,
     gap: 12,
+    paddingBottom: 60,
   },
 });

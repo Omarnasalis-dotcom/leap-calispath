@@ -11,9 +11,10 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
-import { TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
+import { TIER_DESCRIPTIONS, POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import {
   getTierLeaderboard,
+  getPowerTierLeaderboard,
   LeaderboardEntry,
   PersonalBest,
   formatLeaderboardTime,
@@ -34,10 +35,23 @@ const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = 
   8: { desc: 'Titan/Demigod: Maximum strength, endurance mastery', difficulty: 9 },
 };
 
+const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
+  0: { desc: 'Minimum to compete: 0 pts — Entry level power tier.', difficulty: 1 },
+  1: { desc: 'Minimum to compete: 17.5 pts', difficulty: 2 },
+  2: { desc: 'Minimum to compete: 27.5 pts', difficulty: 3 },
+  3: { desc: 'Minimum to compete: 45 pts', difficulty: 4 },
+  4: { desc: 'Minimum to compete: 70 pts', difficulty: 5 },
+  5: { desc: 'Minimum to compete: 100 pts', difficulty: 6 },
+  6: { desc: 'Minimum to compete: 140 pts', difficulty: 7 },
+  7: { desc: 'Minimum to compete: 190 pts', difficulty: 8 },
+  8: { desc: 'Minimum to compete: 290 pts', difficulty: 9 },
+};
+
 interface LeaderboardScreenProps {
   onClose: () => void;
   onPracticeTier: (tier: number) => void;
   onStartEternal: () => void;
+  onStartPowerAssessment?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
@@ -46,6 +60,7 @@ export function LeaderboardScreen({
   onClose,
   onPracticeTier,
   onStartEternal,
+  onStartPowerAssessment,
   initialCategory = 'strength',
   initialTier,
 }: LeaderboardScreenProps) {
@@ -88,10 +103,10 @@ export function LeaderboardScreen({
 
   async function loadLeaderboard() {
     setLoading(true);
-    const { entries: data, personalBest: pb } = await getTierLeaderboard(
-      selectedTier,
-      user!.id
-    );
+    const result = category === 'power'
+      ? await getPowerTierLeaderboard(selectedTier, user!.id)
+      : await getTierLeaderboard(selectedTier, user!.id);
+    const { entries: data, personalBest: pb } = result;
     setEntries(data);
     setPersonalBest(pb);
     setLoading(false);
@@ -283,7 +298,7 @@ export function LeaderboardScreen({
         {isCurrentTier && category === 'power' && (
           <TouchableOpacity
             style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
-            onPress={() => onPracticeTier(selectedTier)}
+            onPress={() => onStartPowerAssessment ? onStartPowerAssessment() : onPracticeTier(selectedTier)}
           >
             <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>COMPETE THIS TIER</Text>
           </TouchableOpacity>
@@ -299,7 +314,7 @@ export function LeaderboardScreen({
         {canPractice && category === 'power' && (
           <TouchableOpacity
             style={styles.practiceButton}
-            onPress={() => onPracticeTier(selectedTier)}
+            onPress={() => onStartPowerAssessment ? onStartPowerAssessment() : onPracticeTier(selectedTier)}
           >
             <Text style={styles.practiceButtonText}>IMPROVE SCORE</Text>
           </TouchableOpacity>
@@ -574,13 +589,13 @@ export function LeaderboardScreen({
                       styles.modalDifficultyFill,
                       {
                         backgroundColor: theme.accent,
-                        width: `${((TIER_REQUIREMENTS[modalTier]?.difficulty || 1) / 9) * 100}%` 
+                        width: `${(((category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.difficulty || 1) / 9) * 100}%` 
                       }
                     ]}
                   />
                 </View>
                 <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
-                  {TIER_REQUIREMENTS[modalTier]?.difficulty || 1}/9
+                  {(category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.difficulty || 1}/9
                 </Text>
               </View>
             </View>
@@ -589,12 +604,12 @@ export function LeaderboardScreen({
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
               <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
               <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {TIER_REQUIREMENTS[modalTier]?.desc || 'Complete the trial to advance'}
+                {(category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.desc || 'Complete the trial to advance'}
               </Text>
             </View>
 
             {/* Trial Movements Preview */}
-            {RITES_OF_PASSAGE[modalTier] && (
+            {category === 'strength' && RITES_OF_PASSAGE[modalTier] && (
               <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
                 <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
                 <View style={styles.movementsList}>
@@ -620,7 +635,9 @@ export function LeaderboardScreen({
               style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
               onPress={() => {
                 setShowTierModal(false);
-                if (modalTier === 8) {
+                if (category === 'power') {
+                  if (onStartPowerAssessment) onStartPowerAssessment();
+                } else if (modalTier === 8) {
                   onStartEternal();
                 } else {
                   onPracticeTier(modalTier);

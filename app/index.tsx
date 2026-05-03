@@ -11,6 +11,7 @@ import { AssessmentGateScreen } from '../src/screens/AssessmentGateScreen';
 import { TrialScreen } from '../src/screens/TrialScreen';
 import { LeaderboardScreen } from '../src/screens/LeaderboardScreen';
 import { PowerAssessmentScreen } from '../src/screens/PowerAssessmentScreen';
+import { StaticWorldScreen } from '../src/screens/StaticWorldScreen';
 
 // Trial modes
 type TrialMode = 'progression' | 'practice' | 'eternal';
@@ -22,6 +23,7 @@ export default function Index() {
   const [showTrial, setShowTrial] = React.useState(false);
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
+  const [showStaticWorld, setShowStaticWorld] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
   const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
   
@@ -47,9 +49,26 @@ export default function Index() {
         <PowerAssessmentScreen
           onComplete={(newTier) => {
             setShowPowerAssessment(false);
-            setShowRankReveal(true);
+            setLeaderboardCategory('power');
+            setLeaderboardTier(newTier);
+            setShowLeaderboards(true);
           }}
-          onAbandon={() => setShowPowerAssessment(false)}
+          onAbandon={() => {
+            setShowPowerAssessment(false);
+            setLeaderboardCategory('power');
+            setShowLeaderboards(true);
+          }}
+        />
+      </SpartanLayout>
+    );
+  }
+
+  // Static World flow
+  if (showStaticWorld) {
+    return (
+      <SpartanLayout>
+        <StaticWorldScreen
+          onClose={() => setShowStaticWorld(false)}
         />
       </SpartanLayout>
     );
@@ -114,6 +133,10 @@ export default function Index() {
             setShowLeaderboards(false);
             setShowTrial(true);
           }}
+          onStartPowerAssessment={() => {
+            setShowLeaderboards(false);
+            setShowPowerAssessment(true);
+          }}
           initialCategory={leaderboardCategory}
           initialTier={leaderboardTier}
         />
@@ -150,6 +173,7 @@ export default function Index() {
   return (
     <SpartanLayout>
       <ProfileScreen
+        initialCategory={leaderboardCategory}
         onStartTrial={(tier?: number) => {
           if (tier !== undefined && tier < (profile?.strength_tier || 0)) {
             // Practice mode for lower tiers
@@ -171,6 +195,7 @@ export default function Index() {
           setLeaderboardTier(tier);
           setShowLeaderboards(true);
         }}
+        onViewStaticWorld={() => setShowStaticWorld(true)}
         onStartPowerAssessment={() => setShowPowerAssessment(true)}
       />
     </SpartanLayout>

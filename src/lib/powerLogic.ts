@@ -18,14 +18,15 @@ export interface PowerTierRequirement {
 }
 
 export const POWER_TIER_NAMES = [
-  'Iron-Bound',
-  'Steel-Wrought',
-  'Bronze-Clad',
-  'Silver-Will',
-  'Gold-Soul',
-  'Platinum-Heart',
-  'Obsidian-Core',
-  'Eternity'
+  'Spark',
+  'Surge',
+  'Pulse',
+  'Current',
+  'Volt',
+  'Amp',
+  'Watt',
+  'Tesla',
+  'Voltaic'
 ];
 
 export const POWER_TIER_REQUIREMENTS: PowerTierRequirement[] = [
