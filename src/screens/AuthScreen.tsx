@@ -163,9 +163,13 @@ export function AuthScreen() {
           {/* Title Frame */}
           <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
             <Text style={[styles.title, { color: theme.accent }]}>
-              {isSignUp ? 'JOIN THE LEAP' : 'READY TO LEAP'}
+              {isSignUp ? 'JOIN THE ARENA' : 'ENTER THE ARENA'}
             </Text>
           </View>
+
+          <Text style={[styles.tagline, { color: theme.text.tertiary }]}>
+            Track. Compete. Dominate.
+          </Text>
           
           <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
             {isSignUp 
@@ -265,6 +269,12 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textAlign: 'center',
     marginBottom: 24,
+  },
+  tagline: {
+    fontSize: 12,
+    letterSpacing: 3,
+    textAlign: 'center',
+    marginBottom: 32,
   },
   divider: {
     height: 1,

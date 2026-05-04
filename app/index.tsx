@@ -12,6 +12,8 @@ import { TrialScreen } from '../src/screens/TrialScreen';
 import { LeaderboardScreen } from '../src/screens/LeaderboardScreen';
 import { PowerAssessmentScreen } from '../src/screens/PowerAssessmentScreen';
 import { StaticWorldScreen } from '../src/screens/StaticWorldScreen';
+import { OnboardingScreen } from '../src/screens/OnboardingScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Trial modes
 type TrialMode = 'progression' | 'practice' | 'eternal';
@@ -24,14 +26,50 @@ export default function Index() {
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
   const [showStaticWorld, setShowStaticWorld] = React.useState(false);
+  const [showOnboarding, setShowOnboarding] = React.useState(false);
+  const [onboardingChecked, setOnboardingChecked] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
   const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
+
+  // Check onboarding status
+  React.useEffect(() => {
+    async function checkOnboarding() {
+      try {
+        const seen = await AsyncStorage.getItem('onboarding_complete');
+        if (!seen) {
+          setShowOnboarding(true);
+        }
+      } catch (e) {
+        // ignore
+      } finally {
+        setOnboardingChecked(true);
+      }
+    }
+    checkOnboarding();
+  }, []);
   
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
   const [practiceTier, setPracticeTier] = React.useState<number | null>(null);
 
   const { theme } = useTheme();
+
+  // Wait for onboarding check
+  if (!onboardingChecked) return null;
+
+  // Onboarding flow
+  if (showOnboarding) {
+    return (
+      <SpartanLayout>
+        <OnboardingScreen
+          onComplete={async () => {
+            await AsyncStorage.setItem('onboarding_complete', 'true');
+            setShowOnboarding(false);
+          }}
+        />
+      </SpartanLayout>
+    );
+  }
 
   // Not logged in → Auth
   if (!user) {

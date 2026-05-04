@@ -1062,11 +1062,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 6,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 2,
-  },
   modalTierLabel: {
     fontSize: 12,
     letterSpacing: 1,
@@ -1405,10 +1400,6 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-  },
-  closeButtonText: {
-    fontSize: 20,
-    fontWeight: '700',
   },
   fullLeaderboardList: {
     maxHeight: 400,

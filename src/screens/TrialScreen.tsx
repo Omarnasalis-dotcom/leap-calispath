@@ -17,16 +17,17 @@ import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
 
-const TIER_MIN_TIMES: Record<number, number> = {
-  0: 72,
-  1: 197,
-  2: 273,
-  3: 300,
-  4: 285,
-  5: 312,
-  6: 338,
-  7: 508,
-  8: 712,
+// Final Master Integrity Floors for Leap Journey
+const TIER_HARD_FLOORS: Record<number, number> = {
+  0: 42,    // Helot
+  1: 167,   // Skirmisher
+  2: 213,   // Challenger
+  3: 230,   // Conscript
+  4: 255,   // Centurion
+  5: 282,   // Strategos
+  6: 308,   // Archon
+  7: 463,   // Caesar (-45s)
+  8: 667,   // Paragon (-45s)
 };
 
 type TrialMode = 'progression' | 'practice' | 'eternal';
@@ -197,7 +198,8 @@ export function TrialScreen({
   async function handleClaimRank() {
     if (!user || !trial || !profile) return;
 
-const minTime = TIER_MIN_TIMES[trial.tier] ?? 60;
+    // Anti-cheat: enforce minimum integrity floor
+    const minTime = TIER_HARD_FLOORS[trial.tier] ?? 42;
     if (timeSeconds < minTime) {
       setShowDishonor(true);
       return;

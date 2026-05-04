@@ -327,6 +327,25 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
         </ScrollView>
       </View>
 
+      {/* Next Step Banner */}
+      {category === 'strength' && (profile?.strength_tier ?? 0) < 8 && (
+        <TouchableOpacity
+          style={[styles.nextStepBanner, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}
+          onPress={() => onStartTrial && onStartTrial(selectedTier)}
+        >
+          <View style={styles.nextStepContent}>
+            <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
+            <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
+              Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
+            </Text>
+            <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
+              Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
+            </Text>
+          </View>
+          <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
+        </TouchableOpacity>
+      )}
+
       {/* Selected Tier Card */}
       <TouchableOpacity 
         style={[styles.rankCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
@@ -355,6 +374,21 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
           </Text>
         </View>
       </TouchableOpacity>
+
+      {/* Progress Bar */}
+      {category === 'strength' && (
+        <View style={styles.progressContainer}>
+          <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
+            <View style={[styles.progressFill, {
+              backgroundColor: theme.accent,
+              width: `${((profile?.strength_tier ?? 0) / 8) * 100}%` 
+            }]} />
+          </View>
+          <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
+            TIER {profile?.strength_tier ?? 0} OF 8 — {Math.round(((profile?.strength_tier ?? 0) / 8) * 100)}% COMPLETE
+          </Text>
+        </View>
+      )}
 
       {/* Stats Grid */}
       <View style={styles.statsContainer}>
@@ -1386,4 +1420,20 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
+  // Next Step Banner
+  nextStepBanner: {
+    marginHorizontal: 16,
+    marginTop: 16,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  nextStepContent: { flex: 1 },
+  nextStepLabel: { fontSize: 10, letterSpacing: 2, marginBottom: 4 },
+  nextStepTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
+  nextStepSubtitle: { fontSize: 12 },
+  nextStepArrow: { fontSize: 24, fontWeight: '900' },
 });

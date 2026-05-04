@@ -165,6 +165,29 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
           )}
         </View>
 
+        {/* What's Next Section */}
+        <View style={[styles.whatsNextCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+          <Text style={[styles.whatsNextTitle, { color: theme.text.tertiary }]}>WHAT HAPPENS NEXT</Text>
+          {currentTier === 8 ? (
+            <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
+              You have reached the pinnacle. Enter ETERNITY and compete for the top spot.
+            </Text>
+          ) : currentTier >= 6 && category === 'strength' ? (
+            <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
+              Power World is now unlocked. Complete trials to climb higher in Strength, or explore Power World.
+            </Text>
+          ) : (
+            <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
+              Complete the {tierName} trial to advance to the next tier. Your time will be recorded on the leaderboard.
+            </Text>
+          )}
+          <View style={styles.whatsNextSteps}>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>① Start your trial</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>② Beat the clock</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>③ Claim your rank</Text>
+          </View>
+        </View>
+
         {/* LEAP NOW Button */}
         <TouchableOpacity 
           style={[styles.leapButton, { backgroundColor: theme.accent }]} 
@@ -391,5 +414,30 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 4,
     fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  // What's Next
+  whatsNextCard: {
+    width: '100%',
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 16,
+  },
+  whatsNextTitle: {
+    fontSize: 10,
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  whatsNextBody: {
+    fontSize: 13,
+    lineHeight: 20,
+    marginBottom: 12,
+  },
+  whatsNextSteps: {
+    gap: 6,
+  },
+  whatsNextStep: {
+    fontSize: 13,
+    fontWeight: '700',
   },
 });
