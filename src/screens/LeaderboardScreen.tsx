@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -79,6 +79,8 @@ export function LeaderboardScreen({
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState(0);
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const cacheRef = useRef<{ data: any; timestamp: number } | null>(null);
+  const CACHE_DURATION = 60000; // 60 seconds
 
   // Safe tier name accessor with bounds checking
   const getTierName = (tier: number, cat: 'strength' | 'power') => {
@@ -96,21 +98,39 @@ export function LeaderboardScreen({
   );
 
   useEffect(() => {
-    if (user) {
-      loadLeaderboard();
+    if (!user) return;
+    const now = Date.now();
+    const cacheKey = `${category}-${selectedTier}`;
+    if (
+      cacheRef.current &&
+      cacheRef.current.data?.key === cacheKey &&
+      now - cacheRef.current.timestamp < CACHE_DURATION
+    ) {
+      setEntries(cacheRef.current.data.entries);
+      setPersonalBest(cacheRef.current.data.personalBest);
+      setLoading(false);
+      return;
     }
-  }, [selectedTier, user]);
-
-  async function loadLeaderboard() {
     setLoading(true);
-    const result = category === 'power'
-      ? await getPowerTierLeaderboard(selectedTier, user!.id)
-      : await getTierLeaderboard(selectedTier, user!.id);
-    const { entries: data, personalBest: pb } = result;
-    setEntries(data);
-    setPersonalBest(pb);
-    setLoading(false);
-  }
+    const fetchData = async () => {
+      try {
+        const result = category === 'power'
+          ? await getPowerTierLeaderboard(selectedTier, user.id)
+          : await getTierLeaderboard(selectedTier, user.id);
+        setEntries(result.entries);
+        setPersonalBest(result.personalBest);
+        cacheRef.current = {
+          data: { key: cacheKey, entries: result.entries, personalBest: result.personalBest },
+          timestamp: now,
+        };
+      } catch (error) {
+        console.error('Error fetching leaderboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [selectedTier, category, user]);
 
   const isDemigodEternal = selectedTier === 8 && category === 'strength';
   const canPractice = selectedTier < (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));

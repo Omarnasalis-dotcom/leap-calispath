@@ -17,17 +17,16 @@ import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
 
-// Final Master Integrity Floors for Leap Journey
 const TIER_HARD_FLOORS: Record<number, number> = {
-  0: 42,    // Helot
-  1: 167,   // Skirmisher
-  2: 213,   // Challenger
-  3: 230,   // Conscript
-  4: 255,   // Centurion
-  5: 282,   // Strategos
-  6: 308,   // Archon
-  7: 463,   // Caesar (-45s)
-  8: 667,   // Paragon (-45s)
+  0: 25,
+  1: 90,
+  2: 150,
+  3: 180,
+  4: 200,
+  5: 220,
+  6: 250,
+  7: 360,
+  8: 480,
 };
 
 type TrialMode = 'progression' | 'practice' | 'eternal';
@@ -63,6 +62,7 @@ export function TrialScreen({
   const lineWidth = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
+  const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (showDishonor) {
@@ -118,11 +118,28 @@ export function TrialScreen({
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isRunning) {
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now() - (timeSeconds * 1000);
+      }
       interval = setInterval(() => {
-        setTimeSeconds((s) => s + 1);
-      }, 1000);
+        if (startTimeRef.current !== null) {
+          setTimeSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        }
+      }, 500);
     }
     return () => clearInterval(interval);
+  }, [isRunning]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && isRunning && startTimeRef.current !== null) {
+          setTimeSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
   }, [isRunning]);
 
   useEffect(() => {
@@ -241,6 +258,23 @@ export function TrialScreen({
 
         if (error) throw error;
         await refreshProfile();
+
+        // Verify tier was updated correctly
+        const { data: updatedProfile } = await supabase
+          .from('profiles')
+          .select('strength_tier')
+          .eq('id', user.id)
+          .single();
+
+        // If tier still not updated, force update
+        if (updatedProfile && updatedProfile.strength_tier < trial.tier + 1) {
+          await supabase
+            .from('profiles')
+            .update({ strength_tier: trial.tier + 1 })
+            .eq('id', user.id);
+          await refreshProfile();
+        }
+
         setShowVictory(true);
       } else {
         // Practice/Eternal: just update best time and attempt count
@@ -370,7 +404,7 @@ export function TrialScreen({
             color: 'rgba(255,255,255,0.65)',
             textAlign: 'center',
             lineHeight: 32,
-            marginBottom: 64,
+            marginBottom: 40,
             opacity: textOpacity,
             fontStyle: 'italic',
           }}>
@@ -382,6 +416,17 @@ export function TrialScreen({
               Train harder. Compete with honor.
             </Text>
           </Animated.Text>
+
+          {/* Minimum Time Info */}
+          <Text style={{
+            fontSize: 12,
+            color: 'rgba(255,255,255,0.4)',
+            textAlign: 'center',
+            marginBottom: 40,
+            letterSpacing: 1,
+          }}>
+            Minimum time for this tier: {Math.floor((TIER_HARD_FLOORS[trial?.tier ?? 0] ?? 42) / 60)}m {(TIER_HARD_FLOORS[trial?.tier ?? 0] ?? 42) % 60}s
+          </Text>
 
           {/* Button */}
           <Animated.View style={{ width: '100%', opacity: buttonOpacity }}>
@@ -446,24 +491,15 @@ export function TrialScreen({
           styles.lightningFrame,
           {
             transform: [{ scale: pulseAnim }],
-            opacity: isRunning ? 1 : 0,
+            opacity: hasStarted ? 1 : 0,
           }
         ]} />
         <Animated.View style={[styles.timerContainer, { transform: [{ scale: pulseAnim }] }]}>
           <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
           <Text style={[styles.timerLabel, { color: theme.text.secondary }]}>
-            {isRunning ? 'RUNNING' : hasStarted ? 'PAUSED' : 'READY'}
+              {hasStarted ? 'RUNNING' : 'READY'}
           </Text>
         </Animated.View>
-      </View>
-
-      {/* START button between timer and workout table */}
-      <View style={styles.startButtonContainer}>
-        <Button
-          title={isRunning ? 'PAUSE' : hasStarted ? 'RESUME' : 'START'}
-          onPress={() => setIsRunning(!isRunning)}
-          variant={isRunning ? 'secondary' : 'primary'}
-        />
       </View>
 
       <View style={[styles.card, { 
