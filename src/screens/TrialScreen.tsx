@@ -16,6 +16,8 @@ import { supabase } from '../lib/supabase';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
+import { TrialService } from '../services/TrialService';
+import { useTimer } from '../hooks/useTimer';
 
 const TIER_HARD_FLOORS: Record<number, number> = {
   0: 25,
@@ -47,8 +49,6 @@ export function TrialScreen({
   const { user, profile, refreshProfile } = useAuth();
   const { theme } = useTheme();
   const [trial, setTrial] = useState<Trial | null>(null);
-  const [isRunning, setIsRunning] = useState(false);
-  const [timeSeconds, setTimeSeconds] = useState(0);
   const [completedMovements, setCompletedMovements] = useState<boolean[]>([]);
   const [hasStarted, setHasStarted] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -62,37 +62,17 @@ export function TrialScreen({
   const lineWidth = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
-  const startTimeRef = useRef<number | null>(null);
+
+  const { seconds: timeSeconds, isRunning, start: startTimer, stop: stopTimer } = useTimer();
 
   useEffect(() => {
     if (showDishonor) {
       Animated.sequence([
-        Animated.timing(dishonorOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(dishonorScale, {
-          toValue: 1,
-          duration: 600,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }),
-        Animated.timing(lineWidth, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: false,
-        }),
-        Animated.timing(textOpacity, {
-          toValue: 1,
-          duration: 800,
-          useNativeDriver: true,
-        }),
-        Animated.timing(buttonOpacity, {
-          toValue: 1,
-          duration: 600,
-          useNativeDriver: true,
-        }),
+        Animated.timing(dishonorOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(dishonorScale, { toValue: 1, duration: 600, easing: Easing.out(Easing.cubic), useNativeDriver: true }),
+        Animated.timing(lineWidth, { toValue: 1, duration: 800, useNativeDriver: false }),
+        Animated.timing(textOpacity, { toValue: 1, duration: 800, useNativeDriver: true }),
+        Animated.timing(buttonOpacity, { toValue: 1, duration: 600, useNativeDriver: true }),
       ]).start();
     }
   }, [showDishonor]);
@@ -102,8 +82,8 @@ export function TrialScreen({
   const targetTier = mode === 'practice' && practiceTier !== null
     ? practiceTier
     : mode === 'eternal'
-    ? 8 // Demigod Eternal
-    : nextTier;
+      ? 8 // Demigod Eternal
+      : nextTier;
 
   useEffect(() => {
     if (profile) {
@@ -114,33 +94,6 @@ export function TrialScreen({
       }
     }
   }, [profile, targetTier]);
-
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isRunning) {
-      if (startTimeRef.current === null) {
-        startTimeRef.current = Date.now() - (timeSeconds * 1000);
-      }
-      interval = setInterval(() => {
-        if (startTimeRef.current !== null) {
-          setTimeSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
-        }
-      }, 500);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning]);
-
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && isRunning && startTimeRef.current !== null) {
-          setTimeSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
-        }
-      };
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-    }
-  }, [isRunning]);
 
   useEffect(() => {
     if (isRunning) {
@@ -167,7 +120,7 @@ export function TrialScreen({
     if (!hasStarted) {
       setHasStarted(true);
       if (!isRunning) {
-        setIsRunning(true);
+        startTimer();
       }
     }
 
@@ -180,19 +133,13 @@ export function TrialScreen({
 
   async function doAbandon() {
     if (user && trial) {
-      await supabase.from('trial_history').insert({
-        user_id: user.id,
-        tier_attempted: trial.tier,
-        completed: false,
-        time_seconds: timeSeconds,
-      });
+      await TrialService.logAbandon(user.id, trial.tier, timeSeconds);
     }
     onAbandon();
   }
 
   function handleAbandon() {
     if (Platform.OS === 'web') {
-      // Web fallback - use confirm
       if (window.confirm('Abandon Trial? This attempt will be logged as incomplete. Your rank will not change.')) {
         doAbandon();
       }
@@ -202,11 +149,7 @@ export function TrialScreen({
         'This attempt will be logged as incomplete. Your rank will not change.',
         [
           { text: 'Continue Trial', style: 'cancel' },
-          {
-            text: 'Abandon',
-            style: 'destructive',
-            onPress: doAbandon,
-          },
+          { text: 'Abandon', style: 'destructive', onPress: doAbandon },
         ]
       );
     }
@@ -215,81 +158,27 @@ export function TrialScreen({
   async function handleClaimRank() {
     if (!user || !trial || !profile) return;
 
-    // Anti-cheat: enforce minimum integrity floor
-    const minTime = TIER_HARD_FLOORS[trial.tier] ?? 42;
-    if (timeSeconds < minTime) {
+    if (!TrialService.isTimeValid(trial.tier, timeSeconds)) {
       setShowDishonor(true);
       return;
     }
 
     setLoading(true);
-    setIsRunning(false);
+    stopTimer();
 
     try {
-      // Save trial history
-      await supabase.from('trial_history').insert({
-        user_id: user.id,
-        tier_attempted: trial.tier,
-        completed: true,
-        time_seconds: timeSeconds,
+      await TrialService.submitResult({
+        userId: user.id,
+        tier: trial.tier,
+        timeSeconds,
+        isProgression: mode === 'progression',
       });
 
-      // Update profile based on mode
-      const newBestTimes = {
-        ...profile.best_times,
-        [trial.tier]: Math.min(
-          timeSeconds,
-          profile.best_times[trial.tier] || Infinity
-        ),
-      };
+      await refreshProfile();
 
       if (mode === 'progression') {
-        // Progression: claim new rank
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            strength_tier: trial.tier + 1,
-            best_times: newBestTimes,
-            trials_attempted: profile.trials_attempted + 1,
-            trials_passed: profile.trials_passed + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
-
-        if (error) throw error;
-        await refreshProfile();
-
-        // Verify tier was updated correctly
-        const { data: updatedProfile } = await supabase
-          .from('profiles')
-          .select('strength_tier')
-          .eq('id', user.id)
-          .single();
-
-        // If tier still not updated, force update
-        if (updatedProfile && updatedProfile.strength_tier < trial.tier + 1) {
-          await supabase
-            .from('profiles')
-            .update({ strength_tier: trial.tier + 1 })
-            .eq('id', user.id);
-          await refreshProfile();
-        }
-
         setShowVictory(true);
       } else {
-        // Practice/Eternal: just update best time and attempt count
-        const { error } = await supabase
-          .from('profiles')
-          .update({
-            best_times: newBestTimes,
-            trials_attempted: profile.trials_attempted + 1,
-            updated_at: new Date().toISOString(),
-          })
-          .eq('id', user.id);
-
-        if (error) throw error;
-        await refreshProfile();
-        // For practice/eternal, just complete without victory screen
         onComplete();
       }
     } catch (error: any) {
@@ -472,13 +361,13 @@ export function TrialScreen({
       <View style={styles.header}>
         <Text style={[styles.trialName, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
         {mode === 'practice' && (
-          <Text style={[styles.modeBadge, { 
+          <Text style={[styles.modeBadge, {
             backgroundColor: 'rgba(205,127,50,0.2)',
-            color: theme.accent 
+            color: theme.accent
           }]}>PRACTICE MODE</Text>
         )}
         {mode === 'eternal' && (
-          <Text style={[styles.eternalBadge, { 
+          <Text style={[styles.eternalBadge, {
             backgroundColor: '#8B0000',
             color: '#FFFFFF'
           }]}>ETERNAL</Text>
@@ -497,14 +386,14 @@ export function TrialScreen({
         <Animated.View style={[styles.timerContainer, { transform: [{ scale: pulseAnim }] }]}>
           <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
           <Text style={[styles.timerLabel, { color: theme.text.secondary }]}>
-              {hasStarted ? 'RUNNING' : 'READY'}
+            {hasStarted ? 'RUNNING' : 'READY'}
           </Text>
         </Animated.View>
       </View>
 
-      <View style={[styles.card, { 
-        backgroundColor: theme.card.background, 
-        borderColor: theme.card.border 
+      <View style={[styles.card, {
+        backgroundColor: theme.card.background,
+        borderColor: theme.card.border
       }]}>
         <Text style={[styles.sectionTitle, { color: theme.accent }]}>MOVEMENTS</Text>
         {trial.movements.map((movement, index) => (
@@ -516,7 +405,7 @@ export function TrialScreen({
             ]}
             onPress={() => toggleMovement(index)}
           >
-            <View style={[styles.checkbox, { 
+            <View style={[styles.checkbox, {
               borderColor: theme.card.border,
               backgroundColor: completedMovements[index] ? theme.accent : 'transparent'
             }]}>

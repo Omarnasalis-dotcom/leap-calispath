@@ -1,0 +1,89 @@
+import { useState, useEffect, useRef } from 'react';
+import { Platform } from 'react-native';
+
+export interface UseTimerResult {
+  seconds: number;
+  isRunning: boolean;
+  start: () => void;
+  stop: () => void;
+  reset: () => void;
+  setSeconds: (s: number) => void;
+}
+
+export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up'): UseTimerResult {
+  const [seconds, setSeconds] = useState(initialSeconds);
+  const [isRunning, setIsRunning] = useState(false);
+  const startTimeRef = useRef<number | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+
+  const start = () => {
+    if (isRunning) return;
+    setIsRunning(true);
+    // If we're resuming, we need to adjust the start time
+    if (mode === 'up') {
+      startTimeRef.current = Date.now() - (seconds * 1000);
+    } else {
+      // For countdown, we track how many seconds have *already* elapsed
+      const elapsed = initialSeconds - seconds;
+      startTimeRef.current = Date.now() - (elapsed * 1000);
+    }
+  };
+
+  const stop = () => {
+    setIsRunning(false);
+    if (intervalRef.current) clearInterval(intervalRef.current);
+    intervalRef.current = null;
+  };
+
+  const reset = () => {
+    stop();
+    setSeconds(initialSeconds);
+    startTimeRef.current = null;
+  };
+
+  useEffect(() => {
+    if (isRunning) {
+      intervalRef.current = setInterval(() => {
+        if (startTimeRef.current !== null) {
+          const delta = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          if (mode === 'up') {
+            setSeconds(delta);
+          } else {
+            const remaining = initialSeconds - delta;
+            if (remaining <= 0) {
+              setSeconds(0);
+              stop();
+            } else {
+              setSeconds(remaining);
+            }
+          }
+        }
+      }, 500);
+    }
+    return () => {
+      if (intervalRef.current) clearInterval(intervalRef.current);
+    };
+  }, [isRunning, mode, initialSeconds]);
+
+  // Handle visibility changes for web/mobile backgrounding
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      const handleVisibilityChange = () => {
+        if (document.visibilityState === 'visible' && isRunning && startTimeRef.current !== null) {
+          const delta = Math.floor((Date.now() - startTimeRef.current) / 1000);
+          if (mode === 'up') {
+            setSeconds(delta);
+          } else {
+            const remaining = initialSeconds - delta;
+            setSeconds(remaining > 0 ? remaining : 0);
+            if (remaining <= 0) stop();
+          }
+        }
+      };
+      document.addEventListener('visibilitychange', handleVisibilityChange);
+      return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    }
+  }, [isRunning, mode, initialSeconds]);
+
+  return { seconds, isRunning, start, stop, reset, setSeconds };
+}

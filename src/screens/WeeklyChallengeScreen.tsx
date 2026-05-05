@@ -6,11 +6,36 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  WeeklyChallenge, WeeklyEntry, GROUP_NAMES, getUserGroup,
-  getActiveChallenge, getChallengeLeaderboard, submitChallengeScore,
-  createChallenge, deleteChallenge, getCurrentWeekStart, getAllActiveChallengesForWeek, ChallengeMovement, MOVEMENT_POINTS
-} from '../lib/weeklyChallenge';
+import { 
+  ChallengeService, 
+  WeeklyChallenge, 
+  ChallengeMovement 
+} from '../services/ChallengeService';
+import { useTimer } from '../hooks/useTimer';
+import { getOrdinalRank } from '../lib/leaderboard';
+import { MOVEMENT_POINTS } from '../lib/weeklyChallenge';
+
+// Local types for UI
+interface WeeklyEntry {
+  id: string;
+  user_id: string;
+  display_name: string;
+  score: number;
+  rank: number;
+  is_current_user: boolean;
+}
+
+const GROUP_NAMES: Record<number, { name: string; tiers: string }> = {
+  1: { name: 'NOVICES', tiers: '0-2' },
+  2: { name: 'WARRIORS', tiers: '3-5' },
+  3: { name: 'LEGENDS', tiers: '6-8' },
+};
+
+function getUserGroup(tier: number): 1 | 2 | 3 {
+  if (tier < 3) return 1;
+  if (tier < 6) return 2;
+  return 3;
+}
 
 interface WeeklyChallengeScreenProps {
   onClose: () => void;
@@ -22,15 +47,21 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const [challenge, setChallenge] = useState<WeeklyChallenge | null>(null);
   const [entries, setEntries] = useState<WeeklyEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedWeekStart, setSelectedWeekStart] = useState(getCurrentWeekStart());
+  const [selectedWeekStart, setSelectedWeekStart] = useState(ChallengeService.getCurrentWeekStart());
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
-  const [timerSeconds, setTimerSeconds] = useState(0);
-  const [timerRunning, setTimerRunning] = useState(false);
+  const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
+  const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
+  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
+
+  // Sync timer when challenge loads
+  useEffect(() => {
+    if (challenge && !timerRunning) {
+      setTimerSeconds(timerInitial);
+    }
+  }, [challenge, timerInitial]);
   const [manualScore, setManualScore] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const startTimeRef = useRef<number | null>(null);
-  const intervalRef = useRef<any>(null);
   // Reps-based challenge state
   const [roundsCompleted, setRoundsCompleted] = useState('');
   const [additionalReps, setAdditionalReps] = useState<Record<number, string>>({});
@@ -58,59 +89,55 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   }, []);
 
   useEffect(() => {
-    if (timerRunning) {
-      if (startTimeRef.current === null) {
-        startTimeRef.current = Date.now();
-      }
-      intervalRef.current = setInterval(() => {
-        if (startTimeRef.current !== null) {
-          if (challenge?.scoring_type === 'reps' && challenge.time_limit) {
-            // Countdown timer for reps-based challenges
-            const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-            const remaining = (challenge.time_limit * 60) - elapsed;
-            setTimerSeconds(remaining);
-            if (remaining <= 0) {
-              setTimerRunning(false);
-              setTimerSeconds(0);
-            }
-          } else {
-            // Stopwatch for time-based challenges
-            setTimerSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
-          }
-        }
-      }, 500);
-    } else {
-      clearInterval(intervalRef.current);
+    if (challenge?.scoring_type === 'reps' && challenge.time_limit && timerRunning && timerSeconds <= 0) {
+      stopTimer();
     }
-    return () => clearInterval(intervalRef.current);
-  }, [timerRunning, challenge]);
+  }, [timerRunning, timerSeconds, challenge]);
 
   async function loadChallenge() {
     setLoading(true);
     try {
       const targetGroup = isAdmin ? adminGroupView : userGroup;
-      const c = await supabase
-        .from('weekly_challenges')
-        .select('*')
-        .eq('group_id', targetGroup)
-        .eq('week_start', selectedWeekStart)
-        .maybeSingle();
+      const activeChallenge = await ChallengeService.getActive(targetGroup, selectedWeekStart);
+      
+      setChallenge(activeChallenge);
+      
+      if (activeChallenge) {
+        // Fetch leaderboard directly for now
+        const { data: entriesData, error } = await supabase
+          .from('weekly_entries')
+          .select('*, profiles!user_id (display_name)')
+          .eq('challenge_id', activeChallenge.id)
+          .order('score', { ascending: activeChallenge.scoring_type === 'time' })
+          .order('submitted_at', { ascending: true });
+        
+        if (error) throw error;
+        
+        const mappedEntries: WeeklyEntry[] = (entriesData || []).map((e, idx) => ({
+          id: e.id,
+          user_id: e.user_id,
+          display_name: e.profiles?.display_name || 'Unknown',
+          score: e.score,
+          rank: idx + 1,
+          is_current_user: e.user_id === user?.id
+        }));
+        
+        setEntries(mappedEntries);
 
-      setChallenge(c.data);
-      if (isAdmin) {
-        const all = await getAllActiveChallengesForWeek();
-        setAllChallenges(all);
-      }
-      if (c.data && user) {
-        const e = await getChallengeLeaderboard(c.data.id, user.id, c.data.scoring_type);
-        setEntries(e);
         // Initialize countdown timer for reps-based challenges
-        if (c.data.scoring_type === 'reps' && c.data.time_limit) {
-          setTimerSeconds(c.data.time_limit * 60);
+        if (activeChallenge.scoring_type === 'reps' && activeChallenge.time_limit) {
+          setTimerSeconds(activeChallenge.time_limit * 60);
         }
       } else {
         setEntries([]);
       }
+
+      if (isAdmin) {
+        const all = await ChallengeService.getAllActiveForWeek(selectedWeekStart);
+        setAllChallenges(all);
+      }
+    } catch (error) {
+      console.error('Error loading challenge:', error);
     } finally {
       setLoading(false);
     }
@@ -135,28 +162,13 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     return calculatePointsFrom(roundsCompleted, additionalReps);
   }
 
-  async function handleSubmit(score: number) {
-    if (selectedWeekStart !== getCurrentWeekStart()) {
+  async function handleSubmit(finalScore: number) {
+    if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
       alert("This challenge has ended. You cannot submit scores for previous weeks.");
       return;
     }
     
-    let finalScore = score;
-    
-    // If we're in Time mode and the timer is running or was recently stopped,
-    // calculate the most accurate time directly from the start timestamp.
-    if (challenge?.scoring_type === 'time' && startTimeRef.current !== null) {
-      finalScore = Math.floor((Date.now() - startTimeRef.current) / 1000);
-      console.log('Using absolute timer score:', finalScore);
-    }
-
-    console.log('--- Submission Started ---');
-    console.log('Target Score:', finalScore);
-    
-    if (!challenge || !user) {
-      console.log('Missing challenge or user');
-      return;
-    }
+    if (!challenge || !user) return;
     setSubmitting(true);
     try {
       const metadata = challenge.scoring_type === 'reps' ? {
@@ -166,102 +178,86 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         finalTimeFormatted: `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
       };
       
-      const improved = await submitChallengeScore(challenge.id, user.id, finalScore, challenge.scoring_type, metadata);
-      console.log('submitChallengeScore result:', improved);
+      const improved = await ChallengeService.submitScore({
+        challengeId: challenge.id,
+        userId: user.id,
+        score: finalScore,
+        scoringType: challenge.scoring_type,
+        metadata
+      });
+
       if (improved) {
-        await loadChallenge();
-        setShowSubmitModal(false);
-        setTimerSeconds(0);
-        setTimerRunning(false);
-        startTimeRef.current = null;
-        setManualScore('');
-        setRoundsCompleted('');
-        setAdditionalReps({});
-        setCalculatedPoints(0);
+        Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
       } else {
-        if (Platform.OS === 'web') {
-          alert('Not your best score. Keep training!');
-        } else {
-          Alert.alert('Not a PB', 'Not your best score. Keep training!');
-        }
+        Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
       }
-    } catch (error) {
-      console.error('handleSubmit error:', error);
-      if (Platform.OS === 'web') {
-        alert(`Error submitting score: ${error}`);
-      } else {
-        Alert.alert('Error', `Error submitting score: ${error}`);
-      }
+      
+      await loadChallenge();
+      setShowSubmitModal(false);
+      resetTimer();
+      setManualScore('');
+      setRoundsCompleted('');
+      setAdditionalReps({});
+      setCalculatedPoints(0);
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to submit score');
     } finally {
       setSubmitting(false);
     }
   }
 
   async function handleCreateChallenge() {
-    console.log('handleCreateChallenge called', adminForm);
     if (!adminForm.title || adminForm.movements.length === 0) {
-      console.log('Validation failed', { title: adminForm.title, movements: adminForm.movements.length });
-      if (Platform.OS === 'web') {
-        alert('Please enter a title and add at least one movement');
-      } else {
-        Alert.alert('Error', 'Please enter a title and add at least one movement');
-      }
+      Alert.alert('Error', 'Please enter a title and add at least one movement');
       return;
     }
-    const challengeData = {
-      ...adminForm,
-      week_start: getCurrentWeekStart(),
-    };
-    console.log('Creating challenge with data:', challengeData);
-    const result = await createChallenge(challengeData);
-    console.log('Create result:', result);
-    if (result.success) {
+    try {
+      await ChallengeService.create({
+        group_id: adminForm.group_id,
+        title: adminForm.title,
+        description: adminForm.description,
+        scoring_type: adminForm.scoring_type,
+        time_limit: adminForm.time_limit,
+        movements: adminForm.movements
+      });
+      const msg = 'Challenge published successfully!';
+      Alert.alert('Success', msg);
+      if (Platform.OS === 'web') alert(msg);
       setShowAdminModal(false);
       await loadChallenge();
-    } else {
-      if (Platform.OS === 'web') {
-        alert(`Failed to create challenge: ${result.error}`);
-      } else {
-        Alert.alert('Error', `Failed to create challenge: ${result.error}`);
-      }
+    } catch (error: any) {
+      const msg = `Failed to create challenge: ${error.message}`;
+      Alert.alert('Error', msg);
+      if (Platform.OS === 'web') alert(msg);
     }
   }
 
   async function handleDeleteChallenge() {
     if (!challenge) return;
-    if (Platform.OS === 'web') {
-      if (!confirm('Delete this challenge? All leaderboard entries will be removed.')) return;
-    } else {
-      Alert.alert(
-        'Delete Challenge',
-        'Delete this challenge? All leaderboard entries will be removed.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Delete', style: 'destructive', onPress: async () => {
-            const result = await deleteChallenge(challenge.id);
-            if (result.success) {
-              setChallenge(null);
-              setEntries([]);
-              setShowAdminModal(false);
-            } else {
-              Alert.alert('Error', `Failed to delete: ${result.error}`);
-            }
-          }},
-        ]
-      );
-      return;
-    }
-    const result = await deleteChallenge(challenge.id);
-    if (result.success) {
+    const confirmDelete = Platform.OS === 'web' 
+      ? confirm('Delete this challenge? All leaderboard entries will be removed.')
+      : await new Promise(resolve => {
+          Alert.alert('Delete Challenge', 'Delete this challenge?', [
+            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
+          ]);
+        });
+
+    if (!confirmDelete) return;
+
+    try {
+      await ChallengeService.delete(challenge.id);
+      const msg = 'Challenge deleted';
+      Alert.alert('Success', msg);
+      if (Platform.OS === 'web') alert(msg);
       setChallenge(null);
       setEntries([]);
       setShowAdminModal(false);
-    } else {
-      if (Platform.OS === 'web') {
-        alert(`Failed to delete: ${result.error}`);
-      } else {
-        Alert.alert('Error', `Failed to delete: ${result.error}`);
-      }
+      await loadChallenge();
+    } catch (error: any) {
+      const msg = `Failed to delete: ${error.message}`;
+      Alert.alert('Error', msg);
+      if (Platform.OS === 'web') alert(msg);
     }
   }
 
@@ -308,18 +304,18 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         <View style={styles.weekLabelContainer}>
           <Text style={[styles.weekLabel, { color: theme.text.primary }]}>
             {new Date(selectedWeekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            {selectedWeekStart === getCurrentWeekStart() ? ' (ACTIVE)' : ' (ENDED)'}
+            {selectedWeekStart === ChallengeService.getCurrentWeekStart() ? ' (ACTIVE)' : ' (ENDED)'}
           </Text>
         </View>
 
         <TouchableOpacity 
           onPress={() => {
-            if (selectedWeekStart === getCurrentWeekStart()) return;
+            if (selectedWeekStart === ChallengeService.getCurrentWeekStart()) return;
             const d = new Date(selectedWeekStart);
             d.setDate(d.getDate() + 7);
             setSelectedWeekStart(d.toISOString().split('T')[0]);
           }}
-          style={[styles.weekNavBtn, { opacity: selectedWeekStart === getCurrentWeekStart() ? 0.2 : 1 }]}
+          style={[styles.weekNavBtn, { opacity: selectedWeekStart === ChallengeService.getCurrentWeekStart() ? 0.2 : 1 }]}
         >
           <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>▶</Text>
         </TouchableOpacity>
@@ -477,17 +473,14 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                 </Text>
                 <TouchableOpacity
                   style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                  onPress={() => setTimerRunning(!timerRunning)}
+                  onPress={() => timerRunning ? stopTimer() : startTimer()}
                 >
                   <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
                 </TouchableOpacity>
                 {!timerRunning && timerSeconds > 0 && (
                   <TouchableOpacity
                     style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
-                    onPress={() => {
-                      setTimerSeconds(0);
-                      startTimeRef.current = null;
-                    }}
+                    onPress={() => resetTimer()}
                   >
                     <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
                   </TouchableOpacity>
@@ -515,10 +508,10 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                 <TouchableOpacity
                   style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
                   onPress={() => {
-                    if (!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60) {
+                    if (!timerRunning && timerSeconds <= 0) {
                       setTimerSeconds((challenge?.time_limit || 10) * 60);
                     }
-                    setTimerRunning(!timerRunning);
+                    timerRunning ? stopTimer() : startTimer();
                   }}
                 >
                   <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
@@ -529,7 +522,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                   <TouchableOpacity
                     style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
                     onPress={() => {
-                      setTimerRunning(false);
+                      stopTimer();
                       setTimerSeconds(0);
                     }}
                   >
@@ -641,9 +634,36 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                       <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
                     </View>
                     <TouchableOpacity onPress={async () => {
-                      if (confirm(`Delete ${ac.title}?`)) {
-                        const res = await deleteChallenge(ac.id);
-                        if (res.success) loadChallenge();
+                      console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
+                      const confirmed = Platform.OS === 'web' 
+                        ? window.confirm(`Are you sure you want to delete "${ac.title}"?`)
+                        : await new Promise(resolve => {
+                            Alert.alert(
+                              'Confirm Delete',
+                              `Are you sure you want to delete "${ac.title}"?`,
+                              [
+                                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                                { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
+                              ]
+                            );
+                          });
+
+                      if (confirmed) {
+                        try {
+                          console.log('Attempting to delete challenge:', ac.id);
+                          const res = await ChallengeService.delete(ac.id);
+                          console.log('Delete result:', res);
+                          if (res) {
+                            Alert.alert('Success', 'Challenge removed');
+                            if (Platform.OS === 'web') alert('Challenge removed');
+                            await loadChallenge();
+                          }
+                        } catch (err: any) {
+                          console.error('Delete error:', err);
+                          const msg = err.message || 'Failed to delete challenge';
+                          Alert.alert('Error', msg);
+                          if (Platform.OS === 'web') alert(msg);
+                        }
                       }
                     }}>
                       <Text style={{ color: '#8B0000', fontWeight: '900' }}>✕</Text>

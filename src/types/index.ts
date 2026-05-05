@@ -21,6 +21,7 @@ export interface Profile {
   push_token: string | null;
   timezone: string;
   updated_at: string;
+  is_admin?: boolean;
 }
 
 export type TierRank =

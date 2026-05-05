@@ -1,0 +1,144 @@
+import { supabase } from '../lib/supabase';
+
+export interface ChallengeMovement {
+  name: string;
+  reps: number;
+  points: number;
+}
+
+export interface WeeklyChallenge {
+  id: string;
+  group_id: number;
+  week_start: string;
+  title: string;
+  description?: string;
+  scoring_type: 'reps' | 'time';
+  time_limit?: number;
+  movements: ChallengeMovement[];
+  is_active: boolean;
+}
+
+export class ChallengeService {
+  /**
+   * Gets the stable Saturday start date for the current week
+   */
+  static getCurrentWeekStart(): string {
+    const now = new Date();
+    const day = now.getDay();
+    const daysBack = (day + 1) % 7;
+    const saturday = new Date(now);
+    saturday.setDate(now.getDate() - daysBack);
+    
+    const year = saturday.getFullYear();
+    const month = String(saturday.getMonth() + 1).padStart(2, '0');
+    const date = String(saturday.getDate()).padStart(2, '0');
+    
+    return `${year}-${month}-${date}`;
+  }
+
+  /**
+   * Fetches the active challenge for a specific group and week
+   */
+  static async getActive(groupId: number, weekStart: string): Promise<WeeklyChallenge | null> {
+    const { data, error } = await supabase
+      .from('weekly_challenges')
+      .select('*')
+      .eq('group_id', groupId)
+      .eq('week_start', weekStart)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (error) {
+      console.error('Error fetching active challenge:', error);
+      return null;
+    }
+    return data;
+  }
+
+  /**
+   * Submits a score for the weekly challenge
+   */
+  static async submitScore(params: {
+    challengeId: string;
+    userId: string;
+    score: number;
+    scoringType: 'reps' | 'time';
+    metadata?: any;
+  }) {
+    const { challengeId, userId, score, scoringType, metadata } = params;
+
+    // 1. Check for existing score
+    const { data: existing } = await supabase
+      .from('weekly_entries')
+      .select('score')
+      .eq('challenge_id', challengeId)
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    // 2. Determine if new score is better
+    const isBetter = !existing || (scoringType === 'time' ? score < existing.score : score > existing.score);
+
+    if (isBetter) {
+      const { error } = await supabase
+        .from('weekly_entries')
+        .upsert({
+          challenge_id: challengeId,
+          user_id: userId,
+          score,
+          metadata,
+          submitted_at: new Date().toISOString(),
+        }, { onConflict: 'challenge_id,user_id' });
+
+      if (error) throw error;
+      return true;
+    }
+
+    return false;
+  }
+
+  /**
+   * Admin: Creates a new challenge
+   */
+  static async create(challenge: Partial<WeeklyChallenge>) {
+    const { error } = await supabase
+      .from('weekly_challenges')
+      .insert({
+        ...challenge,
+        week_start: this.getCurrentWeekStart(),
+        is_active: true,
+      });
+
+    if (error) throw error;
+    return true;
+  }
+
+  /**
+   * Admin: Deletes a challenge
+   */
+  static async delete(id: string) {
+    const { error } = await supabase
+      .from('weekly_challenges')
+      .delete()
+      .eq('id', id);
+
+    if (error) throw error;
+    return true;
+  }
+
+  /**
+   * Fetches all active challenges for the current week (for admin view)
+   */
+  static async getAllActiveForWeek(weekStart: string): Promise<WeeklyChallenge[]> {
+    const { data, error } = await supabase
+      .from('weekly_challenges')
+      .select('*')
+      .eq('week_start', weekStart)
+      .eq('is_active', true);
+
+    if (error) {
+      console.error('Error fetching all active challenges:', error);
+      return [];
+    }
+    return data || [];
+  }
+}

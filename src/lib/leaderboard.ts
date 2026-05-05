@@ -237,7 +237,12 @@ export async function getStaticLevelLeaderboard(
 
   const userScores = new Map<string, { total: number; display_name: string }>();
   for (const record of data) {
-    const existing = userScores.get(record.user_id) || { total: 0, display_name: record.profiles?.display_name || 'Unknown Warrior' };
+    const profiles = record.profiles as any;
+    const displayName = Array.isArray(profiles) 
+      ? (profiles[0]?.display_name || 'Unknown Warrior')
+      : (profiles?.display_name || 'Unknown Warrior');
+      
+    const existing = userScores.get(record.user_id) || { total: 0, display_name: displayName };
     existing.total += record.points;
     userScores.set(record.user_id, existing);
   }

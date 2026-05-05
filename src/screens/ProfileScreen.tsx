@@ -11,9 +11,16 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
 import { POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
+import { WarriorButton } from '../components/atoms/WarriorButton';
+import { WarriorCard } from '../components/atoms/WarriorCard';
+
+import { getTierLeaderboard } from '../lib/leaderboard';
+import { isPowerWorldUnlocked } from '../lib/powerLogic';
+import { isStaticWorldUnlocked } from '../lib/staticLogic';
 
 const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
   0: { desc: 'Master the basics: Inverted Rows, Squats, Bench Dips, Knee Push-ups', difficulty: 1 },
@@ -39,10 +46,6 @@ const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number
   8: { desc: 'Minimum to compete: 290 pts', difficulty: 9 },
 };
 
-import { getTierLeaderboard } from '../lib/leaderboard';
-import { isPowerWorldUnlocked } from '../lib/powerLogic';
-import { isStaticWorldUnlocked } from '../lib/staticLogic';
-
 interface ProfileScreenProps {
   onStartTrial?: (tier?: number) => void;
   onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
@@ -66,6 +69,17 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
 
+  const currentTier = profile?.strength_tier || 0;
+  const currentPowerTier = profile?.power_tier || 0;
+  
+  // Adjusted derived values based on active category
+  const activeCurrentTier = category === 'strength' ? currentTier : currentPowerTier;
+  const isLocked = selectedTier > activeCurrentTier;
+  const isLowerTier = selectedTier < activeCurrentTier;
+  const tierName = category === 'strength' 
+    ? TIER_NAMES[selectedTier] || 'Unknown'
+    : POWER_TIER_NAMES[selectedTier] || 'Unknown';
+
   const handleCategorySwitch = async (newCategory: 'strength' | 'power') => {
     if (newCategory === category || (newCategory === 'power' && !isPowerUnlocked)) return;
     
@@ -87,15 +101,25 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
   useEffect(() => {
     async function fetchLeaderboardBestTime() {
-      if (user && category === 'strength' && selectedTier <= (profile?.strength_tier || 0)) {
+      if (user && category === 'strength') {
         const { personalBest } = await getTierLeaderboard(selectedTier, user.id);
         setLeaderboardBestTime(personalBest?.best_time_seconds || null);
+
+        // Self-healing: if user has a PB in their current tier, they should be at least tier + 1
+        if (selectedTier === currentTier && personalBest && personalBest.best_time_seconds !== null) {
+          console.log('Self-healing: User has passed current tier. Unlocking next...');
+          await supabase
+            .from('profiles')
+            .update({ strength_tier: currentTier + 1 })
+            .eq('id', user.id);
+          // Refresh happens automatically via auth context or parent
+        }
       } else {
         setLeaderboardBestTime(null);
       }
     }
     fetchLeaderboardBestTime();
-  }, [selectedTier, user, profile, category]);
+  }, [selectedTier, user, profile, category, currentTier]);
 
   async function handleSignOut() {
     try {
@@ -106,17 +130,6 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
   }
 
   if (!profile) return null;
-
-  const currentTier = profile?.strength_tier || 0;
-  const currentPowerTier = profile?.power_tier || 0;
-  
-  // Adjusted derived values based on active category
-  const activeCurrentTier = category === 'strength' ? currentTier : currentPowerTier;
-  const isLocked = selectedTier > activeCurrentTier;
-  const isLowerTier = selectedTier < activeCurrentTier;
-  const tierName = category === 'strength' 
-    ? TIER_NAMES[selectedTier] || 'Unknown'
-    : POWER_TIER_NAMES[selectedTier] || 'Unknown';
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
@@ -242,11 +255,12 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
           {/* Static World Button */}
           <TouchableOpacity
-            disabled={true}
+            disabled={!isStaticUnlocked || isSwitchingWorld}
             style={[
               styles.worldPill,
-              { opacity: 0.5 }
+              !isStaticUnlocked && { opacity: 0.5 }
             ]}
+            onPress={onViewStaticWorld}
           >
             <Text style={[
               styles.worldIcon,
@@ -256,9 +270,11 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
               styles.worldText,
               { color: theme.text.secondary }
             ]}>STATIC</Text>
-            <View style={styles.worldLockBadge}>
-              <Text style={styles.worldLockIcon}>🔒</Text>
-            </View>
+            {!isStaticUnlocked && (
+              <View style={styles.worldLockBadge}>
+                <Text style={styles.worldLockIcon}>🔒</Text>
+              </View>
+            )}
           </TouchableOpacity>
 
           {/* Weekly Challenge Button */}
@@ -348,51 +364,63 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
       {/* Next Step Banner */}
       {category === 'strength' && (profile?.strength_tier ?? 0) < 8 && (
-        <TouchableOpacity
-          style={[styles.nextStepBanner, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}
-          onPress={() => onStartTrial && onStartTrial(selectedTier)}
+        <WarriorCard 
+          variant="accent" 
+          style={styles.nextStepBanner}
+          padding={0}
         >
-          <View style={styles.nextStepContent}>
-            <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
-            <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
-              Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
-            </Text>
-            <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
-              Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
-            </Text>
-          </View>
-          <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.nextStepPressable}
+            onPress={() => onStartTrial && onStartTrial(selectedTier)}
+          >
+            <View style={styles.nextStepContent}>
+              <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
+              <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
+                Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
+              </Text>
+              <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
+                Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
+              </Text>
+            </View>
+            <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
+          </TouchableOpacity>
+        </WarriorCard>
       )}
 
       {/* Selected Tier Card */}
-      <TouchableOpacity 
-        style={[styles.rankCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
-        onPress={() => {
-          setModalTier(selectedTier);
-          setShowTierModal(true);
-        }}
+      <WarriorCard 
+        style={styles.rankCard}
+        variant={isLocked ? 'default' : 'accent'}
+        padding={20}
       >
-        <View style={[styles.sealPlaceholder, { 
-          borderColor: isLocked ? theme.card.border : theme.accent, 
-          backgroundColor: theme.background.secondary 
-        }]}>
-          <Text style={[styles.sealText, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-            {isLocked ? '🔒' : tierName[0]}
+        <TouchableOpacity 
+          style={styles.rankCardInner}
+          onPress={() => {
+            setModalTier(selectedTier);
+            setShowTierModal(true);
+          }}
+        >
+          <View style={[styles.sealPlaceholder, { 
+            borderColor: isLocked ? theme.card.border : theme.accent, 
+            backgroundColor: theme.background.secondary 
+          }]}>
+            <Text style={[styles.sealText, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+              {isLocked ? '🔒' : tierName[0]}
+            </Text>
+          </View>
+          <Text style={[styles.rankName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+            {tierName.toUpperCase()}
           </Text>
-        </View>
-        <Text style={[styles.rankName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-          {tierName.toUpperCase()}
-        </Text>
-        <View style={styles.tierRow}>
-          <View style={[styles.tierDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
-          <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>
-            {isLocked ? `LOCKED - Reach Tier ${selectedTier}` : 
-             isLowerTier ? `Tier ${selectedTier} - Unlocked` :
-             `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
-          </Text>
-        </View>
-      </TouchableOpacity>
+          <View style={styles.tierRow}>
+            <View style={[styles.tierDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
+            <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>
+              {isLocked ? `LOCKED - Reach Tier ${selectedTier}` : 
+               isLowerTier ? `Tier ${selectedTier} - Unlocked` :
+               `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
+            </Text>
+          </View>
+        </TouchableOpacity>
+      </WarriorCard>
 
       {/* Progress Bar */}
       {category === 'strength' && (
@@ -467,73 +495,61 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
         <View style={styles.trialRow}>
           {category === 'strength' ? (
             <>
-              {/* Start Trial - only for current tier */}
               {onStartTrial && !isLowerTier && !isLocked && (
-                <TouchableOpacity 
-                  style={[styles.halfButton, { backgroundColor: theme.accent }]} 
+                <WarriorButton 
+                  title="START TRIAL"
+                  style={styles.halfButton}
                   onPress={() => onStartTrial()}
-                >
-                  <Text style={styles.actionButtonText}>START TRIAL</Text>
-                </TouchableOpacity>
+                />
               )}
 
-              {/* Improve Time - for lower tiers only */}
               {onStartTrial && isLowerTier && (
-                <TouchableOpacity 
-                  style={[styles.halfButton, { backgroundColor: theme.accent }]} 
+                <WarriorButton 
+                  title="IMPROVE TIME"
+                  style={styles.halfButton}
                   onPress={() => onStartTrial(selectedTier)}
-                >
-                  <Text style={styles.actionButtonText}>IMPROVE TIME</Text>
-                </TouchableOpacity>
+                />
               )}
             </>
           ) : (
             <>
-              {/* Power Assessment - only for current power tier */}
               {onStartPowerAssessment && !isLowerTier && !isLocked && (
-                <TouchableOpacity 
-                  style={[styles.halfButton, { backgroundColor: theme.accent }]} 
+                <WarriorButton 
+                  title="START ASSESSMENT"
+                  style={styles.halfButton}
                   onPress={onStartPowerAssessment}
-                >
-                  <Text style={styles.actionButtonText}>START ASSESSMENT</Text>
-                </TouchableOpacity>
+                />
               )}
 
-              {/* Improve Power - for lower tiers */}
               {onStartPowerAssessment && isLowerTier && (
-                <TouchableOpacity 
-                  style={[styles.halfButton, { backgroundColor: theme.accent }]} 
+                <WarriorButton 
+                  title="IMPROVE SCORE"
+                  style={styles.halfButton}
                   onPress={onStartPowerAssessment}
-                >
-                  <Text style={styles.actionButtonText}>IMPROVE SCORE</Text>
-                </TouchableOpacity>
+                />
               )}
             </>
           )}
 
           {/* Locked placeholder for higher tiers */}
           {isLocked && (
-            <View style={[styles.halfButton, styles.lockedButton, { borderColor: theme.card.border }]}>
-              <Text style={[styles.actionButtonText, { color: theme.text.tertiary }]}>🔒 LOCKED</Text>
-            </View>
+            <WarriorButton 
+              title="LOCKED"
+              disabled
+              variant="secondary"
+              style={styles.halfButton}
+            />
           )}
         </View>
 
         {/* Row 2: Leaderboard - White framed */}
         {onViewLeaderboards && (
-          <TouchableOpacity 
-            style={[
-              styles.leaderboardRowButton,
-              { 
-                backgroundColor: theme.background.primary,
-                borderColor: theme.text.primary,
-              }
-            ]} 
+          <WarriorButton 
+            title="VIEW LEADERBOARDS"
+            variant="outline"
+            style={styles.leaderboardRowButton}
             onPress={() => onViewLeaderboards(category, selectedTier)}
-          >
-            <Text style={[styles.actionButtonText, { color: theme.text.primary }]}>VIEW LEADERBOARDS</Text>
-            <Text style={[styles.arrow, { color: theme.text.primary }]}>→</Text>
-          </TouchableOpacity>
+          />
         )}
 
         {/* Locked indicator for higher tiers */}
@@ -547,7 +563,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
       </View>
 
       {/* Info Card */}
-      <View style={[styles.infoCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+      <WarriorCard style={styles.infoCard}>
         <View style={styles.infoHeader}>
           <View style={[styles.infoDot, { backgroundColor: theme.accent }]} />
           <Text style={[styles.infoSectionTitle, { color: theme.text.primary }]}>WARRIOR INFO</Text>
@@ -571,7 +587,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
             <Text style={[styles.infoValue, { color: theme.text.primary }]}>Awaiting Assessment</Text>
           </>
         )}
-      </View>
+      </WarriorCard>
 
       {/* Sign Out */}
       <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
@@ -663,10 +679,9 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
             {/* LEAP NOW Button - Only show if tier is not locked */}
             {modalTier !== null && modalTier <= activeCurrentTier && (
-              <TouchableOpacity 
-                style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
+              <WarriorButton 
+                title="LEAP NOW"
                 onPress={() => {
-                  console.log('LEAP NOW pressed, category:', category);
                   setShowTierModal(false);
                   if (category === 'power') {
                     if (onStartPowerAssessment) onStartPowerAssessment();
@@ -674,9 +689,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
                     if (onStartTrial) onStartTrial(modalTier);
                   }
                 }}
-              >
-                <Text style={styles.modalLeapButtonText}>LEAP NOW</Text>
-              </TouchableOpacity>
+              />
             )}
           </View>
         </View>
@@ -900,13 +913,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-Bold',
   },
-  rankCard: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 32,
-    margin: 16,
-    alignItems: 'center',
-  },
+
   sealPlaceholder: {
     width: 80,
     height: 80,
@@ -1439,20 +1446,42 @@ const styles = StyleSheet.create({
     letterSpacing: 3,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  // Next Step Banner
   nextStepBanner: {
     marginHorizontal: 16,
     marginTop: 16,
-    padding: 16,
     borderRadius: 12,
-    borderWidth: 1,
+  },
+  nextStepPressable: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
+    padding: 16,
   },
   nextStepContent: { flex: 1 },
-  nextStepLabel: { fontSize: 10, letterSpacing: 2, marginBottom: 4 },
-  nextStepTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 1, marginBottom: 2 },
-  nextStepSubtitle: { fontSize: 12 },
+  nextStepLabel: { 
+    fontSize: 10, 
+    letterSpacing: 2, 
+    marginBottom: 4,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  nextStepTitle: { 
+    fontSize: 16, 
+    fontWeight: '900', 
+    letterSpacing: 1, 
+    marginBottom: 2,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  nextStepSubtitle: { 
+    fontSize: 12,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
   nextStepArrow: { fontSize: 24, fontWeight: '900' },
+  rankCard: {
+    marginHorizontal: 24,
+    marginBottom: 32,
+    borderRadius: 16,
+  },
+  rankCardInner: {
+    alignItems: 'center',
+  },
 });

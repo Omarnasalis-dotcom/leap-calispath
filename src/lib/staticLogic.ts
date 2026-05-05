@@ -28,10 +28,10 @@ export const STATIC_LEVELS = {
 };
 
 export const STATIC_CATEGORIES = {
-  handstand: { name: 'Handstand', emoji: '🤲' },
-  front_lever: { name: 'Front Lever', emoji: '📐' },
-  back_lever: { name: 'Back Lever', emoji: '🔄' },
-  planche: { name: 'Planche', emoji: '💎' },
+  handstand: { name: 'Handstand' },
+  front_lever: { name: 'Front Lever' },
+  back_lever: { name: 'Back Lever' },
+  planche: { name: 'Planche' },
 };
 
 export function calculatePoints(movementId: string, seconds: number): number {
