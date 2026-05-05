@@ -1110,12 +1110,15 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
   },
   worldSelectorContainer: {
+    width: '100%',
     marginBottom: 20,
-    alignItems: 'center',
   },
   worldSelectorScrollContent: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    minWidth: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   worldSelector: {
     flexDirection: 'row',
