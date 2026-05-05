@@ -194,107 +194,113 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
       {/* World Selector - Pill Style */}
       <View style={styles.worldSelectorContainer}>
-        <View style={[styles.worldSelector, { backgroundColor: theme.background.secondary }]}>
-          {/* Strength World Pill */}
-          <TouchableOpacity 
-            disabled={isSwitchingWorld}
-            style={[
-              styles.worldPill,
-              category === 'strength' && { 
-                backgroundColor: theme.accent,
-                shadowColor: theme.accent,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.4,
-                shadowRadius: 4,
-                elevation: 4,
-              }
-            ]}
-            onPress={() => handleCategorySwitch('strength')}
-          >
-            <Text style={[
-              styles.worldIcon,
-              category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
-            ]}>⚔️</Text>
-            <Text style={[
-              styles.worldText,
-              category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-            ]}>STRENGTH</Text>
-          </TouchableOpacity>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.worldSelectorScrollContent}
+        >
+          <View style={[styles.worldSelector, { backgroundColor: theme.background.secondary }]}>
+            {/* Strength World Pill */}
+            <TouchableOpacity 
+              disabled={isSwitchingWorld}
+              style={[
+                styles.worldPill,
+                category === 'strength' && { 
+                  backgroundColor: theme.accent,
+                  shadowColor: theme.accent,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 4,
+                  elevation: 4,
+                }
+              ]}
+              onPress={() => handleCategorySwitch('strength')}
+            >
+              <Text style={[
+                styles.worldIcon,
+                category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
+              ]}>⚔️</Text>
+              <Text style={[
+                styles.worldText,
+                category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
+              ]}>STRENGTH</Text>
+            </TouchableOpacity>
 
-          {/* Power World Pill */}
-          <TouchableOpacity 
-            disabled={!isPowerUnlocked || isSwitchingWorld}
-            style={[
-              styles.worldPill,
-              category === 'power' && { 
-                backgroundColor: theme.accent,
-                shadowColor: theme.accent,
-                shadowOffset: { width: 0, height: 2 },
-                shadowOpacity: 0.4,
-                shadowRadius: 4,
-                elevation: 4,
-              },
-              !isPowerUnlocked && { opacity: 0.4 }
-            ]}
-            onPress={() => handleCategorySwitch('power')}
-          >
-            <Text style={[
-              styles.worldIcon,
-              category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
-            ]}>⚡</Text>
-            <Text style={[
-              styles.worldText,
-              category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-            ]}>POWER</Text>
-            {!isPowerUnlocked && (
-              <View style={styles.worldLockBadge}>
-                <Text style={styles.worldLockIcon}>🔒</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            {/* Power World Pill */}
+            <TouchableOpacity 
+              disabled={!isPowerUnlocked || isSwitchingWorld}
+              style={[
+                styles.worldPill,
+                category === 'power' && { 
+                  backgroundColor: theme.accent,
+                  shadowColor: theme.accent,
+                  shadowOffset: { width: 0, height: 2 },
+                  shadowOpacity: 0.4,
+                  shadowRadius: 4,
+                  elevation: 4,
+                },
+                !isPowerUnlocked && { opacity: 0.4 }
+              ]}
+              onPress={() => handleCategorySwitch('power')}
+            >
+              <Text style={[
+                styles.worldIcon,
+                category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
+              ]}>⚡</Text>
+              <Text style={[
+                styles.worldText,
+                category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
+              ]}>POWER</Text>
+              {!isPowerUnlocked && (
+                <View style={styles.worldLockBadge}>
+                  <Text style={styles.worldLockIcon}>🔒</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
-          {/* Static World Button */}
-          <TouchableOpacity
-            disabled={!isStaticUnlocked || isSwitchingWorld}
-            style={[
-              styles.worldPill,
-              !isStaticUnlocked && { opacity: 0.5 }
-            ]}
-            onPress={onViewStaticWorld}
-          >
-            <Text style={[
-              styles.worldIcon,
-              { color: theme.text.secondary }
-            ]}>🧊</Text>
-            <Text style={[
-              styles.worldText,
-              { color: theme.text.secondary }
-            ]}>STATIC</Text>
-            {!isStaticUnlocked && (
-              <View style={styles.worldLockBadge}>
-                <Text style={styles.worldLockIcon}>🔒</Text>
-              </View>
-            )}
-          </TouchableOpacity>
+            {/* Static World Button */}
+            <TouchableOpacity
+              disabled={!isStaticUnlocked || isSwitchingWorld}
+              style={[
+                styles.worldPill,
+                !isStaticUnlocked && { opacity: 0.5 }
+              ]}
+              onPress={onViewStaticWorld}
+            >
+              <Text style={[
+                styles.worldIcon,
+                { color: theme.text.secondary }
+              ]}>🧊</Text>
+              <Text style={[
+                styles.worldText,
+                { color: theme.text.secondary }
+              ]}>STATIC</Text>
+              {!isStaticUnlocked && (
+                <View style={styles.worldLockBadge}>
+                  <Text style={styles.worldLockIcon}>🔒</Text>
+                </View>
+              )}
+            </TouchableOpacity>
 
-          {/* Weekly Challenge Button */}
-          <TouchableOpacity
-            style={[
-              styles.worldPill,
-              { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }
-            ]}
-            onPress={onViewWeeklyChallenge}
-          >
-            <Text style={[
-              styles.worldIcon,
-              { color: theme.accent }
-            ]}>🏆</Text>
-            <Text style={[
-              styles.worldText,
-              { color: theme.accent }
-            ]}>WEEKLY</Text>
-          </TouchableOpacity>
-        </View>
+            {/* Weekly Challenge Button */}
+            <TouchableOpacity
+              style={[
+                styles.worldPill,
+                { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }
+              ]}
+              onPress={onViewWeeklyChallenge}
+            >
+              <Text style={[
+                styles.worldIcon,
+                { color: theme.accent }
+              ]}>🏆</Text>
+              <Text style={[
+                styles.worldText,
+                { color: theme.accent }
+              ]}>WEEKLY</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
         
         {/* Unlock hint below selector */}
         {!isPowerUnlocked && (
@@ -1104,9 +1110,12 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Regular',
   },
   worldSelectorContainer: {
-    paddingHorizontal: 16,
     marginBottom: 20,
     alignItems: 'center',
+  },
+  worldSelectorScrollContent: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
   },
   worldSelector: {
     flexDirection: 'row',
