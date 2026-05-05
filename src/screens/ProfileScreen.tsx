@@ -47,11 +47,12 @@ interface ProfileScreenProps {
   onStartTrial?: (tier?: number) => void;
   onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
   onViewStaticWorld?: () => void;
+  onViewWeeklyChallenge?: () => void;
   onStartPowerAssessment?: () => void;
   initialCategory?: 'strength' | 'power';
 }
 
-export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWorld, onStartPowerAssessment, initialCategory = 'strength' }: ProfileScreenProps) {
+export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWorld, onViewWeeklyChallenge, onStartPowerAssessment, initialCategory = 'strength' }: ProfileScreenProps) {
   const { profile, signOut, user } = useAuth();
   const { theme } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
@@ -258,6 +259,24 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
             <View style={styles.worldLockBadge}>
               <Text style={styles.worldLockIcon}>🔒</Text>
             </View>
+          </TouchableOpacity>
+
+          {/* Weekly Challenge Button */}
+          <TouchableOpacity
+            style={[
+              styles.worldPill,
+              { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }
+            ]}
+            onPress={onViewWeeklyChallenge}
+          >
+            <Text style={[
+              styles.worldIcon,
+              { color: theme.accent }
+            ]}>🏆</Text>
+            <Text style={[
+              styles.worldText,
+              { color: theme.accent }
+            ]}>WEEKLY</Text>
           </TouchableOpacity>
         </View>
         

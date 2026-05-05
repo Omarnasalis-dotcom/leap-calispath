@@ -13,6 +13,7 @@ import { LeaderboardScreen } from '../src/screens/LeaderboardScreen';
 import { PowerAssessmentScreen } from '../src/screens/PowerAssessmentScreen';
 import { StaticWorldScreen } from '../src/screens/StaticWorldScreen';
 import { OnboardingScreen } from '../src/screens/OnboardingScreen';
+import { WeeklyChallengeScreen } from '../src/screens/WeeklyChallengeScreen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Trial modes
@@ -26,27 +27,48 @@ export default function Index() {
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
   const [showStaticWorld, setShowStaticWorld] = React.useState(false);
+  const [showWeeklyChallenge, setShowWeeklyChallenge] = React.useState(false);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   const [onboardingChecked, setOnboardingChecked] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
   const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
 
-  // Check onboarding status
+  // Check onboarding and restore navigation state
   React.useEffect(() => {
-    async function checkOnboarding() {
+    async function initApp() {
       try {
         const seen = await AsyncStorage.getItem('onboarding_complete');
         if (!seen) {
           setShowOnboarding(true);
         }
+
+        // Restore navigation state
+        const lastScreen = await AsyncStorage.getItem('last_screen');
+        if (lastScreen === 'weekly_challenge') setShowWeeklyChallenge(true);
+        if (lastScreen === 'leaderboards') setShowLeaderboards(true);
+        if (lastScreen === 'static_world') setShowStaticWorld(true);
       } catch (e) {
         // ignore
       } finally {
         setOnboardingChecked(true);
       }
     }
-    checkOnboarding();
+    initApp();
   }, []);
+
+  // Save navigation state
+  React.useEffect(() => {
+    async function saveNavState() {
+      if (!onboardingChecked) return;
+      let screen = 'profile';
+      if (showWeeklyChallenge) screen = 'weekly_challenge';
+      else if (showLeaderboards) screen = 'leaderboards';
+      else if (showStaticWorld) screen = 'static_world';
+      
+      await AsyncStorage.setItem('last_screen', screen);
+    }
+    saveNavState();
+  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, onboardingChecked]);
   
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
@@ -107,6 +129,17 @@ export default function Index() {
       <SpartanLayout>
         <StaticWorldScreen
           onClose={() => setShowStaticWorld(false)}
+        />
+      </SpartanLayout>
+    );
+  }
+
+  // Weekly Challenge flow
+  if (showWeeklyChallenge) {
+    return (
+      <SpartanLayout>
+        <WeeklyChallengeScreen
+          onClose={() => setShowWeeklyChallenge(false)}
         />
       </SpartanLayout>
     );
@@ -234,6 +267,7 @@ export default function Index() {
           setShowLeaderboards(true);
         }}
         onViewStaticWorld={() => setShowStaticWorld(true)}
+        onViewWeeklyChallenge={() => setShowWeeklyChallenge(true)}
         onStartPowerAssessment={() => setShowPowerAssessment(true)}
       />
     </SpartanLayout>
