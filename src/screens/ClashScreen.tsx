@@ -139,7 +139,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
           <View style={styles.podiumContainer}>
             {/* 2nd Place */}
             {topWarriors[1] && (
-              <View style={styles.podiumSpot}>
+              <View style={[styles.podiumSpot, { width: 100 }]}>
                 <View style={[styles.podiumCircle, { borderColor: theme.accent }]}>
                   <Text style={[styles.podiumRankLabel, { color: theme.text.tertiary }]}>RANK 2</Text>
                   <Text style={[styles.podiumInitial, { color: theme.text.primary }]}>{topWarriors[1].display_name[0].toUpperCase()}</Text>
@@ -151,7 +151,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
 
             {/* 1st Place - Large Center Circle */}
             {topWarriors[0] && (
-              <View style={styles.podiumSpot}>
+              <View style={[styles.podiumSpot, { width: 130 }]}>
                 <View style={[styles.podiumCircle, styles.podiumCircle1st, { borderColor: theme.accent }]}>
                   <Text style={[styles.podiumRankLabel, { color: theme.text.tertiary, fontSize: 10 }]}>RANK 1</Text>
                   <Text style={[styles.podiumInitial, styles.podiumInitial1st, { color: theme.text.primary }]}>{topWarriors[0].display_name[0].toUpperCase()}</Text>
@@ -163,7 +163,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
 
             {/* 3rd Place */}
             {topWarriors[2] && (
-              <View style={styles.podiumSpot}>
+              <View style={[styles.podiumSpot, { width: 100 }]}>
                 <View style={[styles.podiumCircle, { borderColor: theme.accent }]}>
                   <Text style={[styles.podiumRankLabel, { color: theme.text.tertiary }]}>RANK 3</Text>
                   <Text style={[styles.podiumInitial, { color: theme.text.primary }]}>{topWarriors[2].display_name[0].toUpperCase()}</Text>
@@ -281,7 +281,7 @@ const styles = StyleSheet.create({
   podiumRankLabel: { fontSize: 8, fontWeight: '900', color: '#666', letterSpacing: 1 },
   podiumInitial: { fontSize: 28, fontWeight: '900', marginTop: 4 },
   podiumInitial1st: { fontSize: 42 },
-  podiumName: { fontSize: 10, fontWeight: '900', marginTop: 8, letterSpacing: 0.5 },
+  podiumName: { fontSize: 10, fontWeight: '900', marginTop: 8, letterSpacing: 0.5, textAlign: 'center', width: '100%' },
   podiumScore: { fontSize: 9, fontWeight: '800', opacity: 0.6 },
   gloryPortal: { flexDirection: 'row', alignItems: 'center', marginHorizontal: 20, marginBottom: 30, padding: 16, borderRadius: 16, borderWidth: 1.5, gap: 12 },
   gloryPortalInfo: { flex: 1, gap: 2 },
