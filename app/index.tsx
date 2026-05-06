@@ -14,6 +14,9 @@ import { PowerAssessmentScreen } from '../src/screens/PowerAssessmentScreen';
 import { StaticWorldScreen } from '../src/screens/StaticWorldScreen';
 import { OnboardingScreen } from '../src/screens/OnboardingScreen';
 import { WeeklyChallengeScreen } from '../src/screens/WeeklyChallengeScreen';
+import { ChampionsArenaScreen } from '../src/screens/ChampionsArenaScreen';
+import { ArenaWorkoutScreen } from '../src/screens/ArenaWorkoutScreen';
+import { ArenaPhase } from '../src/services/ArenaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // Trial modes
@@ -28,6 +31,9 @@ export default function Index() {
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
   const [showStaticWorld, setShowStaticWorld] = React.useState(false);
   const [showWeeklyChallenge, setShowWeeklyChallenge] = React.useState(false);
+  const [showChampionsArena, setShowChampionsArena] = React.useState(false);
+  const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
+  const [selectedArenaPhase, setSelectedArenaPhase] = React.useState<ArenaPhase | null>(null);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   const [onboardingChecked, setOnboardingChecked] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
@@ -47,6 +53,7 @@ export default function Index() {
         if (lastScreen === 'weekly_challenge') setShowWeeklyChallenge(true);
         if (lastScreen === 'leaderboards') setShowLeaderboards(true);
         if (lastScreen === 'static_world') setShowStaticWorld(true);
+        if (lastScreen === 'champions_arena') setShowChampionsArena(true);
       } catch (e) {
         // ignore
       } finally {
@@ -64,11 +71,12 @@ export default function Index() {
       if (showWeeklyChallenge) screen = 'weekly_challenge';
       else if (showLeaderboards) screen = 'leaderboards';
       else if (showStaticWorld) screen = 'static_world';
+      else if (showChampionsArena) screen = 'champions_arena';
       
       await AsyncStorage.setItem('last_screen', screen);
     }
     saveNavState();
-  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, onboardingChecked]);
+  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, showChampionsArena, onboardingChecked]);
   
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
@@ -140,6 +148,41 @@ export default function Index() {
       <SpartanLayout>
         <WeeklyChallengeScreen
           onClose={() => setShowWeeklyChallenge(false)}
+        />
+      </SpartanLayout>
+    );
+  }
+
+  // Champions Arena flow
+  if (showChampionsArena) {
+    return (
+      <SpartanLayout>
+        <ChampionsArenaScreen
+          onClose={() => setShowChampionsArena(false)}
+          onStartArenaWorkout={(phase) => {
+            setSelectedArenaPhase(phase);
+            setShowChampionsArena(false);
+            setShowArenaWorkout(true);
+          }}
+        />
+      </SpartanLayout>
+    );
+  }
+
+  // Arena Workout flow
+  if (showArenaWorkout && selectedArenaPhase) {
+    return (
+      <SpartanLayout>
+        <ArenaWorkoutScreen
+          phase={selectedArenaPhase}
+          onClose={() => {
+            setShowArenaWorkout(false);
+            setShowChampionsArena(true);
+          }}
+          onComplete={(time) => {
+            setShowArenaWorkout(false);
+            setShowChampionsArena(true);
+          }}
         />
       </SpartanLayout>
     );
@@ -268,6 +311,7 @@ export default function Index() {
         }}
         onViewStaticWorld={() => setShowStaticWorld(true)}
         onViewWeeklyChallenge={() => setShowWeeklyChallenge(true)}
+        onViewChampionsArena={() => setShowChampionsArena(true)}
         onStartPowerAssessment={() => setShowPowerAssessment(true)}
       />
     </SpartanLayout>

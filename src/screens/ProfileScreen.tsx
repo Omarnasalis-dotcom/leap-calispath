@@ -51,11 +51,20 @@ interface ProfileScreenProps {
   onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
   onViewStaticWorld?: () => void;
   onViewWeeklyChallenge?: () => void;
+  onViewChampionsArena?: () => void;
   onStartPowerAssessment?: () => void;
   initialCategory?: 'strength' | 'power';
 }
 
-export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWorld, onViewWeeklyChallenge, onStartPowerAssessment, initialCategory = 'strength' }: ProfileScreenProps) {
+export function ProfileScreen({
+  onStartTrial,
+  onViewLeaderboards,
+  onViewStaticWorld,
+  onViewWeeklyChallenge,
+  onViewChampionsArena,
+  onStartPowerAssessment,
+  initialCategory = 'strength'
+}: ProfileScreenProps) {
   const { profile, signOut, user } = useAuth();
   const { theme } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
@@ -71,30 +80,30 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
   const currentTier = profile?.strength_tier || 0;
   const currentPowerTier = profile?.power_tier || 0;
-  
+
   // Adjusted derived values based on active category
   const activeCurrentTier = category === 'strength' ? currentTier : currentPowerTier;
   const isLocked = selectedTier > activeCurrentTier;
   const isLowerTier = selectedTier < activeCurrentTier;
-  const tierName = category === 'strength' 
+  const tierName = category === 'strength'
     ? TIER_NAMES[selectedTier] || 'Unknown'
     : POWER_TIER_NAMES[selectedTier] || 'Unknown';
 
   const handleCategorySwitch = async (newCategory: 'strength' | 'power') => {
     if (newCategory === category || (newCategory === 'power' && !isPowerUnlocked)) return;
-    
+
     setIsSwitchingWorld(true);
     setShowLevelReveal(true);
-    
+
     // Simulate world transition delay
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
+
     setCategory(newCategory);
-    setSelectedTier(newCategory === 'strength' 
+    setSelectedTier(newCategory === 'strength'
       ? (profile?.strength_tier || 0)
       : (profile?.power_tier || 0)
     );
-    
+
     setShowLevelReveal(false);
     setIsSwitchingWorld(false);
   };
@@ -135,473 +144,479 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <ScrollView>
         <View style={styles.header}>
-        {/* User Avatar with Tier Info */}
-        <View style={styles.avatarSection}>
-          <View style={styles.avatarWrapper}>
-            <View style={[styles.avatarContainer, { borderColor: theme.accent }]}>
-              <Text style={[styles.avatarInitial, { color: theme.accent }]}>
-                {profile.display_name ? profile.display_name[0].toUpperCase() : profile.email[0].toUpperCase()}
+          {/* User Avatar with Tier Info */}
+          <View style={styles.avatarSection}>
+            <View style={styles.avatarWrapper}>
+              <View style={[styles.avatarContainer, { borderColor: theme.accent }]}>
+                <Text style={[styles.avatarInitial, { color: theme.accent }]}>
+                  {profile.display_name ? profile.display_name[0].toUpperCase() : profile.email[0].toUpperCase()}
+                </Text>
+              </View>
+
+              {/* Tier Orbit Ring */}
+              <View style={[styles.orbitRing, { borderColor: theme.accent }]} />
+
+              {/* Tier Level Indicator */}
+              <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent }]}>
+                <Text style={styles.tierLevelText}>{activeCurrentTier}</Text>
+              </View>
+
+              {/* Glowing Tier Dots around the border */}
+              {Array.from({ length: Math.min(activeCurrentTier + 1, 9) }).map((_, i) => {
+                const totalDots = Math.min(activeCurrentTier + 1, 9);
+                const angle = (i * (360 / totalDots)) - 90;
+                const radius = 38;
+                const x = radius * Math.cos(angle * (Math.PI / 180));
+                const y = radius * Math.sin(angle * (Math.PI / 180));
+
+                return (
+                  <View
+                    key={i}
+                    style={[
+                      styles.avatarTierDot,
+                      {
+                        backgroundColor: theme.accent,
+                        shadowColor: theme.accent,
+                        transform: [
+                          { translateX: x },
+                          { translateY: y },
+                        ]
+                      }
+                    ]}
+                  />
+                );
+              })}
+            </View>
+
+            {/* Name Frame */}
+            <View style={[styles.nameFrame, { borderColor: theme.accent }]}>
+              <Text style={[styles.avatarNameMain, { color: theme.accent }]}>
+                {profile.display_name?.toUpperCase() || 'WARRIOR'}
               </Text>
             </View>
-            
-            {/* Tier Orbit Ring */}
-            <View style={[styles.orbitRing, { borderColor: theme.accent }]} />
-            
-            {/* Tier Level Indicator */}
-            <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent }]}>
-              <Text style={styles.tierLevelText}>{activeCurrentTier}</Text>
-            </View>
-            
-            {/* Glowing Tier Dots around the border */}
-            {Array.from({ length: Math.min(activeCurrentTier + 1, 9) }).map((_, i) => {
-              const totalDots = Math.min(activeCurrentTier + 1, 9);
-              const angle = (i * (360 / totalDots)) - 90;
-              const radius = 38;
-              const x = radius * Math.cos(angle * (Math.PI / 180));
-              const y = radius * Math.sin(angle * (Math.PI / 180));
-              
-              return (
-                <View 
-                  key={i} 
-                  style={[
-                    styles.avatarTierDot, 
-                    { 
-                      backgroundColor: theme.accent,
-                      shadowColor: theme.accent,
-                      transform: [
-                        { translateX: x },
-                        { translateY: y },
-                      ]
-                    }
-                  ]}
-                />
-              );
-            })}
-          </View>
-          
-          {/* Name Frame */}
-          <View style={[styles.nameFrame, { borderColor: theme.accent }]}>
-            <Text style={[styles.avatarNameMain, { color: theme.accent }]}>
-              {profile.display_name?.toUpperCase() || 'WARRIOR'}
+
+            <Text style={[styles.avatarTierMain, { color: theme.text.secondary }]}>
+              {TIER_NAMES[activeCurrentTier].toUpperCase()} • TIER {activeCurrentTier}
             </Text>
           </View>
-          
-          <Text style={[styles.avatarTierMain, { color: theme.text.secondary }]}>
-            {TIER_NAMES[activeCurrentTier].toUpperCase()} • TIER {activeCurrentTier}
-          </Text>
         </View>
-      </View>
 
-      {/* World Selector - Pill Style */}
-      <View style={styles.worldSelectorContainer}>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.worldSelectorScrollContent}
-        >
-          <View style={[styles.worldSelector, { backgroundColor: theme.background.secondary }]}>
-            {/* Strength World Pill */}
-            <TouchableOpacity 
-              disabled={isSwitchingWorld}
-              style={[
-                styles.worldPill,
-                category === 'strength' && { 
-                  backgroundColor: theme.accent,
-                  shadowColor: theme.accent,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 4,
-                  elevation: 4,
-                }
-              ]}
-              onPress={() => handleCategorySwitch('strength')}
-            >
-              <Text style={[
-                styles.worldIcon,
-                category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
-              ]}>⚔️</Text>
-              <Text style={[
-                styles.worldText,
-                category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-              ]}>STRENGTH</Text>
-            </TouchableOpacity>
-
-            {/* Power World Pill */}
-            <TouchableOpacity 
-              disabled={!isPowerUnlocked || isSwitchingWorld}
-              style={[
-                styles.worldPill,
-                category === 'power' && { 
-                  backgroundColor: theme.accent,
-                  shadowColor: theme.accent,
-                  shadowOffset: { width: 0, height: 2 },
-                  shadowOpacity: 0.4,
-                  shadowRadius: 4,
-                  elevation: 4,
-                },
-                !isPowerUnlocked && { opacity: 0.4 }
-              ]}
-              onPress={() => handleCategorySwitch('power')}
-            >
-              <Text style={[
-                styles.worldIcon,
-                category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
-              ]}>⚡</Text>
-              <Text style={[
-                styles.worldText,
-                category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-              ]}>POWER</Text>
-              {!isPowerUnlocked && (
-                <View style={styles.worldLockBadge}>
-                  <Text style={styles.worldLockIcon}>🔒</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Static World Button */}
-            <TouchableOpacity
-              disabled={!isStaticUnlocked || isSwitchingWorld}
-              style={[
-                styles.worldPill,
-                !isStaticUnlocked && { opacity: 0.5 }
-              ]}
-              onPress={onViewStaticWorld}
-            >
-              <Text style={[
-                styles.worldIcon,
-                { color: theme.text.secondary }
-              ]}>🧊</Text>
-              <Text style={[
-                styles.worldText,
-                { color: theme.text.secondary }
-              ]}>STATIC</Text>
-              {!isStaticUnlocked && (
-                <View style={styles.worldLockBadge}>
-                  <Text style={styles.worldLockIcon}>🔒</Text>
-                </View>
-              )}
-            </TouchableOpacity>
-
-            {/* Weekly Challenge Button */}
-            <TouchableOpacity
-              style={[
-                styles.worldPill,
-                { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }
-              ]}
-              onPress={onViewWeeklyChallenge}
-            >
-              <Text style={[
-                styles.worldIcon,
-                { color: theme.accent }
-              ]}>🏆</Text>
-              <Text style={[
-                styles.worldText,
-                { color: theme.accent }
-              ]}>WEEKLY</Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
-        
-        {/* Unlock hint below selector */}
-        {!isPowerUnlocked && (
-          <Text style={[styles.worldUnlockHint, { color: theme.text.tertiary }]}>
-            🔒 Reach Platinum-Heart to unlock Power World
-          </Text>
-        )}
-      </View>
-
-      {/* Tier Selector - Category-specific Tiers */}
-      <View style={styles.tierSelectorSection}>
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
-            {category === 'power' ? 'POWER TIERS' : 'STRENGTH TIERS'}
-          </Text>
-        </View>
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.tierList}
-        >
-          {Object.entries(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map(([index, name]) => {
-            const tierIndex = parseInt(index);
-            const isSelected = selectedTier === tierIndex;
-            const isCurrent = activeCurrentTier === tierIndex;
-            const isLockedItem = tierIndex > activeCurrentTier;
-            
-            return (
+        {/* World Selector - Pill Style */}
+        <View style={styles.worldSelectorContainer}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.worldSelectorScrollContent}
+          >
+            <View style={styles.worldSelector}>
+              {/* Strength World Pill */}
               <TouchableOpacity
-                key={index}
+                disabled={isSwitchingWorld}
                 style={[
-                  styles.tierItem,
-                  { backgroundColor: theme.card.background, borderColor: theme.card.border },
-                  isSelected && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
-                  isLockedItem && { opacity: 0.5 }
+                  styles.worldPill,
+                  category === 'strength' && { backgroundColor: theme.accent, borderColor: theme.accent }
                 ]}
-                onPress={() => setSelectedTier(tierIndex)}
+                onPress={() => handleCategorySwitch('strength')}
               >
                 <Text style={[
-                  styles.tierItemName,
-                  { color: theme.text.tertiary },
-                  isSelected && { color: theme.accent }
-                ]}>
-                  {name.toUpperCase()}
-                </Text>
+                  styles.worldIcon,
+                  category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
+                ]}>⚔️</Text>
                 <Text style={[
-                  styles.tierItemNumber,
-                  { color: theme.text.tertiary },
-                  isSelected && { color: theme.accent }
-                ]}>
-                  Tier {index}
-                </Text>
-                {isLockedItem && (
-                  <View style={styles.lockOverlay}>
-                    <Text style={styles.lockIcon}>🔒</Text>
+                  styles.worldText,
+                  category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
+                ]}>STRENGTH</Text>
+              </TouchableOpacity>
+
+              {/* Power World Pill */}
+              <TouchableOpacity
+                disabled={!isPowerUnlocked || isSwitchingWorld}
+                style={[
+                  styles.worldPill,
+                  category === 'power' && { backgroundColor: theme.accent, borderColor: theme.accent },
+                  !isPowerUnlocked && { opacity: 0.4 }
+                ]}
+                onPress={() => handleCategorySwitch('power')}
+              >
+                <Text style={[
+                  styles.worldIcon,
+                  category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
+                ]}>⚡</Text>
+                <Text style={[
+                  styles.worldText,
+                  category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
+                ]}>POWER</Text>
+                {!isPowerUnlocked && (
+                  <View style={styles.worldLockBadge}>
+                    <Text style={styles.worldLockIcon}>🔒</Text>
                   </View>
                 )}
-                {isCurrent && (
-                  <View style={[styles.currentIndicator, { backgroundColor: theme.accent }]} />
+              </TouchableOpacity>
+
+              {/* Static World Pill */}
+              <TouchableOpacity
+                disabled={!isStaticUnlocked || isSwitchingWorld}
+                style={[
+                  styles.worldPill,
+                  !isStaticUnlocked && { opacity: 0.4 }
+                ]}
+                onPress={onViewStaticWorld}
+              >
+                <Text style={[
+                  styles.worldIcon,
+                  { color: theme.text.secondary }
+                ]}>🧊</Text>
+                <Text style={[
+                  styles.worldText,
+                  { color: theme.text.secondary }
+                ]}>STATIC</Text>
+                {!isStaticUnlocked && (
+                  <View style={styles.worldLockBadge}>
+                    <Text style={styles.worldLockIcon}>🔒</Text>
+                  </View>
                 )}
               </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
-      </View>
 
-      {/* Next Step Banner */}
-      {category === 'strength' && (profile?.strength_tier ?? 0) < 8 && (
-        <WarriorCard 
-          variant="accent" 
-          style={styles.nextStepBanner}
-          padding={0}
+              {/* Champions Arena Pill */}
+              <TouchableOpacity
+                style={[
+                  styles.worldPill,
+                  profile?.strength_tier < 8 && { opacity: 0.4 }
+                ]}
+                onPress={onViewChampionsArena}
+              >
+                <Text style={[
+                  styles.worldIcon,
+                  { color: theme.text.secondary }
+                ]}>🏛️</Text>
+                <Text style={[
+                  styles.worldText,
+                  { color: theme.text.secondary }
+                ]}>CHAMPIONS</Text>
+                {profile?.strength_tier < 8 && (
+                  <View style={styles.worldLockBadge}>
+                    <Text style={styles.worldLockIcon}>🔒</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
+              {/* Weekly Challenge Pill */}
+              <TouchableOpacity
+                style={styles.worldPill}
+                onPress={onViewWeeklyChallenge}
+              >
+                <Text style={[
+                  styles.worldIcon,
+                  { color: theme.text.secondary }
+                ]}>🏆</Text>
+                <Text style={[
+                  styles.worldText,
+                  { color: theme.text.secondary }
+                ]}>WEEKLY</Text>
+              </TouchableOpacity>
+            </View>
+          </ScrollView>
+
+          {/* Unlock hint below selector */}
+          {!isPowerUnlocked && (
+            <Text style={[styles.worldUnlockHint, { color: theme.text.tertiary }]}>
+              🔒 Reach Platinum-Heart to unlock Power World
+            </Text>
+          )}
+        </View>
+
+        {/* Tier Selector - Category-specific Tiers */}
+        <View style={styles.tierSelectorSection}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
+            <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
+              {category === 'power' ? 'POWER TIERS' : 'STRENGTH TIERS'}
+            </Text>
+          </View>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.tierList}
+          >
+            {Object.entries(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map(([index, name]) => {
+              const tierIndex = parseInt(index);
+              const isSelected = selectedTier === tierIndex;
+              const isCurrent = activeCurrentTier === tierIndex;
+              const isLockedItem = tierIndex > activeCurrentTier;
+
+              return (
+                <TouchableOpacity
+                  key={index}
+                  style={[
+                    styles.tierItem,
+                    { backgroundColor: theme.card.background, borderColor: theme.card.border },
+                    isSelected && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
+                    isLockedItem && { opacity: 0.5 }
+                  ]}
+                  onPress={() => setSelectedTier(tierIndex)}
+                >
+                  <Text style={[
+                    styles.tierItemName,
+                    { color: theme.text.tertiary },
+                    isSelected && { color: theme.accent }
+                  ]}>
+                    {name.toUpperCase()}
+                  </Text>
+                  <Text style={[
+                    styles.tierItemNumber,
+                    { color: theme.text.tertiary },
+                    isSelected && { color: theme.accent }
+                  ]}>
+                    Tier {index}
+                  </Text>
+                  {isLockedItem && (
+                    <View style={styles.lockOverlay}>
+                      <Text style={styles.lockIcon}>🔒</Text>
+                    </View>
+                  )}
+                  {isCurrent && (
+                    <View style={[styles.currentIndicator, { backgroundColor: theme.accent }]} />
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+          </ScrollView>
+        </View>
+
+        {/* Next Step Banner */}
+        {category === 'strength' && (profile?.strength_tier ?? 0) < 8 && (
+          <WarriorCard
+            variant="accent"
+            style={styles.nextStepBanner}
+            padding={0}
+          >
+            <TouchableOpacity
+              style={styles.nextStepPressable}
+              onPress={() => onStartTrial && onStartTrial(selectedTier)}
+            >
+              <View style={styles.nextStepContent}>
+                <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
+                <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
+                  Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
+                </Text>
+                <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
+                  Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
+                </Text>
+              </View>
+              <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
+            </TouchableOpacity>
+          </WarriorCard>
+        )}
+
+        {/* Selected Tier Card */}
+        <WarriorCard
+          style={styles.rankCard}
+          variant={isLocked ? 'default' : 'accent'}
+          padding={20}
         >
           <TouchableOpacity
-            style={styles.nextStepPressable}
-            onPress={() => onStartTrial && onStartTrial(selectedTier)}
+            style={styles.rankCardInner}
+            onPress={() => {
+              setModalTier(selectedTier);
+              setShowTierModal(true);
+            }}
           >
-            <View style={styles.nextStepContent}>
-              <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
-              <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
-                Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
-              </Text>
-              <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
-                Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
+            <View style={[styles.sealPlaceholder, {
+              borderColor: isLocked ? theme.card.border : theme.accent,
+              backgroundColor: theme.background.secondary
+            }]}>
+              <Text style={[styles.sealText, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+                {isLocked ? '🔒' : tierName[0]}
               </Text>
             </View>
-            <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
+            <Text style={[styles.rankName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+              {tierName.toUpperCase()}
+            </Text>
+            <View style={styles.tierRow}>
+              <View style={[styles.tierDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
+              <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>
+                {isLocked ? `LOCKED - Reach Tier ${selectedTier}` :
+                  isLowerTier ? `Tier ${selectedTier} - Unlocked` :
+                    `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
+              </Text>
+            </View>
           </TouchableOpacity>
         </WarriorCard>
-      )}
 
-      {/* Selected Tier Card */}
-      <WarriorCard 
-        style={styles.rankCard}
-        variant={isLocked ? 'default' : 'accent'}
-        padding={20}
-      >
-        <TouchableOpacity 
-          style={styles.rankCardInner}
-          onPress={() => {
-            setModalTier(selectedTier);
-            setShowTierModal(true);
-          }}
-        >
-          <View style={[styles.sealPlaceholder, { 
-            borderColor: isLocked ? theme.card.border : theme.accent, 
-            backgroundColor: theme.background.secondary 
-          }]}>
-            <Text style={[styles.sealText, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-              {isLocked ? '🔒' : tierName[0]}
+        {/* Progress Bar */}
+        {category === 'strength' && (
+          <View style={styles.progressContainer}>
+            <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
+              <View style={[styles.progressFill, {
+                backgroundColor: theme.accent,
+                width: `${((profile?.strength_tier ?? 0) / 8) * 100}%`
+              }]} />
+            </View>
+            <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
+              TIER {profile?.strength_tier ?? 0} OF 8 — {Math.round(((profile?.strength_tier ?? 0) / 8) * 100)}% COMPLETE
             </Text>
           </View>
-          <Text style={[styles.rankName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-            {tierName.toUpperCase()}
-          </Text>
-          <View style={styles.tierRow}>
-            <View style={[styles.tierDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
-            <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>
-              {isLocked ? `LOCKED - Reach Tier ${selectedTier}` : 
-               isLowerTier ? `Tier ${selectedTier} - Unlocked` :
-               `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
-            </Text>
-          </View>
-        </TouchableOpacity>
-      </WarriorCard>
-
-      {/* Progress Bar */}
-      {category === 'strength' && (
-        <View style={styles.progressContainer}>
-          <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
-            <View style={[styles.progressFill, {
-              backgroundColor: theme.accent,
-              width: `${((profile?.strength_tier ?? 0) / 8) * 100}%` 
-            }]} />
-          </View>
-          <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
-            TIER {profile?.strength_tier ?? 0} OF 8 — {Math.round(((profile?.strength_tier ?? 0) / 8) * 100)}% COMPLETE
-          </Text>
-        </View>
-      )}
-
-      {/* Stats Grid */}
-      <View style={styles.statsContainer}>
-        {category === 'strength' ? (
-          <>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.glory_score}</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>GLORY</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.streak}</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>STREAK</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.trials_passed}</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>TRIALS</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: isLocked ? theme.text.tertiary : theme.text.primary }]}>
-                {isLocked ? '--:--' : (leaderboardBestTime && leaderboardBestTime > 0 ? formatTime(leaderboardBestTime) : '--:--')}
-              </Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>BEST TIME</Text>
-            </View>
-          </>
-        ) : (
-          <>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_points || 0}</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>POWER POINTS</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.pull_up || 0}kg</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>PULL-UP</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.dip || 0}kg</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>DIP</Text>
-            </View>
-            <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.muscle_up || 0}kg</Text>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>MUSCLE-UP</Text>
-            </View>
-          </>
         )}
-      </View>
 
-      {/* Action Buttons - Available for all tiers */}
-      <View style={styles.actionsSection}>
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
-            {isLocked ? 'LOCKED TIER - VIEW ONLY' : isLowerTier ? 'PAST ACHIEVEMENT' : 'ACTIONS'}
-          </Text>
-        </View>
-
-        {/* Row 1: Trial buttons - Orange color */}
-        <View style={styles.trialRow}>
+        {/* Stats Grid */}
+        <View style={styles.statsContainer}>
           {category === 'strength' ? (
             <>
-              {onStartTrial && !isLowerTier && !isLocked && (
-                <WarriorButton 
-                  title="START TRIAL"
-                  style={styles.halfButton}
-                  onPress={() => onStartTrial()}
-                />
-              )}
-
-              {onStartTrial && isLowerTier && (
-                <WarriorButton 
-                  title="IMPROVE TIME"
-                  style={styles.halfButton}
-                  onPress={() => onStartTrial(selectedTier)}
-                />
-              )}
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.glory_score}</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>GLORY</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.streak}</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>STREAK</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.trials_passed}</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>TRIALS</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: isLocked ? theme.text.tertiary : theme.text.primary }]}>
+                  {isLocked ? '--:--' : (leaderboardBestTime && leaderboardBestTime > 0 ? formatTime(leaderboardBestTime) : '--:--')}
+                </Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>BEST TIME</Text>
+              </View>
             </>
           ) : (
             <>
-              {onStartPowerAssessment && !isLowerTier && !isLocked && (
-                <WarriorButton 
-                  title="START ASSESSMENT"
-                  style={styles.halfButton}
-                  onPress={onStartPowerAssessment}
-                />
-              )}
-
-              {onStartPowerAssessment && isLowerTier && (
-                <WarriorButton 
-                  title="IMPROVE SCORE"
-                  style={styles.halfButton}
-                  onPress={onStartPowerAssessment}
-                />
-              )}
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_points || 0}</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>POWER POINTS</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.pull_up || 0}kg</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>PULL-UP</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.dip || 0}kg</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>DIP</Text>
+              </View>
+              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.muscle_up || 0}kg</Text>
+                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>MUSCLE-UP</Text>
+              </View>
             </>
           )}
+        </View>
 
-          {/* Locked placeholder for higher tiers */}
-          {isLocked && (
-            <WarriorButton 
-              title="LOCKED"
-              disabled
-              variant="secondary"
-              style={styles.halfButton}
+        {/* Action Buttons - Available for all tiers */}
+        <View style={styles.actionsSection}>
+          <View style={styles.sectionHeader}>
+            <View style={[styles.sectionDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
+            <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
+              {isLocked ? 'LOCKED TIER - VIEW ONLY' : isLowerTier ? 'PAST ACHIEVEMENT' : 'ACTIONS'}
+            </Text>
+          </View>
+
+          {/* Row 1: Trial buttons - Orange color */}
+          <View style={styles.trialRow}>
+            {category === 'strength' ? (
+              <>
+                {onStartTrial && !isLowerTier && !isLocked && (
+                  <WarriorButton
+                    title="START TRIAL"
+                    style={styles.halfButton}
+                    onPress={() => onStartTrial()}
+                  />
+                )}
+
+                {onStartTrial && isLowerTier && (
+                  <WarriorButton
+                    title="IMPROVE TIME"
+                    style={styles.halfButton}
+                    onPress={() => onStartTrial(selectedTier)}
+                  />
+                )}
+              </>
+            ) : (
+              <>
+                {onStartPowerAssessment && !isLowerTier && !isLocked && (
+                  <WarriorButton
+                    title="START ASSESSMENT"
+                    style={styles.halfButton}
+                    onPress={onStartPowerAssessment}
+                  />
+                )}
+
+                {onStartPowerAssessment && isLowerTier && (
+                  <WarriorButton
+                    title="IMPROVE SCORE"
+                    style={styles.halfButton}
+                    onPress={onStartPowerAssessment}
+                  />
+                )}
+              </>
+            )}
+
+            {/* Locked placeholder for higher tiers */}
+            {isLocked && (
+              <WarriorButton
+                title="LOCKED"
+                disabled
+                variant="secondary"
+                style={styles.halfButton}
+              />
+            )}
+          </View>
+
+          {/* Row 2: Leaderboard - White framed */}
+          {onViewLeaderboards && (
+            <WarriorButton
+              title="VIEW LEADERBOARDS"
+              variant="outline"
+              style={styles.leaderboardRowButton}
+              onPress={() => onViewLeaderboards(category, selectedTier)}
             />
+          )}
+
+          {/* Locked indicator for higher tiers */}
+          {isLocked && (
+            <View style={[styles.lockedIndicator, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+              <Text style={[styles.lockedIndicatorText, { color: theme.text.tertiary }]}>
+                🔒 Complete {category.toUpperCase()} Tier {activeCurrentTier} to unlock this tier
+              </Text>
+            </View>
           )}
         </View>
 
-        {/* Row 2: Leaderboard - White framed */}
-        {onViewLeaderboards && (
-          <WarriorButton 
-            title="VIEW LEADERBOARDS"
-            variant="outline"
-            style={styles.leaderboardRowButton}
-            onPress={() => onViewLeaderboards(category, selectedTier)}
-          />
-        )}
-
-        {/* Locked indicator for higher tiers */}
-        {isLocked && (
-          <View style={[styles.lockedIndicator, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-            <Text style={[styles.lockedIndicatorText, { color: theme.text.tertiary }]}>
-              🔒 Complete {category.toUpperCase()} Tier {activeCurrentTier} to unlock this tier
-            </Text>
+        {/* Info Card */}
+        <WarriorCard style={styles.infoCard}>
+          <View style={styles.infoHeader}>
+            <View style={[styles.infoDot, { backgroundColor: theme.accent }]} />
+            <Text style={[styles.infoSectionTitle, { color: theme.text.primary }]}>WARRIOR INFO</Text>
           </View>
-        )}
-      </View>
 
-      {/* Info Card */}
-      <WarriorCard style={styles.infoCard}>
-        <View style={styles.infoHeader}>
-          <View style={[styles.infoDot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.infoSectionTitle, { color: theme.text.primary }]}>WARRIOR INFO</Text>
-        </View>
+          <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>NAME</Text>
+          <Text style={[styles.infoValue, { color: theme.text.primary }]}>
+            {profile.display_name || profile.email}
+          </Text>
 
-        <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>NAME</Text>
-        <Text style={[styles.infoValue, { color: theme.text.primary }]}>
-          {profile.display_name || profile.email}
-        </Text>
-        
-        {profile.assessed_at ? (
-          <>
-            <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>ASSESSED</Text>
-            <Text style={[styles.infoValue, { color: theme.text.primary }]}>
-              {new Date(profile.assessed_at).toLocaleDateString()}
-            </Text>
-          </>
-        ) : (
-          <>
-            <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>STATUS</Text>
-            <Text style={[styles.infoValue, { color: theme.text.primary }]}>Awaiting Assessment</Text>
-          </>
-        )}
-      </WarriorCard>
+          {profile.assessed_at ? (
+            <>
+              <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>ASSESSED</Text>
+              <Text style={[styles.infoValue, { color: theme.text.primary }]}>
+                {new Date(profile.assessed_at).toLocaleDateString()}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>STATUS</Text>
+              <Text style={[styles.infoValue, { color: theme.text.primary }]}>Awaiting Assessment</Text>
+            </>
+          )}
+        </WarriorCard>
 
-      {/* Sign Out */}
-      <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-        <View style={[styles.signOutDot, { backgroundColor: theme.text.tertiary }]} />
-        <Text style={[styles.signOutText, { color: theme.text.tertiary }]}>
-          LEAVE THE ARENA
-        </Text>
-      </TouchableOpacity>
+        {/* Sign Out */}
+        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
+          <View style={[styles.signOutDot, { backgroundColor: theme.text.tertiary }]} />
+          <Text style={[styles.signOutText, { color: theme.text.tertiary }]}>
+            LEAVE THE ARENA
+          </Text>
+        </TouchableOpacity>
       </ScrollView>
 
       {/* Tier Details Modal */}
@@ -620,8 +635,8 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
                   {modalTier !== null ? (category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]).toUpperCase() : 'TIER'}
                 </Text>
               </View>
-              <TouchableOpacity 
-                style={styles.closeButton} 
+              <TouchableOpacity
+                style={styles.closeButton}
                 onPress={() => setShowTierModal(false)}
               >
                 <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
@@ -637,14 +652,14 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
               <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
               <View style={styles.modalDifficultyRow}>
                 <View style={[styles.modalDifficultyBar, { backgroundColor: theme.background.secondary }]}>
-                  <View 
+                  <View
                     style={[
-                      styles.modalDifficultyFill, 
-                      { 
+                      styles.modalDifficultyFill,
+                      {
                         backgroundColor: theme.accent,
                         width: modalTier !== null ? `${(((category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty || 1) / 9) * 100}%` : '11%'
                       }
-                    ]} 
+                    ]}
                   />
                 </View>
                 <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
@@ -685,7 +700,7 @@ export function ProfileScreen({ onStartTrial, onViewLeaderboards, onViewStaticWo
 
             {/* LEAP NOW Button - Only show if tier is not locked */}
             {modalTier !== null && modalTier <= activeCurrentTier && (
-              <WarriorButton 
+              <WarriorButton
                 title="LEAP NOW"
                 onPress={() => {
                   setShowTierModal(false);
@@ -1129,11 +1144,12 @@ const styles = StyleSheet.create({
   worldPill: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 20,
-    borderRadius: 24,
-    gap: 8,
-    position: 'relative',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255,255,255,0.1)',
+    marginRight: 10,
   },
   worldIcon: {
     fontSize: 16,
@@ -1470,20 +1486,20 @@ const styles = StyleSheet.create({
     padding: 16,
   },
   nextStepContent: { flex: 1 },
-  nextStepLabel: { 
-    fontSize: 10, 
-    letterSpacing: 2, 
+  nextStepLabel: {
+    fontSize: 10,
+    letterSpacing: 2,
     marginBottom: 4,
     fontFamily: 'PlusJakartaSans-Bold',
   },
-  nextStepTitle: { 
-    fontSize: 16, 
-    fontWeight: '900', 
-    letterSpacing: 1, 
+  nextStepTitle: {
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
     marginBottom: 2,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
-  nextStepSubtitle: { 
+  nextStepSubtitle: {
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Regular',
   },
