@@ -91,7 +91,8 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
         }
       }, 200);
       return () => clearInterval(interval);
-    } else if (session.status === 'accepted' && session.sender_id === user.id) {
+    } else if (session.status === 'accepted' && session.sender_id === user.id && !session.start_time) {
+      // Fallback: if protocol wasn't set at acceptance, generate now
       const masterStartTime = new Date(Date.now() + 6000).toISOString();
       const generatedProtocol = ClashLogic.generateProtocol(session.bracket);
       supabase.from('clash_sessions').update({ 

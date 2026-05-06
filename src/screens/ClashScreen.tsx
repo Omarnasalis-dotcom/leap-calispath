@@ -11,6 +11,7 @@ import { Profile } from '../types';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { getGloryLeaderboard } from '../lib/leaderboard';
 import { supabase } from '../lib/supabase';
+import { ClashLogic } from '../lib/clashLogic';
 
 interface ClashScreenProps {
   onClose: () => void;
@@ -100,7 +101,21 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   async function handleRespond(clashId: string, status: 'accepted' | 'declined') {
     try {
       setLoading(true);
-      await ClashService.respondToChallenge(clashId, status);
+      if (status === 'accepted') {
+        // Pre-generate protocol & start time at acceptance to eliminate loading delay
+        const clash = activeClashes.find(c => c.id === clashId);
+        const bracket = clash?.bracket || 'developing';
+        const generatedProtocol = ClashLogic.generateProtocol(bracket);
+        const masterStartTime = new Date(Date.now() + 6000).toISOString();
+        
+        await supabase.from('clash_sessions').update({ 
+          status: 'accepted',
+          workout_protocol: generatedProtocol,
+          start_time: masterStartTime
+        }).eq('id', clashId);
+      } else {
+        await ClashService.respondToChallenge(clashId, status);
+      }
     } catch (error: any) {
       Alert.alert('Combat Error', error.message);
     } finally { setLoading(false); }
