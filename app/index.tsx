@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { SpartanLayout } from './_layout';
@@ -16,6 +16,10 @@ import { OnboardingScreen } from '../src/screens/OnboardingScreen';
 import { WeeklyChallengeScreen } from '../src/screens/WeeklyChallengeScreen';
 import { ChampionsArenaScreen } from '../src/screens/ChampionsArenaScreen';
 import { ArenaWorkoutScreen } from '../src/screens/ArenaWorkoutScreen';
+import { ClashScreen } from '../src/screens/ClashScreen';
+import { BattleScreen } from '../src/screens/BattleScreen';
+import { GloryLeaderboardScreen } from '../src/screens/GloryLeaderboardScreen';
+import { ClashService } from '../src/services/ClashService';
 import { ArenaPhase } from '../src/services/ArenaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -33,11 +37,21 @@ export default function Index() {
   const [showWeeklyChallenge, setShowWeeklyChallenge] = React.useState(false);
   const [showChampionsArena, setShowChampionsArena] = React.useState(false);
   const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
+  const [showClash, setShowClash] = React.useState(false);
+  const [showBattle, setShowBattle] = React.useState(false);
+  const [showGloryLeaderboard, setShowGloryLeaderboard] = React.useState(false);
+  const [activeClashId, setActiveClashId] = React.useState<string | null>(null);
   const [selectedArenaPhase, setSelectedArenaPhase] = React.useState<ArenaPhase | null>(null);
   const [showOnboarding, setShowOnboarding] = React.useState(false);
   const [onboardingChecked, setOnboardingChecked] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
   const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
+
+  // Trial configuration
+  const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
+  const [practiceTier, setPracticeTier] = React.useState<number | null>(null);
+
+  const { theme } = useTheme();
 
   // Check onboarding and restore navigation state
   React.useEffect(() => {
@@ -51,9 +65,20 @@ export default function Index() {
         // Restore navigation state
         const lastScreen = await AsyncStorage.getItem('last_screen');
         if (lastScreen === 'weekly_challenge') setShowWeeklyChallenge(true);
-        if (lastScreen === 'leaderboards') setShowLeaderboards(true);
+        if (lastScreen === 'leaderboards') {
+          const savedCat = await AsyncStorage.getItem('leaderboard_category');
+          const savedTier = await AsyncStorage.getItem('leaderboard_tier');
+          if (savedCat) setLeaderboardCategory(savedCat as 'strength' | 'power');
+          if (savedTier) setLeaderboardTier(parseInt(savedTier));
+          setShowLeaderboards(true);
+        }
         if (lastScreen === 'static_world') setShowStaticWorld(true);
         if (lastScreen === 'champions_arena') setShowChampionsArena(true);
+        if (lastScreen === 'clash') setShowClash(true);
+        if (lastScreen === 'glory_leaderboard') {
+          setShowClash(true);
+          setShowGloryLeaderboard(true);
+        }
       } catch (e) {
         // ignore
       } finally {
@@ -69,39 +94,48 @@ export default function Index() {
       if (!onboardingChecked) return;
       let screen = 'profile';
       if (showWeeklyChallenge) screen = 'weekly_challenge';
-      else if (showLeaderboards) screen = 'leaderboards';
+      else if (showLeaderboards) {
+        screen = 'leaderboards';
+        await AsyncStorage.setItem('leaderboard_category', leaderboardCategory);
+        await AsyncStorage.setItem('leaderboard_tier', leaderboardTier.toString());
+      }
       else if (showStaticWorld) screen = 'static_world';
       else if (showChampionsArena) screen = 'champions_arena';
+      else if (showClash) screen = 'clash';
+      else if (showGloryLeaderboard) screen = 'glory_leaderboard';
       
       await AsyncStorage.setItem('last_screen', screen);
     }
     saveNavState();
-  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, showChampionsArena, onboardingChecked]);
-  
-  // Trial configuration
-  const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
-  const [practiceTier, setPracticeTier] = React.useState<number | null>(null);
+  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, showChampionsArena, showClash, showGloryLeaderboard, leaderboardCategory, leaderboardTier, onboardingChecked]);
 
-  const { theme } = useTheme();
+  // Global Clash Listener
+  React.useEffect(() => {
+    if (!user) return;
+    const subscription = ClashService.subscribeToIncomingChallenges(user.id, (payload) => {
+      // Auto-open clash screen if new invite comes in
+      setShowClash(true);
+    });
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, [user]);
+
+  // Handle back button for persistent screens
+  const handleCloseClash = () => {
+    setShowClash(false);
+    AsyncStorage.setItem('last_screen', 'profile');
+  };
+
+  const handleCloseGlory = () => {
+    setShowGloryLeaderboard(false);
+    AsyncStorage.setItem('last_screen', 'clash');
+  };
 
   // Wait for onboarding check
   if (!onboardingChecked) return null;
 
-  // Onboarding flow
-  if (showOnboarding) {
-    return (
-      <SpartanLayout>
-        <OnboardingScreen
-          onComplete={async () => {
-            await AsyncStorage.setItem('onboarding_complete', 'true');
-            setShowOnboarding(false);
-          }}
-        />
-      </SpartanLayout>
-    );
-  }
-
-  // Not logged in → Auth
+  // 1. Auth Flow
   if (!user) {
     return (
       <SpartanLayout>
@@ -110,53 +144,49 @@ export default function Index() {
     );
   }
 
-  // Power Assessment flow
-  if (showPowerAssessment) {
-    return (
-      <SpartanLayout>
-        <PowerAssessmentScreen
-          onComplete={(newTier) => {
-            setShowPowerAssessment(false);
-            setLeaderboardCategory('power');
-            setLeaderboardTier(newTier);
-            setShowLeaderboards(true);
-          }}
-          onAbandon={() => {
-            setShowPowerAssessment(false);
-            setLeaderboardCategory('power');
-            setShowLeaderboards(true);
+  // 2. Main Content Resolver
+  const renderContent = () => {
+    if (showOnboarding) {
+      return (
+        <OnboardingScreen
+          onComplete={async () => {
+            await AsyncStorage.setItem('onboarding_complete', 'true');
+            setShowOnboarding(false);
           }}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Static World flow
-  if (showStaticWorld) {
-    return (
-      <SpartanLayout>
+    if (showPowerAssessment) {
+      return (
+        <PowerAssessmentScreen
+          onAbandon={() => setShowPowerAssessment(false)}
+          onComplete={() => {
+            setShowPowerAssessment(false);
+            setShowRankReveal(true);
+          }}
+        />
+      );
+    }
+
+    if (showStaticWorld) {
+      return (
         <StaticWorldScreen
           onClose={() => setShowStaticWorld(false)}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Weekly Challenge flow
-  if (showWeeklyChallenge) {
-    return (
-      <SpartanLayout>
+    if (showWeeklyChallenge) {
+      return (
         <WeeklyChallengeScreen
           onClose={() => setShowWeeklyChallenge(false)}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Champions Arena flow
-  if (showChampionsArena) {
-    return (
-      <SpartanLayout>
+    if (showChampionsArena) {
+      return (
         <ChampionsArenaScreen
           onClose={() => setShowChampionsArena(false)}
           onStartArenaWorkout={(phase) => {
@@ -165,47 +195,38 @@ export default function Index() {
             setShowArenaWorkout(true);
           }}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Arena Workout flow
-  if (showArenaWorkout && selectedArenaPhase) {
-    return (
-      <SpartanLayout>
+    if (showArenaWorkout && selectedArenaPhase) {
+      return (
         <ArenaWorkoutScreen
           phase={selectedArenaPhase}
           onClose={() => {
             setShowArenaWorkout(false);
             setShowChampionsArena(true);
           }}
-          onComplete={(time) => {
+          onComplete={() => {
             setShowArenaWorkout(false);
             setShowChampionsArena(true);
           }}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Assessment flow
-  if (showAssessment) {
-    return (
-      <SpartanLayout>
+    if (showAssessment) {
+      return (
         <AssessmentScreen
           onComplete={() => {
             setShowAssessment(false);
             setShowRankReveal(true);
           }}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Trial flow (progression, practice, or eternal)
-  if (showTrial) {
-    return (
-      <SpartanLayout>
+    if (showTrial) {
+      return (
         <TrialScreen
           mode={trialMode}
           practiceTier={practiceTier}
@@ -214,7 +235,6 @@ export default function Index() {
             if (trialMode === 'progression') {
               setShowRankReveal(true);
             } else {
-              // Practice/Eternal: go back to leaderboards
               setShowLeaderboards(true);
             }
           }}
@@ -225,17 +245,16 @@ export default function Index() {
             }
           }}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Leaderboards
-  if (showLeaderboards) {
-    return (
-      <SpartanLayout>
+    if (showLeaderboards) {
+      return (
         <LeaderboardScreen
           key={`${leaderboardCategory}-${leaderboardTier}`}
           onClose={() => setShowLeaderboards(false)}
+          onCategoryChange={(cat) => setLeaderboardCategory(cat)}
+          onTierChange={(tier) => setLeaderboardTier(tier)}
           onPracticeTier={(tier) => {
             setPracticeTier(tier);
             setTrialMode('practice');
@@ -254,52 +273,40 @@ export default function Index() {
           initialCategory={leaderboardCategory}
           initialTier={leaderboardTier}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Rank reveal ceremony
-  if (showRankReveal && profile) {
-    return (
-      <SpartanLayout>
+    if (showRankReveal && profile) {
+      return (
         <RankRevealScreen
           profile={profile}
           onContinue={() => setShowRankReveal(false)}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Check if assessed
-  const isAssessed = profile?.assessed_at !== null;
-
-  if (!isAssessed) {
-    return (
-      <SpartanLayout>
+    const isAssessed = profile?.assessed_at !== null;
+    if (!isAssessed) {
+      return (
         <AssessmentGateScreen
           onStartAssessment={() => setShowAssessment(true)}
         />
-      </SpartanLayout>
-    );
-  }
+      );
+    }
 
-  // Main app
-  return (
-    <SpartanLayout>
+    return (
       <ProfileScreen
         initialCategory={leaderboardCategory}
+        onOpenAssessment={() => setShowAssessment(true)}
         onStartTrial={(tier?: number) => {
           if (tier !== undefined && tier < (profile?.strength_tier || 0)) {
-            // Practice mode for lower tiers
             setPracticeTier(tier);
             setTrialMode('practice');
             setShowTrial(true);
           } else if ((profile?.strength_tier || 0) === 8) {
-            // Eternal mode for Demigod tier (Tier 8)
             setTrialMode('eternal');
             setShowTrial(true);
           } else {
-            // Progression mode for current tier
             setTrialMode('progression');
             setShowTrial(true);
           }
@@ -309,11 +316,57 @@ export default function Index() {
           setLeaderboardTier(tier);
           setShowLeaderboards(true);
         }}
-        onViewStaticWorld={() => setShowStaticWorld(true)}
-        onViewWeeklyChallenge={() => setShowWeeklyChallenge(true)}
-        onViewChampionsArena={() => setShowChampionsArena(true)}
-        onStartPowerAssessment={() => setShowPowerAssessment(true)}
+        onOpenPowerAssessment={() => setShowPowerAssessment(true)}
+        onOpenStaticWorld={() => setShowStaticWorld(true)}
+        onOpenWeeklyChallenge={() => setShowWeeklyChallenge(true)}
+        onOpenChampionsArena={() => setShowChampionsArena(true)}
+        onOpenClash={() => {
+          console.log('OPENING_CLASH_SCREEN');
+          setShowClash(true);
+        }}
       />
+    );
+  };
+
+  return (
+    <SpartanLayout hideToggle={showBattle}>
+      <View style={{ flex: 1 }}>
+        {renderContent()}
+        
+        {showClash && (
+          <View style={StyleSheet.absoluteFill}>
+            <ClashScreen 
+              onClose={handleCloseClash}
+              onOpenRankings={() => setShowGloryLeaderboard(true)}
+              onStartBattle={(clashId) => {
+                setActiveClashId(clashId);
+                setShowClash(false);
+                setShowBattle(true);
+              }}
+            />
+          </View>
+        )}
+
+        {showGloryLeaderboard && (
+          <View style={StyleSheet.absoluteFill}>
+            <GloryLeaderboardScreen 
+              onClose={handleCloseGlory}
+            />
+          </View>
+        )}
+
+        {showBattle && activeClashId && (
+          <View style={StyleSheet.absoluteFill}>
+            <BattleScreen 
+              clashId={activeClashId}
+              onFinish={() => {
+                setShowBattle(false);
+                setActiveClashId(null);
+              }}
+            />
+          </View>
+        )}
+      </View>
     </SpartanLayout>
   );
 }

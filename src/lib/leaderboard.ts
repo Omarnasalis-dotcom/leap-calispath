@@ -111,6 +111,45 @@ export async function getPowerTierLeaderboard(
 }
 
 /**
+ * Get Glory leaderboard (Clash ranking)
+ */
+export async function getGloryLeaderboard(
+  currentUserId: string
+): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name, glory_score, strength_tier')
+    .order('glory_score', { ascending: false })
+    .limit(100);
+
+  if (error || !data) {
+    console.error('Error fetching glory leaderboard:', error);
+    return { entries: [], personalBest: null };
+  }
+
+  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+    user_id: record.id,
+    display_name: record.display_name || 'Unknown Warrior',
+    tier: record.strength_tier,
+    best_time_seconds: record.glory_score, // We reuse this field for glory points
+    rank: index + 1,
+    is_current_user: record.id === currentUserId,
+  }));
+
+  const personalEntry = entries.find(e => e.is_current_user);
+  const personalBest: PersonalBest | null = personalEntry
+    ? {
+        tier: personalEntry.tier,
+        best_time_seconds: personalEntry.best_time_seconds,
+        rank: personalEntry.rank,
+        total_attempts: 0,
+      }
+    : null;
+
+  return { entries, personalBest };
+}
+
+/**
  * Get user's personal best times for all tiers they've attempted
  */
 export async function getUserPersonalBests(userId: string): Promise<PersonalBest[]> {

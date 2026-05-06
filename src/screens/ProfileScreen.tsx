@@ -48,22 +48,28 @@ const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number
 
 interface ProfileScreenProps {
   onStartTrial?: (tier?: number) => void;
+  onOpenAssessment?: () => void;
   onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
-  onViewStaticWorld?: () => void;
-  onViewWeeklyChallenge?: () => void;
-  onViewChampionsArena?: () => void;
-  onStartPowerAssessment?: () => void;
+  onOpenPowerAssessment?: () => void;
+  onOpenStaticWorld?: () => void;
+  onOpenWeeklyChallenge?: () => void;
+  onOpenChampionsArena?: () => void;
+  onOpenClash?: () => void;
   initialCategory?: 'strength' | 'power';
+  initialTier?: number;
 }
 
 export function ProfileScreen({
   onStartTrial,
+  onOpenAssessment,
   onViewLeaderboards,
-  onViewStaticWorld,
-  onViewWeeklyChallenge,
-  onViewChampionsArena,
-  onStartPowerAssessment,
-  initialCategory = 'strength'
+  onOpenPowerAssessment,
+  onOpenStaticWorld,
+  onOpenWeeklyChallenge,
+  onOpenChampionsArena,
+  onOpenClash,
+  initialCategory = 'strength',
+  initialTier = 0,
 }: ProfileScreenProps) {
   const { profile, signOut, user } = useAuth();
   const { theme } = useTheme();
@@ -260,7 +266,7 @@ export function ProfileScreen({
                   styles.worldPill,
                   !isStaticUnlocked && { opacity: 0.4 }
                 ]}
-                onPress={onViewStaticWorld}
+                onPress={onOpenStaticWorld}
               >
                 <Text style={[
                   styles.worldIcon,
@@ -283,7 +289,7 @@ export function ProfileScreen({
                   styles.worldPill,
                   profile?.strength_tier < 8 && { opacity: 0.4 }
                 ]}
-                onPress={onViewChampionsArena}
+                onPress={onOpenChampionsArena}
               >
                 <Text style={[
                   styles.worldIcon,
@@ -300,10 +306,36 @@ export function ProfileScreen({
                 )}
               </TouchableOpacity>
 
+              {/* Online Clash Pill - Fire Style */}
+              <TouchableOpacity
+                style={[
+                  styles.worldPill,
+                  profile?.strength_tier < 2 && { opacity: 0.4 }
+                ]}
+                onPress={() => {
+                  console.log('CLASH_BUTTON_PRESSED');
+                  if (onOpenClash) onOpenClash();
+                }}
+              >
+                <Text style={[
+                  styles.worldIcon,
+                  { color: theme.text.secondary }
+                ]}>🔥</Text>
+                <Text style={[
+                  styles.worldText,
+                  { color: theme.text.secondary }
+                ]}>CLASH</Text>
+                {profile?.strength_tier < 2 && (
+                  <View style={styles.worldLockBadge}>
+                    <Text style={styles.worldLockIcon}>🔒</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+
               {/* Weekly Challenge Pill */}
               <TouchableOpacity
                 style={styles.worldPill}
-                onPress={onViewWeeklyChallenge}
+                onPress={onOpenWeeklyChallenge}
               >
                 <Text style={[
                   styles.worldIcon,
@@ -534,19 +566,19 @@ export function ProfileScreen({
               </>
             ) : (
               <>
-                {onStartPowerAssessment && !isLowerTier && !isLocked && (
+                {onOpenPowerAssessment && !isLowerTier && !isLocked && (
                   <WarriorButton
                     title="START ASSESSMENT"
                     style={styles.halfButton}
-                    onPress={onStartPowerAssessment}
+                    onPress={onOpenPowerAssessment}
                   />
                 )}
 
-                {onStartPowerAssessment && isLowerTier && (
+                {onOpenPowerAssessment && isLowerTier && (
                   <WarriorButton
                     title="IMPROVE SCORE"
                     style={styles.halfButton}
-                    onPress={onStartPowerAssessment}
+                    onPress={onOpenPowerAssessment}
                   />
                 )}
               </>
@@ -705,7 +737,7 @@ export function ProfileScreen({
                 onPress={() => {
                   setShowTierModal(false);
                   if (category === 'power') {
-                    if (onStartPowerAssessment) onStartPowerAssessment();
+                    if (onOpenPowerAssessment) onOpenPowerAssessment();
                   } else {
                     if (onStartTrial) onStartTrial(modalTier);
                   }

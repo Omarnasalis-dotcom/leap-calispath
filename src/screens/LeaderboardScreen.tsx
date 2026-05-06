@@ -54,6 +54,8 @@ interface LeaderboardScreenProps {
   onStartPowerAssessment?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
+  onCategoryChange?: (category: 'strength' | 'power') => void;
+  onTierChange?: (tier: number) => void;
 }
 
 export function LeaderboardScreen({
@@ -63,6 +65,8 @@ export function LeaderboardScreen({
   onStartPowerAssessment,
   initialCategory = 'strength',
   initialTier,
+  onCategoryChange,
+  onTierChange,
 }: LeaderboardScreenProps) {
   const { profile, user } = useAuth();
   const { theme } = useTheme();
@@ -156,6 +160,8 @@ export function LeaderboardScreen({
             const newTier = Math.min(profile?.strength_tier || 0, TIER_NAMES.length - 1);
             setCategory('strength');
             setSelectedTier(newTier);
+            if (onCategoryChange) onCategoryChange('strength');
+            if (onTierChange) onTierChange(newTier);
           }}
         >
           <Text style={[
@@ -175,6 +181,8 @@ export function LeaderboardScreen({
             const newTier = Math.min(profile?.power_tier || 0, POWER_TIER_NAMES.length - 1);
             setCategory('power');
             setSelectedTier(newTier);
+            if (onCategoryChange) onCategoryChange('power');
+            if (onTierChange) onTierChange(newTier);
           }}
         >
           <View style={styles.row}>
@@ -204,7 +212,10 @@ export function LeaderboardScreen({
                 selectedTier === tierIndex && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
                 !isUnlocked && { opacity: 0.5 }
               ]}
-              onPress={() => setSelectedTier(tierIndex)}
+              onPress={() => {
+                setSelectedTier(tierIndex);
+                if (onTierChange) onTierChange(tierIndex);
+              }}
             >
               <Text style={[
                 styles.tierItemName,

@@ -6,9 +6,10 @@ import { ThemeToggle } from '../components/ThemeToggle';
 
 interface SpartanLayoutProps {
   children: React.ReactNode;
+  hideToggle?: boolean;
 }
 
-export function SpartanLayout({ children }: SpartanLayoutProps) {
+export function SpartanLayout({ children, hideToggle }: SpartanLayoutProps) {
   const { theme } = useTheme();
 
   useEffect(() => {
@@ -24,7 +25,7 @@ export function SpartanLayout({ children }: SpartanLayoutProps) {
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 1 }}
       />
-      <ThemeToggle />
+      {!hideToggle && <ThemeToggle />}
       <View style={styles.content}>
         {children}
       </View>
