@@ -22,30 +22,8 @@ import {
 } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { RITES_OF_PASSAGE } from '../lib/trials';
+import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 
-const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
-  0: { desc: 'Master the basics: Inverted Rows, Squats, Bench Dips, Knee Push-ups', difficulty: 1 },
-  1: { desc: 'Build foundation: Assisted Pull-ups, Push-ups, Lunges, Dips', difficulty: 2 },
-  2: { desc: 'Develop strength: Pull-ups, Push-ups, Squats, Dips with higher volume', difficulty: 3 },
-  3: { desc: 'Intermediate level: Unassisted Pull-ups, Full Push-ups, Jump Squats', difficulty: 4 },
-  4: { desc: 'Advanced strength: Weighted movements, higher rep ranges', difficulty: 5 },
-  5: { desc: 'Elite tier: Complex movements, muscle-ups preparation', difficulty: 6 },
-  6: { desc: 'Platinum-Heart: Full Muscle-ups, advanced calisthenics', difficulty: 7 },
-  7: { desc: 'Diamond-tier: High volume muscle-ups, elite conditioning', difficulty: 8 },
-  8: { desc: 'Titan/Demigod: Maximum strength, endurance mastery', difficulty: 9 },
-};
-
-const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
-  0: { desc: 'Minimum to compete: 0 pts — Entry level power tier.', difficulty: 1 },
-  1: { desc: 'Minimum to compete: 17.5 pts', difficulty: 2 },
-  2: { desc: 'Minimum to compete: 27.5 pts', difficulty: 3 },
-  3: { desc: 'Minimum to compete: 45 pts', difficulty: 4 },
-  4: { desc: 'Minimum to compete: 70 pts', difficulty: 5 },
-  5: { desc: 'Minimum to compete: 100 pts', difficulty: 6 },
-  6: { desc: 'Minimum to compete: 140 pts', difficulty: 7 },
-  7: { desc: 'Minimum to compete: 190 pts', difficulty: 8 },
-  8: { desc: 'Minimum to compete: 290 pts', difficulty: 9 },
-};
 
 interface LeaderboardScreenProps {
   onClose: () => void;
@@ -661,22 +639,41 @@ export function LeaderboardScreen({
               </View>
             )}
 
-            {/* READY TO LEAP Button */}
-            <TouchableOpacity
-              style={[styles.modalLeapButton, { backgroundColor: theme.accent }]}
-              onPress={() => {
-                setShowTierModal(false);
-                if (category === 'power') {
-                  if (onStartPowerAssessment) onStartPowerAssessment();
-                } else if (modalTier === 8) {
-                  onStartEternal();
-                } else {
-                  onPracticeTier(modalTier);
-                }
-              }}
-            >
-              <Text style={styles.modalLeapText}>READY TO LEAP</Text>
-            </TouchableOpacity>
+            {/* Action Button - Conditional based on rank */}
+            {(isCurrentTier || canPractice) && (
+              <TouchableOpacity
+                style={[
+                  styles.modalLeapButton, 
+                  { backgroundColor: isCurrentTier ? theme.accent : 'rgba(205,127,50,0.2)' },
+                  !isCurrentTier && { borderWidth: 1, borderColor: theme.accent }
+                ]}
+                onPress={() => {
+                  setShowTierModal(false);
+                  if (category === 'power') {
+                    if (onStartPowerAssessment) onStartPowerAssessment();
+                  } else if (modalTier === 8) {
+                    onStartEternal();
+                  } else {
+                    onPracticeTier(modalTier);
+                  }
+                }}
+              >
+                <Text style={[
+                  styles.modalLeapText,
+                  !isCurrentTier && { color: theme.accent }
+                ]}>
+                  {isCurrentTier ? 'READY TO LEAP' : 'PRACTICE THIS TIER'}
+                </Text>
+              </TouchableOpacity>
+            )}
+            
+            {!isCurrentTier && !canPractice && (
+              <View style={[styles.lockedIndicator, { borderColor: theme.card.border }]}>
+                <Text style={[styles.lockedIndicatorText, { color: theme.text.tertiary }]}>
+                  🔒 REACH TIER {modalTier} TO UNLOCK
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </Modal>

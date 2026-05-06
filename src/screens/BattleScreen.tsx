@@ -61,6 +61,7 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
         if (newSess.status === 'finished') {
           if (timerRef.current) clearInterval(timerRef.current);
           setShowResult(true);
+          setFinishing(false);
           Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
         }
       })
@@ -121,17 +122,31 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
       const progress = ClashLogic.calculateProgress(protocol, nextReps);
       animateProgress(myProgressAnim, progress);
       if (channelRef.current) channelRef.current.send({ type: 'broadcast', event: 'progress', payload: { progress } });
-      if (progress === 100) handleFinish();
       return nextReps;
     });
     Vibration.vibrate(10);
   }
 
+  const [finishing, setFinishing] = useState(false);
+
   async function handleFinish() {
+    if (finishing) return;
+    setFinishing(true);
     if (timerRef.current) clearInterval(timerRef.current);
     try {
-      await ClashService.reportFinish(clashId, user!.id, timer);
-    } catch (e) { console.error(e); }
+      const isSender = session?.sender_id === user?.id;
+      const result = await ClashService.reportFinish(clashId, user!.id, timer, isSender);
+      
+      if (!result.success) {
+        setFinishing(false);
+        if (!timerRef.current) startTimer();
+        Alert.alert('Error', 'Failed to report finish. Try again.');
+      }
+    } catch (e) { 
+      console.error(e);
+      setFinishing(false);
+      if (!timerRef.current) startTimer();
+    }
   }
 
   function handleCancel() {
@@ -186,6 +201,23 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
           );
         })}
       </ScrollView>
+
+      {/* Claim Victory Button - Only shows at 100% */}
+      {ClashLogic.calculateProgress(protocol, myReps) === 100 && session?.status !== 'finished' && !showResult && (
+        <View style={styles.finishArea}>
+          <TouchableOpacity 
+            style={[styles.claimVictoryBtn, { backgroundColor: theme.accent }]}
+            onPress={handleFinish}
+            disabled={finishing}
+          >
+            {finishing ? (
+              <ActivityIndicator color="#000" />
+            ) : (
+              <Text style={styles.claimVictoryText}>CLAIM VICTORY</Text>
+            )}
+          </TouchableOpacity>
+        </View>
+      )}
 
       {countdown !== null && (
         <View style={[styles.countdownOverlay, { backgroundColor: 'rgba(0,0,0,0.95)' }]}>
@@ -308,4 +340,38 @@ const styles = StyleSheet.create({
   statValue: { fontSize: 24, fontWeight: '900', color: '#FFF', marginTop: 4 },
   finishBtn: { marginTop: 40, width: '100%', paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
   finishBtnText: { color: '#000', fontSize: 14, fontWeight: '900', letterSpacing: 1 },
+  finishArea: {
+    padding: 20,
+    paddingBottom: 40,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  claimVictoryBtn: {
+    height: 60,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  claimVictoryText: {
+    color: '#000',
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 4,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  returnLobbyBtn: {
+    alignItems: 'center',
+    padding: 12,
+  },
+  returnLobbyText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    textDecorationLine: 'underline',
+  },
 });

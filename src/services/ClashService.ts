@@ -116,41 +116,36 @@ export class ClashService {
   }
 
   /**
-   * Report finish time
+   * Report finish time — atomic via database RPC to prevent race conditions
    */
-  static async reportFinish(clashId: string, userId: string, seconds: number): Promise<void> {
-    // We fetch the current session to determine if we are sender or receiver
-    const { data: session } = await supabase
-      .from('clash_sessions')
-      .select('*')
-      .eq('id', clashId)
-      .single();
+  static async reportFinish(
+    sessionId: string,
+    userId: string,
+    timeSeconds: number,
+    isSender: boolean
+  ): Promise<{ success: boolean; winnerId?: string; bothFinished?: boolean }> {
+    try {
+      const { data, error } = await supabase.rpc('finish_clash_session', {
+        p_session_id: sessionId,
+        p_user_id: userId,
+        p_time_seconds: timeSeconds,
+        p_is_sender: isSender,
+      });
 
-    if (!session) return;
+      if (error) {
+        console.error('Error finishing clash session:', error);
+        return { success: false };
+      }
 
-    const isSender = session.sender_id === userId;
-    const updateData: any = {
-      status: 'finished'
-    };
-
-    if (isSender) {
-      updateData.sender_finish_time = seconds;
-    } else {
-      updateData.receiver_finish_time = seconds;
+      return {
+        success: data.success,
+        winnerId: data.winner_id,
+        bothFinished: data.both_finished,
+      };
+    } catch (error) {
+      console.error('Error finishing clash session:', error);
+      return { success: false };
     }
-
-    // Determine winner if the other hasn't finished yet
-    const otherTime = isSender ? session.receiver_finish_time : session.sender_finish_time;
-    if (!otherTime) {
-      updateData.winner_id = userId;
-    }
-
-    const { error } = await supabase
-      .from('clash_sessions')
-      .update(updateData)
-      .eq('id', clashId);
-
-    if (error) throw error;
   }
 
   /**

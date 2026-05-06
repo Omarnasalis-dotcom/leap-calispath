@@ -1,17 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Trial, getTrialForTier } from '../lib/trials';
-
-export const TIER_HARD_FLOORS: Record<number, number> = {
-  0: 25,
-  1: 90,
-  2: 150,
-  3: 180,
-  4: 200,
-  5: 220,
-  6: 250,
-  7: 360,
-  8: 480,
-};
+import { TIER_HARD_FLOORS } from '../constants/Progression';
 
 export interface TrialResult {
   userId: string;
@@ -44,6 +33,11 @@ export class TrialService {
     });
 
     if (historyError) throw historyError;
+
+    // 1.5 Anti-cheat: Block progression if time is suspicious
+    if (!this.isTimeValid(tier, timeSeconds)) {
+      throw new Error('DISHONOR: Time defies human limits for this tier.');
+    }
 
     // 2. Fetch current profile to update best times
     const { data: profile, error: pError } = await supabase

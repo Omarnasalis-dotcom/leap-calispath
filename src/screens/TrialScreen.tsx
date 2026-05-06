@@ -54,6 +54,7 @@ export function TrialScreen({
   const [loading, setLoading] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
+  const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const lightningAnim = useRef(new Animated.Value(0)).current;
@@ -86,14 +87,14 @@ export function TrialScreen({
       : nextTier;
 
   useEffect(() => {
-    if (profile) {
+    if (profile && !hasStarted && !trial) {
       const t = getTrialForTier(targetTier);
       if (t) {
         setTrial(t);
         setCompletedMovements(new Array(t.movements.length).fill(false));
       }
     }
-  }, [profile, targetTier]);
+  }, [profile, targetTier, hasStarted, trial]);
 
   useEffect(() => {
     if (isRunning) {
@@ -116,13 +117,24 @@ export function TrialScreen({
     }
   }, [isRunning]);
 
-  function toggleMovement(index: number) {
-    if (!hasStarted) {
+  function startTrial() {
+    setPrepCountdown(3);
+  }
+
+  useEffect(() => {
+    if (prepCountdown === null) return;
+
+    if (prepCountdown > 0) {
+      const timer = setTimeout(() => setPrepCountdown(prepCountdown - 1), 1000);
+      return () => clearTimeout(timer);
+    } else {
       setHasStarted(true);
-      if (!isRunning) {
-        startTimer();
-      }
+      startTimer();
     }
+  }, [prepCountdown]);
+
+  function toggleMovement(index: number) {
+    if (!hasStarted) return; // Prevent checking until started
 
     setCompletedMovements((prev) => {
       const next = [...prev];
@@ -174,6 +186,7 @@ export function TrialScreen({
         isProgression: mode === 'progression',
       });
 
+      // CRITICAL: Await the profile refresh before showing victory
       await refreshProfile();
 
       if (mode === 'progression') {
@@ -182,7 +195,11 @@ export function TrialScreen({
         onComplete();
       }
     } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save time');
+      if (error.message?.includes('DISHONOR')) {
+        setShowDishonor(true);
+      } else {
+        Alert.alert('Error', error.message || 'Failed to save time');
+      }
     } finally {
       setLoading(false);
     }
@@ -293,29 +310,22 @@ export function TrialScreen({
             color: 'rgba(255,255,255,0.65)',
             textAlign: 'center',
             lineHeight: 32,
-            marginBottom: 40,
+            marginBottom: 20,
             opacity: textOpacity,
             fontStyle: 'italic',
           }}>
             A true warrior earns their rank.{'\n'}
             Your time defies human limits —{'\n'}
             this trial has been struck from{'\n'}
-            the records.{'\n\n'}
-            <Text style={{ color: 'rgba(255,255,255,0.9)', fontStyle: 'normal', fontWeight: '700' }}>
-              Train harder. Compete with honor.
-            </Text>
+            the records.
           </Animated.Text>
 
-          {/* Minimum Time Info */}
-          <Text style={{
-            fontSize: 12,
-            color: 'rgba(255,255,255,0.4)',
-            textAlign: 'center',
-            marginBottom: 40,
-            letterSpacing: 1,
-          }}>
-            Minimum time for this tier: {Math.floor((TIER_HARD_FLOORS[trial?.tier ?? 0] ?? 42) / 60)}m {(TIER_HARD_FLOORS[trial?.tier ?? 0] ?? 42) % 60}s
-          </Text>
+          {/* Time Breakdown */}
+          <Animated.View style={{ opacity: textOpacity, alignItems: 'center', marginBottom: 40 }}>
+            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, letterSpacing: 1 }}>
+              YOUR TIME: <Text style={{ color: '#FF4444', fontWeight: 'bold' }}>{formatTime(timeSeconds)}</Text>
+            </Text>
+          </Animated.View>
 
           {/* Button */}
           <Animated.View style={{ width: '100%', opacity: buttonOpacity }}>
@@ -391,6 +401,26 @@ export function TrialScreen({
         </Animated.View>
       </View>
 
+      {/* START TRIAL Button - Moved to top */}
+      {!hasStarted && prepCountdown === null && (
+        <View style={styles.startButtonContainer}>
+          <Button
+            title="START TRIAL"
+            onPress={startTrial}
+            variant="primary"
+          />
+        </View>
+      )}
+
+      {/* Countdown - Moved to top */}
+      {!hasStarted && prepCountdown !== null && (
+        <View style={styles.countdownContainer}>
+          <Text style={[styles.countdownText, { color: theme.accent }]}>
+            {prepCountdown === 0 ? 'GO!' : prepCountdown}
+          </Text>
+        </View>
+      )}
+
       <View style={[styles.card, {
         backgroundColor: theme.card.background,
         borderColor: theme.card.border
@@ -421,21 +451,23 @@ export function TrialScreen({
         ))}
       </View>
 
-      {/* Claim/Save and Abandon buttons - CLAIM locked until all checkboxes marked, ABANDON always clickable */}
-      <View style={styles.claimActions}>
-        <Button
-          title={mode === 'progression' ? 'CLAIM RANK' : 'SAVE TIME'}
-          onPress={handleClaimRank}
-          loading={loading}
-          variant="primary"
-          disabled={!canClaim}
-        />
-        <Button
-          title="ABANDON"
-          onPress={handleAbandon}
-          variant="secondary"
-        />
-      </View>
+      {/* Claim/Save and Abandon buttons - Only visible after starting */}
+      {hasStarted && (
+        <View style={styles.claimActions}>
+          <Button
+            title={mode === 'progression' ? 'CLAIM RANK' : 'SAVE TIME'}
+            onPress={handleClaimRank}
+            loading={loading}
+            variant="primary"
+            disabled={!canClaim}
+          />
+          <Button
+            title="ABANDON"
+            onPress={handleAbandon}
+            variant="secondary"
+          />
+        </View>
+      )}
 
       <Text style={styles.hint}>
         {canClaim
@@ -737,5 +769,16 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     color: '#FFFFFF',
     letterSpacing: 3,
+  },
+  countdownContainer: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+  },
+  countdownText: {
+    fontSize: 48,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
 });

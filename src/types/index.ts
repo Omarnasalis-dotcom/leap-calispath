@@ -1,3 +1,5 @@
+import { User } from '@supabase/supabase-js';
+
 export interface Profile {
   id: string;
   email: string;
@@ -61,7 +63,7 @@ export const POWER_TIER_NAMES = [
 ];
 
 export interface AuthContextType {
-  user: any | null;
+  user: User | null;
   profile: Profile | null;
   loading: boolean;
   signUp: (email: string, password: string) => Promise<void>;

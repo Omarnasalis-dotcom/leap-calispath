@@ -2,11 +2,12 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { AuthContextType, Profile } from '../types';
+import { User } from '@supabase/supabase-js';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<any | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
 
