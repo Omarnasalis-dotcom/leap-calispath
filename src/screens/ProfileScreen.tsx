@@ -20,7 +20,8 @@ import { WarriorCard } from '../components/atoms/WarriorCard';
 
 import { getTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
-import { isStaticWorldUnlocked } from '../lib/staticLogic';
+import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
+import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 
 
@@ -33,6 +34,7 @@ interface ProfileScreenProps {
   onOpenWeeklyChallenge?: () => void;
   onOpenChampionsArena?: () => void;
   onOpenClash?: () => void;
+  onOpenTournamentArena?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
@@ -46,6 +48,7 @@ export function ProfileScreen({
   onOpenWeeklyChallenge,
   onOpenChampionsArena,
   onOpenClash,
+  onOpenTournamentArena,
   initialCategory = 'strength',
   initialTier = 0,
 }: ProfileScreenProps) {
@@ -102,7 +105,61 @@ export function ProfileScreen({
     }
   }
 
+  const [masteryScore, setMasteryScore] = useState(0);
+
+  useEffect(() => {
+    async function loadMastery() {
+      if (profile?.id) {
+        try {
+          const holds = await StaticService.getUserHolds(profile.id);
+          const total = holds.reduce((acc, h) => acc + (h.points || 0), 0);
+          setMasteryScore(total);
+        } catch (err) {
+          console.error('Error loading mastery:', err);
+        }
+      }
+    }
+    loadMastery();
+  }, [profile?.id]);
+
   if (!profile) return null;
+
+  const StatBar = ({ value, displayValue, max, color, icon, theme, level }: { value: number, displayValue?: number, max: number, color: string, icon: string, theme: any, level?: number }) => {
+    const fillPercent = displayValue !== undefined ? ((value % max) / max) * 100 : (value / max) * 100;
+    
+    return (
+      <View style={styles.statBarContainer}>
+        <View style={styles.statBarRow}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', width: 42 }}>
+            <Text style={styles.statBarIcon}>{icon}</Text>
+            {level !== undefined && (
+              <Text style={{ color: theme.accent, fontSize: 9, fontWeight: '900', marginLeft: -2, marginTop: 2 }}>
+                {level}
+              </Text>
+            )}
+          </View>
+          <View style={[styles.statBarTrack, { backgroundColor: `${color}15`, borderColor: `${color}30`, borderWidth: 1 }]}>
+            <View 
+              style={[
+                styles.statBarFill, 
+                { 
+                  backgroundColor: color, 
+                  width: `${Math.max(0, Math.min(fillPercent, 100))}%`,
+                  shadowColor: color,
+                  shadowOffset: { width: 0, height: 0 },
+                  shadowOpacity: 0.5,
+                  shadowRadius: 4,
+                }
+              ]} 
+            />
+            {/* Top reflection for glass look */}
+            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '35%', backgroundColor: 'rgba(255,255,255,0.12)', borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />
+          </View>
+          <Text style={[styles.statBarValue, { color: theme.text.primary }]}>{displayValue ?? value}</Text>
+        </View>
+      </View>
+    );
+  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
@@ -111,17 +168,17 @@ export function ProfileScreen({
           {/* User Avatar with Tier Info */}
           <View style={styles.avatarSection}>
             <View style={styles.avatarWrapper}>
-              <View style={[styles.avatarContainer, { borderColor: theme.accent }]}>
-                <Text style={[styles.avatarInitial, { color: theme.accent }]}>
-                  {profile.display_name ? profile.display_name[0].toUpperCase() : profile.email[0].toUpperCase()}
+              <View style={[styles.avatarContainer, { borderColor: theme.accent, width: 100, height: 100, borderRadius: 50 }]}>
+                <Text style={[styles.avatarInitial, { color: theme.accent, fontSize: 10, textAlign: 'center', paddingHorizontal: 10 }]} numberOfLines={2}>
+                  {profile.display_name?.toUpperCase() || 'WARRIOR'}
                 </Text>
               </View>
 
               {/* Tier Orbit Ring */}
-              <View style={[styles.orbitRing, { borderColor: theme.accent }]} />
+              <View style={[styles.orbitRing, { borderColor: theme.accent, width: 110, height: 110, borderRadius: 55 }]} />
 
               {/* Tier Level Indicator */}
-              <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent }]}>
+              <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent, right: 0, bottom: 0 }]}>
                 <Text style={styles.tierLevelText}>{activeCurrentTier}</Text>
               </View>
 
@@ -129,7 +186,7 @@ export function ProfileScreen({
               {Array.from({ length: Math.min(activeCurrentTier + 1, 9) }).map((_, i) => {
                 const totalDots = Math.min(activeCurrentTier + 1, 9);
                 const angle = (i * (360 / totalDots)) - 90;
-                const radius = 38;
+                const radius = 55;
                 const x = radius * Math.cos(angle * (Math.PI / 180));
                 const y = radius * Math.sin(angle * (Math.PI / 180));
 
@@ -152,16 +209,53 @@ export function ProfileScreen({
               })}
             </View>
 
-            {/* Name Frame */}
-            <View style={[styles.nameFrame, { borderColor: theme.accent }]}>
-              <Text style={[styles.avatarNameMain, { color: theme.accent }]}>
-                {profile.display_name?.toUpperCase() || 'WARRIOR'}
-              </Text>
+            {/* Warrior Stats Bars - Under Tier/Avatar */}
+            {/* Warrior Stats Bars - Under Tier/Avatar */}
+            <View style={[styles.rightStatsColumn, { width: '80%', marginTop: 20, flex: 0, alignSelf: 'center', padding: 8 }]}>
+              <StatBar 
+                value={(profile as any).tournament_gp || 0} 
+                displayValue={(profile as any).tournament_gp || 0}
+                max={100} 
+                color="#FFC107" 
+                icon="🏟️" 
+                theme={theme}
+                level={Math.floor(((profile as any).tournament_gp || 0) / 100)}
+              />
+              <StatBar 
+                value={profile.glory_score || 0} 
+                displayValue={profile.glory_score || 0}
+                max={100} 
+                color="#00E5FF" 
+                icon="✨" 
+                theme={theme}
+                level={Math.floor((profile.glory_score || 0) / 100)}
+              />
+              <StatBar 
+                value={profile.power_tier || 0} 
+                max={8} 
+                color="#FF5722" 
+                icon="⚡" 
+                theme={theme}
+                level={profile.power_tier || 0}
+              />
+              <StatBar 
+                value={Math.round(masteryScore)} 
+                displayValue={Math.round(masteryScore)}
+                max={100} 
+                color="#F0FDFF" 
+                icon="🧊" 
+                theme={theme}
+                level={Math.floor(masteryScore / 100)}
+              />
+              <StatBar 
+                value={profile.strength_tier} 
+                max={8} 
+                color="#CD7F32" 
+                icon="⚔️" 
+                theme={theme}
+                level={profile.strength_tier}
+              />
             </View>
-
-            <Text style={[styles.avatarTierMain, { color: theme.text.secondary }]}>
-              {TIER_NAMES[activeCurrentTier].toUpperCase()} • TIER {activeCurrentTier}
-            </Text>
           </View>
         </View>
 
@@ -262,6 +356,15 @@ export function ProfileScreen({
                     <Text style={styles.worldLockIcon}>🔒</Text>
                   </View>
                 )}
+              </TouchableOpacity>
+
+              {/* Tournament Arena Pill */}
+              <TouchableOpacity
+                style={styles.worldPill}
+                onPress={onOpenTournamentArena}
+              >
+                <Text style={[styles.worldIcon, { color: theme.text.secondary }]}>🏟️</Text>
+                <Text style={[styles.worldText, { color: theme.text.secondary }]}>TOURNAMENT</Text>
               </TouchableOpacity>
 
               {/* Online Clash Pill - Fire Style */}
@@ -772,19 +875,20 @@ const styles = StyleSheet.create({
   avatarSection: {
     alignItems: 'center',
     padding: 10,
+    marginBottom: 20,
+    width: '100%',
   },
   avatarWrapper: {
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    width: 80,
-    height: 80,
-    marginBottom: 8,
+    width: 130,
+    height: 130,
   },
   avatarContainer: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    width: 100,
+    height: 100,
+    borderRadius: 50,
     borderWidth: 2,
     alignItems: 'center',
     justifyContent: 'center',
@@ -792,9 +896,9 @@ const styles = StyleSheet.create({
   },
   orbitRing: {
     position: 'absolute',
-    width: 76,
-    height: 76,
-    borderRadius: 38,
+    width: 110,
+    height: 110,
+    borderRadius: 55,
     borderWidth: 1,
     borderStyle: 'dashed',
     opacity: 0.3,
@@ -1504,5 +1608,71 @@ const styles = StyleSheet.create({
   },
   rankCardInner: {
     alignItems: 'center',
+  },
+  statBarContainer: {
+    width: '100%',
+    marginBottom: 0,
+  },
+  statBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    width: '100%',
+    paddingVertical: 1, // Tighten vertical gap
+  },
+  statBarIcon: {
+    fontSize: 14,
+    width: 24,
+    textAlign: 'center',
+    marginRight: -4,
+    zIndex: 2,
+    opacity: 0.9,
+  },
+  statBarValue: {
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    width: 36,
+    textAlign: 'right',
+    opacity: 0.8,
+  },
+  statBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  statBarFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  warriorStatsCard: {
+    marginHorizontal: 24,
+    marginTop: 20,
+    marginBottom: 10,
+    padding: 20,
+    borderRadius: 20,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+  },
+  headerSplitContainer: {
+    flexDirection: 'row',
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    alignItems: 'center',
+    gap: 20,
+  },
+  leftIdentityColumn: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  rightStatsColumn: {
+    flex: 2.2,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    padding: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
 });

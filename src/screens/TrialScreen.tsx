@@ -10,6 +10,7 @@ import {
   Easing,
   Platform,
 } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -150,21 +151,43 @@ export function TrialScreen({
     onAbandon();
   }
 
-  function handleAbandon() {
+  function handleBack() {
+    const title = hasStarted ? 'Abandon Trial?' : 'Exit Trial?';
+    const message = hasStarted 
+      ? 'Abandon Trial? This attempt will be logged as incomplete. Your rank will not change.'
+      : 'Exit Trial?';
+    
     if (Platform.OS === 'web') {
-      if (window.confirm('Abandon Trial? This attempt will be logged as incomplete. Your rank will not change.')) {
-        doAbandon();
-      }
+      // Standard window.confirm is the most reliable way to block on web
+      // We use a tiny delay to ensure the touch event has finished processing
+      setTimeout(() => {
+        if (window.confirm(`${title}\n\n${message}`)) {
+          if (hasStarted) doAbandon();
+          else onAbandon();
+        }
+      }, 50);
     } else {
       Alert.alert(
-        'Abandon Trial?',
-        'This attempt will be logged as incomplete. Your rank will not change.',
+        title,
+        message,
         [
-          { text: 'Continue Trial', style: 'cancel' },
-          { text: 'Abandon', style: 'destructive', onPress: doAbandon },
-        ]
+          { text: hasStarted ? 'Continue Trial' : 'Cancel', style: 'cancel' },
+          { 
+            text: hasStarted ? 'Abandon' : 'Exit', 
+            style: 'destructive', 
+            onPress: () => {
+              if (hasStarted) doAbandon();
+              else onAbandon();
+            } 
+          },
+        ],
+        { cancelable: true }
       );
     }
+  }
+
+  function handleAbandon() {
+    handleBack();
   }
 
   async function handleClaimRank() {
@@ -369,6 +392,9 @@ export function TrialScreen({
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       <View style={styles.header}>
+        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+          <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
+        </TouchableOpacity>
         <Text style={[styles.trialName, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
         {mode === 'practice' && (
           <Text style={[styles.modeBadge, {
@@ -557,6 +583,17 @@ const styles = StyleSheet.create({
   header: {
     alignItems: 'center',
     marginBottom: 24,
+    position: 'relative',
+    width: '100%',
+  },
+  backButton: {
+    position: 'absolute',
+    left: 0,
+    top: -8,
+    padding: 15,
+    zIndex: 10,
+    minWidth: 44,
+    minHeight: 44,
   },
   trialName: {
     fontSize: 24,

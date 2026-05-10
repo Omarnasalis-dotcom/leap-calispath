@@ -19,6 +19,14 @@ interface ClashScreenProps {
   onOpenRankings: () => void;
 }
 
+const showAlert = (title: string, message?: string) => {
+  if (typeof window !== 'undefined' && window.alert) {
+    window.alert(message ? `${title}\n${message}` : title);
+  } else {
+    Alert.alert(title, message);
+  }
+};
+
 export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScreenProps) {
   const { theme } = useTheme();
   const { user } = useAuth();
@@ -92,9 +100,9 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
     try {
       setLoading(true);
       await ClashService.sendChallenge(targetWarrior.display_name || '');
-      Alert.alert('Challenge Sent!', `Requesting to join ${targetWarrior.display_name}'s session.`);
+      showAlert('Challenge Sent!', `Requesting to join ${targetWarrior.display_name}'s session.`);
     } catch (error: any) {
-      Alert.alert('Combat Error', error.message);
+      showAlert('Combat Error', error.message);
     } finally { setLoading(false); }
   }
 
@@ -117,7 +125,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
         await ClashService.respondToChallenge(clashId, status);
       }
     } catch (error: any) {
-      Alert.alert('Combat Error', error.message);
+      showAlert('Combat Error', error.message);
     } finally { setLoading(false); }
   }
 

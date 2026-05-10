@@ -1,0 +1,182 @@
+
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #F45B00;
+    --red: #D42B2B;
+    --accent: #F45B00;
+    --bg: #ffffff;
+    --bg-card: #f7f7f7;
+    --bg-input: #ffffff;
+    --border: #e8e8e8;
+    --text-primary: #0a0a0a;
+    --text-secondary: #555555;
+    --text-muted: #aaaaaa;
+    --sidebar-bg: #0a0a0a;
+    --sidebar-text: #ffffff;
+    --sidebar-muted: #666666;
+  }
+  .root { display: flex; min-height: 600px; border-radius: var(--border-radius-lg); overflow: hidden; border: 0.5px solid var(--border); font-family: 'Barlow', sans-serif; }
+
+  /* SIDEBAR */
+  .sidebar { width: 210px; flex-shrink: 0; background: var(--sidebar-bg); padding: 2rem 1.5rem; display: flex; flex-direction: column; justify-content: space-between; position: relative; overflow: hidden; }
+  .sidebar-accent { position: absolute; top: 0; left: 0; width: 4px; height: 100%; background: linear-gradient(180deg, var(--orange) 0%, var(--red) 100%); }
+  .logo-eyebrow { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.2em; color: var(--orange); text-transform: uppercase; margin-bottom: 0.4rem; }
+  .logo-name { font-family: 'Barlow Condensed', sans-serif; font-size: 36px; font-weight: 800; color: #ffffff; line-height: 0.95; text-transform: uppercase; letter-spacing: -0.01em; margin-bottom: 0.5rem; }
+  .logo-name span { color: var(--orange); }
+  .logo-tag { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 600; letter-spacing: 0.18em; text-transform: uppercase; color: var(--sidebar-muted); margin-bottom: 2rem; }
+  .sidebar-divider { height: 0.5px; background: #1e1e1e; margin: 0 0 1.5rem; }
+  .pillars { display: flex; flex-direction: column; gap: 14px; }
+  .pillar { display: flex; align-items: center; gap: 10px; }
+  .pillar-num { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; color: var(--orange); width: 16px; }
+  .pillar-label { font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: #888; }
+  .quote { font-size: 10px; color: #444; line-height: 1.8; font-style: italic; }
+
+  /* MAIN */
+  .main { flex: 1; background: var(--bg); display: flex; flex-direction: column; }
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab { flex: 1; padding: 1.1rem; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; cursor: pointer; color: var(--text-muted); background: none; border: none; border-bottom: 3px solid transparent; transition: all 0.15s; }
+  .tab.active { color: var(--orange); border-bottom: 3px solid var(--orange); background: #fff8f5; }
+
+  .panel { display: none; padding: 2.25rem 2.5rem; flex-direction: column; justify-content: center; flex: 1; }
+  .panel.active { display: flex; }
+  .p-heading { font-family: 'Barlow Condensed', sans-serif; font-size: 28px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.02em; color: var(--text-primary); margin-bottom: 3px; line-height: 1; }
+  .p-heading span { color: var(--orange); }
+  .p-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 2rem; }
+
+  .field { margin-bottom: 1.1rem; }
+  .field label { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 7px; }
+  .field input { width: 100%; padding: 0.7rem 1rem; font-family: 'Barlow', sans-serif; font-size: 13px; background: var(--bg-input); border: 1.5px solid var(--border); border-radius: 4px; color: var(--text-primary); outline: none; transition: border-color 0.15s, box-shadow 0.15s; }
+  .field input::placeholder { color: var(--text-muted); }
+  .field input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(244,91,0,0.10); }
+  .row { display: flex; gap: 10px; }
+  .row .field { flex: 1; }
+  .forgot { text-align: right; margin-top: -0.5rem; margin-bottom: 0.9rem; }
+  .forgot a { font-size: 11px; color: var(--text-muted); text-decoration: none; cursor: pointer; font-family: 'Barlow Condensed', sans-serif; font-weight: 600; letter-spacing: 0.06em; }
+  .forgot a:hover { color: var(--orange); }
+
+  .cta { width: 100%; padding: 0.85rem; background: var(--orange); color: #ffffff; font-family: 'Barlow Condensed', sans-serif; font-size: 14px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; border: none; border-radius: 4px; cursor: pointer; margin-top: 0.25rem; transition: background 0.15s; }
+  .cta:hover { background: var(--red); }
+
+  .switch { font-size: 12px; color: var(--text-muted); text-align: center; margin-top: 1.25rem; font-family: 'Barlow', sans-serif; }
+  .switch a { color: var(--orange); cursor: pointer; text-decoration: none; font-weight: 600; }
+  .switch a:hover { color: var(--red); }
+
+  .strength-bar { display: flex; gap: 4px; margin-top: 6px; }
+  .seg { height: 3px; flex: 1; border-radius: 2px; background: var(--border); }
+
+  .mode-row { display: flex; align-items: center; gap: 8px; padding: 0.8rem 2.5rem; border-top: 1px solid var(--border); background: var(--bg); }
+  .mode-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
+  .toggle { position: relative; width: 34px; height: 19px; cursor: pointer; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .t-track { position: absolute; inset: 0; background: var(--border); border-radius: 10px; transition: background 0.2s; }
+  .t-thumb { position: absolute; top: 3px; left: 3px; width: 13px; height: 13px; border-radius: 50%; background: #fff; transition: transform 0.2s; }
+  .toggle input:checked ~ .t-track { background: var(--orange); }
+  .toggle input:checked ~ .t-thumb { transform: translateX(15px); }
+</style>
+
+<h2 class="sr-only">Leap Arena sign-in and sign-up — orange, red and white with geometric fonts</h2>
+
+<div class="root" id="root">
+  <div class="sidebar">
+    <div class="sidebar-accent"></div>
+    <div>
+      <div class="logo-eyebrow">Est. 2025</div>
+      <div class="logo-name">Leap<br><span>Arena</span></div>
+      <div class="logo-tag">Calisthenics</div>
+      <div class="sidebar-divider"></div>
+      <div class="pillars">
+        <div class="pillar"><div class="pillar-num">01</div><div class="pillar-label">Track</div></div>
+        <div class="pillar"><div class="pillar-num">02</div><div class="pillar-label">Compete</div></div>
+        <div class="pillar"><div class="pillar-num">03</div><div class="pillar-label">Dominate</div></div>
+      </div>
+    </div>
+    <div class="quote">"The pain of discipline is temporary. The glory of achievement is eternal."</div>
+  </div>
+
+  <div class="main">
+    <div class="tabs">
+      <button class="tab active" id="t-login" onclick="sw('login')">Enter the arena</button>
+      <button class="tab" id="t-signup" onclick="sw('signup')">Join the arena</button>
+    </div>
+
+    <div class="panel active" id="p-login">
+      <div class="p-heading">Welcome back, <span>warrior</span></div>
+      <div class="p-sub">Return to your training grounds</div>
+      <div class="field"><label>Email</label><input type="email" placeholder="warrior@email.com" /></div>
+      <div class="field"><label>Password</label><input type="password" placeholder="Min 6 characters" /></div>
+      <div class="forgot"><a>Forgot password?</a></div>
+      <button class="cta">Enter the arena</button>
+      <div class="switch">New here? <a onclick="sw('signup')">Begin your journey →</a></div>
+    </div>
+
+    <div class="panel" id="p-signup">
+      <div class="p-heading">Claim your <span>destiny</span></div>
+      <div class="p-sub">Begin your calisthenics journey</div>
+      <div class="row">
+        <div class="field"><label>First name</label><input type="text" placeholder="Alex" /></div>
+        <div class="field"><label>Last name</label><input type="text" placeholder="Warrior" /></div>
+      </div>
+      <div class="field"><label>Email</label><input type="email" placeholder="warrior@email.com" /></div>
+      <div class="field">
+        <label>Password</label>
+        <input type="password" placeholder="Min 6 characters" oninput="strength(this.value)" />
+        <div class="strength-bar">
+          <div class="seg" id="s1"></div><div class="seg" id="s2"></div>
+          <div class="seg" id="s3"></div><div class="seg" id="s4"></div>
+        </div>
+      </div>
+      <button class="cta">Claim your destiny</button>
+      <div class="switch">Already a warrior? <a onclick="sw('login')">Return to battle →</a></div>
+    </div>
+
+    <div class="mode-row">
+      <i class="ti ti-sun" style="font-size:14px;color:var(--text-muted)" id="micon" aria-hidden="true"></i>
+      <span class="mode-label" id="mlabel">Light mode</span>
+      <label class="toggle">
+        <input type="checkbox" id="mchk" onchange="toggleMode(this)" />
+        <div class="t-track"></div>
+        <div class="t-thumb"></div>
+      </label>
+    </div>
+  </div>
+</div>
+
+<script>
+function sw(tab) {
+  ['login','signup'].forEach(t => {
+    document.getElementById('p-'+t).classList.toggle('active', t===tab);
+    document.getElementById('t-'+t).classList.toggle('active', t===tab);
+  });
+}
+
+function strength(val) {
+  const cols = ['#D42B2B','#F45B00','#f0a500','#22a860'];
+  let s = 0;
+  if (val.length >= 6) s++;
+  if (/[A-Z]/.test(val)) s++;
+  if (/[0-9]/.test(val)) s++;
+  if (/[^A-Za-z0-9]/.test(val)) s++;
+  for (let i=1;i<=4;i++) document.getElementById('s'+i).style.background = i<=s ? cols[s-1] : 'var(--border)';
+}
+
+const dark = {
+  '--bg':'#0a0a0a','--bg-card':'#111111','--bg-input':'#181818',
+  '--border':'#2a2a2a','--text-primary':'#ffffff','--text-secondary':'#999999',
+  '--text-muted':'#555555','--sidebar-bg':'#050505','--sidebar-muted':'#555555'
+};
+const light = {
+  '--bg':'#ffffff','--bg-card':'#f7f7f7','--bg-input':'#ffffff',
+  '--border':'#e8e8e8','--text-primary':'#0a0a0a','--text-secondary':'#555555',
+  '--text-muted':'#aaaaaa','--sidebar-bg':'#0a0a0a','--sidebar-muted':'#666666'
+};
+
+function toggleMode(el) {
+  const r = document.getElementById('root');
+  const vars = el.checked ? dark : light;
+  Object.entries(vars).forEach(([k,v]) => r.style.setProperty(k,v));
+  document.getElementById('micon').className = el.checked ? 'ti ti-moon' : 'ti ti-sun';
+  document.getElementById('mlabel').textContent = el.checked ? 'Dark mode' : 'Light mode';
+}
+</script>

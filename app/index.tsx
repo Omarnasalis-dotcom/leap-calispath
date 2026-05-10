@@ -19,6 +19,10 @@ import { ArenaWorkoutScreen } from '../src/screens/ArenaWorkoutScreen';
 import { ClashScreen } from '../src/screens/ClashScreen';
 import { BattleScreen } from '../src/screens/BattleScreen';
 import { GloryLeaderboardScreen } from '../src/screens/GloryLeaderboardScreen';
+import { TournamentArenaScreen } from '../src/screens/TournamentArenaScreen';
+import { TournamentLobbyScreen } from '../src/screens/TournamentLobbyScreen';
+import { TournamentTrialScreen } from '../src/screens/TournamentTrialScreen';
+import { AdminTournamentScreen } from '../src/screens/AdminTournamentScreen';
 import { ClashService } from '../src/services/ClashService';
 import { ArenaPhase } from '../src/services/ArenaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -34,11 +38,12 @@ export default function Index() {
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
   const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
   const [showStaticWorld, setShowStaticWorld] = React.useState(false);
-  const [showWeeklyChallenge, setShowWeeklyChallenge] = React.useState(false);
-  const [showChampionsArena, setShowChampionsArena] = React.useState(false);
-  const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
-  const [showClash, setShowClash] = React.useState(false);
-  const [showBattle, setShowBattle] = React.useState(false);
+  const [showTournamentArena, setShowTournamentArena] = React.useState(false);
+  const [showTournamentLobby, setShowTournamentLobby] = React.useState(false);
+  const [showTournamentTrial, setShowTournamentTrial] = React.useState(false);
+  const [showAdminTournament, setShowAdminTournament] = React.useState(false);
+  const [activeTournamentSessionId, setActiveTournamentSessionId] = React.useState<string | null>(null);
+  const [activeRoundConfig, setActiveRoundConfig] = React.useState<any>(null);
   const [showGloryLeaderboard, setShowGloryLeaderboard] = React.useState(false);
   const [activeClashId, setActiveClashId] = React.useState<string | null>(null);
   const [selectedArenaPhase, setSelectedArenaPhase] = React.useState<ArenaPhase | null>(null);
@@ -46,6 +51,11 @@ export default function Index() {
   const [onboardingChecked, setOnboardingChecked] = React.useState(false);
   const [leaderboardCategory, setLeaderboardCategory] = React.useState<'strength' | 'power'>('strength');
   const [leaderboardTier, setLeaderboardTier] = React.useState<number>(0);
+  const [showWeeklyChallenge, setShowWeeklyChallenge] = React.useState(false);
+  const [showChampionsArena, setShowChampionsArena] = React.useState(false);
+  const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
+  const [showClash, setShowClash] = React.useState(false);
+  const [showBattle, setShowBattle] = React.useState(false);
 
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
@@ -79,6 +89,7 @@ export default function Index() {
           setShowClash(true);
           setShowGloryLeaderboard(true);
         }
+        if (lastScreen === 'tournament_arena') setShowTournamentArena(true);
       } catch (e) {
         // ignore
       } finally {
@@ -103,6 +114,7 @@ export default function Index() {
       else if (showChampionsArena) screen = 'champions_arena';
       else if (showClash) screen = 'clash';
       else if (showGloryLeaderboard) screen = 'glory_leaderboard';
+      else if (showTournamentArena) screen = 'tournament_arena';
       
       await AsyncStorage.setItem('last_screen', screen);
     }
@@ -285,6 +297,97 @@ export default function Index() {
       );
     }
 
+    if (showTournamentArena) {
+      return (
+        <TournamentArenaScreen
+          key={showTournamentArena ? 'active' : 'inactive'}
+          navigation={{
+            navigate: (screen: string, params?: any) => {
+              if (screen === 'TournamentLobby') {
+                setActiveTournamentSessionId(params?.sessionId);
+                setShowTournamentArena(false);
+                setShowTournamentLobby(true);
+              }
+              if (screen === 'AdminTournament') {
+                setShowTournamentArena(false);
+                setShowAdminTournament(true);
+              }
+            },
+            goBack: () => {
+              setShowTournamentArena(false);
+            }
+          }}
+        />
+      );
+    }
+
+    if (showAdminTournament) {
+      return (
+        <AdminTournamentScreen
+          onClose={() => setShowAdminTournament(false)}
+        />
+      );
+    }
+
+    if (showTournamentLobby && activeTournamentSessionId) {
+      return (
+        <TournamentLobbyScreen
+          route={{ params: { sessionId: activeTournamentSessionId } }}
+          onClose={() => {
+            setShowTournamentLobby(false);
+            setShowTournamentArena(true);
+          }}
+          onEnterWorkout={(sessionId, roundConfig) => {
+            setActiveTournamentSessionId(sessionId);
+            setActiveRoundConfig(roundConfig);
+            setShowTournamentLobby(false);
+            setShowTournamentTrial(true);
+          }}
+          navigation={{
+            navigate: (screen: string, params?: any) => {
+              if (screen === 'TournamentTrial') {
+                setActiveTournamentSessionId(params?.sessionId);
+                setActiveRoundConfig(params?.roundConfig);
+                setShowTournamentLobby(false);
+                setShowTournamentTrial(true);
+              }
+              if (screen === 'TournamentArena') {
+                setShowTournamentLobby(false);
+                setShowTournamentArena(true);
+              }
+            },
+            goBack: () => {
+              setShowTournamentLobby(false);
+              setShowTournamentArena(true);
+            }
+          }}
+        />
+      );
+    }
+
+    if (showTournamentTrial && activeTournamentSessionId && activeRoundConfig) {
+      return (
+        <TournamentTrialScreen
+          sessionId={activeTournamentSessionId}
+          roundConfig={activeRoundConfig}
+          onClose={() => {
+            setShowTournamentTrial(false);
+            setShowTournamentLobby(true);
+          }}
+          onComplete={() => {
+            setShowTournamentTrial(false);
+            setShowTournamentLobby(true);
+          }}
+          navigation={{
+            goBack: () => {
+              setShowTournamentTrial(false);
+              setShowTournamentLobby(true);
+            }
+          }}
+        />
+      );
+    }
+
     const isAssessed = profile?.assessed_at !== null;
     if (!isAssessed) {
       return (
@@ -324,6 +427,7 @@ export default function Index() {
           console.log('OPENING_CLASH_SCREEN');
           setShowClash(true);
         }}
+        onOpenTournamentArena={() => setShowTournamentArena(true)}
       />
     );
   };
