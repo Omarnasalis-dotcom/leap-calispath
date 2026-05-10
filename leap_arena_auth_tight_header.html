@@ -1,0 +1,159 @@
+
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;800&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --orange: #F45B00;
+    --red: #D42B2B;
+    --bg: #ffffff;
+    --bg-input: #f7f7f7;
+    --border: #e8e8e8;
+    --text-primary: #0a0a0a;
+    --text-secondary: #666666;
+    --text-muted: #aaaaaa;
+  }
+  .root { max-width: 480px; margin: 0 auto; background: var(--bg); min-height: 100vh; display: flex; flex-direction: column; font-family: 'Barlow', sans-serif; }
+
+  /* HEADER */
+  .header { background: #ffffff; padding: 1.25rem 1.5rem 1rem; position: relative; display: flex; flex-direction: column; align-items: center; border-bottom: 1px solid var(--border); gap: 0; }
+  .header-accent { position: absolute; bottom: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--orange), var(--red)); }
+  .logo-name { font-family: 'Barlow Condensed', sans-serif; font-size: 42px; font-weight: 800; text-transform: uppercase; letter-spacing: -0.01em; line-height: 1; color: var(--text-primary); margin: 0; }
+  .logo-name span { color: var(--orange); }
+  .logo-tag { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.22em; text-transform: uppercase; color: var(--text-muted); margin-top: 2px; margin-bottom: 10px; }
+  .pillars { display: flex; gap: 0; border-top: 1px solid var(--border); width: 100%; margin-top: 0; }
+  .pillar { flex: 1; display: flex; align-items: center; justify-content: center; gap: 5px; padding: 6px 0; }
+  .pillar:not(:last-child) { border-right: 1px solid var(--border); }
+  .pillar-num { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; color: var(--orange); }
+  .pillar-label { font-family: 'Barlow Condensed', sans-serif; font-size: 10px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; color: var(--text-muted); }
+
+  /* TABS */
+  .tabs { display: flex; border-bottom: 1px solid var(--border); }
+  .tab { flex: 1; padding: 1rem; font-family: 'Barlow Condensed', sans-serif; font-size: 13px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase; text-align: center; cursor: pointer; color: var(--text-muted); background: none; border: none; border-bottom: 3px solid transparent; transition: all 0.15s; }
+  .tab.active { color: var(--orange); border-bottom: 3px solid var(--orange); background: #fff8f5; }
+
+  /* PANELS */
+  .panel { display: none; padding: 2rem 1.5rem 1.5rem; flex-direction: column; flex: 1; }
+  .panel.active { display: flex; }
+  .p-heading { font-family: 'Barlow Condensed', sans-serif; font-size: 26px; font-weight: 800; text-transform: uppercase; color: var(--text-primary); margin-bottom: 3px; line-height: 1; }
+  .p-heading span { color: var(--orange); }
+  .p-sub { font-size: 13px; color: var(--text-secondary); margin-bottom: 1.75rem; }
+
+  .field { margin-bottom: 1rem; }
+  .field label { display: block; font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--text-secondary); margin-bottom: 6px; }
+  .field input { width: 100%; padding: 0.8rem 1rem; font-family: 'Barlow', sans-serif; font-size: 15px; background: var(--bg-input); border: 1.5px solid var(--border); border-radius: 6px; color: var(--text-primary); outline: none; transition: border-color 0.15s, box-shadow 0.15s; -webkit-appearance: none; }
+  .field input::placeholder { color: var(--text-muted); }
+  .field input:focus { border-color: var(--orange); box-shadow: 0 0 0 3px rgba(244,91,0,0.10); }
+
+  .name-row { display: flex; gap: 10px; }
+  .name-row .field { flex: 1; }
+
+  .forgot { text-align: right; margin-top: -0.5rem; margin-bottom: 1rem; }
+  .forgot a { font-family: 'Barlow Condensed', sans-serif; font-size: 12px; font-weight: 600; letter-spacing: 0.06em; color: var(--text-muted); text-decoration: none; cursor: pointer; }
+  .forgot a:hover { color: var(--orange); }
+
+  .cta { width: 100%; padding: 1rem; background: var(--orange); color: #ffffff; font-family: 'Barlow Condensed', sans-serif; font-size: 15px; font-weight: 800; letter-spacing: 0.18em; text-transform: uppercase; border: none; border-radius: 6px; cursor: pointer; transition: background 0.15s; }
+  .cta:hover { background: var(--red); }
+  .cta:active { transform: scale(0.99); }
+
+  .switch { font-size: 13px; color: var(--text-muted); text-align: center; margin-top: 1.25rem; }
+  .switch a { color: var(--orange); cursor: pointer; font-weight: 600; text-decoration: none; }
+
+  .strength-bar { display: flex; gap: 4px; margin-top: 6px; }
+  .seg { height: 3px; flex: 1; border-radius: 2px; background: var(--border); transition: background 0.2s; }
+
+  /* FOOTER */
+  .footer { padding: 1rem 1.5rem; border-top: 1px solid var(--border); display: flex; align-items: center; gap: 8px; }
+  .footer-label { font-family: 'Barlow Condensed', sans-serif; font-size: 11px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); flex: 1; }
+  .toggle { position: relative; width: 36px; height: 20px; cursor: pointer; flex-shrink: 0; }
+  .toggle input { opacity: 0; width: 0; height: 0; position: absolute; }
+  .t-track { position: absolute; inset: 0; background: var(--border); border-radius: 10px; transition: background 0.2s; }
+  .t-thumb { position: absolute; top: 3px; left: 3px; width: 14px; height: 14px; border-radius: 50%; background: #fff; transition: transform 0.2s; box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+  .toggle input:checked ~ .t-track { background: var(--orange); }
+  .toggle input:checked ~ .t-thumb { transform: translateX(16px); }
+
+  /* DARK MODE */
+  .dark { --bg: #0a0a0a; --bg-input: #181818; --border: #2a2a2a; --text-primary: #ffffff; --text-secondary: #999999; --text-muted: #555555; }
+  .dark .header { background: #0a0a0a; }
+  .dark .tab.active { background: #150a00; }
+</style>
+
+<div class="root" id="root">
+  <div class="header">
+    <div class="header-accent"></div>
+    <div class="logo-name">Leap <span>Arena</span></div>
+    <div class="logo-tag">Calisthenics</div>
+    <div class="pillars">
+      <div class="pillar"><div class="pillar-num">01</div><div class="pillar-label">Track</div></div>
+      <div class="pillar"><div class="pillar-num">02</div><div class="pillar-label">Compete</div></div>
+      <div class="pillar"><div class="pillar-num">03</div><div class="pillar-label">Dominate</div></div>
+    </div>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="t-login" onclick="sw('login')">Enter the arena</button>
+    <button class="tab" id="t-signup" onclick="sw('signup')">Join the arena</button>
+  </div>
+
+  <div class="panel active" id="p-login">
+    <div class="p-heading">Welcome back, <span>warrior</span></div>
+    <div class="p-sub">Return to your training grounds</div>
+    <div class="field"><label>Email</label><input type="email" placeholder="warrior@email.com" /></div>
+    <div class="field"><label>Password</label><input type="password" placeholder="Min 6 characters" /></div>
+    <div class="forgot"><a>Forgot password?</a></div>
+    <button class="cta">Enter the arena</button>
+    <div class="switch">New here? <a onclick="sw('signup')">Begin your journey →</a></div>
+  </div>
+
+  <div class="panel" id="p-signup">
+    <div class="p-heading">Claim your <span>destiny</span></div>
+    <div class="p-sub">Begin your calisthenics journey</div>
+    <div class="name-row">
+      <div class="field"><label>First name</label><input type="text" placeholder="Alex" /></div>
+      <div class="field"><label>Last name</label><input type="text" placeholder="Warrior" /></div>
+    </div>
+    <div class="field"><label>Email</label><input type="email" placeholder="warrior@email.com" /></div>
+    <div class="field">
+      <label>Password</label>
+      <input type="password" placeholder="Min 6 characters" oninput="strength(this.value)" />
+      <div class="strength-bar">
+        <div class="seg" id="s1"></div><div class="seg" id="s2"></div>
+        <div class="seg" id="s3"></div><div class="seg" id="s4"></div>
+      </div>
+    </div>
+    <button class="cta">Claim your destiny</button>
+    <div class="switch">Already a warrior? <a onclick="sw('login')">Return to battle →</a></div>
+  </div>
+
+  <div class="footer">
+    <span id="micon" style="font-size:15px">☀️</span>
+    <span class="footer-label" id="mlabel">Light mode</span>
+    <label class="toggle">
+      <input type="checkbox" onchange="toggleMode(this)" />
+      <div class="t-track"></div>
+      <div class="t-thumb"></div>
+    </label>
+  </div>
+</div>
+
+<script>
+function sw(tab) {
+  ['login','signup'].forEach(t => {
+    document.getElementById('p-'+t).classList.toggle('active', t===tab);
+    document.getElementById('t-'+t).classList.toggle('active', t===tab);
+  });
+}
+function strength(val) {
+  const cols = ['#D42B2B','#F45B00','#f0a500','#22a860'];
+  let s = 0;
+  if (val.length >= 6) s++;
+  if (/[A-Z]/.test(val)) s++;
+  if (/[0-9]/.test(val)) s++;
+  if (/[^A-Za-z0-9]/.test(val)) s++;
+  for (let i=1;i<=4;i++) document.getElementById('s'+i).style.background = i<=s ? cols[s-1] : 'var(--border)';
+}
+function toggleMode(el) {
+  document.getElementById('root').classList.toggle('dark', el.checked);
+  document.getElementById('micon').textContent = el.checked ? '🌙' : '☀️';
+  document.getElementById('mlabel').textContent = el.checked ? 'Dark mode' : 'Light mode';
+}
+</script>

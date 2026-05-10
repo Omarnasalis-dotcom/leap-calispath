@@ -7,58 +7,30 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  Animated,
   TouchableOpacity,
+  useWindowDimensions,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
-import { SpartanIntro } from '../components/SpartanIntro';
 
 export function AuthScreen() {
+  const { width } = useWindowDimensions();
+  const isDesktop = width > 768;
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [loading, setLoading] = useState(false);
-  const [showIntro, setShowIntro] = useState(false); // Disable intro for now
-  const [fadeAnim] = useState(new Animated.Value(1)); // Start visible
   const { signUp, signIn } = useAuth();
-  const { theme } = useTheme();
-
-  function handleIntroComplete() {
-    setShowIntro(false);
-    Animated.timing(fadeAnim, {
-      toValue: 1,
-      duration: 1000,
-      useNativeDriver: true,
-    }).start();
-  }
+  const { theme, mode, toggleTheme } = useTheme();
 
   async function handleSubmit() {
-    if (!email || !password) {
+    if (!email || !password || (isSignUp && (!firstName || !lastName))) {
       Alert.alert('Missing Fields', 'Please fill in all fields to continue.');
-      return;
-    }
-
-    // Email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      Alert.alert(
-        'Invalid Email',
-        'Please enter a valid email address to continue your journey.',
-        [{ text: 'Try Again' }]
-      );
-      return;
-    }
-
-    // Password validation
-    if (password.length < 6) {
-      Alert.alert(
-        'Password Too Short',
-        'Password must be at least 6 characters long. Create a stronger password to protect your warrior account.',
-        [{ text: 'Try Again' }]
-      );
       return;
     }
 
@@ -66,165 +38,171 @@ export function AuthScreen() {
     try {
       if (isSignUp) {
         await signUp(email, password);
-        Alert.alert(
-          'Warrior Registered',
-          'Check your email to verify your account, then return to claim your rank.',
-          [{ text: 'Ready', onPress: () => setIsSignUp(false) }]
-        );
+        Alert.alert('Warrior Registered', 'Check your email to verify your account.');
+        setIsSignUp(false);
       } else {
         await signIn(email, password);
       }
     } catch (error: any) {
-      console.error('Auth error:', error);
-      console.error('Error message:', error.message);
-      
-      // ALWAYS show an error message for any auth failure
-      if (isSignUp) {
-        // For sign up, check if it's a duplicate email
-        const errorMsg = error.message?.toLowerCase() || '';
-        console.log('Checking error message for duplicate:', errorMsg);
-        
-        // Check for duplicate email patterns
-        const isDuplicate = errorMsg.includes('already registered') || 
-                           errorMsg.includes('already in use') ||
-                           errorMsg.includes('duplicate') ||
-                           errorMsg.includes('user_already_exists') ||
-                           errorMsg.includes('user already registered') ||
-                           errorMsg.includes('email already registered') ||
-                           errorMsg.includes('email already taken');
-        
-        console.log('Is duplicate email?', isDuplicate);
-        
-        if (isDuplicate) {
-          console.log('Showing duplicate email alert');
-          Alert.alert(
-            'Email Already Taken',
-            'Your email already taken',
-            [
-              { text: 'Try Again', style: 'cancel' },
-              { text: 'Sign In', onPress: () => setIsSignUp(false) }
-            ]
-          );
-        } else {
-          // Show any other sign up error
-          console.log('Showing general registration error');
-          Alert.alert(
-            'Registration Failed',
-            error.message || 'Unable to create your warrior account. Try again.',
-            [{ text: 'Try Again' }]
-          );
-        }
-      } else {
-        // For sign in, show appropriate error
-        const signInError = error.message?.toLowerCase() || '';
-        console.log('Checking sign in error:', signInError);
-        
-        // Check for invalid credentials patterns
-        const isInvalidCredentials = signInError.includes('invalid login') || 
-                                   signInError.includes('invalid_credentials') ||
-                                   signInError.includes('invalid email or password') ||
-                                   signInError.includes('invalid login credentials');
-        
-        console.log('Is invalid credentials?', isInvalidCredentials);
-        
-        if (isInvalidCredentials) {
-          console.log('Showing access denied alert');
-          Alert.alert(
-            'Access Denied',
-            'Invalid email or password. Check your credentials and try again.',
-            [{ text: 'Try Again' }]
-          );
-        } else {
-          console.log('Showing general sign in error');
-          Alert.alert(
-            'Gatekeeper Denied',
-            error.message || 'Authentication failed. Try again, warrior.',
-            [{ text: 'Try Again' }]
-          );
-        }
-      }
+      Alert.alert('Auth Error', error.message);
     } finally {
       setLoading(false);
     }
   }
 
+  const renderBranding = (layout: 'sidebar' | 'header') => {
+    const isSidebar = layout === 'sidebar';
+    return (
+      <View style={[
+        isSidebar ? styles.brandSectionSidebar : styles.brandSectionHeader,
+        { backgroundColor: theme.card.background }
+      ]}>
+        <View style={isSidebar ? styles.brandAccentVertical : styles.brandAccentHorizontal} />
+        <View style={isSidebar ? styles.brandContentSidebar : styles.brandContentHeader}>
+          <Text style={[styles.brandEyebrow, isSidebar && { textAlign: 'left' }]}>CALISTHENICS</Text>
+          <Text style={[
+            styles.brandName, 
+            { color: theme.text.primary }, 
+            isSidebar ? { textAlign: 'left' } : { textAlign: 'center', fontSize: 36, lineHeight: 32 }
+          ]}>
+            LEAP{isSidebar ? '\n' : ' '}<Text style={{ color: theme.accent }}>ARENA</Text>
+          </Text>
+          
+          <View style={isSidebar ? styles.pillarsSidebar : styles.pillarsHeader}>
+            {['Track', 'Compete', 'Train'].map((p, i) => (
+              <View 
+                key={p} 
+                style={[
+                  styles.pillar, 
+                  !isSidebar && styles.pillarHeader
+                ]}
+              >
+                <Text style={[styles.pillarLabel, { color: theme.text.tertiary }]}>
+                  {p.toUpperCase()}
+                </Text>
+              </View>
+            ))}
+          </View>
+        </View>
+        {isSidebar && (
+          <Text style={[styles.quote, { color: theme.text.tertiary }]}>
+            "The pain of discipline is temporary. The glory of achievement is eternal."
+          </Text>
+        )}
+      </View>
+    );
+  };
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}
+      style={[styles.container, { backgroundColor: theme.background.primary }]}
     >
       <ScrollView contentContainerStyle={styles.scrollContent}>
-        <Animated.View 
-          style={[
-            styles.content, 
-            { opacity: fadeAnim }
-          ]}
-        >
-          {/* Title Frame */}
-          <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
-            <Text style={[styles.title, { color: theme.accent }]}>
-              {isSignUp ? 'JOIN THE ARENA' : 'ENTER THE ARENA'}
-            </Text>
-          </View>
-
-          <Text style={[styles.tagline, { color: theme.text.tertiary }]}>
-            Track. Compete. Dominate.
-          </Text>
+        <View style={[
+          styles.root, 
+          isDesktop ? styles.rootDesktop : styles.rootMobile,
+          { backgroundColor: theme.background.primary, borderColor: theme.card.border }
+        ]}>
           
-          <Text style={[styles.subtitle, { color: theme.text.secondary }]}>
-            {isSignUp 
-              ? 'Begin your Calisthenics journey' 
-              : 'Return to your training grounds'
-            }
-          </Text>
+          {/* BRANDING SECTION */}
+          {renderBranding(isDesktop ? 'sidebar' : 'header')}
 
-          <View style={[styles.divider, { backgroundColor: theme.accent }]} />
+          {/* MAIN AUTH SECTION */}
+          <View style={[styles.mainSection, { backgroundColor: theme.card.background }]}>
+            <View style={[styles.tabs, { borderBottomColor: theme.card.border }]}>
+              <TouchableOpacity 
+                style={[styles.tab, !isSignUp && styles.activeTab]} 
+                onPress={() => setIsSignUp(false)}
+              >
+                <Text style={[styles.tabText, !isSignUp && { color: theme.accent }]}>ENTER THE ARENA</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.tab, isSignUp && styles.activeTab]} 
+                onPress={() => setIsSignUp(true)}
+              >
+                <Text style={[styles.tabText, isSignUp && { color: theme.accent }]}>JOIN THE ARENA</Text>
+              </TouchableOpacity>
+            </View>
 
-          <Input
-            label="Email"
-            placeholder="warrior@email.com"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-            autoCapitalize="none"
-            id="email"
-            name="email"
-            autoComplete="email"
-          />
+            <View style={styles.panel}>
+              <Text style={[styles.heading, { color: theme.text.primary }]}>
+                {isSignUp ? 'CLAIM YOUR ' : 'WELCOME BACK, '}
+                <Text style={{ color: theme.accent }}>{isSignUp ? 'DESTINY' : 'WARRIOR'}</Text>
+              </Text>
+              <Text style={[styles.subheading, { color: theme.text.secondary }]}>
+                {isSignUp ? 'Begin your calisthenics journey' : 'Return to your training grounds'}
+              </Text>
 
-          <Input
-            label="Password"
-            placeholder="Min 6 characters"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry
-            id="password"
-            name="password"
-            autoComplete={isSignUp ? "new-password" : "current-password"}
-          />
+              {isSignUp && (
+                <View style={styles.row}>
+                  <View style={{ flex: 1 }}>
+                    <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+                  </View>
+                  <View style={{ width: 12 }} />
+                  <View style={{ flex: 1 }}>
+                    <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
+                  </View>
+                </View>
+              )}
 
-          <Button
-            title={isSignUp ? 'CLAIM YOUR DESTINY' : 'ENTER THE ARENA'}
-            onPress={handleSubmit}
-            loading={loading}
-          />
+              <Input 
+                label="Email" 
+                placeholder="warrior@email.com" 
+                value={email} 
+                onChangeText={setEmail} 
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              
+              <Input 
+                label="Password" 
+                placeholder="Min 6 characters" 
+                value={password} 
+                onChangeText={setPassword} 
+                secureTextEntry 
+              />
 
-          <TouchableOpacity
-            onPress={() => setIsSignUp(!isSignUp)}
-            style={styles.switchButton}
-          >
-            <Text style={[styles.switchText, { color: theme.text.secondary }]}>
-              {isSignUp 
-                ? 'Already a warrior? Return to battle' 
-                : 'Begin your journey, Sign-Up'
-              }
-            </Text>
-          </TouchableOpacity>
+              {!isSignUp && (
+                <TouchableOpacity style={styles.forgotButton}>
+                  <Text style={[styles.forgotText, { color: theme.text.tertiary }]}>Forgot password?</Text>
+                </TouchableOpacity>
+              )}
 
-          <Text style={[styles.footer, { color: theme.text.tertiary }]}>
-            "The pain of discipline is temporary. The glory of achievement is eternal."
-          </Text>
-        </Animated.View>
+              <Button 
+                title={isSignUp ? 'CLAIM YOUR DESTINY' : 'ENTER THE ARENA'} 
+                onPress={handleSubmit} 
+                loading={loading}
+              />
+
+              <TouchableOpacity style={styles.switchLink} onPress={() => setIsSignUp(!isSignUp)}>
+                <Text style={[styles.switchText, { color: theme.text.tertiary }]}>
+                  {isSignUp ? 'Already a warrior? ' : 'New here? '}
+                  <Text style={{ color: theme.accent, fontWeight: '600' }}>
+                    {isSignUp ? 'Return to battle →' : 'Begin your journey →'}
+                  </Text>
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* THEME TOGGLE */}
+            <View style={[styles.themeToggleContainer, { borderTopColor: theme.card.border }]}>
+              <Text style={[styles.themeLabel, { color: theme.text.tertiary }]}>{mode === 'light' ? 'LIGHT MODE' : 'DARK MODE'}</Text>
+              <TouchableOpacity 
+                style={[styles.toggle, { backgroundColor: theme.card.border }]} 
+                onPress={toggleTheme}
+              >
+                <View style={[
+                  styles.toggleThumb, 
+                  { 
+                    backgroundColor: mode === 'dark' ? theme.accent : '#FFF',
+                    transform: [{ translateX: mode === 'dark' ? 16 : 0 }]
+                  }
+                ]} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </ScrollView>
     </KeyboardAvoidingView>
   );
@@ -237,79 +215,197 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     justifyContent: 'center',
-    padding: 24,
   },
-  content: {
-    maxWidth: 400,
+  root: {
+    width: '100%',
     alignSelf: 'center',
+    minHeight: '100%',
+  },
+  rootDesktop: {
+    flexDirection: 'row',
+  },
+  rootMobile: {
+    flexDirection: 'column',
+    maxWidth: 480,
+  },
+  brandSectionSidebar: {
+    width: 300,
+    padding: 48,
+    justifyContent: 'space-between',
+    position: 'relative',
+    borderRightWidth: 1,
+    borderRightColor: '#E8E8E8',
+  },
+  brandSectionHeader: {
+    paddingTop: 64,
+    paddingBottom: 0,
+    position: 'relative',
+    alignItems: 'center',
+    borderBottomWidth: 1,
+    borderBottomColor: '#E8E8E8',
+  },
+  brandContentSidebar: {
+    alignItems: 'flex-start',
+  },
+  brandContentHeader: {
+    alignItems: 'center',
+  },
+  brandAccentVertical: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: '#F45B00',
+  },
+  brandAccentHorizontal: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    height: 3,
+    backgroundColor: '#F45B00',
+  },
+  brandEyebrow: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 14,
+    letterSpacing: 2.5,
+    color: '#F45B00',
+    marginBottom: 10,
+  },
+  brandName: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 42,
+    color: '#FFFFFF',
+    lineHeight: 38,
+    marginBottom: 8,
+  },
+  brandTag: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 10,
+    letterSpacing: 1.8,
+    color: '#666666',
+    marginBottom: 24,
+  },
+  pillarsSidebar: {
+    gap: 16,
+  },
+  pillarsHeader: {
+    flexDirection: 'row',
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
     width: '100%',
   },
-  header: {
+  pillar: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 48,
+    gap: 12,
   },
-  titleFrame: {
-    borderWidth: 2,
-    borderRadius: 12,
+  pillarHeader: {
+    flex: 1,
+    justifyContent: 'center',
     paddingVertical: 12,
-    paddingHorizontal: 24,
-    marginBottom: 16,
-    alignSelf: 'center',
+    gap: 8,
   },
-  title: {
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: 3,
-    textAlign: 'center',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
+  pillarNum: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    color: '#F45B00',
   },
-  subtitle: {
-    fontSize: 14,
-    color: 'rgba(255,255,255,0.5)',
-    letterSpacing: 2,
-    textAlign: 'center',
-    marginBottom: 24,
-  },
-  tagline: {
+  pillarLabel: {
+    fontFamily: 'BarlowCondensed-Bold',
     fontSize: 12,
-    letterSpacing: 3,
-    textAlign: 'center',
+    letterSpacing: 1.2,
+    color: '#666',
+  },
+  quote: {
+    fontSize: 10,
+    color: '#444',
+    fontStyle: 'italic',
+    lineHeight: 18,
+    marginTop: 40,
+  },
+  mainSection: {
+    flex: 1,
+  },
+  tabs: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 18,
+    alignItems: 'center',
+    borderBottomWidth: 3,
+    borderBottomColor: 'transparent',
+  },
+  activeTab: {
+    borderBottomColor: '#F45B00',
+    backgroundColor: 'rgba(244, 91, 0, 0.05)',
+  },
+  tabText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 1.5,
+    color: '#AAA',
+  },
+  panel: {
+    padding: 32,
+  },
+  heading: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 28,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  subheading: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 13,
     marginBottom: 32,
   },
-  divider: {
-    height: 1,
-    width: 100,
-    alignSelf: 'center',
-    marginBottom: 32,
+  row: {
+    flexDirection: 'row',
   },
-  form: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.3)',
-    borderRadius: 16,
-    padding: 24,
+  forgotButton: {
+    alignSelf: 'flex-end',
+    marginTop: -8,
+    marginBottom: 16,
   },
-  formTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#CD7F32',
-    textAlign: 'center',
-    marginBottom: 24,
-    letterSpacing: 2,
+  forgotText: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 11,
+    letterSpacing: 0.5,
   },
-  switchButton: {
-    marginTop: 24,
+  switchLink: {
+    marginTop: 20,
     alignItems: 'center',
   },
   switchText: {
-    fontSize: 14,
-    textAlign: 'center',
-  },
-  footer: {
+    fontFamily: 'Barlow-Regular',
     fontSize: 12,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginTop: 32,
-    paddingHorizontal: 20,
+  },
+  themeToggleContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 24,
+    borderTopWidth: 1,
+    marginTop: 'auto',
+  },
+  themeLabel: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 11,
+    letterSpacing: 1,
+    flex: 1,
+  },
+  toggle: {
+    width: 36,
+    height: 20,
+    borderRadius: 10,
+    padding: 3,
+  },
+  toggleThumb: {
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
 });

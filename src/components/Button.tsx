@@ -28,9 +28,9 @@ export function Button({
         styles.button,
         isPrimary ? styles.primary : styles.secondary,
         (disabled || loading) && styles.disabled,
-        isPrimary ? { backgroundColor: theme.accent } : { 
+        isPrimary ? { backgroundColor: theme.accent } : {
           backgroundColor: 'transparent',
-          borderColor: theme.card.border 
+          borderColor: theme.card.border
         }
       ]}
     >
@@ -38,7 +38,7 @@ export function Button({
         <ActivityIndicator color={isPrimary ? '#FFFFFF' : theme.accent} />
       ) : (
         <Text style={[
-          styles.text, 
+          styles.text,
           isPrimary ? { color: '#FFFFFF' } : { color: theme.accent }
         ]}>
           {title}

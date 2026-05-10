@@ -32,14 +32,14 @@ export function Input({
   const { theme } = useTheme();
   // Default autoCapitalize based on keyboardType if not specified
   const autoCap = autoCapitalize ?? (keyboardType === 'email-address' ? 'none' : 'sentences');
-  
+
   return (
     <View style={styles.container}>
       <Text style={[styles.label, { color: theme.text.secondary }]}>{label}</Text>
       <TextInput
         style={[
-          styles.input, 
-          { 
+          styles.input,
+          {
             backgroundColor: theme.card.background,
             borderColor: theme.card.border,
             color: theme.text.primary,
