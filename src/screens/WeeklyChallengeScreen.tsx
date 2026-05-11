@@ -6,14 +6,15 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { 
-  ChallengeService, 
-  WeeklyChallenge, 
-  ChallengeMovement 
+import {
+  ChallengeService,
+  WeeklyChallenge,
+  ChallengeMovement
 } from '../services/ChallengeService';
 import { useTimer } from '../hooks/useTimer';
 import { getOrdinalRank } from '../lib/leaderboard';
 import { MOVEMENT_POINTS } from '../lib/weeklyChallenge';
+import { CelebrationBanner } from '../components/CelebrationBanner';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -50,6 +51,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const [selectedWeekStart, setSelectedWeekStart] = useState(ChallengeService.getCurrentWeekStart());
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
   const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
   const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
@@ -99,9 +101,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     try {
       const targetGroup = isAdmin ? adminGroupView : userGroup;
       const activeChallenge = await ChallengeService.getActive(targetGroup, selectedWeekStart);
-      
+
       setChallenge(activeChallenge);
-      
+
       if (activeChallenge) {
         // Fetch leaderboard directly for now
         const { data: entriesData, error } = await supabase
@@ -110,9 +112,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           .eq('challenge_id', activeChallenge.id)
           .order('score', { ascending: activeChallenge.scoring_type === 'time' })
           .order('submitted_at', { ascending: true });
-        
+
         if (error) throw error;
-        
+
         const mappedEntries: WeeklyEntry[] = (entriesData || []).map((e, idx) => ({
           id: e.id,
           user_id: e.user_id,
@@ -121,7 +123,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           rank: idx + 1,
           is_current_user: e.user_id === user?.id
         }));
-        
+
         setEntries(mappedEntries);
 
         // Initialize countdown timer for reps-based challenges
@@ -167,7 +169,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       alert("This challenge has ended. You cannot submit scores for previous weeks.");
       return;
     }
-    
+
     if (!challenge || !user) return;
     setSubmitting(true);
     try {
@@ -177,7 +179,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       } : {
         finalTimeFormatted: `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
       };
-      
+
       const improved = await ChallengeService.submitScore({
         challengeId: challenge.id,
         userId: user.id,
@@ -191,7 +193,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       } else {
         Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
       }
-      
+
       await loadChallenge();
       setShowSubmitModal(false);
       resetTimer();
@@ -199,6 +201,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       setRoundsCompleted('');
       setAdditionalReps({});
       setCalculatedPoints(0);
+      setShowCelebration(true);
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to submit score');
     } finally {
@@ -234,14 +237,14 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
   async function handleDeleteChallenge() {
     if (!challenge) return;
-    const confirmDelete = Platform.OS === 'web' 
+    const confirmDelete = Platform.OS === 'web'
       ? confirm('Delete this challenge? All leaderboard entries will be removed.')
       : await new Promise(resolve => {
-          Alert.alert('Delete Challenge', 'Delete this challenge?', [
-            { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-            { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
-          ]);
-        });
+        Alert.alert('Delete Challenge', 'Delete this challenge?', [
+          { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+          { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
+        ]);
+      });
 
     if (!confirmDelete) return;
 
@@ -290,7 +293,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
       {/* Week Navigation */}
       <View style={styles.weekNav}>
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             const d = new Date(selectedWeekStart);
             d.setDate(d.getDate() - 7);
@@ -300,7 +303,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         >
           <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>◀</Text>
         </TouchableOpacity>
-        
+
         <View style={styles.weekLabelContainer}>
           <Text style={[styles.weekLabel, { color: theme.text.primary }]}>
             {new Date(selectedWeekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
@@ -308,7 +311,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           </Text>
         </View>
 
-        <TouchableOpacity 
+        <TouchableOpacity
           onPress={() => {
             if (selectedWeekStart === ChallengeService.getCurrentWeekStart()) return;
             const d = new Date(selectedWeekStart);
@@ -394,7 +397,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               <Text style={[styles.yourScoreLabel, { color: theme.text.tertiary }]}>YOUR BEST</Text>
               <Text style={[styles.yourScoreValue, { color: theme.accent }]}>
                 {challenge.scoring_type === 'time'
-                  ? `${Math.floor(userEntry.score / 60)}:${String(Math.floor(userEntry.score % 60)).padStart(2, '0')}` 
+                  ? `${Math.floor(userEntry.score / 60)}:${String(Math.floor(userEntry.score % 60)).padStart(2, '0')}`
                   : `${userEntry.score} pts`}
               </Text>
               <Text style={[styles.yourScoreRank, { color: theme.text.secondary }]}>RANK #{userEntry.rank}</Text>
@@ -429,7 +432,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               </Text>
               <Text style={[styles.entryScore, { color: theme.accent }]}>
                 {challenge.scoring_type === 'time'
-                  ? `${Math.floor(entry.score / 60)}:${String(Math.floor(entry.score % 60)).padStart(2, '0')}` 
+                  ? `${Math.floor(entry.score / 60)}:${String(Math.floor(entry.score % 60)).padStart(2, '0')}`
                   : `${entry.score} pts`}
               </Text>
             </View>
@@ -463,150 +466,150 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                   </Text>
                 ))}
               </View>
-              
+
               <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
-            
-            {challenge?.scoring_type === 'time' ? (
-              <>
-                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                  onPress={() => timerRunning ? stopTimer() : startTimer()}
-                >
-                  <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                </TouchableOpacity>
-                {!timerRunning && timerSeconds > 0 && (
-                  <TouchableOpacity
-                    style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
-                    onPress={() => resetTimer()}
-                  >
-                    <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
-                  </TouchableOpacity>
-                )}
-                {!timerRunning && timerSeconds > 0 && (
-                  <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
-                    onPress={() => handleSubmit(timerSeconds)}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <ActivityIndicator color="#fff" size="small" />
-                    ) : (
-                      <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
-                    )}
-                  </TouchableOpacity>
-                )}
-              </>
-            ) : (
-              <>
-                {/* Reps-based challenge with countdown timer */}
-                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                </Text>
-                <TouchableOpacity
-                  style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                  onPress={() => {
-                    if (!timerRunning && timerSeconds <= 0) {
-                      setTimerSeconds((challenge?.time_limit || 10) * 60);
-                    }
-                    timerRunning ? stopTimer() : startTimer();
-                  }}
-                >
-                  <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                </TouchableOpacity>
 
-                {/* Show entry form when timer hits 0 OR user skips */}
-                {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
+              {challenge?.scoring_type === 'time' ? (
+                <>
+                  <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                    {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                  </Text>
                   <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
-                    onPress={() => {
-                      stopTimer();
-                      setTimerSeconds(0);
-                    }}
+                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                    onPress={() => timerRunning ? stopTimer() : startTimer()}
                   >
-                    <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
+                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
                   </TouchableOpacity>
-                ) : null}
-
-                {/* Skip timer option */}
-                {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
-                  <TouchableOpacity
-                    onPress={() => setTimerSeconds(0)}
-                    style={{ marginTop: 8 }}
-                  >
-                    <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
-                  </TouchableOpacity>
-                )}
-
-                {!timerRunning && timerSeconds === 0 ? (
-                  <>
-                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>ENTER YOUR RESULTS</Text>
-                    
-                    {/* Rounds input */}
-                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS COMPLETED</Text>
-                    <TextInput
-                      style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                      value={roundsCompleted}
-                      onChangeText={(text) => {
-                        const newRounds = text;
-                        setRoundsCompleted(newRounds);
-                        setCalculatedPoints(calculatePointsFrom(newRounds, additionalReps));
-                      }}
-                      placeholder="e.g. 3"
-                      placeholderTextColor={theme.text.tertiary}
-                      keyboardType="numeric"
-                    />
-                    
-                    {/* Additional reps for each movement */}
-                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADDITIONAL REPS (if incomplete round)</Text>
-                    {challenge?.movements.map((m, idx) => (
-                      <View key={idx} style={styles.movementInputRow}>
-                        <Text style={[styles.movementInputLabel, { color: theme.text.primary }]}>{m.name}</Text>
-                        <TextInput
-                          style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                          value={additionalReps[idx] || ''}
-                          onChangeText={(text) => {
-                            const newReps = { ...additionalReps, [idx]: text };
-                            setAdditionalReps(newReps);
-                            setCalculatedPoints(calculatePointsFrom(roundsCompleted, newReps));
-                          }}
-                          placeholder="0"
-                          placeholderTextColor={theme.text.tertiary}
-                          keyboardType="numeric"
-                        />
-                      </View>
-                    ))}
-                    
-                    {/* Calculated points display */}
-                    <View style={[styles.pointsDisplay, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
-                      <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
-                      <Text style={[styles.pointsValue, { color: theme.accent }]}>{calculatedPoints}</Text>
-                    </View>
-                    
+                  {!timerRunning && timerSeconds > 0 && (
+                    <TouchableOpacity
+                      style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
+                      onPress={() => resetTimer()}
+                    >
+                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
+                    </TouchableOpacity>
+                  )}
+                  {!timerRunning && timerSeconds > 0 && (
                     <TouchableOpacity
                       style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
-                      onPress={() => {
-                        const finalPoints = calculatePointsFrom(roundsCompleted, additionalReps);
-                        handleSubmit(finalPoints);
-                      }}
+                      onPress={() => handleSubmit(timerSeconds)}
                       disabled={submitting}
                     >
                       {submitting ? (
                         <ActivityIndicator color="#fff" size="small" />
                       ) : (
-                        <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
+                        <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
                       )}
                     </TouchableOpacity>
-                  </>
-                ) : (
-                  !timerRunning && timerSeconds !== 0 && timerSeconds !== (challenge?.time_limit || 10) * 60 ? null :
-                  <Text style={[styles.orText, { color: theme.text.tertiary }]}>Start the timer to begin your workout</Text>
-                )}
-              </>
-            )}
-            
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Reps-based challenge with countdown timer */}
+                  <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                    {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity
+                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                    onPress={() => {
+                      if (!timerRunning && timerSeconds <= 0) {
+                        setTimerSeconds((challenge?.time_limit || 10) * 60);
+                      }
+                      timerRunning ? stopTimer() : startTimer();
+                    }}
+                  >
+                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                  </TouchableOpacity>
+
+                  {/* Show entry form when timer hits 0 OR user skips */}
+                  {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
+                      onPress={() => {
+                        stopTimer();
+                        setTimerSeconds(0);
+                      }}
+                    >
+                      <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
+                    </TouchableOpacity>
+                  ) : null}
+
+                  {/* Skip timer option */}
+                  {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
+                    <TouchableOpacity
+                      onPress={() => setTimerSeconds(0)}
+                      style={{ marginTop: 8 }}
+                    >
+                      <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
+                    </TouchableOpacity>
+                  )}
+
+                  {!timerRunning && timerSeconds === 0 ? (
+                    <>
+                      <Text style={[styles.orText, { color: theme.text.tertiary }]}>ENTER YOUR RESULTS</Text>
+
+                      {/* Rounds input */}
+                      <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS COMPLETED</Text>
+                      <TextInput
+                        style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                        value={roundsCompleted}
+                        onChangeText={(text) => {
+                          const newRounds = text;
+                          setRoundsCompleted(newRounds);
+                          setCalculatedPoints(calculatePointsFrom(newRounds, additionalReps));
+                        }}
+                        placeholder="e.g. 3"
+                        placeholderTextColor={theme.text.tertiary}
+                        keyboardType="numeric"
+                      />
+
+                      {/* Additional reps for each movement */}
+                      <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADDITIONAL REPS (if incomplete round)</Text>
+                      {challenge?.movements.map((m, idx) => (
+                        <View key={idx} style={styles.movementInputRow}>
+                          <Text style={[styles.movementInputLabel, { color: theme.text.primary }]}>{m.name}</Text>
+                          <TextInput
+                            style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                            value={additionalReps[idx] || ''}
+                            onChangeText={(text) => {
+                              const newReps = { ...additionalReps, [idx]: text };
+                              setAdditionalReps(newReps);
+                              setCalculatedPoints(calculatePointsFrom(roundsCompleted, newReps));
+                            }}
+                            placeholder="0"
+                            placeholderTextColor={theme.text.tertiary}
+                            keyboardType="numeric"
+                          />
+                        </View>
+                      ))}
+
+                      {/* Calculated points display */}
+                      <View style={[styles.pointsDisplay, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
+                        <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
+                        <Text style={[styles.pointsValue, { color: theme.accent }]}>{calculatedPoints}</Text>
+                      </View>
+
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
+                        onPress={() => {
+                          const finalPoints = calculatePointsFrom(roundsCompleted, additionalReps);
+                          handleSubmit(finalPoints);
+                        }}
+                        disabled={submitting}
+                      >
+                        {submitting ? (
+                          <ActivityIndicator color="#fff" size="small" />
+                        ) : (
+                          <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
+                        )}
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    !timerRunning && timerSeconds !== 0 && timerSeconds !== (challenge?.time_limit || 10) * 60 ? null :
+                      <Text style={[styles.orText, { color: theme.text.tertiary }]}>Start the timer to begin your workout</Text>
+                  )}
+                </>
+              )}
+
               <TouchableOpacity onPress={() => setShowSubmitModal(false)}>
                 <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
               </TouchableOpacity>
@@ -621,7 +624,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
             <View style={[styles.adminModalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
               <Text style={[styles.modalTitle, { color: theme.accent }]}>COACH DASHBOARD</Text>
-              
+
               {/* Active Challenges List */}
               <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ACTIVE CHALLENGES THIS WEEK</Text>
               {allChallenges.length === 0 ? (
@@ -630,23 +633,23 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                 allChallenges.map(ac => (
                   <View key={ac.id} style={[styles.activeChallengeRow, { backgroundColor: theme.card.background }]}>
                     <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1|2|3].name}</Text>
+                      <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
                       <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
                     </View>
                     <TouchableOpacity onPress={async () => {
                       console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
-                      const confirmed = Platform.OS === 'web' 
+                      const confirmed = Platform.OS === 'web'
                         ? window.confirm(`Are you sure you want to delete "${ac.title}"?`)
                         : await new Promise(resolve => {
-                            Alert.alert(
-                              'Confirm Delete',
-                              `Are you sure you want to delete "${ac.title}"?`,
-                              [
-                                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                                { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
-                              ]
-                            );
-                          });
+                          Alert.alert(
+                            'Confirm Delete',
+                            `Are you sure you want to delete "${ac.title}"?`,
+                            [
+                              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
+                            ]
+                          );
+                        });
 
                       if (confirmed) {
                         try {
@@ -676,137 +679,137 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
               <Text style={[styles.modalTitle, { color: theme.accent, fontSize: 16 }]}>CREATE NEW CHALLENGE</Text>
               <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET GROUP</Text>
-            <View style={styles.groupSelector}>
-              {([1, 2, 3] as const).map(g => (
-                <TouchableOpacity
-                  key={g}
-                  style={[styles.groupOption, { borderColor: adminForm.group_id === g ? theme.accent : theme.card.border, backgroundColor: adminForm.group_id === g ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
-                  onPress={() => setAdminForm({ ...adminForm, group_id: g })}
-                >
-                  <Text style={[styles.groupOptionText, { color: adminForm.group_id === g ? theme.accent : theme.text.tertiary }]}>
-                    {GROUP_NAMES[g].name}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TITLE</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-              value={adminForm.title}
-              onChangeText={t => setAdminForm({ ...adminForm, title: t })}
-              placeholder="e.g. THE IRON GAUNTLET"
-              placeholderTextColor={theme.text.tertiary}
-            />
-            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>DESCRIPTION (optional)</Text>
-            <TextInput
-              style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-              value={adminForm.description}
-              onChangeText={t => setAdminForm({ ...adminForm, description: t })}
-              placeholder="Challenge description"
-              placeholderTextColor={theme.text.tertiary}
-            />
-            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>SCORING TYPE</Text>
-            <View style={styles.groupSelector}>
-              {(['time', 'reps'] as const).map(s => (
-                <TouchableOpacity
-                  key={s}
-                  style={[styles.groupOption, { borderColor: adminForm.scoring_type === s ? theme.accent : theme.card.border, backgroundColor: adminForm.scoring_type === s ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
-                  onPress={() => setAdminForm({ ...adminForm, scoring_type: s })}
-                >
-                  <Text style={[styles.groupOptionText, { color: adminForm.scoring_type === s ? theme.accent : theme.text.tertiary }]}>
-                    {s === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-            {adminForm.scoring_type === 'reps' && (
-              <>
-                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TIME LIMIT (MINUTES)</Text>
+              <View style={styles.groupSelector}>
+                {([1, 2, 3] as const).map(g => (
+                  <TouchableOpacity
+                    key={g}
+                    style={[styles.groupOption, { borderColor: adminForm.group_id === g ? theme.accent : theme.card.border, backgroundColor: adminForm.group_id === g ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
+                    onPress={() => setAdminForm({ ...adminForm, group_id: g })}
+                  >
+                    <Text style={[styles.groupOptionText, { color: adminForm.group_id === g ? theme.accent : theme.text.tertiary }]}>
+                      {GROUP_NAMES[g].name}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TITLE</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                value={adminForm.title}
+                onChangeText={t => setAdminForm({ ...adminForm, title: t })}
+                placeholder="e.g. THE IRON GAUNTLET"
+                placeholderTextColor={theme.text.tertiary}
+              />
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>DESCRIPTION (optional)</Text>
+              <TextInput
+                style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                value={adminForm.description}
+                onChangeText={t => setAdminForm({ ...adminForm, description: t })}
+                placeholder="Challenge description"
+                placeholderTextColor={theme.text.tertiary}
+              />
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>SCORING TYPE</Text>
+              <View style={styles.groupSelector}>
+                {(['time', 'reps'] as const).map(s => (
+                  <TouchableOpacity
+                    key={s}
+                    style={[styles.groupOption, { borderColor: adminForm.scoring_type === s ? theme.accent : theme.card.border, backgroundColor: adminForm.scoring_type === s ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
+                    onPress={() => setAdminForm({ ...adminForm, scoring_type: s })}
+                  >
+                    <Text style={[styles.groupOptionText, { color: adminForm.scoring_type === s ? theme.accent : theme.text.tertiary }]}>
+                      {s === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              {adminForm.scoring_type === 'reps' && (
+                <>
+                  <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TIME LIMIT (MINUTES)</Text>
+                  <TextInput
+                    style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                    value={String(adminForm.time_limit)}
+                    onChangeText={t => setAdminForm({ ...adminForm, time_limit: parseInt(t) || 10 })}
+                    placeholder="e.g. 10"
+                    placeholderTextColor={theme.text.tertiary}
+                    keyboardType="numeric"
+                  />
+                </>
+              )}
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADD MOVEMENTS</Text>
+              <View style={styles.movementInputRow}>
+                <View style={{ flex: 1 }}>
+                  <TouchableOpacity
+                    style={[styles.movementInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, justifyContent: 'center' }]}
+                    onPress={() => setShowMovementDropdown(!showMovementDropdown)}
+                  >
+                    <Text style={{ color: newMovement.name ? theme.text.primary : theme.text.tertiary }}>
+                      {newMovement.name || 'Select movement'}
+                    </Text>
+                  </TouchableOpacity>
+                  {showMovementDropdown && (
+                    <View style={[styles.dropdown, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                      <ScrollView style={{ width: '100%' }}>
+                        {Object.entries(MOVEMENT_POINTS).map(([name, points]) => (
+                          <TouchableOpacity
+                            key={name}
+                            style={styles.dropdownItem}
+                            onPress={() => {
+                              setNewMovement({ ...newMovement, name, points });
+                              setShowMovementDropdown(false);
+                            }}
+                          >
+                            <Text style={{ color: theme.text.primary }}>{name} ({points} pts)</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
+                </View>
                 <TextInput
-                  style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                  value={String(adminForm.time_limit)}
-                  onChangeText={t => setAdminForm({ ...adminForm, time_limit: parseInt(t) || 10 })}
-                  placeholder="e.g. 10"
+                  style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                  value={newMovement.reps ? String(newMovement.reps) : ''}
+                  onChangeText={t => setNewMovement({ ...newMovement, reps: parseInt(t) || 0 })}
+                  placeholder="Reps"
                   placeholderTextColor={theme.text.tertiary}
                   keyboardType="numeric"
                 />
-              </>
-            )}
-            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADD MOVEMENTS</Text>
-            <View style={styles.movementInputRow}>
-              <View style={{ flex: 1 }}>
                 <TouchableOpacity
-                  style={[styles.movementInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, justifyContent: 'center' }]}
-                  onPress={() => setShowMovementDropdown(!showMovementDropdown)}
+                  style={[styles.addBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => {
+                    if (newMovement.name && newMovement.reps > 0) {
+                      setAdminForm({
+                        ...adminForm,
+                        movements: [...adminForm.movements, { ...newMovement, points: newMovement.points || MOVEMENT_POINTS[newMovement.name] || 1 }]
+                      });
+                      setNewMovement({ name: '', reps: 0, points: 0 });
+                    }
+                  }}
                 >
-                  <Text style={{ color: newMovement.name ? theme.text.primary : theme.text.tertiary }}>
-                    {newMovement.name || 'Select movement'}
-                  </Text>
-                </TouchableOpacity>
-                {showMovementDropdown && (
-                  <View style={[styles.dropdown, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                    <ScrollView style={{ width: '100%' }}>
-                      {Object.entries(MOVEMENT_POINTS).map(([name, points]) => (
-                        <TouchableOpacity
-                          key={name}
-                          style={styles.dropdownItem}
-                          onPress={() => {
-                            setNewMovement({ ...newMovement, name, points });
-                            setShowMovementDropdown(false);
-                          }}
-                        >
-                          <Text style={{ color: theme.text.primary }}>{name} ({points} pts)</Text>
-                        </TouchableOpacity>
-                      ))}
-                    </ScrollView>
-                  </View>
-                )}
-              </View>
-              <TextInput
-                style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                value={newMovement.reps ? String(newMovement.reps) : ''}
-                onChangeText={t => setNewMovement({ ...newMovement, reps: parseInt(t) || 0 })}
-                placeholder="Reps"
-                placeholderTextColor={theme.text.tertiary}
-                keyboardType="numeric"
-              />
-              <TouchableOpacity
-                style={[styles.addBtn, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  if (newMovement.name && newMovement.reps > 0) {
-                    setAdminForm({
-                      ...adminForm,
-                      movements: [...adminForm.movements, { ...newMovement, points: newMovement.points || MOVEMENT_POINTS[newMovement.name] || 1 }]
-                    });
-                    setNewMovement({ name: '', reps: 0, points: 0 });
-                  }
-                }}
-              >
-                <Text style={{ color: '#fff', fontWeight: '900' }}>+</Text>
-              </TouchableOpacity>
-            </View>
-            {adminForm.movements.map((m, i) => (
-              <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name} × {m.reps}</Text>
-                <TouchableOpacity onPress={() => setAdminForm({ ...adminForm, movements: adminForm.movements.filter((_, idx) => idx !== i) })}>
-                  <Text style={{ color: '#8B0000' }}>✕</Text>
+                  <Text style={{ color: '#fff', fontWeight: '900' }}>+</Text>
                 </TouchableOpacity>
               </View>
-            ))}
-            {challenge && (
+              {adminForm.movements.map((m, i) => (
+                <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                  <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name} × {m.reps}</Text>
+                  <TouchableOpacity onPress={() => setAdminForm({ ...adminForm, movements: adminForm.movements.filter((_, idx) => idx !== i) })}>
+                    <Text style={{ color: '#8B0000' }}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              ))}
+              {challenge && (
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: '#8B0000', marginTop: 24 }]}
+                  onPress={handleDeleteChallenge}
+                >
+                  <Text style={styles.timerBtnText}>DELETE CHALLENGE</Text>
+                </TouchableOpacity>
+              )}
               <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: '#8B0000', marginTop: 24 }]}
-                onPress={handleDeleteChallenge}
+                style={[styles.saveBtn, { backgroundColor: theme.accent, marginTop: challenge ? 12 : 24 }]}
+                onPress={handleCreateChallenge}
               >
-                <Text style={styles.timerBtnText}>DELETE CHALLENGE</Text>
+                <Text style={styles.timerBtnText}>PUBLISH CHALLENGE</Text>
               </TouchableOpacity>
-            )}
-            <TouchableOpacity
-              style={[styles.saveBtn, { backgroundColor: theme.accent, marginTop: challenge ? 12 : 24 }]}
-              onPress={handleCreateChallenge}
-            >
-              <Text style={styles.timerBtnText}>PUBLISH CHALLENGE</Text>
-            </TouchableOpacity>
               <TouchableOpacity onPress={() => setShowAdminModal(false)} style={{ marginTop: 12, alignItems: 'center' }}>
                 <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
               </TouchableOpacity>
@@ -814,6 +817,18 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           </ScrollView>
         </View>
       </Modal>
+
+      <CelebrationBanner
+        visible={showCelebration}
+        title="WEEKLY WARRIOR"
+        subtitle="Challenge Complete"
+        stat="Weekly Challenge Conquered"
+        emoji="🏆"
+        userName={profile?.display_name || 'WARRIOR'}
+        onDismiss={() => {
+          setShowCelebration(false);
+        }}
+      />
     </ScrollView>
   );
 }

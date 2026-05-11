@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { CelebrationBanner } from '../components/CelebrationBanner';
 
 interface Props {
   navigation?: any;
@@ -28,6 +29,16 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   const [loading, setLoading] = useState(true);
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [cooldownTime, setCooldownTime] = useState<number>(0);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationProps, setCelebrationProps] = useState({
+    title: '',
+    subtitle: '',
+    stat: '',
+    emoji: '',
+    userName: '',
+    rank: '',
+    leaderboard: [] as { name: string; score: string; rank: number }[],
+  });
 
   const activeSessionRef = useRef<any>(null);
   const isIgniting = useRef(false);
@@ -140,6 +151,43 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
 
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [participants, profile?.id]);
+
+  useEffect(() => {
+    if (activeSession?.status === 'completed' && participants.length > 0) {
+      const me = participants.find(p => p.user_id === profile?.id);
+      if (me?.final_rank === 1) {
+        setCelebrationProps({
+          title: 'TOURNAMENT CHAMPION',
+          subtitle: activeSession.config?.title || 'Tournament',
+          stat: `${Math.floor((activeSession.config?.payout_gp || 0) * 0.75)} GP EARNED`,
+          emoji: '🏆',
+          userName: profile?.display_name || 'WARRIOR',
+          rank: 'RANK #1 🏆',
+          leaderboard: sorted.slice(0, 2).map((p, i) => ({
+            name: p.profile?.display_name || 'Warrior',
+            score: i === 0 ? `${Math.floor(payout * 0.75)} GP` : `${Math.floor(payout * 0.25)} GP`,
+            rank: i + 1
+          }))
+        });
+        setShowCelebration(true);
+      } else if (me?.final_rank === 2) {
+        setCelebrationProps({
+          title: 'TOURNAMENT FINALIST',
+          subtitle: activeSession.config?.title || 'Tournament',
+          stat: `${Math.floor((activeSession.config?.payout_gp || 0) * 0.25)} GP EARNED`,
+          emoji: '🥈',
+          userName: profile?.display_name || 'WARRIOR',
+          rank: 'RANK #2 🥈',
+          leaderboard: sorted.slice(0, 2).map((p, i) => ({
+            name: p.profile?.display_name || 'Warrior',
+            score: i === 0 ? `${Math.floor(payout * 0.75)} GP` : `${Math.floor(payout * 0.25)} GP`,
+            rank: i + 1
+          }))
+        });
+        setShowCelebration(true);
+      }
+    }
+  }, [activeSession?.status, participants]);
 
   const handleToggleReady = async () => {
     const me = participants.find(p => p.user_id === profile?.id);
@@ -489,6 +537,12 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
         {activeSession.status === 'active' && (activeSession.config?.type === 'knockout' ? renderActiveKnockout() : renderActiveRankBased())}
         {activeSession.status === 'completed' && renderCompleted()}
       </View>
+
+      <CelebrationBanner
+        visible={showCelebration}
+        {...celebrationProps}
+        onDismiss={() => setShowCelebration(false)}
+      />
     </View>
   );
 }
