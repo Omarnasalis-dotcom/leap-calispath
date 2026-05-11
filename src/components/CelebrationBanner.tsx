@@ -10,7 +10,7 @@ import {
   Alert,
   Platform,
 } from 'react-native';
-import ViewShot, { captureRef } from 'react-native-view-shot';
+import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { useTheme } from '../contexts/ThemeContext';
@@ -41,7 +41,7 @@ export function CelebrationBanner({
   onDismiss,
 }: CelebrationProps) {
   const { theme } = useTheme();
-  const viewShotRef = useRef<ViewShot>(null);
+  const viewShotRef = useRef<View>(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
 
@@ -89,10 +89,41 @@ export function CelebrationBanner({
     });
   };
 
+  const generateCardImage = async (): Promise<string | null> => {
+    if (Platform.OS !== 'web') {
+      // Native: use react-native-view-shot
+      try {
+        const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
+        return uri;
+      } catch {
+        return null;
+      }
+    }
+
+    // Web: use html2canvas
+    try {
+      const html2canvas = (await import('html2canvas')).default;
+      const element = document.getElementById('celebration-card');
+      if (!element) return null;
+      const canvas = await html2canvas(element, { backgroundColor: null, scale: 2 });
+      return canvas.toDataURL('image/png');
+    } catch {
+      return null;
+    }
+  };
+
   const handleShare = async () => {
     if (Platform.OS === 'web') {
-      if (navigator.share) {
-        await navigator.share({ title: 'LEAP ARENA', text: `${title} - ${userName}` });
+      const dataUrl = await generateCardImage();
+      if (dataUrl && navigator.share) {
+        try {
+          const blob = await (await fetch(dataUrl)).blob();
+          const file = new File([blob], 'leap-arena.png', { type: 'image/png' });
+          await navigator.share({ files: [file], title: 'LEAP ARENA' });
+        } catch (e) {
+          console.error('Share failed:', e);
+          window.alert('Use the SAVE button to download the card, then share it manually.');
+        }
       } else {
         window.alert('Use the SAVE button to download the card, then share it manually.');
       }
@@ -117,13 +148,13 @@ export function CelebrationBanner({
 
   const handleSave = async () => {
     if (Platform.OS === 'web') {
-      const text = `LEAP ARENA\n${title}\n${userName}\n${subtitle}\n${stat}\n${new Date().toLocaleDateString()}`;
-      const blob = new Blob([text], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'leap-arena-achievement.txt';
-      a.click();
+      const dataUrl = await generateCardImage();
+      if (dataUrl) {
+        const a = document.createElement('a');
+        a.href = dataUrl;
+        a.download = 'leap-arena-achievement.png';
+        a.click();
+      }
       return;
     }
     try {
@@ -166,9 +197,9 @@ export function CelebrationBanner({
           ]}
         >
           {/* THE CARD TO BE CAPTURED */}
-          <ViewShot
-            ref={viewShotRef}
-            options={{ format: 'png', quality: 0.9 }}
+          <View
+            ref={viewShotRef as any}
+            id="celebration-card"
             style={[
               styles.card,
               {
@@ -193,7 +224,6 @@ export function CelebrationBanner({
 
             <Text style={[styles.userName, { color: theme.accent }]}>@{userName}</Text>
 
-
             <View style={styles.divider} />
 
             <Text style={[styles.subtitle, { color: '#AAA' }]}>{subtitle}</Text>
@@ -216,7 +246,7 @@ export function CelebrationBanner({
             )}
 
             <Text style={[styles.dateText, { color: '#555', marginTop: leaderboard ? 12 : 0 }]}>{today}</Text>
-          </ViewShot>
+          </View>
 
           {/* ACTION BUTTONS */}
           <View style={styles.buttonContainer}>
