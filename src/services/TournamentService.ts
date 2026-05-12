@@ -5,18 +5,16 @@ export class TournamentService {
   /**
    * Fetch active session (registration or active)
    */
-  static async getActiveSession() {
+  static async getActiveSessions() {
     try {
       const { data, error } = await supabase
         .from('tournament_sessions')
         .select('*, config:tournament_configs(*)')
         .in('status', ['registration', 'active'])
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      return data;
+      return data || [];
     } catch (error) {
       console.error('TournamentService.getActiveSession failed:', error);
       return null;
@@ -48,6 +46,30 @@ export class TournamentService {
         .single();
 
       if (profileErr) throw profileErr;
+      const userTier = profile.strength_tier || 0;
+
+      // Check allowed tiers from config
+      const { data: session } = await supabase
+        .from('tournament_sessions')
+        .select('*, config:tournament_configs(*)')
+        .eq('id', sessionId)
+        .single();
+
+      console.log('JOIN VALIDATION:', {
+        sessionId,
+        userTier,
+        allowedTiers: session?.config?.allowed_tiers,
+        configExists: !!session?.config
+      });
+
+      if (session?.config?.allowed_tiers) {
+        const allowed = session.config.allowed_tiers;
+        const tierNum = Number(userTier);
+        if (!allowed.map(Number).includes(tierNum)) {
+          console.log('JOIN REJECTED: Tier mismatch');
+          throw new Error(`This tournament is not fit for your current tier (T${tierNum}).`);
+        }
+      }
 
       // Join
       const { error: joinErr } = await supabase
@@ -340,12 +362,25 @@ export class TournamentService {
 
       const scoreA = participantA?.scores?.[match.day]?.final || 0;
 
+      const { data: session } = await supabase
+        .from('tournament_sessions')
+        .select('*, config:tournament_configs(*)')
+        .eq('id', match.tournament_id)
+        .single();
+
+      const roundConfig = session?.config?.workout_config?.find((c: any) => c.day === match.day);
+      const isForTime = roundConfig?.mode === 'for_time';
+
       let winnerId = null;
 
       if (match.is_ghost_match) {
         const median = await this.getLiveMedian(match.tournament_id, match.day);
-        if (scoreA >= median) {
-          winnerId = match.user_a;
+        if (isForTime) {
+          if (scoreA > 0 && scoreA <= median) winnerId = match.user_a;
+        } else {
+          if (scoreA >= median) {
+            winnerId = match.user_a;
+          }
         }
       } else {
         const { data: participantB } = await supabase
@@ -356,7 +391,29 @@ export class TournamentService {
           .single();
 
         const scoreB = participantB?.scores?.[match.day]?.final || 0;
-        winnerId = scoreA >= scoreB ? match.user_a : match.user_b;
+        
+        if (isForTime) {
+          // Lower score = faster = winner. Score of 0 means not submitted.
+          if (scoreA === 0 && scoreB === 0) winnerId = match.user_a;
+          else if (scoreA === 0) winnerId = match.user_b;
+          else if (scoreB === 0) winnerId = match.user_a;
+          else if (scoreA === scoreB) {
+            // Tiebreaker: Earlier submission wins
+            const timeA = participantA?.scores?.[match.day]?.last_attempt_at ? new Date(participantA.scores[match.day].last_attempt_at).getTime() : Date.now();
+            const timeB = participantB?.scores?.[match.day]?.last_attempt_at ? new Date(participantB.scores[match.day].last_attempt_at).getTime() : Date.now();
+            winnerId = timeA <= timeB ? match.user_a : match.user_b;
+          }
+          else winnerId = scoreA < scoreB ? match.user_a : match.user_b;
+        } else {
+          if (scoreA === scoreB && scoreA > 0) {
+            // Tiebreaker: Earlier submission wins
+            const timeA = participantA?.scores?.[match.day]?.last_attempt_at ? new Date(participantA.scores[match.day].last_attempt_at).getTime() : Date.now();
+            const timeB = participantB?.scores?.[match.day]?.last_attempt_at ? new Date(participantB.scores[match.day].last_attempt_at).getTime() : Date.now();
+            winnerId = timeA <= timeB ? match.user_a : match.user_b;
+          } else {
+            winnerId = scoreA >= scoreB ? match.user_a : match.user_b;
+          }
+        }
       }
 
       if (winnerId) {
@@ -519,6 +576,33 @@ export class TournamentService {
       }
     } catch (error) {
       console.error('TournamentService.checkAndAutoEliminate failed:', error);
+    }
+  }
+
+  /**
+   * Periodically called to ensure tournaments don't hang past their deadline
+   */
+  static async checkTournamentExpiry(sessionId: string) {
+    try {
+      const { data: session } = await supabase
+        .from('tournament_sessions')
+        .select('round_deadline, status, current_round, config:tournament_configs(type)')
+        .eq('id', sessionId)
+        .single();
+
+      if (!session || session.status !== 'active' || !session.round_deadline) return;
+
+      if (new Date() > new Date(session.round_deadline)) {
+        console.log('EXPIRY: Deadline passed for session', sessionId);
+        const configType = (session.config as any)?.type;
+        if (configType === 'knockout') {
+          await this.checkAndAutoEliminate(sessionId);
+        } else {
+          await this.closeRankBasedTournament(sessionId);
+        }
+      }
+    } catch (error) {
+      console.error('TournamentService.checkTournamentExpiry failed:', error);
     }
   }
 

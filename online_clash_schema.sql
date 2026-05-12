@@ -1,7 +1,7 @@
 -- ⚔️ ONLINE CLASH ENGINE SCHEMA
 -- Bracket Definitions:
--- Developing: Tiers 2-4
--- Elite: Tiers 5-8
+-- Developing: Tiers 3-5
+-- Elite: Tiers 6-8
 
 -- 1. CLASH SESSIONS TABLE
 CREATE TABLE IF NOT EXISTS clash_sessions (
@@ -58,9 +58,9 @@ EXECUTE FUNCTION handle_clash_victory();
 CREATE OR REPLACE FUNCTION get_user_clash_bracket(user_tier INTEGER)
 RETURNS TEXT AS $$
 BEGIN
-    IF user_tier >= 2 AND user_tier <= 4 THEN
+    IF user_tier >= 3 AND user_tier <= 5 THEN
         RETURN 'developing';
-    ELSIF user_tier >= 5 AND user_tier <= 8 THEN
+    ELSIF user_tier >= 6 AND user_tier <= 8 THEN
         RETURN 'elite';
     ELSE
         RETURN 'none';
@@ -90,7 +90,7 @@ BEGIN
     -- Check Brackets
     v_bracket := get_user_clash_bracket(sender_profile.strength_tier);
     IF v_bracket = 'none' THEN
-        RAISE EXCEPTION 'You must be at least Tier 2 to start a clash.';
+        RAISE EXCEPTION 'You must be at least Tier 3 to start a clash.';
     END IF;
     
     IF v_bracket != get_user_clash_bracket(receiver_profile.strength_tier) THEN

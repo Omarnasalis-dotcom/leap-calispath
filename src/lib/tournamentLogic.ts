@@ -5,13 +5,13 @@
  */
 
 export const TOURNAMENT_MULTIPLIERS: Record<number, number> = {
-  0: 10,
-  1: 10,
-  2: 10,
-  3: 6,
-  4: 6,
-  5: 3,
-  6: 3,
+  0: 4,
+  1: 4,
+  2: 4,
+  3: 3,
+  4: 3,
+  5: 2,
+  6: 2,
   7: 1,
   8: 1,
 };

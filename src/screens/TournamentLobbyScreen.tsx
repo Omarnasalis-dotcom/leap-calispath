@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Alert
+  Alert, ActivityIndicator, Platform
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { CelebrationBanner } from '../components/CelebrationBanner';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Props {
   navigation?: any;
@@ -30,6 +31,7 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   const [timeLeft, setTimeLeft] = useState<string>('');
   const [cooldownTime, setCooldownTime] = useState<number>(0);
   const [showCelebration, setShowCelebration] = useState(false);
+  const [hasShownCelebration, setHasShownCelebration] = useState(false);
   const [celebrationProps, setCelebrationProps] = useState({
     title: '',
     subtitle: '',
@@ -43,6 +45,15 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   const activeSessionRef = useRef<any>(null);
   const isIgniting = useRef(false);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    if (sessionId) {
+      AsyncStorage.setItem('active_tournament_session', sessionId);
+    }
+    return () => {
+      AsyncStorage.removeItem('active_tournament_session');
+    };
+  }, [sessionId]);
 
   const fetchData = useCallback(async () => {
     if (!sessionId) return;
@@ -77,6 +88,23 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
         .eq('tournament_id', sessionId)
         .order('day', { ascending: true });
       setAllMatches(allMatchesData || []);
+      if (session.status === 'active') {
+        await TournamentService.checkTournamentExpiry(sessionId);
+      }
+
+      // Final Layer: Re-validate tier eligibility
+      if (session.config?.allowed_tiers) {
+        const allowed = session.config.allowed_tiers;
+        const userTier = Number(profile?.strength_tier || 0);
+        if (!allowed.map(Number).includes(userTier)) {
+          const msg = `This tournament is not fit for your current tier (T${userTier}).`;
+          if (Platform.OS === 'web') alert(`Ineligible Warrior\n\n${msg}`);
+          else Alert.alert('Ineligible Warrior', msg);
+          
+          navigation.goBack();
+          return;
+        }
+      }
     } catch (error) {
       console.error('Error fetching lobby data:', error);
     } finally {
@@ -153,16 +181,20 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   }, [participants, profile?.id]);
 
   useEffect(() => {
-    if (activeSession?.status === 'completed' && participants.length > 0) {
+    if (activeSession?.status === 'completed' && participants.length > 0 && !hasShownCelebration) {
       const me = participants.find(p => p.user_id === profile?.id);
-      if (me?.final_rank === 1) {
+      const payout = activeSession.config?.payout_gp || 0;
+      const sorted = [...participants].sort((a, b) => (a.final_rank || 999) - (b.final_rank || 999));
+      
+      if (me?.final_rank === 1 || me?.final_rank === 2) {
+        const isChamp = me.final_rank === 1;
         setCelebrationProps({
-          title: 'TOURNAMENT CHAMPION',
+          title: isChamp ? 'TOURNAMENT CHAMPION' : 'TOURNAMENT FINALIST',
           subtitle: activeSession.config?.title || 'Tournament',
-          stat: `${Math.floor((activeSession.config?.payout_gp || 0) * 0.75)} GP EARNED`,
-          emoji: '🏆',
+          stat: `${Math.floor(payout * (isChamp ? 0.75 : 0.25))} GP EARNED`,
+          emoji: isChamp ? '🏆' : '🥈',
           userName: profile?.display_name || 'WARRIOR',
-          rank: 'RANK #1 🏆',
+          rank: isChamp ? 'RANK #1 🏆' : 'RANK #2 🥈',
           leaderboard: sorted.slice(0, 2).map((p, i) => ({
             name: p.profile?.display_name || 'Warrior',
             score: i === 0 ? `${Math.floor(payout * 0.75)} GP` : `${Math.floor(payout * 0.25)} GP`,
@@ -170,24 +202,10 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
           }))
         });
         setShowCelebration(true);
-      } else if (me?.final_rank === 2) {
-        setCelebrationProps({
-          title: 'TOURNAMENT FINALIST',
-          subtitle: activeSession.config?.title || 'Tournament',
-          stat: `${Math.floor((activeSession.config?.payout_gp || 0) * 0.25)} GP EARNED`,
-          emoji: '🥈',
-          userName: profile?.display_name || 'WARRIOR',
-          rank: 'RANK #2 🥈',
-          leaderboard: sorted.slice(0, 2).map((p, i) => ({
-            name: p.profile?.display_name || 'Warrior',
-            score: i === 0 ? `${Math.floor(payout * 0.75)} GP` : `${Math.floor(payout * 0.25)} GP`,
-            rank: i + 1
-          }))
-        });
-        setShowCelebration(true);
+        setHasShownCelebration(true);
       }
     }
-  }, [activeSession?.status, participants]);
+  }, [activeSession?.status, participants, hasShownCelebration]);
 
   const handleToggleReady = async () => {
     const me = participants.find(p => p.user_id === profile?.id);
@@ -251,6 +269,21 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
             {me?.is_ready ? 'UNREADY' : 'PREPARE FOR WAR'}
           </Text>
         </TouchableOpacity>
+
+        {me && !me.is_ready && (
+          <TouchableOpacity
+            style={[styles.mainBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#EF4444', marginTop: 12 }]}
+            onPress={async () => {
+              await supabase
+                .from('tournament_participants')
+                .delete()
+                .eq('id', me.id);
+              await fetchData();
+            }}
+          >
+            <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 16 }}>QUIT TOURNAMENT</Text>
+          </TouchableOpacity>
+        )}
       </ScrollView>
     );
   };
@@ -286,7 +319,17 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
                 const renderWarrior = (p: any, score: number, side: 'left' | 'right') => {
                   const isWinner = m.winner_id === p?.user_id;
                   const isMe = p?.user_id === profile?.id;
-                  const displayScore = (score === 0 && !m.winner_id) ? "—" : `${score} pts`;
+                  const formatBracketScore = (s: number, mode: string) => {
+                    if (s === 0 && !m.winner_id) return "—";
+                    if (mode === 'for_time') {
+                      const m2 = Math.floor(s / 60);
+                      const sec = s % 60;
+                      return `${m2}:${sec < 10 ? '0' : ''}${sec}`;
+                    }
+                    return `${s} pts`;
+                  };
+                  const roundConfig = activeSession.config?.workout_config?.find((c: any) => c.day === m.day);
+                  const displayScore = formatBracketScore(score, roundConfig?.mode || 'amrap');
 
                   return (
                     <View style={{ flex: 1, alignItems: side === 'left' ? 'flex-start' : 'flex-end' }}>

@@ -60,12 +60,6 @@ export function CelebrationBanner({
           useNativeDriver: true,
         }),
       ]).start();
-
-      const timer = setTimeout(() => {
-        handleDismiss();
-      }, 6000);
-
-      return () => clearTimeout(timer);
     } else {
       slideAnim.setValue(height);
       opacityAnim.setValue(0);
@@ -91,7 +85,6 @@ export function CelebrationBanner({
 
   const generateCardImage = async (): Promise<string | null> => {
     if (Platform.OS !== 'web') {
-      // Native: use react-native-view-shot
       try {
         const uri = await captureRef(viewShotRef, { format: 'png', quality: 0.9 });
         return uri;
@@ -99,8 +92,7 @@ export function CelebrationBanner({
         return null;
       }
     }
-
-    // Web: use html2canvas
+    
     try {
       const html2canvas = (await import('html2canvas')).default;
       const element = document.getElementById('celebration-card');
@@ -185,6 +177,10 @@ export function CelebrationBanner({
     year: 'numeric'
   });
 
+  const SectionDivider = () => (
+    <View style={[styles.sectionDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
+  );
+
   return (
     <Modal transparent visible={visible} animationType="none">
       <View style={styles.overlay}>
@@ -209,43 +205,47 @@ export function CelebrationBanner({
             ]}
           >
             <Text style={[styles.logoText, { color: theme.accent }]}>LEAP ARENA</Text>
-
             <Text style={styles.emoji}>{emoji}</Text>
 
-            <View style={[styles.titleDivider, { backgroundColor: theme.accent, opacity: 0.3 }]} />
+            <SectionDivider />
 
-            {rank && (
-              <View style={{ backgroundColor: theme.accent, paddingHorizontal: 16, paddingVertical: 4, borderRadius: 20, marginBottom: 12 }}>
-                <Text style={{ color: '#000', fontWeight: '900', fontSize: 12 }}>{rank}</Text>
-              </View>
-            )}
+            <View style={styles.mainInfoSection}>
+              <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
+              <Text style={[styles.userName, { color: theme.accent }]} numberOfLines={1}>
+                {userName}
+              </Text>
+            </View>
 
-            <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
+            <SectionDivider />
 
-            <Text style={[styles.userName, { color: theme.accent }]}>@{userName}</Text>
+            <View style={styles.achievementSection}>
+              <Text style={[styles.statValueBig, { color: theme.accent }]}>{stat}</Text>
+              {rank && (
+                <Text style={[styles.rankTextSmall, { color: theme.text.secondary }]}>{rank}</Text>
+              )}
+            </View>
 
-            <View style={styles.divider} />
-
-            <Text style={[styles.subtitle, { color: '#AAA' }]}>{subtitle}</Text>
-            <Text style={[styles.stat, { color: '#888' }]}>{stat}</Text>
-
-            {/* MINI LEADERBOARD SECTION */}
             {leaderboard && leaderboard.length > 0 && (
-              <View style={styles.leaderboardSection}>
-                <View style={[styles.miniDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
-                {leaderboard.map((entry, i) => (
-                  <View key={i} style={styles.leaderboardRow}>
-                    <Text style={[styles.lbRank, { color: theme.accent }]}>#{entry.rank}</Text>
-                    <Text style={[styles.lbName, { color: '#EEE' }]} numberOfLines={1}>
-                      {entry.name.toUpperCase()}
-                    </Text>
-                    <Text style={[styles.lbScore, { color: theme.accent }]}>{entry.score}</Text>
-                  </View>
-                ))}
-              </View>
+              <>
+                <SectionDivider />
+                <View style={styles.leaderboardSection}>
+                  <Text style={[styles.leaderboardTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
+                  {leaderboard.map((entry, i) => (
+                    <View key={i} style={styles.leaderboardRow}>
+                      <Text style={[styles.lbRank, { color: theme.accent }]}>#{entry.rank}</Text>
+                      <Text style={[styles.lbName, { color: '#EEE' }]} numberOfLines={1}>
+                        {entry.name.toUpperCase()}
+                      </Text>
+                      <Text style={[styles.lbScore, { color: theme.accent }]}>{entry.score}</Text>
+                    </View>
+                  ))}
+                </View>
+              </>
             )}
 
-            <Text style={[styles.dateText, { color: '#555', marginTop: leaderboard ? 12 : 0 }]}>{today}</Text>
+            <SectionDivider />
+            
+            <Text style={[styles.dateText, { color: '#555' }]}>{today}</Text>
           </View>
 
           {/* ACTION BUTTONS */}
@@ -291,7 +291,7 @@ const styles = StyleSheet.create({
   },
   card: {
     width: '100%',
-    padding: 32,
+    padding: 24,
     borderRadius: 24,
     borderWidth: 2,
     alignItems: 'center',
@@ -302,57 +302,58 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '800',
     letterSpacing: 2,
-    marginBottom: 20,
+    marginBottom: 8,
   },
   emoji: {
     fontSize: 64,
     marginBottom: 16,
   },
-  titleDivider: {
+  sectionDivider: {
     width: '100%',
     height: 1,
-    marginBottom: 24,
+    marginVertical: 16,
+  },
+  mainInfoSection: {
+    width: '100%',
+    alignItems: 'center',
   },
   title: {
-    fontSize: 28,
+    fontSize: 24,
     fontWeight: '900',
     textAlign: 'center',
     textTransform: 'uppercase',
     letterSpacing: 1,
-    marginBottom: 8,
+    marginBottom: 4,
   },
   userName: {
-    fontSize: 28,
+    fontSize: 18,
     fontWeight: '900',
-    marginBottom: 20,
-  },
-  divider: {
-    width: 40,
-    height: 3,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    borderRadius: 2,
-    marginBottom: 20,
-  },
-  subtitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 4,
     textAlign: 'center',
   },
-  stat: {
+  achievementSection: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  statValueBig: {
+    fontSize: 36,
+    fontWeight: '900',
+    textAlign: 'center',
+  },
+  rankTextSmall: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: '700',
+    marginTop: 4,
     textAlign: 'center',
-    marginBottom: 16,
   },
   leaderboardSection: {
     width: '100%',
-    marginTop: 8,
   },
-  miniDivider: {
-    width: '100%',
-    height: 1,
-    marginBottom: 16,
+  leaderboardTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   leaderboardRow: {
     flexDirection: 'row',

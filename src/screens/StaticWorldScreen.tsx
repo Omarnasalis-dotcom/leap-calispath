@@ -16,6 +16,7 @@ import { StaticService, StaticLeaderboardEntry, StaticLevelLeaderboardEntry } fr
 import { useTimer } from '../hooks/useTimer';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
+import { CelebrationBanner } from '../components/CelebrationBanner';
 
 const { width } = Dimensions.get('window');
 
@@ -48,6 +49,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [manualInput, setManualInput] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
   const [userHolds, setUserHolds] = useState<Record<string, number>>({});
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
   useEffect(() => {
     if (user) {
@@ -128,6 +131,14 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     try {
       setLoading(true);
       const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds);
+
+      if (isPB) {
+        setCelebrationData({
+          stat: `NEW BEST: ${seconds}s`,
+          movement: selectedMovement?.name || 'Movement'
+        });
+        setShowCelebration(true);
+      }
 
       const msg = isPB ? 'Personal Best Updated!' : 'Hold logged successfully';
       if (Platform.OS === 'web') alert(msg);
@@ -316,6 +327,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             </View>
           )}
         </ScrollView>
+        <CelebrationBanner
+          visible={showCelebration}
+          title="NEW STATIC RECORD"
+          subtitle={celebrationData.movement}
+          stat={celebrationData.stat}
+          emoji="🧊"
+          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
+          onDismiss={() => setShowCelebration(false)}
+        />
       </View>
     );
   }
@@ -512,6 +532,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             </View>
           </Modal>
         </ScrollView>
+        <CelebrationBanner
+          visible={showCelebration}
+          title="NEW STATIC RECORD"
+          subtitle={celebrationData.movement}
+          stat={celebrationData.stat}
+          emoji="🧊"
+          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
+          onDismiss={() => setShowCelebration(false)}
+        />
       </View>
     );
   }
@@ -669,6 +698,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             </View>
           )}
         </ScrollView>
+        <CelebrationBanner
+          visible={showCelebration}
+          title="NEW STATIC RECORD"
+          subtitle={celebrationData.movement}
+          stat={celebrationData.stat}
+          emoji="🧊"
+          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
+          onDismiss={() => setShowCelebration(false)}
+        />
       </View>
     );
   }
@@ -697,6 +735,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             </TouchableOpacity>
           ))}
         </ScrollView>
+        <CelebrationBanner
+          visible={showCelebration}
+          title="NEW STATIC RECORD"
+          subtitle={celebrationData.movement}
+          stat={celebrationData.stat}
+          emoji="🧊"
+          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
+          onDismiss={() => setShowCelebration(false)}
+        />
       </View>
     );
   }

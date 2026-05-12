@@ -62,6 +62,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
   const [maxSeconds, setMaxSeconds] = useState('240');
   const [cooldown, setCooldown] = useState('30');
   const [windowHours, setWindowHours] = useState('8');
+  const [allowedTiers, setAllowedTiers] = useState<number[]>([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
   const [existingTournaments, setExistingTournaments] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
@@ -113,17 +114,24 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
       if (parseInt(windowHours) <= 0) throw new Error('Window time must be > 0');
     }
 
-    const active = await TournamentService.getActiveSession();
-    if (active) throw new Error('An active tournament session already exists');
+    // REMOVED: Single active session restriction
+    // const active = await TournamentService.getActiveSessions();
+    // if (active && active.length > 0) throw new Error('An active tournament session already exists');
   };
 
   const handlePublish = async () => {
-    if (isPublishing.current) return;
+    console.log('--- START PUBLISH ---');
+    if (isPublishing.current) {
+      console.log('Publish already in progress, aborting.');
+      return;
+    }
     isPublishing.current = true;
     setLoading(true);
 
     try {
+      console.log('Validating tournament...');
       await validate();
+      console.log('Validation passed.');
 
       const workout_config = type === 'knockout'
         ? rounds.map(r => r.mode === 'for_time' ? { ...r, duration_min: 0 } : r)
@@ -136,25 +144,33 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
 
       const window_time_min = type === 'knockout' ? parseInt(roundWindow) : parseInt(windowHours) * 60;
 
-      console.log('PUBLISHING config:', JSON.stringify({ title, type, workout_config, window_time_min }));
+      const configData = {
+        title,
+        type,
+        bracket_size: type === 'knockout' ? bracketSize : null,
+        workout_config,
+        window_time_min,
+        max_trials: type === 'rank_based' ? parseInt(maxTrials) : null,
+        cooldown_min: type === 'rank_based' ? parseInt(cooldown) : null,
+        min_participants: parseInt(minParticipants),
+        payout_gp: parseInt(gpPool),
+        allowed_tiers: allowedTiers
+      };
+
+      console.log('Inserting config into DB:', JSON.stringify(configData));
 
       const { data: config, error: configErr } = await supabase
         .from('tournament_configs')
-        .insert({
-          title,
-          type,
-          bracket_size: type === 'knockout' ? bracketSize : null,
-          workout_config,
-          window_time_min,
-          max_trials: type === 'rank_based' ? parseInt(maxTrials) : null,
-          cooldown_min: type === 'rank_based' ? parseInt(cooldown) : null,
-          min_participants: parseInt(minParticipants),
-          payout_gp: parseInt(gpPool)
-        })
+        .insert(configData)
         .select()
         .single();
 
-      if (configErr) throw configErr;
+      if (configErr) {
+        console.error('Config Insertion Error:', configErr);
+        throw configErr;
+      }
+
+      console.log('Config created successfully, creating session...');
 
       const { error: sessionErr } = await supabase
         .from('tournament_sessions')
@@ -164,13 +180,19 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
           current_round: 0,
         });
 
-      if (sessionErr) throw sessionErr;
+      if (sessionErr) {
+        console.error('Session Insertion Error:', sessionErr);
+        throw sessionErr;
+      }
 
+      console.log('Tournament Published Successfully!');
       Alert.alert('Success', 'Tournament Published!');
       onClose();
     } catch (err: any) {
-      Alert.alert('Validation Error', err.message);
+      console.error('Publishing Failed:', err);
+      Alert.alert('Publishing Error', err.message || 'Unknown error occurred');
     } finally {
+      console.log('--- END PUBLISH ---');
       setLoading(false);
       isPublishing.current = false;
     }
@@ -264,14 +286,16 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
             >
               <Text style={{ color: theme.text.primary, fontSize: 10 }}>{r.mode.toUpperCase()}</Text>
             </TouchableOpacity>
-            <TextInput
-              style={[styles.smallInput, { color: theme.text.primary }]}
-              placeholder="Min"
-              placeholderTextColor={theme.text.tertiary}
-              value={r.duration_min.toString()}
-              onChangeText={val => updateRound(i, { duration_min: parseInt(val) || 0 })}
-              keyboardType="numeric"
-            />
+            {r.mode === 'amrap' && (
+              <TextInput
+                style={[styles.smallInput, { color: theme.text.primary }]}
+                placeholder="Min"
+                placeholderTextColor={theme.text.tertiary}
+                value={r.duration_min.toString()}
+                onChangeText={val => updateRound(i, { duration_min: parseInt(val) || 0 })}
+                keyboardType="numeric"
+              />
+            )}
           </View>
           {r.exercises.map((ex, exIdx) => (
             <View key={exIdx} style={styles.exRow}>
@@ -492,6 +516,9 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.header}>
+        <TouchableOpacity onPress={onClose}>
+          <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
+        </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT COMMAND</Text>
         <TouchableOpacity onPress={onClose}>
           <MaterialCommunityIcons name="close" size={24} color={theme.text.secondary} />
@@ -545,6 +572,41 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
 
         {type === 'knockout' ? renderKnockoutConfig() : renderRankBasedConfig()}
 
+        <View style={[styles.section, { marginTop: 20 }]}>
+          <Text style={[styles.label, { color: theme.text.tertiary, marginBottom: 8 }]}>ALLOWED TIERS (RESTRICT JOIN)</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8].map(t => {
+              const isSelected = allowedTiers.includes(t);
+              return (
+                <TouchableOpacity
+                  key={t}
+                  onPress={() => {
+                    if (isSelected) {
+                      if (allowedTiers.length > 1) {
+                        setAllowedTiers(allowedTiers.filter(x => x !== t));
+                      }
+                    } else {
+                      setAllowedTiers([...allowedTiers, t].sort());
+                    }
+                  }}
+                  style={[
+                    styles.tierChip, 
+                    { 
+                      backgroundColor: isSelected ? theme.accent : 'rgba(255,255,255,0.05)', 
+                      borderColor: isSelected ? theme.accent : 'rgba(255,255,255,0.1)' 
+                    }
+                  ]}
+                >
+                  <Text style={{ color: isSelected ? '#000' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>T{t}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          <Text style={{ color: theme.text.tertiary, fontSize: 10, marginTop: 8 }}>
+            {allowedTiers.length === 9 ? 'Open to all tiers' : `Restricted to tiers: ${allowedTiers.join(', ')}`}
+          </Text>
+        </View>
+
         <TouchableOpacity
           style={[styles.publishBtn, { backgroundColor: theme.accent }]}
           onPress={handlePublish}
@@ -595,4 +657,12 @@ const styles = StyleSheet.create({
   publishBtn: { padding: 20, borderRadius: 16, alignItems: 'center', marginTop: 20 },
   publishBtnText: { color: '#000', fontSize: 16, fontWeight: '900' },
   historyCard: { flexDirection: 'row', padding: 16, borderRadius: 12, marginBottom: 8, alignItems: 'center' },
+  tierChip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    minWidth: 45,
+    alignItems: 'center'
+  },
 });

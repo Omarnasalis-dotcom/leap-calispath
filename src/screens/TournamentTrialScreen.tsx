@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Props {
   sessionId: string;
@@ -39,12 +40,13 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
   const [timeLeft, setTimeLeft] = useState(0); // Initialized in useEffect
   const [exerciseReps, setExerciseReps] = useState<number[]>((roundConfig.exercises || []).map(() => 0));
   const [checkedExercises, setCheckedExercises] = useState<boolean[]>((roundConfig.exercises || []).map(() => false));
-  const [exerciseRounds, setExerciseRounds] = useState<number[]>((roundConfig.exercises || []).map(() => 0));
+  const [rounds, setRounds] = useState(0);
   const [exerciseExtraReps, setExerciseExtraReps] = useState<number[]>((roundConfig.exercises || []).map(() => 0));
   const [loading, setLoading] = useState(false);
   const [finalScore, setFinalScore] = useState<number | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     async function fetchSession() {
@@ -64,29 +66,27 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
 
   useEffect(() => {
     if (isActive && !isFinished) {
+      if (!startTimeRef.current) startTimeRef.current = Date.now();
+      
+      const initialSeconds = roundConfig.mode === 'amrap' ? roundConfig.duration_min * 60 : 0;
+
       timerRef.current = setInterval(() => {
-        setTimeLeft((prev: number) => {
-          const isCountdown = roundConfig.mode === 'amrap';
-          if (isCountdown) {
-            if (prev <= 1) {
-              if (sessionType === 'rank_based') {
-                handleSubmit();
-              } else {
-                handleFinish();
-              }
-              return 0;
-            }
-            return prev - 1;
-          } else {
-            const next = prev + 1;
-            if (sessionType === 'rank_based' && next >= maxSeconds) {
-              handleSubmit();
-              return maxSeconds;
-            }
-            return next;
+        const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+        
+        if (roundConfig.mode === 'amrap') {
+          const remaining = Math.max(0, initialSeconds - elapsed);
+          setTimeLeft(remaining);
+          if (remaining <= 0) {
+            if (sessionType === 'rank_based') handleSubmit();
+            else handleFinish();
           }
-        });
-      }, 1000);
+        } else {
+          setTimeLeft(elapsed);
+          if (sessionType === 'rank_based' && elapsed >= maxSeconds) {
+            handleSubmit();
+          }
+        }
+      }, 500); // Higher frequency for better background catching
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
@@ -121,11 +121,9 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
     Vibration.vibrate(10);
   };
 
-  const handleRankRound = (index: number, delta: number) => {
+  const handleCircuitRound = (delta: number) => {
     if (!isActive || isFinished) return;
-    const newRounds = [...exerciseRounds];
-    newRounds[index] = Math.max(0, newRounds[index] + delta);
-    setExerciseRounds(newRounds);
+    setRounds(prev => Math.max(0, prev + delta));
     Vibration.vibrate(10);
   };
 
@@ -133,7 +131,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
     if (!isActive || isFinished) return;
     const newExtras = [...exerciseExtraReps];
     const target = roundConfig.exercises[index].target_reps;
-    newExtras[index] = Math.max(0, Math.min(target - 1, newExtras[index] + delta));
+    newExtras[index] = Math.max(0, Math.min(target, newExtras[index] + delta));
     setExerciseExtraReps(newExtras);
     Vibration.vibrate(10);
   };
@@ -164,13 +162,12 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
       if (sessionType === 'rank_based' && roundConfig.mode === 'for_time') {
         const exercisesCompleted = checkedExercises.filter(Boolean).length;
         scoreInput = Math.max(0, maxSeconds - timeLeft) + (exercisesCompleted * 5);
-      } else if (sessionType === 'rank_based' && roundConfig.mode === 'amrap') {
+      } else if (roundConfig.mode === 'amrap') {
         const totalCircuitReps = roundConfig.exercises.reduce((acc, ex) => acc + ex.target_reps, 0);
-        const totalRounds = exerciseRounds.reduce((acc, r) => acc + r, 0) / roundConfig.exercises.length;
         const totalExtraReps = exerciseExtraReps.reduce((acc, r) => acc + r, 0);
-        scoreInput = Math.round(totalRounds * totalCircuitReps) + totalExtraReps;
+        scoreInput = Math.round(rounds * totalCircuitReps) + totalExtraReps;
       } else if (roundConfig.mode === 'for_time') {
-        scoreInput = Math.max(1, 10000 - timeLeft);
+        scoreInput = timeLeft;
       } else {
         scoreInput = exerciseReps.reduce((a, b) => a + b, 0);
       }
@@ -195,6 +192,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
       }
 
       if (res.success) {
+        await AsyncStorage.removeItem('active_tournament_session');
         setFinalScore(res.finalScore ?? 0);
         if (onComplete) onComplete(res.finalScore ?? 0);
       } else {
@@ -236,7 +234,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
         <TouchableOpacity 
           onPress={() => {
             if (isActive) {
-              Alert.alert('Cannot Exit', 'The battle has begun! You must finish or the timer must expire.');
+              Alert.alert('Battle in Progress', 'The arena is locked. You must finish the battle or wait for the timer to expire.');
             } else {
               onClose ? onClose() : navigation.goBack();
             }
@@ -266,19 +264,32 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
           )}
         </View>
 
+        {roundConfig.mode === 'amrap' && (
+          <View style={[styles.timerCircle, { marginTop: 0, marginBottom: 20 }]}>
+            <View style={styles.repControl}>
+              <TouchableOpacity onPress={() => handleCircuitRound(-1)} style={styles.repBtn}>
+                <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
+              </TouchableOpacity>
+              <View style={{ alignItems: 'center', minWidth: 100 }}>
+                <Text style={[styles.timerText, { fontSize: 48 }]}>{rounds}</Text>
+                <Text style={styles.timerLabel}>CIRCUIT ROUNDS</Text>
+              </View>
+              <TouchableOpacity onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
+                <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
+
         <ScrollView style={{ width: '100%' }}>
           {roundConfig.exercises.map((ex, i) => (
             <View key={i} style={[styles.exerciseCard, { backgroundColor: theme.card.background }]}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.exName, { color: theme.text.primary }]}>{ex.name.toUpperCase()}</Text>
-                {(roundConfig as any).max_seconds !== undefined && roundConfig.mode === 'for_time' ? (
-                   <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>TARGET: {ex.target_reps} REPS</Text>
-                ) : (
-                   <Text style={[styles.exTarget, { color: theme.text.tertiary }]}>TARGET: {ex.target_reps} REPS</Text>
-                )}
+                <Text style={[styles.exTarget, { color: theme.text.tertiary }]}>TARGET: {ex.target_reps} REPS</Text>
               </View>
               
-              {(roundConfig as any).max_seconds !== undefined && roundConfig.mode === 'for_time' ? (
+              {roundConfig.mode === 'for_time' ? (
                 <TouchableOpacity 
                   onPress={() => handleToggleExercise(i)}
                   style={{ padding: 12 }}
@@ -289,32 +300,18 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                     color={checkedExercises[i] ? theme.accent : theme.text.tertiary} 
                   />
                 </TouchableOpacity>
-              ) : sessionType === 'rank_based' && roundConfig.mode === 'amrap' ? (
-                <View style={{ flexDirection: 'row', gap: 12 }}>
-                  <View style={styles.repControl}>
-                    <TouchableOpacity onPress={() => handleRankRound(i, -1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                      <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
-                    </TouchableOpacity>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseRounds[i]}</Text>
-                      <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>ROUNDS</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleRankRound(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                      <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
-                    </TouchableOpacity>
+              ) : roundConfig.mode === 'amrap' ? (
+                <View style={styles.repControl}>
+                  <TouchableOpacity onPress={() => handleRankExtraRep(i, -1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
+                    <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
+                  </TouchableOpacity>
+                  <View style={{ alignItems: 'center' }}>
+                    <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
+                    <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>EXTRA</Text>
                   </View>
-                  <View style={styles.repControl}>
-                    <TouchableOpacity onPress={() => handleRankExtraRep(i, -1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                      <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
-                    </TouchableOpacity>
-                    <View style={{ alignItems: 'center' }}>
-                      <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
-                      <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>REPS</Text>
-                    </View>
-                    <TouchableOpacity onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                      <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
-                    </TouchableOpacity>
-                  </View>
+                  <TouchableOpacity onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
+                    <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
+                  </TouchableOpacity>
                 </View>
               ) : (
                 <View style={styles.repControl}>
@@ -345,9 +342,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
               {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.mainBtnText}>SUBMIT RESULTS</Text>}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[styles.finishBtn, { borderColor: '#EF4444' }]} onPress={handleFinish}>
-              <Text style={{ color: '#EF4444', fontWeight: '900' }}>TAP TO FINISH EARLY</Text>
-            </TouchableOpacity>
+            <View style={{ height: 50 }} /> // Spacer instead of finish early button
           )}
         </View>
       </View>

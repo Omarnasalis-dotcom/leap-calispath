@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  ActivityIndicator, RefreshControl, Image
+  ActivityIndicator, RefreshControl, Image, Alert, Platform
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -12,7 +12,7 @@ import { TournamentService } from '../services/TournamentService';
 export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
   const { profile } = useAuth();
-  const [activeSession, setActiveSession] = useState<any>(null);
+  const [activeSessions, setActiveSessions] = useState<any[]>([]);
   const [participants, setParticipants] = useState<any[]>([]);
   const [leaderboard, setLeaderboard] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<'arena' | 'leaderboard'>('arena');
@@ -21,14 +21,14 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
 
   const fetchData = useCallback(async () => {
     try {
-      const session = await TournamentService.getActiveSession();
-      setActiveSession(session);
+      const sessions = await TournamentService.getActiveSessions();
+      setActiveSessions(sessions || []);
 
-      if (session) {
+      if (sessions && sessions.length > 0) {
         const { data: pData } = await supabase
           .from('tournament_participants')
           .select('*, profile:profiles(display_name)')
-          .eq('tournament_id', session.id);
+          .in('tournament_id', sessions.map(s => s.id));
         setParticipants(pData || []);
       }
 
@@ -78,43 +78,72 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
     fetchData();
   };
 
-  const handleJoin = async () => {
-    if (!activeSession || !profile) return;
-    const res = await TournamentService.joinTournament(activeSession.id, profile.id);
-    if (res.success) {
-      fetchData();
+  const showAlert = (title: string, message: string) => {
+    if (Platform.OS === 'web') {
+      alert(`${title}\n\n${message}`);
+    } else {
+      Alert.alert(title, message);
     }
   };
 
-  const renderActiveCard = () => {
-    if (!activeSession) {
-      return (
-        <View style={styles.emptyState}>
-          <MaterialCommunityIcons name="sword-cross" size={80} color={theme.text.tertiary} />
-          <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>THE ARENA IS QUIET</Text>
-          <Text style={[styles.emptySub, { color: theme.text.secondary }]}>No active tournaments at the moment. Check back soon for the next gauntlet.</Text>
-        </View>
-      );
+  const handleJoin = async (session: any) => {
+    if (!session || !profile) return;
+    const res = await TournamentService.joinTournament(session.id, profile.id);
+    if (res.success) {
+      fetchData();
+    } else {
+      showAlert('Ineligible Warrior', (res.error as any)?.message || 'This tournament is not fit for your current tier.');
     }
+  };
 
-    const isJoined = participants.some(p => p.user_id === profile?.id);
-    const config = activeSession.config;
+  const handleEnterLobby = (session: any) => {
+    if (!session || !profile) return;
+    
+    const allowed = session.config?.allowed_tiers;
+    const userTier = Number(profile.strength_tier || 0);
+
+    console.log('LOBBY ENTRY VALIDATION:', {
+      userTier,
+      allowed,
+      isEligible: allowed ? allowed.map(Number).includes(userTier) : 'no restriction'
+    });
+
+    if (allowed) {
+      if (!allowed.map(Number).includes(userTier)) {
+        showAlert('Ineligible Warrior', `This tournament is not fit for your current tier (T${userTier}). Please check the entry requirements.`);
+        return;
+      }
+    }
+    navigation.navigate('TournamentLobby', { sessionId: session.id });
+  };
+
+  const renderActiveCard = (session: any) => {
+    const isJoined = participants.some(p => p.user_id === profile?.id && p.tournament_id === session.id);
+    const config = session.config;
+    const sessionParticipants = participants.filter(p => p.tournament_id === session.id);
 
     return (
-      <View style={[styles.activeCard, { backgroundColor: theme.card.background }]}>
+      <View key={session.id} style={[styles.activeCard, { backgroundColor: theme.card.background }]}>
         <View style={styles.cardHeader}>
-          <View>
+          <View style={{ flex: 1 }}>
             <Text style={[styles.cardTitle, { color: theme.text.primary }]}>{config?.title.toUpperCase()}</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
                 <Text style={[styles.badgeText, { color: theme.accent }]}>{config?.type.toUpperCase()}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                <Text style={[styles.badgeText, { color: theme.text.tertiary }]}>{activeSession.status.toUpperCase()}</Text>
+                <Text style={[styles.badgeText, { color: theme.text.tertiary }]}>{session.status.toUpperCase()}</Text>
               </View>
+              {config?.allowed_tiers && (
+                <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
+                  <Text style={[styles.badgeText, { color: theme.accent }]}>
+                    LEVEL: {config.allowed_tiers.length === 9 ? 'ALL' : config.allowed_tiers.sort().join(',')}
+                  </Text>
+                </View>
+              )}
             </View>
           </View>
-          <MaterialCommunityIcons name="trophy" size={32} color={theme.accent} />
+          <MaterialCommunityIcons name="trophy" size={24} color={theme.accent} />
         </View>
 
         <View style={styles.statsRow}>
@@ -124,14 +153,14 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
           </View>
           <View style={styles.statItem}>
             <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>WARRIORS</Text>
-            <Text style={[styles.statValue, { color: theme.text.primary }]}>{participants.length} / {config?.bracket_size || config?.min_participants}</Text>
+            <Text style={[styles.statValue, { color: theme.text.primary }]}>{sessionParticipants.length} / {config?.bracket_size || config?.min_participants}</Text>
           </View>
         </View>
 
-        {activeSession.status === 'registration' ? (
+        {session.status === 'registration' ? (
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: isJoined ? 'rgba(255,255,255,0.1)' : theme.accent }]}
-            onPress={isJoined ? () => navigation.navigate('TournamentLobby', { sessionId: activeSession.id }) : handleJoin}
+            onPress={isJoined ? () => handleEnterLobby(session) : () => handleJoin(session)}
           >
             <Text style={[styles.actionBtnText, { color: isJoined ? theme.text.primary : '#000' }]}>
               {isJoined ? 'ENTER LOBBY' : 'JOIN TOURNAMENT'}
@@ -140,7 +169,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
         ) : (
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: theme.accent }]}
-            onPress={() => navigation.navigate('TournamentLobby', { sessionId: activeSession.id })}
+            onPress={() => handleEnterLobby(session)}
           >
             <Text style={styles.actionBtnText}>ENTER ARENA</Text>
           </TouchableOpacity>
@@ -204,7 +233,17 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
         contentContainerStyle={styles.scroll}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
       >
-        {activeTab === 'arena' ? renderActiveCard() : renderLeaderboard()}
+        {activeTab === 'arena' ? (
+          activeSessions.length > 0 ? (
+            activeSessions.map(s => renderActiveCard(s))
+          ) : (
+            <View style={styles.emptyState}>
+              <MaterialCommunityIcons name="sword-cross" size={80} color={theme.text.tertiary} />
+              <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>THE ARENA IS QUIET</Text>
+              <Text style={[styles.emptySub, { color: theme.text.secondary }]}>No active tournaments at the moment. Check back soon for the next gauntlet.</Text>
+            </View>
+          )
+        ) : renderLeaderboard()}
       </ScrollView>
     </View>
   );

@@ -90,6 +90,12 @@ export default function Index() {
           setShowGloryLeaderboard(true);
         }
         if (lastScreen === 'tournament_arena') setShowTournamentArena(true);
+
+        const savedTournamentSession = await AsyncStorage.getItem('active_tournament_session');
+        if (savedTournamentSession) {
+          setActiveTournamentSessionId(savedTournamentSession);
+          setShowTournamentLobby(true);
+        }
       } catch (e) {
         // ignore
       } finally {

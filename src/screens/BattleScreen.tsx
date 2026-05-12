@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { ClashService, ClashSession } from '../services/ClashService';
 import { ClashLogic, ClashProtocol } from '../lib/clashLogic';
 import { supabase } from '../lib/supabase';
+import { CelebrationBanner } from '../components/CelebrationBanner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -29,6 +30,8 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
   const [timer, setTimer] = useState(0);
   const [showResult, setShowResult] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationStreak, setCelebrationStreak] = useState(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const channelRef = useRef<any>(null);
 
@@ -141,6 +144,13 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
         setFinishing(false);
         if (!timerRef.current) startTimer();
         Alert.alert('Error', 'Failed to report finish. Try again.');
+      } else if (result.bothFinished) {
+        const isWinner = result.winnerId === user?.id;
+        const newStreak = await ClashService.updateWinStreak(user!.id, isWinner);
+        if (isWinner && newStreak % 3 === 0 && newStreak > 0) {
+          setShowCelebration(true);
+          setCelebrationStreak(newStreak);
+        }
       }
     } catch (e) { 
       console.error(e);
@@ -293,6 +303,17 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
           <MaterialCommunityIcons name="close" size={28} color={theme.text.tertiary} />
         </TouchableOpacity>
       </View>
+
+      <CelebrationBanner
+        visible={showCelebration}
+        title={`${celebrationStreak} WIN STREAK`}
+        subtitle="CLASH ARENA"
+        stat={`${celebrationStreak} WINS IN A ROW 🔥`}
+        emoji="🔥"
+        userName="YOU"
+        rank={`${celebrationStreak}x STREAK`}
+        onDismiss={() => setShowCelebration(false)}
+      />
     </View>
   );
 }
