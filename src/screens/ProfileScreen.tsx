@@ -9,6 +9,7 @@ import {
   ActivityIndicator,
   Modal,
   Alert,
+  SafeAreaView,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,13 +19,14 @@ import { POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
+import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getTierLeaderboard } from '../lib/leaderboard';
-import { isPowerWorldUnlocked } from '../lib/powerLogic';
+import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 
 interface ProfileScreenProps {
@@ -57,7 +59,7 @@ export function ProfileScreen({
   initialTier = 0,
 }: ProfileScreenProps) {
   const { profile, signOut, user, refreshProfile } = useAuth();
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
@@ -65,6 +67,13 @@ export function ProfileScreen({
   const [showLevelReveal, setShowLevelReveal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
+
+  // Leaderboard Modal State
+  const [showWRALeaderboard, setShowWRALeaderboard] = useState(false);
+  const [wraLeaderboard, setWRALeaderboard] = useState<GlobalWellRoundedEntry[]>([]);
+  const [showGloryLeaderboard, setShowGloryLeaderboard] = useState(false);
+  const [gloryLeaderboard, setGloryLeaderboard] = useState<any[]>([]);
+  const [loadingLB, setLoadingLB] = useState(false);
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
@@ -90,8 +99,6 @@ export function ProfileScreen({
     );
   };
 
-
-
   async function handleSignOut() {
     try {
       await signOut();
@@ -101,37 +108,60 @@ export function ProfileScreen({
   }
 
   useEffect(() => {
-    // Self-healing: if profile static points are 0 but user has holds, sync them
-    async function syncStaticPoints() {
-      if (profile?.id && (profile.statics_tier === 0 || profile.statics_tier === null)) {
-        try {
+    async function syncAllPoints() {
+      if (!profile?.id) return;
+
+      try {
+        // 1. Sync Static Points if needed
+        if (profile.statics_tier === 0 || profile.statics_tier === null) {
           const holds = await StaticService.getUserHolds(profile.id);
           if (holds.length > 0) {
-            console.log('[Profile] Self-healing sync for static points...');
-            // We can just save a dummy hold or call a refresh, 
-            // but the cleanest way is to trigger one save logic
+            console.log('[Profile] Syncing Static points...');
             const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
             const peaks: Record<string, number> = { handstand: 0, front_lever: 0, back_lever: 0, planche: 0 };
-            
             holds.forEach(h => {
               const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
-              if (m && (h.points || 0) > peaks[m.category]) {
-                peaks[m.category] = h.points || 0;
-              }
+              if (m && (h.points || 0) > peaks[m.category]) peaks[m.category] = h.points || 0;
             });
             const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-            
-            if (total > 0) {
-              await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
-              if (refreshProfile) refreshProfile();
-            }
+            if (total > 0) await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
           }
-        } catch (e) {
-          console.error('Failed self-healing sync:', e);
         }
+
+        // 2. Sync Power Points if needed
+        if (profile.power_points === 0 || profile.power_points === null) {
+          const { data: pbs } = await supabase.from('power_assessments').select('*').eq('user_id', profile.id).maybeSingle();
+          if (pbs) {
+            console.log('[Profile] Syncing Power points...');
+            const pbMap = { pull_up: pbs.pullup_1rm || 0, dip: pbs.dip_1rm || 0, squat: pbs.squat_1rm || 0, muscle_up: pbs.muscleup_1rm || 0 };
+            const total = calculateTotalPowerScore(pbMap);
+            if (total > 0) await supabase.from('profiles').update({ power_points: total, power_tier: pbs.power_tier }).eq('id', profile.id);
+          }
+        }
+
+        // 3. Sync Endurance (1MM) Points if needed
+        if (profile.one_mm_points === 0 || profile.one_mm_points === null) {
+          const { data: logs } = await supabase.from('one_min_max_logs').select('*').eq('user_id', profile.id);
+          if (logs && logs.length > 0) {
+            console.log('[Profile] Syncing Endurance points...');
+            const { ONEMM_MOVEMENTS } = await import('../lib/oneMMLogic');
+            const patternPeaks: Record<string, number> = {};
+            logs.forEach(log => {
+              const m = ONEMM_MOVEMENTS.find(mv => mv.id === log.movement_id);
+              if (m && (log.points || 0) > (patternPeaks[m.patternId] || 0)) patternPeaks[m.patternId] = log.points;
+            });
+            const total = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
+            if (total > 0) await supabase.from('profiles').update({ one_mm_points: total }).eq('id', profile.id);
+          }
+        }
+
+        // Refresh profile if any sync happened
+        if (refreshProfile) refreshProfile();
+      } catch (e) {
+        console.error('Failed self-healing sync:', e);
       }
     }
-    syncStaticPoints();
+    syncAllPoints();
   }, [profile?.id]);
 
   if (!profile) return null;
@@ -141,30 +171,66 @@ export function ProfileScreen({
   const mmPts = profile.one_mm_points || 0;
   const gloryPts = profile.glory_score || 0;
   const wraScore = staticPts + (powerPts * 2) + (mmPts * 2);
-  const WRA_MAX = 2000;
+  const WRA_MAX = 5000;
   const GLORY_MAX = 1000;
 
-  const ScoreBar = ({ title, subtitle, score, rank, max, color, chips }: {
+  const fetchWRALeaderboard = async () => {
+    setLoadingLB(true);
+    setShowWRALeaderboard(true);
+    try {
+      const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id);
+      setWRALeaderboard(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingLB(false);
+    }
+  };
+
+  const fetchGloryLeaderboard = async () => {
+    setLoadingLB(true);
+    setShowGloryLeaderboard(true);
+    try {
+      const data = await LeaderboardService.getGlobalGloryLeaderboard(user?.id);
+      setGloryLeaderboard(data);
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setLoadingLB(false);
+    }
+  };
+
+  const ScoreBar = ({ title, subtitle, score, rank, max, color, chips, onPress, showCrown }: {
     title: string; subtitle: string; score: number; rank: string;
     max: number; color: string;
     chips: { label: string; value: number; color: string }[];
+    onPress?: () => void;
+    showCrown?: boolean;
   }) => {
     const pct = Math.min(100, (score / max) * 100);
     return (
-      <View style={[
-        styles.scoreBarCard, 
-        { 
-          backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-          borderColor: `${color}40` 
-        }
-      ]}>
-        {/* Single row: title + score side by side */}
-        <View style={styles.scoreBarHead}>
+      <TouchableOpacity
+        activeOpacity={onPress ? 0.7 : 1}
+        onPress={onPress}
+        style={[
+          styles.scoreBarCard,
+          {
+            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+            borderColor: `${color}40`,
+            paddingVertical: 12,
+            marginBottom: 8,
+          }
+        ]}
+      >
+
+        <View style={styles.scoreBarHeader}>
           <View style={{ flex: 1 }}>
-            <Text style={[styles.scoreBarTitle, { color }]}>{title}</Text>
-            <Text style={[styles.scoreBarSubtitle, { color: theme.text.tertiary }]}>{subtitle}</Text>
+            <Text style={[styles.scoreBarTitle, { color, fontWeight: '900', fontSize: 12 }]}>{title}</Text>
+            <Text style={[styles.scoreBarSubtitle, { color: 'rgba(0,0,0,0.3)', fontSize: 9, marginTop: 2 }]}>{subtitle}</Text>
           </View>
-          <Text style={[styles.scoreBarTotal, { color }]}>{score.toLocaleString()}</Text>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={[styles.scoreBarTotal, { color, fontSize: 24 }]}>{score.toLocaleString()}</Text>
+          </View>
         </View>
 
         {/* Track */}
@@ -184,12 +250,28 @@ export function ProfileScreen({
           {chips.map((c, idx) => (
             <View key={idx} style={styles.scoreChip}>
               <View style={[styles.scoreChipDot, { backgroundColor: c.color }]} />
-              <Text style={[styles.scoreChipVal, { color: theme.text.primary }]}>{c.value.toLocaleString()}</Text>
-              <Text style={[styles.scoreChipLbl, { color: theme.text.tertiary }]}>{c.label}</Text>
+              <Text style={[styles.scoreChipVal, { color: mode === 'dark' ? '#FFF' : '#000', fontSize: 10 }]}>{c.value.toLocaleString()}</Text>
+              <Text style={[styles.scoreChipLbl, { color: 'rgba(0,0,0,0.25)', fontSize: 9 }]}>{c.label}</Text>
             </View>
           ))}
         </View>
-      </View>
+
+        {onPress && (
+          <TouchableOpacity 
+            style={[styles.lbCircleIndicator, { backgroundColor: theme.card.background, borderColor: `${color}30` }]} 
+            onPress={onPress}
+          >
+            <MaterialCommunityIcons name="trophy" size={12} color={color} />
+          </TouchableOpacity>
+        )}
+
+        {showCrown && (
+          <View style={styles.crownDecoration}>
+            <MaterialCommunityIcons name="crown" size={12} color={color} />
+            <Text style={[styles.rankHashtag, { color }]}>#1</Text>
+          </View>
+        )}
+      </TouchableOpacity>
     );
   };
 
@@ -260,13 +342,13 @@ export function ProfileScreen({
 
             {/* Warrior Stats Bars - Under Tier/Avatar */}
             <View style={[
-              styles.rightStatsColumn, 
-              { 
-                width: '92%', 
-                marginTop: 10, 
-                backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
-                borderColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                alignSelf: 'center' 
+              styles.rightStatsColumn,
+              {
+                width: '92%',
+                marginTop: 10,
+                backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
+                borderColor: mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                alignSelf: 'center'
               }
             ]}>
               <ScoreBar
@@ -276,8 +358,10 @@ export function ProfileScreen({
                 rank="Leaderboard →"
                 max={WRA_MAX}
                 color={theme.accent}
+                onPress={fetchWRALeaderboard}
+                showCrown={wraScore > 0}
                 chips={[
-                  { label: 'Static ×1', value: staticPts * 1, color: '#9FC5E8' },
+                  { label: 'Static', value: staticPts, color: '#9FC5E8' },
                   { label: 'Power ×2', value: powerPts * 2, color: '#FF5722' },
                   { label: '1MM ×2', value: mmPts * 2, color: '#4CAF50' },
                 ]}
@@ -289,6 +373,8 @@ export function ProfileScreen({
                 rank="Leaderboard →"
                 max={GLORY_MAX}
                 color="#FF5252"
+                onPress={fetchGloryLeaderboard}
+                showCrown={gloryPts > 0}
                 chips={[
                   { label: 'Glory pts', value: gloryPts, color: '#FF5252' },
                 ]}
@@ -309,32 +395,31 @@ export function ProfileScreen({
             { id: 'clash', name: 'CLASH', icon: '🔥', unlockTier: 2, action: onOpenClash },
             { id: 'weekly', name: 'WEEKLY', icon: '🏆', unlockTier: 0, action: onOpenWeeklyChallenge },
             { id: 'champions', name: 'CHAMPIONS', icon: '🏛️', unlockTier: 8, action: onOpenChampionsArena },
-          ].map((mode) => {
-            const isUnlocked = (profile?.strength_tier ?? 0) >= mode.unlockTier;
-            const isActive = category === mode.id;
-
+          ].map((world) => {
+            const isActive = category === world.id;
+            const isUnlocked = (profile?.strength_tier || 0) >= world.unlockTier;
             return (
-              <TouchableOpacity
-                key={mode.id}
+              <TouchableOpacity 
+                key={world.id}
                 onPress={() => {
                   if (isUnlocked) {
-                    mode.action?.();
+                    world.action?.();
                   } else {
-                    Alert.alert('Locked', `Reach Tier ${mode.unlockTier} to unlock ${mode.name}.`);
+                    Alert.alert('Locked', `Reach Tier ${world.unlockTier} to unlock ${world.name}.`);
                   }
                 }}
                 style={[
                   styles.worldPillCompact,
                   {
-                    backgroundColor: isActive ? theme.accent : (theme.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+                    backgroundColor: isActive ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
                     borderColor: isActive ? theme.accent : `${theme.accent}40`,
                     opacity: isUnlocked ? 1 : 0.4
                   }
                 ]}
               >
-                <Text style={{ fontSize: 12 }}>{mode.icon}</Text>
+                <Text style={{ fontSize: 12 }}>{world.icon}</Text>
                 <Text style={[styles.worldPillText, { color: isActive ? '#000' : theme.text.primary }]} numberOfLines={1}>
-                  {mode.name}
+                  {world.name}
                 </Text>
               </TouchableOpacity>
             );
@@ -775,6 +860,133 @@ export function ProfileScreen({
           </View>
         </View>
       )}
+      {/* Global Well-Rounded Leaderboard Modal */}
+      <Modal
+        visible={showWRALeaderboard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowWRALeaderboard(false)}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.lbModalHeader}>
+              <TouchableOpacity onPress={() => setShowWRALeaderboard(false)} style={styles.modalCloseBtn}>
+                <MaterialCommunityIcons name="close" size={28} color="#FFF" />
+              </TouchableOpacity>
+              <View style={styles.modalHeaderTitle}>
+                <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>GLOBAL WELL-ROUNDED ELITE</Text>
+                <Text style={[styles.lbSub, { textAlign: 'center', marginTop: 4 }]}>THE ULTIMATE VERSATILE WARRIOR</Text>
+              </View>
+            </View>
+
+            {loadingLB ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color={theme.accent} />
+              </View>
+            ) : (
+              <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+                {wraLeaderboard.map((entry) => (
+                  <View
+                    key={entry.user_id}
+                    style={[
+                      styles.lbRow,
+                      entry.is_current_user && { backgroundColor: `${theme.accent}20`, borderColor: theme.accent }
+                    ]}
+                  >
+                    <View style={styles.lbRankBox}>
+                      <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? theme.accent : '#666' }]}>
+                        #{entry.rank}
+                      </Text>
+                    </View>
+
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.lbName, { color: '#FFF' }]}>
+                        {entry.display_name?.toUpperCase()}
+                      </Text>
+                      <View style={styles.lbBreakdown}>
+                        <View style={styles.lbBreakdownItem}>
+                          <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
+                          <Text style={styles.lbBreakdownText}>{entry.static_pts}S</Text>
+                        </View>
+                        <View style={styles.lbBreakdownItem}>
+                          <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
+                          <Text style={styles.lbBreakdownText}>{entry.power_pts}P</Text>
+                        </View>
+                        <View style={styles.lbBreakdownItem}>
+                          <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
+                          <Text style={styles.lbBreakdownText}>{entry.endurance_pts}E</Text>
+                        </View>
+                      </View>
+                    </View>
+
+                    <View style={styles.lbScoreBox}>
+                      <Text style={[styles.lbScoreText, { color: theme.accent }]}>{entry.total_score}</Text>
+                      <Text style={styles.lbScoreLabel}>PTS</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
+
+      {/* Global Glory Leaderboard Modal */}
+      <Modal
+        visible={showGloryLeaderboard}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowGloryLeaderboard(false)}
+      >
+        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
+          <SafeAreaView style={styles.modalContainer}>
+            <View style={styles.lbModalHeader}>
+              <TouchableOpacity onPress={() => setShowGloryLeaderboard(false)} style={styles.modalCloseBtn}>
+                <MaterialCommunityIcons name="close" size={28} color="#FFF" />
+              </TouchableOpacity>
+              <View style={styles.modalHeaderTitle}>
+                <Text style={[styles.lbTitle, { color: '#FF5252', textAlign: 'center' }]}>GLOBAL GLORY RANKINGS</Text>
+                <Text style={[styles.lbSub, { textAlign: 'center', marginTop: 4 }]}>THE LEGENDS OF THE ARENA</Text>
+              </View>
+            </View>
+
+            {loadingLB ? (
+              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                <ActivityIndicator size="large" color="#FF5252" />
+              </View>
+            ) : (
+              <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+                {gloryLeaderboard.map((entry) => (
+                  <View 
+                    key={entry.user_id} 
+                    style={[
+                      styles.lbRow, 
+                      entry.is_current_user && { backgroundColor: 'rgba(255, 82, 82, 0.2)', borderColor: '#FF5252' }
+                    ]}
+                  >
+                    <View style={styles.lbRankBox}>
+                      <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? '#FF5252' : '#666' }]}>
+                        #{entry.rank}
+                      </Text>
+                    </View>
+                    
+                    <View style={{ flex: 1 }}>
+                      <Text style={[styles.lbName, { color: '#FFF' }]}>
+                        {entry.display_name?.toUpperCase()}
+                      </Text>
+                    </View>
+
+                    <View style={styles.lbScoreBox}>
+                      <Text style={[styles.lbScoreText, { color: '#FF5252' }]}>{entry.total_score}</Text>
+                      <Text style={styles.lbScoreLabel}>GLORY</Text>
+                    </View>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </SafeAreaView>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1512,21 +1724,14 @@ const styles = StyleSheet.create({
     marginBottom: 7,
   },
   scoreBarTitle: {
-    fontSize: 10,
+    fontSize: 12,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    letterSpacing: 0.8,
   },
   scoreBarSubtitle: {
-    fontSize: 8,
-    marginTop: 1,
-    letterSpacing: 0.2,
-  },
-  scoreBarTotal: {
-    fontSize: 18,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    lineHeight: 20,
+    fontSize: 9,
+    fontWeight: '500',
+    fontFamily: 'PlusJakartaSans-Medium',
   },
   scoreBarRank: {
     fontSize: 8,
@@ -1552,36 +1757,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255,255,255,0.08)',
     borderTopLeftRadius: 3,
     borderTopRightRadius: 3,
-  },
-  scoreChips: {
-    flexDirection: 'row',
-    gap: 5,
-    flexWrap: 'wrap',
-  },
-  scoreChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    borderRadius: 6,
-    paddingHorizontal: 6,
-    paddingVertical: 3,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
-  },
-  scoreChipDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
-  scoreChipVal: {
-    fontSize: 9,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  scoreChipLbl: {
-    fontSize: 8,
-    letterSpacing: 0.2,
   },
   warriorStatsCard: {
     marginHorizontal: 24,
@@ -1612,5 +1787,117 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.1)',
     alignSelf: 'center',
+  },
+  lbTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 3, fontFamily: 'PlusJakartaSans-ExtraBold' },
+  lbSub: { fontSize: 8, fontWeight: '900', letterSpacing: 1.5, opacity: 0.6, color: '#FFF' },
+
+  // Well-Rounded Modal Styles
+  modalContainer: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)' },
+  lbModalHeader: { padding: 20, flexDirection: 'row', alignItems: 'center' },
+  modalCloseBtn: { width: 44, height: 44, justifyContent: 'center' },
+  modalHeaderTitle: { flex: 1, marginRight: 44 },
+  lbRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    marginHorizontal: 16,
+    marginBottom: 8,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: 'rgba(255,255,255,0.03)'
+  },
+  lbRankBox: { width: 45, alignItems: 'center' },
+  lbRankText: { fontSize: 18, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
+  lbName: { fontSize: 14, fontWeight: '900', letterSpacing: 1, marginBottom: 4 },
+  lbBreakdown: { flexDirection: 'row', gap: 10 },
+  lbBreakdownItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  lbDot: { width: 6, height: 6, borderRadius: 3 },
+  lbBreakdownText: { fontSize: 9, fontWeight: '700', color: 'rgba(255,255,255,0.4)', letterSpacing: 0.5 },
+  lbScoreBox: { alignItems: 'flex-end', width: 70 },
+  lbScoreText: { fontSize: 18, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
+  lbScoreLabel: { fontSize: 8, fontWeight: '900', color: 'rgba(255,255,255,0.3)', letterSpacing: 1 },
+  crownDecoration: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    zIndex: 10,
+  },
+  rankHashtag: {
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  lbIndicator: {
+    position: 'absolute',
+    bottom: 8,
+    right: 8,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    opacity: 0.8,
+  },
+  lbIndicatorText: {
+    fontSize: 8,
+    fontWeight: '900',
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  scoreBarHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 12,
+  },
+  scoreBarTotal: {
+    fontSize: 24,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  scoreChips: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+  },
+  scoreChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  scoreChipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 2.5,
+  },
+  scoreChipVal: {
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  scoreChipLbl: {
+    fontSize: 9,
+    fontWeight: '600',
+    fontFamily: 'PlusJakartaSans-Medium',
+  },
+  lbCircleIndicator: {
+    position: 'absolute',
+    top: -10,
+    right: -12,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 3,
+    elevation: 4,
   },
 });
