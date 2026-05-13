@@ -10,7 +10,7 @@ import { RankRevealScreen } from '../src/screens/RankRevealScreen';
 import { AssessmentGateScreen } from '../src/screens/AssessmentGateScreen';
 import { TrialScreen } from '../src/screens/TrialScreen';
 import { LeaderboardScreen } from '../src/screens/LeaderboardScreen';
-import { PowerAssessmentScreen } from '../src/screens/PowerAssessmentScreen';
+import { PowerWorldScreen } from '../src/screens/PowerWorldScreen';
 import { StaticWorldScreen } from '../src/screens/StaticWorldScreen';
 import { OnboardingScreen } from '../src/screens/OnboardingScreen';
 import { WeeklyChallengeScreen } from '../src/screens/WeeklyChallengeScreen';
@@ -23,6 +23,7 @@ import { TournamentArenaScreen } from '../src/screens/TournamentArenaScreen';
 import { TournamentLobbyScreen } from '../src/screens/TournamentLobbyScreen';
 import { TournamentTrialScreen } from '../src/screens/TournamentTrialScreen';
 import { AdminTournamentScreen } from '../src/screens/AdminTournamentScreen';
+import { OneMinMaxScreen } from '../src/screens/OneMinMaxScreen';
 import { ClashService } from '../src/services/ClashService';
 import { ArenaPhase } from '../src/services/ArenaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -36,9 +37,10 @@ export default function Index() {
   const [showRankReveal, setShowRankReveal] = React.useState(false);
   const [showTrial, setShowTrial] = React.useState(false);
   const [showLeaderboards, setShowLeaderboards] = React.useState(false);
-  const [showPowerAssessment, setShowPowerAssessment] = React.useState(false);
+  const [showPowerWorld, setShowPowerWorld] = React.useState(false);
   const [showStaticWorld, setShowStaticWorld] = React.useState(false);
   const [showTournamentArena, setShowTournamentArena] = React.useState(false);
+  const [showOneMinMax, setShowOneMinMax] = React.useState(false);
   const [showTournamentLobby, setShowTournamentLobby] = React.useState(false);
   const [showTournamentTrial, setShowTournamentTrial] = React.useState(false);
   const [showAdminTournament, setShowAdminTournament] = React.useState(false);
@@ -90,6 +92,7 @@ export default function Index() {
           setShowGloryLeaderboard(true);
         }
         if (lastScreen === 'tournament_arena') setShowTournamentArena(true);
+        if (lastScreen === 'one_min_max') setShowOneMinMax(true);
 
         const savedTournamentSession = await AsyncStorage.getItem('active_tournament_session');
         if (savedTournamentSession) {
@@ -175,14 +178,10 @@ export default function Index() {
       );
     }
 
-    if (showPowerAssessment) {
+    if (showPowerWorld) {
       return (
-        <PowerAssessmentScreen
-          onAbandon={() => setShowPowerAssessment(false)}
-          onComplete={() => {
-            setShowPowerAssessment(false);
-            setShowRankReveal(true);
-          }}
+        <PowerWorldScreen
+          onBack={() => setShowPowerWorld(false)}
         />
       );
     }
@@ -191,6 +190,14 @@ export default function Index() {
       return (
         <StaticWorldScreen
           onClose={() => setShowStaticWorld(false)}
+        />
+      );
+    }
+
+    if (showOneMinMax) {
+      return (
+        <OneMinMaxScreen
+          onBack={() => setShowOneMinMax(false)}
         />
       );
     }
@@ -286,7 +293,7 @@ export default function Index() {
           }}
           onStartPowerAssessment={() => {
             setShowLeaderboards(false);
-            setShowPowerAssessment(true);
+            setShowPowerWorld(true);
           }}
           initialCategory={leaderboardCategory}
           initialTier={leaderboardTier}
@@ -425,7 +432,7 @@ export default function Index() {
           setLeaderboardTier(tier);
           setShowLeaderboards(true);
         }}
-        onOpenPowerAssessment={() => setShowPowerAssessment(true)}
+        onOpenPowerAssessment={() => setShowPowerWorld(true)}
         onOpenStaticWorld={() => setShowStaticWorld(true)}
         onOpenWeeklyChallenge={() => setShowWeeklyChallenge(true)}
         onOpenChampionsArena={() => setShowChampionsArena(true)}
@@ -434,6 +441,7 @@ export default function Index() {
           setShowClash(true);
         }}
         onOpenTournamentArena={() => setShowTournamentArena(true)}
+        onOpenOneMinMax={() => setShowOneMinMax(true)}
       />
     );
   };

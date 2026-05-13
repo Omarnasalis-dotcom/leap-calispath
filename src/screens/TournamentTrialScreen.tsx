@@ -271,8 +271,8 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                 <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
               </TouchableOpacity>
               <View style={{ alignItems: 'center', minWidth: 100 }}>
-                <Text style={[styles.timerText, { fontSize: 48 }]}>{rounds}</Text>
-                <Text style={styles.timerLabel}>CIRCUIT ROUNDS</Text>
+                <Text style={[styles.timerText, { fontSize: 48, color: theme.text.primary }]}>{rounds}</Text>
+                <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>CIRCUIT ROUNDS</Text>
               </View>
               <TouchableOpacity onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
                 <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />

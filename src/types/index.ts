@@ -17,6 +17,7 @@ export interface Profile {
   best_times: Record<string, number>;
   power_pbs: Record<string, number>;
   power_points: number;
+  one_mm_points: number;
   trials_attempted: number;
   trials_passed: number;
   is_public: boolean;

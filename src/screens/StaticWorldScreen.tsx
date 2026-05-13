@@ -35,7 +35,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMa
 export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const { theme, mode } = useTheme();
   const isDark = mode === 'dark';
-  const { user } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<1 | 2 | 3 | null>(null);
@@ -45,6 +45,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [personalBest, setPersonalBest] = useState<StaticLeaderboardEntry | null>(null);
   const [loading, setLoading] = useState(false);
   const [showGlobalMastery, setShowGlobalMastery] = useState(false);
+  const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
+  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>('handstand');
+  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
+  
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
   const [manualInput, setManualInput] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
@@ -53,43 +57,67 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
   useEffect(() => {
-    if (user) {
-      StaticService.getUserHolds(user.id).then(holds => {
-        const holdMap: Record<string, number> = {};
-        holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
-        setUserHolds(holdMap);
-      });
-    }
+    loadAllData();
   }, [user]);
 
   useEffect(() => {
-    if (selectedMovement && user) {
-      loadMovementData();
-    }
-  }, [selectedMovement]);
+    fetchLeaderboard();
+  }, [leaderboardTab, selectedLevel]);
 
   useEffect(() => {
-    if (selectedLevel && user) {
+    if (selectedLevel) {
       loadLevelData();
     }
   }, [selectedLevel]);
 
   useEffect(() => {
-    if (showGlobalMastery && user) {
-      loadWellRoundedData();
+    if (selectedMovement && showLogModal) {
+      loadMovementData();
     }
-  }, [showGlobalMastery]);
+  }, [selectedMovement, showLogModal]);
 
-  async function loadWellRoundedData() {
+  async function loadAllData() {
     if (!user) return;
     setLoading(true);
     try {
-      const e = await StaticService.getWellRoundedLeaderboard(user.id);
-      setWellRoundedEntries(e);
-    } catch (err: any) {
-      console.error('Leaderboard error:', err);
+      console.log('[StaticWorld] Loading data for user:', user.id);
+      
+      // 1. Load user holds
+      const holds = await StaticService.getUserHolds(user.id);
+      console.log('[StaticWorld] Received holds:', holds.length);
+      
+      const holdMap: Record<string, number> = {};
+      holds.forEach(h => { 
+        holdMap[h.movement_id] = h.hold_seconds; 
+      });
+      setUserHolds(holdMap);
+
+      // 2. Load global rankings
+      const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+      setWellRoundedEntries(elite);
+      
+      // Sync leaderboard data if needed
+      const personal = elite.find(e => e.user_id === user.id);
+      console.log('[StaticWorld] Personal leaderboard entry:', personal);
+    } catch (error) {
+      console.error('[StaticWorld] Error loading data:', error);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function fetchLeaderboard() {
+    if (!user) return;
+    try {
+      if (leaderboardTab === 'overall') {
+        const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+        setWellRoundedEntries(elite);
+      } else {
+        // Fetch category-specific rankings if needed, 
+        // for now we'll filter wellRoundedEntries or use movement data
+      }
+    } catch (e) {
+      console.error(e);
     }
   }
 
@@ -146,6 +174,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
       await loadMovementData();
       await refreshUserHolds();
+      if (refreshProfile) await refreshProfile();
       setShowLogModal(false);
       resetTimer();
       setManualInput('');
@@ -159,1039 +188,522 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     }
   }
 
-  const renderHeader = (title: string, onBack: () => void) => (
-    <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
-      <TouchableOpacity onPress={onBack} style={styles.backButton}>
-        <MaterialCommunityIcons name="chevron-left" size={32} color={theme.accent} />
+  const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
+    return (
+      <View style={[styles.ringsContainer, { width: size, height: size }]}>
+        <View
+          style={[
+            styles.masteryRing,
+            {
+              width: size,
+              height: size,
+              borderRadius: size / 2,
+              borderWidth: active ? 2 : 1,
+              borderColor: '#7E57C2',
+              backgroundColor: active ? '#7E57C215' : 'transparent',
+              opacity: active ? 1 : 0.4
+            }
+          ]}
+        />
+        <View style={styles.ringsCenter}>
+          {!rankMode && topText && (
+            <Text style={[styles.heroTopText, { color: '#7E57C2', fontSize: size * 0.06 }]}>
+              {topText?.toUpperCase()}
+            </Text>
+          )}
+          
+          <View style={{ alignItems: 'center', gap: 2 }}>
+            {showCrown && (
+               <MaterialCommunityIcons name="crown" size={size * 0.12} color="#7E57C2" style={{ marginBottom: -2 }} />
+            )}
+            
+            <Text style={[styles.ringsValue, { color: theme.text.primary, fontSize: size * 0.25 }]}>{centerText}</Text>
+            
+            {subText && (
+               <Text style={{ color: '#7E57C2', fontSize: size * 0.12, fontWeight: '900', marginTop: -2 }}>
+                 {subText}
+               </Text>
+            )}
+          </View>
+
+          {!rankMode && bottomText && (
+            <Text style={[styles.heroBottomText, { color: '#7E57C2', fontSize: size * 0.06 }]}>
+              {bottomText?.toUpperCase()}
+            </Text>
+          )}
+        </View>
+      </View>
+    );
+  };
+
+  const renderLapHeader = () => (
+    <View style={styles.header}>
+      <TouchableOpacity onPress={onClose} style={styles.backBtn}>
+        <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
       </TouchableOpacity>
-      <Text style={[styles.title, { color: theme.text.primary }]}>{title.toUpperCase()}</Text>
-      <View style={{ width: 44 }} />
+      
+      <TouchableOpacity 
+        onPress={() => setShowGlobalMastery(true)}
+        style={[
+          styles.headerTitleContainer,
+          { 
+            borderColor: '#7E57C2', 
+            borderWidth: 1,
+            backgroundColor: '#7E57C220'
+          }
+        ]}
+      >
+        <Text style={[
+          styles.headerTitle, 
+          { color: theme.text.primary }
+        ]}>STATIC WORLD</Text>
+      </TouchableOpacity>
+      
+      <View style={{ width: 40 }} />
     </View>
   );
 
-  // 1. GLOBAL MASTERY HALL (Elite Priority)
-  if (showGlobalMastery) {
-    const personalEntry = wellRoundedEntries.find(e => e.user_id === user?.id);
+  const peakData = React.useMemo(() => {
+    const peaks: Record<string, number> = {
+      handstand: 0,
+      front_lever: 0,
+      back_lever: 0,
+      planche: 0
+    };
 
-    // Calculate best category
-    const categories = [
-      { id: 'handstand', name: 'HANDSTAND', pts: personalEntry?.handstand_points || 0, time: personalEntry?.handstand_time || 0, short: 'HS' },
-      { id: 'front_lever', name: 'FRONT LEVER', pts: personalEntry?.front_lever_points || 0, time: personalEntry?.front_lever_time || 0, short: 'FL' },
-      { id: 'back_lever', name: 'BACK LEVER', pts: personalEntry?.back_lever_points || 0, time: personalEntry?.back_lever_time || 0, short: 'BL' },
-      { id: 'planche', name: 'PLANCHE', pts: personalEntry?.planche_points || 0, time: personalEntry?.planche_time || 0, short: 'PL' },
-    ];
-    const bestCat = [...categories].sort((a, b) => b.pts - a.pts)[0];
+    STATIC_MOVEMENTS.forEach(m => {
+      const seconds = userHolds[m.id] || 0;
+      const points = seconds * m.multiplier;
+      if (points > peaks[m.category]) {
+        peaks[m.category] = points;
+      }
+    });
 
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        {renderHeader('Hall of Mastery', () => setShowGlobalMastery(false))}
+    const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
+    return { ...peaks, total };
+  }, [userHolds]);
 
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* ELITE DASHBOARD */}
-          <View style={styles.statsDashboard}>
-            <View style={[styles.statCircle, { borderColor: theme.card.border }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>GLOBAL RANK</Text>
-              <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
-                #{personalEntry?.rank || '-'}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>OF {wellRoundedEntries.length}</Text>
-            </View>
+  const personalEntry = wellRoundedEntries.find(e => e.user_id === user?.id);
+  const userRank = personalEntry?.rank || 0;
+  // Use leaderboard score as primary if it exists to match the rank
+  const displayScore = personalEntry ? Math.round(personalEntry.total_points) : Math.round(peakData.total);
+  
+  let gapToNext = 0;
+  if (userRank > 1 && wellRoundedEntries.length > 0) {
+    const targetRank = userRank - 1;
+    const personAbove = wellRoundedEntries.find(e => e.rank === targetRank);
+    
+    if (personAbove) {
+      gapToNext = Math.ceil(personAbove.total_points - displayScore);
+    }
 
-            <View style={[styles.statCircle, { borderColor: theme.accent }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>MASTERY SCORE</Text>
-              <Text style={[styles.statCircleValue, { color: theme.accent }]}>
-                {Math.round(personalEntry?.total_points || 0)}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>TOTAL</Text>
-            </View>
-
-            <View style={[styles.statCircle, { borderColor: theme.card.border }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>BEST TRACK</Text>
-              <Text style={[styles.statCircleValue, { color: theme.text.primary, fontSize: 16 }]}>
-                {bestCat?.pts > 0 ? bestCat.short : '-'}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>{bestCat?.pts > 0 ? `${Math.round(bestCat.pts)} PTS` : 'NO DATA'}</Text>
-            </View>
-          </View>
-
-          {/* TRACK BREAKDOWN */}
-          <View style={styles.warriorsHeadline}>
-            <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>YOUR PEAK PERFORMANCE</Text>
-            <View style={[styles.divider, { backgroundColor: theme.card.border, opacity: 0.3 }]} />
-          </View>
-
-          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.linearMasteryContainer}>
-            {categories.map(cat => (
-              <View key={cat.id} style={styles.movementCircleLinear}>
-                <View style={[styles.timeCircleSmall, { borderColor: cat.pts > 0 ? theme.accent : theme.card.border }]}>
-                  <Text style={[styles.timeCircleValue, { color: cat.pts > 0 ? theme.text.primary : theme.text.tertiary }]}>
-                    {cat.pts > 0 ? Math.round(cat.pts) : '-'}
-                  </Text>
-                  {cat.pts > 0 && (
-                    <Text style={{ fontSize: 7, fontWeight: '900', color: theme.accent, marginTop: -2 }}>PTS</Text>
-                  )}
-                </View>
-                <Text style={[styles.movementCircleLabel, { color: theme.text.primary }]} numberOfLines={2}>
-                  {cat.name}
-                </Text>
-              </View>
-            ))}
-          </ScrollView>
-
-          <View style={[styles.warriorsHeadline, { marginTop: 20 }]}>
-            <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>GLOBAL ELITE</Text>
-            <Text style={[styles.headlineSubtitle, { color: theme.text.secondary }]}>
-              {wellRoundedEntries.length} ALL-AROUND WARRIORS
-            </Text>
-          </View>
-
-          {loading ? <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 40 }} /> : (
-            <View style={{ paddingHorizontal: 16 }}>
-              {wellRoundedEntries.length === 0 ? (
-                <View style={{ padding: 40, alignItems: 'center' }}>
-                  <MaterialCommunityIcons name="shield-off-outline" size={48} color={theme.text.tertiary} style={{ marginBottom: 12 }} />
-                  <Text style={{ color: theme.text.tertiary, fontSize: 14, textAlign: 'center' }}>
-                    NO WARRIORS IN THE HALL YET.
-                  </Text>
-                </View>
-              ) : wellRoundedEntries.map((entry, index) => (
-                <View
-                  key={entry.user_id}
-                  style={[
-                    styles.entryRow,
-                    {
-                      backgroundColor: entry.is_current_user ? 'rgba(205,127,50,0.08)' : theme.card.background,
-                      borderColor: entry.is_current_user ? theme.accent : theme.card.border,
-                      borderWidth: 1,
-                      borderRadius: 12,
-                      padding: 12,
-                      marginBottom: 8,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                    }
-                  ]}
-                >
-                  <View style={{ width: 36, alignItems: 'center' }}>
-                    <View style={[
-                      { width: 28, height: 28, borderRadius: 14, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
-                      index === 0 ? { borderColor: '#FFD700', backgroundColor: 'rgba(255,215,0,0.1)' } :
-                        index === 1 ? { borderColor: '#C0C0C0', backgroundColor: 'rgba(192,192,192,0.1)' } :
-                          index === 2 ? { borderColor: '#CD7F32', backgroundColor: 'rgba(205,127,50,0.1)' } :
-                            { borderColor: entry.is_current_user ? theme.accent : theme.card.border }
-                    ]}>
-                      <Text style={[
-                        { fontSize: 11, fontWeight: '900' },
-                        index === 0 ? { color: '#FFD700' } :
-                          index === 1 ? { color: '#C0C0C0' } :
-                            index === 2 ? { color: '#CD7F32' } :
-                              { color: entry.is_current_user ? theme.accent : theme.text.tertiary }
-                      ]}>
-                        {entry.rank}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <Text style={[{ flex: 1, fontSize: 13, fontWeight: '700', color: entry.is_current_user ? theme.accent : theme.text.primary }]} numberOfLines={1}>
-                    {(entry.display_name || '').toUpperCase()}
-                    {entry.is_current_user && <Text style={{ color: theme.accent }}> YOU</Text>}
-                  </Text>
-
-                  {/* 4 Core Tracks Breakdown */}
-                  {['handstand', 'front_lever', 'back_lever', 'planche'].map(cat => {
-                    const time = entry[`${cat}_time`];
-                    return (
-                      <View key={cat} style={{ alignItems: 'center', gap: 4 }}>
-                        <View style={[{ width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', borderColor: time > 0 ? theme.accent : theme.card.border }]}>
-                          <Text style={[{ fontSize: 9, fontWeight: '900', color: time > 0 ? theme.text.primary : theme.text.tertiary }]}>
-                            {time > 0 ? `${Math.round(time)}s` : '-'}
-                          </Text>
-                        </View>
-                        <Text style={{ fontSize: 7, color: theme.text.tertiary, letterSpacing: 0.5, fontWeight: '900' }}>
-                          {cat === 'handstand' ? 'HS' : cat === 'front_lever' ? 'FL' : cat === 'back_lever' ? 'BL' : 'PL'}
-                        </Text>
-                      </View>
-                    );
-                  })}
-
-                  <View style={{ alignItems: 'center', paddingLeft: 8 }}>
-                    <Text style={{ fontSize: 8, color: theme.text.tertiary, letterSpacing: 1, fontWeight: '900', marginBottom: 2 }}>TOTAL</Text>
-                    <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 8, backgroundColor: 'rgba(205,127,50,0.15)', minWidth: 44, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 16, fontWeight: '900', color: theme.accent }}>
-                        {Math.round(entry.total_points)}
-                      </Text>
-                    </View>
-                  </View>
-                </View>
-              ))}
-            </View>
-          )}
-        </ScrollView>
-        <CelebrationBanner
-          visible={showCelebration}
-          title="NEW STATIC RECORD"
-          subtitle={celebrationData.movement}
-          stat={celebrationData.stat}
-          emoji="🧊"
-          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
-          onDismiss={() => setShowCelebration(false)}
-        />
-      </View>
-    );
+    if (gapToNext <= 0) {
+      const strictlyBetter = wellRoundedEntries.find(e => e.total_points > displayScore);
+      if (strictlyBetter) {
+        gapToNext = Math.ceil(strictlyBetter.total_points - displayScore);
+      }
+    }
   }
 
-  // 2. MAIN CATEGORY SELECTION
-  if (!selectedCategory && !selectedLevel) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        {renderHeader('Static World', onClose)}
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* Global Mastery Hall Entry */}
-          <TouchableOpacity
-            onPress={() => setShowGlobalMastery(true)}
-            style={[styles.globalMasteryHero, { borderColor: theme.accent }]}
-          >
-            <BlurView intensity={isDark ? 40 : 60} style={styles.globalMasteryBlur}>
-              <View style={styles.globalMasteryContent}>
-                <View>
-                  <Text style={[styles.globalMasteryTitle, { color: theme.accent }]}>HALL OF MASTERY</Text>
-                  <Text style={[styles.globalMasterySubtitle, { color: theme.text.secondary }]}>WELL-ROUNDED ATHLETES</Text>
-                </View>
-                <MaterialCommunityIcons name="trophy-variant" size={40} color={theme.accent} />
-              </View>
-            </BlurView>
-          </TouchableOpacity>
-
-          {/* Level Selection Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>OVERALL MASTERY</Text>
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      {renderLapHeader()}
+      
+      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
+        <View style={styles.dashboard}>
+          <View style={{ alignItems: 'center', marginBottom: -10 }}>
+            <Text style={{ fontSize: 9, fontWeight: '900', color: '#7E57C2', letterSpacing: 3 }}>OVERALL STATIC</Text>
           </View>
 
-          <View style={styles.levelRow}>
-            {([1, 2, 3] as const).map(level => (
-              <TouchableOpacity
-                key={level}
-                activeOpacity={0.7}
-                onPress={() => setSelectedLevel(level)}
-                style={styles.levelCardWrapper}
-              >
-                <View style={[styles.warriorNavCard, { borderColor: theme.card.border }]}>
-                  <BlurView intensity={isDark ? 20 : 40} style={styles.navCardBlur}>
-                    <MaterialCommunityIcons
-                      name={level === 1 ? 'cube-outline' : level === 2 ? 'shield-outline' : 'trophy-outline'}
-                      size={24}
-                      color={theme.accent}
-                      style={{ marginBottom: 8 }}
-                    />
-                    <Text style={[styles.levelName, { color: theme.text.primary }]}>{STATIC_LEVELS[level].name}</Text>
-                    <Text style={[styles.levelSubtitle, { color: theme.text.tertiary }]}>LVL {level}</Text>
-                  </BlurView>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Discipline Selection Section */}
-          <View style={styles.sectionHeader}>
-            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>STATIC DISCIPLINES</Text>
-          </View>
-
-          <View style={styles.categoryGrid}>
-            {Object.entries(STATIC_CATEGORIES).map(([key, cat]) => (
-              <TouchableOpacity
-                key={key}
-                activeOpacity={0.7}
-                onPress={() => setSelectedCategory(key)}
-                style={styles.categoryCardWrapper}
-              >
-                <View style={[styles.insaneCard, { borderColor: theme.accent, shadowColor: theme.accent }]}>
-                  <BlurView intensity={isDark ? 40 : 60} style={styles.navCardBlur}>
-                    {/* Double Initial Glitch Trail - Scaled for tighter fit */}
-                    <Text style={[styles.insaneInitialShadow, { color: theme.text.primary, opacity: 0.03 }]}>
-                      {cat.name[0].toUpperCase()}
-                    </Text>
-                    <Text style={[styles.insaneInitialMain, { color: theme.accent, opacity: 0.12 }]}>
-                      {cat.name[0].toUpperCase()}
-                    </Text>
-
-                    <View style={styles.insaneContent}>
-                      <Text style={[styles.categoryNameInsane, { color: theme.text.primary }]}>
-                        {cat.name.toUpperCase()}
-                      </Text>
-                    </View>
-
-                    {/* Bottom Glow Bar - Integrated into card edge */}
-                    <View style={[styles.insaneBottomGlow, { backgroundColor: theme.accent }]} />
-                    <View style={[styles.insaneCornerFlare, { backgroundColor: theme.accent }]} />
-                  </BlurView>
-                </View>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </ScrollView>
-      </View>
-    );
-  }
-
-  // 1. MOVEMENT DETAIL (Highest Priority)
-  if (selectedMovement) {
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        {renderHeader(selectedMovement.name, () => setSelectedMovement(null))}
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <View style={styles.statsOverview}>
-            <View style={styles.statBox}>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>PERSONAL BEST</Text>
-              <Text style={[styles.statValue, { color: theme.text.primary }]}>
-                {personalBest ? `${personalBest.best_time_seconds}S` : '--'}
-              </Text>
-            </View>
-            <View style={[styles.statBox, { borderLeftWidth: 1, borderLeftColor: theme.card.border }]}>
-              <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
-              <Text style={[styles.statValue, { color: theme.accent }]}>
-                {personalBest ? Math.round(personalBest.points) : '--'}
-              </Text>
-            </View>
-          </View>
-
-          <View style={{ paddingHorizontal: 20, marginVertical: 20 }}>
-            <WarriorButton
-              title="START TIMER"
-              onPress={() => setShowLogModal(true)}
-            />
-          </View>
-
-          <Text style={[styles.sectionTitle, { color: theme.text.tertiary, paddingHorizontal: 20 }]}>GLOBAL RANKINGS</Text>
-          {loading ? <ActivityIndicator color={theme.accent} size="large" /> : (
-            <View style={styles.leaderboardContainer}>
-              {entries.length === 0 ? (
-                <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>No global records yet.</Text>
-              ) : entries.map((entry) => (
-                <View key={entry.user_id} style={[styles.professionalRow, { borderBottomColor: theme.card.border }]}>
-                  <Text style={[styles.rankText, { color: theme.accent }]}>{entry.rank}</Text>
-                  <Text style={[styles.nameText, { color: entry.is_current_user ? theme.accent : theme.text.primary }]}>
-                    {entry.display_name.toUpperCase()}
-                  </Text>
-                  <Text style={[styles.scoreText, { color: theme.text.primary }]}>{entry.best_time_seconds}S</Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          {/* Log Modal */}
-          <Modal visible={showLogModal} transparent animationType="slide" onRequestClose={() => setShowLogModal(false)}>
-            <View style={[styles.modalOverlayProfessional, { backgroundColor: isDark ? 'rgba(0,0,0,0.9)' : 'rgba(0,0,0,0.5)' }]}>
-              <View style={[styles.modalContentProfessional, { backgroundColor: theme.card.background }]}>
-                <Text style={[styles.modalTitle, { color: theme.text.primary }]}>{(selectedMovement?.name || 'LOG').toUpperCase()}</Text>
-                <View style={[styles.timerCircle, { borderColor: theme.accent }]}>
-                  <Text style={[styles.timerDisplayLarge, { color: theme.text.primary }]}>{timerSeconds}</Text>
-                  <Text style={[styles.timerUnit, { color: theme.text.tertiary }]}>SECONDS</Text>
-                </View>
-
-                <View style={styles.timerControlsRow}>
-                  <WarriorButton
-                    title={timerRunning ? "STOP" : "START"}
-                    onPress={timerRunning ? stopTimer : startTimer}
-                    variant={timerRunning ? "secondary" : "primary"}
-                    style={{ flex: 1 }}
+          <View style={styles.heroRow}>
+             <MasteryRings 
+                size={80} 
+                topText="STATIC RANK" 
+                centerText={`#${personalEntry?.rank || '--'}`} 
+                bottomText="OF WORLD"
+                showCrown={personalEntry?.rank === 1}
+             />
+             <TouchableOpacity 
+                onPress={() => setShowGlobalMastery(true)}
+                activeOpacity={0.8}
+             >
+               <View style={{ position: 'relative' }}>
+                   <MasteryRings 
+                     size={100} 
+                     topText="STATIC SCORE" 
+                     centerText={displayScore} 
+                     bottomText="TOTAL PTS"
+                     active
+                     showCrown={true}
                   />
-                  {!timerRunning && timerSeconds > 0 && (
-                    <WarriorButton
-                      title="SAVE"
-                      onPress={() => handleSaveHold(timerSeconds)}
-                      style={{ flex: 1 }}
-                    />
-                  )}
-                </View>
-
-                <TextInput
-                  style={[styles.professionalInput, { borderBottomColor: theme.accent, color: theme.text.primary, marginTop: 24 }]}
-                  value={manualInput}
-                  onChangeText={setManualInput}
-                  placeholder="MANUAL ENTRY (SEC)"
-                  placeholderTextColor={theme.text.tertiary}
-                  keyboardType="numeric"
-                />
-
-                {manualInput.length > 0 && (
-                  <View style={{ width: '100%', marginTop: 16 }}>
-                    <WarriorButton
-                      title="SAVE MANUAL ENTRY"
-                      onPress={() => handleSaveHold(parseFloat(manualInput) || 0)}
-                      variant="secondary"
-                    />
-                  </View>
-                )}
-
-                <TouchableOpacity style={{ marginTop: 32 }} onPress={() => { setShowLogModal(false); resetTimer(); setManualInput(''); }}>
-                  <Text style={{ color: theme.text.secondary, fontWeight: '700', letterSpacing: 2 }}>CANCEL</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </Modal>
-        </ScrollView>
-        <CelebrationBanner
-          visible={showCelebration}
-          title="NEW STATIC RECORD"
-          subtitle={celebrationData.movement}
-          stat={celebrationData.stat}
-          emoji="🧊"
-          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
-          onDismiss={() => setShowCelebration(false)}
-        />
-      </View>
-    );
-  }
-
-  // 2. LEVEL DASHBOARD
-  if (selectedLevel) {
-    const movements = getLevelMovements(selectedLevel);
-    const personalEntry = levelEntries.find(e => e.is_current_user);
-
-    // SMART BEST MOVE: Find move with highest points (time * multiplier)
-    const bestMove = movements.reduce((best, current) => {
-      const bestHold = userHolds[best.id] || 0;
-      const currentHold = userHolds[current.id] || 0;
-      const bestPoints = bestHold * (best.multiplier || 1);
-      const currentPoints = currentHold * (current.multiplier || 1);
-      return (currentPoints > bestPoints) ? current : best;
-    }, movements[0]);
-
-    const hasAnyHolds = Object.values(userHolds).some(h => h > 0);
-
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        {renderHeader(STATIC_LEVELS[selectedLevel].name, () => setSelectedLevel(null))}
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {/* STATS DASHBOARD */}
-          <View style={styles.statsDashboard}>
-            <View style={[styles.statCircle, { borderColor: theme.card.border, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>MASTERY</Text>
-              <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
-                {personalEntry ? Math.round(personalEntry.total_points) : '-'}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>PTS</Text>
-            </View>
-
-            <View style={[styles.statCircle, { borderColor: theme.accent, width: 110, height: 110, borderRadius: 55 }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>GLOBAL RANK</Text>
-              <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
-                #{personalEntry?.rank || '-'}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>OF {levelEntries.length}</Text>
-            </View>
-
-            <View style={[styles.statCircle, { borderColor: theme.card.border, backgroundColor: isDark ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.02)' }]}>
-              <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>BEST MOVE</Text>
-              <Text style={[styles.statCircleValue, { color: theme.accent, fontSize: 10, textAlign: 'center', paddingHorizontal: 4 }]} numberOfLines={2}>
-                {hasAnyHolds ? bestMove.name.toUpperCase() : '-'}
-              </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
-                {hasAnyHolds ? `${userHolds[bestMove.id]}S` : 'LOG NOW'}
-              </Text>
-            </View>
+                 <View style={[styles.heroAddIcon, { backgroundColor: '#7E57C2' }]}>
+                   <MaterialCommunityIcons name="chart-bar" size={14} color="#000" />
+                 </View>
+               </View>
+             </TouchableOpacity>
+             <MasteryRings 
+                size={80} 
+                topText="GAP TO" 
+                centerText={userRank === 1 ? 'KING' : `+${gapToNext}`} 
+                bottomText="RANK UP"
+             />
           </View>
 
-          {/* YOUR MASTERY LINEAR */}
-          <View style={styles.warriorsHeadline}>
-            <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>YOUR MASTERY</Text>
-            <View style={[styles.divider, { backgroundColor: theme.card.border, opacity: 0.3 }]} />
-          </View>
+          <Text style={[styles.sectionHeader, { color: '#7E57C2' }]}>YOUR PEAK PERFORMANCE</Text>
+          
+          {/* Level Selection Cards */}
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
+            <TouchableOpacity 
+              onPress={() => setSelectedLevel(null)}
+              style={{
+                flex: 1.6,
+                paddingVertical: 10,
+                borderRadius: 14,
+                borderWidth: 1.5,
+                borderColor: selectedLevel === null ? '#7E57C2' : 'rgba(126,87,194,0.3)',
+                backgroundColor: selectedLevel === null ? '#7E57C220' : 'rgba(255,255,255,0.02)',
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 4
+              }}
+            >
+              <Text style={{ fontSize: 9, fontWeight: '900', color: theme.text.primary, letterSpacing: 1 }}>OVERALL STATIC</Text>
+              <MaterialCommunityIcons name="crown" size={12} color={selectedLevel === null ? '#7E57C2' : theme.text.tertiary} />
+            </TouchableOpacity>
 
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.linearMasteryContainer}
-          >
-            {movements.map(m => (
-              <TouchableOpacity key={m.id} onPress={() => setSelectedMovement(m)} style={styles.movementCircleLinear}>
-                <View style={[styles.timeCircleSmall, { borderColor: theme.accent }]}>
-                  <Text style={[styles.timeCircleValue, { color: userHolds[m.id] ? theme.text.primary : theme.text.tertiary }]}>
-                    {userHolds[m.id] || 0}s
+            {([1, 2, 3] as const).map(lvl => {
+              const isActive = selectedLevel === lvl;
+              const lvlInfo = (STATIC_LEVELS as any)[lvl];
+              return (
+                <TouchableOpacity 
+                  key={lvl}
+                  onPress={() => setSelectedLevel(isActive ? null : lvl)}
+                  style={{
+                    flex: 1,
+                    paddingVertical: 10,
+                    borderRadius: 14,
+                    borderWidth: 1.5,
+                    borderColor: isActive ? '#7E57C2' : 'rgba(126,87,194,0.3)',
+                    backgroundColor: isActive ? '#7E57C220' : 'rgba(255,255,255,0.02)',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  <Text style={{ fontSize: 9, fontWeight: '900', color: theme.text.primary, letterSpacing: 1 }}>
+                    {lvlInfo.name.toUpperCase()}
                   </Text>
-                </View>
-                <Text style={[styles.movementCircleLabel, { color: theme.text.primary }]} numberOfLines={2}>
-                  {m.name.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-
-          <View style={[styles.warriorsHeadline, { borderBottomColor: 'transparent', paddingBottom: 0, marginTop: 10 }]}>
-            <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>RANKINGS MATRIX</Text>
-            <Text style={[styles.headlineSubtitle, { color: theme.text.secondary }]}>
-              {levelEntries.length} WARRIORS
-            </Text>
+                </TouchableOpacity>
+              );
+            })}
           </View>
 
-          {loading ? <ActivityIndicator color={theme.accent} size="large" style={{ marginTop: 40 }} /> : (
-            <View style={{ paddingHorizontal: 16 }}>
-              {(!levelEntries || levelEntries.length === 0) ? (
-                <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>No warriors yet. Be the first!</Text>
-              ) : levelEntries.map((entry, index) => (
-                <View
-                  key={entry?.user_id || index.toString()}
+          {/* Category Filter */}
+          <View style={[styles.exerciseFilter, { marginBottom: 20 }]}>
+            {['handstand', 'front_lever', 'back_lever', 'planche'].map(cat => {
+              const isActive = selectedExerciseCategory === cat;
+              return (
+                <TouchableOpacity 
+                  key={cat}
+                  onPress={() => setSelectedExerciseCategory(cat as any)}
                   style={[
-                    styles.entryRow,
-                    {
-                      backgroundColor: entry?.is_current_user ? 'rgba(205,127,50,0.08)' : theme.card.background,
-                      borderColor: entry?.is_current_user ? theme.accent : theme.card.border,
-                      borderWidth: 1,
-                      borderRadius: 12,
-                      padding: 12,
-                      marginBottom: 8,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 8,
-                    }
+                    styles.exerciseFilterTab,
+                    isActive && { backgroundColor: '#7E57C2', borderColor: '#7E57C2' }
                   ]}
                 >
-                  {/* Rank */}
-                  <View style={{ width: 36, alignItems: 'center' }}>
-                    {index === 0 && <Text style={{ fontSize: 20 }}>🥇</Text>}
-                    {index === 1 && <Text style={{ fontSize: 20 }}>🥈</Text>}
-                    {index === 2 && <Text style={{ fontSize: 20 }}>🥉</Text>}
-                    {index > 2 && (
-                      <View style={[{ width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center', borderColor: entry?.is_current_user ? theme.accent : theme.card.border }]}>
-                        <Text style={[{ fontSize: 11, fontWeight: '900', color: entry?.is_current_user ? theme.accent : theme.text.tertiary }]}>{entry?.rank}</Text>
-                      </View>
-                    )}
-                  </View>
-
-                  {/* Name */}
-                  <Text style={[{ flex: 1, fontSize: 13, fontWeight: '700', color: entry?.is_current_user ? theme.accent : theme.text.primary }]} numberOfLines={1}>
-                    {(entry?.display_name || '').toUpperCase()}
-                    {entry?.is_current_user && <Text style={{ color: theme.accent }}> YOU</Text>}
+                  <Text style={[styles.exerciseFilterText, { color: isActive ? '#000' : theme.text.tertiary }]}>
+                    {cat.toUpperCase().replace('_', ' ')}
                   </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
 
-                  {/* Movement times */}
-                  {movements.map(m => {
-                    const time = entry?.movement_times?.[m.id];
-                    return (
-                      <View key={m.id} style={{ alignItems: 'center', gap: 4 }}>
-                        <View style={[{ width: 44, height: 44, borderRadius: 22, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center', borderColor: time ? theme.accent : theme.card.border }]}>
-                          <Text style={[{ fontSize: 10, fontWeight: '900', color: time ? theme.accent : theme.text.tertiary }]}>
-                            {time ? `${time}s` : '-'}
-                          </Text>
-                        </View>
-                        <Text style={{ fontSize: 8, color: theme.text.tertiary, letterSpacing: 0.5, fontWeight: '700' }}>
-                          {m.name.split(' ').map((w: string) => w[0]).join('')}
-                        </Text>
-                      </View>
-                    );
-                  })}
-
-                  {/* Total score */}
-                  <View style={{ alignItems: 'center', paddingLeft: 8 }}>
-                    <Text style={{ fontSize: 9, color: theme.text.tertiary, letterSpacing: 1, fontWeight: '900', marginBottom: 2 }}>TOTAL</Text>
-                    <View style={{ paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8, backgroundColor: 'rgba(205,127,50,0.15)', minWidth: 52, alignItems: 'center' }}>
-                      <Text style={{ fontSize: 20, fontWeight: '900', color: theme.accent }}>
-                        {Math.round(entry?.total_points || 0)}
-                      </Text>
+          <View style={styles.peakGrid}>
+            {STATIC_MOVEMENTS.filter(m => m.category === selectedExerciseCategory).map(m => {
+              const pb = userHolds[m.id] || 0;
+              return (
+                <TouchableOpacity 
+                  key={m.id} 
+                  style={styles.peakItem}
+                  onPress={() => {
+                    setSelectedMovement(m);
+                    setShowLogModal(true);
+                  }}
+                >
+                  <View style={styles.peakCircleWrapper}>
+                    <MasteryRings 
+                      size={width * 0.15}
+                      centerText={pb > 0 ? Math.round(pb) : '0'}
+                      subText="SEC"
+                      rankMode
+                    />
+                    <View style={[styles.peakAddIcon, { backgroundColor: '#7E57C2' }]}>
+                      <MaterialCommunityIcons name="timer-outline" size={12} color="#000" />
                     </View>
                   </View>
-                </View>
-              ))}
+                  <Text style={[styles.peakNameText, { color: theme.text.primary, height: 30 }]} numberOfLines={2}>
+                    {m.name.toUpperCase()}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          {/* Leaderboard Section */}
+          <View style={styles.leaderboardSection}>
+            <View style={styles.lbSection}>
+              <Text style={[styles.lbTitle, { color: '#7E57C2' }]}>
+                {selectedLevel ? `${STATIC_LEVELS[selectedLevel].name.toUpperCase()} ELITE` : 'STATIC GLOBAL ELITE'}
+              </Text>
+              <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
             </View>
-          )}
-        </ScrollView>
-        <CelebrationBanner
-          visible={showCelebration}
-          title="NEW STATIC RECORD"
-          subtitle={celebrationData.movement}
-          stat={celebrationData.stat}
-          emoji="🧊"
-          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
-          onDismiss={() => setShowCelebration(false)}
-        />
-      </View>
-    );
-  }
-
-  // 3. PROGRESSION LIST
-  if (selectedCategory && !selectedMovement) {
-    const movements = getCategoryMovements(selectedCategory);
-    const cat = STATIC_CATEGORIES[selectedCategory as keyof typeof STATIC_CATEGORIES];
-    return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        {renderHeader(cat.name, () => setSelectedCategory(null))}
-
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          <Text style={[styles.sectionTitle, { color: theme.text.tertiary, paddingHorizontal: 20 }]}>SELECT PROGRESSION</Text>
-          {movements.map(m => (
-            <TouchableOpacity key={m.id} onPress={() => setSelectedMovement(m)} activeOpacity={0.7}>
-              <WarriorCard variant="default" style={styles.professionalMovementCard}>
-                <View style={{ flex: 1 }}>
-                  <Text style={[styles.progressionName, { color: theme.text.primary }]}>{m.name.toUpperCase()}</Text>
-                  <Text style={[styles.levelLabel, { color: theme.text.tertiary }]}>LEVEL {m.level}</Text>
+            
+            {selectedLevel ? (
+              levelEntries.map((item, i) => (
+                <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${theme.accent}10` : 'transparent' }]}>
+                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
+                    <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
+                  </View>
+                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                  <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
+                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
+                  </View>
                 </View>
-                <View style={styles.multiplierBadgeProfessional}>
-                  <Text style={[styles.multiplierValue, { color: theme.accent }]}>{m.multiplier}X</Text>
+              ))
+            ) : (
+              wellRoundedEntries.map((item, i) => (
+                <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? '#7E57C220' : 'transparent' }]}>
+                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
+                    <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
+                  </View>
+                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                  <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
+                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
+                  </View>
                 </View>
-              </WarriorCard>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-        <CelebrationBanner
-          visible={showCelebration}
-          title="NEW STATIC RECORD"
-          subtitle={celebrationData.movement}
-          stat={celebrationData.stat}
-          emoji="🧊"
-          userName={user?.id ? (entries.find(e => e.is_current_user)?.display_name || 'WARRIOR') : 'WARRIOR'}
-          onDismiss={() => setShowCelebration(false)}
-        />
-      </View>
-    );
-  }
+              ))
+            )}
+          </View>
+        </View>
+      </ScrollView>
 
-  return null;
+      {/* OVERALL MODAL */}
+      <Modal visible={showGlobalMastery} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '85%' }]}>
+             <View style={styles.modalHeader}>
+                <View style={styles.modalTitleBox}>
+                   <MaterialCommunityIcons name="crown" size={24} color="#7E57C2" />
+                   <Text style={[styles.modalTitle, { color: theme.text.primary, marginLeft: 8 }]}>
+                     STATIC MASTERY
+                   </Text>
+                </View>
+                <TouchableOpacity onPress={() => setShowGlobalMastery(false)}>
+                  <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
+                </TouchableOpacity>
+             </View>
+             
+             <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL STATIC RANKINGS</Text>
+
+             <ScrollView style={{ marginTop: 20 }}>
+                {wellRoundedEntries.map((item, i) => (
+                  <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: '#7E57C220', borderColor: '#7E57C2', borderWidth: 1 }]}>
+                    <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
+                      <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
+                    </View>
+                    <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                    <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
+                      <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)} PTS</Text>
+                    </View>
+                  </View>
+                ))}
+             </ScrollView>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={showLogModal} transparent animationType="slide">
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
+             <View style={styles.modalHeader}>
+                <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
+                  {selectedMovement?.name.toUpperCase()}
+                </Text>
+                <TouchableOpacity onPress={() => setShowLogModal(false)}>
+                   <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
+                </TouchableOpacity>
+             </View>
+
+             <View style={styles.timerContainer}>
+                <Text style={[styles.timerText, { color: theme.text.primary }]}>{timerSeconds}s</Text>
+                <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ACTIVE HOLD TIME</Text>
+             </View>
+
+             {!timerRunning ? (
+                <TouchableOpacity style={[styles.startBtn, { backgroundColor: '#7E57C2' }]} onPress={startTimer}>
+                   <Text style={styles.startBtnText}>START TIMER</Text>
+                </TouchableOpacity>
+             ) : (
+                <TouchableOpacity style={[styles.startBtn, { backgroundColor: '#FF5252' }]} onPress={stopTimer}>
+                   <Text style={styles.startBtnText}>STOP & LOG</Text>
+                </TouchableOpacity>
+             )}
+
+             {timerSeconds > 0 && !timerRunning && (
+                <TouchableOpacity 
+                  style={[styles.saveBtn, { backgroundColor: '#7E57C2', marginTop: 10 }]} 
+                  onPress={() => handleSaveHold(timerSeconds)}
+                  disabled={loading}
+                >
+                   {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                </TouchableOpacity>
+             )}
+
+             {/* Movement Specific Leaderboard */}
+             <View style={{ marginTop: 30, flex: 1, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
+                <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
+                  TOP PERFORMERS
+                </Text>
+                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                   {entries.length > 0 ? entries.map((item, i) => (
+                      <View key={item.user_id} style={[styles.lbRow, { paddingVertical: 8 }, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
+                         <View style={[styles.lbRank, { width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>
+                            <Text style={{ color: i === 0 ? theme.accent : theme.text.secondary, fontWeight: '900', fontSize: 10 }}>{i + 1}</Text>
+                         </View>
+                         <Text style={[styles.lbName, { color: theme.text.primary, fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
+                           {item.display_name.toUpperCase()}
+                         </Text>
+                         <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2', paddingHorizontal: 8 }]}>
+                            <Text style={[styles.lbPointsText, { color: '#000', fontSize: 11 }]}>{Math.round(item.best_time_seconds)}s</Text>
+                         </View>
+                      </View>
+                   )) : (
+                      <Text style={{ textAlign: 'center', color: theme.text.tertiary, fontSize: 10, marginTop: 20 }}>
+                        NO HOLD TIMES RECORDED YET
+                      </Text>
+                   )}
+                </ScrollView>
+             </View>
+          </View>
+        </View>
+      </Modal>
+
+      <CelebrationBanner 
+        visible={showCelebration}
+        title="STATIC MASTERY"
+        subtitle={celebrationData.movement}
+        stat={celebrationData.stat}
+        emoji="💎"
+        userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
+        onDismiss={() => setShowCelebration(false)}
+      />
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  scrollContent: { paddingBottom: 40 },
-  header: {
+  container: { flex: 1, paddingTop: 40 },
+  header: { 
+    flexDirection: 'row', 
+    alignItems: 'center', 
+    paddingHorizontal: 16, 
+    paddingTop: 10,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(0,0,0,0.05)',
+  },
+  backBtn: { padding: 4 },
+  headerTitleContainer: { 
+    flex: 1,
     flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 12,
-    paddingTop: 60,
-    paddingBottom: 16,
-    borderBottomWidth: 1
-  },
-  backButton: { padding: 8 },
-  title: { fontSize: 16, fontWeight: '900', letterSpacing: 2 },
-  sectionHeader: { paddingHorizontal: 20, marginTop: 24, marginBottom: 12 },
-  sectionTitle: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 2
-  },
-
-  levelRow: { flexDirection: 'row', paddingHorizontal: 16, gap: 8 },
-  levelCardWrapper: { flex: 1, height: 80 },
-  levelName: { fontSize: 13, fontWeight: '900', letterSpacing: 1.5, marginBottom: 2 },
-  levelSubtitle: { fontSize: 8, fontWeight: '700', opacity: 0.6 },
-
-  categoryGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    justifyContent: 'flex-start',
-    alignContent: 'flex-start',
-    columnGap: 0,
-    rowGap: 0,
-  },
-  categoryCardWrapper: { width: (width - 32) / 2, height: 140 },
-  categoryName: { fontSize: 11, fontWeight: '900', letterSpacing: 1.5 },
-
-  professionalRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    marginHorizontal: 20,
-    borderBottomWidth: 1
-  },
-  rankText: { fontSize: 14, fontWeight: '900', width: 30 },
-  nameText: { flex: 1, fontSize: 13, fontWeight: '600' },
-  scoreText: { fontSize: 13, fontWeight: '900' },
-
-  professionalMovementCard: {
-    marginHorizontal: 20,
-    marginBottom: 8,
-    padding: 16,
-    flexDirection: 'row',
-    alignItems: 'center'
-  },
-  progressionName: { fontSize: 14, fontWeight: '800', letterSpacing: 0.5 },
-  levelLabel: { fontSize: 10, marginTop: 2 },
-  multiplierBadgeProfessional: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.3)',
-    alignItems: 'center',
-    justifyContent: 'center'
-  },
-  multiplierValue: { fontSize: 12, fontWeight: '900' },
-
-  statsOverview: {
-    flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  statBox: { flex: 1, padding: 20, alignItems: 'center' },
-  statLabel: { fontSize: 9, fontWeight: '900', letterSpacing: 1.5, marginBottom: 8 },
-  statValue: { fontSize: 24, fontWeight: '900' },
-
-  infoBanner: { padding: 20, alignItems: 'center' },
-  subtitle: { fontSize: 11, fontWeight: '800', letterSpacing: 3 },
-  emptyText: { textAlign: 'center', padding: 40, fontSize: 12 },
-  leaderboardContainer: { marginTop: 8 },
-
-  // DASHBOARD & MATRIX
-  movementCircleGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    paddingHorizontal: 16,
-    gap: 12,
-    marginBottom: 24,
-  },
-  movementCircleWrapper: {
-    width: (width - 48) / 4,
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  timeCircleSmall: {
-    width: 90,
-    height: 90,
-    borderRadius: 45,
-    borderWidth: 2,
+    paddingHorizontal: 12, 
+    paddingVertical: 6, 
+    borderRadius: 25, 
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: 8,
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    marginHorizontal: 10
   },
-  timeCircleValue: {
-    fontSize: 18,
-    fontWeight: '900',
+  headerTitle: { fontSize: 10, fontWeight: '900', letterSpacing: 2, fontFamily: 'PlusJakartaSans-ExtraBold' },
+  
+  dashboard: { paddingHorizontal: 16, paddingTop: 20, gap: 24 },
+  heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' },
+  ringsContainer: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
+  masteryRing: { position: 'absolute' },
+  ringsCenter: { alignItems: 'center', justifyContent: 'center', zIndex: 10, paddingBottom: 4 },
+  ringsValue: { fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold', letterSpacing: -0.5 },
+  heroTopText: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginBottom: 2 },
+  heroBottomText: { fontSize: 7, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
+
+  modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
+  modalSub: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
+
+  lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
+  lbTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 3, fontFamily: 'PlusJakartaSans-ExtraBold' },
+  lbSub: { fontSize: 8, fontWeight: '900', letterSpacing: 1.5, opacity: 0.6 },
+  sectionHeader: { fontSize: 13, fontWeight: '900', letterSpacing: 2, textAlign: 'center', marginTop: 20, marginBottom: 10 },
+  exerciseFilter: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 20 },
+  exerciseFilterTab: { 
+    paddingHorizontal: 12, 
+    paddingVertical: 8, 
+    borderRadius: 12, 
+    borderWidth: 1.5, 
+    borderColor: 'rgba(126,87,194,0.4)', // Light purple frame by default
+    backgroundColor: 'rgba(255,255,255,0.02)'
   },
-  movementCircleLabel: {
-    fontSize: 10,
-    fontWeight: '800',
-    textAlign: 'center',
-    letterSpacing: 0.5,
-    marginTop: 4,
-  },
-  matrixContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  matrixHeaderCell: {
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 1,
-    paddingHorizontal: 4,
-  },
-  matrixNameCell: {
-    fontSize: 12,
-    fontWeight: '700',
-    paddingHorizontal: 4,
-  },
-  matrixScoreCell: {
-    fontSize: 13,
-    fontWeight: '900',
-    paddingHorizontal: 4,
-  },
-  // STRENGTH WORLD AESTHETIC
-  statsDashboard: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-    alignItems: 'center',
-    paddingVertical: 24,
-    paddingHorizontal: 16,
-  },
-  statCircle: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 2,
-    alignItems: 'center',
+  exerciseFilterText: { fontSize: 8, fontWeight: '900', letterSpacing: 1 },
+
+  peakGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 10, gap: 20 },
+  peakItem: { alignItems: 'center', gap: 8, width: width * 0.22, marginBottom: 10 },
+  peakCircleWrapper: { position: 'relative' },
+  peakNameText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginTop: 2, textAlign: 'center' },
+  peakAddIcon: { 
+    position: 'absolute', 
+    bottom: 0, 
+    right: 0, 
+    width: 20, 
+    height: 20, 
+    borderRadius: 10, 
+    alignItems: 'center', 
     justifyContent: 'center',
-  },
-  statCircleLabel: {
-    fontSize: 8,
-    fontWeight: '900',
-    letterSpacing: 1,
-    marginBottom: 4,
-    textAlign: 'center',
-  },
-  statCircleValue: {
-    fontSize: 22,
-    fontWeight: '900',
-  },
-  statCircleUnit: {
-    fontSize: 8,
-    fontWeight: '700',
-    marginTop: 2,
-  },
-  divider: {
-    height: 1,
-    width: '100%',
-    marginTop: 12,
-  },
-  linearMasteryContainer: {
-    paddingHorizontal: 20,
-    paddingBottom: 24,
-    gap: 32,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: '100%',
-  },
-  movementCircleLinear: {
-    alignItems: 'center',
-    width: 80,
-  },
-  compactMatrixWrapper: {
-    paddingHorizontal: 16,
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 700,
-  },
-  matrixTimeCircleSmall: {
-    width: 52,
-    height: 52,
-    borderRadius: 26,
     borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  matrixTimeTextSmall: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  totalScoreBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 4,
-    minWidth: 32,
-    alignItems: 'center',
-  },
-  warriorsHeadline: {
-    alignItems: 'center',
-    paddingVertical: 20,
-    marginBottom: 16,
-    paddingHorizontal: 20,
-  },
-  headlineTitleBig: {
-    fontSize: 16,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
-  headlineSubtitle: {
-    fontSize: 10,
-    fontWeight: '700',
-    letterSpacing: 1,
-  },
-  // GLOBAL MASTERY HERO
-  globalMasteryHero: {
-    marginHorizontal: 16,
-    marginTop: 8,
-    marginBottom: 24,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-    height: 100,
+    borderColor: '#FFF',
     elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
   },
-  globalMasteryBlur: {
-    flex: 1,
-    padding: 20,
+  heroAddIcon: { 
+    position: 'absolute', 
+    bottom: -2, 
+    right: -2, 
+    width: 30, 
+    height: 30, 
+    borderRadius: 15, 
+    alignItems: 'center', 
     justifyContent: 'center',
-  },
-  globalMasteryContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  globalMasteryTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 3,
-    marginBottom: 4,
-  },
-  globalMasterySubtitle: {
-    fontSize: 10,
-    fontWeight: '800',
-    letterSpacing: 2,
-  },
-  // WARRIOR NAV CARDS
-  warriorNavCard: {
-    borderRadius: 16,
-    borderWidth: 1,
-    overflow: 'hidden',
-    backgroundColor: 'transparent',
-  },
-  specialDisciplineCard: {
-    borderRadius: 20,
-    borderWidth: 1,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.01)',
-  },
-  // INSANE STYLE
-  insaneCard: {
-    borderRadius: 24,
-    borderWidth: 1.5,
-    overflow: 'hidden',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    elevation: 10,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-  },
-  insaneInitialMain: {
-    position: 'absolute',
-    fontSize: 110,
-    fontWeight: '900',
-    top: -15,
-    right: -10,
-    transform: [{ rotate: '-10deg' }],
-  },
-  insaneInitialShadow: {
-    position: 'absolute',
-    fontSize: 110,
-    fontWeight: '900',
-    top: -13,
-    right: -8,
-    transform: [{ rotate: '-10deg' }],
-  },
-  insaneContent: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 2,
-    flex: 1,
-  },
-  insaneSubtitle: {
-    fontSize: 7,
-    fontWeight: '900',
-    letterSpacing: 4,
-    marginBottom: 6,
-    opacity: 0.8,
-  },
-  categoryNameInsane: {
-    fontSize: 13,
-    fontWeight: '900',
-    letterSpacing: 2,
-    textAlign: 'center',
-  },
-  insaneBottomGlow: {
-    position: 'absolute',
-    bottom: 0,
-    left: '20%',
-    right: '20%',
-    height: 3,
-    borderTopLeftRadius: 3,
-    borderTopRightRadius: 3,
-    opacity: 0.8,
-  },
-  insaneAccentBar: {
-    width: 30,
-    height: 3,
-    marginTop: 12,
-    borderRadius: 1.5,
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-  },
-  insaneCornerFlare: {
-    position: 'absolute',
-    top: -10,
-    left: -10,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    opacity: 0.2,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 20,
-  },
-  cardInitialBackground: {
-    position: 'absolute',
-    fontSize: 100,
-    fontWeight: '900',
-    top: -10,
-    right: -10,
-  },
-  cardAccentLine: {
-    width: 24,
-    height: 2,
-    marginTop: 12,
-    borderRadius: 1,
-  },
-  navCardBlur: {
-    padding: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    height: '100%',
-  },
-  matrixHeaderRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-  },
-  entryRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  entryRowProfessional: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(255,255,255,0.05)',
-  },
-  rankContainerSmall: {
-    width: 30,
-    alignItems: 'center',
-    marginRight: 8,
-  },
-  medalSmall: {
-    fontSize: 16,
-  },
-  rankNumberSmall: {
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  matrixTimeCircle: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(205,127,50,0.05)',
-  },
-  matrixTimeText: {
-    fontSize: 11,
-    fontWeight: '800',
+    borderWidth: 2,
+    borderColor: '#FFF',
+    elevation: 8,
+    zIndex: 20,
   },
 
-  // MODAL PROFESSIONAL
-  modalOverlayProfessional: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  modalContentProfessional: { width: '100%', padding: 40, alignItems: 'center', borderRadius: 24, overflow: 'hidden' },
-  modalTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 2, marginBottom: 40 },
-  timerCircle: {
-    width: 200,
-    height: 200,
-    borderRadius: 100,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 40
-  },
-  timerDisplayLarge: { fontSize: 72, fontWeight: '200' },
-  timerUnit: { fontSize: 10, fontWeight: '900', letterSpacing: 2 },
-  timerControlsRow: { flexDirection: 'row', gap: 12, width: '100%', marginBottom: 32 },
-  professionalInput: {
-    width: '100%',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    fontSize: 14,
-    fontWeight: '700',
-    textAlign: 'center'
-  },
+  leaderboardSection: { marginTop: 20 },
+  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
+  lbRank: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
+  lbPointsFrame: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 4 },
+  lbPointsText: { fontSize: 13, fontWeight: '900' },
+
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
+  modalContent: { width: '100%', maxWidth: 400, borderRadius: 24, padding: 24, borderWidth: 1 },
+  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
+  modalTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 2 },
+  timerContainer: { alignItems: 'center', marginVertical: 40 },
+  timerText: { fontSize: 80, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
+  timerSub: { fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 },
+  startBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
+  startBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
+  saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
+  saveBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
 });
+
 
 

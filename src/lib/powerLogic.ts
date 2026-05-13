@@ -1,99 +1,43 @@
-/**
- * Power World Logic - Weighted Hierarchy
- * Points = (Pull-up kg) + (Dip kg) + (Squat kg) + (Muscle-up kg * 2)
- */
-
-export interface PowerMovementPBs {
-  pull_up: number;
-  dip: number;
-  squat: number;
-  muscle_up: number;
+export interface PowerMovement {
+  id: string;
+  name: string;
+  multiplier: number;
 }
 
-export interface PowerTierRequirement {
-  tier: number;
-  rank: string;
+export const POWER_MOVEMENTS: PowerMovement[] = [
+  { id: 'pull_up', name: 'Weighted Pull-up', multiplier: 1 },
+  { id: 'dip', name: 'Weighted Dip', multiplier: 1 },
+  { id: 'squat', name: 'Weighted Squat', multiplier: 1 },
+  { id: 'muscle_up', name: 'Weighted Muscle-up', multiplier: 2 },
+];
+
+export interface PowerLevel {
+  id: 1 | 2 | 3;
+  name: string;
+  subtitle: string;
   minPoints: number;
-  movementTargets: PowerMovementPBs;
 }
 
-export const POWER_TIER_NAMES = [
-  'Spark',
-  'Surge',
-  'Pulse',
-  'Current',
-  'Volt',
-  'Amp',
-  'Watt',
-  'Tesla',
-  'Voltaic'
-];
+export const POWER_LEVELS: Record<number, PowerLevel> = {
+  1: { id: 1, name: 'VOLTAIC', subtitle: 'The Current', minPoints: 0 },
+  2: { id: 2, name: 'AMPERE', subtitle: 'The Charge', minPoints: 100 },
+  3: { id: 3, name: 'TESLA', subtitle: 'The Mastery', minPoints: 250 },
+};
 
-export const POWER_TIER_REQUIREMENTS: PowerTierRequirement[] = [
-  {
-    tier: 1,
-    rank: POWER_TIER_NAMES[0],
-    minPoints: 17.5,
-    movementTargets: { pull_up: 2.5, dip: 5, squat: 10, muscle_up: 0 }
-  },
-  {
-    tier: 2,
-    rank: POWER_TIER_NAMES[1],
-    minPoints: 27.5,
-    movementTargets: { pull_up: 5, dip: 7.5, squat: 15, muscle_up: 0 }
-  },
-  {
-    tier: 3,
-    rank: POWER_TIER_NAMES[2],
-    minPoints: 45,
-    movementTargets: { pull_up: 10, dip: 15, squat: 20, muscle_up: 0 }
-  },
-  {
-    tier: 4,
-    rank: POWER_TIER_NAMES[3],
-    minPoints: 70,
-    movementTargets: { pull_up: 15, dip: 20, squat: 30, muscle_up: 2.5 }
-  },
-  {
-    tier: 5,
-    rank: POWER_TIER_NAMES[4],
-    minPoints: 100,
-    movementTargets: { pull_up: 20, dip: 25, squat: 40, muscle_up: 5 }
-  },
-  {
-    tier: 6,
-    rank: POWER_TIER_NAMES[5],
-    minPoints: 140,
-    movementTargets: { pull_up: 25, dip: 30, squat: 50, muscle_up: 7.5 }
-  },
-  {
-    tier: 7,
-    rank: POWER_TIER_NAMES[6],
-    minPoints: 190,
-    movementTargets: { pull_up: 30, dip: 35, squat: 60, muscle_up: 10 }
-  },
-  {
-    tier: 8,
-    rank: POWER_TIER_NAMES[7],
-    minPoints: 290,
-    movementTargets: { pull_up: 40, dip: 45, squat: 80, muscle_up: 15 }
-  }
-];
+export function calculatePowerPoints(movementId: string, kg: number): number {
+  const movement = POWER_MOVEMENTS.find(m => m.id === movementId);
+  if (!movement) return 0;
+  return kg * movement.multiplier;
+}
 
-export function calculatePowerScore(pbs: PowerMovementPBs): number {
+export function calculateTotalPowerScore(pbs: Record<string, number>): number {
   return (pbs.pull_up || 0) + (pbs.dip || 0) + (pbs.squat || 0) + ((pbs.muscle_up || 0) * 2);
 }
 
-export function calculatePowerTier(points: number): number {
-  let tier = 0;
-  for (const req of POWER_TIER_REQUIREMENTS) {
-    if (points >= req.minPoints) {
-      tier = req.tier;
-    } else {
-      break;
-    }
-  }
-  return tier;
+export function getPowerLevel(totalPoints: number): PowerLevel {
+  if (totalPoints >= POWER_LEVELS[3].minPoints) return POWER_LEVELS[3];
+  if (totalPoints >= POWER_LEVELS[2].minPoints) return POWER_LEVELS[2];
+  return POWER_LEVELS[1];
 }
 
 export function isPowerWorldUnlocked(strengthTier: number): boolean {

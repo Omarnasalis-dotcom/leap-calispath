@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
   Modal,
+  Alert,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -23,6 +24,7 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 
 interface ProfileScreenProps {
@@ -35,6 +37,7 @@ interface ProfileScreenProps {
   onOpenChampionsArena?: () => void;
   onOpenClash?: () => void;
   onOpenTournamentArena?: () => void;
+  onOpenOneMinMax?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
@@ -49,10 +52,11 @@ export function ProfileScreen({
   onOpenChampionsArena,
   onOpenClash,
   onOpenTournamentArena,
+  onOpenOneMinMax,
   initialCategory = 'strength',
   initialTier = 0,
 }: ProfileScreenProps) {
-  const { profile, signOut, user } = useAuth();
+  const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
@@ -79,20 +83,11 @@ export function ProfileScreen({
   const handleCategorySwitch = async (newCategory: 'strength' | 'power') => {
     if (newCategory === category || (newCategory === 'power' && !isPowerUnlocked)) return;
 
-    setIsSwitchingWorld(true);
-    setShowLevelReveal(true);
-
-    // Simulate world transition delay
-    await new Promise(resolve => setTimeout(resolve, 2000));
-
     setCategory(newCategory);
     setSelectedTier(newCategory === 'strength'
       ? (profile?.strength_tier || 0)
       : (profile?.power_tier || 0)
     );
-
-    setShowLevelReveal(false);
-    setIsSwitchingWorld(false);
   };
 
 
@@ -105,57 +100,94 @@ export function ProfileScreen({
     }
   }
 
-  const [masteryScore, setMasteryScore] = useState(0);
-
   useEffect(() => {
-    async function loadMastery() {
-      if (profile?.id) {
+    // Self-healing: if profile static points are 0 but user has holds, sync them
+    async function syncStaticPoints() {
+      if (profile?.id && (profile.statics_tier === 0 || profile.statics_tier === null)) {
         try {
           const holds = await StaticService.getUserHolds(profile.id);
-          const total = holds.reduce((acc, h) => acc + (h.points || 0), 0);
-          setMasteryScore(total);
-        } catch (err) {
-          console.error('Error loading mastery:', err);
+          if (holds.length > 0) {
+            console.log('[Profile] Self-healing sync for static points...');
+            // We can just save a dummy hold or call a refresh, 
+            // but the cleanest way is to trigger one save logic
+            const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
+            const peaks: Record<string, number> = { handstand: 0, front_lever: 0, back_lever: 0, planche: 0 };
+            
+            holds.forEach(h => {
+              const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
+              if (m && (h.points || 0) > peaks[m.category]) {
+                peaks[m.category] = h.points || 0;
+              }
+            });
+            const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
+            
+            if (total > 0) {
+              await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
+              if (refreshProfile) refreshProfile();
+            }
+          }
+        } catch (e) {
+          console.error('Failed self-healing sync:', e);
         }
       }
     }
-    loadMastery();
+    syncStaticPoints();
   }, [profile?.id]);
 
   if (!profile) return null;
 
-  const StatBar = ({ value, displayValue, max, color, icon, theme, level }: { value: number, displayValue?: number, max: number, color: string, icon: string, theme: any, level?: number }) => {
-    const fillPercent = displayValue !== undefined ? ((value % max) / max) * 100 : (value / max) * 100;
-    
+  const staticPts = profile.statics_tier || 0;
+  const powerPts = profile.power_points || 0;
+  const mmPts = profile.one_mm_points || 0;
+  const gloryPts = profile.glory_score || 0;
+  const wraScore = staticPts + (powerPts * 2) + (mmPts * 2);
+  const WRA_MAX = 2000;
+  const GLORY_MAX = 1000;
+
+  const ScoreBar = ({ title, subtitle, score, rank, max, color, chips }: {
+    title: string; subtitle: string; score: number; rank: string;
+    max: number; color: string;
+    chips: { label: string; value: number; color: string }[];
+  }) => {
+    const pct = Math.min(100, (score / max) * 100);
     return (
-      <View style={styles.statBarContainer}>
-        <View style={styles.statBarRow}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', width: 42 }}>
-            <Text style={styles.statBarIcon}>{icon}</Text>
-            {level !== undefined && (
-              <Text style={{ color: theme.accent, fontSize: 9, fontWeight: '900', marginLeft: -2, marginTop: 2 }}>
-                {level}
-              </Text>
-            )}
+      <View style={[
+        styles.scoreBarCard, 
+        { 
+          backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
+          borderColor: `${color}40` 
+        }
+      ]}>
+        {/* Single row: title + score side by side */}
+        <View style={styles.scoreBarHead}>
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.scoreBarTitle, { color }]}>{title}</Text>
+            <Text style={[styles.scoreBarSubtitle, { color: theme.text.tertiary }]}>{subtitle}</Text>
           </View>
-          <View style={[styles.statBarTrack, { backgroundColor: `${color}15`, borderColor: `${color}30`, borderWidth: 1 }]}>
-            <View 
-              style={[
-                styles.statBarFill, 
-                { 
-                  backgroundColor: color, 
-                  width: `${Math.max(0, Math.min(fillPercent, 100))}%`,
-                  shadowColor: color,
-                  shadowOffset: { width: 0, height: 0 },
-                  shadowOpacity: 0.5,
-                  shadowRadius: 4,
-                }
-              ]} 
-            />
-            {/* Top reflection for glass look */}
-            <View style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '35%', backgroundColor: 'rgba(255,255,255,0.12)', borderTopLeftRadius: 3, borderTopRightRadius: 3 }} />
-          </View>
-          <Text style={[styles.statBarValue, { color: theme.text.primary }]}>{displayValue ?? value}</Text>
+          <Text style={[styles.scoreBarTotal, { color }]}>{score.toLocaleString()}</Text>
+        </View>
+
+        {/* Track */}
+        <View style={[styles.scoreBarTrack, { backgroundColor: `${color}12`, borderColor: `${color}20` }]}>
+          <View style={[styles.scoreBarFill, {
+            width: `${pct}%`,
+            backgroundColor: color,
+            shadowColor: color,
+            shadowOffset: { width: 0, height: 0 },
+            shadowOpacity: 0.5,
+            shadowRadius: 4,
+          }]} />
+        </View>
+
+        {/* Chips row */}
+        <View style={styles.scoreChips}>
+          {chips.map((c, idx) => (
+            <View key={idx} style={styles.scoreChip}>
+              <View style={[styles.scoreChipDot, { backgroundColor: c.color }]} />
+              <Text style={[styles.scoreChipVal, { color: theme.text.primary }]}>{c.value.toLocaleString()}</Text>
+              <Text style={[styles.scoreChipLbl, { color: theme.text.tertiary }]}>{c.label}</Text>
+            </View>
+          ))}
         </View>
       </View>
     );
@@ -167,255 +199,146 @@ export function ProfileScreen({
         <View style={styles.header}>
           {/* User Avatar with Tier Info */}
           <View style={styles.avatarSection}>
+            {/* User Display Name Above Rings */}
+            <Text style={[styles.profileNameHeader, { color: theme.accent }]} numberOfLines={1}>
+              {profile.display_name?.toUpperCase() || 'WARRIOR'}
+            </Text>
+
+            {/* Concentric rings avatar — 8 rings, one per tier, filled outward */}
             <View style={styles.avatarWrapper}>
-              <View style={[styles.avatarContainer, { borderColor: theme.accent, width: 100, height: 100, borderRadius: 50 }]}>
-                <Text style={[styles.avatarInitial, { color: theme.accent, fontSize: 10, textAlign: 'center', paddingHorizontal: 10 }]} numberOfLines={2}>
-                  {profile.display_name?.toUpperCase() || 'WARRIOR'}
-                </Text>
-              </View>
 
-              {/* Tier Orbit Ring */}
-              <View style={[styles.orbitRing, { borderColor: theme.accent, width: 110, height: 110, borderRadius: 55 }]} />
-
-              {/* Tier Level Indicator */}
-              <View style={[styles.tierLevelBadge, { backgroundColor: theme.accent, right: 0, bottom: 0 }]}>
-                <Text style={styles.tierLevelText}>{activeCurrentTier}</Text>
-              </View>
-
-              {/* Glowing Tier Dots around the border */}
-              {Array.from({ length: Math.min(activeCurrentTier + 1, 9) }).map((_, i) => {
-                const totalDots = Math.min(activeCurrentTier + 1, 9);
-                const angle = (i * (360 / totalDots)) - 90;
-                const radius = 55;
-                const x = radius * Math.cos(angle * (Math.PI / 180));
-                const y = radius * Math.sin(angle * (Math.PI / 180));
+              {/* ... existing rings ... */}
+              {Array.from({ length: 8 }).map((_, i) => {
+                const ringIndex = i + 1;
+                const filled = ringIndex <= activeCurrentTier;
+                const OUTER_SIZE = 160;
+                const INNER_SIZE = 60;
+                const size = OUTER_SIZE - i * ((OUTER_SIZE - INNER_SIZE) / 7);
+                const alpha = filled ? 0.25 + (ringIndex / 8) * 0.75 : 0.08;
+                const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
+                const glowSize = filled ? 4 + ringIndex * 1.5 : 0;
+                const borderW = filled ? 1 + ringIndex * 0.08 : 1.5;
 
                 return (
                   <View
-                    key={i}
+                    key={ringIndex}
                     style={[
-                      styles.avatarTierDot,
+                      styles.concentricRing,
                       {
-                        backgroundColor: theme.accent,
-                        shadowColor: theme.accent,
-                        transform: [
-                          { translateX: x },
-                          { translateY: y },
-                        ]
+                        width: size,
+                        height: size,
+                        borderRadius: size / 2,
+                        borderWidth: borderW,
+                        borderColor: filled ? `${theme.accent}${alphaHex}` : `${theme.accent}14`,
+                        shadowColor: filled ? theme.accent : 'transparent',
+                        shadowOffset: { width: 0, height: 0 },
+                        shadowOpacity: filled ? alpha * 0.5 : 0,
+                        shadowRadius: glowSize,
+                        elevation: filled ? ringIndex : 0,
                       }
                     ]}
                   />
                 );
               })}
+
+              {/* Centre: tier number only */}
+              <View style={styles.concentricCenter}>
+                <Text style={[styles.arcTierNumber, { color: theme.accent, fontSize: 42 }]}>
+                  {activeCurrentTier}
+                </Text>
+              </View>
+
             </View>
 
+            {/* Tier name + progress label below the rings */}
+            <Text style={[styles.arcTierName, { color: theme.accent }]}>
+              {(category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || 'UNKNOWN'}
+            </Text>
+            <Text style={[styles.arcTierProgress, { color: theme.text.tertiary }]}>
+              {activeCurrentTier === 8 ? 'Maximum rank — Eternity' : `Tier ${activeCurrentTier} of 8`}
+            </Text>
+
             {/* Warrior Stats Bars - Under Tier/Avatar */}
-            {/* Warrior Stats Bars - Under Tier/Avatar */}
-            <View style={[styles.rightStatsColumn, { width: '80%', marginTop: 20, flex: 0, alignSelf: 'center', padding: 8 }]}>
-              <StatBar 
-                value={(profile as any).tournament_gp || 0} 
-                displayValue={(profile as any).tournament_gp || 0}
-                max={100} 
-                color="#FFC107" 
-                icon="🏟️" 
-                theme={theme}
-                level={Math.floor(((profile as any).tournament_gp || 0) / 100)}
+            <View style={[
+              styles.rightStatsColumn, 
+              { 
+                width: '92%', 
+                marginTop: 10, 
+                backgroundColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
+                borderColor: theme.mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
+                alignSelf: 'center' 
+              }
+            ]}>
+              <ScoreBar
+                title="⚔️ Well-Rounded Athlete"
+                subtitle="Static ×1 · Power ×2 · 1MM ×2"
+                score={wraScore}
+                rank="Leaderboard →"
+                max={WRA_MAX}
+                color={theme.accent}
+                chips={[
+                  { label: 'Static ×1', value: staticPts * 1, color: '#9FC5E8' },
+                  { label: 'Power ×2', value: powerPts * 2, color: '#FF5722' },
+                  { label: '1MM ×2', value: mmPts * 2, color: '#4CAF50' },
+                ]}
               />
-              <StatBar 
-                value={profile.glory_score || 0} 
-                displayValue={profile.glory_score || 0}
-                max={100} 
-                color="#00E5FF" 
-                icon="✨" 
-                theme={theme}
-                level={Math.floor((profile.glory_score || 0) / 100)}
-              />
-              <StatBar 
-                value={profile.power_tier || 0} 
-                max={8} 
-                color="#FF5722" 
-                icon="⚡" 
-                theme={theme}
-                level={profile.power_tier || 0}
-              />
-              <StatBar 
-                value={Math.round(masteryScore)} 
-                displayValue={Math.round(masteryScore)}
-                max={100} 
-                color="#F0FDFF" 
-                icon="🧊" 
-                theme={theme}
-                level={Math.floor(masteryScore / 100)}
-              />
-              <StatBar 
-                value={profile.strength_tier} 
-                max={8} 
-                color="#CD7F32" 
-                icon="⚔️" 
-                theme={theme}
-                level={profile.strength_tier}
+              <ScoreBar
+                title="✨ Glory"
+                subtitle="Tournaments · Clashes"
+                score={gloryPts}
+                rank="Leaderboard →"
+                max={GLORY_MAX}
+                color="#FF5252"
+                chips={[
+                  { label: 'Glory pts', value: gloryPts, color: '#FF5252' },
+                ]}
               />
             </View>
           </View>
         </View>
 
-        {/* World Selector - Pill Style */}
-        <View style={styles.worldSelectorContainer}>
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.worldSelectorScrollContent}
-          >
-            <View style={styles.worldSelector}>
-              {/* Strength World Pill */}
-              <TouchableOpacity
-                disabled={isSwitchingWorld}
-                style={[
-                  styles.worldPill,
-                  category === 'strength' && { backgroundColor: theme.accent, borderColor: theme.accent }
-                ]}
-                onPress={() => handleCategorySwitch('strength')}
-              >
-                <Text style={[
-                  styles.worldIcon,
-                  category === 'strength' ? { color: '#000' } : { color: theme.text.secondary }
-                ]}>⚔️</Text>
-                <Text style={[
-                  styles.worldText,
-                  category === 'strength' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-                ]}>STRENGTH</Text>
-              </TouchableOpacity>
+        {/* Mode Grid - 2 Column Layout */}
+        {/* World Pills Grid - 2 Rows (4 + 3) */}
+        <View style={styles.worldPillsGrid}>
+          {[
+            { id: 'strength', name: 'STRENGTH', icon: '⚔️', unlockTier: 0, action: () => handleCategorySwitch('strength') },
+            { id: 'power', name: 'POWER', icon: '⚡', unlockTier: 6, action: onOpenPowerAssessment },
+            { id: 'static', name: 'STATIC', icon: '🧊', unlockTier: 1, action: onOpenStaticWorld },
+            { id: '1mm', name: '1MM', icon: '⏱️', unlockTier: 0, action: onOpenOneMinMax },
+            { id: 'tournament', name: 'TOURNAMENT', icon: '🏟️', unlockTier: 0, action: onOpenTournamentArena },
+            { id: 'clash', name: 'CLASH', icon: '🔥', unlockTier: 2, action: onOpenClash },
+            { id: 'weekly', name: 'WEEKLY', icon: '🏆', unlockTier: 0, action: onOpenWeeklyChallenge },
+            { id: 'champions', name: 'CHAMPIONS', icon: '🏛️', unlockTier: 8, action: onOpenChampionsArena },
+          ].map((mode) => {
+            const isUnlocked = (profile?.strength_tier ?? 0) >= mode.unlockTier;
+            const isActive = category === mode.id;
 
-              {/* Power World Pill */}
+            return (
               <TouchableOpacity
-                disabled={!isPowerUnlocked || isSwitchingWorld}
-                style={[
-                  styles.worldPill,
-                  category === 'power' && { backgroundColor: theme.accent, borderColor: theme.accent },
-                  !isPowerUnlocked && { opacity: 0.4 }
-                ]}
-                onPress={() => handleCategorySwitch('power')}
-              >
-                <Text style={[
-                  styles.worldIcon,
-                  category === 'power' ? { color: '#000' } : { color: theme.text.secondary }
-                ]}>⚡</Text>
-                <Text style={[
-                  styles.worldText,
-                  category === 'power' ? { color: '#000', fontWeight: '900' } : { color: theme.text.secondary }
-                ]}>POWER</Text>
-                {!isPowerUnlocked && (
-                  <View style={styles.worldLockBadge}>
-                    <Text style={styles.worldLockIcon}>🔒</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* Static World Pill */}
-              <TouchableOpacity
-                disabled={!isStaticUnlocked || isSwitchingWorld}
-                style={[
-                  styles.worldPill,
-                  !isStaticUnlocked && { opacity: 0.4 }
-                ]}
-                onPress={onOpenStaticWorld}
-              >
-                <Text style={[
-                  styles.worldIcon,
-                  { color: theme.text.secondary }
-                ]}>🧊</Text>
-                <Text style={[
-                  styles.worldText,
-                  { color: theme.text.secondary }
-                ]}>STATIC</Text>
-                {!isStaticUnlocked && (
-                  <View style={styles.worldLockBadge}>
-                    <Text style={styles.worldLockIcon}>🔒</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* Champions Arena Pill */}
-              <TouchableOpacity
-                style={[
-                  styles.worldPill,
-                  profile?.strength_tier < 8 && { opacity: 0.4 }
-                ]}
-                onPress={onOpenChampionsArena}
-              >
-                <Text style={[
-                  styles.worldIcon,
-                  { color: theme.text.secondary }
-                ]}>🏛️</Text>
-                <Text style={[
-                  styles.worldText,
-                  { color: theme.text.secondary }
-                ]}>CHAMPIONS</Text>
-                {profile?.strength_tier < 8 && (
-                  <View style={styles.worldLockBadge}>
-                    <Text style={styles.worldLockIcon}>🔒</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-
-              {/* Tournament Arena Pill */}
-              <TouchableOpacity
-                style={styles.worldPill}
-                onPress={onOpenTournamentArena}
-              >
-                <Text style={[styles.worldIcon, { color: theme.text.secondary }]}>🏟️</Text>
-                <Text style={[styles.worldText, { color: theme.text.secondary }]}>TOURNAMENT</Text>
-              </TouchableOpacity>
-
-              {/* Online Clash Pill - Fire Style */}
-              <TouchableOpacity
-                style={[
-                  styles.worldPill,
-                  profile?.strength_tier < 2 && { opacity: 0.4 }
-                ]}
+                key={mode.id}
                 onPress={() => {
-                  console.log('CLASH_BUTTON_PRESSED');
-                  if (onOpenClash) onOpenClash();
+                  if (isUnlocked) {
+                    mode.action?.();
+                  } else {
+                    Alert.alert('Locked', `Reach Tier ${mode.unlockTier} to unlock ${mode.name}.`);
+                  }
                 }}
+                style={[
+                  styles.worldPillCompact,
+                  {
+                    backgroundColor: isActive ? theme.accent : (theme.mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
+                    borderColor: isActive ? theme.accent : `${theme.accent}40`,
+                    opacity: isUnlocked ? 1 : 0.4
+                  }
+                ]}
               >
-                <Text style={[
-                  styles.worldIcon,
-                  { color: theme.text.secondary }
-                ]}>🔥</Text>
-                <Text style={[
-                  styles.worldText,
-                  { color: theme.text.secondary }
-                ]}>CLASH</Text>
-                {profile?.strength_tier < 2 && (
-                  <View style={styles.worldLockBadge}>
-                    <Text style={styles.worldLockIcon}>🔒</Text>
-                  </View>
-                )}
+                <Text style={{ fontSize: 12 }}>{mode.icon}</Text>
+                <Text style={[styles.worldPillText, { color: isActive ? '#000' : theme.text.primary }]} numberOfLines={1}>
+                  {mode.name}
+                </Text>
               </TouchableOpacity>
-
-              {/* Weekly Challenge Pill */}
-              <TouchableOpacity
-                style={styles.worldPill}
-                onPress={onOpenWeeklyChallenge}
-              >
-                <Text style={[
-                  styles.worldIcon,
-                  { color: theme.text.secondary }
-                ]}>🏆</Text>
-                <Text style={[
-                  styles.worldText,
-                  { color: theme.text.secondary }
-                ]}>WEEKLY</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-
-          {/* Unlock hint below selector */}
-          {!isPowerUnlocked && (
-            <Text style={[styles.worldUnlockHint, { color: theme.text.tertiary }]}>
-              🔒 Reach Platinum-Heart to unlock Power World
-            </Text>
-          )}
+            );
+          })}
         </View>
 
         {/* Tier Selector - Category-specific Tiers */}
@@ -882,58 +805,54 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     position: 'relative',
-    width: 130,
-    height: 130,
+    width: 170,
+    height: 170,
   },
-  avatarContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    zIndex: 1,
-  },
-  orbitRing: {
+  // Each concentric ring — sized and coloured dynamically in JSX
+  concentricRing: {
     position: 'absolute',
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    borderWidth: 1,
-    borderStyle: 'dashed',
-    opacity: 0.3,
   },
-  tierLevelBadge: {
+  // The centre content that sits on top of all rings
+  concentricCenter: {
     position: 'absolute',
-    bottom: -4,
-    right: -4,
-    width: 24,
-    height: 24,
-    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
   },
-  tierLevelText: {
-    fontSize: 12,
+  // Tier number shown large in the centre
+  arcTierNumber: {
+    fontSize: 30,
     fontWeight: '900',
-    color: '#000',
     fontFamily: 'PlusJakartaSans-ExtraBold',
+    lineHeight: 48, // Adjusted to centre large numbers
   },
-  avatarTierDot: {
-    position: 'absolute',
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  avatarInitial: {
+  profileNameHeader: {
     fontSize: 18,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 3,
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  // Tier name displayed below the rings
+  arcTierName: {
+    fontSize: 13,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 2,
+    marginTop: 10,
+  },
+  arcTierProgress: {
+    fontSize: 11,
+    fontWeight: '500',
+    marginTop: 3,
+    letterSpacing: 0.5,
+  },
+  avatarInitial: {
+    fontSize: 9,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 1,
   },
   tierBadges: {
     flexDirection: 'row',
@@ -1221,70 +1140,39 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-Regular',
   },
-  worldSelectorContainer: {
-    width: '100%',
-    marginBottom: 20,
-  },
-  worldSelectorScrollContent: {
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    minWidth: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  worldSelector: {
+  worldPillsGrid: {
     flexDirection: 'row',
-    padding: 4,
-    borderRadius: 28,
-    gap: 4,
-  },
-  worldPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexWrap: 'wrap',
     paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: 'rgba(255,255,255,0.1)',
-    marginRight: 10,
-  },
-  worldIcon: {
-    fontSize: 16,
-  },
-  worldText: {
-    fontSize: 11,
-    letterSpacing: 1.5,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  worldLockBadge: {
-    position: 'absolute',
-    top: -4,
-    right: -4,
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    backgroundColor: '#000',
-    alignItems: 'center',
+    gap: 8,
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#333',
-  },
-  worldLockIcon: {
-    fontSize: 10,
-  },
-  worldUnlockHint: {
-    fontSize: 10,
     marginTop: 8,
-    fontFamily: 'PlusJakartaSans-Regular',
+    marginBottom: 12
+  },
+  worldPillCompact: {
+    width: '23%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 6,
+    paddingVertical: 8,
+    borderRadius: 8,
+    borderWidth: 1,
+    gap: 4,
+    justifyContent: 'center'
+  },
+  worldPillText: {
+    fontSize: 7,
+    fontWeight: '900',
     letterSpacing: 0.5,
+    fontFamily: 'PlusJakartaSans-ExtraBold'
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   tierSelectorSection: {
-    marginTop: 16,
-    marginBottom: 16,
+    marginTop: 10,
+    marginBottom: 12,
   },
   tierList: {
     paddingHorizontal: 16,
@@ -1609,41 +1497,91 @@ const styles = StyleSheet.create({
   rankCardInner: {
     alignItems: 'center',
   },
-  statBarContainer: {
+  scoreBarCard: {
     width: '100%',
-    marginBottom: 0,
+    borderRadius: 12,
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    marginBottom: 10,
   },
-  statBarRow: {
+  scoreBarHead: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    width: '100%',
-    paddingVertical: 1, // Tighten vertical gap
+    marginBottom: 7,
   },
-  statBarIcon: {
-    fontSize: 14,
-    width: 24,
-    textAlign: 'center',
-    marginRight: -4,
-    zIndex: 2,
-    opacity: 0.9,
-  },
-  statBarValue: {
+  scoreBarTitle: {
     fontSize: 10,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    width: 36,
-    textAlign: 'right',
-    opacity: 0.8,
+    letterSpacing: 0.8,
   },
-  statBarTrack: {
-    flex: 1,
-    height: 8,
+  scoreBarSubtitle: {
+    fontSize: 8,
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
+  scoreBarTotal: {
+    fontSize: 18,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    lineHeight: 20,
+  },
+  scoreBarRank: {
+    fontSize: 8,
+    marginTop: 1,
+    letterSpacing: 0.2,
+  },
+  scoreBarTrack: {
+    width: '100%',
+    height: 5,
     borderRadius: 3,
+    borderWidth: 1,
     overflow: 'hidden',
+    marginBottom: 8,
   },
-  statBarFill: {
+  scoreBarFill: {
     height: '100%',
     borderRadius: 3,
+  },
+  scoreBarSheen: {
+    position: 'absolute',
+    top: 0, left: 0, right: 0,
+    height: '40%',
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderTopLeftRadius: 3,
+    borderTopRightRadius: 3,
+  },
+  scoreChips: {
+    flexDirection: 'row',
+    gap: 5,
+    flexWrap: 'wrap',
+  },
+  scoreChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderRadius: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+  },
+  scoreChipDot: {
+    width: 5,
+    height: 5,
+    borderRadius: 3,
+  },
+  scoreChipVal: {
+    fontSize: 9,
+    fontWeight: '700',
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  scoreChipLbl: {
+    fontSize: 8,
+    letterSpacing: 0.2,
   },
   warriorStatsCard: {
     marginHorizontal: 24,
@@ -1668,11 +1606,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   rightStatsColumn: {
-    flex: 2.2,
     backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 12,
+    padding: 10,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.08)',
+    borderColor: 'rgba(255,255,255,0.1)',
+    alignSelf: 'center',
   },
 });

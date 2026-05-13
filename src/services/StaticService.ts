@@ -75,6 +75,41 @@ export class StaticService {
       throw error;
     }
 
+    // 3. Update profile's aggregate static points (Well-Rounded Logic: Sum of Peaks)
+    try {
+      const { data: allHolds } = await supabase
+        .from('static_holds')
+        .select('movement_id, points')
+        .eq('user_id', userId);
+
+      if (allHolds) {
+        const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
+        
+        const peaks: Record<string, number> = {
+          handstand: 0,
+          front_lever: 0,
+          back_lever: 0,
+          planche: 0
+        };
+
+        allHolds.forEach(h => {
+          const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
+          if (m && h.points > (peaks[m.category] || 0)) {
+            peaks[m.category] = h.points;
+          }
+        });
+
+        const totalPoints = Object.values(peaks).reduce((sum, p) => sum + p, 0);
+
+        await supabase
+          .from('profiles')
+          .update({ statics_tier: totalPoints })
+          .eq('id', userId);
+      }
+    } catch (e) {
+      console.error('Error updating profile static points:', e);
+    }
+
     return true;
   }
 
