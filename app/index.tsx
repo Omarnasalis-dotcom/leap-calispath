@@ -58,6 +58,7 @@ export default function Index() {
   const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
   const [showClash, setShowClash] = React.useState(false);
   const [showBattle, setShowBattle] = React.useState(false);
+  const [isRestoring, setIsRestoring] = React.useState(true);
 
   // Trial configuration
   const [trialMode, setTrialMode] = React.useState<TrialMode>('progression');
@@ -93,6 +94,7 @@ export default function Index() {
         }
         if (lastScreen === 'tournament_arena') setShowTournamentArena(true);
         if (lastScreen === 'one_min_max') setShowOneMinMax(true);
+        if (lastScreen === 'power_world') setShowPowerWorld(true);
 
         const savedTournamentSession = await AsyncStorage.getItem('active_tournament_session');
         if (savedTournamentSession) {
@@ -103,6 +105,8 @@ export default function Index() {
         // ignore
       } finally {
         setOnboardingChecked(true);
+        // Wait one tick to ensure state has propagated before allowing saves
+        setTimeout(() => setIsRestoring(false), 500);
       }
     }
     initApp();
@@ -111,7 +115,7 @@ export default function Index() {
   // Save navigation state
   React.useEffect(() => {
     async function saveNavState() {
-      if (!onboardingChecked) return;
+      if (!onboardingChecked || isRestoring) return;
       let screen = 'profile';
       if (showWeeklyChallenge) screen = 'weekly_challenge';
       else if (showLeaderboards) {
@@ -124,11 +128,13 @@ export default function Index() {
       else if (showClash) screen = 'clash';
       else if (showGloryLeaderboard) screen = 'glory_leaderboard';
       else if (showTournamentArena) screen = 'tournament_arena';
+      else if (showOneMinMax) screen = 'one_min_max';
+      else if (showPowerWorld) screen = 'power_world';
       
       await AsyncStorage.setItem('last_screen', screen);
     }
     saveNavState();
-  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, showChampionsArena, showClash, showGloryLeaderboard, leaderboardCategory, leaderboardTier, onboardingChecked]);
+  }, [showWeeklyChallenge, showLeaderboards, showStaticWorld, showChampionsArena, showClash, showGloryLeaderboard, showTournamentArena, showOneMinMax, showPowerWorld, leaderboardCategory, leaderboardTier, onboardingChecked, isRestoring]);
 
   // Global Clash Listener
   React.useEffect(() => {

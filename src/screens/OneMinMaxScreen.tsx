@@ -321,19 +321,20 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                 }}
                 style={[
                   styles.exerciseFilterTab,
+                  { flex: cat === 'overall' ? 1.8 : 1, marginHorizontal: 2 },
                   isActive && { backgroundColor: '#FF7043', borderColor: '#FF7043' },
                   isLocked && { opacity: 0.3 }
                 ]}
               >
-                <Text style={[styles.exerciseFilterText, { color: isActive ? '#000' : theme.text.tertiary }]}>
-                  {cat === 'overall' ? 'OVERALL ENDURANCE' : cat.toUpperCase()}
+                <Text style={[styles.exerciseFilterText, { color: isActive ? '#000' : theme.text.tertiary, fontSize: cat === 'overall' ? 8 : 10 }]}>
+                  {cat === 'overall' ? 'ENDURANCE OVERALL' : cat.toUpperCase()}
                 </Text>
                 {cat === 'overall' && (
                   <MaterialCommunityIcons 
                     name="crown" 
                     size={10} 
                     color={isActive ? '#000' : theme.text.tertiary} 
-                    style={{ marginLeft: 4 }}
+                    style={{ marginLeft: 2 }}
                   />
                 )}
               </TouchableOpacity>
@@ -597,23 +598,32 @@ const styles = StyleSheet.create({
 
   modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
   modalSub: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
-
-  lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
+lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
   lbTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 3, fontFamily: 'PlusJakartaSans-ExtraBold' },
   lbSub: { fontSize: 8, fontWeight: '900', letterSpacing: 1.5, opacity: 0.6 },
   sectionHeader: { fontSize: 13, fontWeight: '900', letterSpacing: 2, textAlign: 'center', marginTop: 20, marginBottom: 10 },
-  exerciseFilter: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 20 },
-  exerciseFilterTab: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 10, 
-    borderRadius: 14, 
-    borderWidth: 1.5, 
-    borderColor: 'rgba(255,112,67,0.4)',
-    backgroundColor: 'rgba(255,255,255,0.02)',
+  exerciseFilter: {
     flexDirection: 'row',
-    alignItems: 'center'
+    justifyContent: 'space-between',
+    paddingHorizontal: 16,
+    marginBottom: 20,
+    width: '100%',
   },
-  exerciseFilterText: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  exerciseFilterTab: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#FF704340',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  exerciseFilterText: {
+    fontSize: 11,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
 
   peakGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 10, gap: 20 },
   peakItem: { alignItems: 'center', gap: 8, width: width * 0.22, marginBottom: 10 },
