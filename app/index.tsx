@@ -105,7 +105,7 @@ export default function Index() {
         // ignore
       } finally {
         setOnboardingChecked(true);
-        // Wait one tick to ensure state has propagated before allowing saves
+        // Wait for state to propagate
         setTimeout(() => setIsRestoring(false), 500);
       }
     }
