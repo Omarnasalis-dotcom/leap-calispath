@@ -365,22 +365,6 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
                 <MaterialCommunityIcons name="brain" size={48} color={theme.accent} />
                 <Text style={[styles.welcomeTitle, { color: textColor }]}>Arena Mentor</Text>
                 <Text style={[styles.welcomeSub, { color: subtextColor }]}>Analyze your performance or plan your next tier-up.</Text>
-                
-                <View style={styles.chipsGrid}>
-                  {SUGGESTED_QUESTIONS.map((q, i) => (
-                    <TouchableOpacity
-                      key={i}
-                      style={[styles.chip, {
-                        borderColor: `${theme.accent}50`,
-                        backgroundColor: cardBg,
-                      }]}
-                      onPress={() => sendMessage(q)}
-                      disabled={loading || dailyUsage >= DAILY_LIMIT}
-                    >
-                      <Text style={[styles.chipText, { color: theme.accent }]}>{q}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
               </View>
             )}
 
@@ -403,9 +387,54 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             )}
           </ScrollView>
 
+          {dailyUsage < DAILY_LIMIT ? (
+            <View style={[styles.chipsWrap, { borderTopColor: theme.accent + '20' }]}>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                contentContainerStyle={styles.chipsScroll}
+              >
+                {SUGGESTED_QUESTIONS.map((q, i) => (
+                  <TouchableOpacity
+                    key={i}
+                    style={[styles.chip, {
+                      borderColor: `${theme.accent}50`,
+                      backgroundColor: cardBg,
+                    }]}
+                    onPress={() => sendMessage(q)}
+                    disabled={loading}
+                  >
+                    <Text style={[styles.chipText, { color: theme.accent }]}>{q}</Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+          ) : (
+            <View style={[styles.quotaExhausted, { 
+              backgroundColor: isDark ? '#111' : '#F5F5F5',
+              borderTopColor: theme.accent + '20',
+            }]}>
+              <Text style={[styles.quotaExhaustedText, { color: subtextColor }]}>
+                🏛️ Daily sessions exhausted — resets at midnight
+              </Text>
+            </View>
+          )}
+
           <View style={[styles.inputContainer, { borderTopColor: theme.accent + '15', backgroundColor: isDark ? '#0D0D0D' : '#F9F9F9' }]}>
-            <TextInput style={[styles.input, { color: textColor }]} value={inputText} onChangeText={setInputText} placeholder={`Speak, Warrior... (${DAILY_LIMIT} sessions/day)`} placeholderTextColor={subtextColor} multiline />
-            <TouchableOpacity onPress={sendMessage} disabled={loading || !inputText.trim()} style={[styles.sendBtn, { backgroundColor: inputText.trim() ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}>
+            <TextInput 
+              style={[styles.input, { color: textColor }]} 
+              value={inputText} 
+              onChangeText={setInputText} 
+              placeholder={`Speak, Warrior... (${DAILY_LIMIT} sessions/day)`} 
+              placeholderTextColor={subtextColor} 
+              multiline 
+              editable={dailyUsage < DAILY_LIMIT}
+            />
+            <TouchableOpacity 
+              onPress={() => sendMessage()} 
+              disabled={loading || !inputText.trim() || dailyUsage >= DAILY_LIMIT} 
+              style={[styles.sendBtn, { backgroundColor: (inputText.trim() && dailyUsage < DAILY_LIMIT) ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}
+            >
               {loading ? <ActivityIndicator color="#000" size="small" /> : <MaterialCommunityIcons name="send" size={18} color="#000" />}
             </TouchableOpacity>
           </View>
@@ -446,21 +475,35 @@ const styles = StyleSheet.create({
   welcomeContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
   welcomeTitle: { fontSize: 24, fontWeight: '900', marginTop: 16 },
   welcomeSub: { fontSize: 14, textAlign: 'center', marginTop: 8, opacity: 0.7 },
-  chipsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
+  chipsWrap: {
+    borderTopWidth: 0.5,
+    paddingVertical: 10,
+  },
+  chipsScroll: {
+    paddingHorizontal: 16,
     gap: 8,
-    marginTop: 20,
-    justifyContent: 'center',
+    flexDirection: 'row',
   },
   chip: {
     borderWidth: 1,
     borderRadius: 20,
     paddingHorizontal: 14,
     paddingVertical: 8,
+    flexShrink: 0,
   },
   chipText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  quotaExhausted: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderTopWidth: 0.5,
+    alignItems: 'center',
+  },
+  quotaExhaustedText: {
+    fontSize: 12,
+    fontWeight: '500',
+    letterSpacing: 0.3,
   },
 });
