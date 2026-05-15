@@ -22,7 +22,7 @@ import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-1.5-flash'; 
+const GEMINI_MODEL = 'gemini-1.5-flash-latest'; 
 
 const SYSTEM_PROMPT = `You are the AI Warrior Coach for Leap Calisthenics Arena. Be concise, professional, and data-driven. Greet the warrior, provide a "Warrior Report" with their stats, and ask one focused training question.`;
 
@@ -96,7 +96,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
 
     try {
       // Reverting to the absolute simplest v1 POST request that worked earlier
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -118,7 +118,8 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       
       if (!response.ok) {
         const errorBody = await response.text();
-        Alert.alert('API Error', `Status: ${response.status}\n${errorBody}`);
+        console.error('Gemini API Error:', response.status, errorBody);
+        setMessages([{ role: 'assistant', content: `**API Error (${response.status}):** ${errorBody.slice(0, 100)}...` }]);
         return;
       }
 
@@ -128,15 +129,10 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       if (text) {
         setMessages([{ role: 'assistant', content: text }]);
       } else {
-        throw new Error();
+        throw new Error('No text in response');
       }
     } catch (error: any) {
-      const errorDetails = JSON.stringify({
-        status: error?.status,
-        message: error?.message,
-        response: error?.response,
-      });
-      Alert.alert('Debug Error', errorDetails);
+      console.error('Coach Session Error:', error);
       setMessages([{ role: 'assistant', content: report }]);
     } finally {
       setLoading(false);
@@ -160,7 +156,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     setLoading(true);
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -182,22 +178,21 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       
       if (!response.ok) {
         const errorBody = await response.text();
-        Alert.alert('API Error', `Status: ${response.status}\n${errorBody}`);
+        console.error('Gemini Send Error:', response.status, errorBody);
+        setMessages(prev => [...prev, { role: 'assistant', content: `**Error:** API returned ${response.status}. Please check your key.` }]);
         return;
       }
 
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) setMessages(prev => [...prev, { role: 'assistant', content: text }]);
-      else throw new Error();
+      if (text) {
+        setMessages(prev => [...prev, { role: 'assistant', content: text }]);
+      } else {
+        throw new Error('Empty response from Gemini');
+      }
     } catch (error: any) {
-      const errorDetails = JSON.stringify({
-        status: error?.status,
-        message: error?.message,
-        response: error?.response,
-      });
-      Alert.alert('Debug Error', errorDetails);
-      setMessages(prev => [...prev, { role: 'assistant', content: "Arena wisdom is flickering. Please check your connection." }]);
+      console.error('Coach Message Error:', error);
+      setMessages(prev => [...prev, { role: 'assistant', content: "Arena wisdom is flickering. Check your API key and connection." }]);
     } finally {
       setLoading(false);
     }
