@@ -21,6 +21,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
+import { RITES_OF_PASSAGE } from '../lib/trials';
+
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
 const GEMINI_MODEL = 'gemini-2.0-flash-lite'; 
 
@@ -41,6 +43,12 @@ WARRIOR DATA:
 - Power Points: ${profile.power_points || 0}
 - 1MM Points: ${profile.one_mm_points || 0}
 - Power World: ${(profile.strength_tier || 0) >= 6 ? 'Unlocked' : `Locked — needs Tier 6, at Tier ${profile.strength_tier}`}
+${(() => {
+  const nextTier = (profile.strength_tier || 0) + 1;
+  const trial = RITES_OF_PASSAGE.find(t => t.tier === nextTier);
+  if (!trial) return '';
+  return `\nNEXT RITE OF PASSAGE (Tier ${nextTier} requirements):\n${trial.movements.map((m: any) => `- ${m.name}: ${m.reps} reps`).join('\n')}`;
+})()}
 
 STRICT RULES — follow every one:
 1. NEVER repeat the warrior's stats back to them unless they ask
@@ -91,9 +99,19 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  const [dailyUsage, setDailyUsage] = useState(0);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const [globalRank, setGlobalRank] = useState<number | string>('--');
   const scrollViewRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    async function loadUsage() {
+      if (!user?.id) return;
+      const count = await getDailyUsage(user.id);
+      setDailyUsage(count);
+    }
+    loadUsage();
+  }, [user?.id]);
 
 
 
@@ -186,8 +204,9 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
   };
 
-  const sendMessage = async () => {
-    if (!inputText.trim() || loading) return;
+  const sendMessage = async (text?: string) => {
+    const finalInput = text || inputText;
+    if (!finalInput.trim() || loading) return;
 
     const now = Date.now();
     const secondsSinceLast = (now - lastMessageTime) / 1000;
@@ -207,10 +226,10 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
 
     setLastMessageTime(now);
-    const userMsg: Message = { role: 'user', content: inputText };
+    const userMsg: Message = { role: 'user', content: finalInput };
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
-    setInputText('');
+    if (!text) setInputText('');
     setLoading(true);
 
     const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
@@ -262,10 +281,11 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       }
 
       const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (text) {
-        setMessages(prev => [...prev, { role: 'assistant', content: text }]);
+      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      if (textResponse) {
+        setMessages(prev => [...prev, { role: 'assistant', content: textResponse }]);
         await incrementDailyUsage(user!.id);
+        setDailyUsage(prev => prev + 1);
       } else {
         throw new Error('Empty response from Gemini');
       }
@@ -318,9 +338,20 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             <TouchableOpacity onPress={onBack} style={styles.iconBtn}>
               <MaterialCommunityIcons name="close" size={22} color={subtextColor} />
             </TouchableOpacity>
-            <View style={styles.headerTitleRow}>
-              <View style={[styles.liveDot, { backgroundColor: theme.accent }]} />
-              <Text style={[styles.headerText, { color: textColor }]}>WARRIOR COACH</Text>
+            <View style={styles.headerCenter}>
+              <Text style={[styles.headerTitle, { color: textColor }]}>⚔️ WARRIOR COACH</Text>
+              <Text style={[styles.headerSub, { color: subtextColor }]}>
+                AI · {TIER_NAMES[profile?.strength_tier || 0]} Analysis
+              </Text>
+              <Text style={[styles.quotaText, {
+                color: dailyUsage >= DAILY_LIMIT
+                  ? '#A32D2D'
+                  : dailyUsage >= DAILY_LIMIT - 3
+                  ? '#854F0B'
+                  : subtextColor
+              }]}>
+                {DAILY_LIMIT - dailyUsage}/{DAILY_LIMIT} sessions today
+              </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
@@ -329,6 +360,30 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
           </View>
 
           <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
+            {messages.length === 0 && (
+              <View style={styles.welcomeContainer}>
+                <MaterialCommunityIcons name="brain" size={48} color={theme.accent} />
+                <Text style={[styles.welcomeTitle, { color: textColor }]}>Arena Mentor</Text>
+                <Text style={[styles.welcomeSub, { color: subtextColor }]}>Analyze your performance or plan your next tier-up.</Text>
+                
+                <View style={styles.chipsGrid}>
+                  {SUGGESTED_QUESTIONS.map((q, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[styles.chip, {
+                        borderColor: `${theme.accent}50`,
+                        backgroundColor: cardBg,
+                      }]}
+                      onPress={() => sendMessage(q)}
+                      disabled={loading || dailyUsage >= DAILY_LIMIT}
+                    >
+                      <Text style={[styles.chipText, { color: theme.accent }]}>{q}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
+
             {messages.length === 0 && loading ? (
               <View style={styles.loadingState}>
                 <ActivityIndicator color={theme.accent} size="large" />
@@ -384,4 +439,28 @@ const styles = StyleSheet.create({
   sendBtn: { width: 44, height: 44, borderRadius: 22, justifyContent: 'center', alignItems: 'center', marginLeft: 12 },
   loadingState: { flex: 1, alignItems: 'center', justifyContent: 'center', marginTop: 100 },
   loadingText: { fontSize: 10, fontWeight: '900', letterSpacing: 2, marginTop: 20 },
+  headerCenter: { alignItems: 'center', flex: 1 },
+  headerTitle: { fontSize: 13, fontWeight: '900', letterSpacing: 2 },
+  headerSub: { fontSize: 10, fontWeight: '600', marginTop: 1 },
+  quotaText: { fontSize: 10, fontWeight: '500', marginTop: 2, letterSpacing: 0.3 },
+  welcomeContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
+  welcomeTitle: { fontSize: 24, fontWeight: '900', marginTop: 16 },
+  welcomeSub: { fontSize: 14, textAlign: 'center', marginTop: 8, opacity: 0.7 },
+  chipsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 20,
+    justifyContent: 'center',
+  },
+  chip: {
+    borderWidth: 1,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+  },
+  chipText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
 });
