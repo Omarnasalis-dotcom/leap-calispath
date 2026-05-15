@@ -22,7 +22,7 @@ import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-flash-lite-latest'; 
+const GEMINI_MODEL = 'gemini-1.5-flash'; 
 
 const SYSTEM_PROMPT = `You are the AI Warrior Coach.
 ARENA LOGIC:
