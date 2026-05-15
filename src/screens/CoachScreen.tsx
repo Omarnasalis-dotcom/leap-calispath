@@ -96,12 +96,11 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
 
     try {
       // Reverting to the absolute simplest v1 POST request that worked earlier
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_KEY
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           system_instruction: {
@@ -161,12 +160,11 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     setLoading(true);
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
-          'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_KEY
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({
           system_instruction: {
