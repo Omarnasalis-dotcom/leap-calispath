@@ -215,12 +215,26 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Gemini error:', response.status, errorText);
-        setMessages(prev => [...prev, {
-          role: 'assistant',
-          content: `Error ${response.status}: ${errorText.slice(0, 200)}`,
-        }]);
+        const errorBody = await response.json().catch(() => ({}));
+        const errorCode = errorBody?.error?.code;
+        const errorMessage = errorBody?.error?.message || '';
+
+        if (errorCode === 403 || errorMessage.toLowerCase().includes('quota')) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'The coach is resting — daily training limit reached. Come back tomorrow for more wisdom, warrior. 🏛️',
+          }]);
+        } else if (errorCode === 429) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'The coach is resting — daily training limit reached. Come back tomorrow for more wisdom, warrior. 🏛️',
+          }]);
+        } else {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            content: 'Coach is temporarily unreachable. Check your connection and try again.',
+          }]);
+        }
         return;
       }
 
@@ -233,10 +247,9 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         throw new Error('Empty response from Gemini');
       }
     } catch (error: any) {
-      console.error('Fetch failed:', error.message);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Fetch failed: ${error.message}`,
+        content: 'Coach is temporarily unreachable. Check your connection and try again.',
       }]);
     } finally {
       setLoading(false);
