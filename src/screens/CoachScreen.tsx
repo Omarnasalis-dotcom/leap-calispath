@@ -53,9 +53,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
   const [globalRank, setGlobalRank] = useState<number | string>('--');
   const scrollViewRef = useRef<ScrollView>(null);
 
-  if (!process.env['EXPO_PUBLIC_GEMINI_KEY']) {
-    Alert.alert('Missing Key', 'EXPO_PUBLIC_GEMINI_KEY is not set.');
-  }
+
 
   const STORAGE_KEY = `coach_v14_${profile?.id}`;
 
