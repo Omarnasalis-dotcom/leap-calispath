@@ -4,6 +4,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ArenaPhase, ArenaStep, ArenaService } from '../services/ArenaService';
 import { useAuth } from '../contexts/AuthContext';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { Vibration } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -18,10 +20,28 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   const { user } = useAuth();
   const [seconds, setSeconds] = useState(0);
   const [isActive, setIsActive] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      setIsActive(true);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
 
   useEffect(() => {
     if (isActive) {
@@ -100,7 +120,17 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   const timeDiff = seconds - expectedProTime;
   const isAhead = timeDiff < 0;
 
-  if (!isActive && seconds === 0) {
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+  };
+
+  if (!isActive && !isPreparing && seconds === 0) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
         <View style={styles.prepareBox}>
@@ -117,13 +147,25 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
             ))}
           </View>
 
-          <TouchableOpacity style={styles.startButton} onPress={() => setIsActive(true)}>
+          <TouchableOpacity style={styles.startButton} onPress={handleStartWithLeadIn}>
             <Text style={styles.startButtonText}>LEAP NOW</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
             <Text style={[styles.cancelButtonText, { color: theme.text.tertiary }]}>ABANDON ARENA</Text>
           </TouchableOpacity>
         </View>
+      </View>
+    );
+  }
+
+  if (isPreparing) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[styles.prepareLabel, { color: '#D32F2F', fontSize: 24 }]}>{preCountdown}s</Text>
+        <Text style={[styles.prepareTitle, { color: theme.text.primary, marginTop: 20 }]}>GET READY</Text>
+        <TouchableOpacity style={[styles.cancelButton, { marginTop: 40 }]} onPress={cancelPreparation}>
+          <Text style={[styles.cancelButtonText, { color: theme.text.tertiary, fontSize: 16 }]}>CANCEL PREPARATION</Text>
+        </TouchableOpacity>
       </View>
     );
   }

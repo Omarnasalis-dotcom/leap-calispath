@@ -10,6 +10,7 @@ import { ClashService, ClashSession } from '../services/ClashService';
 import { ClashLogic, ClashProtocol } from '../lib/clashLogic';
 import { supabase } from '../lib/supabase';
 import { CelebrationBanner } from '../components/CelebrationBanner';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -83,20 +84,27 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
       const startTime = new Date(session.start_time).getTime();
       const interval = setInterval(() => {
         const diff = Math.ceil((startTime - Date.now()) / 1000);
-        if (diff > 0) {
-          setCountdown(diff);
+        if (diff > 0 && diff <= 5) {
+          if (diff !== countdown) {
+            setCountdown(diff);
+            SoundService.playTick();
+          }
         } else if (diff === 0) {
-          setCountdown(0); // Display '0' or 'GO' briefly
-        } else {
+          if (countdown !== 0) {
+            setCountdown(0);
+            SoundService.playBoxingBell();
+            Vibration.vibrate(100);
+          }
+        } else if (diff < 0) {
           setCountdown(null);
           setBattleStarted(true);
           if (!timerRef.current) startTimer();
           clearInterval(interval);
         }
-      }, 200);
+      }, 100); // Higher frequency for precision
       return () => clearInterval(interval);
     } else if (session.status === 'accepted' && session.sender_id === user.id && !session.start_time) {
-      // Fallback: if protocol wasn't set at acceptance, generate now
+      // Set start time 6 seconds in future to allow for 5s countdown + buffer
       const masterStartTime = new Date(Date.now() + 6000).toISOString();
       const generatedProtocol = ClashLogic.generateProtocol(session.bracket);
       supabase.from('clash_sessions').update({ 

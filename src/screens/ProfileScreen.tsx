@@ -10,6 +10,7 @@ import {
   Modal,
   Alert,
   SafeAreaView,
+  Platform,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -21,12 +22,14 @@ import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { BlurView } from 'expo-blur';
 
 import { getTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 
 interface ProfileScreenProps {
@@ -40,6 +43,7 @@ interface ProfileScreenProps {
   onOpenClash?: () => void;
   onOpenTournamentArena?: () => void;
   onOpenOneMinMax?: () => void;
+  onOpenCoach?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
@@ -55,6 +59,7 @@ export function ProfileScreen({
   onOpenClash,
   onOpenTournamentArena,
   onOpenOneMinMax,
+  onOpenCoach,
   initialCategory = 'strength',
   initialTier = 0,
 }: ProfileScreenProps) {
@@ -67,6 +72,7 @@ export function ProfileScreen({
   const [showLevelReveal, setShowLevelReveal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
+  const [isMuted, setIsMuted] = useState(SoundService.getMuted());
 
   // Leaderboard Modal State
   const [showWRALeaderboard, setShowWRALeaderboard] = useState(false);
@@ -163,6 +169,8 @@ export function ProfileScreen({
     }
     syncAllPoints();
   }, [profile?.id]);
+
+  const [showCoachPrompt, setShowCoachPrompt] = useState(false);
 
   if (!profile) return null;
 
@@ -281,15 +289,26 @@ export function ProfileScreen({
         <View style={styles.header}>
           {/* User Avatar with Tier Info */}
           <View style={styles.avatarSection}>
-            {/* User Display Name Above Rings */}
-            <Text style={[styles.profileNameHeader, { color: theme.accent }]} numberOfLines={1}>
-              {profile.display_name?.toUpperCase() || 'WARRIOR'}
-            </Text>
+            {/* User Display Name Above Rings with Coach Trigger */}
+            <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 10 }}>
+              <TouchableOpacity 
+                activeOpacity={0.7}
+                onPress={() => setShowCoachPrompt(true)}
+                style={styles.nameHeaderCoachBtn}
+              >
+                <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40' }]}>
+                  <MaterialCommunityIcons name="brain" size={14} color={theme.accent} />
+                  <Text style={[styles.coachBadgeText, { color: theme.accent }]}>COACH</Text>
+                </View>
+              </TouchableOpacity>
 
-            {/* Concentric rings avatar — 8 rings, one per tier, filled outward */}
+              <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
+                {profile.display_name?.toUpperCase() || 'WARRIOR'}
+              </Text>
+            </View>
+
             <View style={styles.avatarWrapper}>
-
-              {/* ... existing rings ... */}
+              {/* Concentric rings avatar — 8 rings, one per tier, filled outward */}
               {Array.from({ length: 8 }).map((_, i) => {
                 const ringIndex = i + 1;
                 const filled = ringIndex <= activeCurrentTier;
@@ -329,7 +348,6 @@ export function ProfileScreen({
                   {activeCurrentTier}
                 </Text>
               </View>
-
             </View>
 
             {/* Tier name + progress label below the rings */}
@@ -367,10 +385,10 @@ export function ProfileScreen({
                 ]}
               />
               <ScoreBar
-                title="✨ Glory"
-                subtitle="Tournaments · Clashes"
+                title="🏆 Glory Arena"
+                subtitle="Competitive Clash Performance"
                 score={gloryPts}
-                rank="Leaderboard →"
+                rank="Arena Ranks →"
                 max={GLORY_MAX}
                 color="#FF5252"
                 onPress={fetchGloryLeaderboard}
@@ -553,11 +571,11 @@ export function ProfileScreen({
             <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
               <View style={[styles.progressFill, {
                 backgroundColor: theme.accent,
-                width: `${((profile?.strength_tier ?? 0) / 8) * 100}%`
+                width: `${((profile?.strength_tier ?? 0) / 9) * 100}%`
               }]} />
             </View>
             <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
-              TIER {profile?.strength_tier ?? 0} OF 8 — {Math.round(((profile?.strength_tier ?? 0) / 8) * 100)}% COMPLETE
+              TIER {profile?.strength_tier ?? 0} OF 9 — {Math.round(((profile?.strength_tier ?? 0) / 9) * 100)}% COMPLETE
             </Text>
           </View>
         )}
@@ -714,6 +732,21 @@ export function ProfileScreen({
           )}
         </WarriorCard>
 
+        {/* Sound Toggle */}
+        <TouchableOpacity 
+          style={styles.signOutButton} 
+          onPress={() => {
+            const next = !isMuted;
+            setIsMuted(next);
+            SoundService.setMuted(next);
+          }}
+        >
+          <View style={[styles.signOutDot, { backgroundColor: isMuted ? '#FF5252' : '#4CAF50' }]} />
+          <Text style={[styles.signOutText, { color: theme.text.tertiary }]}>
+            ARENA SOUNDS: {isMuted ? 'MUTED' : 'ENABLED'}
+          </Text>
+        </TouchableOpacity>
+
         {/* Sign Out */}
         <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
           <View style={[styles.signOutDot, { backgroundColor: theme.text.tertiary }]} />
@@ -785,7 +818,7 @@ export function ProfileScreen({
               <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
                 <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
                 <View style={styles.movementsList}>
-                  {RITES_OF_PASSAGE[modalTier].movements.slice(0, 4).map((movement, idx) => (
+                  {RITES_OF_PASSAGE[modalTier].movements.map((movement, idx) => (
                     <View key={idx} style={styles.movementItem}>
                       <View style={[styles.movementDot, { backgroundColor: theme.accent }]} />
                       <Text style={[styles.movementText, { color: theme.text.secondary }]}>
@@ -793,11 +826,6 @@ export function ProfileScreen({
                       </Text>
                     </View>
                   ))}
-                  {RITES_OF_PASSAGE[modalTier].movements.length > 4 && (
-                    <Text style={[styles.moreText, { color: theme.text.tertiary }]}>
-                      +{RITES_OF_PASSAGE[modalTier].movements.length - 4} more...
-                    </Text>
-                  )}
                 </View>
               </View>
             )}
@@ -987,6 +1015,47 @@ export function ProfileScreen({
           </SafeAreaView>
         </View>
       </Modal>
+
+      {/* AI COACH PROMPT MODAL */}
+      <Modal
+        visible={showCoachPrompt}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowCoachPrompt(false)}
+      >
+        <View style={styles.coachPromptOverlay}>
+          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+          <View style={[styles.coachPromptCard, { backgroundColor: theme.card.background, borderColor: theme.accent + '40' }]}>
+            <View style={[styles.coachPromptIconCircle, { backgroundColor: theme.accent + '15' }]}>
+              <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
+            </View>
+            
+            <Text style={[styles.coachPromptTitle, { color: theme.text.primary }]}>LEAP COACH</Text>
+            <Text style={[styles.coachPromptText, { color: theme.text.secondary }]}>
+              Want to ask coach LEAP for guidance?
+            </Text>
+
+            <View style={styles.coachPromptButtons}>
+              <TouchableOpacity 
+                style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]} 
+                onPress={() => setShowCoachPrompt(false)}
+              >
+                <Text style={[styles.coachPromptBtnText, { color: theme.text.tertiary }]}>NOT NOW</Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity 
+                style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]} 
+                onPress={() => {
+                  setShowCoachPrompt(false);
+                  onOpenCoach?.();
+                }}
+              >
+                <Text style={[styles.coachPromptBtnText, { color: '#000' }]}>ASK LEAP</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -1030,6 +1099,88 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
+  },
+  nameHeaderCoachBtn: {
+    position: 'absolute',
+    left: 10,
+    top: -5,
+    zIndex: 100,
+  },
+  coachBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  coachBadgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  coachPromptOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  coachPromptCard: {
+    width: '100%',
+    maxWidth: 340,
+    borderRadius: 24,
+    padding: 32,
+    alignItems: 'center',
+    borderWidth: 1,
+    elevation: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.5,
+    shadowRadius: 20,
+  },
+  coachPromptIconCircle: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 20,
+  },
+  coachPromptTitle: {
+    fontSize: 18,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 8,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  coachPromptText: {
+    fontSize: 14,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 20,
+    opacity: 0.8,
+  },
+  coachPromptButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    width: '100%',
+  },
+  coachPromptBtn: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  coachPromptBtnSecondary: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  coachPromptBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   // Tier number shown large in the centre
   arcTierNumber: {

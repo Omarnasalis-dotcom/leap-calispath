@@ -160,14 +160,17 @@ export class TournamentService {
       const allSubmitted = activeParticipants.every(p => p.scores && p.scores[day]);
 
       if (allSubmitted && activeParticipants.length > 0) {
-        const { data: session } = await supabase
-          .from('tournament_sessions')
-          .select('current_round')
-          .eq('id', sessionId)
-          .single();
+        // IDEMPOTENCY GUARD: Claim lock to prevent multiple advances
+        const { data: lockAcquired } = await supabase.rpc('claim_tournament_advance_lock', { p_session_id: sessionId });
 
-        console.log('AUTO_ADVANCE: day completed =', day, 'advancing to', day + 1);
-        await this.advanceToRound(sessionId, day + 1);
+        if (lockAcquired) {
+          try {
+            console.log('AUTO_ADVANCE: day completed =', day, 'advancing to', day + 1);
+            await this.advanceToRound(sessionId, day + 1);
+          } finally {
+            await supabase.rpc('release_tournament_advance_lock', { p_session_id: sessionId });
+          }
+        }
       }
 
       return { success: true, finalScore: updatedFinal };
@@ -240,8 +243,17 @@ export class TournamentService {
 
       console.log('TRIALS_CHECK: allExhausted =', allExhausted, 'trials_used =', participant.trials_used + 1, 'max =', config.max_trials);
       if (allExhausted && allParticipants && allParticipants.length > 0) {
-        console.log('AUTO_CLOSING rank-based tournament');
-        await this.closeRankBasedTournament(sessionId);
+        // IDEMPOTENCY GUARD: Claim lock to prevent multiple closures
+        const { data: lockAcquired } = await supabase.rpc('claim_tournament_advance_lock', { p_session_id: sessionId });
+
+        if (lockAcquired) {
+          try {
+            console.log('AUTO_CLOSING rank-based tournament');
+            await this.closeRankBasedTournament(sessionId);
+          } finally {
+            await supabase.rpc('release_tournament_advance_lock', { p_session_id: sessionId });
+          }
+        }
       }
 
       return {
@@ -625,6 +637,9 @@ export class TournamentService {
         .order('last_trial_at', { ascending: true }); // Tiebreak: earlier trial wins
 
       if (!participants) return;
+
+      // ATOMIC CHECK: Ensure tournament isn't already completed
+      if (session.status === 'completed') return;
 
       await supabase
         .from('tournament_sessions')

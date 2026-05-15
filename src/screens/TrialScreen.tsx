@@ -14,6 +14,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { Vibration } from 'react-native';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
@@ -119,17 +121,24 @@ export function TrialScreen({
   }, [isRunning]);
 
   function startTrial() {
-    setPrepCountdown(3);
+    setPrepCountdown(5);
+  }
+
+  function cancelPreparation() {
+    setPrepCountdown(null);
   }
 
   useEffect(() => {
     if (prepCountdown === null) return;
 
     if (prepCountdown > 0) {
+      SoundService.playTick();
       const timer = setTimeout(() => setPrepCountdown(prepCountdown - 1), 1000);
       return () => clearTimeout(timer);
     } else {
       setHasStarted(true);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
       startTimer();
     }
   }, [prepCountdown]);
@@ -438,12 +447,19 @@ export function TrialScreen({
         </View>
       )}
 
-      {/* Countdown - Moved to top */}
+      {/* Countdown - Standardized overlay style */}
       {!hasStarted && prepCountdown !== null && (
         <View style={styles.countdownContainer}>
           <Text style={[styles.countdownText, { color: theme.accent }]}>
             {prepCountdown === 0 ? 'GO!' : prepCountdown}
           </Text>
+          <Text style={{ color: theme.text.tertiary, fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 }}>GET READY</Text>
+          <TouchableOpacity 
+            style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 40, paddingHorizontal: 20 }]} 
+            onPress={cancelPreparation}
+          >
+            <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+          </TouchableOpacity>
         </View>
       )}
 
@@ -817,5 +833,17 @@ const styles = StyleSheet.create({
     fontSize: 48,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  cancelBtn: {
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontSize: 12,
+    fontWeight: '900',
+    letterSpacing: 2,
   },
 });

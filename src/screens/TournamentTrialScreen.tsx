@@ -8,6 +8,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface Props {
@@ -34,6 +35,8 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
   const roundConfig = propRoundConfig || route?.params?.roundConfig;
 
   const [isActive, setIsActive] = useState(false);
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
   const [isFinished, setIsFinished] = useState(false);
   const [sessionType, setSessionType] = useState<'knockout' | 'rank_based' | null>(null);
   const maxSeconds = (roundConfig as any).max_seconds || 240;
@@ -63,6 +66,33 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
     }
     fetchSession();
   }, [sessionId]);
+
+  // Lead-in Timer Logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      setIsActive(true);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
+
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+  };
 
   useEffect(() => {
     if (isActive && !isFinished) {
@@ -96,6 +126,9 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
   const handleFinish = () => {
     setIsActive(false);
     setIsFinished(true);
+    if (roundConfig.mode === 'amrap') {
+      SoundService.playDigitalBuzzer(2);
+    }
     Vibration.vibrate([0, 500, 200, 500]);
   };
 
@@ -329,8 +362,19 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
         </ScrollView>
 
         <View style={styles.footer}>
-          {!isActive && !isFinished ? (
-            <TouchableOpacity style={[styles.mainBtn, { backgroundColor: theme.accent }]} onPress={() => setIsActive(true)}>
+          {isPreparing ? (
+            <View style={{ alignItems: 'center', width: '100%' }}>
+              <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
+              <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+              <TouchableOpacity 
+                style={[styles.finishBtn, { borderColor: theme.text.tertiary }]} 
+                onPress={cancelPreparation}
+              >
+                <Text style={{ color: theme.text.tertiary, fontWeight: '900' }}>CANCEL PREPARATION</Text>
+              </TouchableOpacity>
+            </View>
+          ) : !isActive && !isFinished ? (
+            <TouchableOpacity style={[styles.mainBtn, { backgroundColor: theme.accent }]} onPress={handleStartWithLeadIn}>
               <Text style={styles.mainBtnText}>START BATTLE</Text>
             </TouchableOpacity>
           ) : isFinished ? (

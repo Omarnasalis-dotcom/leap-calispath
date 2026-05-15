@@ -20,18 +20,27 @@ export interface WeeklyChallenge {
 
 export class ChallengeService {
   /**
-   * Gets the stable Saturday start date for the current week
+   * Gets the stable Saturday start date for the current week using UTC
    */
   static getCurrentWeekStart(): string {
     const now = new Date();
-    const day = now.getDay();
+    // Use UTC day: 0 (Sun) to 6 (Sat)
+    const day = now.getUTCDay();
+    // Calculate how many days back to get to the most recent Saturday
+    // If it's Saturday (6), daysBack = 0
+    // If it's Sunday (0), daysBack = 1
+    // If it's Friday (5), daysBack = 6
     const daysBack = (day + 1) % 7;
-    const saturday = new Date(now);
-    saturday.setDate(now.getDate() - daysBack);
     
-    const year = saturday.getFullYear();
-    const month = String(saturday.getMonth() + 1).padStart(2, '0');
-    const date = String(saturday.getDate()).padStart(2, '0');
+    const saturday = new Date(Date.UTC(
+      now.getUTCFullYear(),
+      now.getUTCMonth(),
+      now.getUTCDate() - daysBack
+    ));
+    
+    const year = saturday.getUTCFullYear();
+    const month = String(saturday.getUTCMonth() + 1).padStart(2, '0');
+    const date = String(saturday.getUTCDate()).padStart(2, '0');
     
     return `${year}-${month}-${date}`;
   }

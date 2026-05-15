@@ -15,6 +15,8 @@ import { useTimer } from '../hooks/useTimer';
 import { getOrdinalRank } from '../lib/leaderboard';
 import { MOVEMENT_POINTS } from '../lib/weeklyChallenge';
 import { CelebrationBanner } from '../components/CelebrationBanner';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { Vibration } from 'react-native';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -56,12 +58,32 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
 
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
+
+  // Lead-in Timer Logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+      startTimer();
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
+
   // Sync timer when challenge loads
   useEffect(() => {
-    if (challenge && !timerRunning) {
+    if (challenge && !timerRunning && !isPreparing) {
       setTimerSeconds(timerInitial);
     }
-  }, [challenge, timerInitial]);
+  }, [challenge, timerInitial, isPreparing]);
   const [manualScore, setManualScore] = useState('');
   const [submitting, setSubmitting] = useState(false);
   // Reps-based challenge state
@@ -93,8 +115,22 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   useEffect(() => {
     if (challenge?.scoring_type === 'reps' && challenge.time_limit && timerRunning && timerSeconds <= 0) {
       stopTimer();
+      SoundService.playDigitalBuzzer(2);
+      Vibration.vibrate([0, 500, 200, 500]);
     }
   }, [timerRunning, timerSeconds, challenge]);
+
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+    resetTimer();
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+    resetTimer();
+  };
 
   async function loadChallenge() {
     setLoading(true);
@@ -474,12 +510,25 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                   <Text style={[styles.timerDisplay, { color: theme.accent }]}>
                     {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
                   </Text>
-                  <TouchableOpacity
-                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                    onPress={() => timerRunning ? stopTimer() : startTimer()}
-                  >
-                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                  </TouchableOpacity>
+                  {isPreparing ? (
+                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                      <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
+                      <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                      <TouchableOpacity 
+                        style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]} 
+                        onPress={cancelPreparation}
+                      >
+                        <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+                      </TouchableOpacity>
+                    </View>
+                  ) : (
+                    <TouchableOpacity
+                      style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                      onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
+                    >
+                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                    </TouchableOpacity>
+                  )}
                   {!timerRunning && timerSeconds > 0 && (
                     <TouchableOpacity
                       style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
@@ -514,7 +563,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                       if (!timerRunning && timerSeconds <= 0) {
                         setTimerSeconds((challenge?.time_limit || 10) * 60);
                       }
-                      timerRunning ? stopTimer() : startTimer();
+                      timerRunning ? stopTimer() : handleStartWithLeadIn();
                     }}
                   >
                     <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>

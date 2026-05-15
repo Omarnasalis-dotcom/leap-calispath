@@ -25,29 +25,33 @@ export interface Profile {
   timezone: string;
   updated_at: string;
   is_admin?: boolean;
+  coach_beta_access: boolean;
+  clash_win_streak: number;
 }
 
 export type TierRank =
   | 'Helot'          // Tier 0
-  | 'Iron-Bound'     // Tier 1
-  | 'Steel-Wrought'  // Tier 2
-  | 'Bronze-Clad'    // Tier 3
-  | 'Silver-Will'    // Tier 4
-  | 'Gold-Soul'      // Tier 5
-  | 'Platinum-Heart' // Tier 6
-  | 'Obsidian-Core'  // Tier 7
-  | 'Eternity'       // Tier 8
+  | 'Neos'           // Tier 1
+  | 'Ephebe'         // Tier 2
+  | 'Hoplite'        // Tier 3
+  | 'Spartan'        // Tier 4
+  | 'Lochagos'       // Tier 5
+  | 'Strategos'      // Tier 6
+  | 'Olympian'       // Tier 7
+  | 'Demigod'       // Tier 8
+  | 'Eternity'       // Tier 9
 
 export const TIER_NAMES = [
   'Helot',          // Tier 0
-  'Iron-Bound',     // Tier 1
-  'Steel-Wrought',  // Tier 2
-  'Bronze-Clad',    // Tier 3
-  'Silver-Will',    // Tier 4
-  'Gold-Soul',      // Tier 5
-  'Platinum-Heart', // Tier 6
-  'Obsidian-Core',  // Tier 7
-  'Eternity'        // Tier 8
+  'Neos',           // Tier 1
+  'Ephebe',         // Tier 2
+  'Hoplite',        // Tier 3
+  'Spartan',        // Tier 4
+  'Lochagos',       // Tier 5
+  'Strategos',      // Tier 6
+  'Olympian',       // Tier 7
+  'Demigod',        // Tier 8
+  'Eternity'        // Tier 9
 ];
 
 // Power World tier names (different from Strength) - 9 tiers total

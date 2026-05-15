@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from 'react-native';
 import { useAuth } from '../src/contexts/AuthContext';
 import { useTheme } from '../src/contexts/ThemeContext';
 import { SpartanLayout } from './_layout';
@@ -24,6 +24,7 @@ import { TournamentLobbyScreen } from '../src/screens/TournamentLobbyScreen';
 import { TournamentTrialScreen } from '../src/screens/TournamentTrialScreen';
 import { AdminTournamentScreen } from '../src/screens/AdminTournamentScreen';
 import { OneMinMaxScreen } from '../src/screens/OneMinMaxScreen';
+import { CoachScreen } from '../src/screens/CoachScreen';
 import { ClashService } from '../src/services/ClashService';
 import { ArenaPhase } from '../src/services/ArenaService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -57,6 +58,7 @@ export default function Index() {
   const [showChampionsArena, setShowChampionsArena] = React.useState(false);
   const [showArenaWorkout, setShowArenaWorkout] = React.useState(false);
   const [showClash, setShowClash] = React.useState(false);
+  const [showCoach, setShowCoach] = React.useState(false);
   const [showBattle, setShowBattle] = React.useState(false);
   const [isRestoring, setIsRestoring] = React.useState(true);
 
@@ -448,6 +450,7 @@ export default function Index() {
         }}
         onOpenTournamentArena={() => setShowTournamentArena(true)}
         onOpenOneMinMax={() => setShowOneMinMax(true)}
+        onOpenCoach={() => setShowCoach(true)}
       />
     );
   };
@@ -470,6 +473,8 @@ export default function Index() {
             />
           </View>
         )}
+
+        {showCoach && <CoachScreen onBack={() => setShowCoach(false)} />}
 
         {showGloryLeaderboard && (
           <View style={StyleSheet.absoluteFill}>

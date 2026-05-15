@@ -34,10 +34,10 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const [customReps, setCustomReps] = useState('');
 
   const [assessments, setAssessments] = useState<Record<Step, MovementAssessment>>({
-    pullups: { reps: 0, variant: 'strict_pullup' },
-    dips: { reps: 0, variant: 'standard_dip' },
-    pushups: { reps: 0, variant: 'standard_pushup' },
-    muscleups: { reps: 0, variant: 'strict_mu' },
+    pullups: { reps: 0, variant: 'inverted_row' },
+    dips: { reps: 0, variant: 'bench_dip' },
+    pushups: { reps: 0, variant: 'knee_pushup' },
+    muscleups: { reps: 0, variant: 'jumping_mu' },
   });
 
   const step = STEPS[currentStep];
@@ -64,9 +64,56 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
     updateReps(num);
   }
 
+  function calculateHolisticTierPreview(assessments: Record<Step, MovementAssessment>): number {
+    // Basic preview logic for the UI — mirrors spartanLogic weakest link
+    const p = assessments.pullups;
+    const d = assessments.dips;
+    const s = assessments.pushups;
+
+    let pullTier = 0;
+    if (p.variant === 'strict_pullup' && p.reps >= 15) pullTier = 7;
+    else if (p.variant === 'strict_pullup' && p.reps >= 1) pullTier = 4;
+    else if (p.variant === 'assisted_pullup' && p.reps >= 5) pullTier = 2;
+    else if (p.reps >= 5) pullTier = 1;
+
+    let dipTier = 0;
+    if (d.variant === 'standard_dip' && d.reps >= 10) dipTier = 4;
+    else if (d.variant === 'standard_dip' && d.reps >= 5) dipTier = 3;
+    else if (d.reps >= 10) dipTier = 2;
+    else if (d.reps >= 5) dipTier = 1;
+
+    let pushTier = 0;
+    if (s.variant === 'standard_pushup' && s.reps >= 20) pushTier = 4;
+    else if (s.reps >= 10) pushTier = 2;
+    else if (s.reps >= 5) pushTier = 1;
+
+    return Math.min(pullTier, dipTier, pushTier, 7);
+  }
+
   function handleNext() {
+    const currentMovement = assessments[STEPS[currentStep]];
+    
+    // ZERO-REP GUARD: Ensure user doesn't submit 0 reps for a variant
+    if (currentMovement.reps < 1) {
+      Alert.alert(
+        "Invalid Input",
+        `You must enter at least 1 rep for ${currentMovement.variant.replace('_', ' ')} to proceed. If you cannot do any, please select an easier variant.`
+      );
+      return;
+    }
+
+    // Use preview to check if muscle-up step is needed
+    const currentTierPreview = calculateHolisticTierPreview(assessments);
+
     if (currentStep < STEPS.length - 1) {
-      const nextStep = currentStep + 1;
+      let nextStep = currentStep + 1;
+
+      // Skip muscle-up step if overall tier is below 4 (Spartan)
+      if (STEPS[nextStep] === 'muscleups' && currentTierPreview < 4) {
+        submitAssessment();
+        return;
+      }
+
       setCurrentStep(nextStep);
       setCustomReps(assessments[STEPS[nextStep]].reps.toString());
     } else {

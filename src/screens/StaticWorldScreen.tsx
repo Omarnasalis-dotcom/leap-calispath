@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, ActivityIndicator, Modal,
-  Dimensions
+  Dimensions, Vibration
 } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -17,6 +17,7 @@ import { useTimer } from '../hooks/useTimer';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { CelebrationBanner } from '../components/CelebrationBanner';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 const { width } = Dimensions.get('window');
 
@@ -47,9 +48,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [showGlobalMastery, setShowGlobalMastery] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
   const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>('handstand');
-  const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
   const [manualInput, setManualInput] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
   const [userHolds, setUserHolds] = useState<Record<string, number>>({});
@@ -80,25 +82,13 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     if (!user) return;
     setLoading(true);
     try {
-      console.log('[StaticWorld] Loading data for user:', user.id);
-      
-      // 1. Load user holds
       const holds = await StaticService.getUserHolds(user.id);
-      console.log('[StaticWorld] Received holds:', holds.length);
-      
       const holdMap: Record<string, number> = {};
-      holds.forEach(h => { 
-        holdMap[h.movement_id] = h.hold_seconds; 
-      });
+      holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
       setUserHolds(holdMap);
 
-      // 2. Load global rankings
       const elite = await StaticService.getWellRoundedLeaderboard(user.id);
       setWellRoundedEntries(elite);
-      
-      // Sync leaderboard data if needed
-      const personal = elite.find(e => e.user_id === user.id);
-      console.log('[StaticWorld] Personal leaderboard entry:', personal);
     } catch (error) {
       console.error('[StaticWorld] Error loading data:', error);
     } finally {
@@ -112,9 +102,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       if (leaderboardTab === 'overall') {
         const elite = await StaticService.getWellRoundedLeaderboard(user.id);
         setWellRoundedEntries(elite);
-      } else {
-        // Fetch category-specific rankings if needed, 
-        // for now we'll filter wellRoundedEntries or use movement data
       }
     } catch (e) {
       console.error(e);
@@ -153,6 +140,34 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     }
   }
 
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+      startTimer();
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
+
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+    resetTimer();
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+    resetTimer();
+  };
+
   async function handleSaveHold(seconds: number) {
     if (!selectedMovement || !user || seconds <= 0) return;
 
@@ -177,7 +192,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       if (refreshProfile) await refreshProfile();
       setShowLogModal(false);
       resetTimer();
-      setManualInput('');
     } catch (error: any) {
       console.error('Error saving hold:', error);
       const msg = error.message || 'Failed to save hold';
@@ -285,23 +299,14 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   const personalEntry = wellRoundedEntries.find(e => e.user_id === user?.id);
   const userRank = personalEntry?.rank || 0;
-  // Use leaderboard score as primary if it exists to match the rank
   const displayScore = personalEntry ? Math.round(personalEntry.total_points) : Math.round(peakData.total);
   
   let gapToNext = 0;
   if (userRank > 1 && wellRoundedEntries.length > 0) {
     const targetRank = userRank - 1;
     const personAbove = wellRoundedEntries.find(e => e.rank === targetRank);
-    
     if (personAbove) {
       gapToNext = Math.ceil(personAbove.total_points - displayScore);
-    }
-
-    if (gapToNext <= 0) {
-      const strictlyBetter = wellRoundedEntries.find(e => e.total_points > displayScore);
-      if (strictlyBetter) {
-        gapToNext = Math.ceil(strictlyBetter.total_points - displayScore);
-      }
     }
   }
 
@@ -351,7 +356,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
           <Text style={[styles.sectionHeader, { color: '#7E57C2' }]}>YOUR PEAK PERFORMANCE</Text>
           
-          {/* Level Selection Cards */}
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 20 }}>
             <TouchableOpacity 
               onPress={() => setSelectedLevel(null)}
@@ -398,7 +402,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             })}
           </View>
 
-          {/* Category Filter */}
           <View style={[styles.exerciseFilter, { marginBottom: 20 }]}>
             {['handstand', 'front_lever', 'back_lever', 'planche'].map(cat => {
               const isActive = selectedExerciseCategory === cat;
@@ -450,7 +453,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             })}
           </View>
 
-          {/* Leaderboard Section */}
           <View style={styles.leaderboardSection}>
             <View style={styles.lbSection}>
               <Text style={[styles.lbTitle, { color: '#7E57C2' }]}>
@@ -459,36 +461,21 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
               <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
             </View>
             
-            {selectedLevel ? (
-              levelEntries.map((item, i) => (
-                <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${theme.accent}10` : 'transparent' }]}>
-                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
-                    <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
-                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
-                  </View>
+            {(selectedLevel ? levelEntries : wellRoundedEntries).map((item, i) => (
+              <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? '#7E57C220' : 'transparent' }]}>
+                <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
+                  <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                 </View>
-              ))
-            ) : (
-              wellRoundedEntries.map((item, i) => (
-                <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? '#7E57C220' : 'transparent' }]}>
-                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
-                    <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
-                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
-                  </View>
+                <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
+                  <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
                 </View>
-              ))
-            )}
+              </View>
+            ))}
           </View>
         </View>
       </ScrollView>
 
-      {/* OVERALL MODAL */}
       <Modal visible={showGlobalMastery} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '85%' }]}>
@@ -536,31 +523,77 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
              </View>
 
              <View style={styles.timerContainer}>
-                <Text style={[styles.timerText, { color: theme.text.primary }]}>{timerSeconds}s</Text>
-                <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ACTIVE HOLD TIME</Text>
+                <Text style={[
+                  styles.timerText, 
+                  { color: isPreparing ? '#7E57C2' : theme.text.primary }
+                ]}>
+                  {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
+                </Text>
+                <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                  {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
+                </Text>
              </View>
 
-             {!timerRunning ? (
-                <TouchableOpacity style={[styles.startBtn, { backgroundColor: '#7E57C2' }]} onPress={startTimer}>
-                   <Text style={styles.startBtnText}>START TIMER</Text>
+             {isPreparing ? (
+                <TouchableOpacity 
+                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} 
+                  onPress={cancelPreparation}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
                 </TouchableOpacity>
              ) : (
-                <TouchableOpacity style={[styles.startBtn, { backgroundColor: '#FF5252' }]} onPress={stopTimer}>
-                   <Text style={styles.startBtnText}>STOP & LOG</Text>
-                </TouchableOpacity>
+                <View style={{ gap: 10 }}>
+                  {!timerRunning ? (
+                    <>
+                      <TouchableOpacity 
+                        style={[styles.startBtn, { backgroundColor: "#7E57C2" }]} 
+                        onPress={handleStartWithLeadIn}
+                      >
+                        <Text style={styles.startBtnText}>{timerSeconds > 0 ? "RESTART TEST" : "START TIMER"}</Text>
+                      </TouchableOpacity>
+
+                      {timerSeconds > 0 && (
+                        <>
+                          <TouchableOpacity 
+                            style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]} 
+                            onPress={() => handleSaveHold(timerSeconds)}
+                            disabled={loading}
+                          >
+                            {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                          </TouchableOpacity>
+
+                          <TouchableOpacity 
+                            style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
+                            onPress={resetTimer}
+                          >
+                            <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RESET / DISCARD</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
+                    </>
+                  ) : (
+                    <>
+                      <TouchableOpacity 
+                        style={[styles.startBtn, { backgroundColor: "#FF5252" }]} 
+                        onPress={stopTimer}
+                      >
+                        <Text style={styles.startBtnText}>STOP & LOG</Text>
+                      </TouchableOpacity>
+
+                      <TouchableOpacity 
+                        style={[styles.cancelBtn, { borderColor: "#FF5252" }]}
+                        onPress={() => {
+                          stopTimer();
+                          resetTimer();
+                        }}
+                      >
+                        <Text style={[styles.cancelBtnText, { color: "#FF5252" }]}>CANCEL TEST</Text>
+                      </TouchableOpacity>
+                    </>
+                  )}
+                </View>
              )}
 
-             {timerSeconds > 0 && !timerRunning && (
-                <TouchableOpacity 
-                  style={[styles.saveBtn, { backgroundColor: '#7E57C2', marginTop: 10 }]} 
-                  onPress={() => handleSaveHold(timerSeconds)}
-                  disabled={loading}
-                >
-                   {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                </TouchableOpacity>
-             )}
-
-             {/* Movement Specific Leaderboard */}
              <View style={{ marginTop: 30, flex: 1, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
                 <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
                   TOP PERFORMERS
@@ -625,7 +658,6 @@ const styles = StyleSheet.create({
     marginHorizontal: 10
   },
   headerTitle: { fontSize: 10, fontWeight: '900', letterSpacing: 2, fontFamily: 'PlusJakartaSans-ExtraBold' },
-  
   dashboard: { paddingHorizontal: 16, paddingTop: 20, gap: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' },
   ringsContainer: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
@@ -634,10 +666,8 @@ const styles = StyleSheet.create({
   ringsValue: { fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold', letterSpacing: -0.5 },
   heroTopText: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginBottom: 2 },
   heroBottomText: { fontSize: 7, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
-
   modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
   modalSub: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
-
   lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
   lbTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 3, fontFamily: 'PlusJakartaSans-ExtraBold' },
   lbSub: { fontSize: 8, fontWeight: '900', letterSpacing: 1.5, opacity: 0.6 },
@@ -648,11 +678,10 @@ const styles = StyleSheet.create({
     paddingVertical: 8, 
     borderRadius: 12, 
     borderWidth: 1.5, 
-    borderColor: 'rgba(126,87,194,0.4)', // Light purple frame by default
+    borderColor: 'rgba(126,87,194,0.4)', 
     backgroundColor: 'rgba(255,255,255,0.02)'
   },
   exerciseFilterText: { fontSize: 8, fontWeight: '900', letterSpacing: 1 },
-
   peakGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 10, gap: 20 },
   peakItem: { alignItems: 'center', gap: 8, width: width * 0.22, marginBottom: 10 },
   peakCircleWrapper: { position: 'relative' },
@@ -684,14 +713,12 @@ const styles = StyleSheet.create({
     elevation: 8,
     zIndex: 20,
   },
-
   leaderboardSection: { marginTop: 20 },
   lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
   lbRank: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
   lbPointsFrame: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 4 },
   lbPointsText: { fontSize: 13, fontWeight: '900' },
-
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
   modalContent: { width: '100%', maxWidth: 400, borderRadius: 24, padding: 24, borderWidth: 1 },
   modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
@@ -703,7 +730,16 @@ const styles = StyleSheet.create({
   startBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
   saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
   saveBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
+  cancelBtn: {
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  cancelBtnText: {
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 1,
+  }
 });
-
-
-

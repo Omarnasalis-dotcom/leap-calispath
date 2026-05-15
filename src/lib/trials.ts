@@ -141,6 +141,24 @@ export const RITES_OF_PASSAGE: Trial[] = [
       { name: "Muscle-ups (+5 kg)", reps: 10 },
     ],
   },
+  {
+    tier: 9,
+    name: "Eternity Protocol",
+    movements: [
+      { name: "(1 Pull-up + 1 MU) Unbroken", reps: 2 },
+      { name: "Dips (+20 kg)", reps: 10 },
+      { name: "Squat (+20 kg)", reps: 10 },
+      { name: "Muscle-ups (+10 kg)", reps: 4 },
+      { name: "(1 Pull-up + 1 MU) Unbroken", reps: 2 },
+      { name: "Dips (+10 kg)", reps: 20 },
+      { name: "Squat (+10 kg)", reps: 20 },
+      { name: "Muscle-ups (+5 kg)", reps: 6 },
+      { name: "(1 Pull-up + 1 MU) Unbroken", reps: 2 },
+      { name: "Dips (Bodyweight)", reps: 30 },
+      { name: "Squat (Bodyweight)", reps: 30 },
+      { name: "Muscle-ups (Bodyweight)", reps: 8 },
+    ],
+  },
 ];
 
 export function getTrialForTier(tier: number): Trial | undefined {
@@ -148,7 +166,7 @@ export function getTrialForTier(tier: number): Trial | undefined {
 }
 
 export function getNextTrialTier(currentTier: number): number {
-  return Math.min(currentTier + 1, 8);
+  return Math.min(currentTier + 1, 9);
 }
 
 export function formatTime(seconds: number): string {

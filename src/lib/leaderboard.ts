@@ -77,10 +77,10 @@ export async function getPowerTierLeaderboard(
       squat_1rm,
       muscleup_1rm,
       power_tier,
-      profiles:user_id (display_name)
+      profiles:user_id (display_name, power_points)
     `)
     .eq('power_tier', tier)
-    .order('pullup_1rm', { ascending: false })
+    .order('power_points', { foreignTable: 'profiles', ascending: false })
     .limit(100);
 
   if (error || !data) {

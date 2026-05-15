@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, ActivityIndicator, Modal,
-  Dimensions, RefreshControl, Animated
+  Dimensions, RefreshControl, Animated, Vibration
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -14,6 +14,8 @@ import {
   calculateOneMMPoints
 } from '../lib/oneMMLogic';
 import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMService';
+
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 const { width } = Dimensions.get('window');
 
@@ -35,6 +37,8 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const [showLogModal, setShowLogModal] = useState(false);
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
+  const [preCountdown, setPreCountdown] = useState(0);
+  const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerFinished, setTimerFinished] = useState(false);
   const [repsInput, setRepsInput] = useState('');
@@ -108,24 +112,48 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
   // Timer Logic
   useEffect(() => {
-    if (isTimerRunning && timeLeft > 0) {
+    if (isPreTimerRunning && preCountdown > 0) {
+      SoundService.playTick();
+      timerRef.current = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreTimerRunning && preCountdown === 0) {
+      setIsPreTimerRunning(false);
+      setIsTimerRunning(true);
+      SoundService.playBoxingBell();
+      if (timerRef.current) clearInterval(timerRef.current);
+    } else if (isTimerRunning && timeLeft > 0) {
       timerRef.current = setInterval(() => {
         setTimeLeft(prev => prev - 1);
       }, 1000);
     } else if (timeLeft === 0) {
-      setIsTimerRunning(false);
-      setTimerFinished(true);
+      if (isTimerRunning) {
+        setIsTimerRunning(false);
+        setTimerFinished(true);
+        Vibration.vibrate([0, 500, 200, 500]);
+        SoundService.playDigitalBuzzer(2);
+      }
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isTimerRunning, timeLeft]);
+  }, [isPreTimerRunning, preCountdown, isTimerRunning, timeLeft]);
 
   const startTimer = () => {
-    setTimeLeft(60);
-    setIsTimerRunning(true);
+    setPreCountdown(5);
+    setIsPreTimerRunning(true);
+    setIsTimerRunning(false);
     setTimerFinished(false);
+    setTimeLeft(60);
+  };
+
+  const cancelTimer = () => {
+    setIsPreTimerRunning(false);
+    setIsTimerRunning(false);
+    setPreCountdown(0);
+    setTimeLeft(60);
+    if (timerRef.current) clearInterval(timerRef.current);
   };
 
   const handleSaveResult = async () => {
@@ -143,6 +171,14 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     } finally {
       setSaving(false);
     }
+  };
+
+  const resetTimer = () => {
+    setTimerFinished(false);
+    setIsTimerRunning(false);
+    setIsPreTimerRunning(false);
+    setTimeLeft(60);
+    setRepsInput('');
   };
 
   const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
@@ -445,15 +481,26 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
             </View>
 
             <View style={styles.timerContainer}>
-              <Text style={[styles.timerText, { color: timeLeft <= 10 ? '#FF5252' : theme.text.primary }]}>
-                {timeLeft}s
+              <Text style={[
+                styles.timerText, 
+                { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
+              ]}>
+                {isPreTimerRunning ? preCountdown : timeLeft}s
               </Text>
-              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>60 SECOND SPRINT</Text>
+              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
+              </Text>
             </View>
 
-            {!isTimerRunning && !timerFinished && (
+            {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
               <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
                 <Text style={styles.startBtnText}>START SPRINT</Text>
+              </TouchableOpacity>
+            )}
+
+            {(isPreTimerRunning || isTimerRunning) && (
+              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
+                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
               </TouchableOpacity>
             )}
 
@@ -475,6 +522,13 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                   disabled={saving}
                 >
                   {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
+                  onPress={resetTimer}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -678,5 +732,17 @@ lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
   modalInput: { borderWidth: 2, borderRadius: 12, padding: 20, fontSize: 32, textAlign: 'center', fontWeight: '900' },
   saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
   saveBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
-  workText: { fontSize: 24, fontWeight: '900', textAlign: 'center', marginTop: 20 }
+  workText: { fontSize: 24, fontWeight: '900', textAlign: 'center', marginTop: 20 },
+  cancelBtn: {
+    paddingVertical: 15,
+    borderRadius: 12,
+    alignItems: 'center',
+    borderWidth: 1,
+    marginTop: 10,
+  },
+  cancelBtnText: {
+    fontWeight: '900',
+    fontSize: 14,
+    letterSpacing: 1,
+  }
 });

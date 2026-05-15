@@ -43,26 +43,59 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
     });
   }, [user]);
 
-  // 1. Manage Lobby Presence
+  // 1. Manage Lobby Presence (Heartbeat)
   useEffect(() => {
     if (!user) return;
+    
+    // a. Set searching status in DB (Fallback/Persistence)
     ClashService.toggleSearchingStatus(user.id, true);
     
+    // b. Initialize Presence Channel
+    const channel = supabase.channel('clash_lobby', {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
+
+    const handleSync = () => {
+      const state = channel.presenceState();
+      // Transform presence state into warrior profiles
+      // In a real app, we'd fetch the full profiles for these IDs
+      // But for the lobby, we can trigger a refresh of the available warriors
+      loadAvailable();
+    };
+
     const loadAvailable = async () => {
       try {
         const warriors = await ClashService.getAvailableWarriors(user.id);
         setAvailableWarriors(warriors);
       } catch (e) { console.error(e); }
     };
-    loadAvailable();
 
-    const presenceSub = supabase.channel('lobby_presence')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => loadAvailable())
-      .subscribe();
+    channel
+      .on('presence', { event: 'sync' }, handleSync)
+      .on('presence', { event: 'join' }, ({ newPresences }) => {
+        // If a new warrior joins, refresh list
+        loadAvailable();
+      })
+      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
+        // If a warrior leaves/crashes, refresh list
+        loadAvailable();
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await channel.track({
+            online_at: new Date().toISOString(),
+            user_id: user.id,
+          });
+        }
+      });
 
     return () => {
       ClashService.toggleSearchingStatus(user.id, false);
-      presenceSub.unsubscribe();
+      channel.unsubscribe();
     };
   }, [user]);
 
