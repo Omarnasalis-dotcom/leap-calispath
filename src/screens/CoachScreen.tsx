@@ -43,6 +43,22 @@ interface Message {
   content: string;
 }
 
+const DAILY_LIMIT = 10;
+
+async function getDailyUsage(userId: string): Promise<number> {
+  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const key = `coach_usage_${userId}_${today}`;
+  const val = await AsyncStorage.getItem(key);
+  return val ? parseInt(val) : 0;
+}
+
+async function incrementDailyUsage(userId: string): Promise<void> {
+  const today = new Date().toISOString().split('T')[0];
+  const key = `coach_usage_${userId}_${today}`;
+  const current = await getDailyUsage(userId);
+  await AsyncStorage.setItem(key, String(current + 1));
+}
+
 export function CoachScreen({ onBack }: { onBack: () => void }) {
   const { user, profile, refreshProfile } = useAuth();
   const { theme, mode } = useTheme();
@@ -155,6 +171,17 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       Alert.alert('Slow down, Warrior', `Wait ${Math.ceil(5 - secondsSinceLast)} more seconds before sending.`);
       return;
     }
+
+    const usage = await getDailyUsage(user!.id);
+    if (usage >= DAILY_LIMIT) {
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: `You have used all ${DAILY_LIMIT} coaching messages for today. Your quota resets at midnight. Rest well, warrior. 🏛️`,
+      }]);
+      setLoading(false);
+      return;
+    }
+
     setLastMessageTime(now);
     const userMsg: Message = { role: 'user', content: inputText };
     const newMsgs = [...messages, userMsg];
@@ -213,6 +240,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
       if (text) {
         setMessages(prev => [...prev, { role: 'assistant', content: text }]);
+        await incrementDailyUsage(user!.id);
       } else {
         throw new Error('Empty response from Gemini');
       }
@@ -296,7 +324,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
           </ScrollView>
 
           <View style={[styles.inputContainer, { borderTopColor: theme.accent + '15', backgroundColor: isDark ? '#0D0D0D' : '#F9F9F9' }]}>
-            <TextInput style={[styles.input, { color: textColor }]} value={inputText} onChangeText={setInputText} placeholder="Speak, Warrior..." placeholderTextColor={subtextColor} multiline />
+            <TextInput style={[styles.input, { color: textColor }]} value={inputText} onChangeText={setInputText} placeholder={`Speak, Warrior... (${DAILY_LIMIT} sessions/day)`} placeholderTextColor={subtextColor} multiline />
             <TouchableOpacity onPress={sendMessage} disabled={loading || !inputText.trim()} style={[styles.sendBtn, { backgroundColor: inputText.trim() ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}>
               {loading ? <ActivityIndicator color="#000" size="small" /> : <MaterialCommunityIcons name="send" size={18} color="#000" />}
             </TouchableOpacity>
