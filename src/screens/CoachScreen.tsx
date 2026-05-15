@@ -140,7 +140,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       }
     } catch (error: any) {
       console.error('Coach Session Error:', error);
-      setMessages([{ role: 'assistant', content: report }]);
+      setMessages([{ role: 'assistant', content: "Arena wisdom is flickering. Please check your connection." }]);
     } finally {
       setLoading(false);
     }
