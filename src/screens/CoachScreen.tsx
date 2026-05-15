@@ -22,7 +22,7 @@ import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-1.5-flash'; 
+const GEMINI_MODEL = 'gemini-2.0-flash-lite'; 
 
 const SYSTEM_PROMPT = `You are the AI Warrior Coach.
 ARENA LOGIC:
@@ -121,7 +121,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1alpha/models/${GEMINI_MODEL}:generateContent`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -193,7 +193,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1alpha/models/${GEMINI_MODEL}:generateContent`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
