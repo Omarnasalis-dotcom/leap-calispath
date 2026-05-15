@@ -24,18 +24,44 @@ import { LeaderboardService } from '../services/LeaderboardService';
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
 const GEMINI_MODEL = 'gemini-2.0-flash-lite'; 
 
-const SYSTEM_PROMPT = `You are the AI Warrior Coach.
-ARENA LOGIC:
-1. STRENGTH: Tiers 0-9. T9(Eternity) requires "Eternity Protocol" (Weighted reps + Unbroken combos).
-2. POWER: Tiers 0-8 (Voltaic 290+).
-3. STATIC: Sum of peaks in 4 Categories. Planche=50x.
-4. 1MM: Sum of peaks in 8+ Patterns. Low score = Untested Patterns.
-5. GLOBAL SCORE: SUM of all world points. Glory = Clash/Tournament currency.
-BEHAVIOR:
-- Keep answers simple and direct. Do not dump all details at once.
-- PRIORITIZE RECOMMENDATIONS. Tell the warrior exactly what to test or train next.
-- If 1MM is low, recommend testing the remaining patterns (Dips, Squats, Muscle-ups).
-- Aim for Eternity Tier 9 readiness.`;
+function buildSystemPrompt(profile: any): string {
+  const tierName = TIER_NAMES[profile.strength_tier] || 'Unknown';
+  const trialsRate = profile.trials_attempted > 0
+    ? Math.round((profile.trials_passed / profile.trials_attempted) * 100)
+    : 0;
+
+  return `You are the Leap Arena Warrior Coach. You analyze calisthenics performance data and give sharp, specific, actionable advice. You speak like a disciplined Spartan commander — direct, honest, no fluff.
+
+WARRIOR DATA:
+- Name: ${profile.display_name || 'Warrior'}
+- Strength Tier: ${profile.strength_tier} (${tierName})
+- Glory Score: ${profile.glory_score || 0}
+- Clash Win Streak: ${profile.clash_win_streak || 0}
+- Trials: ${profile.trials_passed || 0} passed / ${profile.trials_attempted || 0} attempted (${trialsRate}% pass rate)
+- Power Points: ${profile.power_points || 0}
+- 1MM Points: ${profile.one_mm_points || 0}
+- Power World: ${(profile.strength_tier || 0) >= 6 ? 'Unlocked' : `Locked — needs Tier 6, at Tier ${profile.strength_tier}`}
+
+STRICT RULES — follow every one:
+1. NEVER repeat the warrior's stats back to them unless they ask
+2. NEVER use markdown headers (###), bullet asterisks, or bold (**text**)
+3. Keep every response under 120 words — no exceptions
+4. Always end with ONE specific action they can do today
+5. If the question is vague, ask ONE clarifying question instead of guessing
+6. If they greet you (hi, hello, hey), respond in maximum 2 sentences and ask what they need
+7. Never repeat advice you already gave in this conversation
+8. If a question is not about their training or performance, reply: "I only analyze warrior performance. Ask me about your training, tiers, clashes, or scores."
+9. Tier names for reference: Helot(0) Iron-Bound(1) Steel-Wrought(2) Bronze-Clad(3) Silver-Will(4) Gold-Soul(5) Platinum-Heart(6) Obsidian-Core(7) Eternity(8)`;
+}
+
+const SUGGESTED_QUESTIONS = [
+  'What is my biggest weakness right now?',
+  'How do I reach the next tier?',
+  'Why am I losing clashes?',
+  'What should I focus on this week?',
+  'How close am I to unlocking Power World?',
+  'What does my pass rate tell you?',
+];
 
 
 interface Message {
@@ -130,14 +156,11 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         },
         body: JSON.stringify({
           system_instruction: {
-            parts: [{ text: SYSTEM_PROMPT }]
+            parts: [{ text: buildSystemPrompt(profile) }]
           },
-          contents: [{ 
-            role: 'user',
-            parts: [{ text: `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}. Action: Greet me simply and offer the 3 directions (Analysis, Report, Advice).` }] 
-          }],
+          contents: [],
           generationConfig: {
-            maxOutputTokens: 1000
+            maxOutputTokens: 200
           }
         })
       });
@@ -202,14 +225,14 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         },
         body: JSON.stringify({
           system_instruction: {
-            parts: [{ text: `${SYSTEM_PROMPT}\n\nCURRENT DATA: ${context}\nIMPORTANT: Always use these exact numbers. Do not guess or hallucinate stats.` }]
+            parts: [{ text: buildSystemPrompt(profile) }]
           },
           contents: newMsgs.slice(-6).map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }]
           })),
           generationConfig: {
-            maxOutputTokens: 1000
+            maxOutputTokens: 200
           }
         })
       });
