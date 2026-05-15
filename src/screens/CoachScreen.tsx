@@ -22,9 +22,21 @@ import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-1.5-flash-latest'; 
+const GEMINI_MODEL = 'gemini-flash-lite-latest'; 
 
-const SYSTEM_PROMPT = `You are the AI Warrior Coach for Leap Calisthenics Arena. Be concise, professional, and data-driven. Greet the warrior, provide a "Warrior Report" with their stats, and ask one focused training question.`;
+const SYSTEM_PROMPT = `You are the AI Warrior Coach.
+ARENA LOGIC:
+1. STRENGTH: Tiers 0-9. T9(Eternity) requires "Eternity Protocol" (Weighted reps + Unbroken combos).
+2. POWER: Tiers 0-8 (Voltaic 290+).
+3. STATIC: Sum of peaks in 4 Categories. Planche=50x.
+4. 1MM: Sum of peaks in 8+ Patterns. Low score = Untested Patterns.
+5. GLOBAL SCORE: SUM of all world points. Glory = Clash/Tournament currency.
+BEHAVIOR:
+- Keep answers simple and direct. Do not dump all details at once.
+- PRIORITIZE RECOMMENDATIONS. Tell the warrior exactly what to test or train next.
+- If 1MM is low, recommend testing the remaining patterns (Dips, Squats, Muscle-ups).
+- Aim for Eternity Tier 9 readiness.`;
+
 
 interface Message {
   role: 'user' | 'assistant';
@@ -86,17 +98,16 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     if (loading) return;
     setLoading(true);
 
-    const report = `Greetings, **${profile?.display_name || 'Warrior'}**.\n\n**Warrior Report:**\n• **Strength Tier:** ${TIER_NAMES[profile?.strength_tier || 0]}\n• **Global Rank:** #${globalRank}\n• **Power Points:** ${profile?.power_points || 0}\n• **Static World:** ${profile?.statics_tier || 0} pts\n• **Endurance (1MM):** ${profile?.one_mm_points || 0} pts\n• **Glory Score:** ${profile?.glory_score || 0}\n\nHow shall we advance your ascent today?`;
-
+    const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
+    
     if (!GEMINI_KEY || GEMINI_KEY === 'placeholder-key') {
-      setMessages([{ role: 'assistant', content: report }]);
+      setMessages([{ role: 'assistant', content: `Greetings, ${profile?.display_name || 'Warrior'}. I am your Arena Mentor. How can I guide you today? Would you like a quick report on your profile?` }]);
       setLoading(false);
       return;
     }
 
     try {
-      // Reverting to the absolute simplest v1 POST request that worked earlier
-      const url = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -108,18 +119,16 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
           },
           contents: [{ 
             role: 'user',
-            parts: [{ text: `Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}. Greet me with my report.` }] 
+            parts: [{ text: `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}. Action: Greet me simply and offer the 3 directions (Analysis, Report, Advice).` }] 
           }],
           generationConfig: {
-            maxOutputTokens: 400
+            maxOutputTokens: 1000
           }
         })
       });
       
       if (!response.ok) {
-        const errorBody = await response.text();
-        console.error('Gemini API Error:', response.status, errorBody);
-        setMessages([{ role: 'assistant', content: `**API Error (${response.status}):** ${errorBody.slice(0, 100)}...` }]);
+        setMessages([{ role: 'assistant', content: "Arena wisdom is flickering. Please check your connection." }]);
         return;
       }
 
@@ -155,8 +164,10 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     setInputText('');
     setLoading(true);
 
+    const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
+
     try {
-      const url = `https://generativelanguage.googleapis.com/v1/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
@@ -164,14 +175,14 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         },
         body: JSON.stringify({
           system_instruction: {
-            parts: [{ text: SYSTEM_PROMPT }]
+            parts: [{ text: `${SYSTEM_PROMPT}\n\nCURRENT DATA: ${context}\nIMPORTANT: Always use these exact numbers. Do not guess or hallucinate stats.` }]
           },
-          contents: newMsgs.map(m => ({
+          contents: newMsgs.slice(-6).map(m => ({
             role: m.role === 'assistant' ? 'model' : 'user',
             parts: [{ text: m.content }]
           })),
           generationConfig: {
-            maxOutputTokens: 400
+            maxOutputTokens: 1000
           }
         })
       });
@@ -179,7 +190,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       if (!response.ok) {
         const errorBody = await response.text();
         console.error('Gemini Send Error:', response.status, errorBody);
-        setMessages(prev => [...prev, { role: 'assistant', content: `**Error:** API returned ${response.status}. Please check your key.` }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: `**Error ${response.status}:** Arena wisdom is flickering. (${errorBody.slice(0, 50)}...)` }]);
         return;
       }
 
