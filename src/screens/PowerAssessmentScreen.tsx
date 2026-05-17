@@ -12,8 +12,16 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { calculatePowerScore, calculatePowerTier, PowerMovementPBs } from '../lib/powerLogic';
+import { calculateTotalPowerScore, getPowerLevel } from '../lib/powerLogic';
 import { Button } from '../components/Button';
+
+export interface PowerMovementPBs {
+  [key: string]: number;
+  pull_up: number;
+  dip: number;
+  squat: number;
+  muscle_up: number;
+}
 
 interface PowerAssessmentScreenProps {
   onComplete: (newTier: number) => void;
@@ -32,8 +40,8 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   });
   
   const [loading, setLoading] = useState(false);
-  const totalScore = calculatePowerScore(inputs);
-  const newTier = calculatePowerTier(totalScore);
+  const totalScore = calculateTotalPowerScore(inputs);
+  const newTier = getPowerLevel(totalScore).id;
 
   async function handleSubmit() {
     if (!user || !profile) return;

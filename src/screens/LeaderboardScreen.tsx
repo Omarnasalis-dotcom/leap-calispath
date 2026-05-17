@@ -1078,6 +1078,19 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: '#FFFFFF',
   },
+  lockedIndicator: {
+    padding: 16,
+    borderRadius: 8,
+    borderWidth: 1,
+    alignItems: 'center',
+    marginTop: 8,
+    backgroundColor: 'rgba(255, 255, 255, 0.05)',
+  },
+  lockedIndicatorText: {
+    fontSize: 14,
+    fontWeight: '600',
+    letterSpacing: 1,
+  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
