@@ -10,7 +10,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
+import { TIER_NAMES } from '../types';
 import { TIER_DESCRIPTIONS, POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import {
   getTierLeaderboard,
@@ -30,10 +30,7 @@ interface LeaderboardScreenProps {
   onPracticeTier: (tier: number) => void;
   onStartEternal: () => void;
   onStartPowerAssessment?: () => void;
-  initialCategory?: 'strength' | 'power';
   initialTier?: number;
-  onCategoryChange?: (category: 'strength' | 'power') => void;
-  onTierChange?: (tier: number) => void;
 }
 
 export function LeaderboardScreen({
@@ -41,19 +38,12 @@ export function LeaderboardScreen({
   onPracticeTier,
   onStartEternal,
   onStartPowerAssessment,
-  initialCategory = 'strength',
   initialTier,
-  onCategoryChange,
-  onTierChange,
 }: LeaderboardScreenProps) {
   const { profile, user } = useAuth();
   const { theme } = useTheme();
-  const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
   const [selectedTier, setSelectedTier] = useState(
-    initialTier !== undefined ? initialTier :
-    initialCategory === 'strength'
-      ? (profile?.strength_tier || 0)
-      : (profile?.power_tier || 0)
+    initialTier !== undefined ? initialTier : (profile?.strength_tier || 0)
   );
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
@@ -65,24 +55,21 @@ export function LeaderboardScreen({
   const CACHE_DURATION = 60000; // 60 seconds
 
   // Safe tier name accessor with bounds checking
-  const getTierName = (tier: number, cat: 'strength' | 'power') => {
-    const names = cat === 'strength' ? TIER_NAMES : POWER_TIER_NAMES;
-    const safeIndex = Math.max(0, Math.min(tier, names.length - 1));
-    return names[safeIndex] || 'UNKNOWN';
+  const getTierName = (tier: number) => {
+    const safeIndex = Math.max(0, Math.min(tier, TIER_NAMES.length - 1));
+    return TIER_NAMES[safeIndex] || 'UNKNOWN';
   };
-
-  const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier ?? 0);
 
   // Tiers the user has unlocked (can view leaderboards for)
   const unlockedTiers = Array.from(
-    { length: (category === 'strength' ? profile?.strength_tier ?? 0 : profile?.power_tier ?? 0) + 1 }, 
+    { length: (profile?.strength_tier ?? 0) + 1 }, 
     (_, i) => i
   );
 
   useEffect(() => {
     if (!user) return;
     const now = Date.now();
-    const cacheKey = `${category}-${selectedTier}`;
+    const cacheKey = `strength-${selectedTier}`;
     if (
       cacheRef.current &&
       cacheRef.current.data?.key === cacheKey &&
@@ -96,9 +83,7 @@ export function LeaderboardScreen({
     setLoading(true);
     const fetchData = async () => {
       try {
-        const result = category === 'power'
-          ? await getPowerTierLeaderboard(selectedTier, user.id)
-          : await getTierLeaderboard(selectedTier, user.id);
+        const result = await getTierLeaderboard(selectedTier, user.id);
         setEntries(result.entries);
         setPersonalBest(result.personalBest);
         cacheRef.current = {
@@ -112,11 +97,11 @@ export function LeaderboardScreen({
       }
     };
     fetchData();
-  }, [selectedTier, category, user]);
+  }, [selectedTier, user]);
 
-  const isDemigodEternal = selectedTier === 8 && category === 'strength';
-  const canPractice = selectedTier < (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));
-  const isCurrentTier = selectedTier === (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));
+  const isDemigodEternal = selectedTier === 8;
+  const canPractice = selectedTier < (profile?.strength_tier ?? 0);
+  const isCurrentTier = selectedTier === (profile?.strength_tier ?? 0);
 
   return (
     <ScrollView style={styles.container}>
@@ -127,51 +112,7 @@ export function LeaderboardScreen({
         </TouchableOpacity>
       </View>
 
-      {/* Category Toggle */}
-      <View style={styles.categoryToggleContainer}>
-        <TouchableOpacity 
-          style={[
-            styles.categoryTab, 
-            category === 'strength' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }
-          ]}
-          onPress={() => {
-            const newTier = Math.min(profile?.strength_tier || 0, TIER_NAMES.length - 1);
-            setCategory('strength');
-            setSelectedTier(newTier);
-            if (onCategoryChange) onCategoryChange('strength');
-            if (onTierChange) onTierChange(newTier);
-          }}
-        >
-          <Text style={[
-            styles.categoryText, 
-            { color: category === 'strength' ? theme.accent : theme.text.tertiary }
-          ]}>STRENGTH</Text>
-        </TouchableOpacity>
 
-        <TouchableOpacity 
-          disabled={!isPowerUnlocked}
-          style={[
-            styles.categoryTab, 
-            category === 'power' && { borderBottomColor: theme.accent, borderBottomWidth: 2 },
-            !isPowerUnlocked && { opacity: 0.5 }
-          ]}
-          onPress={() => {
-            const newTier = Math.min(profile?.power_tier || 0, POWER_TIER_NAMES.length - 1);
-            setCategory('power');
-            setSelectedTier(newTier);
-            if (onCategoryChange) onCategoryChange('power');
-            if (onTierChange) onTierChange(newTier);
-          }}
-        >
-          <View style={styles.row}>
-            {!isPowerUnlocked && <Text style={{ fontSize: 10, marginRight: 4 }}>🔒</Text>}
-            <Text style={[
-              styles.categoryText, 
-              { color: category === 'power' ? theme.accent : theme.text.tertiary }
-            ]}>POWER</Text>
-          </View>
-        </TouchableOpacity>
-      </View>
 
 <ScrollView
         horizontal
@@ -179,8 +120,8 @@ export function LeaderboardScreen({
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}
       >
-        {(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map((name, tierIndex) => {
-          const isUnlocked = tierIndex <= (category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0));
+        {TIER_NAMES.map((name, tierIndex) => {
+          const isUnlocked = tierIndex <= (profile?.strength_tier ?? 0);
           return (
             <TouchableOpacity
               key={tierIndex}
@@ -190,10 +131,7 @@ export function LeaderboardScreen({
                 selectedTier === tierIndex && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
                 !isUnlocked && { opacity: 0.5 }
               ]}
-              onPress={() => {
-                setSelectedTier(tierIndex);
-                if (onTierChange) onTierChange(tierIndex);
-              }}
+              onPress={() => setSelectedTier(tierIndex)}
             >
               <Text style={[
                 styles.tierItemName,
@@ -228,7 +166,7 @@ export function LeaderboardScreen({
         }}
       >
         <Text style={[styles.currentTierName, { color: theme.accent }]}>
-          {getTierName(selectedTier, category).toUpperCase()}
+          {getTierName(selectedTier).toUpperCase()}
         </Text>
       </TouchableOpacity>
 
@@ -236,20 +174,15 @@ export function LeaderboardScreen({
       <View style={styles.statsDashboard}>
         {/* Best Time Circle */}
         <View style={[styles.statCircle, { borderColor: theme.accent, backgroundColor: 'rgba(205, 127, 50, 0.08)' }]}>
-          <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>
-            {category === 'power' ? 'BEST SCORE' : 'BEST TIME'}
-          </Text>
+          <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>BEST TIME</Text>
           <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
             {personalBest?.best_time_seconds
-              ? (category === 'power' 
-                  ? personalBest.best_time_seconds 
-                  : formatLeaderboardTime(personalBest.best_time_seconds).replace("'", ':').replace('"', '')
-                )
+              ? formatLeaderboardTime(personalBest.best_time_seconds).replace("'", ':').replace('"', '')
               : '-'
             }
           </Text>
           <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
-            {category === 'power' ? 'PTS' : (personalBest?.best_time_seconds && personalBest.best_time_seconds < 60 ? 'SEC' : 'MIN')}
+            {personalBest?.best_time_seconds && personalBest.best_time_seconds < 60 ? 'SEC' : 'MIN'}
           </Text>
         </View>
         
@@ -277,18 +210,11 @@ export function LeaderboardScreen({
                 {(() => {
                   const userAbove = entries.find(e => e.rank === ((personalBest?.rank ?? 0) - 1));
                   if (!userAbove || !personalBest?.best_time_seconds) return '-';
-                  if (category === 'power') {
-                    const gap = (userAbove.best_time_seconds || 0) - (personalBest.best_time_seconds || 0);
-                    return `+${Math.max(0, gap)}`;
-                  } else {
-                    const gap = (personalBest.best_time_seconds || 0) - (userAbove.best_time_seconds || 0);
-                    return `-${formatLeaderboardTime(Math.max(0, gap))}`;
-                  }
+                  const gap = (personalBest.best_time_seconds || 0) - (userAbove.best_time_seconds || 0);
+                  return `-${formatLeaderboardTime(Math.max(0, gap))}`;
                 })()}
               </Text>
-              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
-                {category === 'power' ? 'PTS NEEDED' : 'TIME TO BEAT'}
-              </Text>
+              <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>TIME TO BEAT</Text>
             </>
           )}
         </View>
@@ -296,7 +222,7 @@ export function LeaderboardScreen({
 
       {/* Practice/Eternal Buttons */}
       <View style={styles.actionButtons}>
-        {isCurrentTier && category === 'strength' && !isDemigodEternal && (
+        {isCurrentTier && !isDemigodEternal && (
           <TouchableOpacity
             style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onPracticeTier(selectedTier)}
@@ -304,28 +230,12 @@ export function LeaderboardScreen({
             <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>COMPETE THIS TIER</Text>
           </TouchableOpacity>
         )}
-        {isCurrentTier && category === 'power' && (
-          <TouchableOpacity
-            style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
-            onPress={() => onStartPowerAssessment ? onStartPowerAssessment() : onPracticeTier(selectedTier)}
-          >
-            <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>COMPETE THIS TIER</Text>
-          </TouchableOpacity>
-        )}
-        {canPractice && category === 'strength' && (
+        {canPractice && (
           <TouchableOpacity
             style={[styles.practiceButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
             onPress={() => onPracticeTier(selectedTier)}
           >
             <Text style={[styles.practiceButtonText, { color: '#FFFFFF' }]}>PRACTICE THIS TIER</Text>
-          </TouchableOpacity>
-        )}
-        {canPractice && category === 'power' && (
-          <TouchableOpacity
-            style={styles.practiceButton}
-            onPress={() => onStartPowerAssessment ? onStartPowerAssessment() : onPracticeTier(selectedTier)}
-          >
-            <Text style={styles.practiceButtonText}>IMPROVE SCORE</Text>
           </TouchableOpacity>
         )}
         {isDemigodEternal && (
@@ -366,19 +276,13 @@ export function LeaderboardScreen({
                     {entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.display_name}
                   </Text>
                   <Text style={[styles.timeToBeatValue, { color: theme.accent }]}>
-                    {category === 'power' 
-                      ? `${entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds} pts`
-                      : formatLeaderboardTime(entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0)
-                    }
+                    {formatLeaderboardTime(entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0)}
                   </Text>
                   <View style={[styles.timeToBeatGap, { backgroundColor: theme.background.secondary }]}>
                     <View style={styles.gapRow}>
                       <Text style={[styles.gapLabel, { color: theme.text.tertiary }]}>GAP</Text>
                       <Text style={[styles.gapValue, { color: theme.accent }]}>
-                        {category === 'power'
-                          ? `+${(entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0) - (personalBest.best_time_seconds || 0)} pts`
-                          : `-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0))}`
-                        }
+                        {`-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0))}`}
                       </Text>
                     </View>
                   </View>
@@ -403,9 +307,7 @@ export function LeaderboardScreen({
       ) : entries.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No warriors have attempted this tier yet.</Text>
-          <Text style={styles.emptySubtext}>
-            {category === 'power' ? 'Be the first to claim a score!' : 'Be the first to claim a time!'}
-          </Text>
+          <Text style={styles.emptySubtext}>Be the first to claim a time!</Text>
         </View>
       ) : (
         <ScrollView style={styles.listPreview} showsVerticalScrollIndicator={false}>
@@ -414,10 +316,7 @@ export function LeaderboardScreen({
             const showGap = entry.is_current_user && personalBest && personalBest.rank && personalBest.rank > 1;
             const nextEntry = showGap ? entries.find(e => e.rank === personalBest.rank! - 1) : null;
             const gapValue = showGap && nextEntry
-              ? (category === 'power'
-                  ? `+${(nextEntry.best_time_seconds || 0) - (personalBest.best_time_seconds || 0)} pts`
-                  : `-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
-                )
+              ? `-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
               : null;
             
             return (
@@ -461,14 +360,9 @@ export function LeaderboardScreen({
                   {/* Best Time Circle */}
                   <View style={[styles.timeCircle, { backgroundColor: 'rgba(205, 127, 50, 0.1)', borderColor: theme.accent }]}>
                     <Text style={[styles.timeCircleValue, { color: theme.accent }]}>
-                      {category === 'power' 
-                        ? `${entry.best_time_seconds}`
-                        : formatLeaderboardTime(entry.best_time_seconds).replace(':', "'") + '"'
-                      }
+                      {formatLeaderboardTime(entry.best_time_seconds).replace(':', "'") + '"'}
                     </Text>
-                    <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>
-                      {category === 'power' ? 'PTS' : 'TIME'}
-                    </Text>
+                    <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>TIME</Text>
                   </View>
                   
                   {/* Gap Circle (only for current user when not #1) */}
@@ -547,10 +441,7 @@ export function LeaderboardScreen({
                   </View>
                   <View style={styles.timeContainer}>
                     <Text style={[styles.entryTime, { color: theme.accent }]}>
-                      {category === 'power' 
-                        ? `${entry.best_time_seconds} pts`
-                        : formatLeaderboardTime(entry.best_time_seconds)
-                      }
+                      {formatLeaderboardTime(entry.best_time_seconds)}
                     </Text>
                   </View>
                 </View>
@@ -573,7 +464,7 @@ export function LeaderboardScreen({
             <View style={styles.modalHeader}>
               <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
                 <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {getTierName(modalTier, category).toUpperCase()}
+                  {getTierName(modalTier).toUpperCase()}
                 </Text>
               </View>
               <TouchableOpacity
@@ -598,13 +489,13 @@ export function LeaderboardScreen({
                       styles.modalDifficultyFill,
                       {
                         backgroundColor: theme.accent,
-                        width: `${(((category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.difficulty || 1) / 9) * 100}%` 
+                        width: `${((TIER_REQUIREMENTS[modalTier]?.difficulty || 1) / 9) * 100}%` 
                       }
                     ]}
                   />
                 </View>
                 <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
-                  {(category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.difficulty || 1}/9
+                  {TIER_REQUIREMENTS[modalTier]?.difficulty || 1}/9
                 </Text>
               </View>
             </View>
@@ -613,12 +504,12 @@ export function LeaderboardScreen({
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
               <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
               <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {(category === 'strength' ? TIER_REQUIREMENTS : POWER_TIER_REQUIREMENTS)[modalTier]?.desc || 'Complete the trial to advance'}
+                {TIER_REQUIREMENTS[modalTier]?.desc || 'Complete the trial to advance'}
               </Text>
             </View>
 
             {/* Trial Movements Preview */}
-            {category === 'strength' && RITES_OF_PASSAGE[modalTier] && (
+            {RITES_OF_PASSAGE[modalTier] && (
               <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
                 <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
                 <View style={styles.movementsList}>
@@ -649,9 +540,7 @@ export function LeaderboardScreen({
                 ]}
                 onPress={() => {
                   setShowTierModal(false);
-                  if (category === 'power') {
-                    if (onStartPowerAssessment) onStartPowerAssessment();
-                  } else if (modalTier === 8) {
+                  if (modalTier === 8) {
                     onStartEternal();
                   } else {
                     onPracticeTier(modalTier);
@@ -720,7 +609,7 @@ const styles = StyleSheet.create({
   },
   tierSelector: {
     paddingHorizontal: 16,
-    marginTop: 80,
+    marginTop: 120,
     marginBottom: 20,
   },
   tierItem: {
@@ -1078,19 +967,6 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: '#FFFFFF',
   },
-  lockedIndicator: {
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    marginTop: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.05)',
-  },
-  lockedIndicatorText: {
-    fontSize: 14,
-    fontWeight: '600',
-    letterSpacing: 1,
-  },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1445,4 +1321,6 @@ const styles = StyleSheet.create({
   fullLeaderboardList: {
     maxHeight: 400,
   },
+  lockedIndicator: { opacity: 0.4 },
+  lockedIndicatorText: { color: 'gray', fontSize: 11 }
 });

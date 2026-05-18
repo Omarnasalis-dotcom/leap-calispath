@@ -286,8 +286,6 @@ export default function Index() {
         <LeaderboardScreen
           key={`${leaderboardCategory}-${leaderboardTier}`}
           onClose={() => setShowLeaderboards(false)}
-          onCategoryChange={(cat) => setLeaderboardCategory(cat)}
-          onTierChange={(tier) => setLeaderboardTier(tier)}
           onPracticeTier={(tier) => {
             setPracticeTier(tier);
             setTrialMode('practice');
@@ -303,7 +301,6 @@ export default function Index() {
             setShowLeaderboards(false);
             setShowPowerWorld(true);
           }}
-          initialCategory={leaderboardCategory}
           initialTier={leaderboardTier}
         />
       );

@@ -24,7 +24,22 @@ import { LeaderboardService } from '../services/LeaderboardService';
 import { RITES_OF_PASSAGE } from '../lib/trials';
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-2.0-flash-lite'; 
+const GEMINI_MODEL = 'gemini-flash-lite-latest'; 
+
+function getTierCapability(tier: number): string {
+  switch (tier || 0) {
+    case 0: return "Beginner. Cannot perform full push-ups or pull-ups yet. Must focus on foundational strength like knee push-ups, dead hangs, and bodyweight rows.";
+    case 1: return "Novice. Can perform basic push-ups and a few pull-ups. Building foundational endurance.";
+    case 2: return "Intermediate. Solid at basic calisthenics (push-ups, pull-ups, dips). Exploring advanced basics.";
+    case 3: return "Advanced Intermediate. High rep endurance on basics. Beginning to train for the muscle-up.";
+    case 4: return "Advanced. Has achieved the muscle-up. Working on strict form and heavier weighted basics.";
+    case 5: return "Elite. Mastered muscle-ups and heavy weighted calisthenics. Entering high-level statics.";
+    case 6: return "Master. Exceptional power and static control. Fully unlocked Power World.";
+    case 7: return "Grandmaster. Elite level across all disciplines.";
+    case 8: return "Eternity. Peak human calisthenics performance.";
+    default: return "Capabilities unknown.";
+  }
+}
 
 function buildSystemPrompt(profile: any): string {
   const tierName = TIER_NAMES[profile.strength_tier] || 'Unknown';
@@ -32,35 +47,45 @@ function buildSystemPrompt(profile: any): string {
     ? Math.round((profile.trials_passed / profile.trials_attempted) * 100)
     : 0;
 
-  return `You are the Leap Arena Warrior Coach. You analyze calisthenics performance data and give sharp, specific, actionable advice. You speak like a disciplined Spartan commander — direct, honest, no fluff.
+  return `You are the elite Leap Arena Mentor. You analyze calisthenics data and give sharp, specific, and direct advice. You use "tough love" to push the warrior to excellence, but you NEVER insult, demean, or call them names (no words like coward, peasant, or disgrace).
+
+ARENA KNOWLEDGE (HOW IT WORKS):
+- The Arena has 3 Main Worlds: 
+  1. Power World (Grants Power Points based on weighted calisthenics).
+  2. Static World (Grants Static Points/Tier based on holds like planche and front lever).
+  3. 1MM (1-Minute Max reps).
+- Global Rank is the ultimate leaderboard. A warrior climbs the Global Rank by accumulating points across all 3 worlds, plus Glory Score from winning Clashes.
 
 WARRIOR DATA:
 - Name: ${profile.display_name || 'Warrior'}
 - Strength Tier: ${profile.strength_tier} (${tierName})
+- Capability Profile: ${getTierCapability(profile.strength_tier)}
 - Glory Score: ${profile.glory_score || 0}
 - Clash Win Streak: ${profile.clash_win_streak || 0}
 - Trials: ${profile.trials_passed || 0} passed / ${profile.trials_attempted || 0} attempted (${trialsRate}% pass rate)
 - Power Points: ${profile.power_points || 0}
+- Static Points: ${profile.statics_tier || 0}
 - 1MM Points: ${profile.one_mm_points || 0}
 - Power World: ${(profile.strength_tier || 0) >= 6 ? 'Unlocked' : `Locked — needs Tier 6, at Tier ${profile.strength_tier}`}
 ${(() => {
   const nextTier = (profile.strength_tier || 0) + 1;
   const trial = RITES_OF_PASSAGE.find(t => t.tier === nextTier);
   if (!trial) return '';
-  return `\nNEXT RITE OF PASSAGE (Tier ${nextTier} requirements):\n${trial.movements.map((m: any) => `- ${m.name}: ${m.reps} reps`).join('\n')}`;
+  return `- Next Tier Requirement (Tier ${nextTier} Trial): ${trial.movements.map((m: any) => `${m.reps}x ${m.name}`).join(', ')}`;
 })()}
 
-STRICT RULES — follow every one:
-1. NEVER repeat the warrior's stats back to them unless they ask
-2. NEVER use markdown headers (###), bullet asterisks, or bold (**text**)
-3. Keep every response under 120 words — no exceptions
-4. Always end with ONE specific action they can do today
-5. If the question is vague, ask ONE clarifying question instead of guessing
-6. If they greet you (hi, hello, hey), respond in maximum 2 sentences and ask what they need
-7. Never repeat advice you already gave in this conversation
-8. If a question is not about their training or performance, reply: "I only analyze warrior performance. Ask me about your training, tiers, clashes, or scores."
-9. Tier names for reference: Helot(0) Iron-Bound(1) Steel-Wrought(2) Bronze-Clad(3) Silver-Will(4) Gold-Soul(5) Platinum-Heart(6) Obsidian-Core(7) Eternity(8)`;
+STRICT RULES:
+1. Keep every response under 60 words. Speak in short, punchy sentences. Do not over-explain. Say only what is absolutely necessary.
+2. NEVER use markdown headers, bullet asterisks, or bold text.
+3. If they ask about their stats, give them the numbers plainly and cleanly. Do not lecture them for asking.
+4. Do not fixate on the same weakness (like a low pass rate) in every response. Address it once, then focus on growth.
+5. ONLY give a specific training suggestion or tip if they are asking for workout advice or struggling with a movement. Do NOT give unprompted workout advice if they are just saying thank you or making casual conversation.
+6. If the question is vague, ask ONE clarifying question instead of guessing.
+7. If they greet you or say thank you, acknowledge it in ONE sentence and say nothing else.
+8. If a question is not about their training, tiers, clashes, or scores, reply: "I only analyze warrior performance. Ask me about the Arena."
+9. If they accomplish a milestone (like passing a trial), show genuine, motivating pride. If they fail, give an honest, analytical breakdown of why they failed and encourage them to retest.`;
 }
+
 
 const SUGGESTED_QUESTIONS = [
   'What is my biggest weakness right now?',
@@ -80,14 +105,16 @@ interface Message {
 const DAILY_LIMIT = 10;
 
 async function getDailyUsage(userId: string): Promise<number> {
-  const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+  const d = new Date();
+  const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   const key = `coach_usage_${userId}_${today}`;
   const val = await AsyncStorage.getItem(key);
   return val ? parseInt(val) : 0;
 }
 
 async function incrementDailyUsage(userId: string): Promise<void> {
-  const today = new Date().toISOString().split('T')[0];
+  const d = new Date();
+  const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
   const key = `coach_usage_${userId}_${today}`;
   const current = await getDailyUsage(userId);
   await AsyncStorage.setItem(key, String(current + 1));
@@ -138,10 +165,8 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved && saved.startsWith('[')) {
           setMessages(JSON.parse(saved));
-        } else {
-          startSession();
         }
-      } catch (e) { startSession(); }
+      } catch (e) { }
     };
     init();
   }, [profile?.id]);
@@ -155,8 +180,6 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
   const startSession = async () => {
     if (loading) return;
     setLoading(true);
-
-    const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
     
     if (!GEMINI_KEY || GEMINI_KEY === 'placeholder-key') {
       setMessages([{ role: 'assistant', content: `Greetings, ${profile?.display_name || 'Warrior'}. I am your Arena Mentor. How can I guide you today? Would you like a quick report on your profile?` }]);
@@ -165,26 +188,35 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1alpha/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_KEY,
         },
         body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: buildSystemPrompt(profile) }]
-          },
-          contents: [],
-          generationConfig: {
-            maxOutputTokens: 200
+          contents: [
+            { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] },
+            { role: 'model', parts: [{ text: 'Understood. I am the Leap Arena Mentor. Speak, Warrior.' }] },
+            { role: 'user', parts: [{ text: 'Begin session' }] }
+          ],
+          generationConfig: { 
+            maxOutputTokens: 150,
+            temperature: 0.7
           }
         })
       });
       
       if (!response.ok) {
-        setMessages([{ role: 'assistant', content: "Arena wisdom is flickering. Please check your connection." }]);
+        const errData = await response.json().catch(() => ({}));
+        console.error('Gemini API Error:', errData);
+        const status = response.status;
+        if (status === 429 || status === 403) {
+          setMessages([{ role: 'assistant', content: "The Arena is currently over-taxed (System Quota reached). The Mentor will return shortly. 🏛️" }]);
+        } else {
+          const errMsg = errData?.error?.message || `Status ${status}`;
+          setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (Error: ${errMsg}). Please check your connection.` }]);
+        }
         return;
       }
 
@@ -232,26 +264,28 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     if (!text) setInputText('');
     setLoading(true);
 
-    const context = `User: ${profile?.display_name || 'Warrior'}. Stats: Tier ${profile?.strength_tier}, Rank ${globalRank}, Power ${profile?.power_points}, Static ${profile?.statics_tier}, 1MM ${profile?.one_mm_points}.`;
-
     try {
-      const url = `https://generativelanguage.googleapis.com/v1alpha/models/${GEMINI_MODEL}:generateContent`;
+      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
       const response = await fetch(url, {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'x-goog-api-key': GEMINI_KEY,
         },
         body: JSON.stringify({
-          system_instruction: {
-            parts: [{ text: buildSystemPrompt(profile) }]
-          },
-          contents: newMsgs.slice(-6).map(m => ({
-            role: m.role === 'assistant' ? 'model' : 'user',
-            parts: [{ text: m.content }]
-          })),
+          contents: (() => {
+            const systemMsg = { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] };
+            const ackMsg = { role: 'model', parts: [{ text: 'Understood.' }] };
+            
+            let hist = newMsgs.slice(-6).map(m => ({
+              role: m.role === 'assistant' ? 'model' : 'user',
+              parts: [{ text: m.content }]
+            }));
+            
+            return [systemMsg, ackMsg, ...hist];
+          })(),
           generationConfig: {
-            maxOutputTokens: 200
+            maxOutputTokens: 150,
+            temperature: 0.7
           }
         })
       });
@@ -264,12 +298,12 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         if (errorCode === 403 || errorMessage.toLowerCase().includes('quota')) {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: 'The coach is resting — daily training limit reached. Come back tomorrow for more wisdom, warrior. 🏛️',
+            content: 'The Arena is currently over-taxed (System Quota reached). I must rest my wisdom for a moment. 🏛️',
           }]);
         } else if (errorCode === 429) {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: 'The coach is resting — daily training limit reached. Come back tomorrow for more wisdom, warrior. 🏛️',
+            content: 'Slow down, warrior. You are seeking wisdom too quickly for the stars to align. Try again in a minute.',
           }]);
         } else {
           setMessages(prev => [...prev, {
@@ -290,9 +324,10 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         throw new Error('Empty response from Gemini');
       }
     } catch (error: any) {
+      console.error('Coach Send Error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: 'Coach is temporarily unreachable. Check your connection and try again.',
+        content: `Coach is temporarily unreachable (Detail: ${error.message || 'Network Error'}). Check your connection and try again.`,
       }]);
     } finally {
       setLoading(false);
@@ -365,6 +400,13 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
                 <MaterialCommunityIcons name="brain" size={48} color={theme.accent} />
                 <Text style={[styles.welcomeTitle, { color: textColor }]}>Arena Mentor</Text>
                 <Text style={[styles.welcomeSub, { color: subtextColor }]}>Analyze your performance or plan your next tier-up.</Text>
+                <TouchableOpacity 
+                  style={[styles.beginBtn, { backgroundColor: theme.accent }]}
+                  onPress={startSession}
+                  disabled={loading}
+                >
+                  {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.beginBtnText}>CONSULT THE MENTOR</Text>}
+                </TouchableOpacity>
               </View>
             )}
 
@@ -474,7 +516,19 @@ const styles = StyleSheet.create({
   quotaText: { fontSize: 10, fontWeight: '500', marginTop: 2, letterSpacing: 0.3 },
   welcomeContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
   welcomeTitle: { fontSize: 24, fontWeight: '900', marginTop: 16 },
-  welcomeSub: { fontSize: 14, textAlign: 'center', marginTop: 8, opacity: 0.7 },
+  welcomeSub: { fontSize: 14, textAlign: 'center', marginTop: 8, opacity: 0.7, marginBottom: 20 },
+  beginBtn: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 20,
+    marginTop: 10,
+  },
+  beginBtnText: {
+    color: '#000',
+    fontWeight: '900',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
   chipsWrap: {
     borderTopWidth: 0.5,
     paddingVertical: 10,

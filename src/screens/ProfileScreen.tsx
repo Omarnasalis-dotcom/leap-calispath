@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -24,7 +24,7 @@ import { LeaderboardService, GlobalWellRoundedEntry } from '../services/Leaderbo
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 
-import { getTierLeaderboard } from '../lib/leaderboard';
+import { getTierLeaderboard, getPowerTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
@@ -44,6 +44,7 @@ interface ProfileScreenProps {
   onOpenTournamentArena?: () => void;
   onOpenOneMinMax?: () => void;
   onOpenCoach?: () => void;
+  onOpenAdmin?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
@@ -60,6 +61,7 @@ export function ProfileScreen({
   onOpenTournamentArena,
   onOpenOneMinMax,
   onOpenCoach,
+  onOpenAdmin,
   initialCategory = 'strength',
   initialTier = 0,
 }: ProfileScreenProps) {
@@ -80,6 +82,46 @@ export function ProfileScreen({
   const [showGloryLeaderboard, setShowGloryLeaderboard] = useState(false);
   const [gloryLeaderboard, setGloryLeaderboard] = useState<any[]>([]);
   const [loadingLB, setLoadingLB] = useState(false);
+  const [showWarriorModal, setShowWarriorModal] = useState(false);
+  const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
+
+  useEffect(() => {
+    if (profile) {
+      setSelectedTier(category === 'strength' ? (profile.strength_tier || 0) : (profile.power_tier || 0));
+    }
+  }, [profile?.strength_tier, profile?.power_tier, category]);
+
+  useEffect(() => {
+    async function loadRank() {
+      if (!profile?.id) return;
+      try {
+        const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
+        const { entries } = await fetcher(selectedTier, profile.id);
+        const userIdx = entries.findIndex(e => e.user_id === profile.id);
+        if (userIdx !== -1) {
+          const rank = userIdx + 1;
+          let gapStr = null;
+          if (rank > 1) {
+            const prev = entries[userIdx - 1];
+            const current = entries[userIdx];
+            if (category === 'strength') {
+              const diff = current.best_time_seconds - prev.best_time_seconds;
+              gapStr = `${diff.toFixed(1)}s`;
+            } else {
+              const diff = prev.best_time_seconds - current.best_time_seconds;
+              gapStr = `${diff}pts`;
+            }
+          }
+          setTierRankData({ rank, total: entries.length, gap: gapStr });
+        } else {
+          setTierRankData({ rank: null, total: entries.length, gap: null });
+        }
+      } catch (e) {
+        console.error('Error loading rank:', e);
+      }
+    }
+    loadRank();
+  }, [selectedTier, category, profile?.id]);
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
@@ -169,6 +211,22 @@ export function ProfileScreen({
     }
     syncAllPoints();
   }, [profile?.id]);
+
+  const tierScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    // Auto-scroll to current tier on load
+    if (activeCurrentTier > 0) {
+      setTimeout(() => {
+        if (tierScrollRef.current) {
+          const itemWidth = 100;
+          const gap = 12;
+          const offset = activeCurrentTier * (itemWidth + gap);
+          tierScrollRef.current.scrollTo({ x: offset - 40, animated: true });
+        }
+      }, 800);
+    }
+  }, [activeCurrentTier]);
 
   const [showCoachPrompt, setShowCoachPrompt] = useState(false);
 
@@ -265,8 +323,8 @@ export function ProfileScreen({
         </View>
 
         {onPress && (
-          <TouchableOpacity 
-            style={[styles.lbCircleIndicator, { backgroundColor: theme.card.background, borderColor: `${color}30` }]} 
+          <TouchableOpacity
+            style={[styles.lbCircleIndicator, { backgroundColor: theme.card.background, borderColor: `${color}30` }]}
             onPress={onPress}
           >
             <MaterialCommunityIcons name="trophy" size={12} color={color} />
@@ -285,29 +343,81 @@ export function ProfileScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      {/* 1. Coach Trigger - Upper Left */}
+      <TouchableOpacity
+        activeOpacity={0.7}
+        onPress={() => setShowCoachPrompt(true)}
+        style={{ position: 'absolute', top: 60, left: 16, zIndex: 100 }}
+      >
+        <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40', height: 26 }]}>
+          <MaterialCommunityIcons name="brain" size={14} color={theme.accent} />
+          <Text style={[styles.coachBadgeText, { color: theme.accent }]}>COACH</Text>
+        </View>
+      </TouchableOpacity>
+      
+      {/* Admin Button - Next to Coach (Top Left) */}
+      {profile?.is_admin && (
+        <TouchableOpacity 
+          style={{ 
+            position: 'absolute', 
+            top: 60, 
+            left: 95, 
+            zIndex: 100,
+            width: 26,
+            height: 26,
+            borderRadius: 4,
+            backgroundColor: theme.accent + '20',
+            borderColor: theme.accent + '40',
+            borderWidth: 1,
+            justifyContent: 'center',
+            alignItems: 'center'
+          }} 
+          onPress={onOpenAdmin}
+        >
+          <MaterialCommunityIcons name="shield-crown" size={14} color={theme.accent} />
+        </TouchableOpacity>
+      )}
+
+      {/* 2. Access Status - Upper Center */}
+      <View style={{ position: 'absolute', top: 60, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
+        <Text style={{ 
+          color: theme.text.tertiary, 
+          fontSize: 8, 
+          fontWeight: '700',
+          letterSpacing: 0.5,
+          opacity: 0.6
+        }}>
+          {!profile.access_expires_at 
+            ? 'GUEST ACCESS' 
+            : new Date(profile.access_expires_at).getFullYear() > 2100 
+              ? 'LIFETIME MEMBERSHIP' 
+              : (() => {
+                  const days = Math.ceil((new Date(profile.access_expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  return `${days > 0 ? days : 0} DAYS REMAINING • ${new Date(profile.access_expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}`;
+                })()
+          }
+        </Text>
+      </View>
+
+
+
       <ScrollView>
         <View style={styles.header}>
           {/* User Avatar with Tier Info */}
           <View style={styles.avatarSection}>
             {/* User Display Name Above Rings with Coach Trigger */}
             <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 10 }}>
-              <TouchableOpacity 
-                activeOpacity={0.7}
-                onPress={() => setShowCoachPrompt(true)}
-                style={styles.nameHeaderCoachBtn}
-              >
-                <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40' }]}>
-                  <MaterialCommunityIcons name="brain" size={14} color={theme.accent} />
-                  <Text style={[styles.coachBadgeText, { color: theme.accent }]}>COACH</Text>
-                </View>
-              </TouchableOpacity>
 
               <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
                 {profile.display_name?.toUpperCase() || 'WARRIOR'}
               </Text>
             </View>
 
-            <View style={styles.avatarWrapper}>
+            <TouchableOpacity
+              style={styles.avatarWrapper}
+              activeOpacity={0.7}
+              onPress={() => setShowWarriorModal(true)}
+            >
               {/* Concentric rings avatar — 8 rings, one per tier, filled outward */}
               {Array.from({ length: 8 }).map((_, i) => {
                 const ringIndex = i + 1;
@@ -348,7 +458,7 @@ export function ProfileScreen({
                   {activeCurrentTier}
                 </Text>
               </View>
-            </View>
+            </TouchableOpacity>
 
             {/* Tier name + progress label below the rings */}
             <Text style={[styles.arcTierName, { color: theme.accent }]}>
@@ -417,7 +527,7 @@ export function ProfileScreen({
             const isActive = category === world.id;
             const isUnlocked = (profile?.strength_tier || 0) >= world.unlockTier;
             return (
-              <TouchableOpacity 
+              <TouchableOpacity
                 key={world.id}
                 onPress={() => {
                   if (isUnlocked) {
@@ -453,6 +563,7 @@ export function ProfileScreen({
             </Text>
           </View>
           <ScrollView
+            ref={tierScrollRef}
             horizontal
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={styles.tierList}
@@ -466,36 +577,36 @@ export function ProfileScreen({
               return (
                 <TouchableOpacity
                   key={index}
-                  style={[
-                    styles.tierItem,
-                    { backgroundColor: theme.card.background, borderColor: theme.card.border },
-                    isSelected && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
-                    isLockedItem && { opacity: 0.5 }
-                  ]}
                   onPress={() => setSelectedTier(tierIndex)}
+                  style={[
+                    styles.tierItemContainer,
+                    isSelected && !isCurrent && { borderColor: theme.accent, borderWidth: 2 }
+                  ]}
                 >
-                  <Text style={[
-                    styles.tierItemName,
-                    { color: theme.text.tertiary },
-                    isSelected && { color: theme.accent }
+                  <View style={[
+                    styles.tierItemContent,
+                    isCurrent ? { backgroundColor: theme.accent } :
+                      isLockedItem ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' } :
+                        { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.accent }
                   ]}>
-                    {name.toUpperCase()}
-                  </Text>
-                  <Text style={[
-                    styles.tierItemNumber,
-                    { color: theme.text.tertiary },
-                    isSelected && { color: theme.accent }
-                  ]}>
-                    Tier {index}
-                  </Text>
-                  {isLockedItem && (
-                    <View style={styles.lockOverlay}>
-                      <Text style={styles.lockIcon}>🔒</Text>
-                    </View>
-                  )}
-                  {isCurrent && (
-                    <View style={[styles.currentIndicator, { backgroundColor: theme.accent }]} />
-                  )}
+                    <Text style={[
+                      styles.tierItemName,
+                      { color: isCurrent ? '#FFFFFF' : isLockedItem ? theme.text.tertiary : theme.accent, letterSpacing: 1 }
+                    ]}>
+                      {name.toUpperCase()}
+                    </Text>
+                    <Text style={[
+                      styles.tierItemNumber,
+                      { color: isCurrent ? 'rgba(255,255,255,0.7)' : isLockedItem ? theme.text.tertiary + '80' : theme.accent + '90', letterSpacing: 1 }
+                    ]}>
+                      Tier {index}
+                    </Text>
+                    {isLockedItem && (
+                      <View style={styles.lockOverlay}>
+                        <Text style={{ fontSize: 8 }}>🔒</Text>
+                      </View>
+                    )}
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -530,174 +641,153 @@ export function ProfileScreen({
           </WarriorCard>
         )}
 
-        {/* Selected Tier Card */}
+        {/* Selected Tier Card - Redesigned */}
         <WarriorCard
-          style={styles.rankCard}
+          style={styles.modernTierCard}
           variant={isLocked ? 'default' : 'accent'}
-          padding={20}
+          padding={16}
         >
+          <View style={styles.tierCirclesRow}>
+            {/* Left Circle: Rank */}
+            <View style={[styles.tierCircleSmall, { borderColor: isLocked ? theme.card.border : theme.accent + '30' }]}>
+              <Text style={[styles.tierCircleLabel, { color: theme.text.tertiary }]}>RANK</Text>
+              <Text style={[styles.tierCircleValue, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+                #{tierRankData.rank || '-'}
+              </Text>
+              <Text style={[styles.tierCircleSubValue, { color: theme.text.tertiary }]}>
+                OF {tierRankData.total}
+              </Text>
+            </View>
+
+            {/* Center Circle: Main Tier */}
+            <TouchableOpacity
+              activeOpacity={0.7}
+              onPress={() => {
+                setModalTier(selectedTier);
+                setShowTierModal(true);
+              }}
+              style={[styles.tierCircleLarge, { borderColor: isLocked ? theme.card.border : theme.accent }]}
+            >
+              <Text style={[styles.tierLargeName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+                {tierName.toUpperCase()}
+              </Text>
+            </TouchableOpacity>
+
+            {/* Right Circle: Gap */}
+            <View style={[styles.tierCircleSmall, { borderColor: isLocked ? theme.card.border : theme.accent + '30' }]}>
+              <Text style={[styles.tierCircleLabel, { color: theme.text.tertiary }]}>GAP</Text>
+              <Text style={[styles.tierCircleValue, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
+                {tierRankData.rank === 1 ? 'KING' : (tierRankData.gap || '-')}
+              </Text>
+              {tierRankData.rank !== 1 && (
+                <Text style={[styles.tierCircleSubValue, { color: theme.text.tertiary }]}>
+                  {category === 'strength' ? 'TO #1' : 'PTS'}
+                </Text>
+              )}
+            </View>
+          </View>
+
+          {/* Internal Progress Bar */}
+          {category === 'strength' && (
+            <View style={{ paddingHorizontal: 24, marginTop: 12, marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
+                <Text style={{ fontSize: 11, color: theme.text.secondary }}>
+                  Tier {profile?.strength_tier ?? 0} of 9
+                </Text>
+                <Text style={{ fontSize: 11, color: theme.text.secondary }}>
+                  {Math.round(((profile?.strength_tier ?? 0) / 9) * 100)}% Complete
+                </Text>
+              </View>
+              <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(205,127,50,0.2)', overflow: 'hidden' }}>
+                <View
+                  style={{
+                    height: '100%',
+                    backgroundColor: theme.accent,
+                    width: `${((profile?.strength_tier ?? 0) / 9) * 100}%`
+                  }}
+                />
+              </View>
+            </View>
+          )}
+
           <TouchableOpacity
-            style={styles.rankCardInner}
-            onPress={() => {
-              setModalTier(selectedTier);
-              setShowTierModal(true);
-            }}
+            style={styles.cardLeaderboardTrigger}
+            onPress={() => onViewLeaderboards?.(category, selectedTier)}
           >
-            <View style={[styles.sealPlaceholder, {
-              borderColor: isLocked ? theme.card.border : theme.accent,
-              backgroundColor: theme.background.secondary
-            }]}>
-              <Text style={[styles.sealText, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-                {isLocked ? '🔒' : tierName[0]}
-              </Text>
-            </View>
-            <Text style={[styles.rankName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-              {tierName.toUpperCase()}
-            </Text>
-            <View style={styles.tierRow}>
-              <View style={[styles.tierDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
-              <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>
-                {isLocked ? `LOCKED - Reach Tier ${selectedTier}` :
-                  isLowerTier ? `Tier ${selectedTier} - Unlocked` :
-                    `Current Tier - ${category.toUpperCase()} Tier ${selectedTier}`}
-              </Text>
-            </View>
+            <MaterialCommunityIcons name="trophy-outline" size={14} color={theme.accent} />
+            <Text style={[styles.cardLeaderboardText, { color: theme.accent }]}>LEADERBOARD</Text>
           </TouchableOpacity>
         </WarriorCard>
 
-        {/* Progress Bar */}
-        {category === 'strength' && (
-          <View style={styles.progressContainer}>
-            <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
-              <View style={[styles.progressFill, {
-                backgroundColor: theme.accent,
-                width: `${((profile?.strength_tier ?? 0) / 9) * 100}%`
-              }]} />
-            </View>
-            <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
-              TIER {profile?.strength_tier ?? 0} OF 9 — {Math.round(((profile?.strength_tier ?? 0) / 9) * 100)}% COMPLETE
-            </Text>
-          </View>
-        )}
-
-        {/* Stats Grid */}
-        <View style={styles.statsContainer}>
+        {/* Primary Action Button - Moved here */}
+        <View style={{ marginBottom: 16 }}>
           {category === 'strength' ? (
             <>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.glory_score}</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>GLORY</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.streak}</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>STREAK</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.trials_passed}</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>TRIALS</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: isLocked ? theme.text.tertiary : theme.text.primary }]}>
-                  {isLocked ? '--:--' : (leaderboardBestTime && leaderboardBestTime > 0 ? formatTime(leaderboardBestTime) : '--:--')}
+              {category === 'strength' && (
+                <Text style={{ fontSize: 12, textAlign: 'center', color: theme.text.secondary, marginBottom: 6 }}>
+                  {selectedTier === activeCurrentTier ? (
+                    "Complete the trial to rank up in the leaderboard"
+                  ) : isLowerTier ? (
+                    "Practice this tier to improve your time"
+                  ) : (
+                    <>
+                      Complete <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{TIER_NAMES[selectedTier - 1]?.toUpperCase()}</Text> trial to unlock <Text style={{ color: theme.accent, fontWeight: 'bold' }}>{TIER_NAMES[selectedTier]?.toUpperCase()}</Text>
+                    </>
+                  )}
                 </Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>BEST TIME</Text>
-              </View>
+              )}
+
+              {onStartTrial && !isLowerTier && !isLocked && (
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
+                  onPress={() => onStartTrial()}
+                >
+                  <Text style={styles.primaryActionButtonText}>
+                    {`START ${TIER_NAMES[profile?.strength_tier ?? 0].toUpperCase()}`}
+                  </Text>
+                </TouchableOpacity>
+              )}
+
+              {onStartTrial && isLowerTier && (
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
+                  onPress={() => onStartTrial(selectedTier)}
+                >
+                  <Text style={styles.primaryActionButtonText}>PRACTICE</Text>
+                </TouchableOpacity>
+              )}
             </>
           ) : (
             <>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_points || 0}</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>POWER POINTS</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.pull_up || 0}kg</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>PULL-UP</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.dip || 0}kg</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>DIP</Text>
-              </View>
-              <View style={[styles.statCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                <Text style={[styles.statValue, { color: theme.text.primary }]}>{profile.power_pbs?.muscle_up || 0}kg</Text>
-                <Text style={[styles.statLabel, { color: theme.text.tertiary }]}>MUSCLE-UP</Text>
-              </View>
+              {onOpenPowerAssessment && !isLowerTier && !isLocked && (
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
+                  onPress={onOpenPowerAssessment}
+                >
+                  <Text style={styles.primaryActionButtonText}>START ASSESSMENT</Text>
+                </TouchableOpacity>
+              )}
+
+              {onOpenPowerAssessment && isLowerTier && (
+                <TouchableOpacity
+                  style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
+                  onPress={onOpenPowerAssessment}
+                >
+                  <Text style={styles.primaryActionButtonText}>IMPROVE SCORE</Text>
+                </TouchableOpacity>
+              )}
             </>
           )}
-        </View>
 
-        {/* Action Buttons - Available for all tiers */}
-        <View style={styles.actionsSection}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionDot, { backgroundColor: isLocked ? theme.card.border : theme.accent }]} />
-            <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
-              {isLocked ? 'LOCKED TIER - VIEW ONLY' : isLowerTier ? 'PAST ACHIEVEMENT' : 'ACTIONS'}
-            </Text>
-          </View>
-
-          {/* Row 1: Trial buttons - Orange color */}
-          <View style={styles.trialRow}>
-            {category === 'strength' ? (
-              <>
-                {onStartTrial && !isLowerTier && !isLocked && (
-                  <WarriorButton
-                    title="START TRIAL"
-                    style={styles.halfButton}
-                    onPress={() => onStartTrial()}
-                  />
-                )}
-
-                {onStartTrial && isLowerTier && (
-                  <WarriorButton
-                    title="IMPROVE TIME"
-                    style={styles.halfButton}
-                    onPress={() => onStartTrial(selectedTier)}
-                  />
-                )}
-              </>
-            ) : (
-              <>
-                {onOpenPowerAssessment && !isLowerTier && !isLocked && (
-                  <WarriorButton
-                    title="START ASSESSMENT"
-                    style={styles.halfButton}
-                    onPress={onOpenPowerAssessment}
-                  />
-                )}
-
-                {onOpenPowerAssessment && isLowerTier && (
-                  <WarriorButton
-                    title="IMPROVE SCORE"
-                    style={styles.halfButton}
-                    onPress={onOpenPowerAssessment}
-                  />
-                )}
-              </>
-            )}
-
-            {/* Locked placeholder for higher tiers */}
-            {isLocked && (
-              <WarriorButton
-                title="LOCKED"
-                disabled
-                variant="secondary"
-                style={styles.halfButton}
-              />
-            )}
-          </View>
-
-          {/* Row 2: Leaderboard - White framed */}
-          {onViewLeaderboards && (
-            <WarriorButton
-              title="VIEW LEADERBOARDS"
-              variant="outline"
-              style={styles.leaderboardRowButton}
-              onPress={() => onViewLeaderboards(category, selectedTier)}
-            />
+          {isLocked && (
+            <View style={[styles.primaryActionButton, { backgroundColor: theme.card.background, borderWidth: 1, borderColor: theme.card.border }]}>
+              <Text style={[styles.primaryActionButtonText, { color: theme.text.tertiary }]}>LOCKED</Text>
+            </View>
           )}
 
           {/* Locked indicator for higher tiers */}
           {isLocked && (
-            <View style={[styles.lockedIndicator, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+            <View style={[styles.lockedIndicator, { backgroundColor: theme.card.background, borderColor: theme.card.border, marginHorizontal: 16, marginTop: 8 }]}>
               <Text style={[styles.lockedIndicatorText, { color: theme.text.tertiary }]}>
                 🔒 Complete {category.toUpperCase()} Tier {activeCurrentTier} to unlock this tier
               </Text>
@@ -705,56 +795,76 @@ export function ProfileScreen({
           )}
         </View>
 
-        {/* Info Card */}
-        <WarriorCard style={styles.infoCard}>
-          <View style={styles.infoHeader}>
-            <View style={[styles.infoDot, { backgroundColor: theme.accent }]} />
-            <Text style={[styles.infoSectionTitle, { color: theme.text.primary }]}>WARRIOR INFO</Text>
-          </View>
 
-          <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>NAME</Text>
-          <Text style={[styles.infoValue, { color: theme.text.primary }]}>
-            {profile.display_name || profile.email}
-          </Text>
+        {/* Sound Toggle and Sign Out simplified */}
+        <View style={{ paddingHorizontal: 16, gap: 12, marginBottom: 30 }}>
+          <TouchableOpacity
+            style={styles.signOutButtonSmall}
+            onPress={() => {
+              const next = !isMuted;
+              setIsMuted(next);
+              SoundService.setMuted(next);
+            }}
+          >
+            <MaterialCommunityIcons name={isMuted ? "volume-off" : "volume-high"} size={16} color={theme.text.tertiary} />
+            <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
+              ARENA SOUNDS: {isMuted ? 'MUTED' : 'ENABLED'}
+            </Text>
+          </TouchableOpacity>
 
-          {profile.assessed_at ? (
-            <>
-              <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>ASSESSED</Text>
-              <Text style={[styles.infoValue, { color: theme.text.primary }]}>
-                {new Date(profile.assessed_at).toLocaleDateString()}
-              </Text>
-            </>
-          ) : (
-            <>
-              <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>STATUS</Text>
-              <Text style={[styles.infoValue, { color: theme.text.primary }]}>Awaiting Assessment</Text>
-            </>
-          )}
-        </WarriorCard>
-
-        {/* Sound Toggle */}
-        <TouchableOpacity 
-          style={styles.signOutButton} 
-          onPress={() => {
-            const next = !isMuted;
-            setIsMuted(next);
-            SoundService.setMuted(next);
-          }}
-        >
-          <View style={[styles.signOutDot, { backgroundColor: isMuted ? '#FF5252' : '#4CAF50' }]} />
-          <Text style={[styles.signOutText, { color: theme.text.tertiary }]}>
-            ARENA SOUNDS: {isMuted ? 'MUTED' : 'ENABLED'}
-          </Text>
-        </TouchableOpacity>
-
-        {/* Sign Out */}
-        <TouchableOpacity style={styles.signOutButton} onPress={handleSignOut}>
-          <View style={[styles.signOutDot, { backgroundColor: theme.text.tertiary }]} />
-          <Text style={[styles.signOutText, { color: theme.text.tertiary }]}>
-            LEAVE THE ARENA
-          </Text>
-        </TouchableOpacity>
+          <TouchableOpacity style={styles.signOutButtonSmall} onPress={handleSignOut}>
+            <MaterialCommunityIcons name="logout" size={16} color={theme.text.tertiary} />
+            <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
+              LEAVE THE ARENA
+            </Text>
+          </TouchableOpacity>
+        </View>
       </ScrollView>
+
+      {/* Warrior Info Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={showWarriorModal}
+        onRequestClose={() => setShowWarriorModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
+              <TouchableOpacity onPress={() => setShowWarriorModal(false)}>
+                <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.warriorInfoList}>
+              <View style={styles.warriorInfoItem}>
+                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>DISPLAY NAME</Text>
+                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.display_name || 'Warrior'}</Text>
+              </View>
+              <View style={styles.warriorInfoItem}>
+                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>EMAIL</Text>
+                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.email}</Text>
+              </View>
+              <View style={styles.warriorInfoItem}>
+                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>JOINED ARENA</Text>
+                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}</Text>
+              </View>
+              <View style={styles.warriorInfoItem}>
+                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>TIMEZONE</Text>
+                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{Intl.DateTimeFormat().resolvedOptions().timeZone}</Text>
+              </View>
+            </View>
+
+            <TouchableOpacity
+              style={[styles.modalButton, { backgroundColor: theme.accent }]}
+              onPress={() => setShowWarriorModal(false)}
+            >
+              <Text style={styles.modalButtonText}>CLOSE</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
 
       {/* Tier Details Modal */}
       <Modal
@@ -985,10 +1095,10 @@ export function ProfileScreen({
             ) : (
               <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
                 {gloryLeaderboard.map((entry) => (
-                  <View 
-                    key={entry.user_id} 
+                  <View
+                    key={entry.user_id}
                     style={[
-                      styles.lbRow, 
+                      styles.lbRow,
                       entry.is_current_user && { backgroundColor: 'rgba(255, 82, 82, 0.2)', borderColor: '#FF5252' }
                     ]}
                   >
@@ -997,7 +1107,7 @@ export function ProfileScreen({
                         #{entry.rank}
                       </Text>
                     </View>
-                    
+
                     <View style={{ flex: 1 }}>
                       <Text style={[styles.lbName, { color: '#FFF' }]}>
                         {entry.display_name?.toUpperCase()}
@@ -1029,22 +1139,22 @@ export function ProfileScreen({
             <View style={[styles.coachPromptIconCircle, { backgroundColor: theme.accent + '15' }]}>
               <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
             </View>
-            
+
             <Text style={[styles.coachPromptTitle, { color: theme.text.primary }]}>LEAP COACH</Text>
             <Text style={[styles.coachPromptText, { color: theme.text.secondary }]}>
               Want to ask coach LEAP for guidance?
             </Text>
 
             <View style={styles.coachPromptButtons}>
-              <TouchableOpacity 
-                style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]} 
+              <TouchableOpacity
+                style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]}
                 onPress={() => setShowCoachPrompt(false)}
               >
                 <Text style={[styles.coachPromptBtnText, { color: theme.text.tertiary }]}>NOT NOW</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]} 
+              <TouchableOpacity
+                style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]}
                 onPress={() => {
                   setShowCoachPrompt(false);
                   onOpenCoach?.();
@@ -1099,12 +1209,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     zIndex: 10,
-  },
-  nameHeaderCoachBtn: {
-    position: 'absolute',
-    left: 10,
-    top: -5,
-    zIndex: 100,
   },
   coachBadge: {
     flexDirection: 'row',
@@ -1354,7 +1458,7 @@ const styles = StyleSheet.create({
     flexWrap: 'wrap',
     justifyContent: 'space-between',
     paddingHorizontal: 16,
-    marginBottom: 16,
+    marginBottom: 8,
   },
   statCard: {
     width: '48%',
@@ -1377,12 +1481,13 @@ const styles = StyleSheet.create({
   },
   actionsSection: {
     margin: 16,
-    marginTop: 8,
+    marginTop: 16,
   },
   sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     marginBottom: 16,
+    paddingHorizontal: 16,
   },
   sectionDot: {
     width: 8,
@@ -1393,6 +1498,125 @@ const styles = StyleSheet.create({
   sectionTitle: {
     fontSize: 12,
     letterSpacing: 2,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  primaryActionButton: {
+    marginHorizontal: 16,
+    marginTop: 8,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  primaryActionButtonText: {
+    color: '#FFFFFF',
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 2,
+  },
+  modernTierCard: {
+    margin: 16,
+    borderRadius: 24,
+    backgroundColor: 'rgba(205,127,50,0.05)',
+    borderWidth: 0,
+    paddingVertical: 24,
+  },
+  tierCirclesRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-evenly',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  tierCircleLarge: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.02)',
+  },
+  tierCircleSmall: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.01)',
+  },
+  tierCircleLabel: {
+    fontSize: 8,
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-Bold',
+    marginBottom: 2,
+  },
+  tierCircleValue: {
+    fontSize: 14,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  tierCircleSubValue: {
+    fontSize: 8,
+    marginTop: 1,
+    fontFamily: 'PlusJakartaSans-Regular',
+  },
+  tierLargeIcon: {
+    fontSize: 28,
+    marginBottom: 2,
+  },
+  tierLargeName: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  cardLeaderboardTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 16,
+    borderTopWidth: 0.5,
+    borderTopColor: 'rgba(205,127,50,0.2)',
+    marginTop: 8,
+    gap: 8,
+  },
+  cardLeaderboardText: {
+    fontSize: 11,
+    letterSpacing: 2,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
+  warriorInfoList: {
+    marginTop: 20,
+    gap: 16,
+  },
+  warriorInfoItem: {
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255,255,255,0.05)',
+    paddingBottom: 12,
+  },
+  modalButton: {
+    marginTop: 30,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  modalButtonText: {
+    color: '#000',
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 2,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  signOutButtonSmall: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  signOutTextSmall: {
+    fontSize: 11,
+    letterSpacing: 1.5,
     fontFamily: 'PlusJakartaSans-Bold',
   },
   actionButton: {
@@ -1539,28 +1763,34 @@ const styles = StyleSheet.create({
   },
   tierList: {
     paddingHorizontal: 16,
-    gap: 8,
+    gap: 12,
+    paddingBottom: 10,
   },
-  tierItem: {
-    width: 80,
-    height: 70,
+  tierItemContainer: {
+    minWidth: 90,
+    height: 48,
     borderRadius: 12,
-    borderWidth: 1,
+    position: 'relative',
+  },
+  tierItemContent: {
+    flex: 1,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
-    position: 'relative',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
     overflow: 'hidden',
   },
   tierItemName: {
-    fontSize: 9,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans-Bold',
-    marginBottom: 4,
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     textAlign: 'center',
   },
   tierItemNumber: {
-    fontSize: 10,
+    fontSize: 9,
     fontFamily: 'PlusJakartaSans-Bold',
+    marginTop: 1,
   },
   lockOverlay: {
     position: 'absolute',

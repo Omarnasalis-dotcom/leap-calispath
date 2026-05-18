@@ -9,9 +9,11 @@ import {
   Alert,
   TouchableOpacity,
   useWindowDimensions,
+  Modal,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 
@@ -24,29 +26,93 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+
   const { signUp, signIn } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
 
   async function handleSubmit() {
-    if (!email || !password || (isSignUp && (!firstName || !lastName))) {
-      Alert.alert('Missing Fields', 'Please fill in all fields to continue.');
+    if (!email || !password || (isSignUp && (!firstName || !lastName || !inviteCode))) {
+      Alert.alert('Missing Fields', 'Please fill in all fields (including Invite Code) to continue.');
       return;
     }
 
     setLoading(true);
     try {
       if (isSignUp) {
+        // 1. Verify Code exists and is not used yet (Case-Insensitive check)
+        const { data: codeData, error: codeError } = await supabase
+          .from('invite_codes')
+          .select('id, code')
+          .ilike('code', inviteCode.trim())
+          .is('used_by', null)
+          .single();
+
+        if (codeError || !codeData) {
+          throw new Error('Your code is wrong or already used before. Please ask for a new code.');
+        }
+
+        // 2. Create the User
         await signUp(email, password);
-        Alert.alert('Warrior Registered', 'Check your email to verify your account.');
+
+        // 3. Redeem using your RPC function (using the EXACT code from the database)
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user?.id) {
+          const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
+            p_code: codeData.code,
+            p_user_id: authData.user.id
+          });
+
+          if (redeemError || (redeemData && !redeemData.success)) {
+            console.error('Redeem Error:', redeemError || (redeemData && redeemData.error));
+            const msg = 'Account created, but we had trouble activating your access. Please contact support with your invite code.';
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert('Warrior Registered', msg);
+          } else {
+            const msg = 'Welcome to the Arena! Check your email to verify.';
+            if (Platform.OS === 'web') window.alert(msg);
+            else Alert.alert('Warrior Registered', msg);
+          }
+        }
         setIsSignUp(false);
       } else {
         await signIn(email, password);
       }
     } catch (error: any) {
-      Alert.alert('Auth Error', error.message);
+      const message = error.message || 'An unexpected error occurred.';
+      if (Platform.OS === 'web') {
+        window.alert(message);
+      } else {
+        Alert.alert('Arena Error', message);
+      }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleResetPassword() {
+    if (!resetEmail) {
+      Alert.alert('Missing Field', 'Please enter your email address.');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
+        redirectTo: 'leaparena://reset-password'
+      });
+      if (error) throw error;
+      Alert.alert('Reset Link Sent', 'Check your email for a reset link');
+      setShowResetModal(false);
+      setResetEmail('');
+    } catch (error: any) {
+      Alert.alert('Reset Failed', error.message || 'An unexpected error occurred.');
+    } finally {
+      setResetLoading(false);
     }
   }
 
@@ -69,7 +135,7 @@ export function AuthScreen() {
           </Text>
           
           <View style={isSidebar ? styles.pillarsSidebar : styles.pillarsHeader}>
-            {['Track', 'Compete', 'Train'].map((p, i) => (
+            {['Track', 'Compete', 'Train'].map((p: string, i: number) => (
               <View 
                 key={p} 
                 style={[
@@ -162,9 +228,19 @@ export function AuthScreen() {
                 onChangeText={setPassword} 
                 secureTextEntry 
               />
+              
+              {isSignUp && (
+                <Input 
+                  label="Invite Code" 
+                  placeholder="LEAP-XXXXXXXX" 
+                  value={inviteCode} 
+                  onChangeText={setInviteCode}
+                  autoCapitalize="characters"
+                />
+              )}
 
               {!isSignUp && (
-                <TouchableOpacity style={styles.forgotButton}>
+                <TouchableOpacity style={styles.forgotButton} onPress={() => setShowResetModal(true)}>
                   <Text style={[styles.forgotText, { color: theme.text.tertiary }]}>Forgot password?</Text>
                 </TouchableOpacity>
               )}
@@ -204,6 +280,51 @@ export function AuthScreen() {
           </View>
         </View>
       </ScrollView>
+
+      {/* Forgot Password Modal */}
+      <Modal
+        visible={showResetModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowResetModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+            <Text style={[styles.heading, { color: theme.text.primary, marginBottom: 8 }]}>
+              RESET <Text style={{ color: theme.accent }}>PASSWORD</Text>
+            </Text>
+            <Text style={[styles.subheading, { color: theme.text.secondary, marginBottom: 24 }]}>
+              Enter your email to receive a reset link.
+            </Text>
+            
+            <Input 
+              label="Email" 
+              placeholder="warrior@email.com" 
+              value={resetEmail} 
+              onChangeText={setResetEmail} 
+              keyboardType="email-address"
+              autoCapitalize="none"
+            />
+
+            <View style={styles.modalActions}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Button 
+                  title="CANCEL" 
+                  onPress={() => setShowResetModal(false)} 
+                  variant="secondary"
+                />
+              </View>
+              <View style={{ flex: 1, marginLeft: 8 }}>
+                <Button 
+                  title="SEND LINK" 
+                  onPress={handleResetPassword} 
+                  loading={resetLoading}
+                />
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </KeyboardAvoidingView>
   );
 }
@@ -407,5 +528,23 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 32,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    marginTop: 24,
   },
 });

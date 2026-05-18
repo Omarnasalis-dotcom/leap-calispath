@@ -27,6 +27,10 @@ export interface Profile {
   is_admin?: boolean;
   coach_beta_access: boolean;
   clash_win_streak: number;
+  access_expires_at?: string | null;
+  access_granted_at?: string | null;
+  invite_code_used?: string | null;
+  created_at?: string;
 }
 
 export type TierRank =
