@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   View,
@@ -25,7 +26,7 @@ export interface PowerMovementPBs {
 
 interface PowerAssessmentScreenProps {
   onComplete: (newTier: number) => void;
-  onAbandon: () => void;
+  onAbandon?: () => void;
 }
 
 export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessmentScreenProps) {
@@ -107,7 +108,7 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   function handleAbandon() {
     if (Platform.OS === 'web') {
       if (window.confirm('Abandon Assessment? Your progress will not be saved.')) {
-        onAbandon();
+        router.back();
       }
     } else {
       Alert.alert(

@@ -9,6 +9,8 @@ export interface GlobalWellRoundedEntry {
   endurance_pts: number;
   total_score: number;
   is_current_user?: boolean;
+  country?: string;
+  gender?: string;
 }
 
 export class LeaderboardService {
@@ -26,14 +28,16 @@ export class LeaderboardService {
       power_pts: Number(e.power_pts),
       endurance_pts: Number(e.endurance_pts),
       total_score: Number(e.total_score),
-      is_current_user: e.user_id === currentUserId
+      is_current_user: e.user_id === currentUserId,
+      country: e.country,
+      gender: e.gender
     }));
   }
 
   static async getGlobalGloryLeaderboard(currentUserId?: string): Promise<any[]> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, display_name, glory_score')
+      .select('id, display_name, glory_score, country, gender')
       .gt('glory_score', 0)
       .order('glory_score', { ascending: false })
       .limit(100);
@@ -46,7 +50,9 @@ export class LeaderboardService {
       user_id: e.id,
       display_name: e.display_name || 'Warrior',
       total_score: e.glory_score,
-      is_current_user: e.id === currentUserId
+      is_current_user: e.id === currentUserId,
+      country: e.country,
+      gender: e.gender
     }));
   }
 }

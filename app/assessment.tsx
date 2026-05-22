@@ -1,15 +1,16 @@
 import React from 'react';
-import { useRouter } from 'expo-router';
-import { SpartanLayout } from './_layout';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { AssessmentScreen } from '../src/screens/AssessmentScreen';
+import { SpartanLayout } from '../src/components/SpartanLayout';
 
-export default function Assessment() {
+export default function Route() {
   const router = useRouter();
-
+  const params = useLocalSearchParams();
+  
   return (
     <SpartanLayout>
       <AssessmentScreen 
-        onComplete={() => router.replace('/rank-reveal')}
+        {...params}
       />
     </SpartanLayout>
   );

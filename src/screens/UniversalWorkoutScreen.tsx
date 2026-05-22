@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, Text, StyleSheet, TouchableOpacity, 
@@ -10,11 +11,11 @@ import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 
 interface UniversalWorkoutProps {
-  sessionId: string;
+  sessionId?: string;
   day: number;
   dayConfig: any;
   participant: any;
-  onClose: () => void;
+  onClose?: () => void;
   onComplete: (rawScore: number, finalScore: number) => void;
 }
 
@@ -95,7 +96,7 @@ export function UniversalWorkoutScreen({ sessionId, day, dayConfig, participant,
       const finalRaw = dayConfig.mode === 'for_time' ? timeLeft : rawScore;
       
       await TournamentService.submitDailyScore(
-        sessionId,
+        sessionId!,
         participant.user_id,
         day,
         finalRaw,

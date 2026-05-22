@@ -1,55 +1,71 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, StatusBar } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../src/contexts/ThemeContext';
-import { ThemeToggle } from '../components/ThemeToggle';
+import { View } from 'react-native';
+import { Stack, useRouter, useSegments } from 'expo-router';
+import * as SplashScreen from 'expo-splash-screen';
+import { StatusBar } from 'expo-status-bar';
 
-interface SpartanLayoutProps {
-  children: React.ReactNode;
-  hideToggle?: boolean;
-}
+// Keep the native splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
+import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
+import { ThemeProvider } from '../src/contexts/ThemeContext';
+import { useStealthFonts } from '../hooks/useFonts';
+import { SpartanLayout } from '../src/components/SpartanLayout';
+import { LeapLogo } from '../src/components/LeapLogo';
 
-export function SpartanLayout({ children, hideToggle }: SpartanLayoutProps) {
-  const { theme } = useTheme();
+
+// Auth Guard Component
+function AuthGuard({ children }: { children: React.ReactNode }) {
+  const { user, loading, hasSeenOnboarding } = useAuth();
+  const segments = useSegments();
+  const router = useRouter();
 
   useEffect(() => {
-    StatusBar.setBarStyle(theme.statusBar);
-  }, [theme.statusBar]);
+    if (loading || hasSeenOnboarding === null) return;
 
-  return (
-    <View style={styles.container}>
-      <StatusBar barStyle={theme.statusBar} />
-      <LinearGradient
-        colors={[theme.background.primary, theme.background.secondary]}
-        style={styles.background}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      />
-      {!hideToggle && <ThemeToggle />}
-      <View style={styles.content}>
-        {children}
-      </View>
-    </View>
-  );
+    const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
+    const inOnboarding = segments[0] === 'onboarding';
+    
+    
+    // Auth and Onboarding state is resolved. We can now hide the native splash screen.
+    SplashScreen.hideAsync();
+
+    if (!user) {
+      if (!hasSeenOnboarding && !inOnboarding) {
+        router.replace('/onboarding');
+      } else if (hasSeenOnboarding && !inAuthGroup) {
+        router.replace('/auth');
+      }
+    } else {
+      if (inAuthGroup || inOnboarding) {
+        router.replace('/');
+      }
+    }
+  }, [user, loading, hasSeenOnboarding, segments]);
+
+  if (loading || hasSeenOnboarding === null) {
+    // Return null because the native splash screen is covering the view
+    return null;
+  }
+
+  return children;
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    position: 'relative',
-  },
-  background: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    bottom: 0,
-  },
-  content: {
-    flex: 1,
-    position: 'relative',
-    zIndex: 1,
-  },
-});
+export default function RootLayout() {
+  const fontsLoaded = useStealthFonts();
 
-export default SpartanLayout;
+  if (!fontsLoaded) {
+    // Return null because the native splash screen is covering the view
+    return null;
+  }
+
+  return (
+    <ThemeProvider>
+      <AuthProvider>
+        <AuthGuard>
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+        </AuthGuard>
+        <StatusBar style="auto" />
+      </AuthProvider>
+    </ThemeProvider>
+  );
+}

@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Dimensions } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
@@ -10,8 +11,8 @@ import { Vibration } from 'react-native';
 const { width } = Dimensions.get('window');
 
 interface ArenaWorkoutScreenProps {
-  phase: ArenaPhase;
-  onClose: () => void;
+  phase?: ArenaPhase;
+  onClose?: () => void;
   onComplete: (time: number) => void;
 }
 
@@ -63,10 +64,10 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   };
 
   const handleNextStep = () => {
-    const currentStep = phase.steps[currentStepIdx];
+    const currentStep = phase!.steps[currentStepIdx];
     setCompletedSteps([...completedSteps, currentStep.id]);
     
-    if (currentStepIdx < phase.steps.length - 1) {
+    if (currentStepIdx < phase!.steps.length - 1) {
       setCurrentStepIdx(currentStepIdx + 1);
     } else {
       // Final step completed
@@ -78,15 +79,15 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
     setIsActive(false);
     if (user) {
       try {
-        await ArenaService.saveAttempt(user.id, phase.id, seconds);
+        await ArenaService.saveAttempt(user.id, phase!.id, seconds);
       } catch (e) {
         console.error('Error saving attempt:', e);
       }
     }
 
-    const isPB = seconds < phase.pro_benchmark_time;
+    const isPB = seconds < phase!.pro_benchmark_time;
     const msg = isPB 
-      ? `WORLD CLASS! You beat the pro time by ${formatTime(phase.pro_benchmark_time - seconds)}!` 
+      ? `WORLD CLASS! You beat the pro time by ${formatTime(phase!.pro_benchmark_time - seconds)}!` 
       : `Arena Trial Completed in ${formatTime(seconds)}.`;
     
     if (Platform.OS === 'web') alert(msg);
@@ -98,7 +99,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   const handleAbandon = () => {
     const msg = 'Are you sure you want to quit this Arena Trial? Progress will not be saved.';
     if (Platform.OS === 'web') {
-      if (window.confirm(msg)) onClose();
+      if (window.confirm(msg)) router.back();
     } else {
       Alert.alert(
         'ABANDON TRIAL',
@@ -111,11 +112,11 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
     }
   };
 
-  const currentStep = phase.steps[currentStepIdx];
-  const nextStep = phase.steps[currentStepIdx + 1];
+  const currentStep = phase!.steps[currentStepIdx];
+  const nextStep = phase!.steps[currentStepIdx + 1];
   
   // Calculate Pace
-  const proTimePerStep = phase.pro_benchmark_time / phase.steps.length;
+  const proTimePerStep = phase!.pro_benchmark_time / phase!.steps.length;
   const expectedProTime = proTimePerStep * (currentStepIdx + 1);
   const timeDiff = seconds - expectedProTime;
   const isAhead = timeDiff < 0;
@@ -135,11 +136,11 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
         <View style={styles.prepareBox}>
           <Text style={[styles.prepareLabel, { color: '#D32F2F' }]}>PREPARE FOR BATTLE</Text>
-          <Text style={[styles.prepareTitle, { color: theme.text.primary }]}>{phase.name}</Text>
+          <Text style={[styles.prepareTitle, { color: theme.text.primary }]}>{phase!.name}</Text>
           
           <View style={styles.gearCheck}>
             <Text style={[styles.gearTitle, { color: theme.text.secondary }]}>REQUIRED GEAR</Text>
-            {Array.from(new Set(phase.steps.filter(s => s.added_weight_kg > 0).map(s => s.added_weight_kg))).map((weight, i) => (
+            {Array.from(new Set(phase!.steps.filter(s => s.added_weight_kg > 0).map(s => s.added_weight_kg))).map((weight, i) => (
               <View key={i} style={styles.gearRow}>
                 <MaterialCommunityIcons name="weight-kilogram" size={16} color={theme.accent} />
                 <Text style={[styles.gearText, { color: theme.text.primary }]}>+{weight}KG WEIGHT</Text>
@@ -182,7 +183,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
         <View style={styles.hudPaceSection}>
           <View style={styles.targetRow}>
             <Text style={[styles.hudLabel, { color: theme.text.tertiary }]}>TARGET: </Text>
-            <Text style={[styles.targetValue, { color: theme.text.primary }]}>{formatTime(phase.pro_benchmark_time)}</Text>
+            <Text style={[styles.targetValue, { color: theme.text.primary }]}>{formatTime(phase!.pro_benchmark_time)}</Text>
           </View>
           <Text style={[styles.paceValue, { color: isAhead ? '#4CAF50' : '#D32F2F' }]}>
             {isAhead ? 'AHEAD' : 'BEHIND'} {formatTime(Math.abs(Math.round(timeDiff)))}
@@ -193,12 +194,12 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Progress Bar */}
         <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
-          <View style={[styles.progressFill, { backgroundColor: '#D32F2F', width: `${((currentStepIdx) / phase.steps.length) * 100}%` }]} />
+          <View style={[styles.progressFill, { backgroundColor: '#D32F2F', width: `${((currentStepIdx) / phase!.steps.length) * 100}%` }]} />
         </View>
 
         {/* Current Step Card */}
         <View style={[styles.currentStepCard, { backgroundColor: theme.card.background, borderColor: '#D32F2F' }]}>
-          <Text style={[styles.stepCounter, { color: '#D32F2F' }]}>STEP {currentStepIdx + 1} OF {phase.steps.length}</Text>
+          <Text style={[styles.stepCounter, { color: '#D32F2F' }]}>STEP {currentStepIdx + 1} OF {phase!.steps.length}</Text>
           <Text style={[styles.currentStepName, { color: theme.text.primary }]}>{currentStep.movement_name.toUpperCase()}</Text>
           <View style={styles.currentStepStats}>
             <Text style={[styles.currentStepReps, { color: theme.text.primary }]}>{currentStep.reps}x</Text>
@@ -227,7 +228,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
 
         <TouchableOpacity style={styles.completeStepButton} onPress={handleNextStep}>
           <Text style={styles.completeStepText}>
-            {currentStepIdx === phase.steps.length - 1 ? 'FINISH ARENA' : 'STEP COMPLETED'}
+            {currentStepIdx === phase!.steps.length - 1 ? 'FINISH ARENA' : 'STEP COMPLETED'}
           </Text>
         </TouchableOpacity>
 

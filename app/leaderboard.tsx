@@ -1,17 +1,19 @@
 import React from 'react';
-import { useRouter } from 'expo-router';
-import { SpartanLayout } from './_layout';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LeaderboardScreen } from '../src/screens/LeaderboardScreen';
+import { SpartanLayout } from '../src/components/SpartanLayout';
 
-export default function Leaderboard() {
+export default function Route() {
   const router = useRouter();
-
+  const params = useLocalSearchParams();
+  
   return (
     <SpartanLayout>
-      <LeaderboardScreen
-        onClose={() => router.back()}
-        onPracticeTier={(tier: number) => router.push('/trial')}
-        onStartEternal={() => router.push('/trial')}
+      <LeaderboardScreen 
+        onPracticeTier={() => {}} 
+        onClose={() => router.back()} 
+        onStartEternal={() => {}} 
+        {...params}
       />
     </SpartanLayout>
   );

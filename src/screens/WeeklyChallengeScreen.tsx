@@ -1,8 +1,6 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, Modal, TextInput, Platform, Alert
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, Alert } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -17,6 +15,8 @@ import { MOVEMENT_POINTS } from '../lib/weeklyChallenge';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 // Local types for UI
 interface WeeklyEntry {
@@ -41,7 +41,7 @@ function getUserGroup(tier: number): 1 | 2 | 3 {
 }
 
 interface WeeklyChallengeScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
@@ -303,7 +303,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   if (!profile || !theme) {
     return (
       <View style={[styles.container, { backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator color="#CD7F32" />
+        <LeapLogo size={40} animated />
       </View>
     );
   }
@@ -383,7 +383,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       )}
 
       {loading ? (
-        <ActivityIndicator color={theme.accent} style={{ marginTop: 40 }} />
+        <LeapLogo size={40} animated />
       ) : !challenge ? (
         <View style={styles.emptyState}>
           <Text style={[styles.emptyIcon]}>⏳</Text>
@@ -488,7 +488,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       {/* Submit Score Modal */}
       <Modal visible={showSubmitModal} transparent animationType="slide" onRequestClose={() => setShowSubmitModal(false)}>
         <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+          <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
             <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
               <Text style={[styles.modalTitle, { color: theme.accent }]}>
                 {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
@@ -544,7 +544,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                       disabled={submitting}
                     >
                       {submitting ? (
-                        <ActivityIndicator color="#fff" size="small" />
+                        <LeapLogo size={40} animated />
                       ) : (
                         <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
                       )}
@@ -557,6 +557,18 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                   <Text style={[styles.timerDisplay, { color: theme.accent }]}>
                     {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
                   </Text>
+                  {isPreparing && (
+                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                      <Text style={{ color: theme.accent, fontSize: 64, fontWeight: '900' }}>{preCountdown}</Text>
+                      <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                      <TouchableOpacity
+                        style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]}
+                        onPress={cancelPreparation}
+                      >
+                        <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL</Text>
+                      </TouchableOpacity>
+                    </View>
+                  )}
                   <TouchableOpacity
                     style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
                     onPress={() => {
@@ -646,7 +658,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                         disabled={submitting}
                       >
                         {submitting ? (
-                          <ActivityIndicator color="#fff" size="small" />
+                          <LeapLogo size={40} animated />
                         ) : (
                           <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
                         )}
@@ -922,10 +934,10 @@ const styles = StyleSheet.create({
   weekNavBtn: { padding: 10 },
   weekLabelContainer: { paddingHorizontal: 20, alignItems: 'center' },
   weekLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center' },
-  modalScrollContent: { flexGrow: 1, alignItems: 'center', padding: 24, width: '100%' },
-  modalContent: { width: Platform.OS === 'web' ? 400 : '100%', borderRadius: 16, borderWidth: 1, padding: 24, paddingBottom: 40, alignItems: 'center' },
-  modalWorkoutRef: { width: '100%', padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalScrollContent: { flexGrow: 1, alignItems: 'center', padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 16, width: '100%' },
+  modalContent: { width: Platform.OS === 'web' ? 400 : '100%', borderRadius: 16, borderWidth: 1, padding: 24, paddingBottom: 40, alignItems: 'center', maxHeight: '85%' },
+  modalWorkoutRef: { width: '100%', padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, maxHeight: 120, overflow: 'hidden' },
   adminGroupSwitcher: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', marginBottom: 16 },
   adminGroupTab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2 },
   adminGroupTabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },

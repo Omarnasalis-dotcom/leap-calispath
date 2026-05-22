@@ -1,3 +1,4 @@
+import { useRouter } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
@@ -39,8 +40,9 @@ type TrialMode = 'progression' | 'practice' | 'eternal';
 interface TrialScreenProps {
   mode?: TrialMode;
   practiceTier?: number | null;
-  onComplete: () => void;
-  onAbandon: () => void;
+  onComplete?: () => void;
+  onAbandon?: () => void;
+  onBack?: () => void;
 }
 
 export function TrialScreen({
@@ -48,6 +50,7 @@ export function TrialScreen({
   practiceTier = null,
   onComplete,
   onAbandon,
+  onBack,
 }: TrialScreenProps) {
   const { user, profile, refreshProfile } = useAuth();
   const { theme } = useTheme();
@@ -157,7 +160,7 @@ export function TrialScreen({
     if (user && trial) {
       await TrialService.logAbandon(user.id, trial.tier, timeSeconds);
     }
-    onAbandon();
+    onBack ? onBack() : null;
   }
 
   function handleBack() {
@@ -172,7 +175,7 @@ export function TrialScreen({
       setTimeout(() => {
         if (window.confirm(`${title}\n\n${message}`)) {
           if (hasStarted) doAbandon();
-          else onAbandon();
+          else onBack ? onBack() : null;
         }
       }, 50);
     } else {
@@ -186,7 +189,7 @@ export function TrialScreen({
             style: 'destructive', 
             onPress: () => {
               if (hasStarted) doAbandon();
-              else onAbandon();
+              else onBack ? onBack() : null;
             } 
           },
         ],
@@ -224,7 +227,7 @@ export function TrialScreen({
       if (mode === 'progression') {
         setShowVictory(true);
       } else {
-        onComplete();
+        onBack ? onBack() : null;
       }
     } catch (error: any) {
       if (error.message?.includes('DISHONOR')) {
@@ -527,7 +530,7 @@ function VictoryScreen({
 }: {
   tier: number;
   timeSeconds: number;
-  onContinue: () => void;
+  onContinue?: () => void;
 }) {
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.5));

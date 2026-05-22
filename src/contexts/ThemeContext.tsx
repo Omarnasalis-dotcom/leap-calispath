@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
-import { ThemeColors, SpartanTheme, ThemeMode } from '../../constants/Theme';
+import { ThemeColors, StealthTheme, ThemeMode } from '../../constants/Theme';
 
 interface ThemeContextType {
   mode: ThemeMode;
@@ -11,14 +11,13 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('light'); // Default to light mode
+  const [mode, setMode] = useState<ThemeMode>('dark'); // Force dark mode default for stealth theme
 
   useEffect(() => {
-    // Keep light mode as default, don't sync with system
-    // User can manually toggle if desired
+    // Keep dark mode as default
   }, []);
 
-  const theme = SpartanTheme[mode];
+  const theme = StealthTheme[mode];
 
   const toggleTheme = () => {
     setMode((prevMode: ThemeMode) => prevMode === 'dark' ? 'light' : 'dark');

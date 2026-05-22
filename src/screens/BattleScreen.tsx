@@ -1,8 +1,7 @@
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, TouchableOpacity, ScrollView,
-  Dimensions, Animated, Alert, Vibration, ActivityIndicator, Platform
-} from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView,
+  Dimensions, Animated, Alert, Vibration, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -11,15 +10,19 @@ import { ClashLogic, ClashProtocol } from '../lib/clashLogic';
 import { supabase } from '../lib/supabase';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const { width, height } = Dimensions.get('window');
 
 interface BattleScreenProps {
-  clashId: string;
-  onFinish: () => void;
+  clashId?: string;
+  onFinish?: () => void;
 }
 
-export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
+export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenProps) {
+  const params = useLocalSearchParams();
+  const clashId = propsClashId || params.clashId as string;
   const { theme } = useTheme();
   const { user } = useAuth();
   const [session, setSession] = useState<ClashSession | null>(null);
@@ -30,6 +33,7 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
   const [battleStarted, setBattleStarted] = useState(false);
   const [timer, setTimer] = useState(0);
   const [showResult, setShowResult] = useState(false);
+  const [isWinner, setIsWinner] = useState(false);
   const [showQuitConfirm, setShowQuitConfirm] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationStreak, setCelebrationStreak] = useState(0);
@@ -41,8 +45,14 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
   const resultScaleAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    if (!user || !clashId) return;
-    
+    if (!clashId || !user) return;
+
+    // Remove any existing channel first to prevent duplicate subscription error
+    if (channelRef.current) {
+      supabase.removeChannel(channelRef.current);
+      channelRef.current = null;
+    }
+
     const loadSession = async () => {
       const { data } = await supabase.from('clash_sessions').select('*').eq('id', clashId).single();
       if (data) {
@@ -52,31 +62,51 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
     };
     loadSession();
 
-    const channel = supabase.channel(`battle_room_${clashId}`, { config: { broadcast: { self: false } } });
+    const channelName = `battle_room_${clashId}`;
+    const channel = supabase.channel(channelName, {
+      config: { broadcast: { self: false } }
+    });
+
     channel
       .on('broadcast', { event: 'progress' }, (payload) => {
         const progress = payload.payload.progress;
         setOpponentProgress(progress);
         animateProgress(oppProgressAnim, progress);
       })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'clash_sessions', filter: `id=eq.${clashId}` }, (payload) => {
+      .on('postgres_changes', {
+        event: 'UPDATE',
+        schema: 'public',
+        table: 'clash_sessions',
+        filter: `id=eq.${clashId}`
+      }, (payload) => {
         const newSess = payload.new as ClashSession;
         setSession(newSess);
         if (newSess.status === 'finished') {
           if (timerRef.current) clearInterval(timerRef.current);
+          if (channelRef.current) {
+            supabase.removeChannel(channelRef.current);
+            channelRef.current = null;
+          }
+          // Determine if current user is winner or loser
+          const won = newSess.winner_id === user?.id;
+          setIsWinner(won);
           setShowResult(true);
           setFinishing(false);
           Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
         }
       })
       .subscribe();
+
     channelRef.current = channel;
 
     return () => {
-      channel.unsubscribe();
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [clashId, user]);
+  }, [propsClashId, user]);
 
   useEffect(() => {
     if (!session || !user) return;
@@ -85,23 +115,19 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
       const interval = setInterval(() => {
         const diff = Math.ceil((startTime - Date.now()) / 1000);
         if (diff > 0 && diff <= 5) {
-          if (diff !== countdown) {
-            setCountdown(diff);
-            SoundService.playTick();
-          }
-        } else if (diff === 0) {
-          if (countdown !== 0) {
-            setCountdown(0);
-            SoundService.playBoxingBell();
-            Vibration.vibrate(100);
-          }
-        } else if (diff < 0) {
+          setCountdown(diff);
+          SoundService.playTick();
+        } else if (diff <= 0 && diff > -1) {
+          setCountdown(0);
+          SoundService.playBoxingBell();
+          Vibration.vibrate(100);
+        } else if (diff < -1) {
           setCountdown(null);
           setBattleStarted(true);
           if (!timerRef.current) startTimer();
           clearInterval(interval);
         }
-      }, 100); // Higher frequency for precision
+      }, 1000); // 1 second precision is enough for countdown
       return () => clearInterval(interval);
     } else if (session.status === 'accepted' && session.sender_id === user.id && !session.start_time) {
       // Set start time 6 seconds in future to allow for 5s countdown + buffer
@@ -140,32 +166,40 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
 
   const [finishing, setFinishing] = useState(false);
 
-  async function handleFinish() {
+  const handleFinish = async () => {
     if (finishing) return;
     setFinishing(true);
-    if (timerRef.current) clearInterval(timerRef.current);
     try {
-      const isSender = session?.sender_id === user?.id;
-      const result = await ClashService.reportFinish(clashId, user!.id, timer, isSender);
-      
-      if (!result.success) {
-        setFinishing(false);
-        if (!timerRef.current) startTimer();
-        Alert.alert('Error', 'Failed to report finish. Try again.');
-      } else if (result.bothFinished) {
-        const isWinner = result.winnerId === user?.id;
-        const newStreak = await ClashService.updateWinStreak(user!.id, isWinner);
-        if (isWinner && newStreak % 3 === 0 && newStreak > 0) {
-          setShowCelebration(true);
-          setCelebrationStreak(newStreak);
-        }
+      if (timerRef.current) clearInterval(timerRef.current);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
-    } catch (e) { 
-      console.error(e);
+
+      // Atomic claim — only first caller wins, returns true if this user won
+      const { data: won, error } = await supabase
+        .rpc('claim_clash_victory', {
+          session_id: clashId,
+          claiming_user_id: user?.id
+        });
+
+      if (error) {
+        console.error('Claim victory error:', error);
+        Alert.alert('Error', 'Failed to report finish. Try again.');
+        setFinishing(false);
+        return;
+      }
+
+      setIsWinner(won === true);
+      setShowResult(true);
       setFinishing(false);
-      if (!timerRef.current) startTimer();
+      Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
+    } catch (error) {
+      console.error('Failed to report finish:', error);
+      Alert.alert('Error', 'Failed to report finish. Try again.');
+      setFinishing(false);
     }
-  }
+  };
 
   function handleCancel() {
     setShowQuitConfirm(true);
@@ -176,12 +210,12 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
     try {
       await supabase.from('clash_sessions').update({ status: 'cancelled' }).eq('id', clashId);
     } catch (e) { console.error(e); }
-    onFinish();
+    if (onFinish) onFinish();
   }
 
-  if (!session || !protocol) return <View style={styles.loading}><ActivityIndicator color={theme.accent} /></View>;
+  if (!session || !protocol) return <View style={styles.loading}><LeapLogo size={40} animated /></View>;
 
-  const isWinner = session.winner_id === user?.id;
+  // isWinner is now a state
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
@@ -229,7 +263,7 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
             disabled={finishing}
           >
             {finishing ? (
-              <ActivityIndicator color="#000" />
+              <LeapLogo size={40} animated />
             ) : (
               <Text style={styles.claimVictoryText}>CLAIM VICTORY</Text>
             )}
@@ -282,11 +316,11 @@ export function BattleScreen({ clashId, onFinish }: BattleScreenProps) {
               size={80} 
               color={isWinner ? theme.accent : '#D32F2F'} 
             />
-            <Text style={[styles.resultTitle, { color: isWinner ? theme.accent : '#D32F2F' }]}>
-              {isWinner ? 'VICTORY' : 'DEFEAT'}
+            <Text style={[styles.resultTitle, { color: isWinner ? '#FFD700' : '#8B0000' }]}>
+              {isWinner ? '⚔️ VICTORY' : '💀 DEFEAT'}
             </Text>
-            <Text style={[styles.resultSub, { color: '#FFF' }]}>
-              {isWinner ? '+25 GLORY POINTS' : '-15 GLORY POINTS'}
+            <Text style={[styles.resultSub, { color: theme.text.secondary }]}>
+              {isWinner ? 'YOU FINISHED FIRST' : 'YOUR OPPONENT WAS FASTER'}
             </Text>
             <View style={styles.resultStats}>
               <View style={styles.statBox}>

@@ -201,6 +201,8 @@ export class StaticService {
       back_lever_time: Number(e.bl_time || 0),
       planche_time: Number(e.pl_time || 0),
       total_points: Number(e.t_score || 0),
+      country: e.country,
+      gender: e.gender,
       is_current_user: e.u_id === currentUserId
     }));
   }

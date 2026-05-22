@@ -1,14 +1,16 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, ActivityIndicator
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { getGloryLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
+import { getCountryFlag } from '../constants/countries';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 interface GloryLeaderboardScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps) {
@@ -16,6 +18,15 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
   const { user } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredEntries = React.useMemo(() => {
+    let list = entries;
+    if (genderFilter !== 'ALL') {
+      list = entries.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, index) => ({ ...e, rank: index + 1 }));
+  }, [entries, genderFilter]);
 
   useEffect(() => {
     async function loadData() {
@@ -53,11 +64,36 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
       </View>
 
       {loading ? (
-        <View style={styles.loading}><ActivityIndicator color="#CD7F32" /></View>
+        <View style={styles.loading}><LeapLogo size={40} animated /></View>
       ) : (
         <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          <View style={styles.headerSpacer} />
-          {entries.map((entry) => {
+          {/* Gender Filters */}
+          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
+            {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+              <TouchableOpacity
+                key={filter}
+                style={{
+                  paddingVertical: 6,
+                  paddingHorizontal: 16,
+                  borderRadius: 20,
+                  backgroundColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.05)',
+                  borderWidth: 1,
+                  borderColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.1)'
+                }}
+                onPress={() => setGenderFilter(filter as any)}
+              >
+                <Text style={{ 
+                  fontSize: 12, 
+                  fontWeight: '900', 
+                  color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)' 
+                }}>
+                  {filter}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {filteredEntries.map((entry) => {
             const isCurrentUser = entry.is_current_user;
             return (
               <View 
@@ -79,6 +115,7 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
                   ]}
                   numberOfLines={1}
                 >
+                  <Text style={{ fontSize: 16 }}>{getCountryFlag(entry.country)} </Text>
                   {entry.display_name.toUpperCase()}
                   {isCurrentUser && <Text style={styles.youText}> (YOU)</Text>}
                 </Text>

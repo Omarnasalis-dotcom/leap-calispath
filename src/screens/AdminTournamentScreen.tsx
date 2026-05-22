@@ -1,12 +1,13 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TextInput,
-  TouchableOpacity, Alert, ActivityIndicator, FlatList
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TextInput,
+  TouchableOpacity, Alert, FlatList } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const AVAILABLE_EXERCISES = [
   'Push-ups', 'Pull-ups', 'Dips', 'Muscle-ups', 'Squats', 'Lunges',
@@ -180,7 +181,7 @@ function CodesTab({ theme }: { theme: any }) {
           style={[styles.publishBtn, { backgroundColor: theme.accent }]}
         >
           {generating
-            ? <ActivityIndicator color="#000" />
+            ? <LeapLogo size={40} animated />
             : <Text style={styles.publishBtnText}>GENERATE CODES</Text>}
         </TouchableOpacity>
       </View>
@@ -222,7 +223,7 @@ function CodesTab({ theme }: { theme: any }) {
         </View>
 
         {loadingCodes
-          ? <ActivityIndicator color={theme.accent} />
+          ? <LeapLogo size={40} animated />
           : existingCodes.length === 0
             ? <Text style={{ color: theme.text.tertiary, textAlign: 'center', paddingVertical: 20 }}>No codes found</Text>
             : existingCodes.map((c: any) => (
@@ -335,7 +336,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
       const { error: sessionErr } = await supabase.from('tournament_sessions').insert({ config_id: config.id, status: 'registration', current_round: 0 });
       if (sessionErr) throw sessionErr;
       Alert.alert('Success', 'Tournament Published!');
-      onClose();
+      router.back();
     } catch (err: any) {
       Alert.alert('Publishing Error', err.message || 'Unknown error occurred');
     } finally {
@@ -576,7 +577,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
             </Text>
           </View>
           <TouchableOpacity style={[styles.publishBtn, { backgroundColor: theme.accent }]} onPress={handlePublish} disabled={loading}>
-            {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.publishBtnText}>PUBLISH TOURNAMENT</Text>}
+            {loading ? <LeapLogo size={40} animated /> : <Text style={styles.publishBtnText}>PUBLISH TOURNAMENT</Text>}
           </TouchableOpacity>
           <View style={[styles.section, { marginTop: 40 }]}>
             <Text style={[styles.headerTitle, { color: theme.text.primary, fontSize: 16, marginBottom: 12 }]}>EXISTING TOURNAMENTS</Text>

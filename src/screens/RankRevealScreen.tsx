@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import {
   View,
@@ -23,7 +24,7 @@ const TIER_DESCRIPTIONS: Record<number, { desc: string; difficulty: number }> = 
 
 interface RankRevealScreenProps {
   profile: Profile;
-  onContinue: () => void;
+  onContinue?: () => void;
   category?: 'strength' | 'power';
 }
 

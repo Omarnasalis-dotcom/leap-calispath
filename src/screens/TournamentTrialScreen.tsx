@@ -1,8 +1,7 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, Vibration, ActivityIndicator
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Alert, Vibration } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,9 +9,11 @@ import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 interface Props {
-  sessionId: string;
+  sessionId?: string;
   roundConfig: {
     day: number;
     mode: 'amrap' | 'for_time';
@@ -253,7 +254,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
         <Text style={[styles.resultSub, { color: theme.text.tertiary }]}>Handicap Adjusted Score</Text>
         <TouchableOpacity 
           style={[styles.mainBtn, { backgroundColor: theme.accent, marginTop: 40, width: '80%' }]}
-          onPress={() => onClose ? onClose() : navigation.goBack()}
+          onPress={() => onClose ? router.back() : navigation.goBack()}
         >
           <Text style={styles.mainBtnText}>RETURN TO LOBBY</Text>
         </TouchableOpacity>
@@ -269,7 +270,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
             if (isActive) {
               Alert.alert('Battle in Progress', 'The arena is locked. You must finish the battle or wait for the timer to expire.');
             } else {
-              onClose ? onClose() : navigation.goBack();
+              onClose ? router.back() : navigation.goBack();
             }
           }}
         >
@@ -383,7 +384,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
               onPress={handleSubmit}
               disabled={loading}
             >
-              {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.mainBtnText}>SUBMIT RESULTS</Text>}
+              {loading ? <LeapLogo size={40} animated /> : <Text style={styles.mainBtnText}>SUBMIT RESULTS</Text>}
             </TouchableOpacity>
           ) : (
             <View style={{ height: 50 }} /> // Spacer instead of finish early button

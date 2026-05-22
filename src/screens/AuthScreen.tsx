@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   View,
@@ -10,12 +11,15 @@ import {
   TouchableOpacity,
   useWindowDimensions,
   Modal,
+  SafeAreaView,
+  FlatList,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
+import { COUNTRIES } from '../constants/countries';
 
 export function AuthScreen() {
   const { width } = useWindowDimensions();
@@ -26,19 +30,55 @@ export function AuthScreen() {
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [gender, setGender] = useState<string | null>(null);
+  const [country, setCountry] = useState('');
   const [inviteCode, setInviteCode] = useState('');
   const [loading, setLoading] = useState(false);
-
-  const [showResetModal, setShowResetModal] = useState(false);
+  const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
-
+  const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
+  const [countrySearch, setCountrySearch] = useState('');
   const { signUp, signIn } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
 
+  const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
+
+  async function handleResetPassword() {
+    if (!resetEmail) {
+      const msg = 'Please enter your email to reset your password.';
+      if (Platform.OS === 'web') window.alert(msg);
+      else Alert.alert('Missing Field', msg);
+      return;
+    }
+    
+    setResetLoading(true);
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
+        redirectTo: 'leaparena://reset-password'
+      });
+      
+      if (error) throw error;
+      
+      const successMsg = 'Check your email for a reset link';
+      if (Platform.OS === 'web') window.alert(successMsg);
+      else Alert.alert('Success', successMsg);
+      
+      setIsResetModalVisible(false);
+      setResetEmail('');
+    } catch (error: any) {
+      const message = error.message || 'An unexpected error occurred.';
+      if (Platform.OS === 'web') window.alert(message);
+      else Alert.alert('Arena Error', message);
+    } finally {
+      setResetLoading(false);
+    }
+  }
+
   async function handleSubmit() {
-    if (!email || !password || (isSignUp && (!firstName || !lastName || !inviteCode))) {
-      Alert.alert('Missing Fields', 'Please fill in all fields (including Invite Code) to continue.');
+    if (!email || !password || (isSignUp && (!firstName || !lastName || !displayName || !inviteCode || !gender || !country))) {
+      Alert.alert('Missing Fields', 'Please fill in all fields (including Username, Gender, Country, and Invite Code) to continue.');
       return;
     }
 
@@ -57,8 +97,19 @@ export function AuthScreen() {
           throw new Error('Your code is wrong or already used before. Please ask for a new code.');
         }
 
-        // 2. Create the User
-        await signUp(email, password);
+        // 2. Check if username is already taken
+        const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
+          username: displayName.trim()
+        });
+
+        if (usernameError) {
+          console.error('Username Check Error:', usernameError);
+        } else if (isAvailable === false) {
+          throw new Error('This username is already taken. Please choose another one.');
+        }
+
+        // 3. Create the User
+        await signUp(email, password, { firstName, lastName, gender: gender!, country, displayName });
 
         // 3. Redeem using your RPC function (using the EXACT code from the database)
         const { data: authData } = await supabase.auth.getUser();
@@ -95,27 +146,6 @@ export function AuthScreen() {
     }
   }
 
-  async function handleResetPassword() {
-    if (!resetEmail) {
-      Alert.alert('Missing Field', 'Please enter your email address.');
-      return;
-    }
-    setResetLoading(true);
-    try {
-      const { error } = await supabase.auth.resetPasswordForEmail(resetEmail.trim(), {
-        redirectTo: 'leaparena://reset-password'
-      });
-      if (error) throw error;
-      Alert.alert('Reset Link Sent', 'Check your email for a reset link');
-      setShowResetModal(false);
-      setResetEmail('');
-    } catch (error: any) {
-      Alert.alert('Reset Failed', error.message || 'An unexpected error occurred.');
-    } finally {
-      setResetLoading(false);
-    }
-  }
-
   const renderBranding = (layout: 'sidebar' | 'header') => {
     const isSidebar = layout === 'sidebar';
     return (
@@ -123,16 +153,16 @@ export function AuthScreen() {
         isSidebar ? styles.brandSectionSidebar : styles.brandSectionHeader,
         { backgroundColor: theme.card.background }
       ]}>
-        <View style={isSidebar ? styles.brandAccentVertical : styles.brandAccentHorizontal} />
+        <View style={[isSidebar ? styles.brandAccentVertical : styles.brandAccentHorizontal, { backgroundColor: theme.accent }]} />
         <View style={isSidebar ? styles.brandContentSidebar : styles.brandContentHeader}>
-          <Text style={[styles.brandEyebrow, isSidebar && { textAlign: 'left' }]}>CALISTHENICS</Text>
           <Text style={[
             styles.brandName, 
             { color: theme.text.primary }, 
-            isSidebar ? { textAlign: 'left' } : { textAlign: 'center', fontSize: 36, lineHeight: 32 }
+            isSidebar ? { textAlign: 'left' } : { textAlign: 'center', fontSize: 36, lineHeight: 40 }
           ]}>
             LEAP{isSidebar ? '\n' : ' '}<Text style={{ color: theme.accent }}>ARENA</Text>
           </Text>
+          <Text style={[styles.brandEyebrow, { color: theme.accent }, isSidebar && { textAlign: 'left' }]}>CALISTHENICS</Text>
           
           <View style={isSidebar ? styles.pillarsSidebar : styles.pillarsHeader}>
             {['Track', 'Compete', 'Train'].map((p: string, i: number) => (
@@ -160,10 +190,11 @@ export function AuthScreen() {
   };
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={[styles.container, { backgroundColor: theme.background.primary }]}
-    >
+    <SafeAreaView style={{ flex: 1, backgroundColor: theme.card.background }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={[styles.container, { backgroundColor: theme.card.background }]}
+      >
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={[
           styles.root, 
@@ -178,13 +209,19 @@ export function AuthScreen() {
           <View style={[styles.mainSection, { backgroundColor: theme.card.background }]}>
             <View style={[styles.tabs, { borderBottomColor: theme.card.border }]}>
               <TouchableOpacity 
-                style={[styles.tab, !isSignUp && styles.activeTab]} 
+                style={[
+                  styles.tab, 
+                  !isSignUp && { borderBottomColor: theme.accent, backgroundColor: theme.card.border }
+                ]} 
                 onPress={() => setIsSignUp(false)}
               >
                 <Text style={[styles.tabText, !isSignUp && { color: theme.accent }]}>ENTER THE ARENA</Text>
               </TouchableOpacity>
               <TouchableOpacity 
-                style={[styles.tab, isSignUp && styles.activeTab]} 
+                style={[
+                  styles.tab, 
+                  isSignUp && { borderBottomColor: theme.accent, backgroundColor: theme.card.border }
+                ]} 
                 onPress={() => setIsSignUp(true)}
               >
                 <Text style={[styles.tabText, isSignUp && { color: theme.accent }]}>JOIN THE ARENA</Text>
@@ -201,14 +238,69 @@ export function AuthScreen() {
               </Text>
 
               {isSignUp && (
-                <View style={styles.row}>
-                  <View style={{ flex: 1 }}>
-                    <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+                <>
+                  <View style={styles.row}>
+                    <View style={{ flex: 1 }}>
+                      <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+                    </View>
+                    <View style={{ width: 12 }} />
+                    <View style={{ flex: 1 }}>
+                      <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
+                    </View>
                   </View>
-                  <View style={{ width: 12 }} />
-                  <View style={{ flex: 1 }}>
-                    <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
+                  <Input 
+                    label="Username" 
+                    placeholder="alex_warrior" 
+                    value={displayName} 
+                    onChangeText={setDisplayName} 
+                    autoCapitalize="none"
+                  />
+                </>
+              )}
+
+              {isSignUp && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>Gender</Text>
+                  <View style={styles.row}>
+                    <TouchableOpacity 
+                      style={[
+                        styles.genderButton, 
+                        { borderColor: theme.card.border, backgroundColor: gender === 'Male' ? theme.accent : theme.card.background },
+                        gender === 'Male' && { borderColor: theme.accent }
+                      ]}
+                      onPress={() => setGender('Male')}
+                    >
+                      <Text style={[styles.genderText, { color: gender === 'Male' ? '#FFF' : theme.text.secondary }]}>MALE</Text>
+                    </TouchableOpacity>
+                    <View style={{ width: 12 }} />
+                    <TouchableOpacity 
+                      style={[
+                        styles.genderButton, 
+                        { borderColor: theme.card.border, backgroundColor: gender === 'Female' ? theme.accent : theme.card.background },
+                        gender === 'Female' && { borderColor: theme.accent }
+                      ]}
+                      onPress={() => setGender('Female')}
+                    >
+                      <Text style={[styles.genderText, { color: gender === 'Female' ? '#FFF' : theme.text.secondary }]}>FEMALE</Text>
+                    </TouchableOpacity>
                   </View>
+                </View>
+              )}
+
+              {isSignUp && (
+                <View style={{ marginBottom: 16 }}>
+                  <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>Country</Text>
+                  <TouchableOpacity 
+                    style={[
+                      styles.countryButton, 
+                      { borderColor: theme.card.border, backgroundColor: theme.card.background }
+                    ]}
+                    onPress={() => setIsCountryModalVisible(true)}
+                  >
+                    <Text style={[styles.countryText, { color: country ? theme.text.primary : theme.text.secondary }]}>
+                      {country || 'Select your country'}
+                    </Text>
+                  </TouchableOpacity>
                 </View>
               )}
 
@@ -240,7 +332,7 @@ export function AuthScreen() {
               )}
 
               {!isSignUp && (
-                <TouchableOpacity style={styles.forgotButton} onPress={() => setShowResetModal(true)}>
+                <TouchableOpacity style={styles.forgotButton} onPress={() => setIsResetModalVisible(true)}>
                   <Text style={[styles.forgotText, { color: theme.text.tertiary }]}>Forgot password?</Text>
                 </TouchableOpacity>
               )}
@@ -279,53 +371,104 @@ export function AuthScreen() {
             </View>
           </View>
         </View>
-      </ScrollView>
 
-      {/* Forgot Password Modal */}
-      <Modal
-        visible={showResetModal}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowResetModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-            <Text style={[styles.heading, { color: theme.text.primary, marginBottom: 8 }]}>
-              RESET <Text style={{ color: theme.accent }}>PASSWORD</Text>
-            </Text>
-            <Text style={[styles.subheading, { color: theme.text.secondary, marginBottom: 24 }]}>
-              Enter your email to receive a reset link.
-            </Text>
-            
-            <Input 
-              label="Email" 
-              placeholder="warrior@email.com" 
-              value={resetEmail} 
-              onChangeText={setResetEmail} 
-              keyboardType="email-address"
-              autoCapitalize="none"
-            />
-
-            <View style={styles.modalActions}>
-              <View style={{ flex: 1, marginRight: 8 }}>
+        {/* PASSWORD RESET MODAL */}
+        <Modal
+          visible={isResetModalVisible}
+          animationType="fade"
+          transparent={true}
+          onRequestClose={() => setIsResetModalVisible(false)}
+        >
+          <KeyboardAvoidingView 
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.modalOverlay}
+          >
+            <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+              <Text style={[styles.heading, { color: theme.text.primary, fontSize: 24, marginBottom: 16 }]}>
+                RESET <Text style={{ color: theme.accent }}>PASSWORD</Text>
+              </Text>
+              
+              <Input 
+                label="Email" 
+                placeholder="warrior@email.com" 
+                value={resetEmail} 
+                onChangeText={setResetEmail} 
+                keyboardType="email-address"
+                autoCapitalize="none"
+              />
+              
+              <View style={{ marginTop: 8 }}>
                 <Button 
-                  title="CANCEL" 
-                  onPress={() => setShowResetModal(false)} 
-                  variant="secondary"
-                />
-              </View>
-              <View style={{ flex: 1, marginLeft: 8 }}>
-                <Button 
-                  title="SEND LINK" 
+                  title="SEND RESET LINK" 
                   onPress={handleResetPassword} 
                   loading={resetLoading}
                 />
               </View>
+              
+              <TouchableOpacity 
+                style={{ marginTop: 16, alignItems: 'center', padding: 8 }} 
+                onPress={() => setIsResetModalVisible(false)}
+              >
+                <Text style={[styles.tabText, { color: theme.text.secondary }]}>CANCEL</Text>
+              </TouchableOpacity>
             </View>
-          </View>
-        </View>
-      </Modal>
+          </KeyboardAvoidingView>
+        </Modal>
+
+        {/* COUNTRY PICKER MODAL */}
+        <Modal
+          visible={isCountryModalVisible}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setIsCountryModalVisible(false)}
+        >
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={{ flex: 1 }}
+          >
+            <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
+              <View style={[styles.countryModalContent, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.modalTitle, { color: theme.text.primary }]}>Select Country</Text>
+                
+                <Input 
+                  label=""
+                  placeholder="Search..." 
+                  value={countrySearch} 
+                  onChangeText={setCountrySearch} 
+                />
+
+                <FlatList
+                  data={filteredCountries}
+                  keyExtractor={item => item}
+                  style={{ width: '100%', maxHeight: 300, marginTop: 12 }}
+                  renderItem={({ item }) => (
+                    <TouchableOpacity 
+                      style={[styles.countryItem, { borderBottomColor: theme.card.border }]}
+                      onPress={() => {
+                        setCountry(item);
+                        setIsCountryModalVisible(false);
+                        setCountrySearch('');
+                      }}
+                    >
+                      <Text style={{ color: theme.text.primary, fontSize: 16 }}>{item}</Text>
+                    </TouchableOpacity>
+                  )}
+                />
+
+                <TouchableOpacity 
+                  style={{ marginTop: 16, alignItems: 'center', padding: 8 }} 
+                  onPress={() => setIsCountryModalVisible(false)}
+                >
+                  <Text style={[styles.tabText, { color: theme.text.secondary }]}>CANCEL</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </KeyboardAvoidingView>
+        </Modal>
+
+      </ScrollView>
     </KeyboardAvoidingView>
+    </SafeAreaView>
   );
 }
 
@@ -358,7 +501,7 @@ const styles = StyleSheet.create({
     borderRightColor: '#E8E8E8',
   },
   brandSectionHeader: {
-    paddingTop: 64,
+    paddingTop: 16,
     paddingBottom: 0,
     position: 'relative',
     alignItems: 'center',
@@ -377,7 +520,6 @@ const styles = StyleSheet.create({
     top: 0,
     bottom: 0,
     width: 4,
-    backgroundColor: '#F45B00',
   },
   brandAccentHorizontal: {
     position: 'absolute',
@@ -385,20 +527,18 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     height: 3,
-    backgroundColor: '#F45B00',
   },
   brandEyebrow: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 14,
     letterSpacing: 2.5,
-    color: '#F45B00',
     marginBottom: 10,
   },
   brandName: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 42,
     color: '#FFFFFF',
-    lineHeight: 38,
+    lineHeight: 46,
     marginBottom: 8,
   },
   brandTag: {
@@ -428,11 +568,6 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     gap: 8,
   },
-  pillarNum: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 11,
-    color: '#F45B00',
-  },
   pillarLabel: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 12,
@@ -461,8 +596,6 @@ const styles = StyleSheet.create({
     borderBottomColor: 'transparent',
   },
   activeTab: {
-    borderBottomColor: '#F45B00',
-    backgroundColor: 'rgba(244, 91, 0, 0.05)',
   },
   tabText: {
     fontFamily: 'BarlowCondensed-Bold',
@@ -482,10 +615,70 @@ const styles = StyleSheet.create({
   subheading: {
     fontFamily: 'Barlow-Regular',
     fontSize: 13,
-    marginBottom: 32,
+    marginBottom: 8,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  countryModalContent: {
+    width: '100%',
+    maxWidth: 400,
+    padding: 24,
+    borderRadius: 16,
+    borderWidth: 1,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: '900',
+    letterSpacing: 2,
+    marginBottom: 24,
+    textAlign: 'center',
+  },
+  countryButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  countryText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  countryItem: {
+    paddingVertical: 16,
+    borderBottomWidth: 1,
   },
   row: {
     flexDirection: 'row',
+    alignItems: 'center',
+  },
+  genderButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  genderText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 1,
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 2,
+    marginBottom: 8,
   },
   forgotButton: {
     alignSelf: 'flex-end',
@@ -528,23 +721,5 @@ const styles = StyleSheet.create({
     width: 14,
     height: 14,
     borderRadius: 7,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 400,
-    padding: 32,
-    borderRadius: 16,
-    borderWidth: 1,
-  },
-  modalActions: {
-    flexDirection: 'row',
-    marginTop: 24,
   },
 });

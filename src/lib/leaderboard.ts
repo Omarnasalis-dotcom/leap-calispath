@@ -10,6 +10,8 @@ export interface LeaderboardEntry {
   best_time_seconds: number;
   rank: number;
   is_current_user: boolean;
+  country?: string;
+  gender?: string;
 }
 
 export interface PersonalBest {
@@ -44,6 +46,8 @@ export async function getTierLeaderboard(
     best_time_seconds: record.best_time,
     rank: index + 1,
     is_current_user: record.user_id === currentUserId,
+    country: record.country,
+    gender: record.gender,
   }));
 
   // Find personal best
@@ -77,7 +81,7 @@ export async function getPowerTierLeaderboard(
       squat_1rm,
       muscleup_1rm,
       power_tier,
-      profiles:user_id (display_name, power_points)
+      profiles:user_id (display_name, power_points, country, gender)
     `)
     .eq('power_tier', tier)
     .order('power_points', { foreignTable: 'profiles', ascending: false })
@@ -95,6 +99,8 @@ export async function getPowerTierLeaderboard(
     best_time_seconds: record.pullup_1rm + record.dip_1rm + record.squat_1rm + (record.muscleup_1rm * 2),
     rank: index + 1,
     is_current_user: record.user_id === currentUserId,
+    country: record.profiles?.country,
+    gender: record.profiles?.gender,
   }));
 
   const personalEntry = entries.find(e => e.is_current_user);
@@ -118,7 +124,7 @@ export async function getGloryLeaderboard(
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
   const { data, error } = await supabase
     .from('profiles')
-    .select('id, display_name, glory_score, strength_tier')
+    .select('id, display_name, glory_score, strength_tier, country, gender')
     .order('glory_score', { ascending: false })
     .limit(100);
 
@@ -134,6 +140,8 @@ export async function getGloryLeaderboard(
     best_time_seconds: record.glory_score, // We reuse this field for glory points
     rank: index + 1,
     is_current_user: record.id === currentUserId,
+    country: record.country,
+    gender: record.gender,
   }));
 
   const personalEntry = entries.find(e => e.is_current_user);

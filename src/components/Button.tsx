@@ -1,6 +1,8 @@
 import React from 'react';
-import { TouchableOpacity, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { LeapLogo } from './LeapLogo';
+
 
 interface ButtonProps {
   title: string;
@@ -35,7 +37,7 @@ export function Button({
       ]}
     >
       {loading ? (
-        <ActivityIndicator color={isPrimary ? '#FFFFFF' : theme.accent} />
+        <LeapLogo size={40} animated />
       ) : (
         <Text style={[
           styles.text,

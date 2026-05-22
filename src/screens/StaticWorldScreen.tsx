@@ -1,11 +1,11 @@
+import { useRouter } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, ActivityIndicator, Modal,
-  Dimensions, Vibration
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, Platform, Modal,
+  Dimensions, Vibration } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { getCountryFlag } from '../constants/countries';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
@@ -18,11 +18,13 @@ import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const { width } = Dimensions.get('window');
 
 interface StaticWorldScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
 }
 
 // Map categories to professional icons
@@ -44,6 +46,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [levelEntries, setLevelEntries] = useState<StaticLevelLeaderboardEntry[]>([]);
   const [wellRoundedEntries, setWellRoundedEntries] = useState<any[]>([]);
   const [personalBest, setPersonalBest] = useState<StaticLeaderboardEntry | null>(null);
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredWellRoundedEntries = React.useMemo(() => {
+    let list = wellRoundedEntries;
+    if (genderFilter !== 'ALL') {
+      list = wellRoundedEntries.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [wellRoundedEntries, genderFilter]);
   const [loading, setLoading] = useState(false);
   const [showGlobalMastery, setShowGlobalMastery] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
@@ -110,13 +121,12 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   async function loadMovementData() {
     if (!selectedMovement || !user) return;
-    setLoading(true);
     try {
       const { entries: e, personalBest: pb } = await StaticService.getMovementLeaderboard(selectedMovement.id, user.id);
       setEntries(e);
       setPersonalBest(pb);
-    } finally {
-      setLoading(false);
+    } catch (e) {
+      console.error('Error loading movement data:', e);
     }
   }
 
@@ -187,11 +197,13 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       if (Platform.OS === 'web') alert(msg);
       else Alert.alert('Success', msg);
 
-      await loadMovementData();
-      await refreshUserHolds();
-      if (refreshProfile) await refreshProfile();
       setShowLogModal(false);
       resetTimer();
+      await Promise.all([
+        loadMovementData(),
+        refreshUserHolds(),
+        refreshProfile ? refreshProfile() : Promise.resolve(),
+      ]);
     } catch (error: any) {
       console.error('Error saving hold:', error);
       const msg = error.message || 'Failed to save hold';
@@ -454,24 +466,105 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
           </View>
 
           <View style={styles.leaderboardSection}>
-            <View style={styles.lbSection}>
-              <Text style={[styles.lbTitle, { color: '#7E57C2' }]}>
-                {selectedLevel ? `${STATIC_LEVELS[selectedLevel].name.toUpperCase()} ELITE` : 'STATIC GLOBAL ELITE'}
-              </Text>
-              <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
-            </View>
+            {selectedLevel ? (
+              <View style={styles.lbSection}>
+                <Text style={[styles.lbTitle, { color: '#7E57C2' }]}>
+                  {STATIC_LEVELS[selectedLevel].name.toUpperCase()} ELITE
+                </Text>
+                <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
+              </View>
+            ) : (
+              <View style={{
+                marginTop: 20,
+                padding: 24,
+                borderRadius: 24,
+                backgroundColor: 'rgba(126, 87, 194, 0.05)',
+                borderWidth: 1,
+                borderColor: 'rgba(126, 87, 194, 0.2)',
+              }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+                  <MaterialCommunityIcons name={userRank === 1 ? "crown" : "sword-cross"} size={28} color="#7E57C2" />
+                  <View style={{ marginLeft: 12, flex: 1 }}>
+                    <Text style={{ color: isDark ? '#FFF' : '#7E57C2', fontSize: 18, fontWeight: '800' }}>
+                      {userRank === 1 
+                        ? 'STATIC KING ACHIEVED'
+                        : userRank > 0 ? `${gapToNext} Points to steal Rank #${userRank - 1}` : 'LOG A HOLD TO RANK UP'}
+                    </Text>
+                    <Text style={{ color: theme.text.secondary, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
+                      {userRank === 1 ? 'YOU ARE AT THE PEAK' : 'YOUR NEXT TARGET'}
+                    </Text>
+                  </View>
+                </View>
+                <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+                  <View style={{ 
+                    height: '100%', 
+                    backgroundColor: '#7E57C2', 
+                    width: userRank <= 1 ? '100%' : `${Math.min(100, Math.max(0, (displayScore / (displayScore + gapToNext)) * 100))}%`
+                  }} />
+                </View>
+                {userRank > 1 && (
+                  <Text style={{ color: '#7E57C2', fontSize: 12, marginTop: 8, textAlign: 'right', fontWeight: '800', letterSpacing: 1 }}>
+                    +{gapToNext} PTS TO DETHRONE
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {!selectedLevel ? null : (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 8, gap: 12 }}>
+                {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+                  <TouchableOpacity
+                    key={filter}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: genderFilter === filter ? '#7E57C2' : 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: genderFilter === filter ? '#7E57C2' : 'rgba(255,255,255,0.1)'
+                    }}
+                    onPress={() => setGenderFilter(filter as any)}
+                  >
+                    <Text style={{ 
+                      fontSize: 12, 
+                      fontWeight: '900', 
+                      color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                    }}>
+                      {filter}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
             
-            {(selectedLevel ? levelEntries : wellRoundedEntries).map((item, i) => (
+            {selectedLevel && levelEntries.map((item, i) => (
               <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? '#7E57C220' : 'transparent' }]}>
                 <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
                   <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                 </View>
-                <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
+                  {item.display_name.toUpperCase()}
+                </Text>
                 <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
                   <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
                 </View>
               </View>
             ))}
+
+            {/* Ambient Quote */}
+            {!selectedLevel && (
+              <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
+                <Text style={{ 
+                  color: theme.text.tertiary, 
+                  fontSize: 10, 
+                  fontFamily: 'PlusJakartaSans-SemiBold',
+                  letterSpacing: 3,
+                  textTransform: 'uppercase'
+                }}>
+                  LEAP INTO THE HOLD. DEFY GRAVITY.
+                </Text>
+              </View>
+            )}
           </View>
         </View>
       </ScrollView>
@@ -493,13 +586,41 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
              
              <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL STATIC RANKINGS</Text>
 
+             <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
+               {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+                 <TouchableOpacity
+                   key={filter}
+                   style={{
+                     paddingVertical: 6,
+                     paddingHorizontal: 16,
+                     borderRadius: 20,
+                     backgroundColor: genderFilter === filter ? '#7E57C2' : 'rgba(255,255,255,0.05)',
+                     borderWidth: 1,
+                     borderColor: genderFilter === filter ? '#7E57C2' : 'rgba(255,255,255,0.1)'
+                   }}
+                   onPress={() => setGenderFilter(filter as any)}
+                 >
+                   <Text style={{ 
+                     fontSize: 12, 
+                     fontWeight: '900', 
+                     color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                   }}>
+                     {filter}
+                   </Text>
+                 </TouchableOpacity>
+               ))}
+             </View>
+
              <ScrollView style={{ marginTop: 20 }}>
-                {wellRoundedEntries.map((item, i) => (
+                {filteredWellRoundedEntries.map((item, i) => (
                   <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: '#7E57C220', borderColor: '#7E57C2', borderWidth: 1 }]}>
                     <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#7E57C230' : 'transparent' }]}>
                       <Text style={{ color: i === 0 ? '#7E57C2' : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
                     </View>
-                    <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                    <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
+                      <Text style={{ fontSize: 16 }}>{getCountryFlag((item as any).country)} </Text>
+                      {item.display_name.toUpperCase()}
+                    </Text>
                     <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
                       <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)} PTS</Text>
                     </View>
@@ -514,9 +635,20 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
              <View style={styles.modalHeader}>
-                <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
-                  {selectedMovement?.name.toUpperCase()}
-                </Text>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={[styles.modalTitle, { color: theme.text.primary }]} numberOfLines={2}>
+                    {selectedMovement?.name.toUpperCase()}
+                  </Text>
+                  {personalBest ? (
+                    <Text style={{ color: '#7E57C2', fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
+                      YOUR BEST: {personalBest.best_time_seconds}s (RANK #{personalBest.rank})
+                    </Text>
+                  ) : (
+                    <Text style={{ color: theme.text.tertiary, fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
+                      YOUR BEST: -- (UNRANKED)
+                    </Text>
+                  )}
+                </View>
                 <TouchableOpacity onPress={() => setShowLogModal(false)}>
                    <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
                 </TouchableOpacity>
@@ -559,7 +691,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                             onPress={() => handleSaveHold(timerSeconds)}
                             disabled={loading}
                           >
-                            {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                            {loading ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
                           </TouchableOpacity>
 
                           <TouchableOpacity 
@@ -594,11 +726,11 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                 </View>
              )}
 
-             <View style={{ marginTop: 30, flex: 1, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
+             <View style={{ marginTop: 30, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
                 <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
                   TOP PERFORMERS
                 </Text>
-                <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 20 }}>
+                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 200 }} contentContainerStyle={{ paddingBottom: 20 }}>
                    {entries.length > 0 ? entries.map((item, i) => (
                       <View key={item.user_id} style={[styles.lbRow, { paddingVertical: 8 }, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
                          <View style={[styles.lbRank, { width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>

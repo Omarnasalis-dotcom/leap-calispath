@@ -1,12 +1,15 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ArenaService, ArenaPhase } from '../services/ArenaService';
 import { useAuth } from '../contexts/AuthContext';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 interface ChampionsArenaScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
   onStartArenaWorkout?: (phase: ArenaPhase) => void;
 }
 
@@ -57,7 +60,7 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
-        <ActivityIndicator size="large" color="#D32F2F" />
+        <LeapLogo size={40} animated />
       </View>
     );
   }
@@ -80,20 +83,20 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
         <View style={styles.phaseSelector}>
           {phases.map(phase => (
             <TouchableOpacity
-              key={phase.id}
+              key={phase!.id}
               style={[
                 styles.phasePill,
                 { backgroundColor: theme.card.background, borderColor: theme.card.border },
-                selectedPhase?.id === phase.id && { borderColor: '#D32F2F', backgroundColor: 'rgba(211,47,47,0.1)' }
+                selectedPhase?.id === phase!.id && { borderColor: '#D32F2F', backgroundColor: 'rgba(211,47,47,0.1)' }
               ]}
               onPress={() => setSelectedPhase(phase)}
             >
               <Text style={[
                 styles.phasePillText,
                 { color: theme.text.tertiary },
-                selectedPhase?.id === phase.id && { color: '#D32F2F' }
+                selectedPhase?.id === phase!.id && { color: '#D32F2F' }
               ]}>
-                {phase.name.split(' ')[0]}
+                {phase!.name.split(' ')[0]}
               </Text>
             </TouchableOpacity>
           ))}

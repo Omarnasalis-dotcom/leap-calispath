@@ -7,6 +7,8 @@ export interface PowerMovementRanking {
   value: number;
   points: number;
   rank: number;
+  country?: string;
+  gender?: string;
 }
 
 export interface PowerUserStats {
@@ -77,7 +79,7 @@ export const PowerService = {
     if (type === 'glory') {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, display_name, power_points')
+        .select('id, display_name, power_points, country, gender')
         .gt('power_points', 0)
         .order('power_points', { ascending: false })
         .limit(50);
@@ -88,7 +90,9 @@ export const PowerService = {
         display_name: d.display_name || 'Warrior',
         value: d.power_points,
         points: d.power_points,
-        rank: i + 1
+        rank: i + 1,
+        country: d.country,
+        gender: d.gender
       }));
     }
 

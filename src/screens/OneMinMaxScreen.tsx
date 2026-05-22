@@ -1,9 +1,8 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, ActivityIndicator, Modal,
-  Dimensions, RefreshControl, Animated, Vibration
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, Platform, Modal,
+  Dimensions, RefreshControl, Animated, Vibration } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
@@ -16,11 +15,14 @@ import {
 import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMService';
 
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { getCountryFlag } from '../constants/countries';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const { width } = Dimensions.get('window');
 
 export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, mode } = useTheme();
   const { user, profile } = useAuth();
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
@@ -32,9 +34,16 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const [modalLeaderboardData, setModalLeaderboardData] = useState<OneMMRanking[]>([]);
   const [showMovementLeaderboard, setShowMovementLeaderboard] = useState(false);
   const [showOverallModal, setShowOverallModal] = useState(false);
-
-  // Timer & Modal State
   const [showLogModal, setShowLogModal] = useState(false);
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredModalLeaderboardData = React.useMemo(() => {
+    let list = modalLeaderboardData;
+    if (genderFilter !== 'ALL') {
+      list = modalLeaderboardData.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [modalLeaderboardData, genderFilter]);
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
   const [timeLeft, setTimeLeft] = useState(60);
   const [preCountdown, setPreCountdown] = useState(0);
@@ -337,7 +346,13 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         <Text style={[styles.sectionHeader, { color: '#FF7043' }]}>YOUR PEAK ENDURANCE</Text>
 
         {/* Category Filter for Exercises */}
-        <View style={styles.exerciseFilter}>
+        {/* Category Filter for Exercises */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          style={styles.exerciseFilterScroll}
+          contentContainerStyle={styles.exerciseFilterContent}
+        >
           {['overall', 'entry', 'main', 'advanced'].map(cat => {
             const isActive = leaderboardTab === cat;
             const isLocked = (profile?.strength_tier ?? 0) < 5 && (cat === 'main' || cat === 'advanced');
@@ -357,13 +372,16 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                 }}
                 style={[
                   styles.exerciseFilterTab,
-                  { flex: cat === 'overall' ? 1.8 : 1, marginHorizontal: 2 },
                   isActive && { backgroundColor: '#FF7043', borderColor: '#FF7043' },
                   isLocked && { opacity: 0.3 }
                 ]}
               >
-                <Text style={[styles.exerciseFilterText, { color: isActive ? '#000' : theme.text.tertiary, fontSize: cat === 'overall' ? 8 : 10 }]}>
-                  {cat === 'overall' ? 'ENDURANCE OVERALL' : cat.toUpperCase()}
+                <Text 
+                  style={[styles.exerciseFilterText, { color: isActive ? '#000' : theme.text.tertiary }]}
+                  numberOfLines={1}
+                  ellipsizeMode="tail"
+                >
+                  {cat === 'overall' ? 'ENDURANCE' : cat.toUpperCase()}
                 </Text>
                 {cat === 'overall' && (
                   <MaterialCommunityIcons 
@@ -376,7 +394,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         <View style={styles.peakGrid}>
           {ONEMM_MOVEMENTS.filter(m => m.categoryId === selectedExerciseCategory).map(m => {
@@ -428,11 +446,11 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
             );
           })}
         </View>
-
-        <View style={styles.leaderboardSection}>
-          <View style={styles.lbSection}>
+        {leaderboardTab !== 'overall' && (
+          <View style={styles.leaderboardSection}>
+            <View style={styles.lbSection}>
             <Text style={[styles.lbTitle, { color: '#FF7043' }]}>
-              {leaderboardTab === 'overall' ? 'ENDURANCE GLOBAL ELITE' : `${leaderboardTab.toUpperCase()} ELITE`}
+              {`${leaderboardTab.toUpperCase()} ELITE`}
             </Text>
             <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
           </View>
@@ -450,6 +468,60 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
             </View>
           ))}
         </View>
+        )}
+
+        {/* ENDURANCE MILESTONE TRACKER */}
+        {leaderboardTab === 'overall' && (
+          <View style={{
+            marginTop: 20,
+            padding: 24,
+            borderRadius: 24,
+            backgroundColor: 'rgba(255, 112, 67, 0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 112, 67, 0.2)',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <MaterialCommunityIcons name={userRank === 1 ? "crown" : "sword-cross"} size={28} color="#FF7043" />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ color: mode === 'dark' ? '#FFF' : '#FF7043', fontSize: 18, fontWeight: '800' }}>
+                  {userRank === 1 
+                    ? 'ENDURANCE KING ACHIEVED'
+                    : userRank > 0 ? `${gapToNext} Points to steal Rank #${userRank - 1}` : 'LOG A RESULT TO RANK UP'}
+                </Text>
+                <Text style={{ color: theme.text.secondary, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
+                  {userRank === 1 ? 'YOU ARE AT THE PEAK' : 'YOUR NEXT TARGET'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+              <View style={{ 
+                height: '100%', 
+                backgroundColor: '#FF7043', 
+                width: userRank <= 1 ? '100%' : `${Math.min(100, Math.max(0, (peakData.total / (peakData.total + gapToNext)) * 100))}%`
+              }} />
+            </View>
+            {userRank > 1 && (
+              <Text style={{ color: '#FF7043', fontSize: 12, marginTop: 8, textAlign: 'right', fontWeight: '800', letterSpacing: 1 }}>
+                +{gapToNext} PTS TO DETHRONE
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Ambient Quote */}
+        {leaderboardTab === 'overall' && (
+          <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
+            <Text style={{ 
+              color: theme.text.tertiary, 
+              fontSize: 10, 
+              fontFamily: 'PlusJakartaSans-SemiBold',
+              letterSpacing: 3,
+              textTransform: 'uppercase'
+            }}>
+              LEAP PAST YOUR LIMITS. ENDURE.
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -521,7 +593,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                   onPress={handleSaveResult}
                   disabled={saving}
                 >
-                  {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -597,13 +669,41 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
             <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL VOLUME RANKINGS</Text>
 
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
+              {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    backgroundColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.05)',
+                    borderWidth: 1,
+                    borderColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.1)'
+                  }}
+                  onPress={() => setGenderFilter(filter as any)}
+                >
+                  <Text style={{ 
+                    fontSize: 12, 
+                    fontWeight: '900', 
+                    color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                  }}>
+                    {filter}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
             <ScrollView style={{ marginTop: 20 }}>
-              {modalLeaderboardData.map((item, i) => (
+              {filteredModalLeaderboardData.map((item, i) => (
                 <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
                   <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>
                     <Text style={{ color: i === 0 ? theme.accent : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
                   </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
+                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
+                    <Text style={{ fontSize: 16 }}>{getCountryFlag(item.country)} </Text>
+                    {item.display_name.toUpperCase()}
+                  </Text>
                   <View style={[styles.lbPointsFrame, { backgroundColor: theme.accent }]}>
                     <Text style={[styles.lbPointsText, { color: '#000' }]}>{item.value || 0} PTS</Text>
                   </View>
@@ -656,27 +756,33 @@ lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
   lbTitle: { fontSize: 20, fontWeight: '900', letterSpacing: 3, fontFamily: 'PlusJakartaSans-ExtraBold' },
   lbSub: { fontSize: 8, fontWeight: '900', letterSpacing: 1.5, opacity: 0.6 },
   sectionHeader: { fontSize: 13, fontWeight: '900', letterSpacing: 2, textAlign: 'center', marginTop: 20, marginBottom: 10 },
-  exerciseFilter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+  exerciseFilterScroll: {
+    marginVertical: 12,
+    marginHorizontal: -16,
+  },
+  exerciseFilterContent: {
     paddingHorizontal: 16,
-    marginBottom: 20,
-    width: '100%',
+    flexDirection: 'row',
+    gap: 8,
   },
   exerciseFilterTab: {
     paddingVertical: 8,
-    paddingHorizontal: 4,
-    borderRadius: 8,
-    borderWidth: 1,
+    paddingHorizontal: 14,
+    borderRadius: 20,
+    borderWidth: 1.5,
     borderColor: '#FF704340',
+    backgroundColor: 'rgba(255,255,255,0.02)',
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
+    flexShrink: 0,
   },
   exerciseFilterText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
+    letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-ExtraBold',
+    flexShrink: 0,
   },
 
   peakGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', paddingHorizontal: 10, gap: 20 },

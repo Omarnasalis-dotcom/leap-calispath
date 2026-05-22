@@ -1,9 +1,8 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, ActivityIndicator, Modal,
-  Dimensions, RefreshControl
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, Platform, Modal,
+  Dimensions, RefreshControl, Image } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,11 +17,14 @@ import {
 import { PowerService, PowerUserStats } from '../services/PowerService';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { WarriorCard } from '../components/atoms/WarriorCard';
+import { getCountryFlag } from '../constants/countries';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const { width } = Dimensions.get('window');
 
 export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
-  const { theme, toggleTheme } = useTheme();
+  const { theme, toggleTheme, mode } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
   
   const [stats, setStats] = useState<PowerUserStats | null>(null);
@@ -33,6 +35,16 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
   const [leaderboardTab, setLeaderboardTab] = useState<'glory' | 'level_1' | 'level_2' | 'level_3' | 'pull_up' | 'dip' | 'squat' | 'muscle_up'>('glory');
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [modalLeaderboardData, setModalLeaderboardData] = useState<any[]>([]);
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredLeaderboardData = React.useMemo(() => {
+    let list = leaderboardData;
+    if (leaderboardTab === 'glory' && genderFilter !== 'ALL') {
+      list = leaderboardData.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    // Re-rank them locally based on the filtered list
+    return list.map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [leaderboardData, genderFilter, leaderboardTab]);
   
   // Log Modal State
   const [showLogModal, setShowLogModal] = useState(false);
@@ -122,10 +134,12 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         setShowCelebration(true);
       }
 
-      await fetchData();
-      await refreshProfile();
       setShowLogModal(false);
       setManualInput('');
+      await Promise.all([
+        fetchData(),
+        refreshProfile ? refreshProfile() : Promise.resolve(),
+      ]);
     } catch (error) {
       console.error('Save error:', error);
       Alert.alert('Error', 'Failed to save PR.');
@@ -253,7 +267,12 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         <Text style={[styles.sectionHeader, { color: '#FF5252' }]}>YOUR PEAK PERFORMANCE</Text>
 
         {/* MASTERY TABS MOVED ABOVE PEAKS */}
-        <View style={styles.masteryTabsRow}>
+        <ScrollView 
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          style={styles.masteryTabsScroll}
+          contentContainerStyle={styles.masteryTabsContent}
+        >
           {['glory', 'level_1', 'level_2', 'level_3'].map(lvl => {
             const isActive = leaderboardTab === lvl;
             const levelNum = lvl.startsWith('level') ? parseInt(lvl.split('_')[1]) : 0;
@@ -274,7 +293,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         {/* PEAK GRID - 4 IN ONE ROW */}
         <View style={styles.peakGrid}>
@@ -310,29 +329,88 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
           })}
         </View>
 
-        {/* DYNAMIC LEADERBOARD */}
-        <View style={styles.lbSection}>
-          <Text style={[styles.lbTitle, { color: '#FF5252' }]}>{lbTitle}</Text>
-          <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>
-            THE HIGHEST TIER WARRIOR
-          </Text>
+        {/* DYNAMIC LEADERBOARD (LEVELS ONLY) */}
+        {leaderboardTab !== 'glory' && (
+          <View style={styles.lbSection}>
+            <Text style={[styles.lbTitle, { color: '#FF5252' }]}>{lbTitle}</Text>
+            <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>
+              THE HIGHEST TIER WARRIOR
+            </Text>
 
-          <View style={styles.lbList}>
-            {leaderboardData.slice(0, 10).map((item, i) => (
-              <View key={i} style={[styles.lbRow, { backgroundColor: theme.card.background }]}>
-                <View style={[styles.lbRankCircle, { borderColor: i === 0 ? '#FF5252' : theme.card.border }]}>
-                  <Text style={{ color: i === 0 ? '#FF5252' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
-                </View>
-                <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>{item.display_name.toUpperCase()}</Text>
-                <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
-                  <Text style={[styles.lbPointsText, { color: '#000' }]}>
-                    {item.value}{['glory', 'level_1', 'level_2', 'level_3'].includes(leaderboardTab) ? '' : 'kg'}
+            <View style={styles.lbList}>
+              {filteredLeaderboardData.slice(0, 10).map((item, i) => (
+                <View key={i} style={[styles.lbRow, { backgroundColor: theme.card.background }]}>
+                  <View style={[styles.lbRankCircle, { borderColor: i === 0 ? '#FF5252' : theme.card.border }]}>
+                    <Text style={{ color: i === 0 ? '#FF5252' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
+                  </View>
+                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>
+                    {item.display_name.toUpperCase()}
                   </Text>
+                  <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
+                    <Text style={[styles.lbPointsText, { color: '#000' }]}>
+                      {item.value}
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              ))}
+            </View>
           </View>
-        </View>
+        )}
+
+        {/* MILESTONE TRACKER (Only on Glory Tab) */}
+        {leaderboardTab === 'glory' && (
+          <View style={{
+            marginTop: 40,
+            padding: 24,
+            borderRadius: 24,
+            backgroundColor: 'rgba(255, 82, 82, 0.05)',
+            borderWidth: 1,
+            borderColor: 'rgba(255, 82, 82, 0.2)',
+          }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
+              <MaterialCommunityIcons name={stats.level.id < 3 ? "shield-star" : "crown"} size={28} color="#FF5252" />
+              <View style={{ marginLeft: 12, flex: 1 }}>
+                <Text style={{ color: mode === 'dark' ? '#FFF' : '#FF5252', fontSize: 18, fontWeight: '800' }}>
+                  {stats.level.id < 3 
+                    ? `${POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints} Points to ${POWER_LEVELS[stats.level.id + 1].name}`
+                    : 'MAXIMUM MASTERY ACHIEVED'}
+                </Text>
+                <Text style={{ color: theme.text.secondary, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
+                  {stats.level.id < 3 ? 'YOUR NEXT MAJOR MILESTONE' : 'YOU ARE AT THE PEAK'}
+                </Text>
+              </View>
+            </View>
+            <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
+              <View style={{ 
+                height: '100%', 
+                backgroundColor: '#FF5252', 
+                width: stats.level.id < 3 
+                  ? `${Math.min(100, Math.max(0, (stats.totalPoints / POWER_LEVELS[stats.level.id + 1].minPoints) * 100))}%` 
+                  : '100%'
+              }} />
+            </View>
+            {stats.level.id < 3 && (
+              <Text style={{ color: '#FF5252', fontSize: 12, marginTop: 8, textAlign: 'right', fontWeight: '800', letterSpacing: 1 }}>
+                {stats.totalPoints} / {POWER_LEVELS[stats.level.id + 1].minPoints} PTS
+              </Text>
+            )}
+          </View>
+        )}
+
+        {/* Ambient Quote */}
+        {leaderboardTab === 'glory' && (
+          <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
+            <Text style={{ 
+              color: theme.text.tertiary, 
+              fontSize: 10, 
+              fontFamily: 'PlusJakartaSans-SemiBold',
+              letterSpacing: 3,
+              textTransform: 'uppercase'
+            }}>
+              TAKE THE LEAP. CLAIM YOUR POWER.
+            </Text>
+          </View>
+        )}
       </View>
     );
   };
@@ -380,7 +458,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
               onPress={handleSaveWeight}
               disabled={saving}
             >
-              {saving ? <ActivityIndicator color="#000" /> : <Text style={styles.modalSaveText}>SAVE NEW PR</Text>}
+              {saving ? <LeapLogo size={40} animated /> : <Text style={styles.modalSaveText}>SAVE NEW PR</Text>}
             </TouchableOpacity>
 
             <View style={styles.modalLBContainer}>
@@ -415,13 +493,43 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
 
             <Text style={[styles.modalSubOverall, { color: theme.text.tertiary }]}>GLOBAL POWER RANKINGS</Text>
 
+            {leaderboardTab === 'glory' && (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
+                {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+                  <TouchableOpacity
+                    key={filter}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.1)'
+                    }}
+                    onPress={() => setGenderFilter(filter as any)}
+                  >
+                    <Text style={{ 
+                      fontSize: 12, 
+                      fontWeight: '900', 
+                      color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                    }}>
+                      {filter}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             <ScrollView style={{ marginTop: 20 }}>
-              {leaderboardData.map((item, i) => (
+              {filteredLeaderboardData.map((item, i) => (
                 <View key={i} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: '#FF525220', borderColor: '#FF5252', borderWidth: 1 }]}>
                   <View style={[styles.lbRankCircle, { backgroundColor: i < 3 ? '#FF525230' : 'transparent' }]}>
                     <Text style={{ color: i === 0 ? '#FF5252' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                   </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>{item.display_name.toUpperCase()}</Text>
+                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>
+                    {leaderboardTab === 'glory' && <Text style={{ fontSize: 16 }}>{getCountryFlag(item.country)} </Text>}
+                    {item.display_name.toUpperCase()}
+                  </Text>
                   <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
                     <Text style={[styles.lbPointsText, { color: '#000' }]}>{item.value} PTS</Text>
                   </View>
@@ -468,7 +576,14 @@ const styles = StyleSheet.create({
   dashboard: { paddingHorizontal: 16, paddingTop: 20, gap: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' },
   
-  masteryTabsRow: { flexDirection: 'row', justifyContent: 'center', gap: 8, marginVertical: 12 },
+  masteryTabsScroll: {
+    marginVertical: 12,
+  },
+  masteryTabsContent: {
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    gap: 8,
+  },
   tabBtnModern: { 
     paddingHorizontal: 16, 
     paddingVertical: 10, 

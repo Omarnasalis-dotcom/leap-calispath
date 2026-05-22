@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { View, Text } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 import { AuthContextType, Profile } from '../types';
 import { User } from '@supabase/supabase-js';
@@ -10,8 +11,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
+  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
   useEffect(() => {
+    // Check onboarding
+    AsyncStorage.getItem('hasSeenOnboarding').then(val => {
+      setHasSeenOnboarding(val === 'true');
+    });
     // Timeout safety - never stay loading forever
     const timeoutId = setTimeout(() => {
       setLoading(false);
@@ -41,6 +48,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') {
+        // User tapped the reset link. Set the session silently but route them
+        // to the reset password screen instead of the main app.
+        setNeedsPasswordReset(true);
+        setUser(null); // keep them out of the main app
+        return;
+      }
+
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
@@ -67,7 +82,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfile(data);
   }
 
-  async function signUp(email: string, password: string) {
+  async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
     console.log('Attempting signup with timezone:', timezone);
     
@@ -75,7 +90,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email,
       password,
       options: {
-        data: { timezone },
+        data: { 
+          timezone,
+          first_name: metadata?.firstName,
+          last_name: metadata?.lastName,
+          gender: metadata?.gender,
+          country: metadata?.country,
+          display_name: metadata?.displayName
+        },
       },
     });
 
@@ -103,14 +125,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  /**
+   * Called after the user successfully updates their password.
+   * Signs them out so they land on the login screen with a clean session.
+   */
+  async function clearPasswordReset() {
+    setNeedsPasswordReset(false);
+    try {
+      await supabase.auth.signOut();
+    } catch (e) {
+      // ignore
+    }
+    setUser(null);
+    setProfile(null);
+  }
+
+  async function completeOnboarding() {
+    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
+    setHasSeenOnboarding(true);
+  }
+
   const value: AuthContextType = {
     user,
     profile,
     loading,
+    needsPasswordReset,
+    hasSeenOnboarding,
+    completeOnboarding,
     signUp,
     signIn,
     signOut,
     refreshProfile,
+    clearPasswordReset,
   };
 
   if (loading) {

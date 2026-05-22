@@ -1,19 +1,19 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { SpartanLayout } from './_layout';
 import { TrialScreen } from '../src/screens/TrialScreen';
+import { SpartanLayout } from '../src/components/SpartanLayout';
 
-export default function Trial() {
+export default function Route() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { mode, tier } = useLocalSearchParams<{ mode: string; tier: string }>();
 
   return (
-    <SpartanLayout>
+    <SpartanLayout hideToggle>
       <TrialScreen
-        mode={params.mode as 'progression' | 'practice' | 'eternal' || 'progression'}
-        practiceTier={params.tier ? parseInt(params.tier as string) : null}
-        onComplete={() => router.replace('/rank-reveal')}
-        onAbandon={() => router.back()}
+        mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
+        practiceTier={tier ? parseInt(tier) : undefined}
+        onComplete={() => router.replace('/profile')}
+        onBack={() => router.back()}
       />
     </SpartanLayout>
   );

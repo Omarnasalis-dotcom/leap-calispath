@@ -11,18 +11,25 @@ import {
   Alert,
   SafeAreaView,
   Platform,
+  TextInput,
+  FlatList,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { COUNTRIES, getCountryFlag } from '../constants/countries';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
 import { POWER_TIER_DESCRIPTIONS } from '../lib/tierDescriptions';
 import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
+import { EditProfileModal } from '../components/profile/EditProfileModal';
+import { LeaderboardModals } from '../components/profile/LeaderboardModals';
+import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 
 import { getTierLeaderboard, getPowerTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
@@ -31,40 +38,34 @@ import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
+import { useRouter , router } from 'expo-router';
 
 interface ProfileScreenProps {
-  onStartTrial?: (tier?: number) => void;
-  onOpenAssessment?: () => void;
-  onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
-  onOpenPowerAssessment?: () => void;
-  onOpenStaticWorld?: () => void;
-  onOpenWeeklyChallenge?: () => void;
-  onOpenChampionsArena?: () => void;
-  onOpenClash?: () => void;
-  onOpenTournamentArena?: () => void;
-  onOpenOneMinMax?: () => void;
-  onOpenCoach?: () => void;
-  onOpenAdmin?: () => void;
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
 }
 
 export function ProfileScreen({
-  onStartTrial,
-  onOpenAssessment,
-  onViewLeaderboards,
-  onOpenPowerAssessment,
-  onOpenStaticWorld,
-  onOpenWeeklyChallenge,
-  onOpenChampionsArena,
-  onOpenClash,
-  onOpenTournamentArena,
-  onOpenOneMinMax,
-  onOpenCoach,
-  onOpenAdmin,
   initialCategory = 'strength',
-  initialTier = 0,
+  initialTier = 0
 }: ProfileScreenProps) {
+  const router = useRouter();
+  // Replaced navigation props with router calls
+  const onOpenAssessment = () => router.push('/assessment');
+  const onOpenStaticWorld = () => router.push('/static-world');
+  const onOpenOneMinMax = () => router.push('/one-min-max');
+  const onStartTrial = (tier?: number) => router.push({ pathname: '/trial', params: { tier } });
+  const onViewLeaderboards = (category: 'strength' | 'power', tier: number) => router.push({ pathname: '/leaderboard', params: { category, tier } });
+  const onOpenPowerAssessment = () => router.push('/power-world');
+  const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
+  const onOpenChampionsArena = () => router.push('/champions-arena');
+  const onOpenClash = () => router.push('/clash');
+  const onOpenTournamentArena = () => router.push('/tournament-arena');
+  const onOpenCoach = () => router.push('/coach');
+  const onOpenCoachingCenter = () => router.push('/exercise-library'); // Assuming this maps to coaching hub
+  const onOpenWarriorProgram = () => router.push('/warrior-program');
+  const onOpenAdmin = () => router.push('/admin-tournament');
+  
   const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme, mode } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
@@ -84,6 +85,29 @@ export function ProfileScreen({
   const [loadingLB, setLoadingLB] = useState(false);
   const [showWarriorModal, setShowWarriorModal] = useState(false);
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
+
+  // Leaderboard Filtering
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredWraLeaderboard = React.useMemo(() => {
+    let list = wraLeaderboard;
+    if (genderFilter !== 'ALL') {
+      list = wraLeaderboard.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [wraLeaderboard, genderFilter]);
+
+  const filteredGloryLeaderboard = React.useMemo(() => {
+    let list = gloryLeaderboard;
+    if (genderFilter !== 'ALL') {
+      list = gloryLeaderboard.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, i) => ({ ...e, rank: i + 1 }));
+  }, [gloryLeaderboard, genderFilter]);
+
+  // Edit Profile State
+  const [showEditProfile, setShowEditProfile] = useState(false);
+  
 
   useEffect(() => {
     if (profile) {
@@ -343,40 +367,37 @@ export function ProfileScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      {/* 1. Coach Trigger - Upper Left */}
-      <TouchableOpacity
-        activeOpacity={0.7}
-        onPress={() => setShowCoachPrompt(true)}
-        style={{ position: 'absolute', top: 60, left: 16, zIndex: 100 }}
-      >
-        <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40', height: 26 }]}>
-          <MaterialCommunityIcons name="brain" size={14} color={theme.accent} />
-          <Text style={[styles.coachBadgeText, { color: theme.accent }]}>COACH</Text>
-        </View>
-      </TouchableOpacity>
-      
-      {/* Admin Button - Next to Coach (Top Left) */}
-      {profile?.is_admin && (
-        <TouchableOpacity 
-          style={{ 
-            position: 'absolute', 
-            top: 60, 
-            left: 95, 
-            zIndex: 100,
-            width: 26,
-            height: 26,
-            borderRadius: 4,
-            backgroundColor: theme.accent + '20',
-            borderColor: theme.accent + '40',
-            borderWidth: 1,
-            justifyContent: 'center',
-            alignItems: 'center'
-          }} 
-          onPress={onOpenAdmin}
+      {/* Coach + Admin Buttons - Grouped Top Left */}
+      <View style={{ position: 'absolute', top: 54, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <TouchableOpacity
+          activeOpacity={0.7}
+          onPress={() => setShowCoachPrompt(true)}
         >
-          <MaterialCommunityIcons name="shield-crown" size={14} color={theme.accent} />
+          <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40', height: 24, paddingHorizontal: 6 }]}>
+            <MaterialCommunityIcons name="brain" size={12} color={theme.accent} />
+            <Text style={[styles.coachBadgeText, { color: theme.accent, fontSize: 8 }]}>COACH</Text>
+          </View>
         </TouchableOpacity>
-      )}
+
+        {profile?.is_admin && (
+          <TouchableOpacity
+            activeOpacity={0.7}
+            onPress={onOpenAdmin}
+            style={{
+              width: 24,
+              height: 24,
+              borderRadius: 4,
+              backgroundColor: theme.accent + '20',
+              borderColor: theme.accent + '40',
+              borderWidth: 1,
+              justifyContent: 'center',
+              alignItems: 'center',
+            }}
+          >
+            <MaterialCommunityIcons name="shield-crown" size={12} color={theme.accent} />
+          </TouchableOpacity>
+        )}
+      </View>
 
       {/* 2. Access Status - Upper Center */}
       <View style={{ position: 'absolute', top: 60, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
@@ -408,8 +429,16 @@ export function ProfileScreen({
             {/* User Display Name Above Rings with Coach Trigger */}
             <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 10 }}>
 
-              <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
-                {profile.display_name?.toUpperCase() || 'WARRIOR'}
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
+                  {profile.first_name || profile.last_name 
+                    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
+                    : 'WARRIOR'}
+                </Text>
+              </View>
+
+              <Text style={{ color: theme.text.tertiary, fontSize: 13, marginTop: 4, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 1 }}>
+                @{profile.display_name?.toLowerCase() || 'warrior'}
               </Text>
             </View>
 
@@ -510,6 +539,66 @@ export function ProfileScreen({
             </View>
           </View>
         </View>
+
+        {mode !== undefined && (
+          <View style={{ width: '92%', alignSelf: 'center', marginTop: 16, marginBottom: 8 }}>
+            {((profile as any)?.is_coach || profile?.is_admin) ? (
+              onOpenCoachingCenter && (
+                <LinearGradient
+                  colors={['#7E57C2', '#FF5252', '#FF7043']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ padding: 1.2, borderRadius: 8 }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingVertical: 12,
+                      borderRadius: 7,
+                      gap: 8
+                    }}
+                    onPress={onOpenCoachingCenter}
+                  >
+                    <MaterialCommunityIcons name="brain" size={16} color="#FF7043" />
+                    <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13, letterSpacing: 1.5, color: mode === 'dark' ? '#FFFFFF' : '#000000' }}>
+                      COACHING CENTER
+                    </Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              )
+            ) : (
+              onOpenWarriorProgram && (
+                <LinearGradient
+                  colors={['#7E57C2', '#FF5252', '#FF7043']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ padding: 1.2, borderRadius: 8 }}
+                >
+                  <TouchableOpacity
+                    style={{
+                      backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF',
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      paddingVertical: 12,
+                      borderRadius: 7,
+                      gap: 8
+                    }}
+                    onPress={onOpenWarriorProgram}
+                  >
+                    <MaterialCommunityIcons name="clipboard-text-outline" size={16} color="#FF7043" />
+                    <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13, letterSpacing: 1.5, color: mode === 'dark' ? '#FFFFFF' : '#000000' }}>
+                      MY WORKOUT PROGRAM
+                    </Text>
+                  </TouchableOpacity>
+                </LinearGradient>
+              )
+            )}
+          </View>
+        )}
 
         {/* Mode Grid - 2 Column Layout */}
         {/* World Pills Grid - 2 Rows (4 + 3) */}
@@ -614,7 +703,7 @@ export function ProfileScreen({
         </View>
 
         {/* Next Step Banner */}
-        {category === 'strength' && (profile?.strength_tier ?? 0) < 8 && (
+        {category === 'strength' && (profile?.strength_tier ?? 0) <= 8 && (
           <WarriorCard
             variant="accent"
             style={styles.nextStepBanner}
@@ -633,7 +722,7 @@ export function ProfileScreen({
                   Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
                 </Text>
                 <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
-                  Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 8)]}
+                  Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 9)]}
                 </Text>
               </View>
               <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
@@ -831,7 +920,12 @@ export function ProfileScreen({
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
             <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
+                <TouchableOpacity onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
+                  <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
+                </TouchableOpacity>
+              </View>
               <TouchableOpacity onPress={() => setShowWarriorModal(false)}>
                 <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
               </TouchableOpacity>
@@ -866,97 +960,15 @@ export function ProfileScreen({
         </View>
       </Modal>
 
-      {/* Tier Details Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={showTierModal}
-        onRequestClose={() => setShowTierModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
-            {/* Modal Header */}
-            <View style={styles.modalHeader}>
-              <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
-                <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {modalTier !== null ? (category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]).toUpperCase() : 'TIER'}
-                </Text>
-              </View>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setShowTierModal(false)}
-              >
-                <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.modalTierLabel, { color: theme.text.secondary }]}>
-              Tier {modalTier}
-            </Text>
-
-            {/* Difficulty Section */}
-            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
-              <View style={styles.modalDifficultyRow}>
-                <View style={[styles.modalDifficultyBar, { backgroundColor: theme.background.secondary }]}>
-                  <View
-                    style={[
-                      styles.modalDifficultyFill,
-                      {
-                        backgroundColor: theme.accent,
-                        width: modalTier !== null ? `${(((category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty || 1) / 9) * 100}%` : '11%'
-                      }
-                    ]}
-                  />
-                </View>
-                <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
-                  {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty : 1}/9
-                </Text>
-              </View>
-            </View>
-
-            {/* Requirements Section */}
-            <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
-              <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.desc : 'Complete the trial to advance'}
-              </Text>
-            </View>
-
-            {/* Trial Movements Preview */}
-            {category === 'strength' && modalTier !== null && RITES_OF_PASSAGE[modalTier] && (
-              <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-                <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
-                <View style={styles.movementsList}>
-                  {RITES_OF_PASSAGE[modalTier].movements.map((movement, idx) => (
-                    <View key={idx} style={styles.movementItem}>
-                      <View style={[styles.movementDot, { backgroundColor: theme.accent }]} />
-                      <Text style={[styles.movementText, { color: theme.text.secondary }]}>
-                        {movement.name}: {movement.reps}x
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              </View>
-            )}
-
-            {/* LEAP NOW Button - Only show if tier is not locked */}
-            {modalTier !== null && modalTier <= activeCurrentTier && (
-              <WarriorButton
-                title="LEAP NOW"
-                onPress={() => {
-                  setShowTierModal(false);
-                  if (category === 'power') {
-                    if (onOpenPowerAssessment) onOpenPowerAssessment();
-                  } else {
-                    if (onStartTrial) onStartTrial(modalTier);
-                  }
-                }}
-              />
-            )}
-          </View>
-        </View>
-      </Modal>
+      <TierDetailsModal 
+        showTierModal={showTierModal}
+        setShowTierModal={setShowTierModal}
+        modalTier={modalTier}
+        category={category}
+        activeCurrentTier={activeCurrentTier}
+        onOpenPowerAssessment={onOpenPowerAssessment}
+        onStartTrial={onStartTrial}
+      />
 
       {/* World Switching Overlay - Modern Design */}
       {isSwitchingWorld && (
@@ -998,133 +1010,17 @@ export function ProfileScreen({
           </View>
         </View>
       )}
-      {/* Global Well-Rounded Leaderboard Modal */}
-      <Modal
-        visible={showWRALeaderboard}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowWRALeaderboard(false)}
-      >
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.lbModalHeader}>
-              <TouchableOpacity onPress={() => setShowWRALeaderboard(false)} style={styles.modalCloseBtn}>
-                <MaterialCommunityIcons name="close" size={28} color="#FFF" />
-              </TouchableOpacity>
-              <View style={styles.modalHeaderTitle}>
-                <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>GLOBAL WELL-ROUNDED ELITE</Text>
-                <Text style={[styles.lbSub, { textAlign: 'center', marginTop: 4 }]}>THE ULTIMATE VERSATILE WARRIOR</Text>
-              </View>
-            </View>
-
-            {loadingLB ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color={theme.accent} />
-              </View>
-            ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-                {wraLeaderboard.map((entry) => (
-                  <View
-                    key={entry.user_id}
-                    style={[
-                      styles.lbRow,
-                      entry.is_current_user && { backgroundColor: `${theme.accent}20`, borderColor: theme.accent }
-                    ]}
-                  >
-                    <View style={styles.lbRankBox}>
-                      <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? theme.accent : '#666' }]}>
-                        #{entry.rank}
-                      </Text>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.lbName, { color: '#FFF' }]}>
-                        {entry.display_name?.toUpperCase()}
-                      </Text>
-                      <View style={styles.lbBreakdown}>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
-                          <Text style={styles.lbBreakdownText}>{entry.static_pts}S</Text>
-                        </View>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
-                          <Text style={styles.lbBreakdownText}>{entry.power_pts}P</Text>
-                        </View>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
-                          <Text style={styles.lbBreakdownText}>{entry.endurance_pts}E</Text>
-                        </View>
-                      </View>
-                    </View>
-
-                    <View style={styles.lbScoreBox}>
-                      <Text style={[styles.lbScoreText, { color: theme.accent }]}>{entry.total_score}</Text>
-                      <Text style={styles.lbScoreLabel}>PTS</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </SafeAreaView>
-        </View>
-      </Modal>
-
-      {/* Global Glory Leaderboard Modal */}
-      <Modal
-        visible={showGloryLeaderboard}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowGloryLeaderboard(false)}
-      >
-        <View style={[StyleSheet.absoluteFill, { backgroundColor: 'rgba(0,0,0,0.9)' }]}>
-          <SafeAreaView style={styles.modalContainer}>
-            <View style={styles.lbModalHeader}>
-              <TouchableOpacity onPress={() => setShowGloryLeaderboard(false)} style={styles.modalCloseBtn}>
-                <MaterialCommunityIcons name="close" size={28} color="#FFF" />
-              </TouchableOpacity>
-              <View style={styles.modalHeaderTitle}>
-                <Text style={[styles.lbTitle, { color: '#FF5252', textAlign: 'center' }]}>GLOBAL GLORY RANKINGS</Text>
-                <Text style={[styles.lbSub, { textAlign: 'center', marginTop: 4 }]}>THE LEGENDS OF THE ARENA</Text>
-              </View>
-            </View>
-
-            {loadingLB ? (
-              <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                <ActivityIndicator size="large" color="#FF5252" />
-              </View>
-            ) : (
-              <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
-                {gloryLeaderboard.map((entry) => (
-                  <View
-                    key={entry.user_id}
-                    style={[
-                      styles.lbRow,
-                      entry.is_current_user && { backgroundColor: 'rgba(255, 82, 82, 0.2)', borderColor: '#FF5252' }
-                    ]}
-                  >
-                    <View style={styles.lbRankBox}>
-                      <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? '#FF5252' : '#666' }]}>
-                        #{entry.rank}
-                      </Text>
-                    </View>
-
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.lbName, { color: '#FFF' }]}>
-                        {entry.display_name?.toUpperCase()}
-                      </Text>
-                    </View>
-
-                    <View style={styles.lbScoreBox}>
-                      <Text style={[styles.lbScoreText, { color: '#FF5252' }]}>{entry.total_score}</Text>
-                      <Text style={styles.lbScoreLabel}>GLORY</Text>
-                    </View>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </SafeAreaView>
-        </View>
-      </Modal>
+      <LeaderboardModals 
+        showWRALeaderboard={showWRALeaderboard}
+        setShowWRALeaderboard={setShowWRALeaderboard}
+        showGloryLeaderboard={showGloryLeaderboard}
+        setShowGloryLeaderboard={setShowGloryLeaderboard}
+        loadingLB={loadingLB}
+        genderFilter={genderFilter}
+        setGenderFilter={setGenderFilter}
+        filteredWraLeaderboard={filteredWraLeaderboard}
+        filteredGloryLeaderboard={filteredGloryLeaderboard}
+      />
 
       {/* AI COACH PROMPT MODAL */}
       <Modal
@@ -1166,6 +1062,10 @@ export function ProfileScreen({
           </View>
         </View>
       </Modal>
+
+      {/* EDIT PROFILE MODAL */}
+      <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
+
     </View>
   );
 }
@@ -2277,8 +2177,27 @@ const styles = StyleSheet.create({
     zIndex: 10,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
     shadowRadius: 3,
     elevation: 4,
+  },
+  inputLabel: {
+    fontSize: 10,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 2,
+    marginBottom: 8,
+  },
+  readOnlyInput: {
+    borderWidth: 1,
+    borderRadius: 12,
+    padding: 16,
+  },
+  genderButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });

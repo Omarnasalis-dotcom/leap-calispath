@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import { useRouter, router } from 'expo-router';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,7 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   TextInput,
+  LayoutAnimation,
+  Platform,
+  UIManager,
+  KeyboardAvoidingView,
+  Image,
 } from 'react-native';
+import { LeapLogo } from '../components/LeapLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -18,20 +25,28 @@ import {
   MovementAssessment,
   StrengthAssessment,
 } from '../lib/spartanLogic';
-import { TIER_NAMES } from '../types';
 import { Button } from '../components/Button';
+
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
 
 const STEPS = ['pullups', 'dips', 'pushups', 'muscleups'] as const;
 type Step = typeof STEPS[number];
 
-const REP_CIRCLES = [0, 1, 2, 3, 5, 8, 10, 12, 15, 20, 25, 30];
+const QUICK_REPS = [5, 10, 15, 20, 25, 30, 40, 50];
 
 export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const { user, refreshProfile } = useAuth();
   const { theme } = useTheme();
+  
   const [currentStep, setCurrentStep] = useState(0);
-  const [loading, setLoading] = useState(false);
+  const [currentVariantIndex, setCurrentVariantIndex] = useState(0);
+  const [askingReps, setAskingReps] = useState(false);
   const [customReps, setCustomReps] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const [history, setHistory] = useState<{ step: number; variantIndex: number; askingReps: boolean }[]>([]);
 
   const [assessments, setAssessments] = useState<Record<Step, MovementAssessment>>({
     pullups: { reps: 0, variant: 'inverted_row' },
@@ -42,33 +57,12 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
 
   const step = STEPS[currentStep];
   const options = MOVEMENT_OPTIONS[step];
+  const currentOption = options[currentVariantIndex];
 
-  function updateVariant(variant: MovementVariant) {
-    setAssessments(prev => ({
-      ...prev,
-      [step]: { ...prev[step], variant },
-    }));
-  }
-
-  function updateReps(reps: number) {
-    setAssessments(prev => ({
-      ...prev,
-      [step]: { ...prev[step], reps: Math.max(0, reps) },
-    }));
-    setCustomReps(reps.toString());
-  }
-
-  function handleCustomRepsChange(text: string) {
-    setCustomReps(text);
-    const num = parseInt(text) || 0;
-    updateReps(num);
-  }
-
-  function calculateHolisticTierPreview(assessments: Record<Step, MovementAssessment>): number {
-    // Basic preview logic for the UI — mirrors spartanLogic weakest link
-    const p = assessments.pullups;
-    const d = assessments.dips;
-    const s = assessments.pushups;
+  function calculateHolisticTierPreview(asses: Record<Step, MovementAssessment>): number {
+    const p = asses.pullups;
+    const d = asses.dips;
+    const s = asses.pushups;
 
     let pullTier = 0;
     if (p.variant === 'strict_pullup' && p.reps >= 15) pullTier = 7;
@@ -90,55 +84,106 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
     return Math.min(pullTier, dipTier, pushTier, 7);
   }
 
-  function handleNext() {
-    const currentMovement = assessments[STEPS[currentStep]];
+  function handleYes() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHistory([...history, { step: currentStep, variantIndex: currentVariantIndex, askingReps }]);
+    setAskingReps(true);
+    setCustomReps('');
+  }
+
+  function handleNo() {
+    LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+    setHistory([...history, { step: currentStep, variantIndex: currentVariantIndex, askingReps }]);
     
-    // ZERO-REP GUARD: Ensure user doesn't submit 0 reps for a variant
-    if (currentMovement.reps < 1) {
+    if (currentVariantIndex < options.length - 1) {
+      setCurrentVariantIndex(currentVariantIndex + 1);
+    } else {
+      // They said NO to the easiest variant. Result is 0 reps for this movement.
+      const variant = options[currentVariantIndex].value as MovementVariant;
+      const nextAssessments = { ...assessments, [step]: { variant, reps: 0 } };
+      setAssessments(nextAssessments);
+      advanceToNextMovement(nextAssessments);
+    }
+  }
+
+  function handleQuickRep(reps: number) {
+    setCustomReps(reps.toString());
+  }
+
+  function handleNextFromReps() {
+    const variant = currentOption.value as MovementVariant;
+    const reps = parseInt(customReps) || 0;
+    
+    if (reps < 1) {
       Alert.alert(
         "Invalid Input",
-        `You must enter at least 1 rep for ${currentMovement.variant.replace('_', ' ')} to proceed. If you cannot do any, please select an easier variant.`
+        "You must enter at least 1 rep. If you cannot do any, go BACK and select NO."
       );
       return;
     }
 
-    // Use preview to check if muscle-up step is needed
-    const currentTierPreview = calculateHolisticTierPreview(assessments);
+    const nextAssessments = { ...assessments, [step]: { variant, reps } };
+    setAssessments(nextAssessments);
+    advanceToNextMovement(nextAssessments);
+  }
+
+  function advanceToNextMovement(asses: Record<Step, MovementAssessment>) {
+    const currentTierPreview = calculateHolisticTierPreview(asses);
 
     if (currentStep < STEPS.length - 1) {
       let nextStep = currentStep + 1;
-
-      // Skip muscle-up step if overall tier is below 4 (Spartan)
+      
       if (STEPS[nextStep] === 'muscleups' && currentTierPreview < 4) {
-        submitAssessment();
+        submitAssessment(asses);
         return;
       }
 
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      setHistory([...history, { step: currentStep, variantIndex: currentVariantIndex, askingReps }]);
       setCurrentStep(nextStep);
-      setCustomReps(assessments[STEPS[nextStep]].reps.toString());
+      setCurrentVariantIndex(0);
+      setAskingReps(false);
+      setCustomReps('');
     } else {
-      submitAssessment();
+      submitAssessment(asses);
     }
   }
 
   function handleBack() {
-    if (currentStep > 0) {
-      const prevStep = currentStep - 1;
-      setCurrentStep(prevStep);
-      setCustomReps(assessments[STEPS[prevStep]].reps.toString());
+    if (history.length > 0) {
+      LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
+      const prev = history[history.length - 1];
+      setHistory(history.slice(0, -1));
+      setCurrentStep(prev.step);
+      setCurrentVariantIndex(prev.variantIndex);
+      setAskingReps(prev.askingReps);
+      
+      const pStep = STEPS[prev.step];
+      const pVariant = MOVEMENT_OPTIONS[pStep][prev.variantIndex].value;
+      if (prev.askingReps && assessments[pStep].variant === pVariant) {
+        setCustomReps(assessments[pStep].reps.toString());
+      } else {
+        setCustomReps('');
+      }
+    } else {
+      if (router.canGoBack()) {
+        router.back();
+      } else {
+        router.replace('/');
+      }
     }
   }
 
-  async function submitAssessment() {
+  async function submitAssessment(finalAssessments = assessments) {
     if (!user) return;
 
     setLoading(true);
     try {
       const assessment: StrengthAssessment = {
-        pullups: assessments.pullups,
-        dips: assessments.dips,
-        pushups: assessments.pushups,
-        muscleups: assessments.muscleups,
+        pullups: finalAssessments.pullups,
+        dips: finalAssessments.dips,
+        pushups: finalAssessments.pushups,
+        muscleups: finalAssessments.muscleups,
       };
 
       const tier = calculateSpartanRank(assessment);
@@ -158,7 +203,11 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       if (error) throw error;
 
       await refreshProfile();
-      onComplete();
+      if (onComplete) {
+        onComplete();
+      } else {
+        router.replace('/');
+      }
     } catch (error: any) {
       console.error('Assessment error:', error);
       Alert.alert('Error', error.message || 'Failed to save assessment');
@@ -167,132 +216,118 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
     }
   }
 
-  const currentAssessment = assessments[step];
+  const getMovementTitle = (s: Step) => {
+    switch (s) {
+      case 'pullups': return 'PULL-UPS';
+      case 'dips': return 'DIPS';
+      case 'pushups': return 'PUSH-UPS';
+      case 'muscleups': return 'MUSCLE-UPS';
+    }
+  };
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
-        <Text style={[styles.stepIndicator, { color: theme.text.tertiary }]}>
-          STEP {currentStep + 1} OF {STEPS.length}
-        </Text>
-        <Text style={[styles.title, { color: theme.accent }]}>
-          {step === 'pullups' && 'PULL-UPS'}
-          {step === 'dips' && 'DIPS'}
-          {step === 'pushups' && 'PUSH-UPS'}
-          {step === 'muscleups' && 'MUSCLE-UPS'}
-        </Text>
-      </View>
+    <KeyboardAvoidingView 
+      style={[styles.container, { backgroundColor: theme.background.primary }]}
+      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+    >
+      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+        
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+            <Text style={[styles.backText, { color: theme.text.secondary }]}>← BACK</Text>
+          </TouchableOpacity>
 
-      <View style={[styles.card, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>SELECT VARIANT</Text>
+          <View style={styles.progressBar}>
+            {STEPS.map((_, idx) => (
+              <View
+                key={idx}
+                style={[
+                  styles.progressDot,
+                  { backgroundColor: idx <= currentStep ? theme.text.primary : theme.card.border }
+                ]}
+              />
+            ))}
+          </View>
         </View>
-        {options.map((option, index) => (
-          <TouchableOpacity
-            key={option.value}
-            style={[
-              styles.option,
-              { borderColor: theme.card.border },
-              currentAssessment.variant === option.value && { borderColor: theme.accent, backgroundColor: theme.background.secondary },
-            ]}
-            onPress={() => updateVariant(option.value as MovementVariant)}
-          >
-            <View style={styles.optionHeader}>
-              <Text style={[
-                styles.optionLabel,
-                { color: theme.text.primary },
-                currentAssessment.variant === option.value && { color: theme.accent },
-              ]}>
-                {option.label.toUpperCase()}
+        <View style={{ alignItems: 'center', marginTop: 16 }}>
+          <LeapLogo size={180} animated={true} />
+        </View>
+
+        <View style={styles.agentContainer}>
+          <Text style={[styles.movementTitle, { color: theme.text.primary }]}>
+            {getMovementTitle(step)}
+          </Text>
+
+          {!askingReps ? (
+            <View style={styles.questionCard}>
+              <Text style={[styles.questionPrompt, { color: theme.text.primary }]}>
+                Can you perform a {currentOption.label}?
               </Text>
-              <View style={styles.difficultyContainer}>
-                <Text style={[styles.difficultyLabel, { color: theme.text.tertiary }]}>
-                  {index === 0 ? 'HARD' : index === 1 ? 'INTERMEDIATE' : 'EASY'}
-                </Text>
-                <View style={styles.difficultyBar}>
-                  {[1, 2, 3].map((level) => (
-                    <View
-                      key={level}
-                      style={[
-                        styles.difficultySegment,
-                        { backgroundColor: level <= (3 - index) ? theme.accent : theme.card.border },
-                      ]}
-                    />
-                  ))}
-                </View>
+              <Text style={[styles.questionDesc, { color: theme.text.tertiary }]}>
+                {currentOption.description}
+              </Text>
+
+              <View style={styles.yesNoContainer}>
+                <TouchableOpacity 
+                  style={[styles.decisionButton, { backgroundColor: theme.background.secondary, borderColor: theme.card.border }]} 
+                  onPress={handleNo}
+                >
+                  <Text style={[styles.decisionText, { color: theme.text.secondary }]}>NO</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.decisionButton, { backgroundColor: theme.text.primary, borderColor: theme.text.primary }]} 
+                  onPress={handleYes}
+                >
+                  <Text style={[styles.decisionText, { color: theme.background.primary }]}>YES</Text>
+                </TouchableOpacity>
               </View>
             </View>
-            <Text style={[styles.optionDescription, { color: theme.text.secondary }]}>{option.description}</Text>
-          </TouchableOpacity>
-        ))}
-      </View>
-
-      <View style={[styles.card, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-        <View style={styles.sectionHeader}>
-          <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
-          <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>MAX REPS</Text>
-        </View>
-        
-        <View style={styles.repCircles}>
-          {REP_CIRCLES.map((rep) => (
-            <TouchableOpacity
-              key={rep}
-              style={[
-                styles.repCircle,
-                { borderColor: theme.card.border },
-                currentAssessment.reps === rep && { borderColor: theme.accent, backgroundColor: theme.accent },
-              ]}
-              onPress={() => updateReps(rep)}
-            >
-              <Text style={[
-                styles.repCircleText,
-                { color: theme.text.primary },
-                currentAssessment.reps === rep && { color: '#FFFFFF' },
-              ]}>
-                {rep}
+          ) : (
+            <View style={styles.questionCard}>
+              <Text style={[styles.questionPrompt, { color: theme.text.primary }]}>
+                How many {currentOption.label}s can you do?
               </Text>
-            </TouchableOpacity>
-          ))}
+              
+              <TextInput
+                style={[styles.repInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                value={customReps}
+                onChangeText={setCustomReps}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={theme.text.tertiary}
+                autoFocus
+              />
+
+              <View style={styles.quickRepsGrid}>
+                {QUICK_REPS.map((reps) => (
+                  <TouchableOpacity
+                    key={reps}
+                    style={[
+                      styles.quickRepBtn,
+                      { borderColor: theme.card.border },
+                      customReps === reps.toString() && { borderColor: theme.text.primary, backgroundColor: theme.background.secondary }
+                    ]}
+                    onPress={() => handleQuickRep(reps)}
+                  >
+                    <Text style={[
+                      styles.quickRepText,
+                      { color: theme.text.secondary },
+                      customReps === reps.toString() && { color: theme.text.primary }
+                    ]}>{reps}</Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Button
+                title={currentStep === STEPS.length - 1 ? 'COMPLETE' : 'NEXT'}
+                onPress={handleNextFromReps}
+                loading={loading}
+              />
+            </View>
+          )}
         </View>
-
-        <View style={styles.customInputContainer}>
-          <Text style={[styles.customInputLabel, { color: theme.text.secondary }]}>OR ENTER CUSTOM REPS:</Text>
-          <TextInput
-            style={[styles.customInput, { borderColor: theme.card.border, color: theme.text.primary }]}
-            value={customReps}
-            onChangeText={handleCustomRepsChange}
-            keyboardType="number-pad"
-            placeholder="0"
-            placeholderTextColor={theme.text.tertiary}
-          />
-        </View>
-      </View>
-
-      <View style={styles.navigation}>
-        {currentStep > 0 && (
-          <Button title="BACK" onPress={handleBack} variant="secondary" />
-        )}
-        <Button
-          title={currentStep === STEPS.length - 1 ? 'CALCULATE RANK' : 'NEXT'}
-          onPress={handleNext}
-          loading={loading}
-        />
-      </View>
-
-      <View style={styles.progressBar}>
-        {STEPS.map((_, index) => (
-          <View
-            key={index}
-            style={[
-              styles.progressDot,
-              { backgroundColor: theme.card.border },
-              index <= currentStep && { backgroundColor: theme.accent },
-            ]}
-          />
-        ))}
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -301,137 +336,105 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   content: {
-    padding: 24,
+    flexGrow: 1,
+    paddingHorizontal: 24,
     paddingTop: 60,
+    paddingBottom: 80,
   },
   header: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  stepIndicator: {
-    fontSize: 12,
-    letterSpacing: 2,
-    marginBottom: 8,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: '900',
-    letterSpacing: 4,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-  },
-  card: {
-    borderWidth: 1,
-    borderRadius: 16,
-    padding: 20,
-    marginBottom: 16,
-  },
-  sectionHeader: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 16,
-  },
-  sectionDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginRight: 12,
-  },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 2,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  option: {
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 8,
-  },
-  optionHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginBottom: 4,
-  },
-  optionLabel: {
-    fontSize: 15,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  difficultyContainer: {
-    alignItems: 'flex-end',
-  },
-  difficultyLabel: {
-    fontSize: 9,
-    fontWeight: '600',
-    letterSpacing: 1,
-    marginBottom: 4,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  difficultyBar: {
-    flexDirection: 'row',
-    gap: 2,
-  },
-  difficultySegment: {
-    width: 20,
-    height: 6,
-    borderRadius: 3,
-  },
-  optionDescription: {
-    fontSize: 12,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  repCircles: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
     justifyContent: 'space-between',
     marginBottom: 20,
   },
-  repCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 8,
+  backButton: {
+    padding: 8,
+    marginLeft: -8,
   },
-  repCircleText: {
-    fontSize: 16,
-    fontWeight: '700',
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  customInputContainer: {
-    marginTop: 16,
-  },
-  customInputLabel: {
+  backText: {
     fontSize: 12,
-    marginBottom: 8,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  customInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    fontSize: 16,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  navigation: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 24,
+    fontFamily: 'PlusJakartaSans-Bold',
+    letterSpacing: 1,
   },
   progressBar: {
     flexDirection: 'row',
-    justifyContent: 'center',
     gap: 8,
-    marginTop: 32,
   },
   progressDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  agentContainer: {
+    flex: 1,
+    justifyContent: 'flex-start',
+    marginTop: 16,
+  },
+  movementTitle: {
+    fontSize: 20,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    letterSpacing: 3,
+    marginBottom: 32,
+    textAlign: 'center',
+  },
+  questionCard: {
+    alignItems: 'center',
+  },
+  questionPrompt: {
+    fontSize: 28,
+    fontFamily: 'PlusJakartaSans-Bold',
+    textAlign: 'center',
+    marginBottom: 16,
+    lineHeight: 36,
+  },
+  questionDesc: {
+    fontSize: 14,
+    fontFamily: 'PlusJakartaSans-Regular',
+    textAlign: 'center',
+    marginBottom: 40,
+    lineHeight: 22,
+    paddingHorizontal: 20,
+  },
+  yesNoContainer: {
+    flexDirection: 'row',
+    gap: 16,
+    width: '100%',
+  },
+  decisionButton: {
+    flex: 1,
+    paddingVertical: 20,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+  },
+  decisionText: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
+    letterSpacing: 2,
+  },
+  repInput: {
+    fontSize: 64,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    textAlign: 'center',
+    width: '100%',
+    paddingVertical: 20,
+    marginBottom: 32,
+  },
+  quickRepsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    justifyContent: 'center',
+    marginBottom: 40,
+  },
+  quickRepBtn: {
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  quickRepText: {
+    fontSize: 16,
+    fontFamily: 'PlusJakartaSans-Bold',
   },
 });

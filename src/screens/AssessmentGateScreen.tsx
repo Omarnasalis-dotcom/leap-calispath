@@ -1,3 +1,4 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState } from 'react';
 import {
   View,
@@ -11,7 +12,7 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 
 interface AssessmentGateScreenProps {
-  onStartAssessment: () => void;
+  onStartAssessment?: () => void;
 }
 
 const { width } = Dimensions.get('window');
@@ -79,7 +80,7 @@ export function AssessmentGateScreen({ onStartAssessment }: AssessmentGateScreen
         setCurrentSlide(currentSlide + 1);
       });
     } else {
-      onStartAssessment();
+      router.replace('/assessment');
     }
   };
 

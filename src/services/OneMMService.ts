@@ -6,6 +6,8 @@ export interface OneMMRanking {
   display_name: string;
   value: number; // reps or points
   rank: number;
+  country?: string;
+  gender?: string;
 }
 
 export interface OneMMUserStats {
@@ -158,7 +160,7 @@ export const OneMMService = {
         console.error('1MM Overall RPC Error:', error);
         const { data: fallback, error: fbError } = await supabase
           .from('profiles')
-          .select('id, display_name, one_mm_points')
+          .select('id, display_name, one_mm_points, country, gender')
           .gt('one_mm_points', 0)
           .order('one_mm_points', { ascending: false })
           .limit(50);
@@ -168,7 +170,9 @@ export const OneMMService = {
           user_id: d.id,
           display_name: d.display_name || 'Warrior',
           value: d.one_mm_points,
-          rank: i + 1
+          rank: i + 1,
+          country: (d as any).country,
+          gender: (d as any).gender
         }));
       }
 
@@ -176,7 +180,9 @@ export const OneMMService = {
         user_id: d.u_id || d.user_id,
         display_name: d.d_name || d.display_name || 'Warrior',
         value: Number(d.t_score || d.total_points || 0),
-        rank: Number(d.rnk || d.rank || 0)
+        rank: Number(d.rnk || d.rank || 0),
+        country: d.country,
+        gender: d.gender
       }));
     }
 

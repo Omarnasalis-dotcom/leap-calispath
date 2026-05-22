@@ -20,46 +20,46 @@ export interface ThemeColors {
   statusBar: 'light-content' | 'dark-content';
 }
 
-export const SpartanTheme = {
+export const StealthTheme = {
   dark: {
     background: {
-      primary: '#0A0A0F',
-      secondary: '#12121A',
+      primary: '#050505', // Matte Black
+      secondary: '#0A0A0A', // Dark Charcoal
     },
     card: {
-      background: 'rgba(255, 255, 255, 0.04)',
-      border: 'rgba(100, 180, 255, 0.2)',
+      background: '#111111',
+      border: 'rgba(255, 255, 255, 0.05)', // Subtle embossed edge
     },
     text: {
-      primary: '#FFFFFF',
-      secondary: 'rgba(255, 255, 255, 0.65)',
-      tertiary: 'rgba(255, 255, 255, 0.35)',
+      primary: 'rgba(255, 255, 255, 0.85)', // Low contrast white
+      secondary: 'rgba(255, 255, 255, 0.45)',
+      tertiary: 'rgba(255, 255, 255, 0.2)',
     },
-    accent: '#CD7F32',
+    accent: '#FF5252', // Minimal power glow
     statusBar: 'light-content' as const,
   },
   light: {
     background: {
-      primary: '#FFFFFF',
-      secondary: '#F8F9FA',
+      primary: '#FAFAFA',
+      secondary: '#F0F0F0',
     },
     card: {
       background: '#FFFFFF',
-      border: 'rgba(205, 127, 50, 0.2)',
+      border: 'rgba(0, 0, 0, 0.05)',
     },
     text: {
-      primary: '#1A1A1A',
-      secondary: '#4A5568',
-      tertiary: '#718096',
+      primary: 'rgba(0, 0, 0, 0.85)',
+      secondary: 'rgba(0, 0, 0, 0.45)',
+      tertiary: 'rgba(0, 0, 0, 0.2)',
     },
-    accent: '#CD7F32',
+    accent: '#FF5252',
     statusBar: 'dark-content' as const,
   },
 } as const;
 
-export const useSpartanTheme = (mode?: ThemeMode): ThemeColors => {
+export const useStealthTheme = (mode?: ThemeMode): ThemeColors => {
   const colorScheme = mode || Appearance.getColorScheme() || 'dark';
-  return SpartanTheme[colorScheme];
+  return StealthTheme[colorScheme];
 };
 
-export default SpartanTheme;
+export default StealthTheme;

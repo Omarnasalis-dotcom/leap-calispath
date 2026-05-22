@@ -1,7 +1,7 @@
 import React, { useRef } from 'react';
 import { View, TouchableOpacity, StyleSheet, Animated } from 'react-native';
 import { BlurView } from 'expo-blur';
-import { useSpartanTheme, ThemeColors } from '../constants/Theme';
+import { useStealthTheme, ThemeColors } from '../constants/Theme';
 
 interface AntigravityCardProps {
   children: React.ReactNode;
@@ -18,7 +18,7 @@ export function AntigravityCard({
   theme,
   intensity = 40,
 }: AntigravityCardProps) {
-  const currentTheme = theme || useSpartanTheme();
+  const currentTheme = theme || useStealthTheme();
   const translateY = useRef(new Animated.Value(0)).current;
 
   const handlePressIn = () => {
@@ -52,7 +52,7 @@ export function AntigravityCard({
       <BlurView
         intensity={intensity}
         style={StyleSheet.absoluteFillObject}
-        tint={currentTheme === useSpartanTheme('dark') ? 'dark' : 'light'}
+        tint={currentTheme === useStealthTheme('dark') ? 'dark' : 'light'}
       />
       <View style={styles.content}>
         {children}

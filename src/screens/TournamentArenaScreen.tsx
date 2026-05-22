@@ -1,13 +1,13 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, 
-  ActivityIndicator, RefreshControl, Image, Alert, Platform
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Image, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   const { theme } = useTheme();
@@ -114,7 +114,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
         return;
       }
     }
-    navigation.navigate('TournamentLobby', { sessionId: session.id });
+    router.push({ pathname: '/tournament-lobby', params: { sessionId: session.id } });
   };
 
   const renderActiveCard = (session: any) => {
@@ -195,7 +195,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
-        <ActivityIndicator color={theme.accent} size="large" />
+        <LeapLogo size={40} animated />
       </View>
     );
   }
@@ -203,14 +203,9 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={[styles.header, { justifyContent: 'flex-start' }]}>
-        <TouchableOpacity onPress={() => navigation.goBack?.()} style={{ marginRight: 16 }}>
+        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
           <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text.primary} />
         </TouchableOpacity>
-        {profile?.is_admin && (
-           <TouchableOpacity onPress={() => navigation.navigate('AdminTournament')} style={{ marginRight: 16 }}>
-             <MaterialCommunityIcons name="cog" size={24} color={theme.text.secondary} />
-           </TouchableOpacity>
-        )}
         <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT ARENA</Text>
       </View>
 

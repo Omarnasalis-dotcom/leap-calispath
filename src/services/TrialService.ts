@@ -60,7 +60,10 @@ export class TrialService {
     };
 
     if (isProgression) {
-      updates.strength_tier = Math.max(profile.strength_tier, tier + 1);
+      // Cap at 8: completing the Demigod trial (tier 8) awards Demigod rank (8).
+      // Only completing the Eternity Protocol trial (tier 9) awards Eternity rank (9).
+      const newTierValue = tier < 8 ? tier + 1 : tier;
+      updates.strength_tier = Math.max(profile.strength_tier, newTierValue);
       updates.trials_passed = (profile.trials_passed || 0) + 1;
     }
 

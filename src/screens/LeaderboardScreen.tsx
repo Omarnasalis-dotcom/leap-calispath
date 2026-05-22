@@ -1,13 +1,11 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import {
-  View,
+import { View,
   Text,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
-  Modal,
-} from 'react-native';
+  Modal } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES } from '../types';
@@ -23,12 +21,15 @@ import {
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { RITES_OF_PASSAGE } from '../lib/trials';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
+import { getCountryFlag } from '../constants/countries';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 
 interface LeaderboardScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
   onPracticeTier: (tier: number) => void;
-  onStartEternal: () => void;
+  onStartEternal?: () => void;
   onStartPowerAssessment?: () => void;
   initialTier?: number;
 }
@@ -45,8 +46,37 @@ export function LeaderboardScreen({
   const [selectedTier, setSelectedTier] = useState(
     initialTier !== undefined ? initialTier : (profile?.strength_tier || 0)
   );
+  const tierScrollRef = useRef<ScrollView>(null);
+
+  useEffect(() => {
+    setTimeout(() => {
+      if (tierScrollRef.current) {
+        const itemWidth = 88; // 80 width + 8 gap
+        tierScrollRef.current.scrollTo({ x: Math.max(0, (selectedTier * itemWidth) - 40), animated: true });
+      }
+    }, 100);
+  }, []);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
+  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+
+  const filteredEntries = React.useMemo(() => {
+    let list = entries;
+    if (genderFilter !== 'ALL') {
+      list = entries.filter(e => (e.gender || '').toUpperCase() === genderFilter);
+    }
+    return list.map((e, index) => ({ ...e, rank: index + 1 }));
+  }, [entries, genderFilter]);
+
+  const displayPersonalBest = React.useMemo(() => {
+    if (!personalBest) return null;
+    const entryInFilter = filteredEntries.find(e => e.is_current_user);
+    if (!entryInFilter) return null;
+    return {
+      ...personalBest,
+      rank: entryInFilter.rank
+    };
+  }, [filteredEntries, personalBest]);
   const [loading, setLoading] = useState(true);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState(0);
@@ -99,9 +129,10 @@ export function LeaderboardScreen({
     fetchData();
   }, [selectedTier, user]);
 
-  const isDemigodEternal = selectedTier === 8;
   const canPractice = selectedTier < (profile?.strength_tier ?? 0);
   const isCurrentTier = selectedTier === (profile?.strength_tier ?? 0);
+  // Only show COMPETE ETERNAL for users who ARE at Demigod (tier 8) — not for everyone who views it
+  const isDemigodEternal = selectedTier === 8 && isCurrentTier;
 
   return (
     <ScrollView style={styles.container}>
@@ -115,6 +146,7 @@ export function LeaderboardScreen({
 
 
 <ScrollView
+        ref={tierScrollRef}
         horizontal
         style={styles.tierSelector}
         showsHorizontalScrollIndicator={false}
@@ -190,27 +222,27 @@ export function LeaderboardScreen({
         <View style={[styles.statCircle, { borderColor: theme.accent, backgroundColor: 'rgba(205, 127, 50, 0.08)', width: 130, height: 130, borderRadius: 65 }]}>
           <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>YOUR RANK</Text>
           <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
-            #{personalBest?.rank || '-'}
+            #{displayPersonalBest?.rank || '-'}
           </Text>
           <Text style={[styles.statCircleUnit, { color: theme.text.tertiary }]}>
-            OF {entries.length || 0}
+            OF {filteredEntries.length || 0}
           </Text>
         </View>
         
         {/* Gap to Rank Up Circle */}
-        <View style={[styles.statCircle, { borderColor: personalBest?.rank === 1 ? '#2ECC71' : '#8B0000', backgroundColor: personalBest?.rank === 1 ? 'rgba(46, 204, 113, 0.08)' : 'rgba(139, 0, 0, 0.08)' }]}>
+        <View style={[styles.statCircle, { borderColor: displayPersonalBest?.rank === 1 ? '#2ECC71' : '#8B0000', backgroundColor: displayPersonalBest?.rank === 1 ? 'rgba(46, 204, 113, 0.08)' : 'rgba(139, 0, 0, 0.08)' }]}>
           <Text style={[styles.statCircleLabel, { color: theme.text.tertiary }]}>GAP TO RANK UP</Text>
-          {!personalBest?.rank ? (
+          {!displayPersonalBest?.rank ? (
             <Text style={[styles.statCircleValue, { color: theme.accent, fontSize: 11, textAlign: 'center', lineHeight: 16 }]}>COMPLETE{'\n'}TRIAL</Text>
-          ) : personalBest.rank === 1 ? (
+          ) : displayPersonalBest.rank === 1 ? (
             <Text style={[styles.statCircleValue, { color: '#2ECC71', fontSize: 20 }]}>👑 KING</Text>
           ) : (
             <>
               <Text style={[styles.statCircleValue, { color: theme.text.primary }]}>
                 {(() => {
-                  const userAbove = entries.find(e => e.rank === ((personalBest?.rank ?? 0) - 1));
-                  if (!userAbove || !personalBest?.best_time_seconds) return '-';
-                  const gap = (personalBest.best_time_seconds || 0) - (userAbove.best_time_seconds || 0);
+                  const userAbove = filteredEntries.find(e => e.rank === ((displayPersonalBest?.rank ?? 0) - 1));
+                  if (!userAbove || !displayPersonalBest?.best_time_seconds) return '-';
+                  const gap = (displayPersonalBest.best_time_seconds || 0) - (userAbove.best_time_seconds || 0);
                   return `-${formatLeaderboardTime(Math.max(0, gap))}`;
                 })()}
               </Text>
@@ -249,16 +281,16 @@ export function LeaderboardScreen({
       </View>
 
       {/* Time to Beat Section */}
-      {entries.length > 0 && personalBest && (
+      {filteredEntries.length > 0 && displayPersonalBest && (
         <View style={[styles.timeToBeatCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
           <View style={styles.timeToBeatHeader}>
             <View style={[styles.timeToBeatDot, { backgroundColor: theme.accent }]} />
             <Text style={[styles.timeToBeatLabel, { color: theme.text.tertiary }]}>
-              {personalBest.rank === 1 ? 'DEFEND YOUR CROWN' : 'TIME TO BEAT'}
+              {displayPersonalBest.rank === 1 ? 'DEFEND YOUR CROWN' : 'TIME TO BEAT'}
             </Text>
           </View>
           
-          {personalBest.rank === 1 ? (
+          {displayPersonalBest.rank === 1 ? (
             <View style={styles.timeToBeatContent}>
               <Text style={styles.crownIcon}>👑</Text>
               <Text style={[styles.timeToBeatValue, { color: theme.accent }]}>
@@ -270,19 +302,19 @@ export function LeaderboardScreen({
             </View>
           ) : (
             <View style={styles.timeToBeatContent}>
-              {entries.find(e => e.rank === (personalBest.rank || 0) - 1) && (
+              {filteredEntries.find(e => e.rank === (displayPersonalBest.rank || 0) - 1) && (
                 <>
                   <Text style={[styles.timeToBeatName, { color: theme.text.secondary }]}>
-                    {entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.display_name}
+                    {filteredEntries.find(e => e.rank === (displayPersonalBest.rank || 0) - 1)?.display_name}
                   </Text>
                   <Text style={[styles.timeToBeatValue, { color: theme.accent }]}>
-                    {formatLeaderboardTime(entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0)}
+                    {formatLeaderboardTime(filteredEntries.find(e => e.rank === (displayPersonalBest.rank || 0) - 1)?.best_time_seconds || 0)}
                   </Text>
                   <View style={[styles.timeToBeatGap, { backgroundColor: theme.background.secondary }]}>
                     <View style={styles.gapRow}>
                       <Text style={[styles.gapLabel, { color: theme.text.tertiary }]}>GAP</Text>
                       <Text style={[styles.gapValue, { color: theme.accent }]}>
-                        {`-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (entries.find(e => e.rank === (personalBest.rank || 0) - 1)?.best_time_seconds || 0))}`}
+                        {`-${formatLeaderboardTime((displayPersonalBest.best_time_seconds || 0) - (filteredEntries.find(e => e.rank === (displayPersonalBest.rank || 0) - 1)?.best_time_seconds || 0))}`}
                       </Text>
                     </View>
                   </View>
@@ -293,30 +325,56 @@ export function LeaderboardScreen({
         </View>
       )}
 
+      {/* Gender Filters */}
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 8, gap: 12 }}>
+        {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+          <TouchableOpacity
+            key={filter}
+            style={{
+              paddingVertical: 6,
+              paddingHorizontal: 16,
+              borderRadius: 20,
+              backgroundColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.05)',
+              borderWidth: 1,
+              borderColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.1)'
+            }}
+            onPress={() => setGenderFilter(filter as any)}
+          >
+            <Text style={{ 
+              fontSize: 12, 
+              fontWeight: '900', 
+              color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+            }}>
+              {filter}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {/* Warriors Headline */}
       <View style={[styles.warriorsHeadline, { borderBottomColor: theme.card.border }]}>
         <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>LEADERBOARD</Text>
         <Text style={[styles.headlineSubtitle, { color: theme.text.secondary }]}>
-          {entries.length} WARRIORS
+          {filteredEntries.length} WARRIORS
         </Text>
       </View>
 
       {/* Leaderboard List */}
       {loading ? (
-        <ActivityIndicator color="#CD7F32" style={styles.loader} />
-      ) : entries.length === 0 ? (
+        <LeapLogo size={40} animated />
+      ) : filteredEntries.length === 0 ? (
         <View style={styles.emptyState}>
           <Text style={styles.emptyText}>No warriors have attempted this tier yet.</Text>
           <Text style={styles.emptySubtext}>Be the first to claim a time!</Text>
         </View>
       ) : (
         <ScrollView style={styles.listPreview} showsVerticalScrollIndicator={false}>
-          {entries.slice(0, 5).map((entry, index) => {
+          {filteredEntries.slice(0, 5).map((entry, index) => {
             // Calculate gap for current user
-            const showGap = entry.is_current_user && personalBest && personalBest.rank && personalBest.rank > 1;
-            const nextEntry = showGap ? entries.find(e => e.rank === personalBest.rank! - 1) : null;
+            const showGap = entry.is_current_user && displayPersonalBest && displayPersonalBest.rank && displayPersonalBest.rank > 1;
+            const nextEntry = showGap ? filteredEntries.find(e => e.rank === displayPersonalBest.rank! - 1) : null;
             const gapValue = showGap && nextEntry
-              ? `-${formatLeaderboardTime((personalBest.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
+              ? `-${formatLeaderboardTime((displayPersonalBest!.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
               : null;
             
             return (
@@ -341,18 +399,19 @@ export function LeaderboardScreen({
                 </View>
                 
                 {/* Name */}
-                <View style={styles.entryInfo}>
+                <View style={[styles.entryInfo, { flexDirection: 'row', alignItems: 'center' }]}>
+                  <Text style={{ fontSize: 16, marginRight: 6 }}>{getCountryFlag(entry.country)}</Text>
                   <Text
                     style={[
                       styles.entryName,
-                      { color: entry.is_current_user ? theme.accent : theme.text.primary },
+                      { color: entry.is_current_user ? theme.accent : theme.text.secondary },
                       entry.is_current_user && styles.entryNameCurrentUser,
                     ]}
                     numberOfLines={1}
                   >
-                    {entry.display_name}
-                    {entry.is_current_user && <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}> YOU</Text>}
+                    @{entry.display_name}
                   </Text>
+                  {entry.is_current_user && <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}>YOU</Text>}
                 </View>
                 
                 {/* Time Circles - Side by Side */}
@@ -380,7 +439,7 @@ export function LeaderboardScreen({
       )}
 
       {/* See More Button */}
-      {entries.length > 5 && (
+      {filteredEntries.length > 5 && (
         <TouchableOpacity 
           style={styles.seeMoreButton}
           onPress={() => setShowLeaderboardModal(true)}
@@ -405,7 +464,7 @@ export function LeaderboardScreen({
               </TouchableOpacity>
             </View>
             <ScrollView style={styles.fullLeaderboardList} showsVerticalScrollIndicator={false}>
-              {entries.slice(0, 10).map((entry, index) => (
+              {filteredEntries.slice(0, 10).map((entry, index) => (
                 <View
                   key={entry.user_id}
                   style={[
@@ -428,12 +487,13 @@ export function LeaderboardScreen({
                     <Text
                       style={[
                         styles.entryName,
-                        { color: entry.is_current_user ? theme.accent : theme.text.primary },
+                        { color: entry.is_current_user ? theme.accent : theme.text.secondary },
                         entry.is_current_user && styles.entryNameCurrentUser,
                       ]}
                       numberOfLines={1}
                     >
-                      {entry.display_name}
+                      <Text style={{ fontSize: 16 }}>{getCountryFlag(entry.country)} </Text>
+                      @{entry.display_name}
                     </Text>
                     {entry.is_current_user && (
                       <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}>YOU</Text>
@@ -541,7 +601,7 @@ export function LeaderboardScreen({
                 onPress={() => {
                   setShowTierModal(false);
                   if (modalTier === 8) {
-                    onStartEternal();
+                    router.push({ pathname: '/trial', params: { eternal: 'true' } });
                   } else {
                     onPracticeTier(modalTier);
                   }
@@ -872,10 +932,9 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.5)',
   },
   entryName: {
-    flex: 1,
-    fontSize: 16,
+    flexShrink: 1,
+    fontSize: 14,
     color: '#FFA500', // Orange color
-    marginLeft: 12,
   },
   entryNameCurrentUser: {
     color: '#32CD32', // Green color for current user
@@ -1136,6 +1195,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     overflow: 'hidden',
     marginLeft: 6,
+    fontWeight: '800',
+    alignSelf: 'center',
   },
   beatByText: {
     fontSize: 11,
@@ -1155,46 +1216,44 @@ const styles = StyleSheet.create({
   timeCirclesContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   timeCircle: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    borderWidth: 2,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   timeCircleValue: {
-    fontSize: 14,
+    fontSize: 11,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     letterSpacing: 0.5,
   },
   timeCircleLabel: {
-    fontSize: 8,
+    fontSize: 7,
     letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Bold',
-    marginTop: 2,
   },
   gapCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    borderWidth: 2,
+    width: 58,
+    height: 58,
+    borderRadius: 29,
+    borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   gapCircleValue: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   gapCircleLabel: {
-    fontSize: 8,
+    fontSize: 7,
     letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Bold',
-    marginTop: 2,
   },
   // New Layout Styles
   tierSelectorRow: {

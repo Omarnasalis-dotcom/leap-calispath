@@ -7,6 +7,10 @@ export interface Profile {
   strength_tier: number;
   power_tier: number | null;
   statics_tier: number | null;
+  gender: string | null;
+  country: string | null;
+  first_name: string | null;
+  last_name: string | null;
   glory_score: number;
   streak: number;
   last_active: string;
@@ -75,8 +79,12 @@ export interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
-  signUp: (email: string, password: string) => Promise<void>;
+  needsPasswordReset: boolean;
+  hasSeenOnboarding: boolean | null;
+  completeOnboarding: () => Promise<void>;
+  signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  clearPasswordReset: () => Promise<void>;
 }

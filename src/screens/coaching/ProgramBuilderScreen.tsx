@@ -1,0 +1,2127 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  TouchableOpacity,
+  Modal,
+  Platform,
+  Linking,
+  KeyboardAvoidingView,
+  TextInput,
+  Alert } from 'react-native';
+import { useTheme } from '../../contexts/ThemeContext';
+import { LinearGradient } from 'expo-linear-gradient';
+import { supabase } from '../../lib/supabase';
+import { Input } from '../../components/Input';
+import { ExercisePickerModal } from '../../components/coaching/ExercisePickerModal';
+import { CopyBlockModal } from '../../components/coaching/CopyBlockModal';
+import { Button } from '../../components/Button';
+import { LeapLogo } from '../../components/LeapLogo';
+
+
+interface ExerciseLibraryItem {
+  id: string | number;
+  name: string;
+  youtube_url: string;
+  category: string;
+  difficulty: string;
+}
+
+interface SelectedExercise {
+  id: string; // client-side unique key
+  exercise_id: string | number;
+  name: string;
+  youtube_url: string;
+  sets: string;
+  reps: string;
+  rest_seconds: string;
+  notes: string;
+}
+
+interface ProgramBlock {
+  id: string; // client-side unique key
+  db_id?: string | number;
+  name: string;
+  notes: string;
+  exercises: SelectedExercise[];
+  type?: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime';
+  rounds?: string;
+  rest_after_round?: string;
+  timer_seconds?: string;
+}
+
+interface ProgramDay {
+  id: string; // client-side unique key
+  name: string; // E.g. "Saturday"
+  blocks: ProgramBlock[];
+}
+
+interface ProgramBuilderScreenProps {
+  coachId?: string;
+  templateId?: string; // Optional for edit mode
+  onSave?: () => void;
+  onClose?: () => void;
+}
+
+export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: ProgramBuilderScreenProps) {
+  const { theme, mode } = useTheme();
+  const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
+  const inactiveBorder = mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.12)';
+  const bronzeGold = '#C8A040';
+
+  // Template State
+  const [activeTemplateId, setActiveTemplateId] = useState<string | undefined>(templateId);
+  const [isCreatingNew, setIsCreatingNew] = useState(false);
+  const [masterTemplates, setMasterTemplates] = useState<any[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+
+  const [templateName, setTemplateName] = useState('');
+  const [templateDesc, setTemplateDesc] = useState('');
+  const [days, setDays] = useState<ProgramDay[]>([]);
+
+  // Page Load State
+  const [loading, setLoading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Exercise Picker Modal State
+  const [pickerModalVisible, setPickerModalVisible] = useState(false);
+  const [selectedDayIdForAdd, setSelectedDayIdForAdd] = useState<string | null>(null);
+  const [selectedBlockIdForAdd, setSelectedBlockIdForAdd] = useState<string | null>(null);
+  const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseLibraryItem[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+
+  // Weekly structure state
+  const [useWeeklyStructure, setUseWeeklyStructure] = useState(false);
+
+  // Copy Block Modal State
+  const [copyModalVisible, setCopyModalVisible] = useState(false);
+  const [sourceBlock, setSourceBlock] = useState<ProgramBlock | null>(null);
+  const [copyView, setCopyView] = useState<'options' | 'day' | 'template'>('options');
+  const [otherTemplates, setOtherTemplates] = useState<{ id: string; name: string }[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [targetBlocks, setTargetBlocks] = useState<{ id: string; name: string }[]>([]);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  const categories = ['all', 'push', 'pull', 'legs', 'core', 'skill'];
+
+  useEffect(() => {
+    setActiveTemplateId(templateId);
+    if (templateId) {
+      loadExistingTemplate(templateId);
+    } else {
+      loadMasterTemplates();
+    }
+  }, [templateId]);
+
+  async function loadMasterTemplates() {
+    setCatalogLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('program_templates')
+        .select('id, name, description')
+        .eq('coach_id', coachId)
+        .not('name', 'ilike', '[CUSTOM]%')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+
+      const { data: blocksData, error: blocksError } = await supabase
+        .from('program_blocks')
+        .select('id, template_id');
+
+      if (blocksError) throw blocksError;
+
+      const blockCountMap: Record<string, number> = {};
+      (blocksData || []).forEach((b: any) => {
+        blockCountMap[b.template_id] = (blockCountMap[b.template_id] || 0) + 1;
+      });
+
+      const mapped = (data || []).map((t: any) => ({
+        ...t,
+        block_count: blockCountMap[t.id] || 0
+      }));
+
+      setMasterTemplates(mapped);
+    } catch (err: any) {
+      console.error('Failed to load master templates:', err);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  const handleDeleteTemplate = (id: string) => {
+    const performDelete = async () => {
+      setErrorMsg(null);
+      setCatalogLoading(true);
+      try {
+        const { error } = await supabase
+          .from('program_templates')
+          .delete()
+          .eq('id', id);
+
+        if (error) {
+          if (error.code === '23503') {
+            throw new Error('THIS MASTER TEMPLATE IS CURRENTLY ASSIGNED TO A WARRIOR AND CANNOT BE DELETED.');
+          } else {
+            throw error;
+          }
+        }
+        await loadMasterTemplates();
+      } catch (err: any) {
+        Alert.alert('DELETE FAILED', err.message?.toUpperCase() || 'FAILED TO DELETE TEMPLATE.');
+      } finally {
+        setCatalogLoading(false);
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.')) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'DELETE TEMPLATE',
+        'ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performDelete }
+        ]
+      );
+    }
+  };
+
+  // Load existing template configuration
+  async function loadExistingTemplate(tempId: string) {
+    if (!tempId) return;
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      // 1. Fetch template general info
+      const { data: templateData, error: templateError } = await supabase
+        .from('program_templates')
+        .select('*')
+        .eq('id', tempId)
+        .single();
+
+      if (templateError) throw templateError;
+      setTemplateName(templateData.name);
+      setTemplateDesc(templateData.description || '');
+
+      // 2. Fetch blocks
+      const { data: blocksData, error: blocksError } = await supabase
+        .from('program_blocks')
+        .select('*')
+        .eq('template_id', tempId)
+        .order('order_index', { ascending: true });
+
+      if (blocksError) throw blocksError;
+
+      // 3. Fetch exercises for blocks and group them into Days
+      const dayMap: Record<string, ProgramDay> = {};
+      const dayOrder: string[] = [];
+
+      for (const block of blocksData || []) {
+        const { data: exercisesData, error: exercisesError } = await supabase
+          .from('block_exercises')
+          .select(`
+            id,
+            exercise_id,
+            sets,
+            reps,
+            rest_seconds,
+            notes,
+            exercise_library (
+              name,
+              youtube_url
+            )
+          `)
+          .eq('block_id', block.id)
+          .order('order_index', { ascending: true });
+
+        if (exercisesError) throw exercisesError;
+
+        const mappedExercises: SelectedExercise[] = (exercisesData || []).map((ex: any) => ({
+          id: Math.random().toString(36).substr(2, 9),
+          exercise_id: ex.exercise_id,
+          name: ex.exercise_library?.name || 'UNNAMED EXERCISE',
+          youtube_url: ex.exercise_library?.youtube_url || '',
+          sets: String(ex.sets || ''),
+          reps: String(ex.reps || ''),
+          rest_seconds: String(ex.rest_seconds || ''),
+          notes: ex.notes || ''
+        }));
+
+        let dayName = block.name || '';
+        let blockName = 'Workout Routine';
+
+        if (dayName.includes(' | ')) {
+          const parts = dayName.split(' | ');
+          dayName = parts[0].trim();
+          blockName = parts.slice(1).join(' | ').trim();
+        }
+
+        let plainNotes = block.notes || '';
+        let blockType: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime' = 'single';
+        let rounds = '4';
+        let restAfterRound = '90';
+        let timerSeconds = '10';
+
+        const conceptMatch = plainNotes.match(/^\[CONCEPT:(.*?)\](.*)$/s);
+        if (conceptMatch) {
+          try {
+            const metadata = JSON.parse(conceptMatch[1]);
+            blockType = metadata.type || 'single';
+            rounds = String(metadata.rounds ?? '4');
+            restAfterRound = String(metadata.rest_after_round ?? '90');
+            timerSeconds = String(metadata.timer_seconds ?? '10');
+            plainNotes = conceptMatch[2];
+          } catch (e) {
+            console.error('Failed to parse block concept metadata:', e);
+          }
+        }
+
+        const loadedBlock: ProgramBlock = {
+          id: String(block.id),
+          db_id: block.id,
+          name: blockName,
+          notes: plainNotes,
+          exercises: mappedExercises,
+          type: blockType,
+          rounds,
+          rest_after_round: restAfterRound,
+          timer_seconds: timerSeconds
+        };
+
+        const dayKey = dayName.toUpperCase();
+        if (!dayMap[dayKey]) {
+          const dayId = Math.random().toString(36).substr(2, 9);
+          dayMap[dayKey] = {
+            id: dayId,
+            name: dayName,
+            blocks: []
+          };
+          dayOrder.push(dayKey);
+        }
+        dayMap[dayKey].blocks.push(loadedBlock);
+      }
+
+      const loadedDays: ProgramDay[] = dayOrder.map(key => dayMap[key]);
+      setDays(loadedDays);
+
+      const weekdays = ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+      const loadedDayNames = loadedDays.map(d => d.name?.trim().toUpperCase());
+      const isWeekly = weekdays.every(w => loadedDayNames.includes(w));
+      setUseWeeklyStructure(isWeekly);
+    } catch (err: any) {
+      setErrorMsg(err.message || 'FAILED TO LOAD WORKOUT PROGRAM TEMPLATE.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // Fetch Exercise Library items
+  async function fetchExerciseLibrary() {
+    setLibraryLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('exercise_library')
+        .select('*')
+        .order('name', { ascending: true });
+
+      if (error) throw error;
+      setExerciseLibrary(data || []);
+    } catch (err: any) {
+      console.error("Failed to load exercise library:", err);
+    } finally {
+      setLibraryLoading(false);
+    }
+  }
+
+  const handleOpenPicker = (dayId: string, blockId: string) => {
+    setSelectedDayIdForAdd(dayId);
+    setSelectedBlockIdForAdd(blockId);
+    setPickerModalVisible(true);
+    fetchExerciseLibrary();
+  };
+
+  const handleAddExerciseToBlock = (item: ExerciseLibraryItem) => {
+    if (!selectedDayIdForAdd || !selectedBlockIdForAdd) return;
+
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === selectedDayIdForAdd) {
+          return {
+            ...d,
+            blocks: d.blocks.map(block => {
+              if (block.id === selectedBlockIdForAdd) {
+                const newEx: SelectedExercise = {
+                  id: Math.random().toString(36).substr(2, 9),
+                  exercise_id: item.id,
+                  name: item.name,
+                  youtube_url: item.youtube_url || '',
+                  sets: '4',
+                  reps: '10',
+                  rest_seconds: '90',
+                  notes: ''
+                };
+                return {
+                  ...block,
+                  exercises: [...block.exercises, newEx]
+                };
+              }
+              return block;
+            })
+          };
+        }
+        return d;
+      })
+    );
+
+    setPickerModalVisible(false);
+    setSelectedDayIdForAdd(null);
+    setSelectedBlockIdForAdd(null);
+  };
+
+  const handleUpdateExerciseValue = (
+    dayId: string,
+    blockId: string,
+    exerciseId: string,
+    field: keyof SelectedExercise,
+    value: string
+  ) => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          return {
+            ...d,
+            blocks: d.blocks.map(block => {
+              if (block.id === blockId) {
+                return {
+                  ...block,
+                  exercises: block.exercises.map(ex => (ex.id === exerciseId ? { ...ex, [field]: value } : ex))
+                };
+              }
+              return block;
+            })
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const handleDeleteExerciseFromBlock = (dayId: string, blockId: string, exerciseId: string) => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          return {
+            ...d,
+            blocks: d.blocks.map(block => {
+              if (block.id === blockId) {
+                return {
+                  ...block,
+                  exercises: block.exercises.filter(ex => ex.id !== exerciseId)
+                };
+              }
+              return block;
+            })
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const handleAddDay = (customName?: string) => {
+    const newDay: ProgramDay = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: customName || `DAY ${days.length + 1}`,
+      blocks: [
+        {
+          id: Math.random().toString(36).substr(2, 9),
+          name: 'Workout Routine',
+          notes: '',
+          exercises: [],
+          type: 'single',
+          rounds: '4',
+          rest_after_round: '90',
+          timer_seconds: '10'
+        }
+      ]
+    };
+    setDays([...days, newDay]);
+  };
+
+  const handleAddBlockToDay = (dayId: string) => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          const newBlock: ProgramBlock = {
+            id: Math.random().toString(36).substr(2, 9),
+            name: `Block ${d.blocks.length + 1}`,
+            notes: '',
+            exercises: [],
+            type: 'single',
+            rounds: '4',
+            rest_after_round: '90',
+            timer_seconds: '10'
+          };
+          return {
+            ...d,
+            blocks: [...d.blocks, newBlock]
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const handleUpdateDayName = (dayId: string, name: string) => {
+    setDays(prevDays =>
+      prevDays.map(d => (d.id === dayId ? { ...d, name } : d))
+    );
+  };
+
+  const handleUpdateBlockValue = (dayId: string, blockId: string, field: keyof ProgramBlock, value: any) => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          return {
+            ...d,
+            blocks: d.blocks.map(b => (b.id === blockId ? { ...b, [field]: value } : b))
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const handleDeleteBlockFromDay = (dayId: string, blockId: string) => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          return {
+            ...d,
+            blocks: d.blocks.filter(b => b.id !== blockId)
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  const handleDeleteDay = (dayId: string) => {
+    setDays(prevDays => prevDays.filter(d => d.id !== dayId));
+  };
+
+  const handleToggleWeeklyStructure = (enabled: boolean) => {
+    setUseWeeklyStructure(enabled);
+    if (enabled) {
+      const weekdays = ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
+      const newDays = [...days];
+
+      while (newDays.length < 7) {
+        newDays.push({
+          id: Math.random().toString(36).substr(2, 9),
+          name: '',
+          blocks: [
+            {
+              id: Math.random().toString(36).substr(2, 9),
+              name: 'Workout Routine',
+              notes: '',
+              exercises: []
+            }
+          ]
+        });
+      }
+
+      for (let i = 0; i < 7; i++) {
+        newDays[i].name = weekdays[i];
+      }
+
+      setDays(newDays);
+    }
+  };
+
+  const handleOpenCopyModal = (block: ProgramBlock) => {
+    setSourceBlock(block);
+    setCopyView('options');
+    setSuccessMessage(null);
+    setSelectedTemplateId('');
+    setTargetBlocks([]);
+    setCopyModalVisible(true);
+  };
+
+  const handleCopyDay = (targetBlockId: string) => {
+    if (!sourceBlock) return;
+    setDays(prevDays =>
+      prevDays.map(d => ({
+        ...d,
+        blocks: d.blocks.map(block => {
+          if (block.id === targetBlockId) {
+            const duplicatedExercises = sourceBlock.exercises.map(ex => ({
+              ...ex,
+              id: Math.random().toString(36).substr(2, 9)
+            }));
+            return {
+              ...block,
+              exercises: [...block.exercises, ...duplicatedExercises]
+            };
+          }
+          return block;
+        })
+      }))
+    );
+    showSuccessMessage('EXERCISES COPIED SUCCESSFULLY!');
+  };
+
+  const fetchOtherTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('program_templates')
+        .select('id, name')
+        .eq('coach_id', coachId)
+        .neq('id', templateId || '');
+
+      if (error) throw error;
+      setOtherTemplates(data || []);
+    } catch (err) {
+      console.error('Failed to load other templates:', err);
+    }
+  };
+
+  const fetchTargetBlocksForTemplate = async (tempId: string) => {
+    try {
+      setSelectedTemplateId(tempId);
+      const { data, error } = await supabase
+        .from('program_blocks')
+        .select('id, name')
+        .eq('template_id', tempId)
+        .order('order_index', { ascending: true });
+
+      if (error) throw error;
+      setTargetBlocks(data || []);
+    } catch (err) {
+      console.error('Failed to load blocks for target template:', err);
+    }
+  };
+
+  const handleCopyTemplate = async (targetBlockDbId: string | number) => {
+    if (!sourceBlock) return;
+    try {
+      if (sourceBlock.exercises.length > 0) {
+        const { data: existingExs } = await supabase
+          .from('block_exercises')
+          .select('id')
+          .eq('block_id', targetBlockDbId);
+
+        const startIndex = existingExs ? existingExs.length : 0;
+
+        const exerciseInserts = sourceBlock.exercises.map((ex, exIdx) => ({
+          block_id: targetBlockDbId,
+          exercise_id: ex.exercise_id,
+          sets: parseInt(ex.sets) || null,
+          reps: ex.reps.trim(),
+          rest_seconds: parseInt(ex.rest_seconds) || null,
+          notes: ex.notes.trim(),
+          order_index: startIndex + exIdx
+        }));
+
+        const { error } = await supabase
+          .from('block_exercises')
+          .insert(exerciseInserts);
+
+        if (error) throw error;
+      }
+      showSuccessMessage('EXERCISES COPIED TO TEMPLATE SUCCESSFULLY!');
+    } catch (err: any) {
+      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO COPY TO TEMPLATE.');
+    }
+  };
+
+  const showSuccessMessage = (msg: string) => {
+    setSuccessMessage(msg);
+    setTimeout(() => {
+      setSuccessMessage(null);
+      setCopyModalVisible(false);
+      setSourceBlock(null);
+      setCopyView('options');
+    }, 2000);
+  };
+
+  const handleMoveDay = (index: number, direction: 'up' | 'down') => {
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    if (targetIndex < 0 || targetIndex >= days.length) return;
+
+    const newDays = [...days];
+    const temp = newDays[index];
+    newDays[index] = newDays[targetIndex];
+    newDays[targetIndex] = temp;
+    setDays(newDays);
+  };
+
+  const handleMoveBlockWithinDay = (dayId: string, index: number, direction: 'up' | 'down') => {
+    setDays(prevDays =>
+      prevDays.map(d => {
+        if (d.id === dayId) {
+          const targetIndex = direction === 'up' ? index - 1 : index + 1;
+          if (targetIndex < 0 || targetIndex >= d.blocks.length) return d;
+
+          const newBlocks = [...d.blocks];
+          const temp = newBlocks[index];
+          newBlocks[index] = newBlocks[targetIndex];
+          newBlocks[targetIndex] = temp;
+          return {
+            ...d,
+            blocks: newBlocks
+          };
+        }
+        return d;
+      })
+    );
+  };
+
+  // Main Save Template function
+  const handleSaveTemplate = async () => {
+    setErrorMsg(null);
+    if (!templateName.trim()) {
+      setErrorMsg('PROGRAM TEMPLATE NAME IS REQUIRED.');
+      return;
+    }
+
+    if (days.length === 0) {
+      setErrorMsg('AT LEAST ONE DAY MUST BE ADDED.');
+      return;
+    }
+
+    // Verify all days have at least one block
+    for (const d of days) {
+      if (d.blocks.length === 0) {
+        setErrorMsg(`DAY "${d.name.toUpperCase()}" MUST HAVE AT LEAST ONE WORKOUT BLOCK.`);
+        return;
+      }
+    }
+
+    setLoading(true);
+    try {
+      let currentTemplateId = activeTemplateId;
+
+      // 1. Insert or Update general program template details
+      if (currentTemplateId) {
+        const { error } = await supabase
+          .from('program_templates')
+          .update({
+            name: templateName.trim(),
+            description: templateDesc.trim()
+          })
+          .eq('id', currentTemplateId);
+
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('program_templates')
+          .insert({
+            name: templateName.trim(),
+            description: templateDesc.trim(),
+            coach_id: coachId
+          })
+          .select('id')
+          .single();
+
+        if (error) throw error;
+        currentTemplateId = data.id;
+      }
+
+      // If we are in edit mode, wipe previous blocks & exercises to re-create safely
+      if (activeTemplateId) {
+        // Suppress reference issues by deleting exercises first
+        const { data: previousBlocks } = await supabase
+          .from('program_blocks')
+          .select('id')
+          .eq('template_id', activeTemplateId);
+
+        if (previousBlocks && previousBlocks.length > 0) {
+          const blockIds = previousBlocks.map((b: any) => b.id);
+          await supabase.from('block_exercises').delete().in('block_id', blockIds);
+        }
+        await supabase.from('program_blocks').delete().eq('template_id', activeTemplateId);
+      }
+
+      // 2. Flatten and Insert blocks and block exercises in correct ordering sequence
+      let blockIdx = 0;
+      for (const d of days) {
+        for (const block of d.blocks) {
+          const combinedName = `${d.name.trim()} | ${block.name.trim() || 'Workout Routine'}`;
+
+          const metadata = {
+            type: block.type || 'single',
+            rounds: block.rounds || '4',
+            rest_after_round: block.rest_after_round || '90',
+            timer_seconds: block.timer_seconds || '10'
+          };
+          const serializedNotes = `[CONCEPT:${JSON.stringify(metadata)}]${block.notes.trim()}`;
+
+          const { data: savedBlock, error: blockInsertError } = await supabase
+            .from('program_blocks')
+            .insert({
+              template_id: currentTemplateId,
+              name: combinedName,
+              notes: serializedNotes,
+              order_index: blockIdx
+            })
+            .select('id')
+            .single();
+
+          if (blockInsertError) throw blockInsertError;
+
+          // Insert exercises for the block
+          if (block.exercises.length > 0) {
+            const exerciseInserts = block.exercises.map((ex, exIdx) => ({
+              block_id: savedBlock.id,
+              exercise_id: ex.exercise_id,
+              sets: parseInt(ex.sets) || null,
+              reps: ex.reps.trim(),
+              rest_seconds: parseInt(ex.rest_seconds) || null,
+              notes: ex.notes.trim(),
+              order_index: exIdx
+            }));
+
+            const { error: exercisesInsertError } = await supabase
+              .from('block_exercises')
+              .insert(exerciseInserts);
+
+            if (exercisesInsertError) throw exercisesInsertError;
+          }
+          blockIdx++;
+        }
+      }
+
+      setIsCreatingNew(false);
+      setActiveTemplateId(undefined);
+      router.back();
+    } catch (err: any) {
+      setErrorMsg(err.message?.toUpperCase() || 'FAILED TO SAVE WORKOUT PROGRAM.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredLibrary = exerciseLibrary.filter((ex: ExerciseLibraryItem) => {
+    const matchesSearch = ex.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCat = selectedCategory === 'all' || ex.category === selectedCategory;
+    return matchesSearch && matchesCat;
+  });
+
+  return (
+    <KeyboardAvoidingView
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      style={[styles.container, { backgroundColor: theme.background.primary }]}
+    >
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+        {/* HEADER BAR */}
+        <View style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          paddingTop: Platform.OS === 'ios' ? 40 : 10,
+          paddingBottom: 16,
+          position: 'relative',
+          marginBottom: 20
+        }}>
+          {/* Close & Catalog capsule buttons */}
+          <View style={{ position: 'absolute', left: 0, top: Platform.OS === 'ios' ? 43 : 13, zIndex: 100, flexDirection: 'row', gap: 8 }}>
+            {(activeTemplateId || isCreatingNew) && !templateId && (
+              <LinearGradient
+                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 1.2, borderRadius: 13 }}
+              >
+                <TouchableOpacity
+                  onPress={() => {
+                    setActiveTemplateId(undefined);
+                    setIsCreatingNew(false);
+                    loadMasterTemplates();
+                  }}
+                  style={{
+                    backgroundColor: solidCardBg,
+                    paddingVertical: 4,
+                    paddingHorizontal: 12,
+                    borderRadius: 12,
+                    height: 24,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'BarlowCondensed-ExtraBold',
+                    fontSize: 9,
+                    letterSpacing: 1.5,
+                    color: bronzeGold
+                  }}>
+                    CATALOG
+                  </Text>
+                </TouchableOpacity>
+              </LinearGradient>
+            )}
+
+          </View>
+
+          {/* Centered Logo Branding */}
+          <View style={{ flex: 1, alignItems: 'center' }}>
+            <Text style={{
+              fontFamily: 'BarlowCondensed-ExtraBold',
+              fontSize: 30,
+              letterSpacing: 4,
+              color: theme.text.primary,
+              textAlign: 'center'
+            }}>
+              P R O G R Ʌ M
+            </Text>
+            <Text style={{
+              fontFamily: 'BarlowCondensed-ExtraBold',
+              fontSize: 12,
+              letterSpacing: 2.5,
+              color: bronzeGold,
+              textAlign: 'center',
+              marginTop: -2
+            }}>
+              B U I L D E R
+            </Text>
+          </View>
+        </View>
+
+        {/* Glowing 3-World Separator line under header */}
+        <LinearGradient
+          colors={['#7E57C2', '#FF5252', '#FF7043']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 0 }}
+          style={{ height: 1.5, width: '100%', marginBottom: 20 }}
+        />
+
+        {loading ? (
+          <View style={styles.centerContainer}>
+            <LeapLogo size={40} animated />
+            <Text style={[styles.loadingText, { color: theme.text.secondary }]}>PROCESSING TEMPLATE DATA...</Text>
+          </View>
+        ) : !activeTemplateId && !isCreatingNew ? (
+          /* TEMPLATE CATALOG SELECTION SCREEN */
+          <View style={{ width: '100%', gap: 20 }}>
+            {errorMsg && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            )}
+
+            {/* CREATE NEW TEMPLATE CARD */}
+            <LinearGradient
+              colors={['#7E57C2', '#FF5252', '#FF7043']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ padding: 1.2, borderRadius: 12 }}
+            >
+              <TouchableOpacity
+                style={[styles.createNewCard, { backgroundColor: solidCardBg, borderWidth: 0, borderRadius: 11 }]}
+                onPress={() => {
+                  setTemplateName('');
+                  setTemplateDesc('');
+                  setDays([]);
+                  setUseWeeklyStructure(false);
+                  setIsCreatingNew(true);
+                }}
+              >
+                <Text style={[styles.createNewCardText, { color: theme.text.primary }]}>+ CREATE NEW MASTER TEMPLATE</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+
+            <View style={{ gap: 12, marginTop: 10 }}>
+              <Text style={[styles.sectionTitleStyle, { color: theme.text.primary }]}>
+                SAVED MASTER TEMPLATES
+              </Text>
+
+              {catalogLoading ? (
+                <LeapLogo size={40} animated />
+              ) : masterTemplates.length === 0 ? (
+                <View style={[styles.emptyBox, { borderColor: theme.card.border }]}>
+                  <Text style={{ color: theme.text.secondary, fontSize: 13 }}>
+                    NO MASTER TEMPLATES SAVED YET.
+                  </Text>
+                </View>
+              ) : (
+                masterTemplates.map((t) => (
+                  <LinearGradient
+                    key={t.id}
+                    colors={['#7E57C2', '#FF5252', '#FF7043']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ padding: 1.2, borderRadius: 12, marginBottom: 12 }}
+                  >
+                    <View
+                      style={[styles.catalogCardItem, { backgroundColor: solidCardBg, borderColor: 'transparent', borderRadius: 11, marginBottom: 0 }]}
+                    >
+                      <View style={{ flex: 1, marginRight: 16 }}>
+                        <Text style={[styles.catalogCardName, { color: theme.text.primary }]}>
+                          {t.name.toUpperCase()}
+                        </Text>
+                        <Text style={[styles.catalogCardCount, { color: bronzeGold }]}>
+                          {t.block_count} WORKOUT BLOCKS / DAYS
+                        </Text>
+                        {t.description ? (
+                          <Text style={{ color: theme.text.tertiary, fontSize: 12, marginTop: 6 }} numberOfLines={2}>
+                            {t.description}
+                          </Text>
+                        ) : null}
+                      </View>
+
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={[styles.catalogCardEditBtn, { borderColor: bronzeGold }]}
+                          onPress={() => {
+                            setActiveTemplateId(t.id);
+                            loadExistingTemplate(t.id);
+                          }}
+                        >
+                          <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>EDIT</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.catalogCardDelBtn, { borderColor: 'rgba(255,107,107,0.2)' }]}
+                          onPress={() => handleDeleteTemplate(t.id)}
+                        >
+                          <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>DELETE</Text>
+                        </TouchableOpacity>
+                      </View>
+                    </View>
+                  </LinearGradient>
+                ))
+              )}
+            </View>
+          </View>
+        ) : (
+          <View style={{ width: '100%', gap: 20 }}>
+            {errorMsg && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{errorMsg}</Text>
+              </View>
+            )}
+
+            {/* PROGRAM DETAILS */}
+            <View style={[styles.sectionCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+              <Text style={[styles.sectionLabel, { color: theme.text.primary }]}>PROGRAM DETAILS</Text>
+              <Input
+                label="PROGRAM NAME"
+                placeholder="E.G. 12-WEEK STRENGTH SYSTEM"
+                value={templateName}
+                onChangeText={setTemplateName}
+              />
+              <View style={styles.inputContainerStyle}>
+                <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>PROGRAM DESCRIPTION</Text>
+                <TextInput
+                  style={[
+                    styles.textareaStyle,
+                    {
+                      backgroundColor: theme.card.background,
+                      borderColor: theme.card.border,
+                      color: theme.text.primary,
+                    }
+                  ]}
+                  value={templateDesc}
+                  onChangeText={(val: string) => setTemplateDesc(val)}
+                  placeholder="Describe the target outcomes, focus areas, and instructions..."
+                  placeholderTextColor={theme.text.tertiary}
+                  multiline={true}
+                  numberOfLines={3}
+                />
+              </View>
+
+              {/* WEEKLY STRUCTURE TOGGLE */}
+              <View style={[styles.toggleContainer, { borderTopColor: theme.card.border }]}>
+                <View style={styles.toggleRow}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.toggleTitle, { color: theme.text.primary }]}>USE WEEKLY STRUCTURE</Text>
+                    <Text style={[styles.toggleDesc, { color: theme.text.secondary }]}>
+                      Organize workout blocks by days of the week (Saturday - Friday).
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    onPress={() => handleToggleWeeklyStructure(!useWeeklyStructure)}
+                    activeOpacity={0.9}
+                  >
+                    <LinearGradient
+                      colors={useWeeklyStructure ? ['#7E57C2', '#FF5252', '#FF7043'] : [inactiveBorder, inactiveBorder]}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{
+                        width: 46,
+                        height: 26,
+                        borderRadius: 13,
+                        padding: 2,
+                        justifyContent: 'center'
+                      }}
+                    >
+                      <View style={{
+                        width: 22,
+                        height: 22,
+                        borderRadius: 11,
+                        backgroundColor: '#FFFFFF',
+                        alignSelf: useWeeklyStructure ? 'flex-end' : 'flex-start',
+                        shadowColor: '#000',
+                        shadowOffset: { width: 0, height: 2 },
+                        shadowOpacity: 0.2,
+                        shadowRadius: 2,
+                        elevation: 2
+                      }} />
+                    </LinearGradient>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            {/* BLOCKS SECTION */}
+            <View style={{ gap: 20 }}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>PROGRAM DAYS & BLOCKS</Text>
+                {!useWeeklyStructure && (
+                  <LinearGradient
+                    colors={['#7E57C2', '#FF5252', '#FF7043']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ padding: 1.2, borderRadius: 12 }}
+                  >
+                    <TouchableOpacity
+                      style={{
+                        backgroundColor: solidCardBg,
+                        borderRadius: 11,
+                        paddingVertical: 5,
+                        paddingHorizontal: 12,
+                        justifyContent: 'center',
+                        alignItems: 'center'
+                      }}
+                      onPress={() => handleAddDay()}
+                    >
+                      <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>+ ADD DAY</Text>
+                    </TouchableOpacity>
+                  </LinearGradient>
+                )}
+              </View>
+
+              {days.length === 0 ? (
+                <View style={[styles.emptyCard, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
+                  <Text style={[styles.emptyCardText, { color: theme.text.secondary }]}>
+                    NO DAYS ADDED YET. CLICK '+ ADD DAY' TO START BUILDING.
+                  </Text>
+                </View>
+              ) : (
+                days.map((day, dayIdx) => (
+                  <LinearGradient
+                    key={day.id}
+                    colors={['#7E57C2', '#FF5252', '#FF7043']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 0 }}
+                    style={{ padding: 1.2, borderRadius: 12, marginBottom: 16 }}
+                  >
+                    <View
+                      style={{
+                        backgroundColor: solidCardBg,
+                        borderRadius: 11,
+                        padding: 16,
+                        gap: 16
+                      }}
+                    >
+                    {/* Day Header Row */}
+                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(200,160,64,0.1)', paddingBottom: 12 }}>
+                      <View style={{ flex: 1, marginRight: 12 }}>
+                        <TextInput
+                          style={{
+                            fontFamily: 'BarlowCondensed-ExtraBold',
+                            fontSize: 20,
+                            letterSpacing: 1.5,
+                            color: theme.text.primary,
+                            paddingVertical: 4
+                          }}
+                          value={day.name.toUpperCase()}
+                          onChangeText={(val) => handleUpdateDayName(day.id, val)}
+                          placeholder="DAY NAME (E.G. SATURDAY)"
+                          placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                          editable={!useWeeklyStructure}
+                        />
+                      </View>
+
+                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                        <TouchableOpacity
+                          style={[styles.reorderBtn, dayIdx === 0 && { opacity: 0.3 }]}
+                          onPress={() => handleMoveDay(dayIdx, 'up')}
+                          disabled={dayIdx === 0}
+                        >
+                          <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[styles.reorderBtn, dayIdx === days.length - 1 && { opacity: 0.3 }]}
+                          onPress={() => handleMoveDay(dayIdx, 'down')}
+                          disabled={dayIdx === days.length - 1}
+                        >
+                          <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
+                        </TouchableOpacity>
+                         {!useWeeklyStructure && (
+                          <LinearGradient
+                            colors={['#FF5252', '#FF7043', '#FF8A80']}
+                            start={{ x: 0, y: 0 }}
+                            end={{ x: 1, y: 0 }}
+                            style={{ padding: 1.2, borderRadius: 12 }}
+                          >
+                            <TouchableOpacity
+                              style={{
+                                backgroundColor: solidCardBg,
+                                borderRadius: 11,
+                                paddingVertical: 5,
+                                paddingHorizontal: 12,
+                                justifyContent: 'center',
+                                alignItems: 'center'
+                              }}
+                              onPress={() => handleDeleteDay(day.id)}
+                            >
+                              <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>DELETE DAY</Text>
+                            </TouchableOpacity>
+                          </LinearGradient>
+                        )}
+                        <LinearGradient
+                          colors={['#7E57C2', '#FF5252', '#FF7043']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{ padding: 1.2, borderRadius: 12 }}
+                        >
+                          <TouchableOpacity
+                            style={{
+                              backgroundColor: solidCardBg,
+                              borderRadius: 11,
+                              paddingVertical: 5,
+                              paddingHorizontal: 12,
+                              justifyContent: 'center',
+                              alignItems: 'center'
+                            }}
+                            onPress={() => handleAddBlockToDay(day.id)}
+                          >
+                            <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>+ ADD BLOCK</Text>
+                          </TouchableOpacity>
+                        </LinearGradient>
+                      </View>
+                    </View>
+
+                    {/* Day Blocks List */}
+                    {day.blocks.length === 0 ? (
+                      <View style={{ padding: 12, alignItems: 'center' }}>
+                        <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO BLOCKS ADDED. CLICK '+ ADD BLOCK' TO DEFINE WORKOUT WORKSPACES.</Text>
+                      </View>
+                    ) : (
+                      day.blocks.map((block, blockIdx) => (
+                        <LinearGradient
+                          key={block.id}
+                          colors={['#7E57C2', '#FF5252', '#FF7043']}
+                          start={{ x: 0, y: 0 }}
+                          end={{ x: 1, y: 0 }}
+                          style={{ padding: 1.2, borderRadius: 12, marginBottom: 16 }}
+                        >
+                          <View
+                            style={[styles.blockCard, { backgroundColor: solidCardBg, borderColor: 'transparent', borderRadius: 11, marginBottom: 0 }]}
+                          >
+                          {/* Block Header and Controls */}
+                          <View style={[styles.blockHeader, { borderBottomColor: 'rgba(255,255,255,0.05)' }]}>
+                            <View style={{ flex: 1, marginRight: 12 }}>
+                              <TextInput
+                                style={[styles.blockTitleInput, { color: theme.text.primary }]}
+                                value={block.name}
+                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'name', val)}
+                                placeholder="BLOCK NAME (E.G. WARM-UP)"
+                                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                              />
+                            </View>
+
+                            <View style={styles.blockReorderRow}>
+                              <TouchableOpacity
+                                style={[styles.reorderBtn, blockIdx === 0 && { opacity: 0.3 }]}
+                                onPress={() => handleMoveBlockWithinDay(day.id, blockIdx, 'up')}
+                                disabled={blockIdx === 0}
+                              >
+                                <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[styles.reorderBtn, blockIdx === day.blocks.length - 1 && { opacity: 0.3 }]}
+                                onPress={() => handleMoveBlockWithinDay(day.id, blockIdx, 'down')}
+                                disabled={blockIdx === day.blocks.length - 1}
+                              >
+                                <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
+                              </TouchableOpacity>
+                              <LinearGradient
+                                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{ padding: 1.2, borderRadius: 12 }}
+                              >
+                                <TouchableOpacity
+                                  style={{
+                                    backgroundColor: solidCardBg,
+                                    borderRadius: 11,
+                                    paddingVertical: 5,
+                                    paddingHorizontal: 12,
+                                    justifyContent: 'center',
+                                    alignItems: 'center'
+                                  }}
+                                  onPress={() => handleOpenCopyModal(block)}
+                                >
+                                  <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>COPY</Text>
+                                </TouchableOpacity>
+                              </LinearGradient>
+                              <LinearGradient
+                                colors={['#FF5252', '#FF7043', '#FF8A80']}
+                                start={{ x: 0, y: 0 }}
+                                end={{ x: 1, y: 0 }}
+                                style={{ padding: 1.2, borderRadius: 12 }}
+                              >
+                                <TouchableOpacity
+                                  style={{
+                                    backgroundColor: solidCardBg,
+                                    borderRadius: 11,
+                                    paddingVertical: 5,
+                                    paddingHorizontal: 12,
+                                    justifyContent: 'center',
+                                    alignItems: 'center'
+                                  }}
+                                  onPress={() => handleDeleteBlockFromDay(day.id, block.id)}
+                                >
+                                  <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>DELETE</Text>
+                                </TouchableOpacity>
+                              </LinearGradient>
+                            </View>
+                          </View>
+
+                          {/* WORKOUT CONCEPT SELECTOR */}
+                          <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)', gap: 10 }}>
+                            <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: theme.text.secondary, letterSpacing: 1 }}>WORKOUT CONCEPT</Text>
+                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                              {([
+                                { key: 'single', label: 'SINGLE EXERCISE' },
+                                { key: 'superset', label: 'SUPER SET' },
+                                { key: 'circuit', label: 'CIRCUIT' },
+                                { key: 'amrap', label: 'AMRAP TIMER' },
+                                { key: 'fortime', label: 'FOR TIME TIMER' }
+                              ] as const).map(option => {
+                                const active = (block.type || 'single') === option.key;
+                                return (
+                                  <LinearGradient
+                                    key={option.key}
+                                    colors={active ? ['#7E57C2', '#FF5252', '#FF7043'] : [inactiveBorder, inactiveBorder]}
+                                    start={{ x: 0, y: 0 }}
+                                    end={{ x: 1, y: 0 }}
+                                    style={{ padding: 1.2, borderRadius: 12 }}
+                                  >
+                                    <TouchableOpacity
+                                      style={{
+                                        backgroundColor: active ? 'transparent' : solidCardBg,
+                                        borderRadius: 11,
+                                        paddingVertical: 5,
+                                        paddingHorizontal: 12,
+                                        justifyContent: 'center',
+                                        alignItems: 'center'
+                                      }}
+                                      onPress={() => handleUpdateBlockValue(day.id, block.id, 'type', option.key)}
+                                    >
+                                      <Text style={{
+                                        fontFamily: 'BarlowCondensed-Bold',
+                                        fontSize: 10,
+                                        letterSpacing: 0.5,
+                                        color: active ? '#FFFFFF' : theme.text.secondary
+                                      }}>{option.label}</Text>
+                                    </TouchableOpacity>
+                                  </LinearGradient>
+                                );
+                              })}
+                            </View>
+                          </View>
+
+                          {/* CONCEPT CONFIGURATION PANEL */}
+                          {block.type === 'superset' && (
+                            <View style={{ flexDirection: 'row', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>SUPERSET ROUNDS</Text>
+                                <TextInput
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: theme.card.border,
+                                    borderRadius: 6,
+                                    padding: 8,
+                                    color: theme.text.primary,
+                                    backgroundColor: 'rgba(0,0,0,0.15)',
+                                    fontSize: 13
+                                  }}
+                                  value={block.rounds || '4'}
+                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rounds', val)}
+                                  keyboardType="numeric"
+                                  placeholder="4"
+                                  placeholderTextColor="rgba(255,255,255,0.1)"
+                                />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>REST TIME AFTER ROUND (SEC)</Text>
+                                <TextInput
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: theme.card.border,
+                                    borderRadius: 6,
+                                    padding: 8,
+                                    color: theme.text.primary,
+                                    backgroundColor: 'rgba(0,0,0,0.15)',
+                                    fontSize: 13
+                                  }}
+                                  value={block.rest_after_round || '90'}
+                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rest_after_round', val)}
+                                  keyboardType="numeric"
+                                  placeholder="90"
+                                  placeholderTextColor="rgba(255,255,255,0.1)"
+                                />
+                              </View>
+                            </View>
+                          )}
+
+                          {block.type === 'circuit' && (
+                            <View style={{ flexDirection: 'row', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>CIRCUIT ROUNDS</Text>
+                                <TextInput
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: theme.card.border,
+                                    borderRadius: 6,
+                                    padding: 8,
+                                    color: theme.text.primary,
+                                    backgroundColor: 'rgba(0,0,0,0.15)',
+                                    fontSize: 13
+                                  }}
+                                  value={block.rounds || '4'}
+                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rounds', val)}
+                                  keyboardType="numeric"
+                                  placeholder="4"
+                                  placeholderTextColor="rgba(255,255,255,0.1)"
+                                />
+                              </View>
+                              <View style={{ flex: 1 }}>
+                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>REST TIME AFTER LAP (SEC)</Text>
+                                <TextInput
+                                  style={{
+                                    borderWidth: 1,
+                                    borderColor: theme.card.border,
+                                    borderRadius: 6,
+                                    padding: 8,
+                                    color: theme.text.primary,
+                                    backgroundColor: 'rgba(0,0,0,0.15)',
+                                    fontSize: 13
+                                  }}
+                                  value={block.rest_after_round || '90'}
+                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rest_after_round', val)}
+                                  keyboardType="numeric"
+                                  placeholder="90"
+                                  placeholderTextColor="rgba(255,255,255,0.1)"
+                                />
+                              </View>
+                            </View>
+                          )}
+
+                          {block.type === 'amrap' && (
+                            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>AMRAP COUNTDOWN LIMIT (MINUTES)</Text>
+                              <TextInput
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: theme.card.border,
+                                  borderRadius: 6,
+                                  padding: 8,
+                                  color: theme.text.primary,
+                                  backgroundColor: 'rgba(0,0,0,0.15)',
+                                  fontSize: 13,
+                                  width: '50%'
+                                }}
+                                value={block.timer_seconds || '10'}
+                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'timer_seconds', val)}
+                                keyboardType="numeric"
+                                placeholder="10"
+                                placeholderTextColor="rgba(255,255,255,0.1)"
+                              />
+                            </View>
+                          )}
+
+                          {block.type === 'fortime' && (
+                            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>OPTIONAL TIME CAP (MINUTES)</Text>
+                              <TextInput
+                                style={{
+                                  borderWidth: 1,
+                                  borderColor: theme.card.border,
+                                  borderRadius: 6,
+                                  padding: 8,
+                                  color: theme.text.primary,
+                                  backgroundColor: 'rgba(0,0,0,0.15)',
+                                  fontSize: 13,
+                                  width: '50%'
+                                }}
+                                value={block.timer_seconds || '10'}
+                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'timer_seconds', val)}
+                                keyboardType="numeric"
+                                placeholder="10"
+                                placeholderTextColor="rgba(255,255,255,0.1)"
+                              />
+                            </View>
+                          )}
+
+                          {/* CONCEPT CONDITIONAL EXERCISE COUNT WARNINGS */}
+                          {block.type === 'superset' && block.exercises.length !== 2 && (
+                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
+                                WARNING: SUPER SETS TYPICALLY REQUIRE EXACTLY 2 EXERCISES. CURRENT COUNT: {block.exercises.length}
+                              </Text>
+                            </View>
+                          )}
+                          {block.type === 'circuit' && block.exercises.length < 3 && (
+                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
+                                WARNING: CIRCUITS TYPICALLY REQUIRE 3 OR MORE EXERCISES. CURRENT COUNT: {block.exercises.length}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Block Notes */}
+                          <View style={{ paddingVertical: 12 }}>
+                            <TextInput
+                              style={[styles.blockNotesInput, { color: theme.text.secondary, borderColor: theme.card.border }]}
+                              value={block.notes}
+                              onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'notes', val)}
+                              placeholder="Warm up instructions, block objectives, or performance notes..."
+                              placeholderTextColor="rgba(255, 255, 255, 0.2)"
+                              multiline={true}
+                              numberOfLines={2}
+                            />
+                          </View>
+
+                          {/* Exercises added to this block */}
+                          <View style={{ gap: 12, marginTop: 8 }}>
+                            {block.exercises.map((ex) => (
+                              <View
+                                key={ex.id}
+                                style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
+                              >
+                                <View style={styles.exInfoCol}>
+                                  <Text style={[styles.exTitle, { color: theme.text.primary }]}>
+                                    {ex.name.toUpperCase()}
+                                  </Text>
+                                  {ex.youtube_url ? (
+                                    <TouchableOpacity onPress={() => Linking.openURL(ex.youtube_url)} style={{ padding: 4 }}>
+                                      <Text style={{ fontSize: 18 }}>🎥</Text>
+                                    </TouchableOpacity>
+                                  ) : null}
+                                </View>
+
+                                {/* Exercise Attributes Inputs Grid */}
+                                <View style={styles.exInputsGrid}>
+                                  {(!block.type || block.type === 'single') ? (
+                                    <>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>SETS</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.sets}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'sets', val)}
+                                          keyboardType="numeric"
+                                          placeholder="4"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.reps}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
+                                          placeholder="10"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.rest_seconds}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'rest_seconds', val)}
+                                          keyboardType="numeric"
+                                          placeholder="90S"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                    </>
+                                  ) : (
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
+                                      <TextInput
+                                        style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
+                                        value={ex.reps}
+                                        onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
+                                        placeholder="E.g. 10 reps, or 30s holds"
+                                        placeholderTextColor="rgba(255,255,255,0.1)"
+                                      />
+                                    </View>
+                                  )}
+                                </View>
+
+                                {/* Exercise Notes */}
+                                <View style={{ width: '100%', marginTop: 8 }}>
+                                  <TextInput
+                                    style={[styles.exNotesField, { color: theme.text.secondary, borderColor: theme.card.border }]}
+                                    value={ex.notes}
+                                    onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'notes', val)}
+                                    placeholder="Execution notes, tempo, weights, or details..."
+                                    placeholderTextColor="rgba(255,255,255,0.15)"
+                                  />
+                                </View>
+
+                                {/* Remove Exercise */}
+                                <TouchableOpacity
+                                  style={styles.exDeleteBtn}
+                                  onPress={() => handleDeleteExerciseFromBlock(day.id, block.id, ex.id)}
+                                >
+                                  <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+
+                            {/* Add exercise trigger */}
+                            <TouchableOpacity
+                              style={[styles.addExerciseTrigger, { borderColor: bronzeGold }]}
+                              onPress={() => handleOpenPicker(day.id, block.id)}
+                            >
+                              <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE TO BLOCK</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
+                      </LinearGradient>
+                    ))
+                    )}
+                    </View>
+                  </LinearGradient>
+                ))
+              )}
+            </View>
+
+            {/* SAVE TRIGGER */}
+            <View style={{ marginTop: 24, paddingBottom: 40 }}>
+              <Button
+                title={templateId ? "UPDATE WORKOUT PROGRAM" : "SAVE PROGRAM TEMPLATE"}
+                onPress={handleSaveTemplate}
+                loading={loading}
+              />
+            </View>
+          </View>
+        )}
+      </ScrollView>
+
+      <ExercisePickerModal
+        visible={pickerModalVisible}
+        onClose={() => { setPickerModalVisible(false); setSelectedBlockIdForAdd(null); }}
+        onSelectExercise={handleAddExerciseToBlock}
+        searchQuery={searchQuery}
+        setSearchQuery={setSearchQuery}
+        selectedCategory={selectedCategory}
+        setSelectedCategory={setSelectedCategory}
+        exerciseLibrary={exerciseLibrary}
+        libraryLoading={libraryLoading}
+        categories={categories}
+      />
+
+      <CopyBlockModal
+        visible={copyModalVisible}
+        onClose={() => { setCopyModalVisible(false); setSourceBlock(null); setCopyView('options'); }}
+        sourceBlock={sourceBlock}
+        copyView={copyView}
+        setCopyView={setCopyView}
+        days={days}
+        otherTemplates={otherTemplates}
+        targetBlocks={targetBlocks}
+        selectedTemplateId={selectedTemplateId}
+        setSelectedTemplateId={setSelectedTemplateId}
+        successMessage={successMessage}
+        onCopyDay={handleCopyDay}
+        onFetchOtherTemplates={fetchOtherTemplates}
+        onFetchTargetBlocks={fetchTargetBlocksForTemplate}
+        onCopyTemplate={handleCopyTemplate}
+      />
+    </KeyboardAvoidingView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  scrollContainer: {
+    padding: 20,
+  },
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    marginBottom: 20,
+  },
+  headerTitle: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 26,
+    letterSpacing: 1.5,
+  },
+  closeButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+  },
+  closeButtonText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  centerContainer: {
+    paddingVertical: 80,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  errorBanner: {
+    backgroundColor: 'rgba(255, 107, 107, 0.1)',
+    borderColor: '#FF6B6B',
+    borderWidth: 1,
+    padding: 12,
+    borderRadius: 6,
+  },
+  errorText: {
+    color: '#FF6B6B',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  sectionCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 20,
+  },
+  sectionLabel: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 14,
+    letterSpacing: 1.5,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 18,
+    letterSpacing: 1,
+  },
+  addBlockBtn: {
+    paddingVertical: 8,
+    paddingHorizontal: 14,
+    borderRadius: 6,
+    borderWidth: 1,
+  },
+  addBlockBtnText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  emptyCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderStyle: 'dashed',
+  },
+  emptyCardText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  blockCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 20,
+    marginBottom: 16,
+  },
+  blockHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+  },
+  blockTitleInput: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 20,
+    letterSpacing: 1,
+    padding: 0,
+  },
+  blockReorderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  reorderBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  deleteBlockBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,107,107,0.1)',
+  },
+  deleteBlockBtnText: {
+    color: '#FF6B6B',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  blockNotesInput: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 13,
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 10,
+    minHeight: 50,
+    textAlignVertical: 'top',
+  },
+  exerciseRow: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 16,
+    marginBottom: 8,
+  },
+  exInfoCol: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  exTitle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 15,
+    letterSpacing: 0.5,
+    flex: 1,
+    marginRight: 10,
+  },
+  ytLink: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    letterSpacing: 0.5,
+    textDecorationLine: 'underline',
+  },
+  exInputsGrid: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exInputsGridCustom: {
+    flexDirection: 'row',
+    gap: 12,
+  },
+  exInputCol: {
+    flex: 1,
+  },
+  exInputLabel: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+    marginBottom: 4,
+  },
+  exField: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 8,
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    textAlign: 'center',
+  },
+  exNotesField: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    fontFamily: 'Barlow-Regular',
+    fontSize: 12,
+  },
+  exDeleteBtn: {
+    marginTop: 12,
+    alignSelf: 'flex-start',
+  },
+  exDeleteBtnText: {
+    color: '#FF6B6B',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  addExerciseTrigger: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderStyle: 'dashed',
+    marginTop: 8,
+  },
+  addExerciseTriggerText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.85)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  modalContent: {
+    width: '100%',
+    maxWidth: 480,
+    padding: 24,
+    borderWidth: 2,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  modalHeading: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 24,
+    textTransform: 'uppercase',
+    marginBottom: 16,
+    letterSpacing: 1,
+  },
+  searchInput: {
+    width: '100%',
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 12,
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    marginBottom: 12,
+  },
+  modalFilterScroll: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    width: '100%',
+  },
+  chip: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginRight: 6,
+  },
+  chipText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+  },
+  pickerItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+  },
+  pickerItemName: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 15,
+    letterSpacing: 0.5,
+  },
+  pickerItemBadge: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+    marginTop: 2,
+  },
+  pickerYtIcon: {
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+  },
+  cancelButton: {
+    marginTop: 16,
+    paddingVertical: 10,
+  },
+  cancelButtonText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 1.5,
+  },
+  emptyText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  inputContainerStyle: {
+    marginBottom: 16,
+  },
+  inputLabelStyle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  textareaStyle: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    fontSize: 16,
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  toggleContainer: {
+    borderTopWidth: 1,
+    marginTop: 20,
+    paddingTop: 16,
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: 16,
+  },
+  toggleTitle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  toggleDesc: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 11,
+    marginTop: 2,
+    lineHeight: 14,
+  },
+  toggleSwitch: {
+    width: 44,
+    height: 24,
+    borderRadius: 12,
+    padding: 2,
+    justifyContent: 'center',
+  },
+  toggleKnob: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+  },
+  copyBlockBtn: {
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 4,
+    backgroundColor: 'rgba(200, 160, 64, 0.1)',
+  },
+  copyBlockBtnText: {
+    color: '#C8A040',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10,
+    letterSpacing: 0.5,
+  },
+  copyOptionCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    marginBottom: 8,
+    backgroundColor: 'rgba(255,255,255,0.01)',
+  },
+  copyOptionTitle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  copyOptionDesc: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 12,
+    marginTop: 4,
+  },
+  targetBlockItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    width: '100%',
+  },
+  createNewCard: {
+    borderWidth: 1.5,
+    borderStyle: 'dashed',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(200, 160, 64, 0.03)',
+  },
+  emptyBox: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 24,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.01)',
+  },
+  createNewCardText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+  sectionTitleStyle: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 16,
+    letterSpacing: 1,
+    marginBottom: 8,
+  },
+  catalogCardItem: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  catalogCardName: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 16,
+    letterSpacing: 1,
+  },
+  catalogCardCount: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    letterSpacing: 0.5,
+    marginTop: 2,
+  },
+  catalogCardEditBtn: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  catalogCardDelBtn: {
+    borderWidth: 1,
+    borderRadius: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+});

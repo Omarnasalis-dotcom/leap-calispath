@@ -1,14 +1,13 @@
 import React from 'react';
-import { 
-  TouchableOpacity, 
+import { TouchableOpacity, 
   Text, 
   StyleSheet, 
-  ActivityIndicator, 
   ViewStyle, 
   TextStyle,
-  TouchableOpacityProps
-} from 'react-native';
+  TouchableOpacityProps } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
+import { LeapLogo } from '../LeapLogo';
+
 
 interface WarriorButtonProps extends TouchableOpacityProps {
   title: string;
@@ -75,7 +74,7 @@ export function WarriorButton({
       {...props}
     >
       {loading ? (
-        <ActivityIndicator color={getTextColor()} />
+        <LeapLogo size={40} animated />
       ) : (
         <Text style={[
           styles.text, 

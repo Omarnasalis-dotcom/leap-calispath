@@ -1,8 +1,7 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, ActivityIndicator, Alert, Platform, Modal
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, Platform, Modal } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -12,11 +11,13 @@ import { WarriorCard } from '../components/atoms/WarriorCard';
 import { getGloryLeaderboard } from '../lib/leaderboard';
 import { supabase } from '../lib/supabase';
 import { ClashLogic } from '../lib/clashLogic';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 interface ClashScreenProps {
-  onClose: () => void;
+  onClose?: () => void;
   onStartBattle: (clashId: string) => void;
-  onOpenRankings: () => void;
+  onOpenRankings?: () => void;
 }
 
 const showAlert = (title: string, message?: string) => {
@@ -47,61 +48,77 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   useEffect(() => {
     if (!user) return;
     
-    // a. Set searching status in DB (Fallback/Persistence)
-    ClashService.toggleSearchingStatus(user.id, true);
-    
-    // b. Initialize Presence Channel
-    const channel = supabase.channel('clash_lobby', {
-      config: {
-        presence: {
-          key: user.id,
-        },
-      },
-    });
+    let isMounted = true;
+    let channel: any = null;
 
-    const handleSync = () => {
-      const state = channel.presenceState();
-      // Transform presence state into warrior profiles
-      // In a real app, we'd fetch the full profiles for these IDs
-      // But for the lobby, we can trigger a refresh of the available warriors
-      loadAvailable();
+    const initLobby = async () => {
+      // a. Set searching status in DB (Fallback/Persistence)
+      ClashService.toggleSearchingStatus(user.id, true);
+      
+      // Force wait for any old channel to be completely removed from Supabase memory
+      const existing = supabase.getChannels().find((c: any) => c.topic === 'realtime:clash_lobby');
+      if (existing) {
+        await supabase.removeChannel(existing);
+      }
+      
+      if (!isMounted) return;
+
+      // b. Initialize Presence Channel
+      channel = supabase.channel('clash_lobby', {
+        config: {
+          presence: {
+            key: user.id,
+          },
+        },
+      });
+
+      const handleSync = () => {
+        loadAvailable();
+      };
+
+      channel
+        .on('presence', { event: 'sync' }, handleSync)
+        .on('presence', { event: 'join' }, () => {
+          loadAvailable();
+        })
+        .on('presence', { event: 'leave' }, () => {
+          loadAvailable();
+        })
+        .subscribe(async (status: string) => {
+          if (status === 'SUBSCRIBED' && isMounted) {
+            await channel.track({
+              online_at: new Date().toISOString(),
+              user_id: user.id,
+            });
+          }
+        });
     };
 
     const loadAvailable = async () => {
       try {
         const warriors = await ClashService.getAvailableWarriors(user.id);
-        setAvailableWarriors(warriors);
+        if (isMounted) setAvailableWarriors(warriors);
       } catch (e) { console.error(e); }
     };
 
-    channel
-      .on('presence', { event: 'sync' }, handleSync)
-      .on('presence', { event: 'join' }, ({ newPresences }) => {
-        // If a new warrior joins, refresh list
-        loadAvailable();
-      })
-      .on('presence', { event: 'leave' }, ({ leftPresences }) => {
-        // If a warrior leaves/crashes, refresh list
-        loadAvailable();
-      })
-      .subscribe(async (status) => {
-        if (status === 'SUBSCRIBED') {
-          await channel.track({
-            online_at: new Date().toISOString(),
-            user_id: user.id,
-          });
-        }
-      });
+    initLobby();
 
     return () => {
+      isMounted = false;
       ClashService.toggleSearchingStatus(user.id, false);
-      channel.unsubscribe();
+      if (channel) {
+        supabase.removeChannel(channel);
+      }
     };
   }, [user]);
 
   // 2. Load Active Clashes
   useEffect(() => {
     if (!user) return;
+    
+    let isMounted = true;
+    let subscription: any = null;
+    
     const loadClashes = async () => {
       const { data } = await supabase
         .from('clash_sessions')
@@ -109,17 +126,32 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
         .or(`sender_id.eq.${user.id},receiver_id.eq.${user.id}`)
         .not('status', 'in', '("finished","cancelled","declined")')
         .order('created_at', { ascending: false });
-      if (data) setActiveClashes(data as ClashSession[]);
+      if (data && isMounted) setActiveClashes(data as ClashSession[]);
     };
-    loadClashes();
+    
+    const initUpdates = async () => {
+      const existing = supabase.getChannels().find((c: any) => c.topic === 'realtime:clash_updates');
+      if (existing) {
+        await supabase.removeChannel(existing);
+      }
+      
+      if (!isMounted) return;
 
-    const subscription = supabase
-      .channel('clash_updates')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'clash_sessions' }, loadClashes)
-      .subscribe();
+      loadClashes();
+
+      subscription = supabase
+        .channel('clash_updates')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'clash_sessions' }, loadClashes)
+        .subscribe();
+    };
+
+    initUpdates();
 
     return () => {
-      subscription.unsubscribe();
+      isMounted = false;
+      if (subscription) {
+        supabase.removeChannel(subscription);
+      }
     };
   }, [user]);
 
@@ -251,7 +283,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
                       </TouchableOpacity>
                     </View>
                   )}
-                  {isSender && <ActivityIndicator size="small" color={theme.accent} />}
+                  {isSender && <LeapLogo size={40} animated />}
                 </WarriorCard>
               );
             })}

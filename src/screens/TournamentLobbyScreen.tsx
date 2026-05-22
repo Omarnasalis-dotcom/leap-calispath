@@ -1,8 +1,7 @@
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, Platform
-} from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -10,18 +9,21 @@ import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 interface Props {
   navigation?: any;
   route?: any; // For sessionId
+  sessionId?: string;
   onClose?: () => void;
   onEnterWorkout?: (sessionId: string, roundConfig: any) => void;
 }
 
-export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorkout }: Props) {
+export function TournamentLobbyScreen({ navigation, route, sessionId: propSessionId, onClose, onEnterWorkout }: Props) {
   const { theme } = useTheme();
   const { profile } = useAuth();
-  const sessionId = route?.params?.sessionId;
+  const sessionId = propSessionId || route?.params?.sessionId;
 
   const [activeSession, setActiveSession] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -549,7 +551,7 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
 
         <TouchableOpacity
           style={[styles.mainBtn, { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 40 }]}
-          onPress={() => onClose ? onClose() : navigation.goBack()}
+          onPress={() => onClose ? router.back() : navigation.goBack()}
         >
           <Text style={[styles.mainBtnText, { color: theme.text.primary }]}>EXIT ARENA</Text>
         </TouchableOpacity>
@@ -560,7 +562,7 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
-        <ActivityIndicator color={theme.accent} size="large" />
+        <LeapLogo size={40} animated />
       </View>
     );
   }
@@ -568,7 +570,7 @@ export function TournamentLobbyScreen({ navigation, route, onClose, onEnterWorko
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => onClose ? onClose() : navigation.goBack()}>
+        <TouchableOpacity onPress={() => onClose ? router.back() : navigation.goBack()}>
           <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text.primary }]}>{activeSession?.config?.title?.toUpperCase()}</Text>

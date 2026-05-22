@@ -1,18 +1,16 @@
 // AI Coach - Gemini enabled
+import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useRef, useEffect } from 'react';
-import {
-  View,
+import { View,
   Text,
   StyleSheet,
   TouchableOpacity,
   ScrollView,
   TextInput,
-  ActivityIndicator,
   Platform,
   Dimensions,
   KeyboardAvoidingView,
-  Alert
-} from 'react-native';
+  Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -22,6 +20,8 @@ import { TIER_NAMES } from '../types';
 import { LeaderboardService } from '../services/LeaderboardService';
 
 import { RITES_OF_PASSAGE } from '../lib/trials';
+import { LeapLogo } from '../components/LeapLogo';
+
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
 const GEMINI_MODEL = 'gemini-flash-lite-latest'; 
@@ -405,14 +405,14 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
                   onPress={startSession}
                   disabled={loading}
                 >
-                  {loading ? <ActivityIndicator color="#000" /> : <Text style={styles.beginBtnText}>CONSULT THE MENTOR</Text>}
+                  {loading ? <LeapLogo size={40} animated /> : <Text style={styles.beginBtnText}>CONSULT THE MENTOR</Text>}
                 </TouchableOpacity>
               </View>
             )}
 
             {messages.length === 0 && loading ? (
               <View style={styles.loadingState}>
-                <ActivityIndicator color={theme.accent} size="large" />
+                <LeapLogo size={40} animated />
                 <Text style={[styles.loadingText, { color: subtextColor }]}>CONNECTING...</Text>
               </View>
             ) : (
@@ -477,7 +477,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
               disabled={loading || !inputText.trim() || dailyUsage >= DAILY_LIMIT} 
               style={[styles.sendBtn, { backgroundColor: (inputText.trim() && dailyUsage < DAILY_LIMIT) ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}
             >
-              {loading ? <ActivityIndicator color="#000" size="small" /> : <MaterialCommunityIcons name="send" size={18} color="#000" />}
+              {loading ? <LeapLogo size={40} animated /> : <MaterialCommunityIcons name="send" size={18} color="#000" />}
             </TouchableOpacity>
           </View>
         </View>
