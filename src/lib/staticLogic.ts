@@ -7,18 +7,25 @@ export interface StaticMovement {
 }
 
 export const STATIC_MOVEMENTS: StaticMovement[] = [
-  { id: 'wall_handstand', name: 'Wall Handstand', multiplier: 1, level: 1, category: 'handstand' },
-  { id: 'tuck_back_lever', name: 'Tuck Back Lever', multiplier: 2, level: 1, category: 'back_lever' },
-  { id: 'tuck_front_lever', name: 'Tuck Front Lever', multiplier: 3, level: 1, category: 'front_lever' },
-  { id: 'straddle_back_lever', name: 'Straddle Back Lever', multiplier: 5, level: 1, category: 'back_lever' },
-  { id: 'tuck_planche', name: 'Tuck Planche', multiplier: 7, level: 2, category: 'planche' },
-  { id: 'full_back_lever', name: 'Full Back Lever', multiplier: 10, level: 2, category: 'back_lever' },
-  { id: 'freestanding_handstand', name: 'Freestanding Handstand', multiplier: 12, level: 2, category: 'handstand' },
-  { id: 'straddle_front_lever', name: 'Straddle Front Lever', multiplier: 15, level: 2, category: 'front_lever' },
-  { id: 'full_front_lever', name: 'Full Front Lever', multiplier: 20, level: 3, category: 'front_lever' },
-  { id: 'straddle_planche', name: 'Straddle Planche', multiplier: 25, level: 3, category: 'planche' },
-  { id: 'one_arm_handstand', name: 'One Arm Handstand', multiplier: 35, level: 3, category: 'handstand' },
-  { id: 'full_planche', name: 'Full Planche', multiplier: 50, level: 3, category: 'planche' },
+  // Handstand
+  { id: 'wall_handstand', name: 'Wall Handstand', multiplier: 0.5, level: 1, category: 'handstand' },
+  { id: 'freestanding_handstand', name: 'Freestanding Handstand', multiplier: 2, level: 2, category: 'handstand' },
+  { id: 'one_arm_handstand', name: 'One Arm Handstand', multiplier: 8, level: 3, category: 'handstand' },
+
+  // Front Lever
+  { id: 'tuck_front_lever', name: 'Tuck Front Lever', multiplier: 0.25, level: 1, category: 'front_lever' },
+  { id: 'straddle_front_lever', name: 'Straddle Front Lever', multiplier: 1, level: 2, category: 'front_lever' },
+  { id: 'full_front_lever', name: 'Full Front Lever', multiplier: 6, level: 3, category: 'front_lever' },
+
+  // Planche
+  { id: 'tuck_planche', name: 'Tuck Planche', multiplier: 1, level: 1, category: 'planche' },
+  { id: 'straddle_planche', name: 'Straddle Planche', multiplier: 2, level: 2, category: 'planche' },
+  { id: 'full_planche', name: 'Full Planche', multiplier: 8, level: 3, category: 'planche' },
+
+  // Back Lever
+  { id: 'tuck_back_lever', name: 'Tuck Back Lever', multiplier: 0.25, level: 1, category: 'back_lever' },
+  { id: 'straddle_back_lever', name: 'Straddle Back Lever', multiplier: 1, level: 2, category: 'back_lever' },
+  { id: 'full_back_lever', name: 'Full Back Lever', multiplier: 3, level: 3, category: 'back_lever' },
 ];
 
 export const STATIC_LEVELS = {

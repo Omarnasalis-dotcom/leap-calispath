@@ -260,7 +260,7 @@ export function ProfileScreen({
   const powerPts = profile.power_points || 0;
   const mmPts = profile.one_mm_points || 0;
   const gloryPts = profile.glory_score || 0;
-  const wraScore = staticPts + (powerPts * 2) + (mmPts * 2);
+  const wraScore = staticPts + powerPts + mmPts;
   const WRA_MAX = 5000;
   const GLORY_MAX = 1000;
 
@@ -510,7 +510,7 @@ export function ProfileScreen({
             ]}>
               <ScoreBar
                 title="⚔️ Well-Rounded Athlete"
-                subtitle="Static ×1 · Power ×2 · 1MM ×2"
+                subtitle="Static · Power · 1MM"
                 score={wraScore}
                 rank="Leaderboard →"
                 max={WRA_MAX}
@@ -519,8 +519,8 @@ export function ProfileScreen({
                 showCrown={wraScore > 0}
                 chips={[
                   { label: 'Static', value: staticPts, color: '#9FC5E8' },
-                  { label: 'Power ×2', value: powerPts * 2, color: '#FF5722' },
-                  { label: '1MM ×2', value: mmPts * 2, color: '#4CAF50' },
+                  { label: 'Power', value: powerPts, color: '#FF5722' },
+                  { label: '1MM', value: mmPts, color: '#4CAF50' },
                 ]}
               />
               <ScoreBar

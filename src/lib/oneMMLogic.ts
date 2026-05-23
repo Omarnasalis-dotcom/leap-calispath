@@ -8,9 +8,9 @@ export interface OneMMMovement {
 }
 
 export const ONEMM_CATEGORIES = {
-  entry: { id: 'entry', name: 'ENTRY', multiplier: 1, tiers: [0, 4] },
-  main: { id: 'main', name: 'MAIN', multiplier: 2, tiers: [5, 8] },
-  advanced: { id: 'advanced', name: 'ADVANCED', multiplier: 3, tiers: [5, 8] },
+  entry: { id: 'entry', name: 'ENTRY', multiplier: 0.25, tiers: [0, 4] },
+  main: { id: 'main', name: 'MAIN', multiplier: 0.5, tiers: [5, 8] },
+  advanced: { id: 'advanced', name: 'ADVANCED', multiplier: 5, tiers: [5, 8] },
 };
 
 export const ONEMM_MOVEMENTS: OneMMMovement[] = [
