@@ -60,7 +60,11 @@ export class BlockConceptParser {
       if (struct === 'ladder') {
         prefix = 'LADDER';
       } else {
-        prefix = struct.toUpperCase();
+        if ((struct === 'superset' || struct === 'circuit') && metadata.rounds) {
+          prefix = `${metadata.rounds} ROUNDS ${struct.toUpperCase()}`;
+        } else {
+          prefix = struct.toUpperCase();
+        }
       }
     }
 
