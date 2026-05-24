@@ -1017,6 +1017,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                             {/* Collapsible Content */}
                             {isExpanded && (
                               <View style={{ marginTop: 12 }}>
+                                {/* Expanded Subtitle Badge */}
+                                <View style={{ backgroundColor: 'rgba(200,160,64,0.05)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginBottom: block.notes ? 8 : 0, borderWidth: 1, borderColor: 'rgba(200,160,64,0.2)' }}>
+                                  <Text style={{ color: bronzeGold, fontSize: 13, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1 }}>
+                                    {BlockConceptParser.getSubtitle(block.metadata || {}, block.exercises.map(ex => ex.name.toUpperCase()))}
+                                  </Text>
+                                </View>
+
                                 {/* Block Description Notes */}
                                 {block.notes ? (
                                   <Text style={[styles.blockNotes, { color: theme.text.secondary, marginTop: 0 }]}>
