@@ -123,9 +123,9 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         <StructureOption value="ladder" label="LADDER" />
       </View>
 
-      {structure !== 'single' && (
+      {structure !== 'single' && timingSystem !== 'amrap' && (
         <View style={styles.inputGroup}>
-          <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>NUMBER OF ROUNDS / SETS</Text>
+          <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET ROUNDS</Text>
           <TextInput
             style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
             keyboardType="number-pad"

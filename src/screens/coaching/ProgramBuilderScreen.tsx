@@ -827,19 +827,32 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
         currentTemplateId = data.id;
       }
 
-      // If we are in edit mode, wipe previous blocks & exercises to re-create safely
+      // Identify which blocks are currently in the UI
+      const currentBlockIds = Object.values(validWeeks)
+        .flatMap(weekDays => weekDays.flatMap(d => d.blocks.map(b => b.db_id)))
+        .filter(Boolean);
+
+      // If we are in edit mode, carefully delete removed blocks and wipe old exercises
       if (activeTemplateId) {
-        // Suppress reference issues by deleting exercises first
         const { data: previousBlocks } = await supabase
           .from('program_blocks')
           .select('id')
           .eq('template_id', activeTemplateId);
 
         if (previousBlocks && previousBlocks.length > 0) {
-          const blockIds = previousBlocks.map((b: any) => b.id);
-          await supabase.from('block_exercises').delete().in('block_id', blockIds);
+          const allPreviousBlockIds = previousBlocks.map((b: any) => b.id);
+          
+          // Always wipe exercises safely to avoid manual diffing
+          await supabase.from('block_exercises').delete().in('block_id', allPreviousBlockIds);
+
+          // Find blocks that were DELETED by the coach in the UI
+          const blockIdsToDelete = allPreviousBlockIds.filter(id => !currentBlockIds.includes(id));
+          
+          if (blockIdsToDelete.length > 0) {
+            // Attempt to delete. If they have workout_logs attached, this will fail. We ignore the error safely.
+            await supabase.from('program_blocks').delete().in('id', blockIdsToDelete);
+          }
         }
-        await supabase.from('program_blocks').delete().eq('template_id', activeTemplateId);
       }
 
       // 2. Flatten and Insert blocks and block exercises in correct ordering sequence
@@ -860,19 +873,25 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
             }
             const serializedNotes = BlockConceptParser.stringify(metadata, block.notes);
 
+            const blockPayload: any = {
+              template_id: currentTemplateId,
+              name: combinedName,
+              notes: serializedNotes,
+              order_index: blockIdx,
+              week_number: weekNum
+            };
+
+            if (block.db_id) {
+              blockPayload.id = block.db_id;
+            }
+
             const { data: savedBlock, error: blockInsertError } = await supabase
               .from('program_blocks')
-              .insert({
-                template_id: currentTemplateId,
-                name: combinedName,
-                notes: serializedNotes,
-                order_index: blockIdx,
-                week_number: weekNum
-              })
+              .upsert(blockPayload)
               .select('id')
               .single();
 
-          if (blockInsertError) throw blockInsertError;
+            if (blockInsertError) throw blockInsertError;
 
           // Insert exercises for the block
           if (block.exercises.length > 0) {
@@ -1530,7 +1549,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
                                         />
                                       </View>
                                       <View style={styles.exInputCol}>
-                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS / TIME</Text>
                                         <TextInput
                                           style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
                                           value={ex.reps}

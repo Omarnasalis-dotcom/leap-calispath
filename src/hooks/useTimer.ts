@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { Platform, AppState, AppStateStatus } from 'react-native';
+import * as Notifications from 'expo-notifications';
 
 export interface UseTimerResult {
   seconds: number;
@@ -15,24 +16,57 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
   const [isRunning, setIsRunning] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const notificationIdRef = useRef<string | null>(null);
 
-  const start = () => {
+  const start = async () => {
     if (isRunning) return;
     setIsRunning(true);
+    let elapsed = 0;
     // If we're resuming, we need to adjust the start time
     if (mode === 'up') {
       startTimeRef.current = Date.now() - (seconds * 1000);
     } else {
       // For countdown, we track how many seconds have *already* elapsed
-      const elapsed = initialSeconds - seconds;
+      elapsed = initialSeconds - seconds;
       startTimeRef.current = Date.now() - (elapsed * 1000);
+    }
+
+    if (mode === 'down' && Platform.OS !== 'web') {
+      try {
+        const remaining = initialSeconds - elapsed;
+        if (remaining > 0) {
+          const identifier = await Notifications.scheduleNotificationAsync({
+            content: {
+              title: "Time's up!",
+              body: "Your rest period is over. Let's get back to work!",
+              sound: true,
+            },
+            trigger: { 
+              type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, 
+              seconds: remaining 
+            },
+          });
+          notificationIdRef.current = identifier;
+        }
+      } catch (e) {
+        console.log('Failed to schedule notification', e);
+      }
     }
   };
 
-  const stop = () => {
+  const stop = async () => {
     setIsRunning(false);
     if (intervalRef.current) clearInterval(intervalRef.current);
     intervalRef.current = null;
+
+    if (notificationIdRef.current && Platform.OS !== 'web') {
+      try {
+        await Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
+        notificationIdRef.current = null;
+      } catch (e) {
+        console.log('Failed to cancel notification', e);
+      }
+    }
   };
 
   const reset = () => {

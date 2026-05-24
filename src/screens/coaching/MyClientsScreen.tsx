@@ -187,83 +187,17 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
 
     setActionLoading(true);
     try {
-      const customTemplateName = `[CUSTOM] ${selectedTemplate.name} (${selectedWarrior.display_name})`;
+      // Use the newly created RPC to clone the template and all blocks/exercises on the DB side instantly
+      const customName = `${selectedWarrior.display_name.split(' ')[0]}'s ${selectedTemplate.name}`;
       
-      const { data: newTemplate, error: templateError } = await supabase
-        .from('program_templates')
-        .insert({
-          name: customTemplateName,
-          description: selectedTemplate.description || 'CLONED ASSIGNMENT INSTANCE',
-          coach_id: coachId
-        })
-        .select('id')
-        .single();
+      const { data: newTemplateId, error: rpcError } = await supabase.rpc('assign_program_template', {
+        p_coach_id: coachId,
+        p_warrior_id: selectedWarrior.id,
+        p_template_id: selectedTemplate.id,
+        p_custom_name: customName
+      });
 
-      if (templateError) throw templateError;
-      if (!newTemplate) throw new Error('FAILED TO CREATE CUSTOM SNAPSHOT TEMPLATE.');
-
-      const { data: originalBlocks, error: blocksFetchError } = await supabase
-        .from('program_blocks')
-        .select('*')
-        .eq('template_id', selectedTemplate.id)
-        .order('order_index', { ascending: true });
-
-      if (blocksFetchError) throw blocksFetchError;
-
-      if (originalBlocks && originalBlocks.length > 0) {
-        for (const block of originalBlocks) {
-          const { data: newBlock, error: blockInsertError } = await supabase
-            .from('program_blocks')
-            .insert({
-              template_id: newTemplate.id,
-              name: block.name,
-              notes: block.notes,
-              order_index: block.order_index
-            })
-            .select('id')
-            .single();
-
-          if (blockInsertError) throw blockInsertError;
-          if (!newBlock) continue;
-
-          const { data: originalExercises, error: exercisesFetchError } = await supabase
-            .from('block_exercises')
-            .select('*')
-            .eq('block_id', block.id)
-            .order('order_index', { ascending: true });
-
-          if (exercisesFetchError) throw exercisesFetchError;
-
-          if (originalExercises && originalExercises.length > 0) {
-            const exerciseInserts = originalExercises.map((ex: any) => ({
-              block_id: newBlock.id,
-              exercise_id: ex.exercise_id,
-              sets: ex.sets,
-              reps: ex.reps,
-              rest_seconds: ex.rest_seconds,
-              notes: ex.notes,
-              order_index: ex.order_index
-            }));
-
-            const { error: exercisesInsertError } = await supabase
-              .from('block_exercises')
-              .insert(exerciseInserts);
-
-            if (exercisesInsertError) throw exercisesInsertError;
-          }
-        }
-      }
-
-      const { error: assignmentError } = await supabase
-        .from('warrior_programs')
-        .insert({
-          coach_id: coachId,
-          warrior_id: selectedWarrior.id,
-          template_id: newTemplate.id,
-          status: 'active'
-        });
-
-      if (assignmentError) throw assignmentError;
+      if (rpcError) throw rpcError;
 
       setSelectedWarrior(null);
       setSelectedTemplate(null);

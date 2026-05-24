@@ -1,5 +1,5 @@
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import { useRouter, useLocalSearchParams, router, useNavigation } from 'expo-router';
+import React, { useEffect, useState, useRef } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -13,6 +13,7 @@ import { View,
   Alert } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Notifications from 'expo-notifications';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
@@ -55,6 +56,7 @@ interface WarriorProgramScreenProps {
 }
 
 export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
+  const navigation = useNavigation();
   const { theme, mode } = useTheme();
   const bronzeGold = '#C8A040';
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
@@ -105,10 +107,62 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
   // Recommendations State
   const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
+  
+  const notificationIdRef = useRef<string | null>(null);
+
+  // Background Notification Guard
+  useEffect(() => {
+    if (timerRunning && (timerType === 'amrap' || timerType === 'rest') && timeLeft > 0) {
+      Notifications.scheduleNotificationAsync({
+        content: {
+          title: "Time's up!",
+          body: "Your timer has finished. Get back to work!",
+          sound: true,
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: timeLeft
+        }
+      }).then(id => notificationIdRef.current = id).catch(err => console.log('Notification Schedule Error:', err));
+    } else {
+      if (notificationIdRef.current) {
+        Notifications.cancelScheduledNotificationAsync(notificationIdRef.current).catch(() => {});
+        notificationIdRef.current = null;
+      }
+    }
+  }, [timerRunning]);
 
   useEffect(() => {
     loadWarriorProgram();
   }, [warriorId]);
+
+  // Navigation Guard (prevent leaving while timer is running)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+      if (!timerRunning) {
+        return;
+      }
+
+      e.preventDefault();
+
+      Alert.alert(
+        'ACTIVE TIMER',
+        'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
+        [
+          { text: 'STAY', style: 'cancel', onPress: () => {} },
+          {
+            text: 'LEAVE',
+            style: 'destructive',
+            onPress: () => {
+              setTimerRunning(false);
+              navigation.dispatch(e.data.action);
+            },
+          },
+        ]
+      );
+    });
+    return unsubscribe;
+  }, [navigation, timerRunning]);
 
   // Main loader for assigned program and completion state
   async function loadWarriorProgram() {
@@ -398,9 +452,30 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           });
       }
 
-      await loadWarriorProgram();
+      // Optimistically update the UI state
+      const updateBlockInDays = (dayList: ProgramDay[]) => {
+        return dayList.map(d => ({
+          ...d,
+          blocks: d.blocks.map(b => b.id === blockId ? { ...b, completedStatus: nextStatus } : b)
+        }));
+      };
+
+      if (days && days.length > 0) {
+        // NOTE: setDays is undefined in the original snippet, correcting to use setWeeksData pattern
+      }
+      
+      setWeeksData(prev => {
+        const next = { ...prev };
+        if (next[activeWeek]) {
+          next[activeWeek] = updateBlockInDays(next[activeWeek]);
+        }
+        return next;
+      });
+
     } catch (err: any) {
       console.error("Failed to toggle block status:", err);
+      // Revert on failure
+      await loadWarriorProgram();
     }
   };
 
@@ -436,9 +511,27 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (error) throw error;
 
       setLogModalVisible(false);
-      await loadWarriorProgram();
+      
+      // Optimistically update UI
+      const nextStatus = logStatus;
+      const updateBlockInDays = (dayList: ProgramDay[]) => {
+        return dayList.map(d => ({
+          ...d,
+          blocks: d.blocks.map(b => b.id === activeLogBlockId ? { ...b, completedStatus: nextStatus } : b)
+        }));
+      };
+
+      setWeeksData(prev => {
+        const next = { ...prev };
+        if (next[activeWeek]) {
+          next[activeWeek] = updateBlockInDays(next[activeWeek]);
+        }
+        return next;
+      });
+
     } catch (err: any) {
       Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO LOG WORKOUT.');
+      await loadWarriorProgram();
     } finally {
       setLogLoading(false);
     }
@@ -1078,7 +1171,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                                               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{ex.sets}</Text>
                                             </View>
                                             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-                                              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
+                                              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS / TIME</Text>
                                               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{ex.reps}</Text>
                                             </View>
                                             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
