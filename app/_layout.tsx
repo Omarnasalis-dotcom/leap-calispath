@@ -11,6 +11,8 @@ import { ThemeProvider } from '../src/contexts/ThemeContext';
 import { useStealthFonts } from '../hooks/useFonts';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 import { LeapLogo } from '../src/components/LeapLogo';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
 
 // Auth Guard Component
@@ -59,13 +61,17 @@ export default function RootLayout() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <AuthGuard>
-          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
-        </AuthGuard>
-        <StatusBar style="auto" />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ErrorBoundary>
+        <ThemeProvider>
+          <AuthProvider>
+            <AuthGuard>
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+            </AuthGuard>
+            <StatusBar style="auto" />
+          </AuthProvider>
+        </ThemeProvider>
+      </ErrorBoundary>
+    </SafeAreaProvider>
   );
 }

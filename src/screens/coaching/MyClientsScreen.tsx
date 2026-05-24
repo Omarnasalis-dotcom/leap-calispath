@@ -47,15 +47,14 @@ interface WarriorProgramAssignment {
   } | null;
 }
 
-interface AssignProgramScreenProps {
+interface MyClientsScreenProps {
   coachId?: string;
   isAdmin?: boolean;
-  onClose?: () => void;
-  onAdjustProgram?: (clonedTemplateId: string) => void;
 }
 
-export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjustProgram }: AssignProgramScreenProps) {
+export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenProps) {
   const { theme } = useTheme();
+  const router = useRouter();
   const solidCardBg = theme.card.background === '#151515' || theme.card.background === '#1C1C1E' || theme.card.background === '#121212' || theme.card.background === '#000000' ? '#151515' : '#FFFFFF';
   const bronzeGold = '#C8A040';
 
@@ -306,46 +305,37 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
     }
   };
 
-  // Delete program assignment (unassign) or mark completed if logs exist
-  const handleUnassignProgram = (assignmentId: string) => {
-    const performUnassign = async () => {
+  // Delete program assignment and entirely wipe client program data
+  const handleDeleteClientData = (assignment: WarriorProgramAssignment) => {
+    const performWipe = async () => {
       setErrorMsg(null);
       try {
-        const { error } = await supabase
-          .from('warrior_programs')
-          .delete()
-          .eq('id', assignmentId);
+        const { error: rpcErr } = await supabase.rpc('delete_coach_client_data', {
+          p_assignment_id: assignment.id
+        });
 
-        if (error) {
-          if (error.code === '23503') {
-            const { error: updateError } = await supabase
-              .from('warrior_programs')
-              .update({ status: 'completed' })
-              .eq('id', assignmentId);
+        if (rpcErr) throw rpcErr;
 
-            if (updateError) throw updateError;
-          } else {
-            throw error;
-          }
-        }
         await fetchAssignmentsList();
       } catch (err: any) {
-        setErrorMsg(err.message?.toUpperCase() || 'FAILED TO UNASSIGN PROGRAM.');
+        const fullErr = `Error: ${err.message || 'Unknown'}\nCode: ${err.code || 'N/A'}\nDetails: ${err.details || 'N/A'}`;
+        console.error('Delete Client Error:', err);
+        setErrorMsg(fullErr.toUpperCase());
       }
     };
 
     if (Platform.OS === 'web') {
-      const confirmStr = 'ARE YOU SURE YOU WANT TO REMOVE THIS PROGRAM ASSIGNMENT?';
+      const confirmStr = 'ARE YOU SURE YOU WANT TO DELETE THIS CLIENT AND WIPE ALL PROGRAM/LOG DATA?';
       if (window.confirm(confirmStr)) {
-        performUnassign();
+        performWipe();
       }
     } else {
       Alert.alert(
-        'UNASSIGN PROGRAM',
-        'ARE YOU SURE YOU WANT TO REMOVE THIS PROGRAM ASSIGNMENT? THIS CANNOT BE UNDONE.',
+        'DELETE CLIENT DATA',
+        'ARE YOU SURE YOU WANT TO DELETE THIS CLIENT AND WIPE ALL PROGRAM/LOG DATA?',
         [
           { text: 'CANCEL', style: 'cancel' },
-          { text: 'UNASSIGN', style: 'destructive', onPress: performUnassign }
+          { text: 'DELETE', style: 'destructive', onPress: performWipe }
         ]
       );
     }
@@ -366,8 +356,10 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
     });
   };
 
-  // Filter Warriors based on search query (guard against null display_name)
+  // Filter Warriors based on search query AND exclude clients already in active roster
+  const activeWarriorIds = new Set(assignments.map(a => a.warrior_id));
   const filteredWarriors = warriors.filter(w =>
+    !activeWarriorIds.has(w.id) &&
     (w.display_name || '').toLowerCase().includes(searchWarrior.toLowerCase())
   );
 
@@ -393,21 +385,21 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
             <Text style={{ 
               fontFamily: 'BarlowCondensed-ExtraBold', 
               fontSize: 30, 
-              letterSpacing: 8, 
+              letterSpacing: 4, 
               color: theme.text.primary,
               textAlign: 'center'
             }}>
-              Ʌ S S I G N
+              MY CLIENTS
             </Text>
             <Text style={{ 
               fontFamily: 'BarlowCondensed-ExtraBold', 
               fontSize: 12, 
-              letterSpacing: 5, 
+              letterSpacing: 2.5, 
               color: bronzeGold,
               textAlign: 'center',
               marginTop: -2
             }}>
-              P R O G R Ʌ M
+              A C T I V E  R O S T E R
             </Text>
           </View>
         </View>
@@ -560,12 +552,28 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
 
               {/* ASSIGN PROGRAM BUTTON */}
               <View style={{ marginTop: 8 }}>
-                <Button
-                  title="ASSIGN PROGRAM TEMPLATE"
-                  onPress={handleAssignProgram}
-                  disabled={!selectedWarrior || !selectedTemplate}
-                  loading={actionLoading}
-                />
+                <LinearGradient
+                  colors={['#7E57C2', '#FF5252', '#FF7043']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={{ borderRadius: 8, opacity: (!selectedWarrior || !selectedTemplate || actionLoading) ? 0.5 : 1 }}
+                >
+                  <TouchableOpacity
+                    onPress={handleAssignProgram}
+                    disabled={!selectedWarrior || !selectedTemplate || actionLoading}
+                    style={{
+                      paddingVertical: 12,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}
+                  >
+                    {actionLoading ? (
+                      <Text style={{ color: '#FFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 1 }}>ASSIGNING...</Text>
+                    ) : (
+                      <Text style={{ color: '#FFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 1 }}>ASSIGN PROGRAM TEMPLATE</Text>
+                    )}
+                  </TouchableOpacity>
+                </LinearGradient>
               </View>
             </View>
 
@@ -621,14 +629,23 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
 
                     {/* Controls Row */}
                     <View style={[styles.assignmentControls, { borderTopColor: 'rgba(255,255,255,0.03)' }]}>
-                      {onAdjustProgram && (
+                      <LinearGradient
+                        colors={['#7E57C2', '#FF5252', '#FF7043']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ borderRadius: 6, flex: 1 }}
+                      >
                         <TouchableOpacity
-                          style={[styles.controlBtn, { backgroundColor: 'rgba(200, 160, 64, 0.05)', borderColor: bronzeGold }]}
-                          onPress={() => onAdjustProgram(assignment.template_id)}
+                          style={{
+                            paddingVertical: 8,
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}
+                          onPress={() => router.push(`/client-dashboard?warriorId=${assignment.warrior_id}&templateId=${assignment.template_id}`)}
                         >
-                          <Text style={[styles.controlBtnText, { color: bronzeGold }]}>ADJUST PROGRAM</Text>
+                          <Text style={[styles.controlBtnText, { color: '#FFF' }]}>MANAGE CLIENT</Text>
                         </TouchableOpacity>
-                      )}
+                      </LinearGradient>
 
                       <TouchableOpacity
                         style={[styles.controlBtn, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
@@ -639,9 +656,9 @@ export function AssignProgramScreen({ coachId, isAdmin = false, onClose, onAdjus
 
                       <TouchableOpacity
                         style={[styles.controlBtn, { backgroundColor: 'rgba(255,107,107,0.03)', borderColor: 'rgba(255,107,107,0.2)' }]}
-                        onPress={() => handleUnassignProgram(assignment.id)}
+                        onPress={() => handleDeleteClientData(assignment)}
                       >
-                        <Text style={[styles.controlBtnText, { color: '#FF6B6B' }]}>UNASSIGN</Text>
+                        <Text style={[styles.controlBtnText, { color: '#FF6B6B' }]}>DELETE CLIENT</Text>
                       </TouchableOpacity>
                     </View>
                   </View>

@@ -179,6 +179,27 @@ export class StaticService {
   }
 
   /**
+   * Fetches the user stats including PBs (Personal Bests)
+   */
+  static async getUserStats(userId: string): Promise<{ pbs: Record<string, number> }> {
+    const holds = await this.getUserHolds(userId);
+    const pbs: Record<string, number> = {};
+    
+    // Initialize with 0
+    import('../lib/staticLogic').then(({ STATIC_MOVEMENTS }) => {
+      STATIC_MOVEMENTS.forEach(m => pbs[m.id] = 0);
+    });
+
+    holds.forEach((h: any) => {
+      if (h.hold_seconds > (pbs[h.movement_id] || 0)) {
+        pbs[h.movement_id] = h.hold_seconds;
+      }
+    });
+
+    return { pbs };
+  }
+
+  /**
    * Fetches the "Well-Rounded Athlete" leaderboard (Peak Category Performance)
    */
   static async getWellRoundedLeaderboard(currentUserId?: string): Promise<StaticWellRoundedEntry[]> {

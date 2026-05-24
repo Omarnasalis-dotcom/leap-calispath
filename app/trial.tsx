@@ -11,7 +11,7 @@ export default function Route() {
     <SpartanLayout hideToggle>
       <TrialScreen
         mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
-        practiceTier={tier ? parseInt(tier) : undefined}
+        practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
         onComplete={() => router.replace('/profile')}
         onBack={() => router.back()}
       />

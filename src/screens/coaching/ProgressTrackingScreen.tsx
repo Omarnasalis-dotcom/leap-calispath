@@ -343,10 +343,13 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
 
                     {/* Progress Bar */}
                     <View style={[styles.progressBarBackground, { backgroundColor: 'rgba(255,255,255,0.03)' }]}>
-                      <View 
+                      <LinearGradient
+                        colors={['#7E57C2', '#FF5252', '#FF7043']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
                         style={[
                           styles.progressBarFill, 
-                          { backgroundColor: bronzeGold, width: `${warrior.percentage}%` }
+                          { width: `${warrior.percentage}%` }
                         ]}
                       />
                     </View>
@@ -417,12 +420,23 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
               </ScrollView>
             )}
 
-            <TouchableOpacity
-              style={[styles.modalCloseBtn, { borderColor: theme.card.border, marginTop: 24 }]}
-              onPress={() => setHistoryModalVisible(false)}
+            <LinearGradient
+              colors={['#7E57C2', '#FF5252', '#FF7043']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ borderRadius: 6, marginTop: 24 }}
             >
-              <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CLOSE</Text>
-            </TouchableOpacity>
+              <TouchableOpacity
+                style={{
+                  width: '100%',
+                  paddingVertical: 12,
+                  alignItems: 'center',
+                }}
+                onPress={() => setHistoryModalVisible(false)}
+              >
+                <Text style={{ color: '#FFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CLOSE</Text>
+              </TouchableOpacity>
+            </LinearGradient>
           </View>
         </View>
       </Modal>

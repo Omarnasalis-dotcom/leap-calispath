@@ -19,6 +19,8 @@ import { ExercisePickerModal } from '../../components/coaching/ExercisePickerMod
 import { CopyBlockModal } from '../../components/coaching/CopyBlockModal';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
+import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
+import { BlockConfigWizard } from '../../components/coaching/BlockConfigWizard';
 
 
 interface ExerciseLibraryItem {
@@ -46,26 +48,31 @@ interface ProgramBlock {
   name: string;
   notes: string;
   exercises: SelectedExercise[];
-  type?: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime';
-  rounds?: string;
-  rest_after_round?: string;
-  timer_seconds?: string;
+  metadata?: ConceptMetadata;
+  week_number?: number;
 }
 
 interface ProgramDay {
   id: string; // client-side unique key
   name: string; // E.g. "Saturday"
   blocks: ProgramBlock[];
+  focusTag?: 'PULL' | 'PUSH' | 'LEGS' | 'FULL_BODY' | 'CORE' | 'NONE';
+}
+
+interface ProgramWeek {
+  weekNumber: number;
+  days: ProgramDay[];
 }
 
 interface ProgramBuilderScreenProps {
   coachId?: string;
   templateId?: string; // Optional for edit mode
+  weekNum?: string; // Optional specific week to edit
   onSave?: () => void;
   onClose?: () => void;
 }
 
-export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: ProgramBuilderScreenProps) {
+export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onClose }: ProgramBuilderScreenProps) {
   const { theme, mode } = useTheme();
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
   const inactiveBorder = mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.12)';
@@ -79,11 +86,30 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
 
   const [templateName, setTemplateName] = useState('');
   const [templateDesc, setTemplateDesc] = useState('');
-  const [days, setDays] = useState<ProgramDay[]>([]);
+  const [weeks, setWeeks] = useState<Record<number, ProgramDay[]>>({ 1: [] });
+  const [activeWeek, setActiveWeek] = useState<number>(weekNum ? parseInt(weekNum, 10) : 1);
+  const days = weeks[activeWeek] || [];
+  const setDays = (updater: ProgramDay[] | ((prev: ProgramDay[]) => ProgramDay[])) => {
+    setWeeks(prevWeeks => {
+      const currentDays = prevWeeks[activeWeek] || [];
+      const newDays = typeof updater === 'function' ? updater(currentDays) : updater;
+      return { ...prevWeeks, [activeWeek]: newDays };
+    });
+  };
 
   // Page Load State
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  
+  // Accordion State
+  const [expandedDays, setExpandedDays] = useState<Record<string, boolean>>({});
+  const [expandedBlocks, setExpandedBlocks] = useState<Record<string, boolean>>({});
+
+  const toggleDay = (dayId: string) => setExpandedDays(prev => ({ ...prev, [dayId]: !prev[dayId] }));
+  const toggleBlock = (blockId: string) => setExpandedBlocks(prev => ({ ...prev, [blockId]: !prev[blockId] }));
+  
+  // Athlete Logs State
+  const [athleteLogs, setAthleteLogs] = useState<Record<string, string>>({});
 
   // Exercise Picker Modal State
   const [pickerModalVisible, setPickerModalVisible] = useState(false);
@@ -211,6 +237,32 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
       setTemplateName(templateData.name);
       setTemplateDesc(templateData.description || '');
 
+      // 1b. Fetch Athlete Logs if this is a custom assigned program
+      if (templateData.name.startsWith('[CUSTOM]')) {
+        const { data: assignmentData } = await supabase
+          .from('warrior_programs')
+          .select('warrior_id')
+          .eq('template_id', tempId)
+          .maybeSingle();
+        
+        if (assignmentData?.warrior_id) {
+          const { data: logsData } = await supabase
+            .from('workout_logs')
+            .select('block_id, notes')
+            .eq('warrior_id', assignmentData.warrior_id);
+            
+          if (logsData) {
+            const logsMap: Record<string, string> = {};
+            logsData.forEach((log: any) => {
+              if (log.notes) {
+                logsMap[log.block_id] = log.notes;
+              }
+            });
+            setAthleteLogs(logsMap);
+          }
+        }
+      }
+
       // 2. Fetch blocks
       const { data: blocksData, error: blocksError } = await supabase
         .from('program_blocks')
@@ -220,29 +272,48 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
 
       if (blocksError) throw blocksError;
 
-      // 3. Fetch exercises for blocks and group them into Days
-      const dayMap: Record<string, ProgramDay> = {};
-      const dayOrder: string[] = [];
-
-      for (const block of blocksData || []) {
-        const { data: exercisesData, error: exercisesError } = await supabase
+      // 3. FIX N+1: Batch Fetch all exercises for all blocks
+      const blockIds = (blocksData || []).map(b => b.id);
+      
+      let allExercisesData: any[] = [];
+      if (blockIds.length > 0) {
+        const { data: exercisesBatchData, error: batchError } = await supabase
           .from('block_exercises')
           .select(`
             id,
+            block_id,
             exercise_id,
             sets,
             reps,
             rest_seconds,
             notes,
+            order_index,
             exercise_library (
               name,
               youtube_url
             )
           `)
-          .eq('block_id', block.id)
+          .in('block_id', blockIds)
           .order('order_index', { ascending: true });
 
-        if (exercisesError) throw exercisesError;
+        if (batchError) throw batchError;
+        allExercisesData = exercisesBatchData || [];
+      }
+      
+      // Group exercises by block_id
+      const exercisesByBlock: Record<string, any[]> = {};
+      allExercisesData.forEach(ex => {
+        if (!exercisesByBlock[ex.block_id]) exercisesByBlock[ex.block_id] = [];
+        exercisesByBlock[ex.block_id].push(ex);
+      });
+
+      const newWeeksMap: Record<number, ProgramDay[]> = {};
+      const weekDaysMap: Record<number, Record<string, ProgramDay>> = {};
+      const weekDayOrder: Record<number, string[]> = {};
+
+      for (const block of blocksData || []) {
+        const exercisesData = exercisesByBlock[block.id] || [];
+
 
         const mappedExercises: SelectedExercise[] = (exercisesData || []).map((ex: any) => ({
           id: Math.random().toString(36).substr(2, 9),
@@ -264,53 +335,53 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
           blockName = parts.slice(1).join(' | ').trim();
         }
 
-        let plainNotes = block.notes || '';
-        let blockType: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime' = 'single';
-        let rounds = '4';
-        let restAfterRound = '90';
-        let timerSeconds = '10';
-
-        const conceptMatch = plainNotes.match(/^\[CONCEPT:(.*?)\](.*)$/s);
-        if (conceptMatch) {
-          try {
-            const metadata = JSON.parse(conceptMatch[1]);
-            blockType = metadata.type || 'single';
-            rounds = String(metadata.rounds ?? '4');
-            restAfterRound = String(metadata.rest_after_round ?? '90');
-            timerSeconds = String(metadata.timer_seconds ?? '10');
-            plainNotes = conceptMatch[2];
-          } catch (e) {
-            console.error('Failed to parse block concept metadata:', e);
-          }
-        }
+        const parsed = BlockConceptParser.parse(block.notes || '');
+        const cleanNotes = parsed.cleanNotes;
+        const weekNum = block.week_number || 1;
 
         const loadedBlock: ProgramBlock = {
           id: String(block.id),
           db_id: block.id,
           name: blockName,
-          notes: plainNotes,
+          notes: cleanNotes,
           exercises: mappedExercises,
-          type: blockType,
-          rounds,
-          rest_after_round: restAfterRound,
-          timer_seconds: timerSeconds
+          metadata: parsed.metadata,
+          week_number: weekNum
         };
 
         const dayKey = dayName.toUpperCase();
-        if (!dayMap[dayKey]) {
+        if (!weekDaysMap[weekNum]) {
+          weekDaysMap[weekNum] = {};
+          weekDayOrder[weekNum] = [];
+        }
+        if (!weekDaysMap[weekNum][dayKey]) {
           const dayId = Math.random().toString(36).substr(2, 9);
-          dayMap[dayKey] = {
+          weekDaysMap[weekNum][dayKey] = {
             id: dayId,
             name: dayName,
             blocks: []
           };
-          dayOrder.push(dayKey);
+          weekDayOrder[weekNum].push(dayKey);
         }
-        dayMap[dayKey].blocks.push(loadedBlock);
+        weekDaysMap[weekNum][dayKey].blocks.push(loadedBlock);
       }
 
-      const loadedDays: ProgramDay[] = dayOrder.map(key => dayMap[key]);
-      setDays(loadedDays);
+      for (const weekNumStr of Object.keys(weekDaysMap)) {
+        const weekNum = parseInt(weekNumStr, 10);
+        newWeeksMap[weekNum] = weekDayOrder[weekNum].map(key => weekDaysMap[weekNum][key]);
+      }
+      
+      if (Object.keys(newWeeksMap).length === 0) {
+        newWeeksMap[1] = [];
+      }
+      setWeeks(newWeeksMap);
+      if (weekNum) {
+        setActiveWeek(parseInt(weekNum, 10));
+      } else {
+        setActiveWeek(1);
+      }
+
+      const loadedDays: ProgramDay[] = newWeeksMap[weekNum ? parseInt(weekNum, 10) : 1] || [];
 
       const weekdays = ['SATURDAY', 'SUNDAY', 'MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY'];
       const loadedDayNames = loadedDays.map(d => d.name?.trim().toUpperCase());
@@ -446,10 +517,7 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
           name: 'Workout Routine',
           notes: '',
           exercises: [],
-          type: 'single',
-          rounds: '4',
-          rest_after_round: '90',
-          timer_seconds: '10'
+          metadata: { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' }
         }
       ]
     };
@@ -465,10 +533,7 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
             name: `Block ${d.blocks.length + 1}`,
             notes: '',
             exercises: [],
-            type: 'single',
-            rounds: '4',
-            rest_after_round: '90',
-            timer_seconds: '10'
+            metadata: { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' }
           };
           return {
             ...d,
@@ -483,6 +548,12 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
   const handleUpdateDayName = (dayId: string, name: string) => {
     setDays(prevDays =>
       prevDays.map(d => (d.id === dayId ? { ...d, name } : d))
+    );
+  };
+
+  const handleUpdateDayFocusTag = (dayId: string, focusTag: 'PULL' | 'PUSH' | 'LEGS' | 'FULL_BODY' | 'CORE' | 'NONE') => {
+    setDays(prevDays =>
+      prevDays.map(d => (d.id === dayId ? { ...d, focusTag } : d))
     );
   };
 
@@ -533,7 +604,8 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
               id: Math.random().toString(36).substr(2, 9),
               name: 'Workout Routine',
               notes: '',
-              exercises: []
+              exercises: [],
+              metadata: { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' }
             }
           ]
         });
@@ -693,17 +765,36 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
       return;
     }
 
-    if (days.length === 0) {
-      setErrorMsg('AT LEAST ONE DAY MUST BE ADDED.');
-      return;
+    // Pre-process weeks to purge ghosts and validate
+    let hasValidWeek = false;
+    const validWeeks: Record<number, ProgramDay[]> = {};
+
+    for (const weekNumStr of Object.keys(weeks)) {
+      const weekNum = parseInt(weekNumStr, 10);
+      const weekDays = weeks[weekNum];
+      
+      // Calculate total blocks in this week
+      const totalBlocks = weekDays.reduce((sum, d) => sum + d.blocks.length, 0);
+      
+      if (totalBlocks === 0) {
+        continue; // Purge ghost week completely
+      }
+      
+      // If the week is NOT empty, verify every day has at least one block
+      for (const d of weekDays) {
+        if (d.blocks.length === 0) {
+          setErrorMsg(`WEEK ${weekNum} - DAY "${d.name.toUpperCase()}" MUST HAVE AT LEAST ONE WORKOUT BLOCK. PLEASE ADD A BLOCK OR DELETE THE DAY.`);
+          return;
+        }
+      }
+      
+      validWeeks[weekNum] = weekDays;
+      hasValidWeek = true;
     }
 
-    // Verify all days have at least one block
-    for (const d of days) {
-      if (d.blocks.length === 0) {
-        setErrorMsg(`DAY "${d.name.toUpperCase()}" MUST HAVE AT LEAST ONE WORKOUT BLOCK.`);
-        return;
-      }
+    if (!hasValidWeek) {
+      setErrorMsg('AT LEAST ONE VALID WEEK WITH WORKOUT BLOCKS MUST BE ADDED.');
+      return;
     }
 
     setLoading(true);
@@ -753,28 +844,33 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
 
       // 2. Flatten and Insert blocks and block exercises in correct ordering sequence
       let blockIdx = 0;
-      for (const d of days) {
-        for (const block of d.blocks) {
-          const combinedName = `${d.name.trim()} | ${block.name.trim() || 'Workout Routine'}`;
+      for (const weekNumStr of Object.keys(validWeeks)) {
+        const weekNum = parseInt(weekNumStr, 10);
+        const weekDays = validWeeks[weekNum];
+        
+        for (const d of weekDays) {
+          for (const block of d.blocks) {
+            const combinedName = `${d.name.trim()} | ${block.name.trim() || 'Workout Routine'}`;
 
-          const metadata = {
-            type: block.type || 'single',
-            rounds: block.rounds || '4',
-            rest_after_round: block.rest_after_round || '90',
-            timer_seconds: block.timer_seconds || '10'
-          };
-          const serializedNotes = `[CONCEPT:${JSON.stringify(metadata)}]${block.notes.trim()}`;
+            const metadata = block.metadata || { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' };
+            if (d.focusTag) {
+              metadata.focus_tag = d.focusTag;
+            } else {
+              delete metadata.focus_tag;
+            }
+            const serializedNotes = BlockConceptParser.stringify(metadata, block.notes);
 
-          const { data: savedBlock, error: blockInsertError } = await supabase
-            .from('program_blocks')
-            .insert({
-              template_id: currentTemplateId,
-              name: combinedName,
-              notes: serializedNotes,
-              order_index: blockIdx
-            })
-            .select('id')
-            .single();
+            const { data: savedBlock, error: blockInsertError } = await supabase
+              .from('program_blocks')
+              .insert({
+                template_id: currentTemplateId,
+                name: combinedName,
+                notes: serializedNotes,
+                order_index: blockIdx,
+                week_number: weekNum
+              })
+              .select('id')
+              .single();
 
           if (blockInsertError) throw blockInsertError;
 
@@ -797,6 +893,7 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
             if (exercisesInsertError) throw exercisesInsertError;
           }
           blockIdx++;
+          }
         }
       }
 
@@ -824,75 +921,101 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
         {/* HEADER BAR */}
         <View style={{
-          flexDirection: 'row',
           alignItems: 'center',
-          justifyContent: 'center',
           paddingTop: Platform.OS === 'ios' ? 40 : 10,
-          paddingBottom: 16,
-          position: 'relative',
-          marginBottom: 20
+          paddingBottom: 12,
         }}>
-          {/* Close & Catalog capsule buttons */}
-          <View style={{ position: 'absolute', left: 0, top: Platform.OS === 'ios' ? 43 : 13, zIndex: 100, flexDirection: 'row', gap: 8 }}>
-            {(activeTemplateId || isCreatingNew) && !templateId && (
-              <LinearGradient
-                colors={['#7E57C2', '#FF5252', '#FF7043']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={{ padding: 1.2, borderRadius: 13 }}
-              >
-                <TouchableOpacity
-                  onPress={() => {
-                    setActiveTemplateId(undefined);
-                    setIsCreatingNew(false);
-                    loadMasterTemplates();
-                  }}
-                  style={{
-                    backgroundColor: solidCardBg,
-                    paddingVertical: 4,
-                    paddingHorizontal: 12,
-                    borderRadius: 12,
-                    height: 24,
-                    justifyContent: 'center',
-                    alignItems: 'center'
-                  }}
-                >
-                  <Text style={{
-                    fontFamily: 'BarlowCondensed-ExtraBold',
-                    fontSize: 9,
-                    letterSpacing: 1.5,
-                    color: bronzeGold
-                  }}>
-                    CATALOG
-                  </Text>
-                </TouchableOpacity>
-              </LinearGradient>
-            )}
-
-          </View>
-
           {/* Centered Logo Branding */}
-          <View style={{ flex: 1, alignItems: 'center' }}>
-            <Text style={{
-              fontFamily: 'BarlowCondensed-ExtraBold',
-              fontSize: 30,
-              letterSpacing: 4,
-              color: theme.text.primary,
-              textAlign: 'center'
-            }}>
-              P R O G R Ʌ M
-            </Text>
-            <Text style={{
-              fontFamily: 'BarlowCondensed-ExtraBold',
-              fontSize: 12,
-              letterSpacing: 2.5,
-              color: bronzeGold,
-              textAlign: 'center',
-              marginTop: -2
-            }}>
-              B U I L D E R
-            </Text>
-          </View>
+          <Text style={{
+            fontFamily: 'BarlowCondensed-ExtraBold',
+            fontSize: 30,
+            letterSpacing: 4,
+            color: theme.text.primary,
+            textAlign: 'center'
+          }}>
+            P R O G R Ʌ M
+          </Text>
+          <Text style={{
+            fontFamily: 'BarlowCondensed-ExtraBold',
+            fontSize: 12,
+            letterSpacing: 2.5,
+            color: bronzeGold,
+            textAlign: 'center',
+            marginTop: -2
+          }}>
+            B U I L D E R
+          </Text>
+        </View>
+
+        {/* Close & Catalog capsule buttons */}
+        <View style={{ flexDirection: 'row', gap: 8, paddingBottom: 16 }}>
+          {/* BACK TO DASHBOARD BUTTON (When editing specific client's week) */}
+          {templateId ? (
+            <LinearGradient
+              colors={['#7E57C2', '#FF5252', '#FF7043']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ padding: 1.2, borderRadius: 13 }}
+            >
+              <TouchableOpacity
+                onPress={() => router.back()}
+                style={{
+                  backgroundColor: solidCardBg,
+                  paddingVertical: 4,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  height: 24,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{
+                  fontFamily: 'BarlowCondensed-ExtraBold',
+                  fontSize: 10,
+                  letterSpacing: 1.5,
+                  color: bronzeGold
+                }}>
+                  ◀ BACK
+                </Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          ) : null}
+
+          {/* CATALOG CLOSE BUTTON (When editing master templates) */}
+          {(activeTemplateId || isCreatingNew) && !templateId && (
+            <LinearGradient
+              colors={['#7E57C2', '#FF5252', '#FF7043']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={{ padding: 1.2, borderRadius: 13 }}
+            >
+              <TouchableOpacity
+                onPress={() => {
+                  setActiveTemplateId(undefined);
+                  setIsCreatingNew(false);
+                  loadMasterTemplates();
+                }}
+                style={{
+                  backgroundColor: solidCardBg,
+                  paddingVertical: 4,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  height: 24,
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }}
+              >
+                <Text style={{
+                  fontFamily: 'BarlowCondensed-ExtraBold',
+                  fontSize: 9,
+                  letterSpacing: 1.5,
+                  color: bronzeGold
+                }}>
+                  CATALOG
+                </Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          )}
         </View>
 
         {/* Glowing 3-World Separator line under header */}
@@ -1081,6 +1204,83 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
               </View>
             </View>
 
+            {/* WEEK NAVIGATOR */}
+            {!weekNum && (
+              <View style={{ marginBottom: 24 }}>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
+                {Object.keys(weeks).map((weekStr) => {
+                  const wNum = parseInt(weekStr, 10);
+                  const isActive = wNum === activeWeek;
+                  return (
+                    <TouchableOpacity
+                      key={wNum}
+                      onPress={() => setActiveWeek(wNum)}
+                      style={{
+                        paddingVertical: 8,
+                        paddingHorizontal: 16,
+                        borderRadius: 20,
+                        backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : theme.card.background,
+                        borderWidth: 1,
+                        borderColor: isActive ? bronzeGold : theme.card.border,
+                      }}
+                    >
+                      <Text style={{
+                        fontFamily: 'BarlowCondensed-Bold',
+                        fontSize: 14,
+                        color: isActive ? bronzeGold : theme.text.secondary
+                      }}>
+                        WEEK {wNum}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+                <TouchableOpacity
+                  onPress={() => {
+                    const maxW = Math.max(...Object.keys(weeks).map(k => parseInt(k, 10)));
+                    const nextW = maxW + 1;
+                    
+                    const prevDays = weeks[maxW] || [];
+                    const clonedDays: ProgramDay[] = prevDays.map(d => ({
+                      id: Math.random().toString(36).substr(2, 9),
+                      name: d.name,
+                      blocks: d.blocks.map(b => ({
+                        id: Math.random().toString(36).substr(2, 9),
+                        name: b.name,
+                        notes: b.notes,
+                        exercises: b.exercises.map(ex => ({
+                          ...ex,
+                          id: Math.random().toString(36).substr(2, 9)
+                        })),
+                        metadata: b.metadata
+                      }))
+                    }));
+
+                    setWeeks(prev => ({ ...prev, [nextW]: clonedDays }));
+                    setActiveWeek(nextW);
+                  }}
+                  style={{
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    backgroundColor: 'rgba(255,255,255,0.02)',
+                    borderWidth: 1,
+                    borderColor: 'rgba(255,255,255,0.1)',
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'BarlowCondensed-Bold',
+                    fontSize: 14,
+                    color: theme.text.primary
+                  }}>
+                    + DUPLICATE LAST WEEK
+                  </Text>
+                </TouchableOpacity>
+              </ScrollView>
+              </View>
+            )}
+
             {/* BLOCKS SECTION */}
             <View style={{ gap: 20 }}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1133,92 +1333,82 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
                       }}
                     >
                     {/* Day Header Row */}
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(200,160,64,0.1)', paddingBottom: 12 }}>
-                      <View style={{ flex: 1, marginRight: 12 }}>
-                        <TextInput
-                          style={{
-                            fontFamily: 'BarlowCondensed-ExtraBold',
-                            fontSize: 20,
-                            letterSpacing: 1.5,
-                            color: theme.text.primary,
-                            paddingVertical: 4
-                          }}
-                          value={day.name.toUpperCase()}
-                          onChangeText={(val) => handleUpdateDayName(day.id, val)}
-                          placeholder="DAY NAME (E.G. SATURDAY)"
-                          placeholderTextColor="rgba(255, 255, 255, 0.25)"
-                          editable={!useWeeklyStructure}
-                        />
+                    <TouchableOpacity 
+                      onPress={() => toggleDay(day.id)}
+                      style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: expandedDays[day.id] ? 1 : 0, borderBottomColor: 'rgba(200,160,64,0.1)', paddingBottom: expandedDays[day.id] ? 12 : 0 }}
+                    >
+                      <View style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}>
+                        <Text style={{ color: bronzeGold, fontSize: 18, marginRight: 8, fontFamily: 'BarlowCondensed-ExtraBold' }}>
+                          {expandedDays[day.id] ? '▼' : '▶'}
+                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <TextInput
+                            style={{
+                              fontFamily: 'BarlowCondensed-ExtraBold',
+                              fontSize: 20,
+                              letterSpacing: 1.5,
+                              color: theme.text.primary,
+                              paddingVertical: 4,
+                            }}
+                            value={day.name.toUpperCase()}
+                            onChangeText={(val) => handleUpdateDayName(day.id, val)}
+                            placeholder="DAY NAME (E.G. SATURDAY)"
+                            placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                            editable={!useWeeklyStructure}
+                          />
+                          {!expandedDays[day.id] && (
+                            <Text style={{ color: theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Medium', marginTop: -4 }} numberOfLines={1}>
+                              {day.blocks.length > 0 ? day.blocks.map(b => b.name || 'UNNAMED BLOCK').join(' • ') : 'EMPTY DAY'}
+                            </Text>
+                          )}
+                        </View>
                       </View>
 
-                      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                        <TouchableOpacity
-                          style={[styles.reorderBtn, dayIdx === 0 && { opacity: 0.3 }]}
-                          onPress={() => handleMoveDay(dayIdx, 'up')}
-                          disabled={dayIdx === 0}
-                        >
-                          <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[styles.reorderBtn, dayIdx === days.length - 1 && { opacity: 0.3 }]}
-                          onPress={() => handleMoveDay(dayIdx, 'down')}
-                          disabled={dayIdx === days.length - 1}
-                        >
-                          <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
-                        </TouchableOpacity>
-                         {!useWeeklyStructure && (
-                          <LinearGradient
-                            colors={['#FF5252', '#FF7043', '#FF8A80']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{ padding: 1.2, borderRadius: 12 }}
-                          >
+                    </TouchableOpacity>
+
+                    {/* Focus Tag Selector */}
+                    {expandedDays[day.id] && (
+                      <View style={{ marginBottom: 12 }}>
+                        <Text style={{ color: theme.text.tertiary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1, marginBottom: 8 }}>DAY FOCUS TAG (ASSESSMENT ENGINE)</Text>
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8 }}>
+                          {['NONE', 'PULL', 'PUSH', 'LEGS', 'FULL_BODY', 'CORE'].map((tag) => (
                             <TouchableOpacity
+                              key={tag}
+                              onPress={() => handleUpdateDayFocusTag(day.id, tag as any)}
                               style={{
-                                backgroundColor: solidCardBg,
-                                borderRadius: 11,
-                                paddingVertical: 5,
                                 paddingHorizontal: 12,
-                                justifyContent: 'center',
-                                alignItems: 'center'
+                                paddingVertical: 6,
+                                borderRadius: 16,
+                                borderWidth: 1,
+                                borderColor: day.focusTag === tag ? bronzeGold : inactiveBorder,
+                                backgroundColor: day.focusTag === tag ? 'rgba(200,160,64,0.1)' : 'transparent',
                               }}
-                              onPress={() => handleDeleteDay(day.id)}
                             >
-                              <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>DELETE DAY</Text>
+                              <Text style={{
+                                color: day.focusTag === tag ? bronzeGold : theme.text.secondary,
+                                fontSize: 11,
+                                fontFamily: 'BarlowCondensed-Bold',
+                                letterSpacing: 1,
+                              }}>
+                                {tag}
+                              </Text>
                             </TouchableOpacity>
-                          </LinearGradient>
-                        )}
-                        <LinearGradient
-                          colors={['#7E57C2', '#FF5252', '#FF7043']}
-                          start={{ x: 0, y: 0 }}
-                          end={{ x: 1, y: 0 }}
-                          style={{ padding: 1.2, borderRadius: 12 }}
-                        >
-                          <TouchableOpacity
-                            style={{
-                              backgroundColor: solidCardBg,
-                              borderRadius: 11,
-                              paddingVertical: 5,
-                              paddingHorizontal: 12,
-                              justifyContent: 'center',
-                              alignItems: 'center'
-                            }}
-                            onPress={() => handleAddBlockToDay(day.id)}
-                          >
-                            <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>+ ADD BLOCK</Text>
-                          </TouchableOpacity>
-                        </LinearGradient>
+                          ))}
+                        </ScrollView>
                       </View>
-                    </View>
+                    )}
 
                     {/* Day Blocks List */}
-                    {day.blocks.length === 0 ? (
-                      <View style={{ padding: 12, alignItems: 'center' }}>
-                        <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO BLOCKS ADDED. CLICK '+ ADD BLOCK' TO DEFINE WORKOUT WORKSPACES.</Text>
-                      </View>
-                    ) : (
-                      day.blocks.map((block, blockIdx) => (
-                        <LinearGradient
+                    {expandedDays[day.id] && (
+                      <>
+                      <View style={{ gap: 16 }}>
+                        {day.blocks.length === 0 ? (
+                          <View style={{ padding: 12, alignItems: 'center' }}>
+                            <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO BLOCKS ADDED. CLICK '+ ADD BLOCK' TO DEFINE WORKOUT WORKSPACES.</Text>
+                          </View>
+                        ) : (
+                          day.blocks.map((block, blockIdx) => (
+                            <LinearGradient
                           key={block.id}
                           colors={['#7E57C2', '#FF5252', '#FF7043']}
                           start={{ x: 0, y: 0 }}
@@ -1229,18 +1419,191 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
                             style={[styles.blockCard, { backgroundColor: solidCardBg, borderColor: 'transparent', borderRadius: 11, marginBottom: 0 }]}
                           >
                           {/* Block Header and Controls */}
-                          <View style={[styles.blockHeader, { borderBottomColor: 'rgba(255,255,255,0.05)' }]}>
-                            <View style={{ flex: 1, marginRight: 12 }}>
-                              <TextInput
-                                style={[styles.blockTitleInput, { color: theme.text.primary }]}
-                                value={block.name}
-                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'name', val)}
-                                placeholder="BLOCK NAME (E.G. WARM-UP)"
-                                placeholderTextColor="rgba(255, 255, 255, 0.25)"
-                              />
+                          <TouchableOpacity 
+                            onPress={() => toggleBlock(block.id)}
+                            style={[styles.blockHeader, { borderBottomWidth: expandedBlocks[block.id] ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)' }]}
+                          >
+                            <View style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}>
+                              <Text style={{ color: theme.text.secondary, fontSize: 14, marginRight: 8 }}>
+                                {expandedBlocks[block.id] ? '▼' : '▶'}
+                              </Text>
+                              <View style={{ flex: 1 }}>
+                                <TextInput
+                                  style={[styles.blockTitleInput, { color: theme.text.primary }]}
+                                  value={block.name}
+                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'name', val)}
+                                  placeholder="BLOCK NAME (E.G. WARM-UP)"
+                                  placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                                />
+                                {!expandedBlocks[block.id] && (
+                                  <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: 'BarlowCondensed-Medium', marginTop: -2 }} numberOfLines={1}>
+                                    {block.exercises.length > 0 ? block.exercises.map(e => e.name || 'UNNAMED EXERCISE').join(' • ') : 'NO EXERCISES'}
+                                  </Text>
+                                )}
+                              </View>
                             </View>
 
-                            <View style={styles.blockReorderRow}>
+                            </TouchableOpacity>
+
+                            {/* WORKOUT CONCEPT SELECTOR & CONFIGURATION WIZARD */}
+                            {expandedBlocks[block.id] && (
+                              <View>
+                              <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
+                            <BlockConfigWizard
+                              initialMetadata={block.metadata || { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' }}
+                              onChange={(meta) => handleUpdateBlockValue(day.id, block.id, 'metadata', meta)}
+                            />
+                          </View>
+
+                          {/* CONCEPT CONDITIONAL EXERCISE COUNT WARNINGS */}
+                          {block.metadata?.type === 'superset' && block.exercises.length !== 2 && (
+                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
+                                WARNING: SUPER SETS TYPICALLY REQUIRE EXACTLY 2 EXERCISES. CURRENT COUNT: {block.exercises.length}
+                              </Text>
+                            </View>
+                          )}
+                          {block.metadata?.type === 'circuit' && block.exercises.length < 3 && (
+                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
+                                WARNING: CIRCUITS TYPICALLY REQUIRE 3 OR MORE EXERCISES. CURRENT COUNT: {block.exercises.length}
+                              </Text>
+                            </View>
+                          )}
+
+                          {/* Block Notes */}
+                          <View style={{ paddingVertical: 12 }}>
+                            <TextInput
+                              style={[styles.blockNotesInput, { color: theme.text.secondary, borderColor: theme.card.border }]}
+                              value={block.notes}
+                              onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'notes', val)}
+                              placeholder="Warm up instructions, block objectives, or performance notes..."
+                              placeholderTextColor="rgba(255, 255, 255, 0.2)"
+                              multiline={true}
+                              numberOfLines={2}
+                            />
+                          </View>
+
+                          {/* ATHLETE LOGS INJECTION */}
+                          {athleteLogs[block.id] && (
+                            <View style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)' }}>
+                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: bronzeGold, marginBottom: 4 }}>ATHLETE LOGS (LAST SESSION)</Text>
+                              <View style={{ backgroundColor: 'rgba(200,160,64,0.05)', borderRadius: 6, padding: 12, borderWidth: 1, borderColor: 'rgba(200,160,64,0.2)' }}>
+                                <Text style={{ fontFamily: 'System', fontSize: 13, color: theme.text.primary, fontStyle: 'italic' }}>
+                                  {athleteLogs[block.id]}
+                                </Text>
+                              </View>
+                            </View>
+                          )}
+
+                          {/* Exercises added to this block */}
+                          <View style={{ gap: 12, marginTop: 8 }}>
+                            {block.exercises.map((ex) => (
+                              <View
+                                key={ex.id}
+                                style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
+                              >
+                                <View style={styles.exInfoCol}>
+                                  <Text style={[styles.exTitle, { color: theme.text.primary }]}>
+                                    {ex.name.toUpperCase()}
+                                  </Text>
+                                  {ex.youtube_url ? (
+                                    <TouchableOpacity onPress={() => Linking.openURL(ex.youtube_url)} style={{ padding: 4 }}>
+                                      <Text style={{ fontSize: 18 }}>🎥</Text>
+                                    </TouchableOpacity>
+                                  ) : null}
+                                </View>
+
+                                {/* Exercise Attributes Inputs Grid */}
+                                <View style={styles.exInputsGrid}>
+                                  {(!block.metadata || (!block.metadata.type && !block.metadata.structure) || block.metadata.type === 'single' || block.metadata.structure === 'single') ? (
+                                    <>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>SETS</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.sets}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'sets', val)}
+                                          keyboardType="numeric"
+                                          placeholder="4"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.reps}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
+                                          placeholder="10"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                      <View style={styles.exInputCol}>
+                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
+                                        <TextInput
+                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                                          value={ex.rest_seconds}
+                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'rest_seconds', val)}
+                                          keyboardType="numeric"
+                                          placeholder="90S"
+                                          placeholderTextColor="rgba(255,255,255,0.1)"
+                                        />
+                                      </View>
+                                    </>
+                                  ) : block.metadata?.structure === 'ladder' ? (
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
+                                      <View style={[styles.exField, { borderColor: theme.card.border, backgroundColor: 'rgba(0,0,0,0.2)', justifyContent: 'center' }]}>
+                                        <Text style={{ color: '#C8A040', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.5 }}>
+                                          LADDER CONTROLLED: [{BlockConceptParser.getLadderSequence(block.metadata || {})}]
+                                        </Text>
+                                      </View>
+                                    </View>
+                                  ) : (
+                                    <View style={{ flex: 1 }}>
+                                      <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
+                                      <TextInput
+                                        style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
+                                        value={ex.reps}
+                                        onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
+                                        placeholder="E.g. 10 reps, or 30s holds"
+                                        placeholderTextColor="rgba(255,255,255,0.1)"
+                                      />
+                                    </View>
+                                  )}
+                                </View>
+
+                                {/* Exercise Notes */}
+                                <View style={{ width: '100%', marginTop: 8 }}>
+                                  <TextInput
+                                    style={[styles.exNotesField, { color: theme.text.secondary, borderColor: theme.card.border }]}
+                                    value={ex.notes}
+                                    onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'notes', val)}
+                                    placeholder="Execution notes, tempo, weights, or details..."
+                                    placeholderTextColor="rgba(255,255,255,0.15)"
+                                  />
+                                </View>
+
+                                {/* Remove Exercise */}
+                                <TouchableOpacity
+                                  style={styles.exDeleteBtn}
+                                  onPress={() => handleDeleteExerciseFromBlock(day.id, block.id, ex.id)}
+                                >
+                                  <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
+                                </TouchableOpacity>
+                              </View>
+                            ))}
+
+                            <TouchableOpacity
+                              style={[styles.addExerciseTrigger, { borderColor: bronzeGold }]}
+                              onPress={() => handleOpenPicker(day.id, block.id)}
+                            >
+                              <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE TO BLOCK</Text>
+                            </TouchableOpacity>
+
+                            {/* Block Action Buttons (Moved from Header) */}
+                            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 16 }}>
                               <TouchableOpacity
                                 style={[styles.reorderBtn, blockIdx === 0 && { opacity: 0.3 }]}
                                 onPress={() => handleMoveBlockWithinDay(day.id, blockIdx, 'up')}
@@ -1294,323 +1657,83 @@ export function ProgramBuilderScreen({ coachId, templateId, onSave, onClose }: P
                                 >
                                   <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>DELETE</Text>
                                 </TouchableOpacity>
-                              </LinearGradient>
-                            </View>
+                                </LinearGradient>
+                              </View>
                           </View>
-
-                          {/* WORKOUT CONCEPT SELECTOR */}
-                          <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)', gap: 10 }}>
-                            <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: theme.text.secondary, letterSpacing: 1 }}>WORKOUT CONCEPT</Text>
-                            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-                              {([
-                                { key: 'single', label: 'SINGLE EXERCISE' },
-                                { key: 'superset', label: 'SUPER SET' },
-                                { key: 'circuit', label: 'CIRCUIT' },
-                                { key: 'amrap', label: 'AMRAP TIMER' },
-                                { key: 'fortime', label: 'FOR TIME TIMER' }
-                              ] as const).map(option => {
-                                const active = (block.type || 'single') === option.key;
-                                return (
-                                  <LinearGradient
-                                    key={option.key}
-                                    colors={active ? ['#7E57C2', '#FF5252', '#FF7043'] : [inactiveBorder, inactiveBorder]}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={{ padding: 1.2, borderRadius: 12 }}
-                                  >
-                                    <TouchableOpacity
-                                      style={{
-                                        backgroundColor: active ? 'transparent' : solidCardBg,
-                                        borderRadius: 11,
-                                        paddingVertical: 5,
-                                        paddingHorizontal: 12,
-                                        justifyContent: 'center',
-                                        alignItems: 'center'
-                                      }}
-                                      onPress={() => handleUpdateBlockValue(day.id, block.id, 'type', option.key)}
-                                    >
-                                      <Text style={{
-                                        fontFamily: 'BarlowCondensed-Bold',
-                                        fontSize: 10,
-                                        letterSpacing: 0.5,
-                                        color: active ? '#FFFFFF' : theme.text.secondary
-                                      }}>{option.label}</Text>
-                                    </TouchableOpacity>
-                                  </LinearGradient>
-                                );
-                              })}
-                            </View>
-                          </View>
-
-                          {/* CONCEPT CONFIGURATION PANEL */}
-                          {block.type === 'superset' && (
-                            <View style={{ flexDirection: 'row', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>SUPERSET ROUNDS</Text>
-                                <TextInput
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor: theme.card.border,
-                                    borderRadius: 6,
-                                    padding: 8,
-                                    color: theme.text.primary,
-                                    backgroundColor: 'rgba(0,0,0,0.15)',
-                                    fontSize: 13
-                                  }}
-                                  value={block.rounds || '4'}
-                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rounds', val)}
-                                  keyboardType="numeric"
-                                  placeholder="4"
-                                  placeholderTextColor="rgba(255,255,255,0.1)"
-                                />
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>REST TIME AFTER ROUND (SEC)</Text>
-                                <TextInput
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor: theme.card.border,
-                                    borderRadius: 6,
-                                    padding: 8,
-                                    color: theme.text.primary,
-                                    backgroundColor: 'rgba(0,0,0,0.15)',
-                                    fontSize: 13
-                                  }}
-                                  value={block.rest_after_round || '90'}
-                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rest_after_round', val)}
-                                  keyboardType="numeric"
-                                  placeholder="90"
-                                  placeholderTextColor="rgba(255,255,255,0.1)"
-                                />
-                              </View>
-                            </View>
-                          )}
-
-                          {block.type === 'circuit' && (
-                            <View style={{ flexDirection: 'row', gap: 16, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>CIRCUIT ROUNDS</Text>
-                                <TextInput
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor: theme.card.border,
-                                    borderRadius: 6,
-                                    padding: 8,
-                                    color: theme.text.primary,
-                                    backgroundColor: 'rgba(0,0,0,0.15)',
-                                    fontSize: 13
-                                  }}
-                                  value={block.rounds || '4'}
-                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rounds', val)}
-                                  keyboardType="numeric"
-                                  placeholder="4"
-                                  placeholderTextColor="rgba(255,255,255,0.1)"
-                                />
-                              </View>
-                              <View style={{ flex: 1 }}>
-                                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>REST TIME AFTER LAP (SEC)</Text>
-                                <TextInput
-                                  style={{
-                                    borderWidth: 1,
-                                    borderColor: theme.card.border,
-                                    borderRadius: 6,
-                                    padding: 8,
-                                    color: theme.text.primary,
-                                    backgroundColor: 'rgba(0,0,0,0.15)',
-                                    fontSize: 13
-                                  }}
-                                  value={block.rest_after_round || '90'}
-                                  onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'rest_after_round', val)}
-                                  keyboardType="numeric"
-                                  placeholder="90"
-                                  placeholderTextColor="rgba(255,255,255,0.1)"
-                                />
-                              </View>
-                            </View>
-                          )}
-
-                          {block.type === 'amrap' && (
-                            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
-                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>AMRAP COUNTDOWN LIMIT (MINUTES)</Text>
-                              <TextInput
-                                style={{
-                                  borderWidth: 1,
-                                  borderColor: theme.card.border,
-                                  borderRadius: 6,
-                                  padding: 8,
-                                  color: theme.text.primary,
-                                  backgroundColor: 'rgba(0,0,0,0.15)',
-                                  fontSize: 13,
-                                  width: '50%'
-                                }}
-                                value={block.timer_seconds || '10'}
-                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'timer_seconds', val)}
-                                keyboardType="numeric"
-                                placeholder="10"
-                                placeholderTextColor="rgba(255,255,255,0.1)"
-                              />
-                            </View>
-                          )}
-
-                          {block.type === 'fortime' && (
-                            <View style={{ paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.03)' }}>
-                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: theme.text.secondary, marginBottom: 4 }}>OPTIONAL TIME CAP (MINUTES)</Text>
-                              <TextInput
-                                style={{
-                                  borderWidth: 1,
-                                  borderColor: theme.card.border,
-                                  borderRadius: 6,
-                                  padding: 8,
-                                  color: theme.text.primary,
-                                  backgroundColor: 'rgba(0,0,0,0.15)',
-                                  fontSize: 13,
-                                  width: '50%'
-                                }}
-                                value={block.timer_seconds || '10'}
-                                onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'timer_seconds', val)}
-                                keyboardType="numeric"
-                                placeholder="10"
-                                placeholderTextColor="rgba(255,255,255,0.1)"
-                              />
-                            </View>
-                          )}
-
-                          {/* CONCEPT CONDITIONAL EXERCISE COUNT WARNINGS */}
-                          {block.type === 'superset' && block.exercises.length !== 2 && (
-                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
-                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
-                                WARNING: SUPER SETS TYPICALLY REQUIRE EXACTLY 2 EXERCISES. CURRENT COUNT: {block.exercises.length}
-                              </Text>
-                            </View>
-                          )}
-                          {block.type === 'circuit' && block.exercises.length < 3 && (
-                            <View style={{ marginVertical: 8, padding: 8, borderRadius: 6, backgroundColor: 'rgba(200,160,64,0.1)', borderWidth: 1, borderColor: bronzeGold }}>
-                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, color: bronzeGold, textAlign: 'center' }}>
-                                WARNING: CIRCUITS TYPICALLY REQUIRE 3 OR MORE EXERCISES. CURRENT COUNT: {block.exercises.length}
-                              </Text>
-                            </View>
-                          )}
-
-                          {/* Block Notes */}
-                          <View style={{ paddingVertical: 12 }}>
-                            <TextInput
-                              style={[styles.blockNotesInput, { color: theme.text.secondary, borderColor: theme.card.border }]}
-                              value={block.notes}
-                              onChangeText={(val) => handleUpdateBlockValue(day.id, block.id, 'notes', val)}
-                              placeholder="Warm up instructions, block objectives, or performance notes..."
-                              placeholderTextColor="rgba(255, 255, 255, 0.2)"
-                              multiline={true}
-                              numberOfLines={2}
-                            />
-                          </View>
-
-                          {/* Exercises added to this block */}
-                          <View style={{ gap: 12, marginTop: 8 }}>
-                            {block.exercises.map((ex) => (
-                              <View
-                                key={ex.id}
-                                style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
-                              >
-                                <View style={styles.exInfoCol}>
-                                  <Text style={[styles.exTitle, { color: theme.text.primary }]}>
-                                    {ex.name.toUpperCase()}
-                                  </Text>
-                                  {ex.youtube_url ? (
-                                    <TouchableOpacity onPress={() => Linking.openURL(ex.youtube_url)} style={{ padding: 4 }}>
-                                      <Text style={{ fontSize: 18 }}>🎥</Text>
-                                    </TouchableOpacity>
-                                  ) : null}
-                                </View>
-
-                                {/* Exercise Attributes Inputs Grid */}
-                                <View style={styles.exInputsGrid}>
-                                  {(!block.type || block.type === 'single') ? (
-                                    <>
-                                      <View style={styles.exInputCol}>
-                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>SETS</Text>
-                                        <TextInput
-                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                                          value={ex.sets}
-                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'sets', val)}
-                                          keyboardType="numeric"
-                                          placeholder="4"
-                                          placeholderTextColor="rgba(255,255,255,0.1)"
-                                        />
-                                      </View>
-                                      <View style={styles.exInputCol}>
-                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
-                                        <TextInput
-                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                                          value={ex.reps}
-                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
-                                          placeholder="10"
-                                          placeholderTextColor="rgba(255,255,255,0.1)"
-                                        />
-                                      </View>
-                                      <View style={styles.exInputCol}>
-                                        <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
-                                        <TextInput
-                                          style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                                          value={ex.rest_seconds}
-                                          onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'rest_seconds', val)}
-                                          keyboardType="numeric"
-                                          placeholder="90S"
-                                          placeholderTextColor="rgba(255,255,255,0.1)"
-                                        />
-                                      </View>
-                                    </>
-                                  ) : (
-                                    <View style={{ flex: 1 }}>
-                                      <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
-                                      <TextInput
-                                        style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
-                                        value={ex.reps}
-                                        onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'reps', val)}
-                                        placeholder="E.g. 10 reps, or 30s holds"
-                                        placeholderTextColor="rgba(255,255,255,0.1)"
-                                      />
-                                    </View>
-                                  )}
-                                </View>
-
-                                {/* Exercise Notes */}
-                                <View style={{ width: '100%', marginTop: 8 }}>
-                                  <TextInput
-                                    style={[styles.exNotesField, { color: theme.text.secondary, borderColor: theme.card.border }]}
-                                    value={ex.notes}
-                                    onChangeText={(val) => handleUpdateExerciseValue(day.id, block.id, ex.id, 'notes', val)}
-                                    placeholder="Execution notes, tempo, weights, or details..."
-                                    placeholderTextColor="rgba(255,255,255,0.15)"
-                                  />
-                                </View>
-
-                                {/* Remove Exercise */}
-                                <TouchableOpacity
-                                  style={styles.exDeleteBtn}
-                                  onPress={() => handleDeleteExerciseFromBlock(day.id, block.id, ex.id)}
-                                >
-                                  <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
-                                </TouchableOpacity>
-                              </View>
-                            ))}
-
-                            {/* Add exercise trigger */}
-                            <TouchableOpacity
-                              style={[styles.addExerciseTrigger, { borderColor: bronzeGold }]}
-                              onPress={() => handleOpenPicker(day.id, block.id)}
-                            >
-                              <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE TO BLOCK</Text>
-                            </TouchableOpacity>
-                          </View>
+                        </View>
+                      )}
                         </View>
                       </LinearGradient>
                     ))
+                  )}
+                  </View>
+                  
+                  {/* Day Action Buttons (Moved from Header) */}
+                  <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 16 }}>
+                    <TouchableOpacity
+                      style={[styles.reorderBtn, dayIdx === 0 && { opacity: 0.3 }]}
+                      onPress={() => handleMoveDay(dayIdx, 'up')}
+                      disabled={dayIdx === 0}
+                    >
+                      <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.reorderBtn, dayIdx === days.length - 1 && { opacity: 0.3 }]}
+                      onPress={() => handleMoveDay(dayIdx, 'down')}
+                      disabled={dayIdx === days.length - 1}
+                    >
+                      <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
+                    </TouchableOpacity>
+                     {!useWeeklyStructure && (
+                      <LinearGradient
+                        colors={['#FF5252', '#FF7043', '#FF8A80']}
+                        start={{ x: 0, y: 0 }}
+                        end={{ x: 1, y: 0 }}
+                        style={{ padding: 1.2, borderRadius: 12 }}
+                      >
+                        <TouchableOpacity
+                          style={{
+                            backgroundColor: solidCardBg,
+                            borderRadius: 11,
+                            paddingVertical: 5,
+                            paddingHorizontal: 12,
+                            justifyContent: 'center',
+                            alignItems: 'center'
+                          }}
+                          onPress={() => handleDeleteDay(day.id)}
+                        >
+                          <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>DELETE DAY</Text>
+                        </TouchableOpacity>
+                      </LinearGradient>
                     )}
-                    </View>
-                  </LinearGradient>
-                ))
-              )}
-            </View>
+                    <LinearGradient
+                      colors={['#7E57C2', '#FF5252', '#FF7043']}
+                      start={{ x: 0, y: 0 }}
+                      end={{ x: 1, y: 0 }}
+                      style={{ padding: 1.2, borderRadius: 12 }}
+                    >
+                      <TouchableOpacity
+                        style={{
+                          backgroundColor: solidCardBg,
+                          borderRadius: 11,
+                          paddingVertical: 5,
+                          paddingHorizontal: 12,
+                          justifyContent: 'center',
+                          alignItems: 'center'
+                        }}
+                        onPress={() => handleAddBlockToDay(day.id)}
+                      >
+                        <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>+ ADD BLOCK</Text>
+                      </TouchableOpacity>
+                    </LinearGradient>
+                  </View>
+                  </>
+                )}
+              </View>
+            </LinearGradient>
+          ))
+        )}
+      </View>
 
             {/* SAVE TRIGGER */}
             <View style={{ marginTop: 24, paddingBottom: 40 }}>

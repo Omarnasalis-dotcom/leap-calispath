@@ -19,7 +19,7 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
-import { Button } from '../components/Button';
+
 import { TrialService } from '../services/TrialService';
 import { useTimer } from '../hooks/useTimer';
 
@@ -55,12 +55,21 @@ export function TrialScreen({
   const { user, profile, refreshProfile } = useAuth();
   const { theme } = useTheme();
   const [trial, setTrial] = useState<Trial | null>(null);
-  const [completedMovements, setCompletedMovements] = useState<boolean[]>([]);
+  const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
+
+  const getTierAccentColor = (tier: number) => {
+    if (tier <= 2) return '#B0BEC5'; // Foundation - Steel
+    if (tier <= 5) return '#FF7043'; // Crucible - Orange
+    if (tier <= 8) return '#D32F2F'; // Abyss - Deep Red
+    return '#FFD700'; // Eternity - Gold
+  };
+
+  const accentColor = trial ? getTierAccentColor(trial.tier) : theme.accent;
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const lightningAnim = useRef(new Animated.Value(0)).current;
@@ -97,7 +106,7 @@ export function TrialScreen({
       const t = getTrialForTier(targetTier);
       if (t) {
         setTrial(t);
-        setCompletedMovements(new Array(t.movements.length).fill(false));
+        setCurrentStepIdx(0);
       }
     }
   }, [profile, targetTier, hasStarted, trial]);
@@ -146,14 +155,14 @@ export function TrialScreen({
     }
   }, [prepCountdown]);
 
-  function toggleMovement(index: number) {
-    if (!hasStarted) return; // Prevent checking until started
-
-    setCompletedMovements((prev) => {
-      const next = [...prev];
-      next[index] = !next[index];
-      return next;
-    });
+  function handleNextStep() {
+    if (!hasStarted || !trial) return;
+    
+    if (currentStepIdx < trial.movements.length - 1) {
+      setCurrentStepIdx(currentStepIdx + 1);
+    } else {
+      handleClaimRank();
+    }
   }
 
   async function doAbandon() {
@@ -240,8 +249,7 @@ export function TrialScreen({
     }
   }
 
-  const allCompleted = completedMovements.every(Boolean);
-  const canClaim = allCompleted && hasStarted;
+  // removed allCompleted and canClaim logic here
 
   if (!trial) {
     return (
@@ -401,125 +409,146 @@ export function TrialScreen({
     );
   }
 
+  const currentStep = trial.movements[currentStepIdx];
+  const nextStep1 = currentStepIdx + 1 < trial.movements.length ? trial.movements[currentStepIdx + 1] : null;
+  const nextStep2 = currentStepIdx + 2 < trial.movements.length ? trial.movements[currentStepIdx + 2] : null;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <View style={styles.header}>
+    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      {/* Header */}
+      <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
         <TouchableOpacity style={styles.backButton} onPress={handleBack}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
+          <MaterialCommunityIcons name="chevron-left" size={32} color={accentColor} />
         </TouchableOpacity>
-        <Text style={[styles.trialName, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
-        {mode === 'practice' && (
-          <Text style={[styles.modeBadge, {
-            backgroundColor: 'rgba(205,127,50,0.2)',
-            color: theme.accent
-          }]}>PRACTICE MODE</Text>
-        )}
-        {mode === 'eternal' && (
-          <Text style={[styles.eternalBadge, {
-            backgroundColor: '#8B0000',
-            color: '#FFFFFF'
-          }]}>ETERNAL</Text>
-        )}
-        <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>Tier {targetTier}</Text>
-      </View>
-
-      <View style={styles.timerFrameContainer}>
-        <Animated.View style={[
-          styles.lightningFrame,
-          {
-            transform: [{ scale: pulseAnim }],
-            opacity: hasStarted ? 1 : 0,
-          }
-        ]} />
-        <Animated.View style={[styles.timerContainer, { transform: [{ scale: pulseAnim }] }]}>
-          <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
-          <Text style={[styles.timerLabel, { color: theme.text.secondary }]}>
-            {hasStarted ? 'RUNNING' : 'READY'}
-          </Text>
-        </Animated.View>
-      </View>
-
-      {/* START TRIAL Button - Moved to top */}
-      {!hasStarted && prepCountdown === null && (
-        <View style={styles.startButtonContainer}>
-          <Button
-            title="START TRIAL"
-            onPress={startTrial}
-            variant="primary"
-          />
+        <View style={[styles.headerTitleFrame, { borderColor: accentColor }]}>
+          <Text style={[styles.title, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
         </View>
-      )}
+        <View style={{ width: 44 }} />
+      </View>
 
-      {/* Countdown - Standardized overlay style */}
-      {!hasStarted && prepCountdown !== null && (
-        <View style={styles.countdownContainer}>
-          <Text style={[styles.countdownText, { color: theme.accent }]}>
-            {prepCountdown === 0 ? 'GO!' : prepCountdown}
-          </Text>
-          <Text style={{ color: theme.text.tertiary, fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 }}>GET READY</Text>
+      <ScrollView contentContainerStyle={styles.scrollContent}>
+        {/* Badges */}
+        <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
+          {mode === 'practice' && (
+            <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>PRACTICE MODE</Text>
+            </View>
+          )}
+          {mode === 'eternal' && (
+            <View style={[styles.badge, { backgroundColor: accentColor }]}>
+              <Text style={[styles.badgeText, { color: '#FFF' }]}>ETERNAL</Text>
+            </View>
+          )}
+          <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
+            <Text style={[styles.badgeText, { color: theme.text.primary }]}>TIER {targetTier}</Text>
+          </View>
+        </View>
+
+        {/* Timer Frame */}
+        <View style={styles.timerFrameContainer}>
+          <Animated.View style={[styles.timerContainer, { transform: [{ scale: pulseAnim }] }]}>
+            <Text style={[styles.timerLabel, { color: theme.text.tertiary, marginBottom: 4 }]}>
+              {hasStarted ? 'TRIAL CLOCK' : 'READY'}
+            </Text>
+            <Text style={[styles.timer, { color: '#FFFFFF' }]}>{formatTime(timeSeconds)}</Text>
+          </Animated.View>
+        </View>
+
+        {/* Trial Overview (Before Start) */}
+        {!hasStarted && prepCountdown === null && (
+          <View style={styles.overviewContainer}>
+            <Text style={[styles.overviewTitle, { color: theme.text.tertiary }]}>TRIAL OVERVIEW</Text>
+            {trial.movements.map((movement, idx) => (
+              <View key={idx} style={[styles.overviewRow, { borderBottomColor: theme.card.border }]}>
+                <Text style={[styles.overviewNum, { color: accentColor }]}>{idx + 1}</Text>
+                <Text style={[styles.overviewName, { color: theme.text.primary }]}>{movement.name}</Text>
+                <Text style={[styles.overviewReps, { color: theme.text.secondary }]}>{movement.reps}x</Text>
+              </View>
+            ))}
+          </View>
+        )}
+
+        {/* START TRIAL Button */}
+        {!hasStarted && prepCountdown === null && (
           <TouchableOpacity 
-            style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 40, paddingHorizontal: 20 }]} 
-            onPress={cancelPreparation}
+            style={[styles.mainStartButton, { backgroundColor: accentColor }]}
+            onPress={startTrial}
           >
-            <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+            <Text style={styles.mainStartButtonText}>BEGIN TRIAL</Text>
+            <MaterialCommunityIcons name="sword-cross" size={20} color="#FFF" />
           </TouchableOpacity>
-        </View>
-      )}
+        )}
 
-      <View style={[styles.card, {
-        backgroundColor: theme.card.background,
-        borderColor: theme.card.border
-      }]}>
-        <Text style={[styles.sectionTitle, { color: theme.accent }]}>MOVEMENTS</Text>
-        {trial.movements.map((movement, index) => (
-          <TouchableOpacity
-            key={index}
-            style={[
-              styles.movementRow,
-              completedMovements[index] && styles.movementRowCompleted,
-            ]}
-            onPress={() => toggleMovement(index)}
-          >
-            <View style={[styles.checkbox, {
-              borderColor: theme.card.border,
-              backgroundColor: completedMovements[index] ? theme.accent : 'transparent'
-            }]}>
-              {completedMovements[index] && (
-                <Text style={styles.checkmark}>✓</Text>
-              )}
+        {/* Countdown */}
+        {!hasStarted && prepCountdown !== null && (
+          <View style={styles.countdownContainer}>
+            <Text style={[styles.countdownText, { color: accentColor }]}>
+              {prepCountdown === 0 ? 'GO!' : prepCountdown}
+            </Text>
+            <Text style={{ color: theme.text.tertiary, fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 }}>GET READY</Text>
+            <TouchableOpacity 
+              style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 40, paddingHorizontal: 20 }]} 
+              onPress={cancelPreparation}
+            >
+              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+
+        {/* Workout Sequence */}
+        {hasStarted && (
+          <View style={styles.mainDisplay}>
+            {/* Progress Bar */}
+            <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
+              <View style={[styles.progressFill, { backgroundColor: accentColor, width: `${(currentStepIdx / trial.movements.length) * 100}%` }]} />
             </View>
-            <View style={styles.movementInfo}>
-              <Text style={[styles.movementName, { color: theme.text.primary }]}>{movement.name}</Text>
-              <Text style={[styles.movementReps, { color: theme.text.secondary }]}>{movement.reps} reps</Text>
+
+            {/* Current Step Card */}
+            <View style={[styles.currentStepCard, { backgroundColor: theme.card.background, borderColor: accentColor }]}>
+              <Text style={[styles.stepCounter, { color: accentColor }]}>STEP {currentStepIdx + 1} OF {trial.movements.length}</Text>
+              <Text style={[styles.currentStepName, { color: theme.text.primary }]}>{currentStep.name.toUpperCase()}</Text>
+              <View style={styles.currentStepStats}>
+                <Text style={[styles.currentStepReps, { color: theme.text.primary }]}>{currentStep.reps}x</Text>
+              </View>
             </View>
-          </TouchableOpacity>
-        ))}
-      </View>
 
-      {/* Claim/Save and Abandon buttons - Only visible after starting */}
-      {hasStarted && (
-        <View style={styles.claimActions}>
-          <Button
-            title={mode === 'progression' ? 'CLAIM RANK' : 'SAVE TIME'}
-            onPress={handleClaimRank}
-            loading={loading}
-            variant="primary"
-            disabled={!canClaim}
-          />
-          <Button
-            title="ABANDON"
-            onPress={handleAbandon}
-            variant="secondary"
-          />
-        </View>
-      )}
+            {/* Upcoming Steps Preview */}
+            {(nextStep1 || nextStep2) && (
+              <View style={styles.upcomingSection}>
+                <Text style={[styles.nextLabel, { color: theme.text.tertiary, marginBottom: 8 }]}>UPCOMING</Text>
+                
+                {nextStep1 && (
+                  <View style={[styles.nextStepCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                    <Text style={[styles.nextName, { color: theme.text.primary }]}>{nextStep1.name.toUpperCase()}</Text>
+                    <Text style={[styles.nextReps, { color: theme.text.secondary }]}>{nextStep1.reps}x</Text>
+                  </View>
+                )}
+                
+                {nextStep2 && (
+                  <View style={[styles.nextStepCard, { backgroundColor: theme.card.background, borderColor: theme.card.border, opacity: 0.5, marginTop: 8 }]}>
+                    <Text style={[styles.nextName, { color: theme.text.primary }]}>{nextStep2.name.toUpperCase()}</Text>
+                    <Text style={[styles.nextReps, { color: theme.text.secondary }]}>{nextStep2.reps}x</Text>
+                  </View>
+                )}
+              </View>
+            )}
 
-      <Text style={styles.hint}>
-        {canClaim
-          ? 'All movements complete! Claim your rank.'
-          : 'Check each box as you complete the movement.'}
-      </Text>
-    </ScrollView>
+            <TouchableOpacity 
+              style={[styles.completeStepButton, { backgroundColor: accentColor }]} 
+              onPress={handleNextStep}
+            >
+              <Text style={styles.completeStepText}>
+                {currentStepIdx === trial.movements.length - 1 ? 'FINISH TRIAL' : 'STEP COMPLETED'}
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.abandonBottomButton} onPress={handleAbandon}>
+              <Text style={[styles.abandonBottomText, { color: theme.text.tertiary }]}>ABANDON TRIAL</Text>
+            </TouchableOpacity>
+          </View>
+        )}
+      </ScrollView>
+    </View>
   );
 }
 
@@ -600,19 +629,44 @@ const styles = StyleSheet.create({
     marginTop: 48,
   },
   header: {
+    flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 24,
-    position: 'relative',
-    width: '100%',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
+    paddingTop: 60,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
   },
   backButton: {
-    position: 'absolute',
-    left: 0,
-    top: -8,
-    padding: 15,
-    zIndex: 10,
-    minWidth: 44,
-    minHeight: 44,
+    width: 44,
+    height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTitleFrame: {
+    borderWidth: 2,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 4,
+  },
+  title: {
+    fontSize: 14,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  scrollContent: {
+    padding: 20,
+    paddingBottom: 60,
+  },
+  badge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 4,
+  },
+  badgeText: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1,
   },
   trialName: {
     fontSize: 24,
@@ -647,108 +701,206 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   timerFrameContainer: {
-    position: 'relative',
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: 40,
+    marginTop: 20,
   },
   timerContainer: {
     alignItems: 'center',
   },
-  lightningFrame: {
-    position: 'absolute',
-    width: 200,
-    height: 80,
-    borderWidth: 3,
-    borderColor: '#87CEEB',
-    borderRadius: 12,
-    shadowColor: '#87CEEB',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.8,
-    shadowRadius: 10,
-    elevation: 10,
-  },
   timer: {
-    fontSize: 64,
+    fontSize: 56,
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
   },
   timerLabel: {
     fontSize: 12,
     letterSpacing: 4,
-    marginTop: 8,
+    fontWeight: '900',
   },
-  card: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
+  mainStartButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 16,
+    borderRadius: 12,
+    gap: 12,
+    marginHorizontal: 20,
+  },
+  mainStartButtonText: {
+    color: '#FFF',
+    fontSize: 16,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  countdownContainer: {
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  countdownText: {
+    fontSize: 80,
+    fontWeight: '900',
+  },
+  cancelBtn: {
     borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.3)',
+    paddingVertical: 12,
+    borderRadius: 8,
+  },
+  cancelBtnText: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 1,
+  },
+  mainDisplay: {
+    width: '100%',
+  },
+  progressBar: {
+    height: 4,
+    width: '100%',
+    borderRadius: 2,
+    marginBottom: 24,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+  },
+  currentStepCard: {
+    padding: 32,
+    borderRadius: 20,
+    borderWidth: 2,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  stepCounter: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 3,
+    marginBottom: 12,
+  },
+  currentStepName: {
+    fontSize: 28,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 1,
+    marginBottom: 16,
+  },
+  currentStepStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  currentStepReps: {
+    fontSize: 48,
+    fontWeight: '900',
+  },
+  nextStepCard: {
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  nextLabel: {
+    fontSize: 9,
+    fontWeight: '800',
+    letterSpacing: 2,
+    marginBottom: 4,
+  },
+  nextName: {
+    fontSize: 14,
+    fontWeight: '800',
+    letterSpacing: 0.5,
+    marginBottom: 2,
+  },
+  nextReps: {
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  overviewContainer: {
+    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 16,
     padding: 20,
+    marginHorizontal: 20,
     marginBottom: 24,
   },
-  sectionTitle: {
-    fontSize: 14,
-    fontWeight: '700',
+  overviewTitle: {
+    fontSize: 12,
+    fontWeight: '900',
     letterSpacing: 2,
     marginBottom: 16,
   },
-  movementRow: {
+  overviewRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.2)',
-    marginBottom: 8,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
   },
-  movementRowCompleted: {
-    backgroundColor: 'rgba(205,127,50,0.1)',
-    borderColor: '#CD7F32',
-  },
-  checkbox: {
+  overviewNum: {
     width: 24,
-    height: 24,
-    borderRadius: 12,
-    borderWidth: 2,
-    borderColor: 'rgba(205,127,50,0.5)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  checkmark: {
-    color: '#CD7F32',
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '900',
   },
-  movementInfo: {
+  overviewName: {
     flex: 1,
+    fontSize: 14,
+    fontWeight: '700',
   },
-  movementName: {
+  overviewReps: {
+    fontSize: 14,
+    fontWeight: '900',
+  },
+  upcomingSection: {
+    marginTop: 8,
+  },
+  completeStepButton: {
+    paddingVertical: 22,
+    borderRadius: 16,
+    alignItems: 'center',
+    marginTop: 32,
+    elevation: 8,
+  },
+  completeStepText: {
+    color: '#FFF',
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '900',
+    letterSpacing: 3,
   },
-  movementReps: {
-    fontSize: 14,
-    marginTop: 2,
+  abandonBottomButton: {
+    paddingVertical: 20,
+    alignItems: 'center',
+    marginTop: 8,
   },
-  startButtonContainer: {
-    marginVertical: 24,
-    paddingHorizontal: 20,
+  abandonBottomText: {
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 2,
+    opacity: 0.6,
   },
-  claimActions: {
-    flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 20,
-    marginTop: 16,
-  },
-  abandonOnly: {
-    paddingHorizontal: 20,
-    marginTop: 16,
-  },
-  hint: {
+  victoryTime: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.7)',
     marginTop: 24,
+  },
+  strategosMessage: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.4)',
-    textAlign: 'center',
+    color: '#CD7F32',
+    fontStyle: 'italic',
+    marginTop: 16,
+  },
+  continueButton: {
+    marginTop: 48,
+    backgroundColor: '#8B0000',
+    paddingVertical: 20,
+    paddingHorizontal: 40,
+    borderRadius: 8,
+    shadowColor: '#8B0000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.5,
+    shadowRadius: 15,
+  },
+  continueButtonText: {
+    fontSize: 16,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 3,
   },
   victoryContainer: {
     flex: 1,
@@ -797,56 +949,5 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 8,
-  },
-  victoryTime: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 24,
-  },
-  strategosMessage: {
-    fontSize: 14,
-    color: '#CD7F32',
-    fontStyle: 'italic',
-    marginTop: 16,
-  },
-  continueButton: {
-    marginTop: 48,
-    backgroundColor: '#8B0000',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-    shadowColor: '#8B0000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 3,
-  },
-  countdownContainer: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-  },
-  countdownText: {
-    fontSize: 48,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-  },
-  cancelBtn: {
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  cancelBtnText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 2,
   },
 });

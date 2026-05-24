@@ -13,7 +13,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { ExerciseLibraryScreen } from './ExerciseLibraryScreen';
 import { ProgramBuilderScreen } from './ProgramBuilderScreen';
-import { AssignProgramScreen } from './AssignProgramScreen';
+import { MyClientsScreen } from './MyClientsScreen';
 import { ProgressTrackingScreen } from './ProgressTrackingScreen';
 
 type Tab = 'library' | 'builder' | 'assign' | 'progress';
@@ -27,7 +27,7 @@ interface Tab_Config {
 const TABS: Tab_Config[] = [
   { key: 'library',  label: 'EXERCISES',  icon: 'dumbbell' },
   { key: 'builder',  label: 'BUILDER',    icon: 'hammer-wrench' },
-  { key: 'assign',   label: 'ASSIGN',     icon: 'account-arrow-right' },
+  { key: 'assign',   label: 'MY CLIENTS', icon: 'account-arrow-right' },
   { key: 'progress', label: 'PROGRESS',   icon: 'chart-line' },
 ];
 
@@ -82,14 +82,9 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
         );
       case 'assign':
         return (
-          <AssignProgramScreen
-            coachId={coachId}
+          <MyClientsScreen
+            coachId={profile?.id}
             isAdmin={isAdmin}
-            onClose={() => handleTabChange('library')}
-            onAdjustProgram={(templateId) => {
-              setActiveTemplateIdForBuilder(templateId);
-              setActiveTab('builder'); // Use raw setActiveTab here to avoid clearing the ID
-            }}
           />
         );
       case 'progress':

@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AssessmentScreen } from '../src/screens/AssessmentScreen';
+import { MyClientsScreen } from '../src/screens/coaching/MyClientsScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
@@ -9,9 +9,9 @@ export default function Route() {
   
   return (
     <SpartanLayout>
-      <AssessmentScreen 
-        {...params}
-        onComplete={() => router.back()}
+      <MyClientsScreen 
+        coachId={params.coachId as string}
+        isAdmin={params.isAdmin === 'true'}
       />
     </SpartanLayout>
   );

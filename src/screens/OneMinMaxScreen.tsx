@@ -454,6 +454,13 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
             </Text>
             <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
           </View>
+          {leaderboardData.length === 0 && (
+            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
+              <Text style={{ color: theme.text.tertiary, fontSize: 12, letterSpacing: 1 }}>
+                NO SCORES YET — COMPLETE A ONE-MINUTE MAX TO APPEAR
+              </Text>
+            </View>
+          )}
           {leaderboardData.map((item, i) => (
             <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? '#FF704320' : 'transparent' }]}>
               <View style={[styles.lbRank, { backgroundColor: i < 3 ? '#FF704330' : 'transparent' }]}>

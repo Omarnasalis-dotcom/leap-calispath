@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Platform } from 'react-native';
+import { Platform, AppState, AppStateStatus } from 'react-native';
 
 export interface UseTimerResult {
   seconds: number;
@@ -83,6 +83,24 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
       document.addEventListener('visibilitychange', handleVisibilityChange);
       return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
     }
+  }, [isRunning, mode, initialSeconds]);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+    const handleAppStateChange = (nextState: AppStateStatus) => {
+      if (nextState === 'active' && isRunning && startTimeRef.current !== null) {
+        const delta = Math.floor((Date.now() - startTimeRef.current) / 1000);
+        if (mode === 'up') {
+          setSeconds(delta);
+        } else {
+          const remaining = initialSeconds - delta;
+          setSeconds(remaining > 0 ? remaining : 0);
+          if (remaining <= 0) stop();
+        }
+      }
+    };
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
   }, [isRunning, mode, initialSeconds]);
 
   return { seconds, isRunning, start, stop, reset, setSeconds };

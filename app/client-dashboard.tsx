@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { AssignProgramScreen } from '../src/screens/coaching/AssignProgramScreen';
+import { ClientDashboardScreen } from '../src/screens/coaching/ClientDashboardScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
@@ -9,8 +9,9 @@ export default function Route() {
   
   return (
     <SpartanLayout>
-      <AssignProgramScreen 
-        {...params}
+      <ClientDashboardScreen 
+        warriorId={params.warriorId as string}
+        templateId={params.templateId as string}
       />
     </SpartanLayout>
   );

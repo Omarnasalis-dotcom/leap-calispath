@@ -10,9 +10,9 @@ export default function Route() {
   return (
     <SpartanLayout>
       <LeaderboardScreen 
-        onPracticeTier={() => {}} 
+        onPracticeTier={(tier) => router.push({ pathname: '/trial', params: { tier, mode: 'practice' } })} 
         onClose={() => router.back()} 
-        onStartEternal={() => {}} 
+        onStartEternal={() => router.push({ pathname: '/trial', params: { mode: 'eternal' } })} 
         {...params}
       />
     </SpartanLayout>

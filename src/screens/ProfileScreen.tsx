@@ -54,7 +54,10 @@ export function ProfileScreen({
   const onOpenAssessment = () => router.push('/assessment');
   const onOpenStaticWorld = () => router.push('/static-world');
   const onOpenOneMinMax = () => router.push('/one-min-max');
-  const onStartTrial = (tier?: number) => router.push({ pathname: '/trial', params: { tier } });
+  const onStartTrial = (tier?: number) => {
+    const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
+    router.push({ pathname: '/trial', params: { tier, mode } });
+  };
   const onViewLeaderboards = (category: 'strength' | 'power', tier: number) => router.push({ pathname: '/leaderboard', params: { category, tier } });
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
@@ -746,6 +749,11 @@ export function ProfileScreen({
               <Text style={[styles.tierCircleSubValue, { color: theme.text.tertiary }]}>
                 OF {tierRankData.total}
               </Text>
+              {tierRankData.total === 0 && (
+                <Text style={{ color: theme.text.tertiary, fontSize: 9, textAlign: 'center', marginTop: 2 }}>
+                  NO ENTRIES YET
+                </Text>
+              )}
             </View>
 
             {/* Center Circle: Main Tier */}
