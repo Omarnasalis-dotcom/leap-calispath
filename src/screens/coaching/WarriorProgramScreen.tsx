@@ -136,6 +136,28 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     loadWarriorProgram();
   }, [warriorId]);
 
+  const handleClose = () => {
+    if (timerRunning) {
+      Alert.alert(
+        'ACTIVE TIMER',
+        'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
+        [
+          { text: 'STAY', style: 'cancel', onPress: () => {} },
+          {
+            text: 'LEAVE',
+            style: 'destructive',
+            onPress: () => {
+              setTimerRunning(false);
+              if (onClose) onClose();
+            },
+          },
+        ]
+      );
+    } else {
+      if (onClose) onClose();
+    }
+  };
+
   // Navigation Guard (prevent leaving while timer is running)
   useEffect(() => {
     const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
@@ -743,7 +765,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           >
             <TouchableOpacity
               style={[styles.closeButton, { borderWidth: 0, backgroundColor: theme.card.background, paddingVertical: 4, paddingHorizontal: 12 }]}
-              onPress={onClose}
+              onPress={handleClose}
             >
               <Text style={[styles.closeButtonText, { color: theme.text.primary, fontSize: 10 }]}>CLOSE</Text>
             </TouchableOpacity>
