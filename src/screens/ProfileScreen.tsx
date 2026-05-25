@@ -26,7 +26,7 @@ import { WarriorCard } from '../components/atoms/WarriorCard';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
-import { ScoreBar } from '../components/profile/ScoreBar';
+import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -297,242 +297,27 @@ export function ProfileScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      {/* Coach + Admin Buttons - Grouped Top Left */}
-      <View style={{ position: 'absolute', top: 54, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={() => setShowCoachPrompt(true)}
-        >
-          <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40', height: 24, paddingHorizontal: 6 }]}>
-            <MaterialCommunityIcons name="brain" size={12} color={theme.accent} />
-            <Text style={[styles.coachBadgeText, { color: theme.accent, fontSize: 8 }]}>COACH</Text>
-          </View>
-        </TouchableOpacity>
-
-        {profile?.is_admin && (
-          <TouchableOpacity
-            activeOpacity={0.7}
-            onPress={onOpenAdmin}
-            style={{
-              width: 24,
-              height: 24,
-              borderRadius: 4,
-              backgroundColor: theme.accent + '20',
-              borderColor: theme.accent + '40',
-              borderWidth: 1,
-              justifyContent: 'center',
-              alignItems: 'center',
-            }}
-          >
-            <MaterialCommunityIcons name="shield-crown" size={12} color={theme.accent} />
-          </TouchableOpacity>
-        )}
-      </View>
-
-      {/* 2. Access Status - Upper Center */}
-      <View style={{ position: 'absolute', top: 60, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
-        <Text style={{ 
-          color: theme.text.tertiary, 
-          fontSize: 8, 
-          fontWeight: '700',
-          letterSpacing: 0.5,
-          opacity: 0.6
-        }}>
-          {!profile.access_expires_at 
-            ? 'GUEST ACCESS' 
-            : new Date(profile.access_expires_at).getFullYear() > 2100 
-              ? 'LIFETIME MEMBERSHIP' 
-              : (() => {
-                  const days = Math.ceil((new Date(profile.access_expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                  return `${days > 0 ? days : 0} DAYS REMAINING • ${new Date(profile.access_expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}`;
-                })()
-          }
-        </Text>
-      </View>
-
-
-
-      <ScrollView>
-        <View style={styles.header}>
-          {/* User Avatar with Tier Info */}
-          <View style={styles.avatarSection}>
-            {/* User Display Name Above Rings with Coach Trigger */}
-            <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 10 }}>
-
-              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
-                  {profile.first_name || profile.last_name 
-                    ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
-                    : 'WARRIOR'}
-                </Text>
-              </View>
-
-              <Text style={{ color: theme.text.tertiary, fontSize: 13, marginTop: 4, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 1 }}>
-                @{profile.display_name?.toLowerCase() || 'warrior'}
-              </Text>
-            </View>
-
-            <TouchableOpacity
-              style={styles.avatarWrapper}
-              activeOpacity={0.7}
-              onPress={() => setShowWarriorModal(true)}
-            >
-              {/* Concentric rings avatar — 8 rings, one per tier, filled outward */}
-              {Array.from({ length: 8 }).map((_, i) => {
-                const ringIndex = i + 1;
-                const filled = ringIndex <= activeCurrentTier;
-                const OUTER_SIZE = 160;
-                const INNER_SIZE = 60;
-                const size = OUTER_SIZE - i * ((OUTER_SIZE - INNER_SIZE) / 7);
-                const alpha = filled ? 0.25 + (ringIndex / 8) * 0.75 : 0.08;
-                const alphaHex = Math.round(alpha * 255).toString(16).padStart(2, '0');
-                const glowSize = filled ? 4 + ringIndex * 1.5 : 0;
-                const borderW = filled ? 1 + ringIndex * 0.08 : 1.5;
-
-                return (
-                  <View
-                    key={ringIndex}
-                    style={[
-                      styles.concentricRing,
-                      {
-                        width: size,
-                        height: size,
-                        borderRadius: size / 2,
-                        borderWidth: borderW,
-                        borderColor: filled ? `${theme.accent}${alphaHex}` : `${theme.accent}14`,
-                        shadowColor: filled ? theme.accent : 'transparent',
-                        shadowOffset: { width: 0, height: 0 },
-                        shadowOpacity: filled ? alpha * 0.5 : 0,
-                        shadowRadius: glowSize,
-                        elevation: filled ? ringIndex : 0,
-                      }
-                    ]}
-                  />
-                );
-              })}
-
-              {/* Centre: tier number only */}
-              <View style={styles.concentricCenter}>
-                <Text style={[styles.arcTierNumber, { color: theme.accent, fontSize: 42 }]}>
-                  {activeCurrentTier}
-                </Text>
-              </View>
-            </TouchableOpacity>
-
-            {/* Tier name + progress label below the rings */}
-            <Text style={[styles.arcTierName, { color: theme.accent }]}>
-              {(category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || 'UNKNOWN'}
-            </Text>
-            <Text style={[styles.arcTierProgress, { color: theme.text.tertiary }]}>
-              {activeCurrentTier === 8 ? 'Maximum rank — Eternity' : `Tier ${activeCurrentTier} of 8`}
-            </Text>
-
-            {/* Warrior Stats Bars - Under Tier/Avatar */}
-            <View style={[
-              styles.rightStatsColumn,
-              {
-                width: '92%',
-                marginTop: 10,
-                backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
-                borderColor: mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-                alignSelf: 'center'
-              }
-            ]}>
-              <ScoreBar
-                title="⚔️ Well-Rounded Athlete"
-                subtitle="Static · Power · 1MM"
-                score={wraScore}
-                rank="Leaderboard →"
-                max={WRA_MAX}
-                color={theme.accent}
-                onPress={fetchWRALeaderboard}
-                showCrown={wraScore > 0}
-                mode={mode}
-                cardBackground={theme.card.background}
-                chips={[
-                  { label: 'Static', value: staticPts, color: '#9FC5E8' },
-                  { label: 'Power', value: powerPts, color: '#FF5722' },
-                  { label: '1MM', value: mmPts, color: '#4CAF50' },
-                ]}
-              />
-              <ScoreBar
-                title="🏆 Glory Arena"
-                subtitle="Competitive Clash Performance"
-                score={gloryPts}
-                rank="Arena Ranks →"
-                max={GLORY_MAX}
-                color="#FF5252"
-                onPress={fetchGloryLeaderboard}
-                showCrown={gloryPts > 0}
-                mode={mode}
-                cardBackground={theme.card.background}
-                chips={[
-                  { label: 'Glory pts', value: gloryPts, color: '#FF5252' },
-                ]}
-              />
-            </View>
-          </View>
-        </View>
-
-        {mode !== undefined && (
-          <View style={{ width: '92%', alignSelf: 'center', marginTop: 16, marginBottom: 8 }}>
-            {((profile as any)?.is_coach || profile?.is_admin) ? (
-              onOpenCoachingCenter && (
-                <LinearGradient
-                  colors={['#7E57C2', '#FF5252', '#FF7043']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{ padding: 1.2, borderRadius: 8 }}
-                >
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingVertical: 12,
-                      borderRadius: 7,
-                      gap: 8
-                    }}
-                    onPress={onOpenCoachingCenter}
-                  >
-                    <MaterialCommunityIcons name="brain" size={16} color="#FF7043" />
-                    <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13, letterSpacing: 1.5, color: mode === 'dark' ? '#FFFFFF' : '#000000' }}>
-                      COACHING CENTER
-                    </Text>
-                  </TouchableOpacity>
-                </LinearGradient>
-              )
-            ) : (
-              onOpenWarriorProgram && (
-                <LinearGradient
-                  colors={['#7E57C2', '#FF5252', '#FF7043']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{ padding: 1.2, borderRadius: 8 }}
-                >
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF',
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      paddingVertical: 12,
-                      borderRadius: 7,
-                      gap: 8
-                    }}
-                    onPress={onOpenWarriorProgram}
-                  >
-                    <MaterialCommunityIcons name="clipboard-text-outline" size={16} color="#FF7043" />
-                    <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13, letterSpacing: 1.5, color: mode === 'dark' ? '#FFFFFF' : '#000000' }}>
-                      MY WORKOUT PROGRAM
-                    </Text>
-                  </TouchableOpacity>
-                </LinearGradient>
-              )
-            )}
-          </View>
-        )}
+      <ProfileHeader
+        profile={profile}
+        category={category}
+        activeCurrentTier={activeCurrentTier}
+        mode={mode}
+        theme={theme}
+        wraScore={wraScore}
+        staticPts={staticPts}
+        powerPts={powerPts}
+        mmPts={mmPts}
+        gloryPts={gloryPts}
+        WRA_MAX={WRA_MAX}
+        GLORY_MAX={GLORY_MAX}
+        onShowWarriorModal={() => setShowWarriorModal(true)}
+        onShowCoachPrompt={() => setShowCoachPrompt(true)}
+        onOpenAdmin={onOpenAdmin}
+        onFetchWRALeaderboard={fetchWRALeaderboard}
+        onFetchGloryLeaderboard={fetchGloryLeaderboard}
+        onOpenCoachingCenter={onOpenCoachingCenter}
+        onOpenWarriorProgram={onOpenWarriorProgram}
+      />
 
         {/* Mode Grid - 2 Column Layout */}
         {/* World Pills Grid - 2 Rows (4 + 3) */}
