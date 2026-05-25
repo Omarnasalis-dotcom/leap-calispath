@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 
@@ -63,28 +63,17 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   handleStartRest,
   handleBlockComplete,
 }) => {
+  const [showEndWarning, setShowEndWarning] = React.useState(false);
+
   return (
-    <Modal
+    <>
+      <Modal
       visible={timerModalVisible}
       transparent={true}
       animationType="slide"
       onRequestClose={() => {
         if (timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
-          Alert.alert(
-            "WARNING",
-            "Are you sure you want to end the timer early?",
-            [
-              { text: 'Cancel', style: 'cancel' },
-              { 
-                text: 'End Timer', 
-                style: 'destructive',
-                onPress: () => {
-                  setTimerRunning(false);
-                  setTimerModalVisible(false);
-                }
-              }
-            ]
-          );
+          setShowEndWarning(true);
         } else {
           setTimerRunning(false);
           setTimerModalVisible(false);
@@ -188,21 +177,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                   handleForTimeCompletion(activeTimerBlockId, elapsedTime);
                 } else {
                   if (timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
-                    Alert.alert(
-                      "WARNING",
-                      "Are you sure you want to end the timer early?",
-                      [
-                        { text: 'Cancel', style: 'cancel' },
-                        { 
-                          text: 'End Timer', 
-                          style: 'destructive',
-                          onPress: () => {
-                            setTimerRunning(false);
-                            setTimerModalVisible(false);
-                          }
-                        }
-                      ]
-                    );
+                    setShowEndWarning(true);
                   } else {
                     if (timerType === 'rest' && (currentRound >= totalRounds - 1 && timeLeft === restSeconds)) {
                       handleBlockComplete(activeTimerBlockId);
@@ -246,9 +221,49 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
               );
             })()}
           </ScrollView>
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+
+      {/* Custom Alert Modal for cross-platform compatibility */}
+      <Modal
+        visible={showEndWarning}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowEndWarning(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 1, borderColor: '#FF6B6B', maxWidth: 320, padding: 24 }]}>
+            <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, color: '#FF6B6B', textAlign: 'center', marginBottom: 12, letterSpacing: 1 }}>
+              WARNING
+            </Text>
+            <Text style={{ color: theme.text.primary, fontSize: 14, fontFamily: 'Barlow-Regular', textAlign: 'center', marginBottom: 24 }}>
+              Are you sure you want to end the timer early?
+            </Text>
+            
+            <View style={{ flexDirection: 'row', gap: 12 }}>
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 6, borderWidth: 1, borderColor: theme.card.border, alignItems: 'center' }}
+                onPress={() => setShowEndWarning(false)}
+              >
+                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={{ flex: 1, paddingVertical: 12, borderRadius: 6, backgroundColor: 'rgba(255, 107, 107, 0.15)', borderWidth: 1, borderColor: '#FF6B6B', alignItems: 'center' }}
+                onPress={() => {
+                  setShowEndWarning(false);
+                  setTimerRunning(false);
+                  setTimerModalVisible(false);
+                }}
+              >
+                <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>END TIMER</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
   );
 };
 
