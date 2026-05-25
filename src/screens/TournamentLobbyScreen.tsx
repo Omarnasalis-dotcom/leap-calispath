@@ -109,6 +109,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
       }
     } catch (error) {
       console.error('Error fetching lobby data:', error);
+      Alert.alert('Error', 'Failed to load tournament lobby. Please try again.');
     } finally {
       setLoading(false);
     }

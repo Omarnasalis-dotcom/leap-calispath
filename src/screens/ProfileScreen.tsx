@@ -149,6 +149,7 @@ export function ProfileScreen({
         }
       } catch (e) {
         console.error('Error loading rank:', e);
+        setTierRankData({ rank: null, total: 0, gap: null });
       }
     }
     loadRank();

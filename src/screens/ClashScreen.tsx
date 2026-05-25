@@ -98,7 +98,10 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
       try {
         const warriors = await ClashService.getAvailableWarriors(user.id);
         if (isMounted) setAvailableWarriors(warriors);
-      } catch (e) { console.error(e); }
+      } catch (e) {
+        console.error(e);
+        showAlert('Connection Error', 'Failed to load available warriors. Pull down to refresh.');
+      }
     };
 
     initLobby();

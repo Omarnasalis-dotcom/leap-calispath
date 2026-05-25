@@ -32,7 +32,10 @@ export class ClashService {
       .update({ is_searching_clash: isSearching })
       .eq('id', userId);
     
-    if (error) console.error('Toggle status error:', error);
+    if (error) {
+      console.error('Toggle status error:', error);
+      throw new Error('Failed to update clash search status. Please try again.');
+    }
   }
 
   /**
@@ -134,7 +137,7 @@ export class ClashService {
 
       if (error) {
         console.error('Error finishing clash session:', error);
-        return { success: false };
+        return { success: false, error: 'Failed to save clash result. Please check your connection.' };
       }
 
       return {

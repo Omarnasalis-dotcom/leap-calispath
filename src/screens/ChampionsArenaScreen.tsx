@@ -1,6 +1,6 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Alert, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ArenaService, ArenaPhase } from '../services/ArenaService';
@@ -38,6 +38,7 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
       if (data.length > 0) setSelectedPhase(data[0]);
     } catch (error) {
       console.error('Arena load error:', error);
+      Alert.alert('Error', 'Failed to load Champions Arena. Please try again.');
     } finally {
       setLoading(false);
     }
