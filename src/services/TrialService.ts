@@ -8,7 +8,9 @@ export interface TrialResult {
   isProgression: boolean;
 }
 
-const EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_SUPABASE_URL + '/functions/v1/submit-trial-result';
+// Use the same URL pattern as supabase.ts
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vxscvluyskawegmwaxnh.supabase.co';
+const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/submit-trial-result`;
 
 export class TrialService {
   /**

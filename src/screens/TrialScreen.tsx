@@ -382,7 +382,7 @@ export function TrialScreen({
                 backgroundColor: 'rgba(139,0,0,0.1)',
                 alignItems: 'center',
               }}
-              onPress={onAbandon}
+              onPress={() => { onBack ? onBack() : onAbandon?.(); }}
             >
               <Text style={{
                 color: '#CC0000',
