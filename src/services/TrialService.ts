@@ -1,5 +1,4 @@
 import { supabase } from '../lib/supabase';
-import { Trial, getTrialForTier } from '../lib/trials';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
 
 export interface TrialResult {
@@ -9,9 +8,12 @@ export interface TrialResult {
   isProgression: boolean;
 }
 
+const EDGE_FUNCTION_URL = process.env.EXPO_PUBLIC_SUPABASE_URL + '/functions/v1/submit-trial-result';
+
 export class TrialService {
   /**
-   * Validates if a trial time is suspicious (Anti-cheat)
+   * Client-side pre-check — catches obvious bad input before network call.
+   * Server-side Edge Function is the authoritative validator.
    */
   static isTimeValid(tier: number, timeSeconds: number): boolean {
     const minTime = TIER_HARD_FLOORS[tier] ?? 42;
@@ -19,67 +21,54 @@ export class TrialService {
   }
 
   /**
-   * Submits a trial result and updates user profile if needed
+   * Submits a trial result via the Edge Function (server-side validated).
+   * The Edge Function handles: auth, hard floor check, cooldown, and DB write.
    */
   static async submitResult(result: TrialResult) {
-    const { userId, tier, timeSeconds, isProgression } = result;
+    const { tier, timeSeconds, isProgression } = result;
 
-    // 1. Log attempt to history
-    const { error: historyError } = await supabase.from('trial_history').insert({
-      user_id: userId,
-      tier_attempted: tier,
-      completed: true,
-      time_seconds: timeSeconds,
-    });
-
-    if (historyError) throw historyError;
-
-    // 1.5 Anti-cheat: Block progression if time is suspicious
+    // Client-side pre-check for immediate UX feedback
     if (!this.isTimeValid(tier, timeSeconds)) {
       throw new Error('DISHONOR: Time defies human limits for this tier.');
     }
 
-    // 2. Fetch current profile to update best times
-    const { data: profile, error: pError } = await supabase
-      .from('profiles')
-      .select('best_times, strength_tier, trials_passed, trials_attempted')
-      .eq('id', userId)
-      .single();
-
-    if (pError) throw pError;
-
-    const newBestTimes = {
-      ...profile.best_times,
-      [tier]: Math.min(timeSeconds, profile.best_times[tier] || Infinity),
-    };
-
-    const updates: any = {
-      best_times: newBestTimes,
-      trials_attempted: (profile.trials_attempted || 0) + 1,
-      updated_at: new Date().toISOString(),
-    };
-
-    if (isProgression) {
-      // Cap at 8: completing the Demigod trial (tier 8) awards Demigod rank (8).
-      // Only completing the Eternity Protocol trial (tier 9) awards Eternity rank (9).
-      const newTierValue = tier < 8 ? tier + 1 : tier;
-      updates.strength_tier = Math.max(profile.strength_tier, newTierValue);
-      updates.trials_passed = (profile.trials_passed || 0) + 1;
+    // Get current session token
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    if (sessionError || !session) {
+      throw new Error('Not authenticated. Please sign in again.');
     }
 
-    // 3. Update profile
-    const { error: uError } = await supabase
-      .from('profiles')
-      .update(updates)
-      .eq('id', userId);
+    // Call the Edge Function — server is the authority
+    const response = await fetch(EDGE_FUNCTION_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
+        tier,
+        time_seconds: timeSeconds,
+        mode: isProgression ? 'progression' : 'practice',
+      }),
+    });
 
-    if (uError) throw uError;
+    const data = await response.json();
 
-    return { success: true, newTier: updates.strength_tier || profile.strength_tier };
+    if (!response.ok) {
+      if (data.error === 'DISHONOR') {
+        throw new Error('DISHONOR: Time defies human limits for this tier.');
+      }
+      if (data.error === 'TOO_FAST') {
+        throw new Error(data.message || 'Please wait before submitting again.');
+      }
+      throw new Error(data.error || 'Failed to save trial result. Please try again.');
+    }
+
+    return { success: true };
   }
 
   /**
-   * Logs an abandoned trial
+   * Logs an abandoned trial — no validation needed, just a record.
    */
   static async logAbandon(userId: string, tier: number, timeSeconds: number) {
     return await supabase.from('trial_history').insert({
