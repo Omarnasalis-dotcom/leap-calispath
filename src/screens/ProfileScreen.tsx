@@ -27,6 +27,7 @@ import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { WorldSelectorGrid } from '../components/profile/WorldSelectorGrid';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -297,7 +298,8 @@ export function ProfileScreen({
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <ProfileHeader
+      <ScrollView>
+        <ProfileHeader
         profile={profile}
         category={category}
         activeCurrentTier={activeCurrentTier}
@@ -319,50 +321,21 @@ export function ProfileScreen({
         onOpenWarriorProgram={onOpenWarriorProgram}
       />
 
-      <ScrollView>
         {/* Mode Grid - 2 Column Layout */}
-        {/* World Pills Grid - 2 Rows (4 + 3) */}
-        <View style={styles.worldPillsGrid}>
-          {[
-            { id: 'strength', name: 'STRENGTH', icon: '⚔️', unlockTier: 0, action: () => handleCategorySwitch('strength') },
-            { id: 'power', name: 'POWER', icon: '⚡', unlockTier: 6, action: onOpenPowerAssessment },
-            { id: 'static', name: 'STATIC', icon: '🧊', unlockTier: 1, action: onOpenStaticWorld },
-            { id: '1mm', name: '1MM', icon: '⏱️', unlockTier: 0, action: onOpenOneMinMax },
-            { id: 'tournament', name: 'TOURNAMENT', icon: '🏟️', unlockTier: 0, action: onOpenTournamentArena },
-            { id: 'clash', name: 'CLASH', icon: '🔥', unlockTier: 2, action: onOpenClash },
-            { id: 'weekly', name: 'WEEKLY', icon: '🏆', unlockTier: 0, action: onOpenWeeklyChallenge },
-            { id: 'champions', name: 'CHAMPIONS', icon: '🏛️', unlockTier: 8, action: onOpenChampionsArena },
-          ].map((world) => {
-            const isActive = category === world.id;
-            const isUnlocked = (profile?.strength_tier || 0) >= world.unlockTier;
-            return (
-              <TouchableOpacity
-                key={world.id}
-                onPress={() => {
-                  if (isUnlocked) {
-                    world.action?.();
-                  } else {
-                    Alert.alert('Locked', `Reach Tier ${world.unlockTier} to unlock ${world.name}.`);
-                  }
-                }}
-                style={[
-                  styles.worldPillCompact,
-                  {
-                    backgroundColor: isActive ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)'),
-                    borderColor: isActive ? theme.accent : `${theme.accent}40`,
-                    opacity: isUnlocked ? 1 : 0.4
-                  }
-                ]}
-              >
-                <Text style={{ fontSize: 12 }}>{world.icon}</Text>
-                <Text style={[styles.worldPillText, { color: isActive ? '#000' : theme.text.primary }]} numberOfLines={1}>
-                  {world.name}
-                </Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
-
+        <WorldSelectorGrid
+          category={category}
+          strengthTier={profile?.strength_tier || 0}
+          mode={mode}
+          theme={theme}
+          onSwitchStrength={() => handleCategorySwitch('strength')}
+          onOpenPowerAssessment={onOpenPowerAssessment}
+          onOpenStaticWorld={onOpenStaticWorld}
+          onOpenOneMinMax={onOpenOneMinMax}
+          onOpenTournamentArena={onOpenTournamentArena}
+          onOpenClash={onOpenClash}
+          onOpenWeeklyChallenge={onOpenWeeklyChallenge}
+          onOpenChampionsArena={onOpenChampionsArena}
+        />
         {/* Tier Selector - Category-specific Tiers */}
         <View style={styles.tierSelectorSection}>
           <View style={styles.sectionHeader}>
