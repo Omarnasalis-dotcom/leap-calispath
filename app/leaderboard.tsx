@@ -5,15 +5,17 @@ import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
   const router = useRouter();
-  const params = useLocalSearchParams();
+  const { tier, ...rest } = useLocalSearchParams();
+  
+  const initialTier = tier ? parseInt(tier as string, 10) : undefined;
   
   return (
     <SpartanLayout>
       <LeaderboardScreen 
-        onPracticeTier={(tier) => router.push({ pathname: '/trial', params: { tier, mode: 'practice' } })} 
+        onPracticeTier={(tierNum) => router.push({ pathname: '/trial', params: { tier: tierNum, mode: 'practice' } })} 
         onClose={() => router.back()} 
         onStartEternal={() => router.push({ pathname: '/trial', params: { mode: 'eternal' } })} 
-        {...params}
+        initialTier={initialTier}
       />
     </SpartanLayout>
   );

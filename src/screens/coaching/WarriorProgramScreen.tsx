@@ -23,9 +23,14 @@ import { AssessmentEngine, AssessmentRecommendation } from '../../lib/Assessment
 import { OneMMService } from '../../services/OneMMService';
 import { PowerService } from '../../services/PowerService';
 import { StaticService } from '../../services/StaticService';
+import { WarriorExerciseRow } from '../../components/coaching/WarriorExerciseRow';
+import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
+import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
+import { useWarriorTimer } from '../../hooks/useWarriorTimer';
+import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 
 
-interface ExerciseDetail {
+export interface ExerciseDetail {
   id: string | number;
   name: string;
   youtube_url: string;
@@ -35,7 +40,7 @@ interface ExerciseDetail {
   notes: string;
 }
 
-interface ProgramBlock {
+export interface ProgramBlock {
   id: string | number;
   name: string;
   notes: string;
@@ -45,7 +50,7 @@ interface ProgramBlock {
   week_number?: number;
 }
 
-interface ProgramDay {
+export interface ProgramDay {
   name: string;
   blocks: ProgramBlock[];
 }
@@ -88,14 +93,35 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [logWeightUsed, setLogWeightUsed] = useState('');
   const [logLadderProgress, setLogLadderProgress] = useState('');
 
-  // Active Timer State
-  const [activeTimerBlockId, setActiveTimerBlockId] = useState<string | number | null>(null);
-  const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | null>(null);
-  const [timeLeft, setTimeLeft] = useState<number>(0);
-  const [timerRunning, setTimerRunning] = useState<boolean>(false);
-  const [elapsedTime, setElapsedTime] = useState<number>(0);
-  const [timerModalVisible, setTimerModalVisible] = useState<boolean>(false);
-  const [timerPrepCountdown, setTimerPrepCountdown] = useState<number | null>(null);
+  // Active Timer State (Extracted to Hook)
+  const {
+    activeTimerBlockId,
+    timerType,
+    timeLeft,
+    timerRunning,
+    setTimerRunning,
+    elapsedTime,
+    timerModalVisible,
+    setTimerModalVisible,
+    timerPrepCountdown,
+    startTimerForBlock,
+    formatTimerString,
+    currentRound,
+    totalRounds,
+    handleStartRest,
+    restSeconds
+  } = useWarriorTimer({ 
+    onAmrapComplete: (blockId) => {
+      if (!blockId) return;
+      setTimerModalVisible(false);
+      setActiveLogBlockId(blockId);
+      setLogStatus('completed');
+      setLogNotes('');
+      setLogRating(5);
+      setLogAmrapRounds('');
+      setLogModalVisible(true);
+    }
+  });
 
   // Video Preview Modal State removed (now opens natively)
 
@@ -559,73 +585,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  // Prep Countdown Effect
-  useEffect(() => {
-    let interval: any = null;
-    if (timerPrepCountdown !== null && timerPrepCountdown > 0) {
-      SoundServiceInstance.playTick();
-      interval = setInterval(() => {
-        setTimerPrepCountdown(prev => {
-          if (prev && prev <= 1) {
-            clearInterval(interval);
-            SoundServiceInstance.playBoxingBell();
-            setTimerPrepCountdown(null);
-            setTimerRunning(true);
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
-    } else if (timerPrepCountdown === 0) {
-      setTimerPrepCountdown(null);
-      setTimerRunning(true);
-    }
-    return () => clearInterval(interval);
-  }, [timerPrepCountdown]);
 
-  // Dynamic Block Timer Utilities & Tick Effect
-  useEffect(() => {
-    let interval: any = null;
-    if (timerRunning) {
-      interval = setInterval(() => {
-        if (timerType === 'amrap' || timerType === 'rest') {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              setTimerRunning(false);
-              clearInterval(interval);
-              SoundServiceInstance.playDigitalBuzzer();
-
-              if (timerType === 'amrap') {
-                handleTimerCompletion(activeTimerBlockId);
-              } else {
-                Alert.alert("TIME'S UP!", "REST TIME OVER! GET READY FOR YOUR NEXT ROUND.");
-              }
-              return 0;
-            }
-            return prev - 1;
-          });
-        } else if (timerType === 'fortime') {
-          setElapsedTime(prev => prev + 1);
-        }
-      }, 1000);
-    } else {
-      clearInterval(interval);
-    }
-    return () => clearInterval(interval);
-  }, [timerRunning, timerType, activeTimerBlockId]);
-
-  const handleTimerCompletion = (blockId: string | number | null) => {
-    if (!blockId) return;
-    setTimerModalVisible(false);
-
-    // Auto-open modal for AMRAP to log rounds
-    setActiveLogBlockId(blockId);
-    setLogStatus('completed');
-    setLogNotes('');
-    setLogRating(5);
-    setLogAmrapRounds('');
-    setLogModalVisible(true);
-  };
 
   const handleForTimeCompletion = (blockId: string | number | null, elapsedSeconds: number) => {
     if (!blockId) return;
@@ -700,39 +660,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  const startTimerForBlock = (block: ProgramBlock) => {
-    setActiveTimerBlockId(block.id);
-    const metaType = block.metadata?.timing_system || block.metadata?.type;
-    const structure = block.metadata?.structure || block.metadata?.type;
-    
-    if (metaType === 'amrap') {
-      setTimerType('amrap');
-      const min = parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10);
-      setTimeLeft(min * 60);
-      setTimerRunning(false);
-      setTimerPrepCountdown(5);
-      setTimerModalVisible(true);
-    } else if (metaType === 'fortime') {
-      setTimerType('fortime');
-      setElapsedTime(0);
-      setTimerRunning(false);
-      setTimerPrepCountdown(5);
-      setTimerModalVisible(true);
-    } else if (structure === 'superset' || structure === 'circuit' || structure === 'ladder') {
-      setTimerType('rest');
-      const restSec = parseInt(String(block.metadata?.rest_after_round || '90'), 10);
-      setTimeLeft(restSec);
-      setTimerRunning(false);
-      setTimerPrepCountdown(3);
-      setTimerModalVisible(true);
-    }
-  };
-
-  const formatTimerString = (seconds: number): string => {
-    const m = Math.floor(seconds / 60);
-    const s = seconds % 60;
-    return `${m}:${s < 10 ? '0' : ''}${s}`;
-  };
 
   const toggleBlockExpanded = (blockId: string | number) => {
     setExpandedBlocks(prev => ({
@@ -1025,260 +952,22 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 {/* BLOCKS / WORKOUTS LIST */}
                 <View style={{ gap: 16, paddingBottom: 100 }}>
                   {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock) => {
-                    const isExpanded = !!expandedBlocks[block.id];
-                    const isMissed = block.completedStatus === 'missed';
                     return (
-                      <LinearGradient
+                      <WarriorBlockCard
                         key={block.id}
-                        colors={['#7E57C2', '#FF5252', '#FF7043']}
-                        start={{ x: 0, y: 0 }}
-                        end={{ x: 1, y: 0 }}
-                        style={{ padding: 1.2, borderRadius: 12, opacity: isMissed ? 0.75 : 1 }}
-                      >
-                        {block.metadata?.is_tier_trial ? (
-                          <TouchableOpacity
-                            style={{
-                              padding: 24,
-                              backgroundColor: solidCardBg,
-                              borderRadius: 11,
-                              alignItems: 'center',
-                              justifyContent: 'center'
-                            }}
-                            onPress={() => {
-                              router.push({
-                                pathname: '/trial',
-                                params: { mode: 'practice', tier: strengthTier }
-                              });
-                            }}
-                          >
-                            <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24, color: theme.text.primary, letterSpacing: 2 }}>
-                              PRACTICE TIER {strengthTier}
-                            </Text>
-                            <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1, marginTop: 4 }}>
-                              START OFFICIAL TIER ASSESSMENT
-                            </Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <View
-                            style={[
-                              styles.blockCard,
-                              {
-                                backgroundColor: solidCardBg,
-                                borderWidth: 0,
-                                borderRadius: 11,
-                                marginBottom: 0
-                              }
-                            ]}
-                          >
-                            {/* Collapsible Block Header */}
-                            <TouchableOpacity
-                              style={[styles.blockHeader, { borderBottomColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, borderBottomWidth: isExpanded ? 1 : 0 }]}
-                              onPress={() => toggleBlockExpanded(block.id)}
-                            >
-                              <View style={{ flex: 1, paddingRight: 8 }}>
-                                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                                  <Text style={{ fontSize: 12, color: theme.text.secondary }}>{isExpanded ? '▼' : '▶'}</Text>
-                                  <Text style={[styles.blockName, { color: theme.text.primary, fontSize: 16 }]}>
-                                    {block.name.toUpperCase()}
-                                  </Text>
-                                </View>
-                                {!isExpanded && (
-                                  <Text style={{ color: theme.text.tertiary, fontSize: 11, marginTop: 4, fontFamily: 'BarlowCondensed-Bold' }} numberOfLines={1}>
-                                    {BlockConceptParser.getSubtitle(block.metadata || {}, block.exercises.map(ex => ex.name.toUpperCase()))}
-                                  </Text>
-                                )}
-                              </View>
-                              <TouchableOpacity
-                                style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 6 }}
-                                onPress={(e) => {
-                                  e.stopPropagation();
-                                  handleToggleBlockStatus(block.id, block.completedStatus);
-                                }}
-                              >
-                                <View
-                                  style={{
-                                    width: 22,
-                                    height: 22,
-                                    borderRadius: 4,
-                                    borderWidth: 1,
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    backgroundColor: block.completedStatus === 'completed'
-                                      ? 'rgba(76, 175, 80, 0.1)'
-                                      : (block.completedStatus === 'missed' ? 'rgba(255, 107, 107, 0.1)' : 'transparent'),
-                                    borderColor: block.completedStatus === 'completed'
-                                      ? '#4CAF50'
-                                      : (block.completedStatus === 'missed' ? '#FF6B6B' : theme.card.border)
-                                  }}
-                                >
-                                  {block.completedStatus === 'completed' && <Text style={{ color: '#4CAF50', fontSize: 12, fontWeight: 'bold' }}>✓</Text>}
-                                  {block.completedStatus === 'missed' && <Text style={{ color: '#FF6B6B', fontSize: 11, fontWeight: 'bold' }}>✗</Text>}
-                                </View>
-                                <Text
-                                  style={{
-                                    fontFamily: 'BarlowCondensed-Bold',
-                                    fontSize: 11,
-                                    letterSpacing: 0.5,
-                                    color: block.completedStatus === 'completed'
-                                      ? '#4CAF50'
-                                      : (block.completedStatus === 'missed' ? '#FF6B6B' : theme.text.tertiary)
-                                  }}
-                                >
-                                  {block.completedStatus === 'completed' ? 'COMPLETED' : (block.completedStatus === 'missed' ? 'MISSED' : 'NOT LOGGED')}
-                                </Text>
-                              </TouchableOpacity>
-                            </TouchableOpacity>
-
-                            {/* Collapsible Content */}
-                            {isExpanded && (
-                              <View style={{ marginTop: 12 }}>
-                                {/* Expanded Subtitle Badge */}
-                                <View style={{ backgroundColor: 'rgba(200,160,64,0.05)', alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 6, marginBottom: block.notes ? 8 : 0, borderWidth: 1, borderColor: 'rgba(200,160,64,0.2)' }}>
-                                  <Text style={{ color: bronzeGold, fontSize: 13, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1 }}>
-                                    {BlockConceptParser.getSubtitle(block.metadata || {}, block.exercises.map(ex => ex.name.toUpperCase()))}
-                                  </Text>
-                                </View>
-
-                                {/* Block Description Notes */}
-                                {block.notes ? (
-                                  <Text style={[styles.blockNotes, { color: theme.text.secondary, marginTop: 0 }]}>
-                                    {block.notes}
-                                  </Text>
-                                ) : null}
-
-                                {/* Exercises Details */}
-                                <View style={{ gap: 12, marginTop: 12 }}>
-                                  {block.exercises.map((ex: ExerciseDetail) => (
-                                    <View
-                                      key={ex.id}
-                                      style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
-                                    >
-                                      <View style={styles.exInfoRow}>
-                                        <Text style={[styles.exTitle, { color: theme.text.primary }]}>
-                                          {ex.name.toUpperCase()}
-                                        </Text>
-
-                                        {ex.youtube_url ? (
-                                          <LinearGradient
-                                            colors={['#7E57C2', '#FF5252', '#FF7043']}
-                                            start={{ x: 0, y: 0 }}
-                                            end={{ x: 1, y: 0 }}
-                                            style={{ borderRadius: 12, padding: 1.2 }}
-                                          >
-                                            <TouchableOpacity
-                                              onPress={() => handleOpenVideo(ex.youtube_url)}
-                                              style={{
-                                                flexDirection: 'row',
-                                                alignItems: 'center',
-                                                backgroundColor: solidCardBg,
-                                                paddingVertical: 3,
-                                                paddingHorizontal: 8,
-                                                borderRadius: 11,
-                                                gap: 4
-                                              }}
-                                            >
-                                              <Text style={{ color: '#FF5252', fontSize: 9 }}>▶</Text>
-                                              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>DEMO</Text>
-                                            </TouchableOpacity>
-                                          </LinearGradient>
-                                        ) : null}
-                                      </View>
-
-                                      {/* Sets / Reps / Rest Badges Row */}
-                                      <View style={styles.exDetailsRow}>
-                                        {(!block.metadata || (!block.metadata.type && !block.metadata.structure) || block.metadata.type === 'single' || block.metadata.structure === 'single') ? (
-                                          <>
-                                            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-                                              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>SETS</Text>
-                                              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{ex.sets}</Text>
-                                            </View>
-                                            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-                                              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS / TIME</Text>
-                                              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{ex.reps}</Text>
-                                            </View>
-                                            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-                                              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
-                                              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{ex.rest_seconds}S</Text>
-                                            </View>
-                                          </>
-                                        ) : block.metadata?.structure === 'ladder' ? (
-                                          <View style={[styles.detailBadge, { borderColor: bronzeGold, flex: 1, alignItems: 'flex-start', backgroundColor: 'rgba(200,160,64,0.05)' }]}>
-                                            <Text style={[styles.detailLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>
-                                            <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>
-                                              {BlockConceptParser.getLadderSequence(block.metadata || {})}
-                                            </Text>
-                                          </View>
-                                        ) : (
-                                          <View style={[styles.detailBadge, { borderColor: theme.card.border, flex: 1, alignItems: 'flex-start' }]}>
-                                            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>TARGET REPS / WORK DETAILS</Text>
-                                            <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>{ex.reps || 'AS ASSIGNED'}</Text>
-                                          </View>
-                                        )}
-                                      </View>
-
-                                      {ex.notes ? (
-                                        <Text style={[styles.exNotes, { color: theme.text.secondary }]}>
-                                          NOTE: {ex.notes}
-                                        </Text>
-                                      ) : null}
-                                    </View>
-                                  ))}
-                                </View>
-
-                                {/* Block Action Buttons Row */}
-                                <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-                                  {((block.metadata?.timing_system === 'amrap' || block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'amrap' || block.metadata?.type === 'fortime') || 
-                                    (block.metadata?.structure === 'superset' || block.metadata?.structure === 'circuit' || block.metadata?.structure === 'ladder' || block.metadata?.type === 'superset' || block.metadata?.type === 'circuit')) && (
-                                    <LinearGradient
-                                      colors={['#7E57C2', '#FF5252', '#FF7043']}
-                                      start={{ x: 0, y: 0 }}
-                                      end={{ x: 1, y: 0 }}
-                                      style={{ flex: 1, padding: 1.2, borderRadius: 6 }}
-                                    >
-                                      <TouchableOpacity
-                                        style={{
-                                          flex: 1,
-                                          borderRadius: 5,
-                                          paddingVertical: 12,
-                                          alignItems: 'center',
-                                          backgroundColor: solidCardBg
-                                        }}
-                                        onPress={() => startTimerForBlock(block)}
-                                      >
-                                        <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
-                                          START TIMER ({(block.metadata?.timing_system === 'amrap' || block.metadata?.type === 'amrap') ? `${block.metadata?.time_cap_min || block.metadata?.timer_seconds} MIN` : (block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'fortime') ? 'FOR TIME' : 'REST'})
-                                        </Text>
-                                      </TouchableOpacity>
-                                    </LinearGradient>
-                                  )}
-
-                                  <LinearGradient
-                                    colors={['#7E57C2', '#FF5252', '#FF7043']}
-                                    start={{ x: 0, y: 0 }}
-                                    end={{ x: 1, y: 0 }}
-                                    style={{ flex: 1, padding: block.completedStatus !== 'none' ? 1.2 : 0, borderRadius: 6 }}
-                                  >
-                                    <TouchableOpacity
-                                      style={{
-                                        flex: 1,
-                                        borderRadius: block.completedStatus !== 'none' ? 5 : 6,
-                                        paddingVertical: 12,
-                                        alignItems: 'center',
-                                        backgroundColor: block.completedStatus !== 'none' ? solidCardBg : 'transparent'
-                                      }}
-                                      onPress={() => handleOpenLogModal(block.id)}
-                                    >
-                                      <Text style={{ color: block.completedStatus !== 'none' ? theme.text.primary : '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
-                                        {block.completedStatus !== 'none' ? 'EDIT BLOCK LOG' : 'LOG WORKOUT BLOCK'}
-                                      </Text>
-                                    </TouchableOpacity>
-                                  </LinearGradient>
-                                </View>
-                              </View>
-                            )}
-                          </View>
-                        )}
-                      </LinearGradient>
+                        block={block}
+                        isExpanded={!!expandedBlocks[block.id]}
+                        theme={theme}
+                        mode={mode as "light" | "dark"}
+                        solidCardBg={solidCardBg}
+                        bronzeGold={bronzeGold}
+                        strengthTier={strengthTier}
+                        toggleBlockExpanded={toggleBlockExpanded}
+                        handleToggleBlockStatus={handleToggleBlockStatus}
+                        handleOpenLogging={handleOpenLogModal}
+                        startTimerForBlock={startTimerForBlock}
+                        handleOpenVideo={handleOpenVideo}
+                      />
                     );
                   })}
                 </View>
@@ -1289,313 +978,62 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       </ScrollView>
 
       {/* LOG DETAILS MODAL */}
-      <Modal
-        visible={logModalVisible}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setLogModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
-            <Text style={[styles.modalHeading, { color: theme.text.primary }]}>LOG WORKOUT DETAILS</Text>
-
-            {/* Done vs. Missed Selection */}
-            <View style={{ marginBottom: 20, width: '100%', gap: 8 }}>
-              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WORKOUT STATUS</Text>
-              <View style={{ flexDirection: 'row', gap: 12 }}>
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    paddingVertical: 12,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor: logStatus === 'completed' ? '#4CAF50' : 'rgba(255,255,255,0.05)',
-                    backgroundColor: logStatus === 'completed' ? 'rgba(76, 175, 80, 0.12)' : 'rgba(0,0,0,0.2)',
-                    alignItems: 'center'
-                  }}
-                  onPress={() => setLogStatus('completed')}
-                >
-                  <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'completed' ? '#4CAF50' : theme.text.secondary }}>COMPLETED</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={{
-                    flex: 1,
-                    paddingVertical: 12,
-                    borderRadius: 6,
-                    borderWidth: 1,
-                    borderColor: logStatus === 'missed' ? '#FF6B6B' : 'rgba(255,255,255,0.05)',
-                    backgroundColor: logStatus === 'missed' ? 'rgba(255, 107, 107, 0.12)' : 'rgba(0,0,0,0.2)',
-                    alignItems: 'center'
-                  }}
-                  onPress={() => setLogStatus('missed')}
-                >
-                  <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'missed' ? '#FF6B6B' : theme.text.secondary }}>SKIPPED / MISSED</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-
-            {/* Conditional Auto-Log Fields */}
-            {(() => {
-              const activeLogBlock = days.flatMap(d => d.blocks).find(b => b.id === activeLogBlockId);
-              if (!activeLogBlock) return null;
-              const meta = activeLogBlock.metadata;
-              return (
-                <View style={{ marginBottom: 20, width: '100%', gap: 12 }}>
-                  {(meta?.timing_system === 'amrap' || meta?.type === 'amrap') && (
-                    <View>
-                      <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>ROUNDS / REPS COMPLETED</Text>
-                      <TextInput
-                        style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                        placeholder="e.g. 5 Rounds + 4 Reps"
-                        placeholderTextColor="rgba(255,255,255,0.15)"
-                        value={logAmrapRounds}
-                        onChangeText={setLogAmrapRounds}
-                      />
-                    </View>
-                  )}
-                  {(meta?.timing_system === 'fortime' || meta?.type === 'fortime') && (
-                    <View>
-                      <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>TIME TO FINISH</Text>
-                      <TextInput
-                        style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                        placeholder="e.g. 14:32"
-                        placeholderTextColor="rgba(255,255,255,0.15)"
-                        value={logForTimeDuration}
-                        onChangeText={setLogForTimeDuration}
-                      />
-                    </View>
-                  )}
-                  {meta?.is_weighted && (
-                    <View>
-                      <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WEIGHT USED (KG)</Text>
-                      <TextInput
-                        style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                        placeholder="e.g. 20"
-                        placeholderTextColor="rgba(255,255,255,0.15)"
-                        keyboardType="numeric"
-                        value={logWeightUsed}
-                        onChangeText={setLogWeightUsed}
-                      />
-                    </View>
-                  )}
-                  {meta?.structure === 'ladder' && (
-                    <View>
-                      <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>HOW FAR DID YOU REACH?</Text>
-                      <TextInput
-                        style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                        placeholder="e.g. Finished round of 14, plus 5 reps"
-                        placeholderTextColor="rgba(255,255,255,0.15)"
-                        value={logLadderProgress}
-                        onChangeText={setLogLadderProgress}
-                      />
-                    </View>
-                  )}
-                </View>
-              );
-            })()}
-
-            {/* Performance rating */}
-            <View style={styles.ratingSection}>
-              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>RATE INTENSITY / PERFORMANCE</Text>
-              <View style={styles.starsRow}>
-                {[1, 2, 3, 4, 5].map((ratingVal) => (
-                  <TouchableOpacity
-                    key={ratingVal}
-                    style={styles.starBtn}
-                    onPress={() => setLogRating(ratingVal)}
-                  >
-                    <Text style={[styles.starChar, { color: ratingVal <= logRating ? '#FF7043' : 'rgba(255,255,255,0.1)' }]}>
-                      ★
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            {/* Performance notes */}
-            <View style={styles.notesSection}>
-              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WORKOUT PERFORMANCE NOTES</Text>
-              <TextInput
-                style={[styles.notesInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-                placeholder="How did it feel? Any highlights or modifications..."
-                placeholderTextColor="rgba(255,255,255,0.15)"
-                value={logNotes}
-                onChangeText={(val: string) => setLogNotes(val)}
-                multiline={true}
-                numberOfLines={3}
-              />
-            </View>
-            <View style={styles.modalBtnRow}>
-              <TouchableOpacity
-                style={[styles.modalCloseBtn, { borderColor: theme.card.border }]}
-                onPress={() => setLogModalVisible(false)}
-              >
-                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{ flex: 1 }}
-                onPress={handleLogWorkout}
-                disabled={logLoading}
-              >
-                <LinearGradient
-                  colors={['#7E57C2', '#FF5252', '#FF7043']}
-                  start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                  style={{
-                    paddingVertical: 14,
-                    borderRadius: 8,
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  {logLoading ? (
-                    <LeapLogo size={40} animated />
-                  ) : (
-                    <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1 }}>LOG WORKOUT</Text>
-                  )}
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <WarriorLogModal
+        logModalVisible={logModalVisible}
+        setLogModalVisible={setLogModalVisible}
+        theme={theme}
+        bronzeGold={bronzeGold}
+        logStatus={logStatus}
+        setLogStatus={setLogStatus}
+        days={days}
+        activeLogBlockId={activeLogBlockId}
+        logAmrapRounds={logAmrapRounds}
+        setLogAmrapRounds={setLogAmrapRounds}
+        logForTimeDuration={logForTimeDuration}
+        setLogForTimeDuration={setLogForTimeDuration}
+        logWeightUsed={logWeightUsed}
+        setLogWeightUsed={setLogWeightUsed}
+        logLadderProgress={logLadderProgress}
+        setLogLadderProgress={setLogLadderProgress}
+        logRating={logRating}
+        setLogRating={setLogRating}
+        logNotes={logNotes}
+        setLogNotes={setLogNotes}
+        handleLogWorkout={handleLogWorkout}
+        logLoading={logLoading}
+      />
 
       {/* VISUAL TIMER MODAL */}
-      <Modal
-        visible={timerModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => {
-          setTimerRunning(false);
+      <WarriorTimerModal
+        timerModalVisible={timerModalVisible}
+        setTimerModalVisible={setTimerModalVisible}
+        setTimerRunning={setTimerRunning}
+        timerRunning={timerRunning}
+        theme={theme}
+        bronzeGold={bronzeGold}
+        timerType={timerType}
+        timerPrepCountdown={timerPrepCountdown}
+        timeLeft={timeLeft}
+        elapsedTime={elapsedTime}
+        formatTimerString={formatTimerString}
+        handleForTimeCompletion={handleForTimeCompletion}
+        activeTimerBlockId={activeTimerBlockId}
+        days={days}
+        currentRound={currentRound}
+        totalRounds={totalRounds}
+        restSeconds={restSeconds}
+        handleStartRest={handleStartRest}
+        handleBlockComplete={(blockId) => {
+          if (!blockId) return;
           setTimerModalVisible(false);
+          setActiveLogBlockId(blockId);
+          setLogStatus('completed');
+          setLogNotes('');
+          setLogRating(5);
+          setLogAmrapRounds('');
+          setLogModalVisible(true);
         }}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 0, maxWidth: 420, alignItems: 'center' }]}>
-            <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
-              {timerType === 'amrap' ? 'AMRAP COUNTDOWN' : timerType === 'fortime' ? 'FOR TIME STOPWATCH' : 'REST INTERVAL'}
-            </Text>
-
-            {/* Timer visual circle using a gradient border trick */}
-            <LinearGradient
-              colors={['#7E57C2', '#FF5252', '#FF7043']}
-              start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
-              style={{
-                width: 170,
-                height: 170,
-                borderRadius: 85,
-                alignItems: 'center',
-                justifyContent: 'center',
-                marginVertical: 20,
-              }}
-            >
-              <View style={{
-                width: 158,
-                height: 158,
-                borderRadius: 79,
-                backgroundColor: theme.card.background,
-                alignItems: 'center',
-                justifyContent: 'center',
-              }}>
-                <Text style={{
-                  color: timerPrepCountdown !== null ? '#FF7043' : theme.text.primary,
-                  fontSize: timerPrepCountdown !== null ? 64 : 36,
-                  fontFamily: 'BarlowCondensed-ExtraBold',
-                  letterSpacing: 1
-                }}>
-                  {timerPrepCountdown !== null
-                    ? timerPrepCountdown
-                    : timerType === 'amrap' || timerType === 'rest'
-                      ? formatTimerString(timeLeft)
-                      : formatTimerString(elapsedTime)}
-                </Text>
-                <Text style={{ color: theme.text.secondary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', marginTop: 4 }}>
-                  {timerPrepCountdown !== null ? 'GET READY...' : timerRunning ? 'ACTIVE' : 'PAUSED'}
-                </Text>
-              </View>
-            </LinearGradient>
-
-            {/* Controls */}
-            <View style={{ flexDirection: 'row', gap: 12, width: '100%', marginBottom: 20 }}>
-              <TouchableOpacity
-                style={{ flex: 1 }}
-                disabled={timerPrepCountdown !== null}
-                onPress={() => setTimerRunning(!timerRunning)}
-              >
-                {timerPrepCountdown !== null ? (
-                  <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                    <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>PREPARING...</Text>
-                  </View>
-                ) : timerRunning ? (
-                  <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(230,70,70,0.15)', borderWidth: 1, borderColor: '#FF6B6B' }}>
-                    <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>PAUSE</Text>
-                  </View>
-                ) : (
-                  <LinearGradient
-                    colors={['#7E57C2', '#FF5252', '#FF7043']}
-                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
-                    style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
-                  >
-                    <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 }}>RESUME</Text>
-                  </LinearGradient>
-                )}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={{
-                  flex: 1,
-                  borderRadius: 6,
-                  paddingVertical: 12,
-                  alignItems: 'center',
-                  backgroundColor: 'rgba(255,255,255,0.03)',
-                  borderWidth: 1,
-                  borderColor: theme.card.border
-                }}
-                onPress={() => {
-                  if (timerType === 'fortime') {
-                    handleForTimeCompletion(activeTimerBlockId, elapsedTime);
-                  } else {
-                    setTimerRunning(false);
-                    setTimerModalVisible(false);
-                  }
-                }}
-              >
-                <Text style={{
-                  color: theme.text.secondary,
-                  fontFamily: 'BarlowCondensed-Bold',
-                  fontSize: 12
-                }}>{timerType === 'fortime' ? 'COMPLETE' : 'CLOSE'}</Text>
-              </TouchableOpacity>
-            </View>
-
-            {/* Exercises reference inside the timer */}
-            <ScrollView style={{ width: '100%', maxHeight: 150 }} showsVerticalScrollIndicator={false}>
-              {(() => {
-                const activeBlock = days.flatMap(d => d.blocks).find(b => b.id === activeTimerBlockId);
-                if (!activeBlock) return null;
-                return (
-                  <View style={{ gap: 8 }}>
-                    <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, textAlign: 'center' }}>
-                      BLOCK: {activeBlock.name.toUpperCase()}
-                    </Text>
-                    {activeBlock.exercises.map((ex, idx) => (
-                      <View key={ex.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
-                        <Text style={{ color: theme.text.primary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold' }}>
-                          {idx + 1}. {ex.name}
-                        </Text>
-                        <Text style={{ color: theme.text.secondary, fontSize: 11 }}>
-                          {activeBlock.metadata?.structure === 'ladder' ? BlockConceptParser.getLadderSequence(activeBlock.metadata || {}) : ex.reps}
-                        </Text>
-                      </View>
-                    ))}
-                  </View>
-                );
-              })()}
-            </ScrollView>
-          </View>
-        </View>
-      </Modal>
+      />
 
     </KeyboardAvoidingView>
   );
