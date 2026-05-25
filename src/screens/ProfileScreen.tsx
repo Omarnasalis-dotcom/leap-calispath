@@ -319,6 +319,7 @@ export function ProfileScreen({
         onOpenWarriorProgram={onOpenWarriorProgram}
       />
 
+      <ScrollView>
         {/* Mode Grid - 2 Column Layout */}
         {/* World Pills Grid - 2 Rows (4 + 3) */}
         <View style={styles.worldPillsGrid}>
