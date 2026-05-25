@@ -26,6 +26,7 @@ import { WarriorCard } from '../components/atoms/WarriorCard';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
+import { ScoreBar } from '../components/profile/ScoreBar';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -293,80 +294,6 @@ export function ProfileScreen({
     }
   };
 
-  const ScoreBar = ({ title, subtitle, score, rank, max, color, chips, onPress, showCrown }: {
-    title: string; subtitle: string; score: number; rank: string;
-    max: number; color: string;
-    chips: { label: string; value: number; color: string }[];
-    onPress?: () => void;
-    showCrown?: boolean;
-  }) => {
-    const pct = Math.min(100, (score / max) * 100);
-    return (
-      <TouchableOpacity
-        activeOpacity={onPress ? 0.7 : 1}
-        onPress={onPress}
-        style={[
-          styles.scoreBarCard,
-          {
-            backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
-            borderColor: `${color}40`,
-            paddingVertical: 12,
-            marginBottom: 8,
-          }
-        ]}
-      >
-
-        <View style={styles.scoreBarHeader}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.scoreBarTitle, { color, fontWeight: '900', fontSize: 12 }]}>{title}</Text>
-            <Text style={[styles.scoreBarSubtitle, { color: 'rgba(0,0,0,0.3)', fontSize: 9, marginTop: 2 }]}>{subtitle}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={[styles.scoreBarTotal, { color, fontSize: 24 }]}>{score.toLocaleString()}</Text>
-          </View>
-        </View>
-
-        {/* Track */}
-        <View style={[styles.scoreBarTrack, { backgroundColor: `${color}12`, borderColor: `${color}20` }]}>
-          <View style={[styles.scoreBarFill, {
-            width: `${pct}%`,
-            backgroundColor: color,
-            shadowColor: color,
-            shadowOffset: { width: 0, height: 0 },
-            shadowOpacity: 0.5,
-            shadowRadius: 4,
-          }]} />
-        </View>
-
-        {/* Chips row */}
-        <View style={styles.scoreChips}>
-          {chips.map((c, idx) => (
-            <View key={idx} style={styles.scoreChip}>
-              <View style={[styles.scoreChipDot, { backgroundColor: c.color }]} />
-              <Text style={[styles.scoreChipVal, { color: mode === 'dark' ? '#FFF' : '#000', fontSize: 10 }]}>{c.value.toLocaleString()}</Text>
-              <Text style={[styles.scoreChipLbl, { color: 'rgba(0,0,0,0.25)', fontSize: 9 }]}>{c.label}</Text>
-            </View>
-          ))}
-        </View>
-
-        {onPress && (
-          <TouchableOpacity
-            style={[styles.lbCircleIndicator, { backgroundColor: theme.card.background, borderColor: `${color}30` }]}
-            onPress={onPress}
-          >
-            <MaterialCommunityIcons name="trophy" size={12} color={color} />
-          </TouchableOpacity>
-        )}
-
-        {showCrown && (
-          <View style={styles.crownDecoration}>
-            <MaterialCommunityIcons name="crown" size={12} color={color} />
-            <Text style={[styles.rankHashtag, { color }]}>#1</Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
-  };
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
@@ -520,6 +447,8 @@ export function ProfileScreen({
                 color={theme.accent}
                 onPress={fetchWRALeaderboard}
                 showCrown={wraScore > 0}
+                mode={mode}
+                cardBackground={theme.card.background}
                 chips={[
                   { label: 'Static', value: staticPts, color: '#9FC5E8' },
                   { label: 'Power', value: powerPts, color: '#FF5722' },
@@ -535,6 +464,8 @@ export function ProfileScreen({
                 color="#FF5252"
                 onPress={fetchGloryLeaderboard}
                 showCrown={gloryPts > 0}
+                mode={mode}
+                cardBackground={theme.card.background}
                 chips={[
                   { label: 'Glory pts', value: gloryPts, color: '#FF5252' },
                 ]}
