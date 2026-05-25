@@ -134,8 +134,9 @@ Deno.serve(async (req) => {
     .from("trial_history")
     .insert({
       user_id: user.id,
-      tier,
+      tier_attempted: tier,
       time_seconds,
+      completed: true,
       mode,
       created_at: new Date().toISOString(),
     });
