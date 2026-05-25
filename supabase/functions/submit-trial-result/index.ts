@@ -50,8 +50,8 @@ Deno.serve(async (req) => {
   const { tier, time_seconds, mode } = body;
 
   // Validate required fields
-  if (tier === undefined || time_seconds === undefined || !mode) {
-    return new Response(JSON.stringify({ error: "Missing required fields: tier, time_seconds, mode" }), {
+  if (tier === undefined || time_seconds === undefined) {
+    return new Response(JSON.stringify({ error: "Missing required fields: tier, time_seconds" }), {
       status: 400,
       headers: { "Content-Type": "application/json" },
     });
@@ -137,8 +137,6 @@ Deno.serve(async (req) => {
       tier_attempted: tier,
       time_seconds,
       completed: true,
-      mode,
-      created_at: new Date().toISOString(),
     });
 
   if (insertError) {
