@@ -28,6 +28,7 @@ import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { WorldSelectorGrid } from '../components/profile/WorldSelectorGrid';
+import { TierSelectorRow } from '../components/profile/TierSelectorRow';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -336,64 +337,14 @@ export function ProfileScreen({
           onOpenWeeklyChallenge={onOpenWeeklyChallenge}
           onOpenChampionsArena={onOpenChampionsArena}
         />
-        {/* Tier Selector - Category-specific Tiers */}
-        <View style={styles.tierSelectorSection}>
-          <View style={styles.sectionHeader}>
-            <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
-            <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
-              {category === 'power' ? 'POWER TIERS' : 'STRENGTH TIERS'}
-            </Text>
-          </View>
-          <ScrollView
-            ref={tierScrollRef}
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.tierList}
-          >
-            {Object.entries(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map(([index, name]) => {
-              const tierIndex = parseInt(index);
-              const isSelected = selectedTier === tierIndex;
-              const isCurrent = activeCurrentTier === tierIndex;
-              const isLockedItem = tierIndex > activeCurrentTier;
-
-              return (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => setSelectedTier(tierIndex)}
-                  style={[
-                    styles.tierItemContainer,
-                    isSelected && !isCurrent && { borderColor: theme.accent, borderWidth: 2 }
-                  ]}
-                >
-                  <View style={[
-                    styles.tierItemContent,
-                    isCurrent ? { backgroundColor: theme.accent } :
-                      isLockedItem ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' } :
-                        { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.accent }
-                  ]}>
-                    <Text style={[
-                      styles.tierItemName,
-                      { color: isCurrent ? '#FFFFFF' : isLockedItem ? theme.text.tertiary : theme.accent, letterSpacing: 1 }
-                    ]}>
-                      {name.toUpperCase()}
-                    </Text>
-                    <Text style={[
-                      styles.tierItemNumber,
-                      { color: isCurrent ? 'rgba(255,255,255,0.7)' : isLockedItem ? theme.text.tertiary + '80' : theme.accent + '90', letterSpacing: 1 }
-                    ]}>
-                      Tier {index}
-                    </Text>
-                    {isLockedItem && (
-                      <View style={styles.lockOverlay}>
-                        <Text style={{ fontSize: 8 }}>🔒</Text>
-                      </View>
-                    )}
-                  </View>
-                </TouchableOpacity>
-              );
-            })}
-          </ScrollView>
-        </View>
+        <TierSelectorRow
+          category={category}
+          selectedTier={selectedTier}
+          activeCurrentTier={activeCurrentTier}
+          theme={theme}
+          tierScrollRef={tierScrollRef}
+          onSelectTier={setSelectedTier}
+        />
 
         {/* Next Step Banner */}
         {category === 'strength' && (profile?.strength_tier ?? 0) <= 8 && (
