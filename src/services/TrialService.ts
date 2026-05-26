@@ -41,18 +41,32 @@ export class TrialService {
     }
 
     // Call the Edge Function — server is the authority
-    const response = await fetch(EDGE_FUNCTION_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`,
-      },
-      body: JSON.stringify({
-        tier,
-        time_seconds: timeSeconds,
-        mode: isProgression ? 'progression' : 'practice',
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+    let response;
+    try {
+      response = await fetch(EDGE_FUNCTION_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({
+          tier,
+          time_seconds: timeSeconds,
+          mode: isProgression ? 'progression' : 'practice',
+        }),
+        signal: controller.signal,
+      });
+    } catch (err: any) {
+      if (err.name === 'AbortError' || err.message?.toLowerCase().includes('network')) {
+        throw new Error('Network request timed out. Please check your connection and try again.');
+      }
+      throw err;
+    } finally {
+      clearTimeout(timeoutId);
+    }
 
     const data = await response.json();
 
