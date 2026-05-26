@@ -27,13 +27,7 @@ export const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: numbe
 };
 
 export const POWER_TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {
-  0: { desc: 'Minimum to compete: 0 pts — Entry level power tier.', difficulty: 1 },
-  1: { desc: 'Minimum to compete: 17.5 pts', difficulty: 2 },
-  2: { desc: 'Minimum to compete: 27.5 pts', difficulty: 3 },
-  3: { desc: 'Minimum to compete: 45 pts', difficulty: 4 },
-  4: { desc: 'Minimum to compete: 70 pts', difficulty: 5 },
-  5: { desc: 'Minimum to compete: 100 pts', difficulty: 6 },
-  6: { desc: 'Minimum to compete: 140 pts', difficulty: 7 },
-  7: { desc: 'Minimum to compete: 190 pts', difficulty: 8 },
-  8: { desc: 'Minimum to compete: 290 pts', difficulty: 9 },
+  1: { desc: 'Voltaic: Entry level — 0+ pts. Master the weighted movements.', difficulty: 3 },
+  2: { desc: 'Ampere: Intermediate — 100+ pts. Consistent weighted performance.', difficulty: 6 },
+  3: { desc: 'Tesla: Elite — 250+ pts. Peak weighted strength mastery.', difficulty: 9 },
 };

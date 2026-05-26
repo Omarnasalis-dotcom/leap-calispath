@@ -64,15 +64,10 @@ export const TIER_NAMES = [
 
 // Power World tier names (different from Strength) - 9 tiers total
 export const POWER_TIER_NAMES = [
-  'Spark',    // Tier 0
-  'Surge',    // Tier 1
-  'Pulse',    // Tier 2
-  'Current',  // Tier 3
-  'Volt',     // Tier 4
-  'Amp',      // Tier 5
-  'Watt',     // Tier 6
-  'Tesla',    // Tier 7
-  'Voltaic'   // Tier 8
+  'Voltaic',  // Level 0 (unused — levels start at 1)
+  'Voltaic',  // Level 1
+  'Ampere',   // Level 2
+  'Tesla',    // Level 3
 ];
 
 export interface AuthContextType {
