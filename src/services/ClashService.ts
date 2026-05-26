@@ -47,10 +47,18 @@ export class ClashService {
       .select('*')
       .eq('is_searching_clash', true)
       .neq('id', currentUserId)
+      .gte('last_active', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // 5 minutes ago
       .order('last_active', { ascending: false });
 
     if (error) throw error;
     return data || [];
+  }
+  
+  static async updateLastActive(userId: string): Promise<void> {
+    await supabase
+      .from('profiles')
+      .update({ last_active: new Date().toISOString() })
+      .eq('id', userId);
   }
 
   /**
@@ -137,7 +145,7 @@ export class ClashService {
 
       if (error) {
         console.error('Error finishing clash session:', error);
-        return { success: false, error: 'Failed to save clash result. Please check your connection.' };
+        return { success: false };
       }
 
       return {

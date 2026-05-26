@@ -1,7 +1,9 @@
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
+import { useRouter, useLocalSearchParams, router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, Modal } from 'react-native';
+import {
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
+  TextInput, Alert, Platform, Modal
+} from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -47,20 +49,20 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   // 1. Manage Lobby Presence (Heartbeat)
   useEffect(() => {
     if (!user) return;
-    
+
     let isMounted = true;
     let channel: any = null;
 
     const initLobby = async () => {
       // a. Set searching status in DB (Fallback/Persistence)
       ClashService.toggleSearchingStatus(user.id, true);
-      
+
       // Force wait for any old channel to be completely removed from Supabase memory
       const existing = supabase.getChannels().find((c: any) => c.topic === 'realtime:clash_lobby');
       if (existing) {
         await supabase.removeChannel(existing);
       }
-      
+
       if (!isMounted) return;
 
       // b. Initialize Presence Channel
@@ -104,10 +106,15 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
       }
     };
 
-    initLobby();
 
+    initLobby();
+    ClashService.updateLastActive(user.id);
+    const heartbeat = setInterval(() => {
+      if (isMounted) ClashService.updateLastActive(user.id);
+    }, 60000);
     return () => {
       isMounted = false;
+      clearInterval(heartbeat);
       ClashService.toggleSearchingStatus(user.id, false);
       if (channel) {
         supabase.removeChannel(channel);
@@ -118,10 +125,10 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   // 2. Load Active Clashes
   useEffect(() => {
     if (!user) return;
-    
+
     let isMounted = true;
     let subscription: any = null;
-    
+
     const loadClashes = async () => {
       const { data } = await supabase
         .from('clash_sessions')
@@ -131,13 +138,13 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
         .order('created_at', { ascending: false });
       if (data && isMounted) setActiveClashes(data as ClashSession[]);
     };
-    
+
     const initUpdates = async () => {
       const existing = supabase.getChannels().find((c: any) => c.topic === 'realtime:clash_updates');
       if (existing) {
         await supabase.removeChannel(existing);
       }
-      
+
       if (!isMounted) return;
 
       loadClashes();
@@ -183,8 +190,8 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
         const bracket = clash?.bracket || 'developing';
         const generatedProtocol = ClashLogic.generateProtocol(bracket);
         const masterStartTime = new Date(Date.now() + 6000).toISOString();
-        
-        await supabase.from('clash_sessions').update({ 
+
+        await supabase.from('clash_sessions').update({
           status: 'accepted',
           workout_protocol: generatedProtocol,
           start_time: masterStartTime
@@ -251,7 +258,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
           </View>
         )}
 
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.gloryPortal, { backgroundColor: theme.card.background, borderColor: theme.accent }]}
           onPress={onOpenRankings}
         >
@@ -329,22 +336,22 @@ const styles = StyleSheet.create({
   backButton: { padding: 4 },
   title: { fontSize: 18, fontWeight: '900', letterSpacing: 2 },
   scrollContent: { paddingBottom: 40 },
-  podiumContainer: { 
-    flexDirection: 'row', 
-    justifyContent: 'center', 
+  podiumContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
     alignItems: 'center',
-    gap: 10, 
+    gap: 10,
     paddingVertical: 30,
     marginHorizontal: 10,
   },
   podiumSpot: { alignItems: 'center' },
-  podiumCircle: { 
-    width: 100, 
-    height: 100, 
-    borderRadius: 50, 
-    borderWidth: 1.5, 
-    alignItems: 'center', 
-    justifyContent: 'center', 
+  podiumCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
     position: 'relative',
     backgroundColor: 'rgba(205, 127, 50, 0.08)',
   },

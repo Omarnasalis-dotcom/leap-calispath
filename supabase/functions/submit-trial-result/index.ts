@@ -18,12 +18,22 @@ const TIER_HARD_FLOORS: Record<number, number> = {
 // Minimum seconds between any two trial submissions from the same user
 const SUBMISSION_COOLDOWN_SECONDS = 30;
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
 Deno.serve(async (req) => {
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   // Only accept POST
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -32,7 +42,7 @@ Deno.serve(async (req) => {
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -43,7 +53,7 @@ Deno.serve(async (req) => {
   } catch {
     return new Response(JSON.stringify({ error: "Invalid JSON body" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -53,7 +63,7 @@ Deno.serve(async (req) => {
   if (tier === undefined || time_seconds === undefined) {
     return new Response(JSON.stringify({ error: "Missing required fields: tier, time_seconds" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -61,7 +71,7 @@ Deno.serve(async (req) => {
   if (tier < 0 || tier > 9 || !Number.isInteger(tier)) {
     return new Response(JSON.stringify({ error: "Invalid tier" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -69,7 +79,7 @@ Deno.serve(async (req) => {
   if (typeof time_seconds !== "number" || time_seconds <= 0) {
     return new Response(JSON.stringify({ error: "Invalid time" }), {
       status: 400,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -81,7 +91,7 @@ Deno.serve(async (req) => {
       message: `Time ${time_seconds}s is below the minimum for Tier ${tier} (${floor}s). Submission rejected.`,
     }), {
       status: 422,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -97,7 +107,7 @@ Deno.serve(async (req) => {
   if (authError || !user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -118,7 +128,7 @@ Deno.serve(async (req) => {
         message: `Please wait ${Math.ceil(SUBMISSION_COOLDOWN_SECONDS - secondsSinceLast)}s before submitting again.`,
       }), {
         status: 429,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
   }
@@ -143,7 +153,7 @@ Deno.serve(async (req) => {
     console.error("Insert error:", insertError);
     return new Response(JSON.stringify({ error: "Failed to save trial result" }), {
       status: 500,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -159,28 +169,28 @@ Deno.serve(async (req) => {
       const bestTimes = profile.best_times || {};
       const currentBest = bestTimes[tier];
 
-      // Update if no previous best or new time is better (lower)
+      // Update PB if no previous best or new time is better (lower)
       if (!currentBest || time_seconds < currentBest) {
         bestTimes[tier] = time_seconds;
-
-        // Advance tier if completing current tier
-        const newTier = tier === profile.strength_tier
-          ? Math.min(tier + 1, 9)
-          : profile.strength_tier;
-
-        await supabaseAdmin
-          .from("profiles")
-          .update({
-            best_times: bestTimes,
-            strength_tier: Math.max(newTier, profile.strength_tier),
-          })
-          .eq("id", user.id);
       }
+
+      // ALWAYS advance tier if completing current tier, regardless of PB
+      const newTier = tier === profile.strength_tier
+        ? Math.min(tier + 1, 9)
+        : profile.strength_tier;
+
+      await supabaseAdmin
+        .from("profiles")
+        .update({
+          best_times: bestTimes,
+          strength_tier: Math.max(newTier, profile.strength_tier),
+        })
+        .eq("id", user.id);
     }
   }
 
   return new Response(JSON.stringify({ success: true }), {
     status: 200,
-    headers: { "Content-Type": "application/json" },
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
 });
