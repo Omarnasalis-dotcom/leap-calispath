@@ -259,15 +259,11 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         time_limit: adminForm.time_limit,
         movements: adminForm.movements
       });
-      const msg = 'Challenge published successfully!';
-      Alert.alert('Success', msg);
-      if (Platform.OS === 'web') alert(msg);
+      Alert.alert('Success', 'Challenge published successfully!');
       setShowAdminModal(false);
       await loadChallenge();
     } catch (error: any) {
-      const msg = `Failed to create challenge: ${error.message}`;
-      Alert.alert('Error', msg);
-      if (Platform.OS === 'web') alert(msg);
+      Alert.alert('Error', `Failed to create challenge: ${error.message}`);
     }
   }
 
@@ -286,17 +282,13 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
     try {
       await ChallengeService.delete(challenge.id);
-      const msg = 'Challenge deleted';
-      Alert.alert('Success', msg);
-      if (Platform.OS === 'web') alert(msg);
+      Alert.alert('Success', 'Challenge deleted');
       setChallenge(null);
       setEntries([]);
       setShowAdminModal(false);
       await loadChallenge();
     } catch (error: any) {
-      const msg = `Failed to delete: ${error.message}`;
-      Alert.alert('Error', msg);
-      if (Platform.OS === 'web') alert(msg);
+      Alert.alert('Error', `Failed to delete: ${error.message}`);
     }
   }
 
@@ -699,36 +691,24 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                     </View>
                     <TouchableOpacity onPress={async () => {
                       console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
-                      const confirmed = Platform.OS === 'web'
-                        ? window.confirm(`Are you sure you want to delete "${ac.title}"?`)
-                        : await new Promise(resolve => {
-                          Alert.alert(
-                            'Confirm Delete',
-                            `Are you sure you want to delete "${ac.title}"?`,
-                            [
-                              { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
-                              { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
-                            ]
-                          );
-                        });
-
-                      if (confirmed) {
-                        try {
-                          console.log('Attempting to delete challenge:', ac.id);
-                          const res = await ChallengeService.delete(ac.id);
-                          console.log('Delete result:', res);
-                          if (res) {
-                            Alert.alert('Success', 'Challenge removed');
-                            if (Platform.OS === 'web') alert('Challenge removed');
-                            await loadChallenge();
-                          }
-                        } catch (err: any) {
-                          console.error('Delete error:', err);
-                          const msg = err.message || 'Failed to delete challenge';
-                          Alert.alert('Error', msg);
-                          if (Platform.OS === 'web') alert(msg);
-                        }
-                      }
+                      Alert.alert(
+                        'Confirm Delete',
+                        `Are you sure you want to delete "${ac.title}"?`,
+                        [
+                          { text: 'Cancel', style: 'cancel' },
+                          { text: 'Delete', style: 'destructive', onPress: async () => {
+                            try {
+                              const res = await ChallengeService.delete(ac.id);
+                              if (res) {
+                                Alert.alert('Success', 'Challenge removed');
+                                await loadChallenge();
+                              }
+                            } catch (err: any) {
+                              Alert.alert('Error', err.message || 'Failed to delete challenge');
+                            }
+                          }}
+                        ]
+                      );
                     }}>
                       <Text style={{ color: '#8B0000', fontWeight: '900' }}>✕</Text>
                     </TouchableOpacity>

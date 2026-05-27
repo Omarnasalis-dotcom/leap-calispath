@@ -1,16 +1,14 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { TournamentArenaScreen } from '../src/screens/TournamentArenaScreen';
+import { LockedFeature } from '../src/components/LockedFeature';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  
   return (
     <SpartanLayout>
-      <TournamentArenaScreen navigation={{}} 
-        {...params}
+      <LockedFeature 
+        title="TOURNAMENTS" 
+        description="Global synchronized tournaments are being forged. Prepare your strength for the upcoming worldwide events."
       />
     </SpartanLayout>
   );

@@ -75,6 +75,17 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 placeholderTextColor="rgba(255,255,255,0.1)"
               />
             </View>
+            <View style={styles.exInputCol}>
+              <Text style={[styles.exInputLabel, { color: '#7E57C2' }]}>HOLD (S)</Text>
+              <TextInput
+                style={[styles.exField, { color: '#7E57C2', borderColor: '#7E57C2' }]}
+                value={ex.hold_seconds}
+                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', val)}
+                keyboardType="numeric"
+                placeholder="—"
+                placeholderTextColor="rgba(126,87,194,0.3)"
+              />
+            </View>
           </>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={{ flex: 1 }}>

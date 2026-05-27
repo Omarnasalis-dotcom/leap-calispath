@@ -53,8 +53,8 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
   const solidCardBg = isDark ? '#151515' : '#FFFFFF';
   const bronzeGold = '#C8A040';
 
-  const isAdmin = (profile as any)?.is_admin === true;
-  const isCoach = (profile as any)?.is_coach === true || isAdmin;
+  const isAdmin = profile?.is_admin === true;
+  const isCoach = profile?.is_coach === true || isAdmin;
   const coachId = user?.id;
 
   const handleClose = () => {

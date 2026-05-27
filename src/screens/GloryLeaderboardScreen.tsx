@@ -1,4 +1,4 @@
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
+import { useRouter, useLocalSearchParams, router } from 'expo-router';
 import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -53,14 +53,15 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-          <MaterialCommunityIcons name="arrow-left" size={28} color={theme.text.primary} />
-        </TouchableOpacity>
-        <View style={styles.tierNameHeaderFrame}>
-          <Text style={[styles.tierNameHeaderText, { color: '#CD7F32' }]}>HALL OF GLORY</Text>
+      <View style={[styles.header, { justifyContent: 'flex-start' }]}>
+        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 20, alignItems: 'center' }}>
+          <View style={styles.tierNameHeaderFrame}>
+            <Text style={[styles.tierNameHeaderText, { color: '#CD7F32' }]}>HALL OF GLORY</Text>
+          </View>
         </View>
-        <View style={{ width: 40 }} />
+        <TouchableOpacity onPress={onClose} style={[styles.closeButton, { zIndex: 10 }]}>
+          <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
+        </TouchableOpacity>
       </View>
 
       {loading ? (
@@ -82,10 +83,10 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
                 }}
                 onPress={() => setGenderFilter(filter as any)}
               >
-                <Text style={{ 
-                  fontSize: 12, 
-                  fontWeight: '900', 
-                  color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)' 
+                <Text style={{
+                  fontSize: 12,
+                  fontWeight: '900',
+                  color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)'
                 }}>
                   {filter}
                 </Text>
@@ -96,10 +97,10 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
           {filteredEntries.map((entry) => {
             const isCurrentUser = entry.is_current_user;
             return (
-              <View 
-                key={entry.user_id} 
+              <View
+                key={entry.user_id}
                 style={[
-                  styles.entryRow, 
+                  styles.entryRow,
                   isCurrentUser && styles.entryRowCurrentUser,
                   entry.rank <= 3 && styles.entryRowTopThree
                 ]}
@@ -107,10 +108,10 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
                 <View style={styles.rankContainer}>
                   {renderMedal(entry.rank)}
                 </View>
-                
-                <Text 
+
+                <Text
                   style={[
-                    styles.entryName, 
+                    styles.entryName,
                     isCurrentUser && styles.entryNameCurrentUser
                   ]}
                   numberOfLines={1}
@@ -142,12 +143,12 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    justifyContent: 'space-between', 
-    paddingTop: 60, 
-    paddingHorizontal: 20, 
+  header: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingTop: 60,
+    paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,
     borderBottomColor: 'rgba(205,127,50,0.2)',
@@ -204,12 +205,12 @@ const styles = StyleSheet.create({
   entryName: {
     flex: 1,
     fontSize: 16,
-    color: '#FFA500', 
+    color: '#FFA500',
     marginLeft: 12,
     fontWeight: '600',
   },
   entryNameCurrentUser: {
-    color: '#32CD32', 
+    color: '#32CD32',
     fontWeight: '700',
   },
   youText: {

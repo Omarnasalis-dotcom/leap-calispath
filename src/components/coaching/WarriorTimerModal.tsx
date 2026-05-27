@@ -27,7 +27,10 @@ interface WarriorTimerModalProps {
   timerRunning: boolean;
   theme: any;
   bronzeGold: string;
-  timerType: 'amrap' | 'fortime' | 'rest' | null;
+  timerType: 'amrap' | 'fortime' | 'rest' | 'tabata' | null;
+  tabataPhase?: 'work' | 'rest';
+  tabataWorkSecs?: number;
+  tabataRestSecs?: number;
   timerPrepCountdown: number | null;
   timeLeft: number;
   elapsedTime: number;
@@ -62,6 +65,9 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   restSeconds,
   handleStartRest,
   handleBlockComplete,
+  tabataPhase,
+  tabataWorkSecs,
+  tabataRestSecs,
 }) => {
   return (
     <Modal
@@ -94,7 +100,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 0, maxWidth: 420, alignItems: 'center' }]}>
           <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
-            {timerType === 'amrap' ? 'AMRAP COUNTDOWN' : timerType === 'fortime' ? 'FOR TIME STOPWATCH' : totalRounds > 1 ? `REST INTERVAL (ROUND ${currentRound} OF ${totalRounds})` : 'REST INTERVAL'}
+            {timerType === 'amrap' ? 'AMRAP COUNTDOWN' : timerType === 'fortime' ? 'FOR TIME STOPWATCH' : timerType === 'tabata' ? `TABATA — ROUND ${currentRound} OF ${totalRounds}` : totalRounds > 1 ? `REST INTERVAL (ROUND ${currentRound} OF ${totalRounds})` : 'REST INTERVAL'}
           </Text>
 
           {/* Timer visual circle using a gradient border trick */}
@@ -118,15 +124,26 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
               alignItems: 'center',
               justifyContent: 'center',
             }}>
+              {timerType === 'tabata' && timerPrepCountdown === null && (
+                <Text style={{
+                  color: tabataPhase === 'work' ? '#4CAF50' : '#FF7043',
+                  fontSize: 11,
+                  fontFamily: 'BarlowCondensed-ExtraBold',
+                  letterSpacing: 2,
+                  marginBottom: 2,
+                }}>
+                  {tabataPhase === 'work' ? '● WORK' : '○ REST'}
+                </Text>
+              )}
               <Text style={{
-                color: timerPrepCountdown !== null ? '#FF7043' : theme.text.primary,
+                color: timerPrepCountdown !== null ? '#FF7043' : timerType === 'tabata' ? (tabataPhase === 'work' ? '#4CAF50' : '#FF7043') : theme.text.primary,
                 fontSize: timerPrepCountdown !== null ? 64 : 36,
                 fontFamily: 'BarlowCondensed-ExtraBold',
                 letterSpacing: 1
               }}>
                 {timerPrepCountdown !== null
                   ? timerPrepCountdown
-                  : timerType === 'amrap' || timerType === 'rest'
+                  : timerType === 'amrap' || timerType === 'rest' || timerType === 'tabata'
                     ? formatTimerString(timeLeft)
                     : formatTimerString(elapsedTime)}
               </Text>

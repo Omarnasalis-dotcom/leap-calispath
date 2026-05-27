@@ -1,0 +1,139 @@
+2:import React, { useEffect, useState, useRef } from 'react';
+60:export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
+61:  const navigation = useNavigation();
+62:  const { theme, mode } = useTheme();
+63:  const bronzeGold = '#C8A040';
+64:  const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
+67:  const [loading, setLoading] = useState(true);
+68:  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+70:  const [programName, setProgramName] = useState('');
+71:  const [coachName, setCoachName] = useState('');
+72:  const [templateId, setTemplateId] = useState<string | null>(null);
+73:  const [warriorProgramId, setWarriorProgramId] = useState<string>('');
+75:  const [weeksData, setWeeksData] = useState<Record<number, ProgramDay[]>>({ 1: [] });
+76:  const [activeWeek, setActiveWeek] = useState<number>(1);
+77:  const days = weeksData[activeWeek] || [];
+78:  const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
+79:  const [expandedBlocks, setExpandedBlocks] = useState<Record<string | number, boolean>>({});
+82:  const [logModalVisible, setLogModalVisible] = useState(false);
+83:  const [activeLogBlockId, setActiveLogBlockId] = useState<string | number | null>(null);
+84:  const [logNotes, setLogNotes] = useState('');
+85:  const [logRating, setLogRating] = useState<number>(5);
+86:  const [logLoading, setLogLoading] = useState(false);
+87:  const [logStatus, setLogStatus] = useState<'completed' | 'missed'>('completed');
+88:  const [logAmrapRounds, setLogAmrapRounds] = useState('');
+89:  const [logForTimeDuration, setLogForTimeDuration] = useState('');
+90:  const [logWeightUsed, setLogWeightUsed] = useState('');
+91:  const [logLadderProgress, setLogLadderProgress] = useState('');
+94:  const [activeTimerBlockId, setActiveTimerBlockId] = useState<string | number | null>(null);
+95:  const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | null>(null);
+96:  const [timeLeft, setTimeLeft] = useState<number>(0);
+97:  const [timerRunning, setTimerRunning] = useState<boolean>(false);
+98:  const [elapsedTime, setElapsedTime] = useState<number>(0);
+99:  const [timerModalVisible, setTimerModalVisible] = useState<boolean>(false);
+100:  const [timerPrepCountdown, setTimerPrepCountdown] = useState<number | null>(null);
+105:  const [staticPoints, setStaticPoints] = useState<number>(0);
+106:  const [powerPoints, setPowerPoints] = useState<number>(0);
+107:  const [oneMmPoints, setOneMmPoints] = useState<number>(0);
+108:  const [strengthTier, setStrengthTier] = useState<number>(0);
+111:  const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
+113:  const notificationIdRef = useRef<string | null>(null);
+116:  useEffect(() => {
+137:  useEffect(() => {
+141:  const handleClose = () => {
+164:  useEffect(() => {
+165:    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
+192:  async function loadWarriorProgram() {
+197:      const { data: profilePoints } = await supabase
+211:      const { data: assignment, error: assignmentError } = await supabase
+231:      const actualAssignment = Array.isArray(assignment) ? assignment[0] : assignment;
+240:      const templatesInfo: any = actualAssignment.program_templates;
+241:      const progName = Array.isArray(templatesInfo)
+245:      const coachInfo: any = actualAssignment.profiles;
+246:      const cName = Array.isArray(coachInfo)
+250:      const activeTemplateId = actualAssignment.template_id;
+257:      const { data: blocksData, error: blocksError } = await supabase
+266:      const startOfToday = new Date();
+269:      const { data: loggedToday, error: loggedError } = await supabase
+277:      const loggedBlockMap = new Map((loggedToday || []).map((l: any) => [l.block_id, l.notes || '']));
+280:      const blockIds = (blocksData || []).map(b => b.id);
+284:        const { data: exercisesBatchData, error: batchError } = await supabase
+307:      const exercisesByBlock: Record<string, any[]> = {};
+313:      const newWeeksMap: Record<number, ProgramDay[]> = {};
+314:      const weekDaysMap: Record<number, Record<string, ProgramDay>> = {};
+315:      const weekDayOrder: Record<number, string[]> = {};
+317:      for (const block of blocksData || []) {
+318:        const exercisesData = exercisesByBlock[block.id] || [];
+321:        const mappedExercises: ExerciseDetail[] = (exercisesData || []).map((ex: any) => {
+322:          const lib = Array.isArray(ex.exercise_library)
+336:        const parsed = BlockConceptParser.parse(block.notes);
+337:        const plainNotes = parsed.cleanNotes;
+343:          const parts = dayName.split(' | ');
+348:        const notesStr = loggedBlockMap.get(block.id) || '';
+349:        const completedStatus = loggedBlockMap.has(block.id)
+353:        const weekNum = block.week_number || 1;
+355:        const mappedBlock: ProgramBlock = {
+365:        const dayKey = dayName.toUpperCase();
+380:      for (const weekNumStr of Object.keys(weekDaysMap)) {
+381:        const weekNum = parseInt(weekNumStr, 10);
+391:      const maxWeek = Math.max(...Object.keys(newWeeksMap).map(k => parseInt(k, 10)));
+405:  async function generateRecsForDay(day: ProgramDay, tier: number, oneMmPts: number, powerPts: number, staticPts: number) {
+410:    for (const block of day.blocks) {
+423:      const [oneMmStats, powerStats, staticStats] = await Promise.all([
+429:      const recs = AssessmentEngine.generateRecommendations(
+445:  const handleToggleBlockStatus = async (blockId: string | number, currentStatus: 'completed' | 'missed' | 'none') => {
+453:    const startOfToday = new Date();
+467:        const notes = nextStatus === 'missed' ? '[STATUS:MISSED]' : '';
+480:      const updateBlockInDays = (dayList: ProgramDay[]) => {
+492:        const next = { ...prev };
+507:  const handleOpenLogModal = (blockId: string | number) => {
+516:  const handleLogWorkout = async () => {
+521:      const finalNotes = logStatus === 'missed'
+525:      const { error } = await supabase
+540:      const nextStatus = logStatus;
+541:      const updateBlockInDays = (dayList: ProgramDay[]) => {
+549:        const next = { ...prev };
+565:  useEffect(() => {
+585:    return () => clearInterval(interval);
+589:  useEffect(() => {
+616:    return () => clearInterval(interval);
+619:  const handleTimerCompletion = (blockId: string | number | null) => {
+632:  const handleForTimeCompletion = (blockId: string | number | null, elapsedSeconds: number) => {
+646:  const promptOptionalLogging = (blockId: string | number, status: 'completed' | 'missed', isWeighted: boolean = false) => {
+674:  const quickLogWorkout = async (blockId: string | number, status: 'completed' | 'missed') => {
+685:      const { error } = await supabase
+705:  const startTimerForBlock = (block: ProgramBlock) => {
+707:    const metaType = block.metadata?.timing_system || block.metadata?.type;
+708:    const structure = block.metadata?.structure || block.metadata?.type;
+712:      const min = parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10);
+725:      const restSec = parseInt(String(block.metadata?.rest_after_round || '90'), 10);
+733:  const formatTimerString = (seconds: number): string => {
+734:    const m = Math.floor(seconds / 60);
+735:    const s = seconds % 60;
+739:  const toggleBlockExpanded = (blockId: string | number) => {
+746:  const handleOpenVideo = (url: string) => {
+754:  return (
+759:      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+861:                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
+863:                        const wNum = parseInt(weekStr, 10);
+864:                        const isActive = wNum === activeWeek;
+865:                        const weekBlocks = weeksData[wNum].flatMap(d => d.blocks);
+866:                        const allCompleted = weekBlocks.length > 0 && weekBlocks.every(b => b.completedStatus === 'completed');
+868:                        return (
+903:                  const activeBlocks = days[activeDayIndex]?.blocks || [];
+904:                  const totalBlocksToday = activeBlocks.length;
+905:                  const completedBlocksToday = activeBlocks.filter(b => b.completedStatus === 'completed').length;
+906:                  const progressPercent = totalBlocksToday > 0 ? Math.round((completedBlocksToday / totalBlocksToday) * 100) : 0;
+908:                  return (
+940:                          const newIdx = activeDayIndex - 1;
+961:                          const newIdx = activeDayIndex + 1;
+1030:                    return (
+1056:      <Modal
+1104:              const activeLogBlock = days.flatMap(d => d.blocks).find(b => b.id === activeLogBlockId);
+1106:              const meta = activeLogBlock.metadata;
+1107:              return (
+1229:      <Modal
+1337:            <ScrollView style={{ width: '100%', maxHeight: 150 }} showsVerticalScrollIndicator={false}>
+1339:                const activeBlock = days.flatMap(d => d.blocks).find(b => b.id === activeTimerBlockId);
+1341:                return (
+1368:const styles = StyleSheet.create({

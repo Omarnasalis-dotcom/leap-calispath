@@ -170,7 +170,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               {/* Block Action Buttons Row */}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
                 {((block.metadata?.timing_system === 'amrap' || block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'amrap' || block.metadata?.type === 'fortime') || 
-                  (block.metadata?.structure === 'superset' || block.metadata?.structure === 'circuit' || block.metadata?.structure === 'ladder' || block.metadata?.type === 'superset' || block.metadata?.type === 'circuit')) && (
+                  (block.metadata?.structure === 'superset' || block.metadata?.structure === 'circuit' || block.metadata?.structure === 'ladder' || block.metadata?.structure === 'single' || block.metadata?.type === 'superset' || block.metadata?.type === 'circuit' || block.metadata?.type === 'single' || !block.metadata?.structure)) && (
                   <LinearGradient
                     colors={['#7E57C2', '#FF5252', '#FF7043']}
                     start={{ x: 0, y: 0 }}

@@ -9,7 +9,8 @@
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
     "build:vercel": "expo export --platform web --output-dir dist && cp -r public/* dist/",
-    "serve": "cd dist && python3 -m http.server 8080"
+    "serve": "cd dist && python3 -m http.server 8080",
+    "test": "jest"
   },
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
@@ -21,6 +22,7 @@
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/netinfo": "11.4.1",
     "@supabase/supabase-js": "^2.105.1",
+    "@types/jest": "29.5.14",
     "dotenv": "^17.4.2",
     "expo": "~54.0.33",
     "expo-av": "~16.0.8",
@@ -38,6 +40,8 @@
     "expo-splash-screen": "^55.0.20",
     "expo-status-bar": "~3.0.9",
     "html2canvas": "^1.4.1",
+    "jest": "~29.7.0",
+    "jest-expo": "~54.0.17",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",
@@ -52,6 +56,8 @@
   },
   "devDependencies": {
     "@types/react": "~19.1.0",
+    "react-native-worklets": "^0.8.3",
+    "react-native-worklets-core": "^1.6.3",
     "typescript": "~5.9.2"
   },
   "private": true

@@ -178,33 +178,22 @@ export function TrialScreen({
       ? 'Abandon Trial? This attempt will be logged as incomplete. Your rank will not change.'
       : 'Exit Trial?';
     
-    if (Platform.OS === 'web') {
-      // Standard window.confirm is the most reliable way to block on web
-      // We use a tiny delay to ensure the touch event has finished processing
-      setTimeout(() => {
-        if (window.confirm(`${title}\n\n${message}`)) {
-          if (hasStarted) doAbandon();
-          else onBack ? onBack() : null;
-        }
-      }, 50);
-    } else {
-      Alert.alert(
-        title,
-        message,
-        [
-          { text: hasStarted ? 'Continue Trial' : 'Cancel', style: 'cancel' },
-          { 
-            text: hasStarted ? 'Abandon' : 'Exit', 
-            style: 'destructive', 
-            onPress: () => {
-              if (hasStarted) doAbandon();
-              else onBack ? onBack() : null;
-            } 
-          },
-        ],
-        { cancelable: true }
-      );
-    }
+    Alert.alert(
+      title,
+      message,
+      [
+        { text: hasStarted ? 'Continue Trial' : 'Cancel', style: 'cancel' },
+        {
+          text: hasStarted ? 'Abandon' : 'Exit',
+          style: 'destructive',
+          onPress: () => {
+            if (hasStarted) doAbandon();
+            else onBack ? onBack() : null;
+          }
+        },
+      ],
+      { cancelable: true }
+    );
   }
 
   function handleAbandon() {
@@ -450,7 +439,7 @@ export function TrialScreen({
             <Text style={[styles.timerLabel, { color: theme.text.tertiary, marginBottom: 4 }]}>
               {hasStarted ? 'TRIAL CLOCK' : 'READY'}
             </Text>
-            <Text style={[styles.timer, { color: '#FFFFFF' }]}>{formatTime(timeSeconds)}</Text>
+            <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
           </Animated.View>
         </View>
 

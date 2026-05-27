@@ -29,6 +29,7 @@ export interface Profile {
   timezone: string;
   updated_at: string;
   is_admin?: boolean;
+  is_coach?: boolean;
   coach_beta_access: boolean;
   clash_win_streak: number;
   access_expires_at?: string | null;

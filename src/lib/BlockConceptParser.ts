@@ -1,10 +1,14 @@
 export interface ConceptMetadata {
-  timing_system?: 'amrap' | 'fortime' | 'straight_set';
+  timing_system?: 'amrap' | 'fortime' | 'straight_set' | 'tabata';
   time_cap_min?: string | number;
   structure?: 'single' | 'superset' | 'circuit' | 'ladder';
   rounds?: string | number;
   ladder_start?: string | number;
   ladder_sub?: string | number;
+  ladder_direction?: 'down' | 'up';
+  tabata_work_seconds?: string | number;
+  tabata_rest_seconds?: string | number;
+  tabata_rounds?: string | number;
   is_weighted?: boolean;
   rest_after_round?: string | number;
   is_tier_trial?: boolean;
@@ -55,6 +59,11 @@ export class BlockConceptParser {
       prefix = `AMRAP (${timeCap || 10} MIN)`;
     } else if (timing === 'fortime') {
       prefix = `FOR TIME (${timeCap ? timeCap + ' MIN CAP' : 'NO CAP'})`;
+    } else if (timing === 'tabata') {
+      const w = metadata.tabata_work_seconds || 20;
+      const r = metadata.tabata_rest_seconds || 10;
+      const rounds = metadata.tabata_rounds || 8;
+      prefix = `TABATA (${rounds}×${w}s WORK / ${r}s REST)`;
     } else {
       // straight_set
       if (struct === 'ladder') {
@@ -74,9 +83,11 @@ export class BlockConceptParser {
       const start = parseInt(String(metadata.ladder_start), 10);
       const sub = parseInt(String(metadata.ladder_sub || 0), 10);
       
+      const isUp = metadata.ladder_direction === 'up';
       const sequence = [];
       for (let i = 0; i < r; i++) {
-        sequence.push(Math.max(0, start - (sub * i)));
+        const val = isUp ? start + (sub * i) : Math.max(0, start - (sub * i));
+        sequence.push(val);
       }
       
       prefix += ` • ${r} ROUNDS: ${sequence.join(', ')} REPS`;
@@ -93,11 +104,15 @@ export class BlockConceptParser {
     if (metadata.structure !== 'ladder' || !metadata.rounds || !metadata.ladder_start) return '';
     const r = parseInt(String(metadata.rounds), 10);
     const start = parseInt(String(metadata.ladder_start), 10);
-    const sub = parseInt(String(metadata.ladder_sub || 0), 10);
+    const step = parseInt(String(metadata.ladder_sub || 0), 10);
+    const isUp = metadata.ladder_direction === 'up';
     
     const sequence = [];
     for (let i = 0; i < r; i++) {
-      sequence.push(Math.max(0, start - (sub * i)));
+      const val = isUp
+        ? start + (step * i)
+        : Math.max(0, start - (step * i));
+      sequence.push(val);
     }
     return sequence.join(', ') + ' REPS';
   }

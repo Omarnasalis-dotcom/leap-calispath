@@ -21,13 +21,13 @@ const slides = [
     isLogoSlide: true,
   },
   {
-    localImage: require('../../assets/slide1.png'),
+    localImage: require('../../assets/slide1.jpg'),
     title: 'WELCOME TO THE ARENA',
     subtitle: 'A competitive calisthenics journey',
     body: 'Earn your rank. Complete trials.\nCompete with warriors worldwide.',
   },
   {
-    localImage: require('../../assets/slide2.png'),
+    localImage: require('../../assets/slide2.jpg'),
     title: 'THREE WORLDS OF MASTERY',
     subtitle: 'Choose your path',
     worlds: [
@@ -37,13 +37,13 @@ const slides = [
     ],
   },
   {
-    localImage: require('../../assets/slide3.png'),
+    localImage: require('../../assets/slide3.jpg'),
     title: 'ASSESS & CLIMB',
     subtitle: 'The Tier System',
     body: 'Take the initial Assessment to discover your baseline. From Helot to Eternity, every rank must be earned through blood, sweat, and iron.',
   },
   {
-    localImage: require('../../assets/slide4.png'),
+    localImage: require('../../assets/slide4.jpg'),
     title: 'THE TRIALS',
     subtitle: 'Prove yourself',
     body: 'Complete grueling physical Trials to unlock the next tier. Your best times are forged into the Global Leaderboards. Will you be the King?',

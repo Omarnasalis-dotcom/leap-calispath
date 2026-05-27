@@ -13,7 +13,7 @@ interface TierSelectorRowProps {
   selectedTier: number;
   activeCurrentTier: number;
   theme: any;
-  tierScrollRef: React.RefObject<ScrollView>;
+  tierScrollRef: React.RefObject<ScrollView | null>;
   onSelectTier: (tier: number) => void;
 }
 
@@ -56,7 +56,7 @@ export function TierSelectorRow({
               <View style={[
                 styles.tierItemContent,
                 isCurrent ? { backgroundColor: theme.accent } :
-                  isLockedItem ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(255,255,255,0.15)' } :
+                  isLockedItem ? { backgroundColor: 'transparent', borderWidth: 1, borderColor: 'rgba(205,127,50,0.4)' } :
                     { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.accent }
               ]}>
                 <Text style={[
@@ -73,7 +73,7 @@ export function TierSelectorRow({
                 </Text>
                 {isLockedItem && (
                   <View style={styles.lockOverlay}>
-                    <Text style={{ fontSize: 8 }}>🔒</Text>
+                    <Text style={{ fontSize: 16, opacity: 0.8 }}>🔒</Text>
                   </View>
                 )}
               </View>
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0,0,0,0.6)',
+    backgroundColor: 'rgba(0,0,0,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
   },
