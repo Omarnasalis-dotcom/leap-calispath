@@ -347,19 +347,24 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
 
   const handleDelete = async (sessionId: string, status: string) => {
     if (status !== 'registration') { Alert.alert('Error', 'Only registration tournaments can be deleted'); return; }
-    const confirmed = typeof window !== 'undefined'
-      ? window.confirm('Are you sure you want to delete this tournament?')
-      : await new Promise(resolve => Alert.alert('Confirm Delete', 'Are you sure?', [{ text: 'Cancel', onPress: () => resolve(false), style: 'cancel' }, { text: 'Delete', onPress: () => resolve(true), style: 'destructive' }]));
-    if (!confirmed) return;
-    try {
-      const { data: session } = await supabase.from('tournament_sessions').select('config_id').eq('id', sessionId).single();
-      await supabase.from('tournament_matches').delete().eq('tournament_id', sessionId);
-      await supabase.from('tournament_participants').delete().eq('tournament_id', sessionId);
-      await supabase.from('tournament_sessions').delete().eq('id', sessionId);
-      if (session?.config_id) await supabase.from('tournament_configs').delete().eq('id', session.config_id);
-      Alert.alert('Deleted', 'Tournament removed successfully');
-      fetchTournaments();
-    } catch (err: any) { Alert.alert('Delete Failed', err.message); }
+    Alert.alert(
+      'Confirm Delete',
+      'Are you sure you want to delete this tournament?',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Delete', style: 'destructive', onPress: async () => {
+          try {
+            const { data: session } = await supabase.from('tournament_sessions').select('config_id').eq('id', sessionId).single();
+            await supabase.from('tournament_matches').delete().eq('tournament_id', sessionId);
+            await supabase.from('tournament_participants').delete().eq('tournament_id', sessionId);
+            await supabase.from('tournament_sessions').delete().eq('id', sessionId);
+            if (session?.config_id) await supabase.from('tournament_configs').delete().eq('id', session.config_id);
+            Alert.alert('Deleted', 'Tournament removed successfully');
+            fetchTournaments();
+          } catch (err: any) { Alert.alert('Delete Failed', err.message); }
+        }},
+      ]
+    );
   };
 
   const updateRound = (index: number, updates: Partial<RoundConfig>) => {

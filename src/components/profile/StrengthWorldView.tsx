@@ -30,7 +30,7 @@ interface StrengthWorldViewProps {
   theme: any;
   onStartTrial?: (tier?: number) => void;
   onOpenPowerAssessment?: () => void;
-  onViewLeaderboards?: (category: string, tier: number) => void;
+  onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
   onSignOut: () => void;
   onSetMuted: (muted: boolean) => void;
   onShowTierModal: (tier: number) => void;

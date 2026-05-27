@@ -14,10 +14,12 @@ import { LeapLogo } from '../src/components/LeapLogo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ErrorBoundary } from '../src/components/ErrorBoundary';
 
+let isSplashHidden = false;
+
 
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, hasSeenOnboarding } = useAuth();
+  const { user, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
@@ -29,7 +31,17 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     
     
     // Auth and Onboarding state is resolved. We can now hide the native splash screen.
-    SplashScreen.hideAsync();
+    if (!isSplashHidden) {
+      SplashScreen.hideAsync().catch(() => {});
+      isSplashHidden = true;
+    }
+
+    if (needsPasswordReset) {
+      if (segments[0] !== 'reset-password') {
+        router.replace('/reset-password');
+      }
+      return;
+    }
 
     if (!user) {
       if (!hasSeenOnboarding && !inOnboarding) {
@@ -42,7 +54,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace('/');
       }
     }
-  }, [user, loading, hasSeenOnboarding, segments]);
+  }, [user, loading, hasSeenOnboarding, needsPasswordReset, segments]);
 
   if (loading || hasSeenOnboarding === null) {
     // Return null because the native splash screen is covering the view

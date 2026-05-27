@@ -106,20 +106,14 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   }
 
   function handleAbandon() {
-    if (Platform.OS === 'web') {
-      if (window.confirm('Abandon Assessment? Your progress will not be saved.')) {
-        router.back();
-      }
-    } else {
-      Alert.alert(
-        'Abandon Assessment?',
-        'Your progress will not be saved.',
-        [
-          { text: 'Continue', style: 'cancel' },
-          { text: 'Abandon', style: 'destructive', onPress: onAbandon },
-        ]
-      );
-    }
+    Alert.alert(
+      'Abandon Assessment?',
+      'Your progress will not be saved.',
+      [
+        { text: 'Continue', style: 'cancel' },
+        { text: 'Abandon', style: 'destructive', onPress: onAbandon },
+      ]
+    );
   }
 
   return (

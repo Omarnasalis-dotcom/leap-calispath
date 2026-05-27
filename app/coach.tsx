@@ -1,10 +1,13 @@
-import { useRouter } from 'expo-router';
-import { CoachScreen } from '../src/screens/CoachScreen';
+import { LockedFeature } from '../src/components/LockedFeature';
+import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function CoachRoute() {
-  const router = useRouter();
-
   return (
-    <CoachScreen onBack={() => router.back()} />
+    <SpartanLayout hideToggle>
+      <LockedFeature 
+        title="COACHING HUB" 
+        description="The elite mentorship program is currently in private beta."
+      />
+    </SpartanLayout>
   );
 }

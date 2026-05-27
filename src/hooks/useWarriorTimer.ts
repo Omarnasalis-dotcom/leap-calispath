@@ -13,7 +13,10 @@ interface UseWarriorTimerProps {
 
 export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
   const [activeTimerBlockId, setActiveTimerBlockId] = useState<string | number | null>(null);
-  const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | null>(null);
+  const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | 'tabata' | null>(null);
+  const [tabataPhase, setTabataPhase] = useState<'work' | 'rest'>('work');
+  const [tabataWorkSecs, setTabataWorkSecs] = useState(20);
+  const [tabataRestSecs, setTabataRestSecs] = useState(10);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -23,6 +26,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
   const [currentRound, setCurrentRound] = useState<number>(1);
   const [totalRounds, setTotalRounds] = useState<number>(1);
   const [restSeconds, setRestSeconds] = useState<number>(0);
+  const [timeCapSecs, setTimeCapSecs] = useState<number>(0);
 
   const lastTickRef = useRef<number | null>(null);
   const appState = useRef(AppState.currentState);
@@ -61,7 +65,18 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
                 return newTime;
               });
             } else if (timerType === 'fortime') {
-              setElapsedTime(prev => prev + deltaSecs);
+              setElapsedTime(prev => {
+                const nextTime = prev + deltaSecs;
+                if (timeCapSecs > 0 && nextTime >= timeCapSecs) {
+                  setTimerRunning(false);
+                  SoundServiceInstance.playDigitalBuzzer();
+                  if (activeTimerBlockId) {
+                    onAmrapComplete(activeTimerBlockId);
+                  }
+                  return timeCapSecs;
+                }
+                return nextTime;
+              });
             }
           }
           lastTickRef.current = now;
@@ -132,7 +147,49 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
             return prev - 1;
           });
         } else if (timerType === 'fortime') {
-          setElapsedTime(prev => prev + 1);
+          setElapsedTime(prev => {
+            const nextTime = prev + 1;
+            if (timeCapSecs > 0 && nextTime >= timeCapSecs) {
+              setTimerRunning(false);
+              clearInterval(interval);
+              SoundServiceInstance.playDigitalBuzzer();
+              if (activeTimerBlockId) {
+                onAmrapComplete(activeTimerBlockId);
+              }
+              return timeCapSecs;
+            }
+            return nextTime;
+          });
+        } else if (timerType === 'tabata') {
+          setTimeLeft(prev => {
+            if (prev <= 1) {
+              setTabataPhase(currentPhase => {
+                if (currentPhase === 'work') {
+                  SoundServiceInstance.playDigitalBuzzer(2);
+                  setCurrentRound(r => r);
+                  setTimeLeft(tabataRestSecs);
+                  return 'rest';
+                } else {
+                  setCurrentRound(r => {
+                    const nextRound = r + 1;
+                    if (nextRound > totalRounds) {
+                      setTimerRunning(false);
+                      clearInterval(interval);
+                      SoundServiceInstance.playDigitalBuzzer(4);
+                      if (activeTimerBlockId) onAmrapComplete(activeTimerBlockId);
+                      return r;
+                    }
+                    SoundServiceInstance.playBoxingBell();
+                    setTimeLeft(tabataWorkSecs);
+                    return nextRound;
+                  });
+                  return 'work';
+                }
+              });
+              return 0;
+            }
+            return prev - 1;
+          });
         }
       }, 1000);
     } else {
@@ -165,10 +222,26 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
     } else if (metaType === 'fortime') {
       setTimerType('fortime');
       setElapsedTime(0);
+      const capMin = parseInt(String(block.metadata?.time_cap_min || '15'), 10);
+      setTimeCapSecs(capMin * 60);
       setTimerRunning(false);
       setTimerPrepCountdown(5);
       setTimerModalVisible(true);
-    } else if (structure === 'superset' || structure === 'circuit' || structure === 'ladder') {
+    } else if (metaType === 'tabata') {
+      setTimerType('tabata');
+      const workSec = parseInt(String(block.metadata?.tabata_work_seconds || '20'), 10);
+      const restSec = parseInt(String(block.metadata?.tabata_rest_seconds || '10'), 10);
+      const tabRounds = parseInt(String(block.metadata?.tabata_rounds || '8'), 10);
+      setTabataWorkSecs(workSec);
+      setTabataRestSecs(restSec);
+      setTotalRounds(tabRounds);
+      setCurrentRound(1);
+      setTabataPhase('work');
+      setTimeLeft(workSec);
+      setTimerRunning(false);
+      setTimerPrepCountdown(5);
+      setTimerModalVisible(true);
+    } else if (structure === 'superset' || structure === 'circuit' || structure === 'ladder' || structure === 'single') {
       setTimerType('rest');
       const restSec = parseInt(String(block.metadata?.rest_after_round || '90'), 10);
       setRestSeconds(restSec);
@@ -207,6 +280,9 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
     currentRound,
     totalRounds,
     handleStartRest,
-    restSeconds
+    restSeconds,
+    tabataPhase,
+    tabataWorkSecs,
+    tabataRestSecs
   };
 }

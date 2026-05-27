@@ -1,18 +1,14 @@
 import React from 'react';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { ChampionsArenaScreen } from '../src/screens/ChampionsArenaScreen';
+import { LockedFeature } from '../src/components/LockedFeature';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
-  const router = useRouter();
-  const params = useLocalSearchParams();
-  
   return (
     <SpartanLayout>
-      <ChampionsArenaScreen 
-        onClose={() => router.back()} 
-        onStartArenaWorkout={(phase) => router.push({ pathname: '/arena-workout', params: { sessionId: phase.id } })}
-        {...params}
+      <LockedFeature 
+        title="CHAMPIONS ARENA" 
+        description="The ultimate proving ground for Demigods and Eternals. Train for the arena."
       />
     </SpartanLayout>
   );

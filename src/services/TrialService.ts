@@ -18,7 +18,8 @@ export class TrialService {
    * Server-side Edge Function is the authoritative validator.
    */
   static isTimeValid(tier: number, timeSeconds: number): boolean {
-    const minTime = TIER_HARD_FLOORS[tier] ?? 42;
+    const minTime = TIER_HARD_FLOORS[tier];
+    if (minTime === undefined) return false;
     return timeSeconds >= minTime;
   }
 

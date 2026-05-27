@@ -27,7 +27,11 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
   const [rounds, setRounds] = useState(String(initialMetadata.rounds || '4'));
   const [ladderStart, setLadderStart] = useState(String(initialMetadata.ladder_start || '20'));
   const [ladderSub, setLadderSub] = useState(String(initialMetadata.ladder_sub || '2'));
+  const [ladderDirection, setLadderDirection] = useState<'down' | 'up'>(initialMetadata.ladder_direction || 'down');
   const [isWeighted, setIsWeighted] = useState(!!initialMetadata.is_weighted);
+  const [tabataWork, setTabataWork] = useState(String(initialMetadata.tabata_work_seconds || '20'));
+  const [tabataRest, setTabataRest] = useState(String(initialMetadata.tabata_rest_seconds || '10'));
+  const [tabataRounds, setTabataRounds] = useState(String(initialMetadata.tabata_rounds || '8'));
   const [isTierTrial, setIsTierTrial] = useState(!!initialMetadata.is_tier_trial);
 
   useEffect(() => {
@@ -41,10 +45,17 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
       payload.time_cap_min = timeCap;
     }
 
+    if (timingSystem === 'tabata') {
+      payload.tabata_work_seconds = tabataWork;
+      payload.tabata_rest_seconds = tabataRest;
+      payload.tabata_rounds = tabataRounds;
+    }
+
     if (structure === 'ladder') {
       payload.rounds = rounds;
       payload.ladder_start = ladderStart;
       payload.ladder_sub = ladderSub;
+      payload.ladder_direction = ladderDirection;
     } else if (structure !== 'single') {
       payload.rounds = rounds;
     }
@@ -58,7 +69,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
     }
 
     onChange(payload);
-  }, [timingSystem, structure, timeCap, rounds, ladderStart, ladderSub, isWeighted, isTierTrial]);
+  }, [timingSystem, structure, timeCap, rounds, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tabataWork, tabataRest, tabataRounds]);
 
   const TimingOption = ({ value, label }: { value: any, label: string }) => {
     const active = timingSystem === value;
@@ -91,6 +102,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         <TimingOption value="straight_set" label="STRAIGHT SET" />
         <TimingOption value="amrap" label="AMRAP" />
         <TimingOption value="fortime" label="FOR TIME" />
+        <TimingOption value="tabata" label="TABATA" />
       </View>
 
       {(timingSystem === 'amrap' || timingSystem === 'fortime') && (
@@ -102,6 +114,45 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
             value={timeCap}
             onChangeText={setTimeCap}
           />
+        </View>
+      )}
+
+      {timingSystem === 'tabata' && (
+        <View style={{ gap: 12, marginBottom: 16 }}>
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>WORK (SECONDS)</Text>
+              <TextInput
+                style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
+                keyboardType="number-pad"
+                value={tabataWork}
+                onChangeText={setTabataWork}
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>REST (SECONDS)</Text>
+              <TextInput
+                style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
+                keyboardType="number-pad"
+                value={tabataRest}
+                onChangeText={setTabataRest}
+              />
+            </View>
+          </View>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS</Text>
+            <TextInput
+              style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
+              keyboardType="number-pad"
+              value={tabataRounds}
+              onChangeText={setTabataRounds}
+            />
+          </View>
+          <View style={{ padding: 12, backgroundColor: 'rgba(126,87,194,0.1)', borderRadius: 8 }}>
+            <Text style={{ color: '#7E57C2', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 }}>
+              PREVIEW: {tabataRounds} ROUNDS × {tabataWork}s WORK / {tabataRest}s REST = {Math.round((parseInt(tabataWork||'20') + parseInt(tabataRest||'10')) * parseInt(tabataRounds||'8') / 60 * 10) / 10} MIN TOTAL
+            </Text>
+          </View>
         </View>
       )}
 
@@ -147,7 +198,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
             />
           </View>
           <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>DROP PER ROUND (-)</Text>
+            <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>{ladderDirection === 'up' ? 'ADD PER ROUND (+)' : 'DROP PER ROUND (-)'}</Text>
             <TextInput
               style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
               keyboardType="number-pad"
@@ -158,11 +209,28 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         </View>
       )}
 
+      {structure === 'ladder' && (
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          <TouchableOpacity
+            style={[styles.optionBtn, { borderColor: ladderDirection === 'down' ? '#FF5252' : theme.card.border, backgroundColor: ladderDirection === 'down' ? 'rgba(255,82,82,0.1)' : 'transparent', flex: 1 }]}
+            onPress={() => setLadderDirection('down')}
+          >
+            <Text style={[styles.optionText, { color: ladderDirection === 'down' ? '#FF5252' : theme.text.secondary }]}>▼ DROP LADDER</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.optionBtn, { borderColor: ladderDirection === 'up' ? '#4CAF50' : theme.card.border, backgroundColor: ladderDirection === 'up' ? 'rgba(76,175,80,0.1)' : 'transparent', flex: 1 }]}
+            onPress={() => setLadderDirection('up')}
+          >
+            <Text style={[styles.optionText, { color: ladderDirection === 'up' ? '#4CAF50' : theme.text.secondary }]}>▲ CLIMB LADDER</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {structure === 'ladder' && rounds && ladderStart && (
         <View style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(126, 87, 194, 0.1)', borderRadius: 8 }}>
           <Text style={{ color: '#7E57C2', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 }}>
-            PREVIEW: {rounds} ROUNDS OF {
-              Array.from({ length: parseInt(rounds) || 0 }).map((_, i) => Math.max(0, parseInt(ladderStart) - (parseInt(ladderSub || '0') * i))).join(', ')
+            {ladderDirection === 'up' ? 'CLIMB' : 'DROP'} LADDER: {rounds} ROUNDS OF {
+              Array.from({ length: parseInt(rounds) || 0 }).map((_, i) => ladderDirection === 'up' ? parseInt(ladderStart) + (parseInt(ladderSub || '0') * i) : Math.max(0, parseInt(ladderStart) - (parseInt(ladderSub || '0') * i))).join(', ')
             } REPS
           </Text>
         </View>

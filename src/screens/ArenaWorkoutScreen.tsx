@@ -90,26 +90,21 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
       ? `WORLD CLASS! You beat the pro time by ${formatTime(phase!.pro_benchmark_time - seconds)}!` 
       : `Arena Trial Completed in ${formatTime(seconds)}.`;
     
-    if (Platform.OS === 'web') alert(msg);
-    else Alert.alert('CHAMPIONS ARENA', msg);
+    Alert.alert('CHAMPIONS ARENA', msg);
     
     onComplete(seconds);
   };
 
   const handleAbandon = () => {
     const msg = 'Are you sure you want to quit this Arena Trial? Progress will not be saved.';
-    if (Platform.OS === 'web') {
-      if (window.confirm(msg)) router.back();
-    } else {
-      Alert.alert(
-        'ABANDON TRIAL',
-        msg,
-        [
-          { text: 'KEEP FIGHTING', style: 'cancel' },
-          { text: 'ABANDON', style: 'destructive', onPress: onClose }
-        ]
-      );
-    }
+    Alert.alert(
+      'ABANDON TRIAL',
+      msg,
+      [
+        { text: 'KEEP FIGHTING', style: 'cancel' },
+        { text: 'ABANDON', style: 'destructive', onPress: onClose }
+      ]
+    );
   };
 
   const currentStep = phase!.steps[currentStepIdx];

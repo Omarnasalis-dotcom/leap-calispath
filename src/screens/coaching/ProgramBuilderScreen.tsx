@@ -42,6 +42,7 @@ export interface SelectedExercise {
   sets: string;
   reps: string;
   rest_seconds: string;
+  hold_seconds: string;
   notes: string;
 }
 
@@ -129,6 +130,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
   // Copy Block Modal State
   const [copyModalVisible, setCopyModalVisible] = useState(false);
   const [sourceBlock, setSourceBlock] = useState<ProgramBlock | null>(null);
+  const [sourceDay, setSourceDay] = useState<ProgramDay | null>(null);
   const [copyView, setCopyView] = useState<'options' | 'day' | 'template'>('options');
   const [otherTemplates, setOtherTemplates] = useState<{ id: string; name: string }[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
@@ -207,20 +209,14 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
       }
     };
 
-    if (Platform.OS === 'web') {
-      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.')) {
-        performDelete();
-      }
-    } else {
-      Alert.alert(
-        'DELETE TEMPLATE',
-        'ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.',
-        [
-          { text: 'CANCEL', style: 'cancel' },
-          { text: 'DELETE', style: 'destructive', onPress: performDelete }
-        ]
-      );
-    }
+    Alert.alert(
+      'DELETE TEMPLATE',
+      'ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.',
+      [
+        { text: 'CANCEL', style: 'cancel' },
+        { text: 'DELETE', style: 'destructive', onPress: performDelete }
+      ]
+    );
   };
 
   // Load existing template configuration
@@ -289,6 +285,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
             sets,
             reps,
             rest_seconds,
+            hold_seconds,
             notes,
             order_index,
             exercise_library (
@@ -326,6 +323,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
           sets: String(ex.sets || ''),
           reps: String(ex.reps || ''),
           rest_seconds: String(ex.rest_seconds || ''),
+          hold_seconds: String(ex.hold_seconds || ''),
           notes: ex.notes || ''
         }));
 
@@ -440,6 +438,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
                   sets: '4',
                   reps: '10',
                   rest_seconds: '90',
+                  hold_seconds: '',
                   notes: ''
                 };
                 return {
@@ -624,6 +623,8 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
 
   const handleOpenCopyModal = (block: ProgramBlock) => {
     setSourceBlock(block);
+    const parentDay = days.find(d => d.blocks.some(b => b.id === block.id)) || null;
+    setSourceDay(parentDay);
     setCopyView('options');
     setSuccessMessage(null);
     setSelectedTemplateId('');
@@ -652,6 +653,26 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
       }))
     );
     showSuccessMessage('EXERCISES COPIED SUCCESSFULLY!');
+  };
+
+  const handleCopyDayToDay = (sourceDayId: string) => {
+    if (!sourceDay) return;
+    const duplicatedBlocks = sourceDay.blocks.map(block => ({
+      ...block,
+      id: Math.random().toString(36).substr(2, 9),
+      db_id: undefined,
+      exercises: block.exercises.map(ex => ({
+        ...ex,
+        id: Math.random().toString(36).substr(2, 9)
+      }))
+    }));
+    const newDay: ProgramDay = {
+      id: Math.random().toString(36).substr(2, 9),
+      name: sourceDay.name + ' (COPY)',
+      blocks: duplicatedBlocks,
+      focusTag: sourceDay.focusTag
+    };
+    setDays(prev => [...prev, newDay]);
   };
 
   const fetchOtherTemplates = async () => {
@@ -702,6 +723,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
           sets: parseInt(ex.sets) || null,
           reps: ex.reps.trim(),
           rest_seconds: parseInt(ex.rest_seconds) || null,
+          hold_seconds: parseInt(ex.hold_seconds) || null,
           notes: ex.notes.trim(),
           order_index: startIndex + exIdx
         }));
@@ -904,6 +926,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
               sets: parseInt(ex.sets) || null,
               reps: ex.reps.trim(),
               rest_seconds: parseInt(ex.rest_seconds) || null,
+              hold_seconds: parseInt(ex.hold_seconds) || null,
               notes: ex.notes.trim(),
               order_index: exIdx
             }));
@@ -1399,8 +1422,9 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
 
       <CopyBlockModal
         visible={copyModalVisible}
-        onClose={() => { setCopyModalVisible(false); setSourceBlock(null); setCopyView('options'); }}
+        onClose={() => { setCopyModalVisible(false); setSourceBlock(null); setSourceDay(null); setCopyView('options'); }}
         sourceBlock={sourceBlock}
+        sourceDay={sourceDay}
         copyView={copyView}
         setCopyView={setCopyView}
         days={days}
@@ -1409,7 +1433,9 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
         selectedTemplateId={selectedTemplateId}
         setSelectedTemplateId={setSelectedTemplateId}
         successMessage={successMessage}
+        coachId={coachId}
         onCopyDay={handleCopyDay}
+        onCopyDayToDay={handleCopyDayToDay}
         onFetchOtherTemplates={fetchOtherTemplates}
         onFetchTargetBlocks={fetchTargetBlocksForTemplate}
         onCopyTemplate={handleCopyTemplate}

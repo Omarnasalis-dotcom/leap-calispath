@@ -30,6 +30,7 @@ import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { WorldSelectorGrid } from '../components/profile/WorldSelectorGrid';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
 import { StrengthWorldView } from '../components/profile/StrengthWorldView';
+import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -262,7 +263,9 @@ export function ProfileScreen({
 
   const [showCoachPrompt, setShowCoachPrompt] = useState(false);
 
-  if (!profile) return null;
+  if (!profile) {
+    return <ProfileSkeleton />;
+  }
 
   const staticPts = profile.statics_tier || 0;
   const powerPts = profile.power_points || 0;

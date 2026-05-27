@@ -270,6 +270,7 @@ const styles = StyleSheet.create({
   modalHeaderTitle: {
     alignItems: 'center',
     paddingTop: 8,
+    paddingHorizontal: 48,
   },
   lbTitle: {
     fontSize: 22,

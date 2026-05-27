@@ -13,17 +13,18 @@ import { LeapLogo } from '../components/LeapLogo';
 
 
 interface Props {
-  navigation?: any;
-  route?: any; // For sessionId
+
+
   sessionId?: string;
   onClose?: () => void;
   onEnterWorkout?: (sessionId: string, roundConfig: any) => void;
 }
 
-export function TournamentLobbyScreen({ navigation, route, sessionId: propSessionId, onClose, onEnterWorkout }: Props) {
+export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnterWorkout }: Props) {
   const { theme } = useTheme();
   const { profile } = useAuth();
-  const sessionId = propSessionId || route?.params?.sessionId;
+  const { sessionId: paramSessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const sessionId = propSessionId || paramSessionId;
 
   const [activeSession, setActiveSession] = useState<any>(null);
   const [participants, setParticipants] = useState<any[]>([]);
@@ -103,7 +104,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
           if (Platform.OS === 'web') alert(`Ineligible Warrior\n\n${msg}`);
           else Alert.alert('Ineligible Warrior', msg);
           
-          navigation.goBack();
+          router.back();
           return;
         }
       }
@@ -449,7 +450,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
             {!myScore && (
               <TouchableOpacity
                 style={[styles.mainBtn, { backgroundColor: theme.accent }]}
-                onPress={() => onEnterWorkout ? onEnterWorkout(sessionId, currentRoundConfig) : navigation.navigate('TournamentTrial', { sessionId, roundConfig: currentRoundConfig })}
+                onPress={() => onEnterWorkout ? onEnterWorkout(sessionId, currentRoundConfig) : router.push({ pathname: "/tournament-trial", params: { sessionId } })}
               >
                 <Text style={styles.mainBtnText}>ENTER BATTLE</Text>
               </TouchableOpacity>
@@ -515,7 +516,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
           trialsUsed < maxTrials && (
             <TouchableOpacity
               style={[styles.mainBtn, { backgroundColor: theme.accent, marginTop: 20 }]}
-              onPress={() => onEnterWorkout ? onEnterWorkout(sessionId, activeSession.config.workout_config[0]) : navigation.navigate('TournamentTrial', { sessionId, roundConfig: activeSession.config.workout_config[0] })}
+              onPress={() => onEnterWorkout ? onEnterWorkout(sessionId, activeSession.config.workout_config[0]) : router.push({ pathname: "/tournament-trial", params: { sessionId } })}
             >
               <Text style={styles.mainBtnText}>ATTEMPT TRIAL</Text>
             </TouchableOpacity>
@@ -552,7 +553,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
 
         <TouchableOpacity
           style={[styles.mainBtn, { backgroundColor: 'rgba(255,255,255,0.1)', marginTop: 40 }]}
-          onPress={() => onClose ? router.back() : navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Text style={[styles.mainBtnText, { color: theme.text.primary }]}>EXIT ARENA</Text>
         </TouchableOpacity>
@@ -571,7 +572,7 @@ export function TournamentLobbyScreen({ navigation, route, sessionId: propSessio
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => onClose ? router.back() : navigation.goBack()}>
+        <TouchableOpacity onPress={() => router.back()}>
           <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.headerTitle, { color: theme.text.primary }]}>{activeSession?.config?.title?.toUpperCase()}</Text>

@@ -24,16 +24,17 @@ interface Props {
   };
   onComplete?: (score: number) => void;
   onClose?: () => void;
-  navigation?: any;
-  route?: any; // For sessionId and roundConfig from navigation
+
+
 }
 
-export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: propRoundConfig, onComplete, onClose, navigation, route }: Props) {
+export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: propRoundConfig, onComplete, onClose }: Props) {
   const { theme } = useTheme();
   const { profile } = useAuth();
   
-  const sessionId = propSessionId || route?.params?.sessionId;
-  const roundConfig = propRoundConfig || route?.params?.roundConfig;
+  const { sessionId: paramSessionId } = useLocalSearchParams<{ sessionId: string }>();
+  const sessionId = propSessionId || paramSessionId;
+  const roundConfig = propRoundConfig;
 
   const [isActive, setIsActive] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
@@ -254,7 +255,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
         <Text style={[styles.resultSub, { color: theme.text.tertiary }]}>Handicap Adjusted Score</Text>
         <TouchableOpacity 
           style={[styles.mainBtn, { backgroundColor: theme.accent, marginTop: 40, width: '80%' }]}
-          onPress={() => onClose ? router.back() : navigation.goBack()}
+          onPress={() => router.back()}
         >
           <Text style={styles.mainBtnText}>RETURN TO LOBBY</Text>
         </TouchableOpacity>
@@ -270,7 +271,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
             if (isActive) {
               Alert.alert('Battle in Progress', 'The arena is locked. You must finish the battle or wait for the timer to expire.');
             } else {
-              onClose ? router.back() : navigation.goBack();
+              router.back();
             }
           }}
         >

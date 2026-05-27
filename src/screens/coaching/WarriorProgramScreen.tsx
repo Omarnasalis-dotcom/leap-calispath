@@ -1,4 +1,4 @@
-import { useRouter, useLocalSearchParams, router, useNavigation } from 'expo-router';
+import { useRouter, useLocalSearchParams, router } from 'expo-router';
 import React, { useEffect, useState, useRef } from 'react';
 import { View,
   Text,
@@ -37,6 +37,7 @@ export interface ExerciseDetail {
   sets: string | number;
   reps: string;
   rest_seconds: string | number;
+  hold_seconds?: string | number;
   notes: string;
 }
 
@@ -61,7 +62,6 @@ interface WarriorProgramScreenProps {
 }
 
 export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
-  const navigation = useNavigation();
   const { theme, mode } = useTheme();
   const bronzeGold = '#C8A040';
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
@@ -109,7 +109,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     currentRound,
     totalRounds,
     handleStartRest,
-    restSeconds
+    restSeconds,
+    tabataPhase,
+    tabataWorkSecs,
+    tabataRestSecs
   } = useWarriorTimer({ 
     onAmrapComplete: (blockId) => {
       if (!blockId) return;
@@ -184,33 +187,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  // Navigation Guard (prevent leaving while timer is running)
-  useEffect(() => {
-    const unsubscribe = navigation.addListener('beforeRemove', (e: any) => {
-      if (!timerRunning) {
-        return;
-      }
-
-      e.preventDefault();
-
-      Alert.alert(
-        'ACTIVE TIMER',
-        'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
-        [
-          { text: 'STAY', style: 'cancel', onPress: () => {} },
-          {
-            text: 'LEAVE',
-            style: 'destructive',
-            onPress: () => {
-              setTimerRunning(false);
-              navigation.dispatch(e.data.action);
-            },
-          },
-        ]
-      );
-    });
-    return unsubscribe;
-  }, [navigation, timerRunning]);
 
   // Main loader for assigned program and completion state
   async function loadWarriorProgram() {
@@ -314,6 +290,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             sets,
             reps,
             rest_seconds,
+            hold_seconds,
             notes,
             order_index,
             exercise_library (
@@ -353,6 +330,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             sets: ex.sets || '0',
             reps: ex.reps || '0',
             rest_seconds: ex.rest_seconds || '0',
+            hold_seconds: ex.hold_seconds || '',
             notes: ex.notes || ''
           };
         });
@@ -546,15 +524,20 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         ? `[STATUS:MISSED] ${logNotes.trim()}`.trim()
         : logNotes.trim();
 
-      const { error } = await supabase
-        .from('workout_logs')
-        .insert({
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000)
+      );
+
+      const { error } = await Promise.race([
+        supabase.from('workout_logs').insert({
           warrior_program_id: warriorProgramId,
           warrior_id: warriorId,
           block_id: activeLogBlockId,
           notes: finalNotes,
           rating: logRating
-        });
+        }),
+        timeoutPromise
+      ]) as any;
 
       if (error) throw error;
 
@@ -640,15 +623,20 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
       if (logNotes) finalNotes += logNotes;
 
-      const { error } = await supabase
-        .from('workout_logs')
-        .insert({
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000)
+      );
+
+      const { error } = await Promise.race([
+        supabase.from('workout_logs').insert({
           warrior_program_id: warriorProgramId,
           warrior_id: warriorId,
           block_id: blockId,
           notes: finalNotes.trim(),
           rating: logRating
-        });
+        }),
+        timeoutPromise
+      ]) as any;
 
       if (error) throw error;
       await loadWarriorProgram();
@@ -1024,6 +1012,9 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         totalRounds={totalRounds}
         restSeconds={restSeconds}
         handleStartRest={handleStartRest}
+        tabataPhase={tabataPhase}
+        tabataWorkSecs={tabataWorkSecs}
+        tabataRestSecs={tabataRestSecs}
         handleBlockComplete={(blockId) => {
           if (!blockId) return;
           setTimerModalVisible(false);

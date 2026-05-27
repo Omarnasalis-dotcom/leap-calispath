@@ -228,7 +228,7 @@ export function ProfileHeader({
       {/* Coaching / Warrior Program Button */}
       {mode !== undefined && (
         <View style={{ width: '92%', alignSelf: 'center', marginTop: 16, marginBottom: 8 }}>
-          {((profile as any)?.is_coach || profile?.is_admin) ? (
+          {(profile?.is_coach || profile?.is_admin) ? (
             onOpenCoachingCenter && (
               <LinearGradient
                 colors={['#7E57C2', '#FF5252', '#FF7043']}

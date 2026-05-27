@@ -5,7 +5,7 @@ import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
   const router = useRouter();
-
+  
   return (
     <SpartanLayout hideToggle>
       <WeeklyChallengeScreen onClose={() => router.back()} />

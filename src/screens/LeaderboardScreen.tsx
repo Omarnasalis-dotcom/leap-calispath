@@ -22,7 +22,8 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { RITES_OF_PASSAGE } from '../lib/trials';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 import { getCountryFlag } from '../constants/countries';
-import { LeapLogo } from '../components/LeapLogo';
+import { LeaderboardSkeleton } from '../components/LeaderboardSkeleton';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 
 
@@ -361,11 +362,12 @@ export function LeaderboardScreen({
 
       {/* Leaderboard List */}
       {loading ? (
-        <LeapLogo size={40} animated />
+        <LeaderboardSkeleton />
       ) : filteredEntries.length === 0 ? (
         <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>No warriors have attempted this tier yet.</Text>
-          <Text style={styles.emptySubtext}>Be the first to claim a time!</Text>
+          <MaterialCommunityIcons name="shield-outline" size={64} color={theme.accent} style={{ marginBottom: 16, opacity: 0.5 }} />
+          <Text style={[styles.emptyText, { color: theme.text.primary }]}>No warriors have attempted this tier yet.</Text>
+          <Text style={[styles.emptySubtext, { color: theme.text.tertiary }]}>Be the first to claim a time and become the King of this tier!</Text>
         </View>
       ) : (
         <ScrollView style={styles.listPreview} showsVerticalScrollIndicator={false}>

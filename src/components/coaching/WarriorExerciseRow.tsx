@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
+import { SoundServiceInstance } from '../../lib/SoundService';
 
 export interface ExerciseDetail {
   id: string | number;
@@ -10,6 +11,7 @@ export interface ExerciseDetail {
   sets: string | number;
   reps: string;
   rest_seconds: string | number;
+  hold_seconds?: string | number;
   notes: string;
 }
 
@@ -30,6 +32,47 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
   blockMetadata,
   handleOpenVideo,
 }) => {
+  const [restActive, setRestActive] = useState(false);
+  const [restTimeLeft, setRestTimeLeft] = useState(0);
+  const [restCompleted, setRestCompleted] = useState(false);
+  const intervalRef = useRef<any>(null);
+
+  const restSecs = parseInt(String(exercise.rest_seconds || '0'), 10);
+
+  const startRest = () => {
+    if (restSecs <= 0) return;
+    setRestCompleted(false);
+    setRestActive(true);
+    setRestTimeLeft(restSecs);
+    SoundServiceInstance.playBoxingBell();
+  };
+
+  const cancelRest = () => {
+    clearInterval(intervalRef.current);
+    setRestActive(false);
+    setRestTimeLeft(0);
+  };
+
+  useEffect(() => {
+    if (restActive && restTimeLeft > 0) {
+      intervalRef.current = setInterval(() => {
+        setRestTimeLeft(prev => {
+          if (prev <= 1) {
+            clearInterval(intervalRef.current);
+            setRestActive(false);
+            setRestCompleted(true);
+            SoundServiceInstance.playDigitalBuzzer(3);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [restActive]);
+
+  const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+
   return (
     <View style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}>
       <View style={styles.exInfoRow}>
@@ -79,6 +122,29 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.rest_seconds}S</Text>
             </View>
+            {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
+              <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
+                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
+                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
+              </View>
+            )}
+            {restSecs > 0 && (
+              <TouchableOpacity
+                onPress={restActive ? cancelRest : startRest}
+                style={[styles.detailBadge, {
+                  borderColor: restActive ? '#FF7043' : restCompleted ? '#4CAF50' : '#7E57C2',
+                  backgroundColor: restActive ? 'rgba(255,112,67,0.1)' : restCompleted ? 'rgba(76,175,80,0.1)' : 'rgba(126,87,194,0.1)',
+                  minWidth: 56,
+                }]}
+              >
+                <Text style={[styles.detailLabel, { color: restActive ? '#FF7043' : restCompleted ? '#4CAF50' : '#7E57C2' }]}>
+                  {restActive ? 'RESTING' : restCompleted ? 'DONE ✓' : 'START REST'}
+                </Text>
+                <Text style={[styles.detailValue, { color: restActive ? '#FF7043' : restCompleted ? '#4CAF50' : '#7E57C2', fontSize: restActive ? 16 : 11 }]}>
+                  {restActive ? formatRest(restTimeLeft) : restCompleted ? 'NEXT SET' : '▶'}
+                </Text>
+              </TouchableOpacity>
+            )}
           </>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={[styles.detailBadge, { borderColor: bronzeGold, flex: 1, alignItems: 'flex-start', backgroundColor: 'rgba(200,160,64,0.05)' }]}>
