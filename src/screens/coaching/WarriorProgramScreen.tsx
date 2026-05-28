@@ -29,6 +29,7 @@ import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramHeaderCard, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
+import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 
 
 export interface ExerciseDetail {
@@ -672,6 +673,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   };
 
   return (
+    <GlobalErrorBoundary>
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: theme.background.primary }]}
@@ -874,6 +876,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       />
 
     </KeyboardAvoidingView>
+    </GlobalErrorBoundary>
   );
 }
 

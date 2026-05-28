@@ -21,6 +21,7 @@ import { LeaderboardService } from '../services/LeaderboardService';
 
 import { RITES_OF_PASSAGE } from '../lib/trials';
 import { LeapLogo } from '../components/LeapLogo';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
@@ -360,6 +361,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
   if (!profile) return null;
 
   return (
+    <GlobalErrorBoundary>
     <View style={styles.fullscreen}>
       {Platform.OS !== 'web' && <BlurView intensity={30} tint={isDark ? "dark" : "light"} style={StyleSheet.absoluteFill} />}
       
@@ -479,6 +481,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         </View>
       </KeyboardAvoidingView>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

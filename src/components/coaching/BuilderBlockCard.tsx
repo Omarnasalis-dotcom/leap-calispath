@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgramBlock, SelectedExercise } from '../../screens/coaching/ProgramBuilderScreen';
+import { ProgramBlock, SelectedExercise } from '../../hooks/coaching/useProgramBuilder';
 import { BuilderExerciseRow } from './BuilderExerciseRow';
 import { BlockConfigWizard } from './BlockConfigWizard';
 

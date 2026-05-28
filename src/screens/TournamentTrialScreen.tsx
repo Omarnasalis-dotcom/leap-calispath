@@ -10,6 +10,7 @@ import { TournamentService } from '../services/TournamentService';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeAsync } from '../hooks/useSafeAsync';
 
 
 interface Props {
@@ -47,7 +48,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
   const [checkedExercises, setCheckedExercises] = useState<boolean[]>((roundConfig.exercises || []).map(() => false));
   const [rounds, setRounds] = useState(0);
   const [exerciseExtraReps, setExerciseExtraReps] = useState<number[]>((roundConfig.exercises || []).map(() => 0));
-  const [loading, setLoading] = useState(false);
+  const { runAsync: runSafeSubmit, isExecuting: loading } = useSafeAsync();
   const [finalScore, setFinalScore] = useState<number | null>(null);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
@@ -183,9 +184,8 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
     }
   };
 
-  const handleSubmit = async () => {
-    setLoading(true);
-    try {
+  const handleSubmit = () => {
+    runSafeSubmit(async () => {
       const [{ data: participant }, { data: session }] = await Promise.all([
         supabase.from('tournament_participants').select('tier_at_start').eq('tournament_id', sessionId).eq('user_id', profile?.id).single(),
         supabase.from('tournament_sessions').select('*, config:tournament_configs(*)').eq('id', sessionId).single()
@@ -233,11 +233,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
       } else {
         throw new Error(String(res.error || 'Submission failed'));
       }
-    } catch (err: any) {
-      Alert.alert('Error', err.message);
-    } finally {
-      setLoading(false);
-    }
+    });
   };
 
   const formatTimer = (seconds: number) => {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgramDay, ProgramBlock } from '../../screens/coaching/ProgramBuilderScreen';
+import { ProgramDay, ProgramBlock } from '../../hooks/coaching/useProgramBuilder';
 import { BuilderBlockCard } from './BuilderBlockCard';
 
 interface BuilderDayCardProps {
@@ -108,7 +108,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
               />
               {!expandedDays[day.id] && (
                 <Text style={{ color: theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Medium', marginTop: -4 }} numberOfLines={1}>
-                  {day.blocks.length > 0 ? day.blocks.map(b => b.name || 'UNNAMED BLOCK').join(' • ') : 'EMPTY DAY'}
+                  {day.blocks.length > 0 ? day.blocks.map((b: ProgramBlock) => b.name || 'UNNAMED BLOCK').join(' • ') : 'EMPTY DAY'}
                 </Text>
               )}
             </View>
@@ -156,7 +156,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
                   <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO BLOCKS ADDED. CLICK '+ ADD BLOCK' TO DEFINE WORKOUT WORKSPACES.</Text>
                 </View>
               ) : (
-                day.blocks.map((block, blockIdx) => (
+                day.blocks.map((block: ProgramBlock, blockIdx: number) => (
                   <BuilderBlockCard
                     key={block.id}
                     block={block}

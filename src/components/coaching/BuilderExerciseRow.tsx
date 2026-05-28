@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, Linking, StyleSheet } from 'react-native';
-import { SelectedExercise } from '../../screens/coaching/ProgramBuilderScreen';
+import { SelectedExercise } from '../../hooks/coaching/useProgramBuilder';
 import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
 
 interface BuilderExerciseRowProps {
