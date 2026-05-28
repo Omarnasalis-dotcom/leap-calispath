@@ -10,6 +10,7 @@ import { TournamentService } from '../services/TournamentService';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeMutation } from '../hooks/useSafeMutation';
 
 
 interface Props {
@@ -44,6 +45,8 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     rank: '',
     leaderboard: [] as { name: string; score: string; rank: number }[],
   });
+
+  const { safeMutate, isMutating } = useSafeMutation();
 
   const activeSessionRef = useRef<any>(null);
   const isIgniting = useRef(false);
@@ -215,26 +218,32 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     const me = participants.find(p => p.user_id === profile?.id);
     if (!me) return;
 
-    const newReady = !me.is_ready;
-    await supabase
-      .from('tournament_participants')
-      .update({ is_ready: newReady })
-      .eq('id', me.id);
-    await fetchData();
+    await safeMutate(async () => {
+      const newReady = !me.is_ready;
+      const { error } = await supabase
+        .from('tournament_participants')
+        .update({ is_ready: newReady })
+        .eq('id', me.id);
+        
+      if (error) return { error };
+      await fetchData();
 
-    // Check for auto-ignition
-    if (newReady) {
-      const readyCount = participants.filter(p => p.is_ready || p.user_id === profile?.id).length;
-      const min = activeSession.config.min_participants;
-      if (readyCount >= min && !isIgniting.current) {
-        isIgniting.current = true;
-        try {
-          await TournamentService.advanceToRound(sessionId, 1);
-        } finally {
-          isIgniting.current = false;
+      if (newReady) {
+        const readyCount = participants.filter(p => p.is_ready || p.user_id === profile?.id).length;
+        const min = activeSession.config.min_participants;
+        if (readyCount >= min && !isIgniting.current) {
+          isIgniting.current = true;
+          try {
+            await TournamentService.advanceToRound(sessionId, 1);
+          } finally {
+            isIgniting.current = false;
+          }
         }
       }
-    }
+      return { data: null, error: null };
+    }, {
+      errorMessage: 'Failed to update readiness state.'
+    });
   };
 
   const renderRegistration = () => {
@@ -278,11 +287,17 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
           <TouchableOpacity
             style={[styles.mainBtn, { backgroundColor: 'transparent', borderWidth: 1, borderColor: '#EF4444', marginTop: 12 }]}
             onPress={async () => {
-              await supabase
-                .from('tournament_participants')
-                .delete()
-                .eq('id', me.id);
-              await fetchData();
+              await safeMutate(async () => {
+                const { error } = await supabase
+                  .from('tournament_participants')
+                  .delete()
+                  .eq('id', me.id);
+                if (error) return { error };
+                await fetchData();
+                return { data: null, error: null };
+              }, {
+                errorMessage: 'Failed to quit tournament.'
+              });
             }}
           >
             <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 16 }}>QUIT TOURNAMENT</Text>

@@ -85,7 +85,7 @@ export const PowerService = {
         .limit(50);
       
       if (error) throw error;
-      return data.map((d, i) => ({
+      return (Array.isArray(data) ? data : []).map((d, i) => ({
         user_id: d.id,
         display_name: d.display_name || 'Warrior',
         value: d.power_points,
@@ -106,7 +106,7 @@ export const PowerService = {
         .limit(50);
       
       if (error) throw error;
-      return data.map((d, i) => ({
+      return (Array.isArray(data) ? data : []).map((d, i) => ({
         user_id: d.id,
         display_name: d.display_name || 'Warrior',
         value: d.power_points,
@@ -137,7 +137,7 @@ export const PowerService = {
       throw error;
     }
 
-    return data.map((d: any, i: number) => ({
+    return (Array.isArray(data) ? data : []).map((d: any, i: number) => ({
       user_id: d.user_id,
       display_name: d.profiles?.display_name || 'Warrior',
       value: d[cleanDbField],
@@ -186,7 +186,7 @@ export const PowerService = {
       const newLevel = getPowerLevel(totalScore);
       const isPromotion = newLevel.id > oldLevel.id;
 
-      await supabase
+      const { error: upsertErr } = await supabase
         .from('power_assessments')
         .upsert({
           user_id: userId,
@@ -194,8 +194,9 @@ export const PowerService = {
           power_tier: newLevel.id,
           assessed_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
+      if (upsertErr) throw upsertErr;
 
-      await supabase
+      const { error: updateErr } = await supabase
         .from('profiles')
         .update({
           power_points: totalScore,
@@ -208,6 +209,7 @@ export const PowerService = {
           }
         })
         .eq('id', userId);
+      if (updateErr) throw updateErr;
 
       return { isNewPB, isPromotion };
     }

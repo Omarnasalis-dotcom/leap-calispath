@@ -201,12 +201,15 @@ export function ProfileScreen({
             console.log('[Profile] Syncing Static points...');
             const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
             const peaks: Record<string, number> = { handstand: 0, front_lever: 0, back_lever: 0, planche: 0 };
-            holds.forEach(h => {
+            (Array.isArray(holds) ? holds : []).forEach(h => {
               const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
               if (m && (h.points || 0) > peaks[m.category]) peaks[m.category] = h.points || 0;
             });
             const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-            if (total > 0) await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
+            if (total > 0) {
+              const { error } = await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
+              if (error) console.error('[Profile] Failed to sync Static points:', error);
+            }
           }
         }
 
@@ -217,7 +220,10 @@ export function ProfileScreen({
             console.log('[Profile] Syncing Power points...');
             const pbMap = { pull_up: pbs.pullup_1rm || 0, dip: pbs.dip_1rm || 0, squat: pbs.squat_1rm || 0, muscle_up: pbs.muscleup_1rm || 0 };
             const total = calculateTotalPowerScore(pbMap);
-            if (total > 0) await supabase.from('profiles').update({ power_points: total, power_tier: pbs.power_tier }).eq('id', profile.id);
+            if (total > 0) {
+              const { error } = await supabase.from('profiles').update({ power_points: total, power_tier: pbs.power_tier }).eq('id', profile.id);
+              if (error) console.error('[Profile] Failed to sync Power points:', error);
+            }
           }
         }
 
@@ -228,12 +234,15 @@ export function ProfileScreen({
             console.log('[Profile] Syncing Endurance points...');
             const { ONEMM_MOVEMENTS } = await import('../lib/oneMMLogic');
             const patternPeaks: Record<string, number> = {};
-            logs.forEach(log => {
+            (Array.isArray(logs) ? logs : []).forEach(log => {
               const m = ONEMM_MOVEMENTS.find(mv => mv.id === log.movement_id);
               if (m && (log.points || 0) > (patternPeaks[m.patternId] || 0)) patternPeaks[m.patternId] = log.points;
             });
             const total = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
-            if (total > 0) await supabase.from('profiles').update({ one_mm_points: total }).eq('id', profile.id);
+            if (total > 0) {
+              const { error } = await supabase.from('profiles').update({ one_mm_points: total }).eq('id', profile.id);
+              if (error) console.error('[Profile] Failed to sync Endurance points:', error);
+            }
           }
         }
 

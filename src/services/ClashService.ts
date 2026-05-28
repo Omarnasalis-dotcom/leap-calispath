@@ -55,10 +55,11 @@ export class ClashService {
   }
   
   static async updateLastActive(userId: string): Promise<void> {
-    await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({ last_active: new Date().toISOString() })
       .eq('id', userId);
+    if (error) throw error;
   }
 
   /**
@@ -207,10 +208,11 @@ export class ClashService {
     const currentStreak = profile?.clash_win_streak || 0;
     const newStreak = isWin ? currentStreak + 1 : 0;
 
-    await supabase
+    const { error } = await supabase
       .from('profiles')
       .update({ clash_win_streak: newStreak })
       .eq('id', userId);
+    if (error) throw error;
 
     return newStreak;
   }

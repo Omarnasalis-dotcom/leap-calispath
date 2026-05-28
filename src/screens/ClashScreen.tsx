@@ -14,6 +14,7 @@ import { getGloryLeaderboard } from '../lib/leaderboard';
 import { supabase } from '../lib/supabase';
 import { ClashLogic } from '../lib/clashLogic';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeMutation } from '../hooks/useSafeMutation';
 
 
 interface ClashScreenProps {
@@ -38,6 +39,8 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   const [loading, setLoading] = useState(false);
   const [activeClashes, setActiveClashes] = useState<ClashSession[]>([]);
   const [topWarriors, setTopWarriors] = useState<any[]>([]);
+
+  const { safeMutate, isMutating } = useSafeMutation();
 
   // 0. Load Podium (Top 3)
   useEffect(() => {
@@ -172,36 +175,37 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   }, [activeClashes]);
 
   async function handleAskToJoin(targetWarrior: Profile) {
-    try {
-      setLoading(true);
+    await safeMutate(async () => {
       await ClashService.sendChallenge(targetWarrior.display_name || '');
-      showAlert('Challenge Sent!', `Requesting to join ${targetWarrior.display_name}'s session.`);
-    } catch (error: any) {
-      showAlert('Combat Error', error.message);
-    } finally { setLoading(false); }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => showAlert('Challenge Sent!', `Requesting to join ${targetWarrior.display_name}'s session.`),
+      errorMessage: 'Failed to send challenge.'
+    });
   }
 
   async function handleRespond(clashId: string, status: 'accepted' | 'declined') {
-    try {
-      setLoading(true);
+    await safeMutate(async () => {
       if (status === 'accepted') {
-        // Pre-generate protocol & start time at acceptance to eliminate loading delay
         const clash = activeClashes.find(c => c.id === clashId);
         const bracket = clash?.bracket || 'developing';
         const generatedProtocol = ClashLogic.generateProtocol(bracket);
         const masterStartTime = new Date(Date.now() + 6000).toISOString();
 
-        await supabase.from('clash_sessions').update({
+        const { error } = await supabase.from('clash_sessions').update({
           status: 'accepted',
           workout_protocol: generatedProtocol,
           start_time: masterStartTime
         }).eq('id', clashId);
+        
+        if (error) return { error };
       } else {
         await ClashService.respondToChallenge(clashId, status);
       }
-    } catch (error: any) {
-      showAlert('Combat Error', error.message);
-    } finally { setLoading(false); }
+      return { data: null, error: null };
+    }, {
+      errorMessage: 'Failed to respond to challenge.'
+    });
   }
 
   return (

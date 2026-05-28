@@ -11,6 +11,7 @@ import { supabase } from '../lib/supabase';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeMutation } from '../hooks/useSafeMutation';
 
 
 const { width, height } = Dimensions.get('window');
@@ -43,6 +44,8 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
   const myProgressAnim = useRef(new Animated.Value(0)).current;
   const oppProgressAnim = useRef(new Animated.Value(0)).current;
   const resultScaleAnim = useRef(new Animated.Value(0)).current;
+
+  const { safeMutate, isMutating: finishing } = useSafeMutation();
 
   useEffect(() => {
     if (!clashId || !user) return;
@@ -133,9 +136,18 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
       // Set start time 6 seconds in future to allow for 5s countdown + buffer
       const masterStartTime = new Date(Date.now() + 6000).toISOString();
       const generatedProtocol = ClashLogic.generateProtocol(session.bracket);
-      supabase.from('clash_sessions').update({ 
-        start_time: masterStartTime, status: 'active', workout_protocol: generatedProtocol 
-      }).eq('id', clashId).then(() => setProtocol(generatedProtocol));
+      
+      safeMutate(async () => {
+        const { error } = await supabase.from('clash_sessions').update({ 
+          start_time: masterStartTime, status: 'active', workout_protocol: generatedProtocol 
+        }).eq('id', clashId);
+        
+        if (error) return { error };
+        return { data: null, error: null };
+      }, {
+        onSuccess: () => setProtocol(generatedProtocol),
+        skipAlert: true
+      });
     }
   }, [session?.start_time, session?.status]);
 
@@ -164,41 +176,30 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
     Vibration.vibrate(10);
   }
 
-  const [finishing, setFinishing] = useState(false);
-
   const handleFinish = async () => {
-    if (finishing) return;
-    setFinishing(true);
-    try {
+    await safeMutate(async () => {
       if (timerRef.current) clearInterval(timerRef.current);
       if (channelRef.current) {
         supabase.removeChannel(channelRef.current);
         channelRef.current = null;
       }
 
-      // Atomic claim — only first caller wins, returns true if this user won
       const { data: won, error } = await supabase
         .rpc('claim_clash_victory', {
           session_id: clashId,
           claiming_user_id: user?.id
         });
 
-      if (error) {
-        console.error('Claim victory error:', error);
-        Alert.alert('Error', 'Failed to report finish. Try again.');
-        setFinishing(false);
-        return;
-      }
-
-      setIsWinner(won === true);
-      setShowResult(true);
-      setFinishing(false);
-      Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
-    } catch (error) {
-      console.error('Failed to report finish:', error);
-      Alert.alert('Error', 'Failed to report finish. Try again.');
-      setFinishing(false);
-    }
+      if (error) return { error };
+      return { data: won, error: null };
+    }, {
+      onSuccess: (won) => {
+        setIsWinner(won === true);
+        setShowResult(true);
+        Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
+      },
+      errorMessage: 'Failed to report finish. Try again.'
+    });
   };
 
   function handleCancel() {
@@ -207,10 +208,16 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
 
   async function confirmQuit() {
     if (timerRef.current) clearInterval(timerRef.current);
-    try {
-      await supabase.from('clash_sessions').update({ status: 'cancelled' }).eq('id', clashId);
-    } catch (e) { console.error(e); }
-    if (onFinish) onFinish();
+    await safeMutate(async () => {
+      const { error } = await supabase.from('clash_sessions').update({ status: 'cancelled' }).eq('id', clashId);
+      if (error) return { error };
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => {
+        if (onFinish) onFinish();
+      },
+      skipAlert: true
+    });
   }
 
   if (!session || !protocol) return <View style={styles.loading}><LeapLogo size={40} animated /></View>;

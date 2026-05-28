@@ -24,6 +24,7 @@ import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
 import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
 import { BlockConfigWizard } from '../../components/coaching/BlockConfigWizard';
+import { useSafeMutation } from '../useSafeMutation';
 
 
 interface ExerciseLibraryItem {
@@ -138,6 +139,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
 
   const categories = ['all', 'push', 'pull', 'legs', 'core', 'skill'];
 
+  const { safeMutate } = useSafeMutation();
+
   useEffect(() => {
     setActiveTemplateId(templateId);
     if (templateId) {
@@ -187,7 +190,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
     const performDelete = async () => {
       setErrorMsg(null);
       setCatalogLoading(true);
-      try {
+      await safeMutate(async () => {
         const { error } = await supabase
           .from('program_templates')
           .delete()
@@ -196,16 +199,20 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         if (error) {
           if (error.code === '23503') {
             throw new Error('THIS MASTER TEMPLATE IS CURRENTLY ASSIGNED TO A WARRIOR AND CANNOT BE DELETED.');
-          } else {
-            throw error;
           }
+          return { error };
         }
-        await loadMasterTemplates();
-      } catch (err: any) {
-        Alert.alert('DELETE FAILED', err.message?.toUpperCase() || 'FAILED TO DELETE TEMPLATE.');
-      } finally {
-        setCatalogLoading(false);
-      }
+        return { data: null, error: null };
+      }, {
+        onSuccess: () => {
+          loadMasterTemplates();
+          setCatalogLoading(false);
+        },
+        onError: (err) => {
+          Alert.alert('DELETE FAILED', err.message?.toUpperCase() || 'FAILED TO DELETE TEMPLATE.');
+          setCatalogLoading(false);
+        }
+      });
     };
 
     Alert.alert(
@@ -744,7 +751,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
 
   const handleCopyTemplate = async (targetBlockDbId: string | number) => {
     if (!sourceBlock) return;
-    try {
+    await safeMutate(async () => {
       if (sourceBlock.exercises.length > 0) {
         const { data: existingExs } = await supabase
           .from('block_exercises')
@@ -768,12 +775,13 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           .from('block_exercises')
           .insert(exerciseInserts);
 
-        if (error) throw error;
+        if (error) return { error };
       }
-      showSuccessMessage('EXERCISES COPIED TO TEMPLATE SUCCESSFULLY!');
-    } catch (err: any) {
-      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO COPY TO TEMPLATE.');
-    }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => showSuccessMessage('EXERCISES COPIED TO TEMPLATE SUCCESSFULLY!'),
+      errorMessage: 'FAILED TO COPY TO TEMPLATE.'
+    });
   };
 
   const showSuccessMessage = (msg: string) => {
@@ -859,7 +867,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
     }
 
     setLoading(true);
-    try {
+    await safeMutate(async () => {
       let currentTemplateId = activeTemplateId;
 
       // 1. Insert or Update general program template details
@@ -872,7 +880,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           })
           .eq('id', currentTemplateId);
 
-        if (error) throw error;
+        if (error) return { error };
       } else {
         const { data, error } = await supabase
           .from('program_templates')
@@ -884,7 +892,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           .select('id')
           .single();
 
-        if (error) throw error;
+        if (error) return { error };
         currentTemplateId = data.id;
       }
 
@@ -904,7 +912,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           const allPreviousBlockIds = previousBlocks.map((b: any) => b.id);
           
           // Always wipe exercises safely to avoid manual diffing
-          await supabase.from('block_exercises').delete().in('block_id', allPreviousBlockIds);
+          const { error: delExErr } = await supabase.from('block_exercises').delete().in('block_id', allPreviousBlockIds);
+          if (delExErr) return { error: delExErr };
 
           // Find blocks that were DELETED by the coach in the UI
           const blockIdsToDelete = allPreviousBlockIds.filter(id => !currentBlockIds.includes(id));
@@ -952,40 +961,44 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
               .select('id')
               .single();
 
-            if (blockInsertError) throw blockInsertError;
+            if (blockInsertError) return { error: blockInsertError };
 
-          // Insert exercises for the block
-          if (block.exercises.length > 0) {
-            const exerciseInserts = block.exercises.map((ex, exIdx) => ({
-              block_id: savedBlock.id,
-              exercise_id: ex.exercise_id,
-              sets: parseInt(ex.sets) || null,
-              reps: ex.reps.trim(),
-              rest_seconds: parseInt(ex.rest_seconds) || null,
-              hold_seconds: parseInt(ex.hold_seconds) || null,
-              notes: ex.notes.trim(),
-              order_index: exIdx
-            }));
+            // Insert exercises for the block
+            if (block.exercises.length > 0) {
+              const exerciseInserts = block.exercises.map((ex, exIdx) => ({
+                block_id: savedBlock.id,
+                exercise_id: ex.exercise_id,
+                sets: parseInt(ex.sets) || null,
+                reps: ex.reps.trim(),
+                rest_seconds: parseInt(ex.rest_seconds) || null,
+                hold_seconds: parseInt(ex.hold_seconds) || null,
+                notes: ex.notes.trim(),
+                order_index: exIdx
+              }));
 
-            const { error: exercisesInsertError } = await supabase
-              .from('block_exercises')
-              .insert(exerciseInserts);
+              const { error: exercisesInsertError } = await supabase
+                .from('block_exercises')
+                .insert(exerciseInserts);
 
-            if (exercisesInsertError) throw exercisesInsertError;
-          }
-          blockIdx++;
+              if (exercisesInsertError) return { error: exercisesInsertError };
+            }
+            blockIdx++;
           }
         }
       }
-
-      setIsCreatingNew(false);
-      setActiveTemplateId(undefined);
-      router.back();
-    } catch (err: any) {
-      setErrorMsg(err.message?.toUpperCase() || 'FAILED TO SAVE WORKOUT PROGRAM.');
-    } finally {
-      setLoading(false);
-    }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => {
+        setIsCreatingNew(false);
+        setActiveTemplateId(undefined);
+        setLoading(false);
+        router.back();
+      },
+      onError: (err) => {
+        setErrorMsg(err.message?.toUpperCase() || 'FAILED TO SAVE WORKOUT PROGRAM.');
+        setLoading(false);
+      }
+    });
   };
 
   const filteredLibrary = exerciseLibrary.filter((ex: ExerciseLibraryItem) => {

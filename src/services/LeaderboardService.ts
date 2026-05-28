@@ -20,7 +20,7 @@ export class LeaderboardService {
       console.error('Error fetching global WRA leaderboard:', error);
       return [];
     }
-    return (data || []).map((e: any) => ({
+    return (Array.isArray(data) ? data : []).map((e: any) => ({
       rank: Number(e.rank),
       user_id: e.user_id,
       display_name: e.display_name || 'Warrior',
@@ -45,7 +45,7 @@ export class LeaderboardService {
       console.error('Error fetching global glory leaderboard:', error);
       return [];
     }
-    return (data || []).map((e: any, i: number) => ({
+    return (Array.isArray(data) ? data : []).map((e: any, i: number) => ({
       rank: i + 1,
       user_id: e.id,
       display_name: e.display_name || 'Warrior',

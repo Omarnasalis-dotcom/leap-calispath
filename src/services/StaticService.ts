@@ -92,7 +92,7 @@ export class StaticService {
           planche: 0
         };
 
-        allHolds.forEach(h => {
+        (Array.isArray(allHolds) ? allHolds : []).forEach(h => {
           const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
           if (m && h.points > (peaks[m.category] || 0)) {
             peaks[m.category] = h.points;
@@ -101,10 +101,11 @@ export class StaticService {
 
         const totalPoints = Object.values(peaks).reduce((sum, p) => sum + p, 0);
 
-        await supabase
+        const { error: updErr } = await supabase
           .from('profiles')
           .update({ statics_tier: totalPoints })
           .eq('id', userId);
+        if (updErr) throw updErr;
       }
     } catch (e) {
       console.error('Error updating profile static points:', e);
@@ -129,7 +130,7 @@ export class StaticService {
       return { entries: [], personalBest: null };
     }
 
-    const entries: StaticLeaderboardEntry[] = (data || []).map((e: any) => ({
+    const entries: StaticLeaderboardEntry[] = (Array.isArray(data) ? data : []).map((e: any) => ({
       ...e,
       is_current_user: e.user_id === currentUserId
     }));
@@ -155,7 +156,7 @@ export class StaticService {
       return [];
     }
 
-    return (data || []).map((e: any) => ({
+    return (Array.isArray(data) ? data : []).map((e: any) => ({
       ...e,
       movement_times: e.movement_times || {},
       is_current_user: e.user_id === currentUserId
@@ -175,7 +176,7 @@ export class StaticService {
       console.error('Error fetching user holds:', error);
       return [];
     }
-    return data || [];
+    return Array.isArray(data) ? data : [];
   }
 
   /**
@@ -190,7 +191,7 @@ export class StaticService {
       STATIC_MOVEMENTS.forEach(m => pbs[m.id] = 0);
     });
 
-    holds.forEach((h: any) => {
+    (Array.isArray(holds) ? holds : []).forEach((h: any) => {
       if (h.hold_seconds > (pbs[h.movement_id] || 0)) {
         pbs[h.movement_id] = h.hold_seconds;
       }
@@ -209,7 +210,7 @@ export class StaticService {
       throw error;
     }
 
-    return (data || []).map((e: any) => ({
+    return (Array.isArray(data) ? data : []).map((e: any) => ({
       rank: Number(e.rnk || 0),
       user_id: e.u_id,
       display_name: e.d_name,

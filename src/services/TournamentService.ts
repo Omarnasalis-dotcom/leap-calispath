@@ -290,7 +290,7 @@ export class TournamentService {
       let survivors: string[] = [];
 
       if (nextRound === 1) {
-        survivors = participants.map(p => p.user_id);
+        survivors = (Array.isArray(participants) ? participants : []).map(p => p.user_id);
       } else {
         // Get matches from previous round
         const { data: matches } = await supabase
@@ -307,15 +307,16 @@ export class TournamentService {
         }
 
         // Mark non-survivors as eliminated
-        const nonSurvivors = participants
+        const nonSurvivors = (Array.isArray(participants) ? participants : [])
           .filter(p => !p.is_eliminated && !survivors.includes(p.user_id))
           .map(p => p.id);
 
         if (nonSurvivors.length > 0) {
-          await supabase
+          const { error: elimErr } = await supabase
             .from('tournament_participants')
             .update({ is_eliminated: true })
             .in('id', nonSurvivors);
+          if (elimErr) throw elimErr;
         }
       }
 
@@ -331,7 +332,7 @@ export class TournamentService {
       const deadline = new Date();
       deadline.setMinutes(deadline.getMinutes() + (session.config.window_time_min || 0));
 
-      await supabase
+      const { error: updErr } = await supabase
         .from('tournament_sessions')
         .update({
           status: 'active',
@@ -339,13 +340,14 @@ export class TournamentService {
           round_deadline: deadline.toISOString()
         })
         .eq('id', sessionId);
+      if (updErr) throw updErr;
 
       // Create pairings
       const shuffled = survivors.sort(() => Math.random() - 0.5);
       for (let i = 0; i < shuffled.length; i += 2) {
         const userA = shuffled[i];
         const userB = shuffled[i + 1] || null;
-        await supabase
+        const { error: insErr } = await supabase
           .from('tournament_matches')
           .insert({
             tournament_id: sessionId,
@@ -354,6 +356,7 @@ export class TournamentService {
             user_b: userB,
             is_ghost_match: userB === null
           });
+        if (insErr) throw insErr;
       }
     } catch (error) {
       console.error('TournamentService.advanceToRound failed:', error);
@@ -429,10 +432,11 @@ export class TournamentService {
       }
 
       if (winnerId) {
-        await supabase
+        const { error: updErr } = await supabase
           .from('tournament_matches')
           .update({ winner_id: winnerId })
           .eq('id', match.id);
+        if (updErr) throw updErr;
       }
 
       return winnerId;
@@ -454,7 +458,7 @@ export class TournamentService {
 
       if (!participants) return 0;
 
-      const scores = participants
+      const scores = (Array.isArray(participants) ? participants : [])
         .map(p => p.scores?.[day]?.final)
         .filter(s => s !== undefined && s > 0)
         .sort((a, b) => a - b);
@@ -479,10 +483,11 @@ export class TournamentService {
   static async handleTournamentEnd(sessionId: string, winnerId: string) {
     try {
       // Mark session as completed
-      await supabase
+      const { error: updErr } = await supabase
         .from('tournament_sessions')
         .update({ status: 'completed' })
         .eq('id', sessionId);
+      if (updErr) throw updErr;
 
       const { data: session } = await supabase
         .from('tournament_sessions')
@@ -498,7 +503,7 @@ export class TournamentService {
       if (!participants) return;
 
       // Sort: winner first, then by max round reached (keys in scores), then total points
-      const ranked = participants.sort((a, b) => {
+      const ranked = (Array.isArray(participants) ? participants : []).sort((a, b) => {
         if (a.user_id === winnerId) return -1;
         if (b.user_id === winnerId) return 1;
 
@@ -518,10 +523,11 @@ export class TournamentService {
         const p = ranked[i];
         const rank = i + 1;
 
-        await supabase
+        const { error: rankErr } = await supabase
           .from('tournament_participants')
           .update({ final_rank: rank })
           .eq('id', p.id);
+        if (rankErr) throw rankErr;
 
         // Award GP
         let gpReward = 0;
@@ -536,13 +542,14 @@ export class TournamentService {
             .single();
 
           if (profile) {
-            await supabase
+            const { error: gpErr } = await supabase
               .from('profiles')
               .update({
                 tournament_gp: (profile.tournament_gp || 0) + gpReward,
                 glory_score: (profile.glory_score || 0) + gpReward
               })
               .eq('id', p.user_id);
+            if (gpErr) throw gpErr;
           }
         }
       }
@@ -572,15 +579,16 @@ export class TournamentService {
           .eq('is_eliminated', false);
 
         if (offenders) {
-          const nonSubmitters = offenders
+          const nonSubmitters = (Array.isArray(offenders) ? offenders : [])
             .filter(p => !p.scores?.[session.current_round])
             .map(p => p.id);
 
           if (nonSubmitters.length > 0) {
-            await supabase
+            const { error: elimErr } = await supabase
               .from('tournament_participants')
               .update({ is_eliminated: true })
               .in('id', nonSubmitters);
+            if (elimErr) throw elimErr;
 
             await this.advanceToRound(sessionId, session.current_round + 1);
           }
@@ -641,10 +649,11 @@ export class TournamentService {
       // ATOMIC CHECK: Ensure tournament isn't already completed
       if (session.status === 'completed') return;
 
-      await supabase
+      const { error: updErr } = await supabase
         .from('tournament_sessions')
         .update({ status: 'completed' })
         .eq('id', sessionId);
+      if (updErr) throw updErr;
 
       const payout = session.config.payout_gp || 0;
 
@@ -652,10 +661,11 @@ export class TournamentService {
         const p = participants[i];
         const rank = i + 1;
 
-        await supabase
+        const { error: rankErr } = await supabase
           .from('tournament_participants')
           .update({ final_rank: rank })
           .eq('id', p.id);
+        if (rankErr) throw rankErr;
 
         let gpReward = 0;
         if (rank === 1) gpReward = Math.floor(payout * 0.75);
@@ -669,13 +679,14 @@ export class TournamentService {
             .single();
 
           if (profile) {
-            await supabase
+            const { error: gpErr } = await supabase
               .from('profiles')
               .update({
                 tournament_gp: (profile.tournament_gp || 0) + gpReward,
                 glory_score: (profile.glory_score || 0) + gpReward
               })
               .eq('id', p.user_id);
+            if (gpErr) throw gpErr;
           }
         }
       }

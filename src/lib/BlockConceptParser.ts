@@ -35,7 +35,8 @@ export class BlockConceptParser {
     }
 
     try {
-      const metadata = JSON.parse(conceptMatch[1]);
+      const parsed = JSON.parse(conceptMatch[1]);
+      const metadata = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {};
       return {
         metadata,
         cleanNotes: conceptMatch[2] ? conceptMatch[2].trim() : ''
