@@ -24,6 +24,7 @@ import { formatTime, RITES_OF_PASSAGE } from '../lib/trials';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -303,6 +304,7 @@ export function ProfileScreen({
 
 
   return (
+    <GlobalErrorBoundary>
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <ScrollView>
         <ProfileHeader
@@ -530,6 +532,7 @@ export function ProfileScreen({
       <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
 
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

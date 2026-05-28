@@ -199,6 +199,14 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
     return () => clearInterval(interval);
   }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete]);
 
+  // Cleanup when modal closes
+  useEffect(() => {
+    if (!timerModalVisible) {
+      setTimerPrepCountdown(null);
+      setTimerRunning(false);
+    }
+  }, [timerModalVisible]);
+
   const startTimerForBlock = useCallback((block: ProgramBlockParams) => {
     setActiveTimerBlockId(block.id);
     const metaType = block.metadata?.timing_system || block.metadata?.type;

@@ -12,6 +12,7 @@ export interface ExerciseDetail {
   reps: string;
   rest_seconds: string | number;
   hold_seconds?: string | number;
+  is_weighted?: boolean;
   notes: string;
 }
 
@@ -76,9 +77,11 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
   return (
     <View style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}>
       <View style={styles.exInfoRow}>
-        <Text style={[styles.exTitle, { color: theme.text.primary }]}>
-          {exercise.name.toUpperCase()}
-        </Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[styles.exTitle, { color: theme.text.primary }]}>
+            {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}> (WEIGHTED)</Text>}
+          </Text>
+        </View>
 
         {exercise.youtube_url ? (
           <LinearGradient
@@ -115,12 +118,8 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.sets}</Text>
             </View>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS / TIME</Text>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
-            </View>
-            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
-              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.rest_seconds}S</Text>
             </View>
             {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
               <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
@@ -128,6 +127,10 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
                 <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
               </View>
             )}
+            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
+              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.rest_seconds}S</Text>
+            </View>
             {restSecs > 0 && (
               <TouchableOpacity
                 onPress={restActive ? cancelRest : startRest}
@@ -146,6 +149,26 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               </TouchableOpacity>
             )}
           </>
+        ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
+          <>
+            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
+              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
+            </View>
+            {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
+              <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
+                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
+                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
+              </View>
+            )}
+          </>
+        ) : blockMetadata?.timing_system === 'tabata' ? (
+          <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
+            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
+            <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
+              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+            </Text>
+          </View>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={[styles.detailBadge, { borderColor: bronzeGold, flex: 1, alignItems: 'flex-start', backgroundColor: 'rgba(200,160,64,0.05)' }]}>
             <Text style={[styles.detailLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>

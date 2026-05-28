@@ -12,7 +12,7 @@ import { useStealthFonts } from '../hooks/useFonts';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 import { LeapLogo } from '../src/components/LeapLogo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ErrorBoundary } from '../src/components/ErrorBoundary';
+import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 
 let isSplashHidden = false;
 
@@ -74,7 +74,7 @@ export default function RootLayout() {
 
   return (
     <SafeAreaProvider>
-      <ErrorBoundary>
+      <GlobalErrorBoundary>
         <ThemeProvider>
           <AuthProvider>
             <AuthGuard>
@@ -83,7 +83,7 @@ export default function RootLayout() {
             <StatusBar style="auto" />
           </AuthProvider>
         </ThemeProvider>
-      </ErrorBoundary>
+      </GlobalErrorBoundary>
     </SafeAreaProvider>
   );
 }

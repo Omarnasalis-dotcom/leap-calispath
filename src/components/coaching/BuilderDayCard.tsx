@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgramDay, ProgramBlock } from '../../screens/coaching/ProgramBuilderScreen';
+import { ProgramDay, ProgramBlock } from '../../hooks/coaching/useProgramBuilder';
 import { BuilderBlockCard } from './BuilderBlockCard';
 
 interface BuilderDayCardProps {
@@ -34,6 +34,7 @@ interface BuilderDayCardProps {
   handleOpenPicker: (dayId: string, blockId: string) => void;
   handleMoveBlockWithinDay: (dayId: string, blockIdx: number, direction: 'up' | 'down') => void;
   handleOpenCopyModal: (block: ProgramBlock) => void;
+  handleOpenCopyDayModal: (dayId: string) => void;
   handleDeleteBlockFromDay: (dayId: string, blockId: string) => void;
 }
 
@@ -63,6 +64,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
   handleOpenPicker,
   handleMoveBlockWithinDay,
   handleOpenCopyModal,
+  handleOpenCopyDayModal,
   handleDeleteBlockFromDay,
 }) => {
   return (
@@ -106,7 +108,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
               />
               {!expandedDays[day.id] && (
                 <Text style={{ color: theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Medium', marginTop: -4 }} numberOfLines={1}>
-                  {day.blocks.length > 0 ? day.blocks.map(b => b.name || 'UNNAMED BLOCK').join(' • ') : 'EMPTY DAY'}
+                  {day.blocks.length > 0 ? day.blocks.map((b: ProgramBlock) => b.name || 'UNNAMED BLOCK').join(' • ') : 'EMPTY DAY'}
                 </Text>
               )}
             </View>
@@ -154,7 +156,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
                   <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO BLOCKS ADDED. CLICK '+ ADD BLOCK' TO DEFINE WORKOUT WORKSPACES.</Text>
                 </View>
               ) : (
-                day.blocks.map((block, blockIdx) => (
+                day.blocks.map((block: ProgramBlock, blockIdx: number) => (
                   <BuilderBlockCard
                     key={block.id}
                     block={block}
@@ -196,6 +198,26 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
               >
                 <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
               </TouchableOpacity>
+              <LinearGradient
+                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 1.2, borderRadius: 12 }}
+              >
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: solidCardBg,
+                    borderRadius: 11,
+                    paddingVertical: 5,
+                    paddingHorizontal: 12,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                  onPress={() => handleOpenCopyDayModal(day.id)}
+                >
+                  <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>COPY DAY</Text>
+                </TouchableOpacity>
+              </LinearGradient>
                 {!useWeeklyStructure && (
                 <LinearGradient
                   colors={['#FF5252', '#FF7043', '#FF8A80']}

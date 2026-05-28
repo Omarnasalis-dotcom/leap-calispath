@@ -13,7 +13,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
   const { theme, mode } = useTheme();
   
   // Normalize legacy data if present
-  const [timingSystem, setTimingSystem] = useState<'amrap' | 'fortime' | 'straight_set'>(
+  const [timingSystem, setTimingSystem] = useState<'amrap' | 'fortime' | 'straight_set' | 'tabata'>(
     initialMetadata.timing_system || 
     (initialMetadata.type === 'amrap' || initialMetadata.type === 'fortime' ? initialMetadata.type : 'straight_set')
   );
@@ -38,7 +38,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
     // Compile into ConceptMetadata
     const payload: ConceptMetadata = {
       timing_system: timingSystem,
-      structure: structure,
+      structure: timingSystem === 'tabata' ? 'circuit' : structure,
     };
 
     if (timingSystem === 'amrap' || timingSystem === 'fortime') {
@@ -166,15 +166,19 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         </TouchableOpacity>
       )}
 
-      <Text style={[styles.sectionTitle, { color: theme.text.primary, marginTop: 24 }]}>2. STRUCTURE</Text>
-      <View style={styles.row}>
-        <StructureOption value="single" label="SINGLE" />
-        <StructureOption value="superset" label="SUPERSET" />
-        <StructureOption value="circuit" label="CIRCUIT" />
-        <StructureOption value="ladder" label="LADDER" />
-      </View>
+      {timingSystem !== 'tabata' && (
+        <>
+          <Text style={[styles.sectionTitle, { color: theme.text.primary, marginTop: 24 }]}>2. STRUCTURE</Text>
+          <View style={styles.row}>
+            <StructureOption value="single" label="SINGLE" />
+            <StructureOption value="superset" label="SUPERSET" />
+            <StructureOption value="circuit" label="CIRCUIT" />
+            <StructureOption value="ladder" label="LADDER" />
+          </View>
+        </>
+      )}
 
-      {structure !== 'single' && timingSystem !== 'amrap' && (
+      {timingSystem !== 'tabata' && structure !== 'single' && timingSystem !== 'amrap' && (
         <View style={styles.inputGroup}>
           <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET ROUNDS</Text>
           <TextInput
@@ -186,7 +190,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         </View>
       )}
 
-      {structure === 'ladder' && (
+      {timingSystem !== 'tabata' && structure === 'ladder' && (
         <View style={styles.row}>
           <View style={[styles.inputGroup, { flex: 1 }]}>
             <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>STARTING REPS</Text>
@@ -209,7 +213,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         </View>
       )}
 
-      {structure === 'ladder' && (
+      {timingSystem !== 'tabata' && structure === 'ladder' && (
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
           <TouchableOpacity
             style={[styles.optionBtn, { borderColor: ladderDirection === 'down' ? '#FF5252' : theme.card.border, backgroundColor: ladderDirection === 'down' ? 'rgba(255,82,82,0.1)' : 'transparent', flex: 1 }]}
@@ -226,7 +230,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
         </View>
       )}
 
-      {structure === 'ladder' && rounds && ladderStart && (
+      {timingSystem !== 'tabata' && structure === 'ladder' && rounds && ladderStart && (
         <View style={{ marginTop: 12, padding: 12, backgroundColor: 'rgba(126, 87, 194, 0.1)', borderRadius: 8 }}>
           <Text style={{ color: '#7E57C2', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 }}>
             {ladderDirection === 'up' ? 'CLIMB' : 'DROP'} LADDER: {rounds} ROUNDS OF {

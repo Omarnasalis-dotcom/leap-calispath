@@ -7,6 +7,8 @@ interface MinimalExercise {
   id: string | number;
   name: string;
   reps: string | number;
+  hold_seconds?: string | number;
+  is_weighted?: boolean;
 }
 
 interface MinimalBlock {
@@ -78,7 +80,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
       transparent={true}
       animationType="slide"
       onRequestClose={() => {
-        if (timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
+        if (timerPrepCountdown !== null || timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
           setShowEndWarning(true);
         } else {
           setTimerRunning(false);
@@ -193,7 +195,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 if (timerType === 'fortime') {
                   handleForTimeCompletion(activeTimerBlockId, elapsedTime);
                 } else {
-                  if (timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
+                  if (timerPrepCountdown !== null || timerRunning || (timerType === 'rest' && timeLeft > 0 && timeLeft < restSeconds && currentRound < totalRounds)) {
                     setShowEndWarning(true);
                   } else {
                     if (timerType === 'rest' && (currentRound >= totalRounds - 1 && timeLeft === restSeconds)) {
@@ -214,6 +216,38 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
             </TouchableOpacity>
           </View>
 
+          {timerType === 'fortime' && (
+            <TouchableOpacity
+              onPress={() => {
+                if (timerPrepCountdown !== null || timerRunning) {
+                  Alert.alert(
+                    "WARNING",
+                    "Are you sure you want to cancel the timer?",
+                    [
+                      { text: 'No', style: 'cancel' },
+                      { 
+                        text: 'Cancel Timer', 
+                        style: 'destructive',
+                        onPress: () => {
+                          setTimerRunning(false);
+                          setTimerModalVisible(false);
+                        }
+                      }
+                    ]
+                  );
+                } else {
+                  setTimerRunning(false);
+                  setTimerModalVisible(false);
+                }
+              }}
+              style={{ marginBottom: 20 }}
+            >
+              <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, textDecorationLine: 'underline' }}>
+                CANCEL TIMER
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Exercises reference inside the timer */}
           <ScrollView style={{ width: '100%', maxHeight: 150 }} showsVerticalScrollIndicator={false}>
             {(() => {
@@ -222,15 +256,20 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
               return (
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, textAlign: 'center' }}>
-                    BLOCK: {activeBlock.name.toUpperCase()}
+                    BLOCK: {activeBlock.name.toUpperCase()}{activeBlock.metadata?.rounds ? ` (${activeBlock.metadata.rounds} ROUNDS)` : ''}
                   </Text>
                   {activeBlock.exercises.map((ex, idx) => (
-                    <View key={ex.id} style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
-                      <Text style={{ color: theme.text.primary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold' }}>
+                    <View key={ex.id} style={{ flexDirection: 'column', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
+                      <Text style={{ color: theme.text.primary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>
                         {idx + 1}. {ex.name}
+                        {ex.is_weighted && <Text style={{ color: theme.accent, fontSize: 11 }}> (WEIGHTED)</Text>}
                       </Text>
-                      <Text style={{ color: theme.text.secondary, fontSize: 11 }}>
-                        {activeBlock.metadata?.structure === 'ladder' ? BlockConceptParser.getLadderSequence(activeBlock.metadata || {}) : ex.reps}
+                      <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Medium' }}>
+                        {timerType === 'tabata' 
+                          ? `${tabataWorkSecs}S WORK / ${tabataRestSecs}S REST` 
+                          : activeBlock.metadata?.structure === 'ladder' 
+                            ? BlockConceptParser.getLadderSequence(activeBlock.metadata || {}) 
+                            : `${ex.reps}${!String(ex.reps).toUpperCase().includes('REP') && !String(ex.reps).toUpperCase().includes('SEC') && !String(ex.reps).toUpperCase().includes('MIN') ? ' REPS' : ''}${ex.hold_seconds && parseInt(String(ex.hold_seconds)) > 0 ? ` + HOLD ${ex.hold_seconds} SEC` : ''}`}
                       </Text>
                     </View>
                   ))}
