@@ -60,6 +60,7 @@ interface CopyBlockModalProps {
   successMessage: string | null;
   coachId?: string;
   onCopyDay: (targetBlockId: string, targetWeek?: number) => void;
+  onDuplicateBlockToDay: (targetDayId: string, targetWeek?: number) => void;
   onCopyDayToDay: (sourceDayId: string, targetWeek?: number) => void;
   onFetchOtherTemplates: () => Promise<void>;
   onFetchTargetBlocks: (templateId: string) => Promise<void>;
@@ -67,12 +68,12 @@ interface CopyBlockModalProps {
 }
 
 type CopyMode = 'block' | 'day';
-type CopyTarget = 'options' | 'same_day' | 'same_template_day' | 'other_template' | 'client';
+type CopyTarget = 'options' | 'same_day' | 'duplicate_block' | 'same_template_day' | 'other_template' | 'client';
 
 export function CopyBlockModal({
   visible, onClose, sourceBlock, sourceDay, copyView, setCopyView,
   days, weeks, activeWeek, otherTemplates, targetBlocks, selectedTemplateId, setSelectedTemplateId,
-  successMessage, coachId, onCopyDay, onCopyDayToDay, onFetchOtherTemplates,
+  successMessage, coachId, onCopyDay, onDuplicateBlockToDay, onCopyDayToDay, onFetchOtherTemplates,
   onFetchTargetBlocks, onCopyTemplate,
 }: CopyBlockModalProps) {
   const { theme, mode } = useTheme();
@@ -310,10 +311,16 @@ export function CopyBlockModal({
                   <Text style={[styles.stepLabel, { color: theme.text.tertiary }]}>STEP 1 — WHERE TO PASTE</Text>
                   <View style={{ gap: 8 }}>
                     {copyMode === 'block' && (
-                      <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_day')}>
-                        <Text style={[styles.targetTitle, { color: bronzeGold }]}>PASTE INTO BLOCK (SAME TEMPLATE)</Text>
-                        <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add these exercises into another block in this program</Text>
-                      </TouchableOpacity>
+                      <>
+                        <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('duplicate_block')}>
+                          <Text style={[styles.targetTitle, { color: bronzeGold }]}>DUPLICATE BLOCK (SAME TEMPLATE)</Text>
+                          <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add a copy of this block into a specific day</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_day')}>
+                          <Text style={[styles.targetTitle, { color: bronzeGold }]}>PASTE INTO EXISTING BLOCK</Text>
+                          <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add these exercises into an existing block</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                     {copyMode === 'day' && (
                       <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_template_day')}>
@@ -344,6 +351,23 @@ export function CopyBlockModal({
                       <TouchableOpacity key={b.id} style={[styles.listItem, { borderBottomColor: theme.card.border }]} onPress={() => { onCopyDay(b.id, selectedTargetWeek); showSuccess('EXERCISES COPIED!'); }}>
                         <Text style={[styles.listItemTitle, { color: theme.text.primary }]}>{b.dayName.toUpperCase()} — {b.name.toUpperCase()}</Text>
                         <Text style={[styles.listItemSub, { color: theme.text.tertiary }]}>{b.exercises.length} EXERCISES</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+              )}
+
+              {target === 'duplicate_block' && (
+                <View>
+                  {renderWeekSelector()}
+                  <Text style={[styles.stepLabel, { color: theme.text.tertiary }]}>SELECT TARGET DAY</Text>
+                  {targetDays.length === 0 ? (
+                    <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>NO DAYS IN THIS WEEK.</Text>
+                  ) : (
+                    targetDays.map(d => (
+                      <TouchableOpacity key={d.id} style={[styles.listItem, { borderBottomColor: theme.card.border }]} onPress={() => { onDuplicateBlockToDay(d.id, selectedTargetWeek); showSuccess('BLOCK DUPLICATED!'); }}>
+                        <Text style={[styles.listItemTitle, { color: theme.text.primary }]}>{d.name.toUpperCase()}</Text>
+                        <Text style={[styles.listItemSub, { color: theme.text.tertiary }]}>{d.blocks.length} EXISTING BLOCKS</Text>
                       </TouchableOpacity>
                     ))
                   )}

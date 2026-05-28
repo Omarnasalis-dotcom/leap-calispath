@@ -41,7 +41,16 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
 
       {/* Exercise Attributes Inputs Grid */}
       <View style={styles.exInputsGrid}>
-        {(!blockMetadata || (!blockMetadata.type && !blockMetadata.structure) || blockMetadata.type === 'single' || blockMetadata.structure === 'single') ? (
+        {blockMetadata?.timing_system === 'tabata' ? (
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TABATA INTERVAL</Text>
+            <View style={[styles.exField, { borderColor: theme.card.border, backgroundColor: 'rgba(255,82,82,0.1)', justifyContent: 'center' }]}>
+              <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.5, textAlign: 'center' }}>
+                {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+              </Text>
+            </View>
+          </View>
+        ) : (!blockMetadata || (!blockMetadata.type && !blockMetadata.structure) || blockMetadata.type === 'single' || blockMetadata.structure === 'single') ? (
           <>
             <View style={styles.exInputCol}>
               <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>SETS</Text>
@@ -127,15 +136,6 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               </TouchableOpacity>
             </View>
           </>
-        ) : blockMetadata?.timing_system === 'tabata' ? (
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TABATA INTERVAL</Text>
-            <View style={[styles.exField, { borderColor: theme.card.border, backgroundColor: 'rgba(255,82,82,0.1)', justifyContent: 'center' }]}>
-              <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.5, textAlign: 'center' }}>
-                {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
-              </Text>
-            </View>
-          </View>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={{ flex: 1 }}>
             <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>

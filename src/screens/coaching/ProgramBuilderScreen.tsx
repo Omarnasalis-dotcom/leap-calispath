@@ -101,6 +101,7 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
     handleOpenCopyDayModal,
     handleOpenCopyModal,
     handleCopyDay,
+    handleDuplicateBlockToDay,
     fetchOtherTemplates,
     fetchTargetBlocksForTemplate,
     handleCopyTemplate,
@@ -359,6 +360,7 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
           successMessage={successMessage}
           coachId={coachId}
           onCopyDay={handleCopyDay}
+          onDuplicateBlockToDay={handleDuplicateBlockToDay}
           onCopyDayToDay={handleCopyDayToDay}
           onFetchOtherTemplates={fetchOtherTemplates}
           onFetchTargetBlocks={fetchTargetBlocksForTemplate}
