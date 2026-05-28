@@ -11,6 +11,7 @@ import {
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
+import { useSafeMutation } from '../../hooks/useSafeMutation';
 
 interface SelectedExercise {
   id: string;
@@ -60,6 +61,7 @@ interface CopyBlockModalProps {
   successMessage: string | null;
   coachId?: string;
   onCopyDay: (targetBlockId: string, targetWeek?: number) => void;
+  onDuplicateBlockToDay: (targetDayId: string, targetWeek?: number) => void;
   onCopyDayToDay: (sourceDayId: string, targetWeek?: number) => void;
   onFetchOtherTemplates: () => Promise<void>;
   onFetchTargetBlocks: (templateId: string) => Promise<void>;
@@ -67,12 +69,12 @@ interface CopyBlockModalProps {
 }
 
 type CopyMode = 'block' | 'day';
-type CopyTarget = 'options' | 'same_day' | 'same_template_day' | 'other_template' | 'client';
+type CopyTarget = 'options' | 'same_day' | 'duplicate_block' | 'same_template_day' | 'other_template' | 'client';
 
 export function CopyBlockModal({
   visible, onClose, sourceBlock, sourceDay, copyView, setCopyView,
   days, weeks, activeWeek, otherTemplates, targetBlocks, selectedTemplateId, setSelectedTemplateId,
-  successMessage, coachId, onCopyDay, onCopyDayToDay, onFetchOtherTemplates,
+  successMessage, coachId, onCopyDay, onDuplicateBlockToDay, onCopyDayToDay, onFetchOtherTemplates,
   onFetchTargetBlocks, onCopyTemplate,
 }: CopyBlockModalProps) {
   const { theme, mode } = useTheme();
@@ -84,9 +86,10 @@ export function CopyBlockModal({
   const [selectedTargetWeek, setSelectedTargetWeek] = useState<number>(activeWeek || 1);
   const [clients, setClients] = useState<{ id: string; template_id: string; warrior_name: string }[]>([]);
   const [loadingClients, setLoadingClients] = useState(false);
-  const [copying, setCopying] = useState(false);
   const [localSuccess, setLocalSuccess] = useState<string | null>(null);
   const [localError, setLocalError] = useState<string | null>(null);
+
+  const { safeMutate, isMutating: copying } = useSafeMutation();
 
   useEffect(() => {
     if (visible) {
@@ -140,21 +143,21 @@ export function CopyBlockModal({
 
   async function copyBlockToClient(templateId: string) {
     if (!sourceBlock) return;
-    setCopying(true);
-    try {
-      const notesWithMeta = sourceBlock.metadata
-        ? BlockConceptParser.stringify(sourceBlock.metadata, sourceBlock.notes || '')
-        : (sourceBlock.notes || '');
+    
+    await safeMutate(async () => {
+      const notesWithMeta = sourceBlock!.metadata
+        ? BlockConceptParser.stringify(sourceBlock!.metadata, sourceBlock!.notes || '')
+        : (sourceBlock!.notes || '');
       const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', templateId);
       const orderIndex = existingBlocks ? existingBlocks.length : 0;
       const { data: newBlock, error: blockErr } = await supabase
         .from('program_blocks')
-        .insert({ template_id: templateId, name: `DAY 1 | ${sourceBlock.name}`, notes: notesWithMeta, order_index: orderIndex, week_number: 1 })
+        .insert({ template_id: templateId, name: `DAY 1 | ${sourceBlock!.name}`, notes: notesWithMeta, order_index: orderIndex, week_number: 1 })
         .select('id').single();
-      if (blockErr) throw blockErr;
-      if (sourceBlock.exercises.length > 0) {
+      if (blockErr) return { error: blockErr };
+      if (sourceBlock!.exercises.length > 0) {
         const { error: exErr } = await supabase.from('block_exercises').insert(
-          sourceBlock.exercises.map((ex, idx) => ({
+          sourceBlock!.exercises.map((ex, idx) => ({
             block_id: newBlock.id, exercise_id: ex.exercise_id,
             sets: parseInt(ex.sets) || null, reps: (ex.reps || '').trim(),
             rest_seconds: parseInt(ex.rest_seconds) || null, 
@@ -163,27 +166,28 @@ export function CopyBlockModal({
             notes: (ex.notes || '').trim(), order_index: idx,
           }))
         );
-        if (exErr) throw exErr;
+        if (exErr) return { error: exErr };
       }
-      showSuccess('BLOCK COPIED TO CLIENT!');
-    } catch (err: any) {
-      setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.');
-    } finally { setCopying(false); }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => showSuccess('BLOCK COPIED TO CLIENT!'),
+      onError: (err) => setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.')
+    });
   }
 
   async function copyDayToClient(templateId: string) {
     if (!sourceDay) return;
-    setCopying(true);
-    try {
+    
+    await safeMutate(async () => {
       const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', templateId);
       let orderIndex = existingBlocks ? existingBlocks.length : 0;
-      for (const block of sourceDay.blocks) {
+      for (const block of sourceDay!.blocks) {
         const notesWithMeta = block.metadata ? BlockConceptParser.stringify(block.metadata, block.notes || '') : (block.notes || '');
         const { data: newBlock, error: blockErr } = await supabase
           .from('program_blocks')
-          .insert({ template_id: templateId, name: `${sourceDay.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
+          .insert({ template_id: templateId, name: `${sourceDay!.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
           .select('id').single();
-        if (blockErr) throw blockErr;
+        if (blockErr) return { error: blockErr };
         if (block.exercises.length > 0) {
           const { error: exErr } = await supabase.from('block_exercises').insert(
             block.exercises.map((ex, idx) => ({
@@ -195,28 +199,29 @@ export function CopyBlockModal({
               notes: (ex.notes || '').trim(), order_index: idx,
             }))
           );
-          if (exErr) throw exErr;
+          if (exErr) return { error: exErr };
         }
       }
-      showSuccess('DAY COPIED TO CLIENT!');
-    } catch (err: any) {
-      setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.');
-    } finally { setCopying(false); }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => showSuccess('DAY COPIED TO CLIENT!'),
+      onError: (err) => setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.')
+    });
   }
 
   async function copyDayToTemplate(targetTemplateId: string) {
     if (!sourceDay) return;
-    setCopying(true);
-    try {
+    
+    await safeMutate(async () => {
       const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', targetTemplateId);
       let orderIndex = existingBlocks ? existingBlocks.length : 0;
-      for (const block of sourceDay.blocks) {
+      for (const block of sourceDay!.blocks) {
         const notesWithMeta = block.metadata ? BlockConceptParser.stringify(block.metadata, block.notes || '') : (block.notes || '');
         const { data: newBlock, error: blockErr } = await supabase
           .from('program_blocks')
-          .insert({ template_id: targetTemplateId, name: `${sourceDay.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
+          .insert({ template_id: targetTemplateId, name: `${sourceDay!.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
           .select('id').single();
-        if (blockErr) throw blockErr;
+        if (blockErr) return { error: blockErr };
         if (block.exercises.length > 0) {
           const { error: exErr } = await supabase.from('block_exercises').insert(
             block.exercises.map((ex, idx) => ({
@@ -228,13 +233,14 @@ export function CopyBlockModal({
               notes: (ex.notes || '').trim(), order_index: idx,
             }))
           );
-          if (exErr) throw exErr;
+          if (exErr) return { error: exErr };
         }
       }
-      showSuccess('DAY COPIED TO TEMPLATE!');
-    } catch (err: any) {
-      setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.');
-    } finally { setCopying(false); }
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => showSuccess('DAY COPIED TO TEMPLATE!'),
+      onError: (err) => setLocalError(err.message?.toUpperCase() || 'FAILED TO COPY.')
+    });
   }
 
   const sourceName = copyMode === 'block' ? (sourceBlock?.name || 'BLOCK') : (sourceDay?.name || 'DAY');
@@ -310,10 +316,16 @@ export function CopyBlockModal({
                   <Text style={[styles.stepLabel, { color: theme.text.tertiary }]}>STEP 1 — WHERE TO PASTE</Text>
                   <View style={{ gap: 8 }}>
                     {copyMode === 'block' && (
-                      <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_day')}>
-                        <Text style={[styles.targetTitle, { color: bronzeGold }]}>PASTE INTO BLOCK (SAME TEMPLATE)</Text>
-                        <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add these exercises into another block in this program</Text>
-                      </TouchableOpacity>
+                      <>
+                        <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('duplicate_block')}>
+                          <Text style={[styles.targetTitle, { color: bronzeGold }]}>DUPLICATE BLOCK (SAME TEMPLATE)</Text>
+                          <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add a copy of this block into a specific day</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_day')}>
+                          <Text style={[styles.targetTitle, { color: bronzeGold }]}>PASTE INTO EXISTING BLOCK</Text>
+                          <Text style={[styles.targetDesc, { color: theme.text.secondary }]}>Add these exercises into an existing block</Text>
+                        </TouchableOpacity>
+                      </>
                     )}
                     {copyMode === 'day' && (
                       <TouchableOpacity style={[styles.targetCard, { borderColor: theme.card.border }]} onPress={() => setTarget('same_template_day')}>
@@ -344,6 +356,23 @@ export function CopyBlockModal({
                       <TouchableOpacity key={b.id} style={[styles.listItem, { borderBottomColor: theme.card.border }]} onPress={() => { onCopyDay(b.id, selectedTargetWeek); showSuccess('EXERCISES COPIED!'); }}>
                         <Text style={[styles.listItemTitle, { color: theme.text.primary }]}>{b.dayName.toUpperCase()} — {b.name.toUpperCase()}</Text>
                         <Text style={[styles.listItemSub, { color: theme.text.tertiary }]}>{b.exercises.length} EXERCISES</Text>
+                      </TouchableOpacity>
+                    ))
+                  )}
+                </View>
+              )}
+
+              {target === 'duplicate_block' && (
+                <View>
+                  {renderWeekSelector()}
+                  <Text style={[styles.stepLabel, { color: theme.text.tertiary }]}>SELECT TARGET DAY</Text>
+                  {targetDays.length === 0 ? (
+                    <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>NO DAYS IN THIS WEEK.</Text>
+                  ) : (
+                    targetDays.map(d => (
+                      <TouchableOpacity key={d.id} style={[styles.listItem, { borderBottomColor: theme.card.border }]} onPress={() => { onDuplicateBlockToDay(d.id, selectedTargetWeek); showSuccess('BLOCK DUPLICATED!'); }}>
+                        <Text style={[styles.listItemTitle, { color: theme.text.primary }]}>{d.name.toUpperCase()}</Text>
+                        <Text style={[styles.listItemSub, { color: theme.text.tertiary }]}>{d.blocks.length} EXISTING BLOCKS</Text>
                       </TouchableOpacity>
                     ))
                   )}

@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeMutation } from '../hooks/useSafeMutation';
 
 
 const AVAILABLE_EXERCISES = [
@@ -70,7 +71,7 @@ function generateRandomSuffix(): string {
 function CodesTab({ theme }: { theme: any }) {
   const [codeType, setCodeType] = useState<CodeType>('member_30');
   const [quantity, setQuantity] = useState('10');
-  const [generating, setGenerating] = useState(false);
+  const { safeMutate: safeMutateCode, isMutating: generating } = useSafeMutation();
   const [generatedCodes, setGeneratedCodes] = useState<string[]>([]);
   const [existingCodes, setExistingCodes] = useState<any[]>([]);
   const [filterStatus, setFilterStatus] = useState<string>('all');
@@ -96,8 +97,8 @@ function CodesTab({ theme }: { theme: any }) {
 
   const handleGenerate = async () => {
     const qty = Math.min(50, Math.max(1, parseInt(quantity) || 10));
-    setGenerating(true);
-    try {
+    
+    await safeMutateCode(async () => {
       const prefix = CODE_PREFIXES[codeType as CodeType];
       const codes = Array.from({ length: qty }, () => `${prefix}-${generateRandomSuffix()}`);
       const expiryDays = CODE_EXPIRY_DAYS[codeType as CodeType];
@@ -110,12 +111,14 @@ function CodesTab({ theme }: { theme: any }) {
           : null,
       }));
       const { error } = await supabase.from('invite_codes').insert(rows);
-      if (error) { Alert.alert('Error', error.message); return; }
-      setGeneratedCodes(codes);
-      fetchExistingCodes();
-    } finally {
-      setGenerating(false);
-    }
+      if (error) return { error };
+      return { data: codes, error: null };
+    }, {
+      onSuccess: (codes) => {
+        setGeneratedCodes(codes || []);
+        fetchExistingCodes();
+      }
+    });
   };
 
   const handleRevoke = async (id: string) => {
@@ -124,8 +127,14 @@ function CodesTab({ theme }: { theme: any }) {
       {
         text: 'Revoke', style: 'destructive',
         onPress: async () => {
-          await supabase.from('invite_codes').delete().eq('id', id);
-          fetchExistingCodes();
+          await safeMutateCode(async () => {
+            const { error } = await supabase.from('invite_codes').delete().eq('id', id);
+            if (error) return { error };
+            return { data: null, error: null };
+          }, {
+            onSuccess: () => fetchExistingCodes(),
+            errorMessage: 'Failed to revoke code'
+          });
         }
       }
     ]);
@@ -278,7 +287,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
   const [allowedTiers, setAllowedTiers] = useState<number[]>([0, 1, 2, 3, 4, 5, 6, 7, 8]);
 
   const [existingTournaments, setExistingTournaments] = useState<any[]>([]);
-  const [loading, setLoading] = useState(false);
+  const { safeMutate, isMutating: loading } = useSafeMutation();
   const isPublishing = useRef(false);
 
   useEffect(() => { fetchTournaments(); }, []);
@@ -322,27 +331,34 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
 
   const handlePublish = async () => {
     if (isPublishing.current) return;
-    isPublishing.current = true;
-    setLoading(true);
-    try {
-      await validate();
-      const workout_config = type === 'knockout'
-        ? rounds.map((r: RoundConfig) => r.mode === 'for_time' ? { ...r, duration_min: 0 } : r)
-        : [{ ...rankWorkout, duration_min: rankWorkout.mode === 'amrap' ? rankWorkout.duration_min : 0, max_seconds: rankWorkout.mode === 'for_time' ? parseInt(maxSeconds) : undefined, exercises: rankWorkout.exercises.length > 0 ? rankWorkout.exercises : [{ name: 'Push-ups', target_reps: 1, target_rounds: 1, weight_kg: 0 }] }];
-      const window_time_min = type === 'knockout' ? parseInt(roundWindow) : parseInt(windowHours) * 60;
-      const configData = { title, type, bracket_size: type === 'knockout' ? bracketSize : null, workout_config, window_time_min, max_trials: type === 'rank_based' ? parseInt(maxTrials) : null, cooldown_min: type === 'rank_based' ? parseInt(cooldown) : null, min_participants: parseInt(minParticipants), payout_gp: parseInt(gpPool), allowed_tiers: allowedTiers };
-      const { data: config, error: configErr } = await supabase.from('tournament_configs').insert(configData).select().single();
-      if (configErr) throw configErr;
-      const { error: sessionErr } = await supabase.from('tournament_sessions').insert({ config_id: config.id, status: 'registration', current_round: 0 });
-      if (sessionErr) throw sessionErr;
-      Alert.alert('Success', 'Tournament Published!');
-      router.back();
-    } catch (err: any) {
-      Alert.alert('Publishing Error', err.message || 'Unknown error occurred');
-    } finally {
-      setLoading(false);
-      isPublishing.current = false;
-    }
+    
+    await safeMutate(async () => {
+      isPublishing.current = true;
+      try {
+        await validate();
+        const workout_config = type === 'knockout'
+          ? rounds.map((r: RoundConfig) => r.mode === 'for_time' ? { ...r, duration_min: 0 } : r)
+          : [{ ...rankWorkout, duration_min: rankWorkout.mode === 'amrap' ? rankWorkout.duration_min : 0, max_seconds: rankWorkout.mode === 'for_time' ? parseInt(maxSeconds) : undefined, exercises: rankWorkout.exercises.length > 0 ? rankWorkout.exercises : [{ name: 'Push-ups', target_reps: 1, target_rounds: 1, weight_kg: 0 }] }];
+        const window_time_min = type === 'knockout' ? parseInt(roundWindow) : parseInt(windowHours) * 60;
+        const configData = { title, type, bracket_size: type === 'knockout' ? bracketSize : null, workout_config, window_time_min, max_trials: type === 'rank_based' ? parseInt(maxTrials) : null, cooldown_min: type === 'rank_based' ? parseInt(cooldown) : null, min_participants: parseInt(minParticipants), payout_gp: parseInt(gpPool), allowed_tiers: allowedTiers };
+        
+        const { data: config, error: configErr } = await supabase.from('tournament_configs').insert(configData).select().single();
+        if (configErr) return { error: configErr };
+        
+        const { error: sessionErr } = await supabase.from('tournament_sessions').insert({ config_id: config.id, status: 'registration', current_round: 0 });
+        if (sessionErr) return { error: sessionErr };
+        
+        return { data: null, error: null };
+      } finally {
+        isPublishing.current = false;
+      }
+    }, {
+      onSuccess: () => {
+        Alert.alert('Success', 'Tournament Published!');
+        router.back();
+      },
+      errorMessage: 'Publishing Error'
+    });
   };
 
   const handleDelete = async (sessionId: string, status: string) => {
@@ -353,15 +369,20 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
       [
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: async () => {
-          try {
+          await safeMutate(async () => {
             const { data: session } = await supabase.from('tournament_sessions').select('config_id').eq('id', sessionId).single();
             await supabase.from('tournament_matches').delete().eq('tournament_id', sessionId);
             await supabase.from('tournament_participants').delete().eq('tournament_id', sessionId);
             await supabase.from('tournament_sessions').delete().eq('id', sessionId);
             if (session?.config_id) await supabase.from('tournament_configs').delete().eq('id', session.config_id);
-            Alert.alert('Deleted', 'Tournament removed successfully');
-            fetchTournaments();
-          } catch (err: any) { Alert.alert('Delete Failed', err.message); }
+            return { data: null, error: null };
+          }, {
+            onSuccess: () => {
+              Alert.alert('Deleted', 'Tournament removed successfully');
+              fetchTournaments();
+            },
+            errorMessage: 'Delete Failed'
+          });
         }},
       ]
     );

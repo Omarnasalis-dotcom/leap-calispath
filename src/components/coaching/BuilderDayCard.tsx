@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgramDay, ProgramBlock } from '../../screens/coaching/ProgramBuilderScreen';
+import { ProgramDay, ProgramBlock } from '../../hooks/coaching/useProgramBuilder';
 import { BuilderBlockCard } from './BuilderBlockCard';
 
 interface BuilderDayCardProps {
@@ -34,6 +34,7 @@ interface BuilderDayCardProps {
   handleOpenPicker: (dayId: string, blockId: string) => void;
   handleMoveBlockWithinDay: (dayId: string, blockIdx: number, direction: 'up' | 'down') => void;
   handleOpenCopyModal: (block: ProgramBlock) => void;
+  handleOpenCopyDayModal: (dayId: string) => void;
   handleDeleteBlockFromDay: (dayId: string, blockId: string) => void;
 }
 
@@ -63,6 +64,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
   handleOpenPicker,
   handleMoveBlockWithinDay,
   handleOpenCopyModal,
+  handleOpenCopyDayModal,
   handleDeleteBlockFromDay,
 }) => {
   return (

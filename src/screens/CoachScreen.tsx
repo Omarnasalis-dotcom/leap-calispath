@@ -165,7 +165,10 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved && saved.startsWith('[')) {
-          setMessages(JSON.parse(saved));
+          const parsed = JSON.parse(saved);
+          if (Array.isArray(parsed)) {
+            setMessages(parsed);
+          }
         }
       } catch (e) { }
     };

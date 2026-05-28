@@ -39,7 +39,7 @@ export async function getTierLeaderboard(
   }
 
   // Convert to entries with ranking
-  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
     user_id: record.user_id,
     display_name: record.display_name || 'Unknown Warrior',
     tier,
@@ -92,7 +92,7 @@ export async function getPowerTierLeaderboard(
     return { entries: [], personalBest: null };
   }
 
-  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
     user_id: record.user_id,
     display_name: record.profiles?.display_name || 'Unknown Warrior',
     tier,
@@ -133,7 +133,7 @@ export async function getGloryLeaderboard(
     return { entries: [], personalBest: null };
   }
 
-  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
     user_id: record.id,
     display_name: record.display_name || 'Unknown Warrior',
     tier: record.strength_tier,
@@ -175,7 +175,7 @@ export async function getUserPersonalBests(userId: string): Promise<PersonalBest
   // Group by tier and find best time
   const tierBests = new Map<number, { time: number; attempts: number }>();
   
-  for (const record of data) {
+  for (const record of (Array.isArray(data) ? data : [])) {
     const tier = record.tier_attempted;
     const time = record.time_seconds;
     
@@ -240,7 +240,7 @@ export async function getStaticMovementLeaderboard(
     return { entries: [], personalBest: null };
   }
 
-  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
     user_id: record.user_id,
     display_name: record.profiles?.display_name || 'Unknown Warrior',
     tier: 0,
@@ -283,7 +283,7 @@ export async function getStaticLevelLeaderboard(
   }
 
   const userScores = new Map<string, { total: number; display_name: string }>();
-  for (const record of data) {
+  for (const record of (Array.isArray(data) ? data : [])) {
     const profiles = record.profiles as any;
     const displayName = Array.isArray(profiles) 
       ? (profiles[0]?.display_name || 'Unknown Warrior')

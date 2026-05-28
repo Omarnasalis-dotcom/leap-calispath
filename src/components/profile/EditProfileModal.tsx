@@ -12,6 +12,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { supabase } from '../../lib/supabase';
 import { COUNTRIES } from '../../constants/countries';
+import { useSafeMutation } from '../../hooks/useSafeMutation';
+import { LeapLogo } from '../LeapLogo';
 
 interface EditProfileModalProps {
   visible: boolean;
@@ -29,6 +31,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
   const [countrySearch, setCountrySearch] = useState('');
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
+  const { safeMutate, isMutating } = useSafeMutation();
 
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
 
@@ -45,21 +48,29 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
 
   const saveProfileInfo = async () => {
     if (!profile?.id) return;
-    try {
-      const updates: any = {};
-      if (!profile.gender && editGender) updates.gender = editGender;
-      if (!profile.country && editCountry) updates.country = editCountry;
-      if (!profile.first_name && editFirstName.trim()) updates.first_name = editFirstName.trim();
-      if (!profile.last_name && editLastName.trim()) updates.last_name = editLastName.trim();
-      
-      if (Object.keys(updates).length > 0) {
-        await supabase.from('profiles').update(updates).eq('id', profile.id);
-        if (refreshProfile) refreshProfile();
-      }
+    
+    const updates: any = {};
+    if (!profile.gender && editGender) updates.gender = editGender;
+    if (!profile.country && editCountry) updates.country = editCountry;
+    if (!profile.first_name && editFirstName.trim()) updates.first_name = editFirstName.trim();
+    if (!profile.last_name && editLastName.trim()) updates.last_name = editLastName.trim();
+    
+    if (Object.keys(updates).length === 0) {
       onClose();
-    } catch (e) {
-      console.error('Failed to update profile:', e);
+      return;
     }
+
+    await safeMutate(async () => {
+      const { error } = await supabase.from('profiles').update(updates).eq('id', profile.id);
+      if (error) return { error };
+      return { data: null, error: null };
+    }, {
+      onSuccess: () => {
+        if (refreshProfile) refreshProfile();
+        onClose();
+      },
+      errorMessage: 'Failed to update profile'
+    });
   };
 
   return (
@@ -167,8 +178,13 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.accent }]}
               onPress={saveProfileInfo}
+              disabled={isMutating}
             >
-              <Text style={styles.actionButtonText}>SAVE CHANGES</Text>
+              {isMutating ? (
+                <LeapLogo size={24} animated />
+              ) : (
+                <Text style={styles.actionButtonText}>SAVE CHANGES</Text>
+              )}
             </TouchableOpacity>
 
           </View>

@@ -32,7 +32,7 @@ export const OneMMService = {
     const pbs: Record<string, number> = {};
     ONEMM_MOVEMENTS.forEach(m => pbs[m.id] = 0);
 
-    logs?.forEach(log => {
+    (Array.isArray(logs) ? logs : []).forEach(log => {
       if (log.reps > (pbs[log.movement_id] || 0)) {
         pbs[log.movement_id] = log.reps;
       }
@@ -40,7 +40,7 @@ export const OneMMService = {
 
     // Calculate total points using Peak Performance per Pattern
     const patternPeaks: Record<string, number> = {};
-    logs?.forEach(log => {
+    (Array.isArray(logs) ? logs : []).forEach(log => {
       const movement = ONEMM_MOVEMENTS.find(m => m.id === log.movement_id);
       if (movement) {
         const pid = movement.patternId;
@@ -126,7 +126,7 @@ export const OneMMService = {
       .eq('user_id', userId);
 
     const patternPeaks: Record<string, number> = {};
-    allLogs?.forEach(log => {
+    (Array.isArray(allLogs) ? allLogs : []).forEach(log => {
       const movement = ONEMM_MOVEMENTS.find(m => m.id === log.movement_id);
       if (movement) {
         const pid = movement.patternId;
@@ -138,10 +138,11 @@ export const OneMMService = {
 
     const totalPoints = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
 
-    await supabase
+    const { error: updErr } = await supabase
       .from('profiles')
       .update({ one_mm_points: totalPoints })
       .eq('id', userId);
+    if (updErr) throw updErr;
 
     return { isNewPB };
   },
@@ -166,7 +167,7 @@ export const OneMMService = {
           .limit(50);
 
         if (fbError) throw fbError;
-        return fallback.map((d, i) => ({
+        return (Array.isArray(fallback) ? fallback : []).map((d, i) => ({
           user_id: d.id,
           display_name: d.display_name || 'Warrior',
           value: d.one_mm_points,
@@ -176,7 +177,7 @@ export const OneMMService = {
         }));
       }
 
-      return (data || []).map((d: any) => ({
+      return (Array.isArray(data) ? data : []).map((d: any) => ({
         user_id: d.u_id || d.user_id,
         display_name: d.d_name || d.display_name || 'Warrior',
         value: Number(d.t_score || d.total_points || 0),
@@ -205,7 +206,7 @@ export const OneMMService = {
 
     // Deduplicate by user_id to only show their best
     const uniqueMap = new Map();
-    data.forEach((d: any) => {
+    (Array.isArray(data) ? data : []).forEach((d: any) => {
       if (!uniqueMap.has(d.user_id) || d.reps > uniqueMap.get(d.user_id).reps) {
         uniqueMap.set(d.user_id, {
           user_id: d.user_id,
@@ -240,7 +241,7 @@ export const OneMMService = {
 
     // Aggregate reps per user
     const userMap = new Map();
-    data.forEach((d: any) => {
+    (Array.isArray(data) ? data : []).forEach((d: any) => {
       const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
       const current = userMap.get(d.user_id) || {
         user_id: d.user_id,

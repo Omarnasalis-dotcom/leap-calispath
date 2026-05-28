@@ -16,7 +16,7 @@ import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { LeapLogo } from '../components/LeapLogo';
-
+import { useSafeMutation } from '../hooks/useSafeMutation';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -85,7 +85,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     }
   }, [challenge, timerInitial, isPreparing]);
   const [manualScore, setManualScore] = useState('');
-  const [submitting, setSubmitting] = useState(false);
+  
+  const { safeMutate, isMutating: submitting } = useSafeMutation();
+  
   // Reps-based challenge state
   const [roundsCompleted, setRoundsCompleted] = useState('');
   const [additionalReps, setAdditionalReps] = useState<Record<number, string>>({});
@@ -207,8 +209,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     }
 
     if (!challenge || !user) return;
-    setSubmitting(true);
-    try {
+    
+    await safeMutate(async () => {
       const metadata = challenge.scoring_type === 'reps' ? {
         rounds: roundsCompleted,
         additionalReps
@@ -224,25 +226,25 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         metadata
       });
 
-      if (improved) {
-        Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
-      } else {
-        Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
-      }
-
-      await loadChallenge();
-      setShowSubmitModal(false);
-      resetTimer();
-      setManualScore('');
-      setRoundsCompleted('');
-      setAdditionalReps({});
-      setCalculatedPoints(0);
-      setShowCelebration(true);
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to submit score');
-    } finally {
-      setSubmitting(false);
-    }
+      return { data: improved, error: null };
+    }, {
+      onSuccess: async (improved) => {
+        if (improved) {
+          Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
+        } else {
+          Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
+        }
+        await loadChallenge();
+        setShowSubmitModal(false);
+        resetTimer();
+        setManualScore('');
+        setRoundsCompleted('');
+        setAdditionalReps({});
+        setCalculatedPoints(0);
+        setShowCelebration(true);
+      },
+      errorMessage: 'Failed to submit score'
+    });
   }
 
   async function handleCreateChallenge() {
@@ -250,7 +252,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       Alert.alert('Error', 'Please enter a title and add at least one movement');
       return;
     }
-    try {
+    
+    await safeMutate(async () => {
       await ChallengeService.create({
         group_id: adminForm.group_id,
         title: adminForm.title,
@@ -259,12 +262,15 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         time_limit: adminForm.time_limit,
         movements: adminForm.movements
       });
-      Alert.alert('Success', 'Challenge published successfully!');
-      setShowAdminModal(false);
-      await loadChallenge();
-    } catch (error: any) {
-      Alert.alert('Error', `Failed to create challenge: ${error.message}`);
-    }
+      return { data: null, error: null };
+    }, {
+      onSuccess: async () => {
+        Alert.alert('Success', 'Challenge published successfully!');
+        setShowAdminModal(false);
+        await loadChallenge();
+      },
+      errorMessage: 'Failed to create challenge'
+    });
   }
 
   async function handleDeleteChallenge() {
@@ -280,16 +286,19 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
     if (!confirmDelete) return;
 
-    try {
+    await safeMutate(async () => {
       await ChallengeService.delete(challenge.id);
-      Alert.alert('Success', 'Challenge deleted');
-      setChallenge(null);
-      setEntries([]);
-      setShowAdminModal(false);
-      await loadChallenge();
-    } catch (error: any) {
-      Alert.alert('Error', `Failed to delete: ${error.message}`);
-    }
+      return { data: null, error: null };
+    }, {
+      onSuccess: async () => {
+        Alert.alert('Success', 'Challenge deleted');
+        setChallenge(null);
+        setEntries([]);
+        setShowAdminModal(false);
+        await loadChallenge();
+      },
+      errorMessage: 'Failed to delete'
+    });
   }
 
   if (!profile || !theme) {

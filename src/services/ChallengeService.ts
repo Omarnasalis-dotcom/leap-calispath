@@ -148,6 +148,6 @@ export class ChallengeService {
       console.error('Error fetching all active challenges:', error);
       return [];
     }
-    return data || [];
+    return Array.isArray(data) ? data : [];
   }
 }
