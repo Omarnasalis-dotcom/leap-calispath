@@ -115,7 +115,7 @@ function CodesTab({ theme }: { theme: any }) {
       return { data: codes, error: null };
     }, {
       onSuccess: (codes) => {
-        setGeneratedCodes(codes);
+        setGeneratedCodes(codes || []);
         fetchExistingCodes();
       }
     });

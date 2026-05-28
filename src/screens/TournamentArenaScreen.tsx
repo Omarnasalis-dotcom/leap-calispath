@@ -1,5 +1,6 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
+import { debounce } from 'lodash';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, Image, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
@@ -18,42 +19,42 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   const [activeTab, setActiveTab] = useState<'arena' | 'leaderboard'>('arena');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [isJoining, setIsJoining] = useState(false);
 
-  const fetchData = useCallback(async () => {
-    try {
-      const sessions = await TournamentService.getActiveSessions();
-      setActiveSessions(sessions || []);
+  const fetchData = useCallback(
+    debounce(async () => {
+      try {
+        const sessions = await TournamentService.getActiveSessions();
+        setActiveSessions(sessions || []);
 
-      if (sessions && sessions.length > 0) {
-        const { data: pData } = await supabase
-          .from('tournament_participants')
-          .select('*, profile:profiles(display_name)')
-          .in('tournament_id', sessions.map(s => s.id));
-        setParticipants(pData || []);
+        if (sessions && sessions.length > 0) {
+          const { data: pData } = await supabase
+            .from('tournament_participants')
+            .select('*, profile:profiles(display_name)')
+            .in('tournament_id', sessions.map(s => s.id));
+          setParticipants(pData || []);
+        }
+
+        // Fetch leaderboard
+        const { data: lbData } = await supabase
+          .from('profiles')
+          .select('id, display_name, tournament_gp')
+          .gt('tournament_gp', 0)
+          .order('tournament_gp', { ascending: false })
+          .limit(20);
+        setLeaderboard(lbData || []);
+      } catch (error) {
+        console.error('Error fetching arena data:', error);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
       }
-
-      // Fetch leaderboard
-      const { data: lbData } = await supabase
-        .from('profiles')
-        .select('id, display_name, tournament_gp')
-        .gt('tournament_gp', 0)
-        .order('tournament_gp', { ascending: false })
-        .limit(20);
-      setLeaderboard(lbData || []);
-    } catch (error) {
-      console.error('Error fetching arena data:', error);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }, []);
+    }, 2000),
+    []
+  );
 
   useEffect(() => {
     fetchData();
-
-    const intervalId = setInterval(() => {
-      fetchData();
-    }, 5000);
 
     // Real-time subscriptions
     const sessionSub = supabase
@@ -67,7 +68,6 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
       .subscribe();
 
     return () => {
-      clearInterval(intervalId);
       supabase.removeChannel(sessionSub);
       supabase.removeChannel(participantSub);
     };
@@ -88,11 +88,16 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
 
   const handleJoin = async (session: any) => {
     if (!session || !profile) return;
-    const res = await TournamentService.joinTournament(session.id, profile.id);
-    if (res.success) {
-      fetchData();
-    } else {
-      showAlert('Ineligible Warrior', (res.error as any)?.message || 'This tournament is not fit for your current tier.');
+    setIsJoining(true);
+    try {
+      const res = await TournamentService.joinTournament(session.id, profile.id);
+      if (res.success) {
+        fetchData();
+      } else {
+        showAlert('Ineligible Warrior', (res.error as any)?.message || 'This tournament is not fit for your current tier.');
+      }
+    } finally {
+      setIsJoining(false);
     }
   };
 
@@ -161,6 +166,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: isJoined ? 'rgba(255,255,255,0.1)' : theme.accent }]}
             onPress={isJoined ? () => handleEnterLobby(session) : () => handleJoin(session)}
+            disabled={isJoining}
           >
             <Text style={[styles.actionBtnText, { color: isJoined ? theme.text.primary : '#000' }]}>
               {isJoined ? 'ENTER LOBBY' : 'JOIN TOURNAMENT'}

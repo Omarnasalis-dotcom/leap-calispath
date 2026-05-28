@@ -94,7 +94,6 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
           const won = newSess.winner_id === user?.id;
           setIsWinner(won);
           setShowResult(true);
-          setFinishing(false);
           Animated.spring(resultScaleAnim, { toValue: 1, useNativeDriver: true }).start();
         }
       })
