@@ -28,6 +28,7 @@ import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
+import { ProgramHeaderCard, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
 
 
 export interface ExerciseDetail {
@@ -152,7 +153,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
           seconds: timeLeft
         }
-      }).then(id => notificationIdRef.current = id).catch(err => console.log('Notification Schedule Error:', err));
+      }).then(id => notificationIdRef.current = id).catch(err => console.error('Notification Schedule Error:', err));
     } else {
       if (notificationIdRef.current) {
         Notifications.cancelScheduledNotificationAsync(notificationIdRef.current).catch(() => {});
@@ -291,6 +292,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             reps,
             rest_seconds,
             hold_seconds,
+            is_weighted,
             notes,
             order_index,
             exercise_library (
@@ -331,6 +333,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             reps: ex.reps || '0',
             rest_seconds: ex.rest_seconds || '0',
             hold_seconds: ex.hold_seconds || '',
+            is_weighted: ex.is_weighted || false,
             notes: ex.notes || ''
           };
         });
@@ -520,9 +523,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
     setLogLoading(true);
     try {
-      const finalNotes = logStatus === 'missed'
-        ? `[STATUS:MISSED] ${logNotes.trim()}`.trim()
-        : logNotes.trim();
+      let finalNotes = logStatus === 'missed' ? '[STATUS:MISSED] ' : '';
+      if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
+      if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
+      if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
+      if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
+      if (logNotes) finalNotes += logNotes;
+      finalNotes = finalNotes.trim();
 
       const timeoutPromise = new Promise((_, reject) => 
         setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000)
@@ -724,219 +731,59 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             ) : (
               <View style={{ gap: 20 }}>
                 {/* PROGRAM INTRO CARD */}
-                <LinearGradient
-                  colors={['#7E57C2', '#FF5252', '#FF7043']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={{ padding: 1.2, borderRadius: 12 }}
-                >
-                  <View style={[styles.introCard, { backgroundColor: solidCardBg, borderWidth: 0, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 11 }]}>
-                    <View style={{ flex: 1, paddingRight: 12 }}>
-                      <Text style={[styles.programName, { color: theme.text.primary, fontSize: 15, fontFamily: 'BarlowCondensed-ExtraBold' }]} numberOfLines={1}>
-                        {programName.toUpperCase()}
-                      </Text>
-                    </View>
-                    <View style={{ backgroundColor: 'rgba(255, 255, 255, 0.03)', borderWidth: 1, borderColor: theme.card.border, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 }}>
-                      <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.secondary }}>
-                        COACH: <Text style={{ color: bronzeGold }}>{coachName.toUpperCase()}</Text>
-                      </Text>
-                    </View>
-                  </View>
-                </LinearGradient>
+                <ProgramHeaderCard
+                  programName={programName}
+                  coachName={coachName}
+                  theme={theme}
+                  solidCardBg={solidCardBg}
+                />
 
                 {/* CIRCLES DASHBOARD */}
-                <View style={styles.dashboardContainer}>
-                  <View style={styles.circleMetric}>
-                    <View style={[styles.outerRing, { borderColor: '#7E57C2', shadowColor: '#7E57C2' }]}>
-                      <Text style={[styles.pointsNumber, { color: '#7E57C2' }]}>{staticPoints}</Text>
-                    </View>
-                    <Text style={[styles.metricLabel, { color: '#7E57C2' }]}>STATIC PTS</Text>
-                  </View>
-
-                  <View style={styles.circleMetric}>
-                    <View style={[styles.outerRing, { borderColor: '#FF5252', shadowColor: '#FF5252' }]}>
-                      <Text style={[styles.pointsNumber, { color: '#FF5252' }]}>{powerPoints}</Text>
-                    </View>
-                    <Text style={[styles.metricLabel, { color: '#FF5252' }]}>POWER PTS</Text>
-                  </View>
-
-                  <View style={styles.circleMetric}>
-                    <View style={[styles.outerRing, { borderColor: '#FF7043', shadowColor: '#FF7043' }]}>
-                      <Text style={[styles.pointsNumber, { color: '#FF7043' }]}>{oneMmPoints}</Text>
-                    </View>
-                    <Text style={[styles.metricLabel, { color: '#FF7043' }]}>1MM PTS</Text>
-                  </View>
-                </View>
-
+                <PointsDashboard
+                  staticPoints={staticPoints}
+                  powerPoints={powerPoints}
+                  oneMmPoints={oneMmPoints}
+                />
                 {/* WEEK NAVIGATOR */}
-                {Object.keys(weeksData).length > 1 && (
-                  <View style={{ marginBottom: 16 }}>
-                    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
-                      {Object.keys(weeksData).map((weekStr) => {
-                        const wNum = parseInt(weekStr, 10);
-                        const isActive = wNum === activeWeek;
-                        const weekBlocks = weeksData[wNum].flatMap(d => d.blocks);
-                        const allCompleted = weekBlocks.length > 0 && weekBlocks.every(b => b.completedStatus === 'completed');
-
-                        return (
-                          <TouchableOpacity
-                            key={wNum}
-                            onPress={() => {
-                              setActiveWeek(wNum);
-                              setActiveDayIndex(0);
-                              if (weeksData[wNum] && weeksData[wNum].length > 0) {
-                                generateRecsForDay(weeksData[wNum][0], strengthTier, oneMmPoints, powerPoints, staticPoints);
-                              }
-                            }}
-                            style={{
-                              paddingVertical: 8,
-                              paddingHorizontal: 20,
-                              borderRadius: 20,
-                              backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : theme.card.background,
-                              borderWidth: 1,
-                              borderColor: isActive ? bronzeGold : theme.card.border,
-                            }}
-                          >
-                            <Text style={{
-                              fontFamily: 'BarlowCondensed-Bold',
-                              fontSize: 14,
-                              color: isActive ? bronzeGold : theme.text.secondary
-                            }}>
-                              WEEK {wNum} {allCompleted ? '✓' : ''}
-                            </Text>
-                          </TouchableOpacity>
-                        );
-                      })}
-                    </ScrollView>
-                  </View>
-                )}
-
+                <WeekNavigator
+                  weeksData={weeksData}
+                  activeWeek={activeWeek}
+                  onSelectWeek={(wNum) => {
+                    setActiveWeek(wNum);
+                    setActiveDayIndex(0);
+                    if (weeksData[wNum]?.[0]) generateRecsForDay(weeksData[wNum][0], strengthTier, oneMmPoints, powerPoints, staticPoints);
+                  }}
+                  theme={theme}
+                />
                 {/* PROGRESS STATS BAR */}
-                {days.length > 0 && (() => {
-                  const activeBlocks = days[activeDayIndex]?.blocks || [];
-                  const totalBlocksToday = activeBlocks.length;
-                  const completedBlocksToday = activeBlocks.filter(b => b.completedStatus === 'completed').length;
-                  const progressPercent = totalBlocksToday > 0 ? Math.round((completedBlocksToday / totalBlocksToday) * 100) : 0;
-
-                  return (
-                    <View style={[styles.progressBarWrapper, { borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.01)' }]}>
-                      <View style={styles.progressHeader}>
-                        <Text style={[styles.progressLabel, { color: theme.text.secondary }]}>TODAY'S WORKOUT PROGRESS</Text>
-                        <Text style={[styles.progressValue, { color: '#FF7043', fontFamily: 'BarlowCondensed-ExtraBold' }]}>{progressPercent}% <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold' }}>({completedBlocksToday}/{totalBlocksToday} BLOCKS)</Text></Text>
-                      </View>
-                      <View style={[styles.progressTrack, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
-                        {progressPercent > 0 && (
-                          <LinearGradient
-                            colors={['#7E57C2', '#FF5252', '#FF7043']}
-                            start={{ x: 0, y: 0 }}
-                            end={{ x: 1, y: 0 }}
-                            style={{ width: `${progressPercent}%`, height: '100%', borderRadius: 3 }}
-                          />
-                        )}
-                      </View>
-                    </View>
-                  );
-                })()}
-
+                <DayProgressBar
+                  blocks={days[activeDayIndex]?.blocks || []}
+                  theme={theme}
+                />
                 {/* Carousel Day Navigator */}
-                {days.length > 0 && (
-                  <LinearGradient
-                    colors={['#7E57C2', '#FF5252', '#FF7043']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={{ padding: 1.2, borderRadius: 10, marginVertical: 4 }}
-                  >
-                    <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: solidCardBg, padding: 12, borderRadius: 9 }}>
-                      <TouchableOpacity
-                        disabled={activeDayIndex === 0}
-                        onPress={() => {
-                          const newIdx = activeDayIndex - 1;
-                          setActiveDayIndex(newIdx);
-                          generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
-                        }}
-                        style={{ paddingHorizontal: 16, paddingVertical: 8 }}
-                      >
-                        <Text style={{ color: activeDayIndex === 0 ? theme.text.tertiary : (mode === 'dark' ? '#A78BFA' : '#7E57C2'), fontSize: 18, fontFamily: 'BarlowCondensed-Bold' }}>◄</Text>
-                      </TouchableOpacity>
-
-                      <View style={{ alignItems: 'center' }}>
-                        <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16, letterSpacing: 0.5 }}>
-                          {(days[activeDayIndex]?.name || 'UNNAMED DAY').toUpperCase()}
-                        </Text>
-                        <Text style={{ color: theme.text.tertiary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', marginTop: 2 }}>
-                          DAY {activeDayIndex + 1} OF {days.length} • {days[activeDayIndex]?.blocks?.length || 0} BLOCKS
-                        </Text>
-                      </View>
-
-                      <TouchableOpacity
-                        disabled={activeDayIndex === days.length - 1}
-                        onPress={() => {
-                          const newIdx = activeDayIndex + 1;
-                          setActiveDayIndex(newIdx);
-                          generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
-                        }}
-                        style={{ paddingHorizontal: 16, paddingVertical: 8 }}
-                      >
-                        <Text style={{ color: activeDayIndex === days.length - 1 ? theme.text.tertiary : '#FF7043', fontSize: 18, fontFamily: 'BarlowCondensed-Bold' }}>►</Text>
-                      </TouchableOpacity>
-                    </View>
-                  </LinearGradient>
-                )}
-
-                {/* --- SMART RECOMMENDATION BANNER --- */}
-                {recommendations.length > 0 && (
-                  <View style={{ marginBottom: 24 }}>
-                    <LinearGradient
-                      colors={['rgba(200,160,64,0.15)', 'rgba(200,160,64,0.05)']}
-                      style={{ padding: 16, borderRadius: 12, borderWidth: 1, borderColor: bronzeGold }}
-                    >
-                      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-                        <Text style={{ fontSize: 18, marginRight: 8 }}>🧠</Text>
-                        <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16, color: bronzeGold, letterSpacing: 1 }}>
-                          ASSESSMENT ENGINE: {recommendations[0].world} PRIORITY
-                        </Text>
-                      </View>
-                      
-                      <Text style={{ color: theme.text.primary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', marginBottom: 12 }}>
-                        {recommendations[0].priorityReason}
-                      </Text>
-                      
-                      <View style={{ gap: 8 }}>
-                        {recommendations.slice(0, 2).map((rec, idx) => (
-                          <TouchableOpacity
-                            key={rec.movementId}
-                            style={{
-                              flexDirection: 'row',
-                              alignItems: 'center',
-                              justifyContent: 'space-between',
-                              backgroundColor: solidCardBg,
-                              padding: 12,
-                              borderRadius: 8,
-                              borderWidth: rec.isPriority ? 1 : 0,
-                              borderColor: bronzeGold
-                            }}
-                            onPress={() => {
-                              if (rec.world === 'ENDURANCE') router.push('/one-min-max');
-                              else if (rec.world === 'POWER') router.push('/power-world');
-                              else router.push('/static-world');
-                            }}
-                          >
-                            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                              {rec.isPriority && <Text style={{ fontSize: 12 }}>⭐</Text>}
-                              <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 }}>
-                                {rec.movementName.toUpperCase()}
-                              </Text>
-                            </View>
-                            <Text style={{ color: theme.text.tertiary, fontSize: 11, fontFamily: 'BarlowCondensed-Medium', letterSpacing: 1 }}>
-                              TEST NOW ▶
-                            </Text>
-                          </TouchableOpacity>
-                        ))}
-                      </View>
-                    </LinearGradient>
-                  </View>
-                )}
-
+                <DayCarousel
+                  days={days}
+                  activeDayIndex={activeDayIndex}
+                  onPrev={() => {
+                    const newIdx = activeDayIndex - 1;
+                    setActiveDayIndex(newIdx);
+                    generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
+                  }}
+                  onNext={() => {
+                    const newIdx = activeDayIndex + 1;
+                    setActiveDayIndex(newIdx);
+                    generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
+                  }}
+                  theme={theme}
+                  solidCardBg={solidCardBg}
+                  mode={mode}
+                />
+                {/* SMART RECOMMENDATION BANNER */}
+                <AssessmentBanner
+                  recommendations={recommendations}
+                  solidCardBg={solidCardBg}
+                  theme={theme}
+                />
                 {/* BLOCKS / WORKOUTS LIST */}
                 <View style={{ gap: 16, paddingBottom: 100 }}>
                   {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock) => {
@@ -1046,11 +893,6 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1.5,
     marginBottom: 20,
   },
-  headerTitle: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 28,
-    letterSpacing: 2,
-  },
   closeButton: {
     paddingVertical: 6,
     paddingHorizontal: 16,
@@ -1111,64 +953,6 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 18,
   },
-  introCard: {
-    borderWidth: 1.2,
-    borderRadius: 12,
-    padding: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.015)',
-    shadowColor: '#C8A040',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.05,
-    shadowRadius: 10,
-    elevation: 2,
-  },
-  introLabel: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 9,
-    letterSpacing: 2,
-    marginBottom: 6,
-    color: '#C8A040',
-  },
-  programName: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 24,
-    letterSpacing: 0.8,
-  },
-  coachName: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 11,
-    letterSpacing: 0.8,
-    marginTop: 4,
-    opacity: 0.8,
-  },
-  sectionHeading: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
-    letterSpacing: 1.5,
-  },
-  blockCard: {
-    borderWidth: 1.2,
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.012)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
-  },
-  blockHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-  },
-  blockName: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
-    letterSpacing: 0.8,
-  },
   completedBadge: {
     borderWidth: 1,
     borderRadius: 4,
@@ -1181,20 +965,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
     color: '#4CAF50',
   },
-  blockNotes: {
-    fontFamily: 'Barlow-Regular',
-    fontSize: 13,
-    marginTop: 10,
-    lineHeight: 18,
-    opacity: 0.9,
-  },
-  exerciseRow: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginTop: 8,
-    backgroundColor: 'rgba(255, 255, 255, 0.015)',
-  },
   exInfoRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1206,78 +976,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.6,
     flex: 1,
   },
-  ytIcon: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    borderRadius: 4,
-    backgroundColor: 'rgba(255, 255, 255, 0.04)',
-  },
-  exDetailsRow: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 10,
-  },
-  detailBadge: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 6,
-    paddingHorizontal: 6,
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.008)',
-  },
-  detailLabel: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 8,
-    letterSpacing: 0.8,
-    marginBottom: 2,
-    opacity: 0.7,
-  },
-  detailValue: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 13,
-    letterSpacing: 0.5,
-  },
-  exNotes: {
-    fontFamily: 'Barlow-Regular',
-    fontSize: 11,
-    marginTop: 8,
-    opacity: 0.75,
-  },
-  logBlockBtn: {
-    borderWidth: 1.2,
-    borderRadius: 8,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 16,
-    backgroundColor: 'rgba(200, 160, 64, 0.05)',
-  },
-  logBlockBtnText: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 12,
-    letterSpacing: 1.5,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    width: '100%',
-    maxWidth: 380,
-    padding: 24,
-    borderWidth: 2,
-    borderRadius: 8,
-  },
-  modalHeading: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 20,
-    textAlign: 'center',
-    marginBottom: 24,
-    letterSpacing: 1,
-  },
   modalLabel: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
@@ -1287,150 +985,5 @@ const styles = StyleSheet.create({
   ratingSection: {
     marginBottom: 20,
     alignItems: 'center',
-  },
-  starsRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 4,
-  },
-  starBtn: {
-    padding: 4,
-  },
-  starChar: {
-    fontSize: 32,
-  },
-  notesSection: {
-    marginBottom: 24,
-  },
-  notesInput: {
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 12,
-    fontFamily: 'Barlow-Regular',
-    fontSize: 13,
-    minHeight: 70,
-    textAlignVertical: 'top',
-  },
-  modalBtnRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    gap: 12,
-  },
-  modalCloseBtn: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  modalSaveBtn: {
-    flex: 1,
-    borderRadius: 6,
-    paddingVertical: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  videoOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 16,
-  },
-  videoContentCard: {
-    width: '100%',
-    maxWidth: 640,
-    borderRadius: 8,
-    borderWidth: 1.5,
-    padding: 16,
-    overflow: 'hidden',
-  },
-  videoHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  videoHeading: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
-    letterSpacing: 1,
-  },
-  videoCloseBtn: {
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-  },
-  playerContainer: {
-    width: '100%',
-    aspectRatio: 16 / 9,
-    backgroundColor: '#000000',
-    borderRadius: 6,
-  },
-  dashboardContainer: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginVertical: 12,
-    gap: 12,
-  },
-  circleMetric: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  outerRing: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    borderWidth: 2.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    shadowColor: '#C8A040',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.15,
-    shadowRadius: 4,
-    elevation: 3,
-    marginBottom: 6,
-  },
-  pointsNumber: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
-    letterSpacing: 0.5,
-  },
-  metricLabel: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 9,
-    letterSpacing: 0.8,
-  },
-  progressBarWrapper: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 12,
-  },
-  progressHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  progressLabel: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 10,
-    letterSpacing: 0.5,
-  },
-  progressValue: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 11,
-    letterSpacing: 0.5,
-  },
-  progressTrack: {
-    height: 6,
-    borderRadius: 3,
-    overflow: 'hidden',
-    width: '100%',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 3,
   },
 });

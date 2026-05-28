@@ -55,23 +55,12 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               />
             </View>
             <View style={styles.exInputCol}>
-              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS / TIME</Text>
+              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
               <TextInput
                 style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
                 value={ex.reps}
                 onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', val)}
                 placeholder="10"
-                placeholderTextColor="rgba(255,255,255,0.1)"
-              />
-            </View>
-            <View style={styles.exInputCol}>
-              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
-              <TextInput
-                style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                value={ex.rest_seconds}
-                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', val)}
-                keyboardType="numeric"
-                placeholder="90S"
                 placeholderTextColor="rgba(255,255,255,0.1)"
               />
             </View>
@@ -86,7 +75,67 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 placeholderTextColor="rgba(126,87,194,0.3)"
               />
             </View>
+            <View style={styles.exInputCol}>
+              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
+              <TextInput
+                style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                value={ex.rest_seconds}
+                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', val)}
+                keyboardType="numeric"
+                placeholder="90S"
+                placeholderTextColor="rgba(255,255,255,0.1)"
+              />
+            </View>
           </>
+        ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
+          <>
+            <View style={styles.exInputCol}>
+              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS</Text>
+              <TextInput
+                style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
+                value={ex.reps}
+                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', val)}
+                placeholder="10"
+                placeholderTextColor="rgba(255,255,255,0.1)"
+              />
+            </View>
+            <View style={styles.exInputCol}>
+              <Text style={[styles.exInputLabel, { color: '#7E57C2' }]}>HOLD (S)</Text>
+              <TextInput
+                style={[styles.exField, { color: '#7E57C2', borderColor: '#7E57C2' }]}
+                value={ex.hold_seconds}
+                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', val)}
+                keyboardType="numeric"
+                placeholder="—"
+                placeholderTextColor="rgba(126,87,194,0.3)"
+              />
+            </View>
+            <View style={styles.exInputCol}>
+              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>WEIGHTED?</Text>
+              <TouchableOpacity
+                style={[styles.exField, { 
+                  borderColor: ex.is_weighted ? theme.accent : theme.card.border, 
+                  backgroundColor: ex.is_weighted ? 'rgba(200,160,64,0.1)' : 'transparent',
+                  justifyContent: 'center',
+                  alignItems: 'center'
+                }]}
+                onPress={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'is_weighted', !ex.is_weighted)}
+              >
+                <Text style={{ color: ex.is_weighted ? theme.accent : theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13 }}>
+                  {ex.is_weighted ? 'YES' : 'NO'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : blockMetadata?.timing_system === 'tabata' ? (
+          <View style={{ flex: 1 }}>
+            <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TABATA INTERVAL</Text>
+            <View style={[styles.exField, { borderColor: theme.card.border, backgroundColor: 'rgba(255,82,82,0.1)', justifyContent: 'center' }]}>
+              <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.5, textAlign: 'center' }}>
+                {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+              </Text>
+            </View>
+          </View>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={{ flex: 1 }}>
             <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>

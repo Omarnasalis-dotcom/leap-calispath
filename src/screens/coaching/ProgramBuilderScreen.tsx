@@ -44,6 +44,7 @@ export interface SelectedExercise {
   rest_seconds: string;
   hold_seconds: string;
   notes: string;
+  is_weighted?: boolean;
 }
 
 export interface ProgramBlock {
@@ -54,6 +55,7 @@ export interface ProgramBlock {
   exercises: SelectedExercise[];
   metadata?: ConceptMetadata;
   week_number?: number;
+  previous_log_from_block_id?: string | number;
 }
 
 export interface ProgramDay {
@@ -76,7 +78,7 @@ interface ProgramBuilderScreenProps {
   onClose?: () => void;
 }
 
-export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onClose }: ProgramBuilderScreenProps) {
+export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum, onSave, onClose }: ProgramBuilderScreenProps) {
   const { theme, mode } = useTheme();
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
   const inactiveBorder = mode === 'dark' ? 'rgba(255, 255, 255, 0.08)' : 'rgba(0, 0, 0, 0.12)';
@@ -92,6 +94,15 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
   const [templateDesc, setTemplateDesc] = useState('');
   const [weeks, setWeeks] = useState<Record<number, ProgramDay[]>>({ 1: [] });
   const [activeWeek, setActiveWeek] = useState<number>(weekNum ? parseInt(weekNum, 10) : 1);
+  const [coachId, setCoachId] = useState<string | undefined>(propCoachId === 'undefined' ? undefined : propCoachId);
+
+  useEffect(() => {
+    if (!coachId) {
+      supabase.auth.getUser().then(({ data }) => {
+        if (data?.user?.id) setCoachId(data.user.id);
+      });
+    }
+  }, [coachId]);
   const days = weeks[activeWeek] || [];
   const setDays = (updater: ProgramDay[] | ((prev: ProgramDay[]) => ProgramDay[])) => {
     setWeeks(prevWeeks => {
@@ -236,29 +247,27 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
       setTemplateName(templateData.name);
       setTemplateDesc(templateData.description || '');
 
-      // 1b. Fetch Athlete Logs if this is a custom assigned program
-      if (templateData.name.startsWith('[CUSTOM]')) {
-        const { data: assignmentData } = await supabase
-          .from('warrior_programs')
-          .select('warrior_id')
-          .eq('template_id', tempId)
-          .maybeSingle();
-        
-        if (assignmentData?.warrior_id) {
-          const { data: logsData } = await supabase
-            .from('workout_logs')
-            .select('block_id, notes')
-            .eq('warrior_id', assignmentData.warrior_id);
-            
-          if (logsData) {
-            const logsMap: Record<string, string> = {};
-            logsData.forEach((log: any) => {
-              if (log.notes) {
-                logsMap[log.block_id] = log.notes;
-              }
-            });
-            setAthleteLogs(logsMap);
-          }
+      // 1b. Fetch Athlete Logs if this is an assigned program
+      const { data: assignmentData } = await supabase
+        .from('warrior_programs')
+        .select('warrior_id')
+        .eq('template_id', tempId)
+        .maybeSingle();
+      
+      if (assignmentData?.warrior_id) {
+        const { data: logsData } = await supabase
+          .from('workout_logs')
+          .select('block_id, notes')
+          .eq('warrior_id', assignmentData.warrior_id);
+          
+        if (logsData) {
+          const logsMap: Record<string, string> = {};
+          logsData.forEach((log: any) => {
+            if (log.notes) {
+              logsMap[log.block_id] = log.notes;
+            }
+          });
+          setAthleteLogs(logsMap);
         }
       }
 
@@ -286,6 +295,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
             reps,
             rest_seconds,
             hold_seconds,
+            is_weighted,
             notes,
             order_index,
             exercise_library (
@@ -323,7 +333,8 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
           sets: String(ex.sets || ''),
           reps: String(ex.reps || ''),
           rest_seconds: String(ex.rest_seconds || ''),
-          hold_seconds: String(ex.hold_seconds || ''),
+          hold_seconds: ex.hold_seconds ? ex.hold_seconds.toString() : '',
+          is_weighted: ex.is_weighted || false,
           notes: ex.notes || ''
         }));
 
@@ -347,6 +358,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
           notes: cleanNotes,
           exercises: mappedExercises,
           metadata: parsed.metadata,
+          previous_log_from_block_id: parsed.metadata?.previous_log_from_block_id,
           week_number: weekNum
         };
 
@@ -632,10 +644,25 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
     setCopyModalVisible(true);
   };
 
-  const handleCopyDay = (targetBlockId: string) => {
+  const handleOpenCopyDayModal = (dayId: string) => {
+    const parentDay = days.find(d => d.id === dayId) || null;
+    if (!parentDay) return;
+    setSourceBlock(null);
+    setSourceDay(parentDay);
+    setCopyView('options');
+    setSuccessMessage(null);
+    setSelectedTemplateId('');
+    setTargetBlocks([]);
+    setCopyModalVisible(true);
+  };
+
+  const handleCopyDay = (targetBlockId: string, targetWeek?: number) => {
     if (!sourceBlock) return;
-    setDays(prevDays =>
-      prevDays.map(d => ({
+    const weekToUpdate = targetWeek || activeWeek;
+    
+    setWeeks(prev => {
+      const prevWeekDays = prev[weekToUpdate] || [];
+      const updatedDays = prevWeekDays.map(d => ({
         ...d,
         blocks: d.blocks.map(block => {
           if (block.id === targetBlockId) {
@@ -650,17 +677,22 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
           }
           return block;
         })
-      }))
-    );
+      }));
+      return { ...prev, [weekToUpdate]: updatedDays };
+    });
+    
     showSuccessMessage('EXERCISES COPIED SUCCESSFULLY!');
   };
 
-  const handleCopyDayToDay = (sourceDayId: string) => {
+  const handleCopyDayToDay = (sourceDayId: string, targetWeek?: number) => {
     if (!sourceDay) return;
+    const weekToUpdate = targetWeek || activeWeek;
+    
     const duplicatedBlocks = sourceDay.blocks.map(block => ({
       ...block,
       id: Math.random().toString(36).substr(2, 9),
       db_id: undefined,
+      previous_log_from_block_id: block.db_id || block.id,
       exercises: block.exercises.map(ex => ({
         ...ex,
         id: Math.random().toString(36).substr(2, 9)
@@ -672,16 +704,67 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
       blocks: duplicatedBlocks,
       focusTag: sourceDay.focusTag
     };
-    setDays(prev => [...prev, newDay]);
+    
+    setWeeks(prev => {
+      const prevWeekDays = prev[weekToUpdate] || [];
+      return { ...prev, [weekToUpdate]: [...prevWeekDays, newDay] };
+    });
+    
+  };
+
+  const handleDeleteWeek = () => {
+    Alert.alert(
+      "DELETE WEEK",
+      `ARE YOU SURE YOU WANT TO DELETE WEEK ${activeWeek}? THIS WILL REMOVE ALL DAYS AND BLOCKS IN THIS WEEK.`,
+      [
+        { text: "CANCEL", style: "cancel" },
+        { 
+          text: "DELETE", 
+          style: "destructive",
+          onPress: () => {
+            setWeeks(prev => {
+              const maxW = Math.max(...Object.keys(prev).map(k => parseInt(k, 10)));
+              const newWeeks = { ...prev };
+              delete newWeeks[activeWeek];
+              
+              // Shift subsequent weeks down
+              for (let w = activeWeek + 1; w <= maxW; w++) {
+                if (newWeeks[w]) {
+                  newWeeks[w - 1] = newWeeks[w];
+                  delete newWeeks[w];
+                }
+              }
+              // Ensure we always have at least Week 1
+              if (Object.keys(newWeeks).length === 0) {
+                newWeeks[1] = [];
+              }
+              return newWeeks;
+            });
+            
+            setActiveWeek(prev => {
+              const nextWeek = prev > 1 ? prev - 1 : 1;
+              return nextWeek;
+            });
+            showSuccessMessage(`WEEK ${activeWeek} DELETED SUCCESSFULLY`);
+          }
+        }
+      ]
+    );
   };
 
   const fetchOtherTemplates = async () => {
+    if (!coachId || coachId === 'undefined') return;
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('program_templates')
         .select('id, name')
-        .eq('coach_id', coachId)
-        .neq('id', templateId || '');
+        .eq('coach_id', coachId);
+        
+      if (templateId && templateId !== 'undefined' && templateId !== 'new') {
+        query = query.neq('id', templateId);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setOtherTemplates(data || []);
@@ -896,6 +979,11 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
             } else {
               delete metadata.focus_tag;
             }
+            if (block.previous_log_from_block_id) {
+              metadata.previous_log_from_block_id = block.previous_log_from_block_id;
+            } else {
+              delete metadata.previous_log_from_block_id;
+            }
             const serializedNotes = BlockConceptParser.stringify(metadata, block.notes);
 
             const blockPayload: any = {
@@ -927,6 +1015,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
               reps: ex.reps.trim(),
               rest_seconds: parseInt(ex.rest_seconds) || null,
               hold_seconds: parseInt(ex.hold_seconds) || null,
+              is_weighted: ex.is_weighted || false,
               notes: ex.notes.trim(),
               order_index: exIdx
             }));
@@ -1250,8 +1339,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
             </View>
 
             {/* WEEK NAVIGATOR */}
-            {!weekNum && (
-              <View style={{ marginBottom: 24 }}>
+            <View style={{ marginBottom: 24 }}>
               <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingHorizontal: 2 }}>
                 {Object.keys(weeks).map((weekStr) => {
                   const wNum = parseInt(weekStr, 10);
@@ -1290,6 +1378,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
                       name: d.name,
                       blocks: d.blocks.map(b => ({
                         id: Math.random().toString(36).substr(2, 9),
+                        previous_log_from_block_id: b.db_id || b.id,
                         name: b.name,
                         notes: b.notes,
                         exercises: b.exercises.map(ex => ({
@@ -1322,9 +1411,33 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
                     + DUPLICATE LAST WEEK
                   </Text>
                 </TouchableOpacity>
+
+                {/* Delete Week Action */}
+                {Math.max(...Object.keys(weeks).map(k => parseInt(k, 10))) > 1 && (
+                  <TouchableOpacity
+                    onPress={handleDeleteWeek}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: 'rgba(255,82,82,0.1)',
+                      borderWidth: 1,
+                      borderColor: 'rgba(255,82,82,0.5)',
+                      justifyContent: 'center',
+                      alignItems: 'center'
+                    }}
+                  >
+                    <Text style={{
+                      fontFamily: 'BarlowCondensed-Bold',
+                      fontSize: 14,
+                      color: '#FF5252'
+                    }}>
+                      - DELETE WEEK {activeWeek}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </ScrollView>
-              </View>
-            )}
+            </View>
 
             {/* BLOCKS SECTION */}
             <View style={{ gap: 20 }}>
@@ -1389,6 +1502,7 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
                     handleOpenPicker={handleOpenPicker}
                     handleMoveBlockWithinDay={handleMoveBlockWithinDay}
                     handleOpenCopyModal={handleOpenCopyModal}
+                    handleOpenCopyDayModal={handleOpenCopyDayModal}
                     handleDeleteBlockFromDay={handleDeleteBlockFromDay}
                   />
                 ))
@@ -1422,12 +1536,14 @@ export function ProgramBuilderScreen({ coachId, templateId, weekNum, onSave, onC
 
       <CopyBlockModal
         visible={copyModalVisible}
-        onClose={() => { setCopyModalVisible(false); setSourceBlock(null); setSourceDay(null); setCopyView('options'); }}
+        onClose={() => { setCopyModalVisible(false); setSourceBlock(null); setSourceDay(null); }}
         sourceBlock={sourceBlock}
         sourceDay={sourceDay}
         copyView={copyView}
         setCopyView={setCopyView}
         days={days}
+        weeks={weeks}
+        activeWeek={activeWeek}
         otherTemplates={otherTemplates}
         targetBlocks={targetBlocks}
         selectedTemplateId={selectedTemplateId}

@@ -143,6 +143,12 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {/* Block Content (Expandable) */}
           {isExpanded && (
             <View style={{ paddingTop: 16 }}>
+              {/* Structure Badge */}
+              <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 12 }}>
+                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>
+                  {BlockConceptParser.getStructureBadge(block.metadata || {})}
+                </Text>
+              </View>
 
 
               {/* Block Description Notes */}
@@ -169,8 +175,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
 
               {/* Block Action Buttons Row */}
               <View style={{ flexDirection: 'row', gap: 10, marginTop: 20 }}>
-                {((block.metadata?.timing_system === 'amrap' || block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'amrap' || block.metadata?.type === 'fortime') || 
-                  (block.metadata?.structure === 'superset' || block.metadata?.structure === 'circuit' || block.metadata?.structure === 'ladder' || block.metadata?.structure === 'single' || block.metadata?.type === 'superset' || block.metadata?.type === 'circuit' || block.metadata?.type === 'single' || !block.metadata?.structure)) && (
+                {((block.metadata?.timing_system === 'amrap' || block.metadata?.timing_system === 'fortime' || block.metadata?.timing_system === 'tabata' || block.metadata?.type === 'amrap' || block.metadata?.type === 'fortime') || 
+                  (block.metadata?.structure === 'superset' || block.metadata?.structure === 'circuit' || block.metadata?.structure === 'ladder' || block.metadata?.type === 'superset' || block.metadata?.type === 'circuit')) && (
                   <LinearGradient
                     colors={['#7E57C2', '#FF5252', '#FF7043']}
                     start={{ x: 0, y: 0 }}
@@ -188,7 +194,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onPress={() => startTimerForBlock(block)}
                     >
                       <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
-                        START TIMER ({(block.metadata?.timing_system === 'amrap' || block.metadata?.type === 'amrap') ? `${block.metadata?.time_cap_min || block.metadata?.timer_seconds} MIN` : (block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'fortime') ? 'FOR TIME' : 'REST'})
+                        START TIMER ({(block.metadata?.timing_system === 'amrap' || block.metadata?.type === 'amrap') ? `${block.metadata?.time_cap_min || block.metadata?.timer_seconds} MIN` : (block.metadata?.timing_system === 'fortime' || block.metadata?.type === 'fortime') ? 'FOR TIME' : block.metadata?.timing_system === 'tabata' ? 'TABATA' : 'REST'})
                       </Text>
                     </TouchableOpacity>
                   </LinearGradient>

@@ -34,6 +34,7 @@ interface BuilderDayCardProps {
   handleOpenPicker: (dayId: string, blockId: string) => void;
   handleMoveBlockWithinDay: (dayId: string, blockIdx: number, direction: 'up' | 'down') => void;
   handleOpenCopyModal: (block: ProgramBlock) => void;
+  handleOpenCopyDayModal: (dayId: string) => void;
   handleDeleteBlockFromDay: (dayId: string, blockId: string) => void;
 }
 
@@ -63,6 +64,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
   handleOpenPicker,
   handleMoveBlockWithinDay,
   handleOpenCopyModal,
+  handleOpenCopyDayModal,
   handleDeleteBlockFromDay,
 }) => {
   return (
@@ -196,6 +198,26 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
               >
                 <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
               </TouchableOpacity>
+              <LinearGradient
+                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={{ padding: 1.2, borderRadius: 12 }}
+              >
+                <TouchableOpacity
+                  style={{
+                    backgroundColor: solidCardBg,
+                    borderRadius: 11,
+                    paddingVertical: 5,
+                    paddingHorizontal: 12,
+                    justifyContent: 'center',
+                    alignItems: 'center'
+                  }}
+                  onPress={() => handleOpenCopyDayModal(day.id)}
+                >
+                  <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>COPY DAY</Text>
+                </TouchableOpacity>
+              </LinearGradient>
                 {!useWeeklyStructure && (
                 <LinearGradient
                   colors={['#FF5252', '#FF7043', '#FF8A80']}

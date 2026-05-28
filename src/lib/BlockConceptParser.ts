@@ -17,6 +17,7 @@ export interface ConceptMetadata {
   // Legacy support for older blocks
   type?: 'single' | 'superset' | 'circuit' | 'amrap' | 'fortime';
   timer_seconds?: string | number;
+  previous_log_from_block_id?: string | number;
 }
 
 export interface ParsedConcept {
@@ -45,37 +46,37 @@ export class BlockConceptParser {
     }
   }
 
-  static getSubtitle(metadata: ConceptMetadata, exerciseNames: string[]): string {
-    const names = exerciseNames.length > 0 ? exerciseNames.join(', ') : 'NO EXERCISES';
-    
-    // Normalize legacy to new structure
+  static getStructureBadge(metadata: ConceptMetadata): string {
     const timing = metadata.timing_system || (metadata.type === 'amrap' || metadata.type === 'fortime' ? metadata.type : 'straight_set');
     const struct = metadata.structure || (metadata.type && metadata.type !== 'amrap' && metadata.type !== 'fortime' ? metadata.type : 'single');
     const timeCap = metadata.time_cap_min || metadata.timer_seconds;
 
-    let prefix = '';
-
     if (timing === 'amrap') {
-      prefix = `AMRAP (${timeCap || 10} MIN)`;
+      return `AMRAP (${timeCap || 10} MIN)`;
     } else if (timing === 'fortime') {
-      prefix = `FOR TIME (${timeCap ? timeCap + ' MIN CAP' : 'NO CAP'})`;
+      return `FOR TIME (${timeCap ? timeCap + ' MIN CAP' : 'NO CAP'})`;
     } else if (timing === 'tabata') {
       const w = metadata.tabata_work_seconds || 20;
       const r = metadata.tabata_rest_seconds || 10;
       const rounds = metadata.tabata_rounds || 8;
-      prefix = `TABATA (${rounds}×${w}s WORK / ${r}s REST)`;
+      return `TABATA (${rounds} ROUNDS: ${w}S WORK / ${r}S REST)`;
     } else {
-      // straight_set
       if (struct === 'ladder') {
-        prefix = 'LADDER';
+        return 'LADDER';
+      } else if (struct === 'circuit') {
+        return `${metadata.rounds || 3} ROUND CIRCUIT`;
+      } else if (struct === 'superset') {
+        return `${metadata.rounds || 3} ROUND SUPERSET`;
       } else {
-        if ((struct === 'superset' || struct === 'circuit') && metadata.rounds) {
-          prefix = `${metadata.rounds} ROUNDS ${struct.toUpperCase()}`;
-        } else {
-          prefix = struct.toUpperCase();
-        }
+        return 'STRAIGHT SETS';
       }
     }
+  }
+
+  static getSubtitle(metadata: ConceptMetadata, exerciseNames: string[]): string {
+    const names = exerciseNames.length > 0 ? exerciseNames.join(', ') : 'NO EXERCISES';
+    const struct = metadata.structure || (metadata.type && metadata.type !== 'amrap' && metadata.type !== 'fortime' ? metadata.type : 'single');
+    let prefix = BlockConceptParser.getStructureBadge(metadata);
 
     // Add ladder details if applicable
     if (struct === 'ladder' && metadata.rounds && metadata.ladder_start) {
