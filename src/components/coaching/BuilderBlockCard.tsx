@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { ProgramBlock, SelectedExercise } from '../../hooks/coaching/useProgramBuilder';
+import { ProgramBlock, SelectedExercise } from '../../screens/coaching/ProgramBuilderScreen';
 import { BuilderExerciseRow } from './BuilderExerciseRow';
 import { BlockConfigWizard } from './BlockConfigWizard';
 
@@ -122,14 +122,12 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
             </View>
 
             {/* ATHLETE LOGS INJECTION */}
-            {(athleteLogs[block.id] || (block.previous_log_from_block_id && athleteLogs[String(block.previous_log_from_block_id)])) && (
+            {athleteLogs[block.id] && (
               <View style={{ paddingVertical: 12, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.03)' }}>
-                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: bronzeGold, marginBottom: 4 }}>
-                  {athleteLogs[block.id] ? "ATHLETE LOGS (LAST SESSION)" : "LAST WEEK'S LOG"}
-                </Text>
+                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 10, color: bronzeGold, marginBottom: 4 }}>ATHLETE LOGS (LAST SESSION)</Text>
                 <View style={{ backgroundColor: 'rgba(200,160,64,0.05)', borderRadius: 6, padding: 12, borderWidth: 1, borderColor: 'rgba(200,160,64,0.2)' }}>
                   <Text style={{ fontFamily: 'System', fontSize: 13, color: theme.text.primary, fontStyle: 'italic' }}>
-                    {athleteLogs[block.id] || athleteLogs[String(block.previous_log_from_block_id)]}
+                    {athleteLogs[block.id]}
                   </Text>
                 </View>
               </View>
