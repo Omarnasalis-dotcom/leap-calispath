@@ -82,20 +82,15 @@ export function AuthScreen() {
       return;
     }
 
+    if (isSignUp && displayName.includes('@')) {
+      Alert.alert('Invalid Username', 'Your username cannot contain the @ symbol. Please choose a different username.');
+      return;
+    }
+
     setLoading(true);
     try {
       if (isSignUp) {
-        // 1. Verify Code exists and is not used yet (Case-Insensitive check)
-        const { data: codeData, error: codeError } = await supabase
-          .from('invite_codes')
-          .select('id, code')
-          .ilike('code', inviteCode.trim())
-          .is('used_by', null)
-          .single();
-
-        if (codeError || !codeData) {
-          throw new Error('Your code is wrong or already used before. Please ask for a new code.');
-        }
+        // Invite code is validated atomically by the redeem_invite_code RPC
 
         // 2. Check if username is already taken
         const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
@@ -115,7 +110,7 @@ export function AuthScreen() {
         const { data: authData } = await supabase.auth.getUser();
         if (authData?.user?.id) {
           const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
-            p_code: codeData.code,
+            p_code: inviteCode.trim(),
             p_user_id: authData.user.id
           });
 
@@ -135,6 +130,9 @@ export function AuthScreen() {
         await signIn(email, password);
       }
     } catch (error: any) {
+      if (isSignUp) {
+        setDisplayName(''); // Clear the display name on failure to prevent auth state leaks
+      }
       const message = error.message || 'An unexpected error occurred.';
       if (Platform.OS === 'web') {
         window.alert(message);
