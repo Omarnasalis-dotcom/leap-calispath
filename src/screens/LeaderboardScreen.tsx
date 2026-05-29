@@ -5,6 +5,7 @@ import { View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Alert,
   Modal } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -50,12 +51,13 @@ export function LeaderboardScreen({
   const tierScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (tierScrollRef.current) {
         const itemWidth = 88; // 80 width + 8 gap
         tierScrollRef.current.scrollTo({ x: Math.max(0, (selectedTier * itemWidth) - 40), animated: true });
       }
     }, 100);
+    return () => clearTimeout(timer);
   }, []);
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [personalBest, setPersonalBest] = useState<PersonalBest | null>(null);
@@ -123,6 +125,7 @@ export function LeaderboardScreen({
         };
       } catch (error) {
         console.error('Error fetching leaderboard:', error);
+        Alert.alert('Error', 'Failed to fetch leaderboard data.');
       } finally {
         setLoading(false);
       }

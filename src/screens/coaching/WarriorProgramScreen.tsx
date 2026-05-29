@@ -532,9 +532,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (logNotes) finalNotes += logNotes;
       finalNotes = finalNotes.trim();
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000)
-      );
+      let timerId: NodeJS.Timeout | null = null;
+      const timeoutPromise = new Promise((_, reject) => {
+        timerId = setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000);
+      });
 
       const { error } = await Promise.race([
         supabase.from('workout_logs').insert({
@@ -547,6 +548,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         timeoutPromise
       ]) as any;
 
+      if (timerId) clearTimeout(timerId);
       if (error) throw error;
 
       setLogModalVisible(false);
@@ -569,6 +571,9 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       });
 
     } catch (err: any) {
+      if (err.message?.includes('timed out')) {
+        // timeout already cleared
+      }
       Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO LOG WORKOUT.');
       await loadWarriorProgram();
     } finally {
@@ -631,9 +636,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
       if (logNotes) finalNotes += logNotes;
 
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000)
-      );
+      let timerId: NodeJS.Timeout | null = null;
+      const timeoutPromise = new Promise((_, reject) => {
+        timerId = setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000);
+      });
 
       const { error } = await Promise.race([
         supabase.from('workout_logs').insert({
@@ -646,6 +652,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         timeoutPromise
       ]) as any;
 
+      if (timerId) clearTimeout(timerId);
       if (error) throw error;
       await loadWarriorProgram();
       setLogModalVisible(false);

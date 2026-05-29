@@ -247,8 +247,8 @@ function CodesTab({ theme }: { theme: any }) {
                   </Text>
                 </View>
                 {!c.used_by && (
-                  <TouchableOpacity onPress={() => handleRevoke(c.id)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={18} color="#EF4444" />
+                  <TouchableOpacity disabled={generating} onPress={() => handleRevoke(c.id)}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={18} color={generating ? "#999" : "#EF4444"} />
                   </TouchableOpacity>
                 )}
               </View>
@@ -614,8 +614,8 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
                   <Text style={{ color: theme.text.tertiary, fontSize: 10 }}>{item.status.toUpperCase()} • {item.config?.type.toUpperCase()}</Text>
                 </View>
                 {item.status === 'registration' && (
-                  <TouchableOpacity onPress={() => handleDelete(item.id, item.status)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={'#EF4444'} />
+                  <TouchableOpacity disabled={loading} onPress={() => handleDelete(item.id, item.status)}>
+                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={loading ? '#999' : '#EF4444'} />
                   </TouchableOpacity>
                 )}
               </View>

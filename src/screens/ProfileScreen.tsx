@@ -260,7 +260,7 @@ export function ProfileScreen({
   useEffect(() => {
     // Auto-scroll to current tier on load
     if (activeCurrentTier > 0) {
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (tierScrollRef.current) {
           const itemWidth = 100;
           const gap = 12;
@@ -268,6 +268,7 @@ export function ProfileScreen({
           tierScrollRef.current.scrollTo({ x: offset - 40, animated: true });
         }
       }, 800);
+      return () => clearTimeout(timer);
     }
   }, [activeCurrentTier]);
 
@@ -292,7 +293,8 @@ export function ProfileScreen({
       const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id);
       setWRALeaderboard(data);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch WRA leaderboard:', e);
+      Alert.alert('Error', 'Failed to fetch WRA leaderboard.');
     } finally {
       setLoadingLB(false);
     }
@@ -305,7 +307,8 @@ export function ProfileScreen({
       const data = await LeaderboardService.getGlobalGloryLeaderboard(user?.id);
       setGloryLeaderboard(data);
     } catch (e) {
-      console.error(e);
+      console.error('Failed to fetch Glory leaderboard:', e);
+      Alert.alert('Error', 'Failed to fetch Glory leaderboard.');
     } finally {
       setLoadingLB(false);
     }

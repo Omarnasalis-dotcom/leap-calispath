@@ -11,6 +11,7 @@ import { CelebrationBanner } from '../components/CelebrationBanner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LeapLogo } from '../components/LeapLogo';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { debounce } from 'lodash';
 
 
 interface Props {
@@ -61,7 +62,8 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     };
   }, [sessionId]);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(
+    debounce(async () => {
     if (!sessionId) return;
     try {
       const { data: session, error: sErr } = await supabase
@@ -117,12 +119,10 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     } finally {
       setLoading(false);
     }
-  }, [sessionId]);
+  }, 2000), [sessionId, profile?.strength_tier]);
 
   useEffect(() => {
     fetchData();
-
-    const pollInterval = setInterval(fetchData, 3000);
 
     const channel = supabase
       .channel(`lobby_${sessionId}`)
@@ -148,7 +148,6 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     return () => {
       supabase.removeChannel(channel);
       clearInterval(autoCheck);
-      clearInterval(pollInterval);
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [fetchData, sessionId]);
@@ -275,11 +274,12 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
         </View>
 
         <TouchableOpacity
-          style={[styles.mainBtn, { backgroundColor: me?.is_ready ? 'rgba(255,255,255,0.1)' : theme.accent }]}
+          style={[styles.mainBtn, { backgroundColor: (me?.is_ready || isMutating) ? 'rgba(255,255,255,0.1)' : theme.accent }]}
           onPress={handleToggleReady}
+          disabled={isMutating}
         >
-          <Text style={[styles.mainBtnText, { color: me?.is_ready ? theme.text.primary : '#000' }]}>
-            {me?.is_ready ? 'UNREADY' : 'PREPARE FOR WAR'}
+          <Text style={[styles.mainBtnText, { color: (me?.is_ready || isMutating) ? theme.text.primary : '#000' }]}>
+            {isMutating ? 'PLEASE WAIT...' : (me?.is_ready ? 'UNREADY' : 'PREPARE FOR WAR')}
           </Text>
         </TouchableOpacity>
 
@@ -299,8 +299,11 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
                 errorMessage: 'Failed to quit tournament.'
               });
             }}
+            disabled={isMutating}
           >
-            <Text style={{ color: '#EF4444', fontWeight: '900', fontSize: 16 }}>QUIT TOURNAMENT</Text>
+            <Text style={{ color: isMutating ? '#999' : '#EF4444', fontWeight: '900', fontSize: 16 }}>
+              {isMutating ? 'QUITTING...' : 'QUIT TOURNAMENT'}
+            </Text>
           </TouchableOpacity>
         )}
       </ScrollView>

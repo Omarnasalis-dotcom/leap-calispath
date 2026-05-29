@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { useSafeMutation } from '../hooks/useSafeMutation';
 import { LeapLogo } from '../components/LeapLogo';
 
 
@@ -20,6 +21,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isJoining, setIsJoining] = useState(false);
+  const { safeMutate, isMutating: safeJoining } = useSafeMutation();
 
   const fetchData = useCallback(
     debounce(async () => {
@@ -88,17 +90,17 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
 
   const handleJoin = async (session: any) => {
     if (!session || !profile) return;
-    setIsJoining(true);
-    try {
+    await safeMutate(async () => {
       const res = await TournamentService.joinTournament(session.id, profile.id);
       if (res.success) {
-        fetchData();
+        return { data: res, error: null };
       } else {
-        showAlert('Ineligible Warrior', (res.error as any)?.message || 'This tournament is not fit for your current tier.');
+        return { error: new Error((res.error as any)?.message || 'This tournament is not fit for your current tier.') };
       }
-    } finally {
-      setIsJoining(false);
-    }
+    }, {
+      onSuccess: () => fetchData(),
+      errorMessage: 'Failed to join tournament'
+    });
   };
 
   const handleEnterLobby = (session: any) => {
@@ -166,7 +168,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
           <TouchableOpacity 
             style={[styles.actionBtn, { backgroundColor: isJoined ? 'rgba(255,255,255,0.1)' : theme.accent }]}
             onPress={isJoined ? () => handleEnterLobby(session) : () => handleJoin(session)}
-            disabled={isJoining}
+            disabled={safeJoining}
           >
             <Text style={[styles.actionBtnText, { color: isJoined ? theme.text.primary : '#000' }]}>
               {isJoined ? 'ENTER LOBBY' : 'JOIN TOURNAMENT'}

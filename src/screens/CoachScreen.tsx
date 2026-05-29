@@ -24,8 +24,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
-const GEMINI_KEY = (process.env['EXPO_PUBLIC_GEMINI_KEY'] || '').trim();
-const GEMINI_MODEL = 'gemini-flash-lite-latest'; 
+import { supabase } from '../lib/supabase'; 
 
 function getTierCapability(tier: number): string {
   switch (tier || 0) {
@@ -170,7 +169,9 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             setMessages(parsed);
           }
         }
-      } catch (e) { }
+      } catch (e: any) {
+        console.warn('Failed to load saved coach messages:', e.message);
+      }
     };
     init();
   }, [profile?.id]);
@@ -185,20 +186,11 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     if (loading) return;
     setLoading(true);
     
-    if (!GEMINI_KEY || GEMINI_KEY === 'placeholder-key') {
-      setMessages([{ role: 'assistant', content: `Greetings, ${profile?.display_name || 'Warrior'}. I am your Arena Mentor. How can I guide you today? Would you like a quick report on your profile?` }]);
-      setLoading(false);
-      return;
-    }
+    // Removed local API key check since we rely on the Edge Function now
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('chat-gemini', {
+        body: {
           contents: [
             { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] },
             { role: 'model', parts: [{ text: 'Understood. I am the Leap Arena Mentor. Speak, Warrior.' }] },
@@ -208,33 +200,32 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             maxOutputTokens: 150,
             temperature: 0.7
           }
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errData = await response.json().catch(() => ({}));
-        console.error('Gemini API Error:', errData);
-        const status = response.status;
+      if (error) {
+        console.error('Gemini Edge Function Error:', error);
+        
+        // Supabase Edge Function errors sometimes have a nested status or message
+        const status = error.status || 500;
         if (status === 429 || status === 403) {
           setMessages([{ role: 'assistant', content: "The Arena is currently over-taxed (System Quota reached). The Mentor will return shortly. 🏛️" }]);
         } else {
-          const errMsg = errData?.error?.message || `Status ${status}`;
-          setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (Error: ${errMsg}). Please check your connection.` }]);
+          setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (Error: ${error.message || 'Unknown'}). Please check your connection.` }]);
         }
         return;
       }
 
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       
       if (text) {
         setMessages([{ role: 'assistant', content: text }]);
       } else {
-        throw new Error('No text in response');
+        throw new Error('No valid text in AI response');
       }
     } catch (error: any) {
       console.error('Coach Session Error:', error);
-      setMessages([{ role: 'assistant', content: "Arena wisdom is flickering. Please check your connection." }]);
+      setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (${error.message || 'Network failure'}). Please check your connection.` }]);
     } finally {
       setLoading(false);
     }
@@ -269,13 +260,8 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     setLoading(true);
 
     try {
-      const url = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${GEMINI_KEY}`;
-      const response = await fetch(url, {
-        method: 'POST',
-        headers: { 
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke('chat-gemini', {
+        body: {
           contents: (() => {
             const systemMsg = { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] };
             const ackMsg = { role: 'model', parts: [{ text: 'Understood.' }] };
@@ -291,20 +277,22 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             maxOutputTokens: 150,
             temperature: 0.7
           }
-        })
+        }
       });
       
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({}));
-        const errorCode = errorBody?.error?.code;
-        const errorMessage = errorBody?.error?.message || '';
+      if (error) {
+        console.error('Gemini Edge Function Error:', error);
+        
+        // Inspect the error object closely, as it might be a FunctionsHttpError
+        const status = error.status || 500;
+        const errorMessage = error.message?.toLowerCase() || '';
 
-        if (errorCode === 403 || errorMessage.toLowerCase().includes('quota')) {
+        if (status === 403 || errorMessage.includes('quota')) {
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: 'The Arena is currently over-taxed (System Quota reached). I must rest my wisdom for a moment. 🏛️',
           }]);
-        } else if (errorCode === 429) {
+        } else if (status === 429) {
           setMessages(prev => [...prev, {
             role: 'assistant',
             content: 'Slow down, warrior. You are seeking wisdom too quickly for the stars to align. Try again in a minute.',
@@ -312,26 +300,25 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
         } else {
           setMessages(prev => [...prev, {
             role: 'assistant',
-            content: 'Coach is temporarily unreachable. Check your connection and try again.',
+            content: `Coach is temporarily unreachable (Error: ${error.message || 'Unknown'}). Check your connection and try again.`,
           }]);
         }
         return;
       }
 
-      const data = await response.json();
-      const textResponse = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
       if (textResponse) {
         setMessages(prev => [...prev, { role: 'assistant', content: textResponse }]);
         await incrementDailyUsage(user!.id);
         setDailyUsage(prev => prev + 1);
       } else {
-        throw new Error('Empty response from Gemini');
+        throw new Error('Empty response from AI Edge Function');
       }
     } catch (error: any) {
       console.error('Coach Send Error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Coach is temporarily unreachable (Detail: ${error.message || 'Network Error'}). Check your connection and try again.`,
+        content: `Coach is temporarily unreachable (Detail: ${error.message || 'Network Timeout / Failure'}). Check your connection and try again.`,
       }]);
     } finally {
       setLoading(false);

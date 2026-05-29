@@ -64,6 +64,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       setStats(s);
     } catch (error) {
       console.error('Fetch error:', error);
+      Alert.alert('Error', 'Failed to load power stats. Please check your connection.');
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -77,6 +78,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       setLeaderboardData(data);
     } catch (error) {
       console.error('Leaderboard error:', error);
+      Alert.alert('Error', 'Failed to load leaderboard data.');
     }
   }, [leaderboardTab]);
 
@@ -87,6 +89,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       setModalLeaderboardData(data);
     } catch (error) {
       console.error('Modal Leaderboard error:', error);
+      Alert.alert('Error', 'Failed to load movement rankings.');
     }
   }, []);
 

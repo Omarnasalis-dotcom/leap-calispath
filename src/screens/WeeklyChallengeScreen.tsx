@@ -134,7 +134,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     resetTimer();
   };
 
-  async function loadChallenge() {
+  const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
+  
+  const loadChallenge = async () => {
     setLoading(true);
     try {
       const targetGroup = isAdmin ? adminGroupView : userGroup;
@@ -698,28 +700,36 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                       <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
                       <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
                     </View>
-                    <TouchableOpacity onPress={async () => {
-                      console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
-                      Alert.alert(
-                        'Confirm Delete',
-                        `Are you sure you want to delete "${ac.title}"?`,
-                        [
-                          { text: 'Cancel', style: 'cancel' },
-                          { text: 'Delete', style: 'destructive', onPress: async () => {
-                            try {
-                              const res = await ChallengeService.delete(ac.id);
-                              if (res) {
-                                Alert.alert('Success', 'Challenge removed');
-                                await loadChallenge();
+                    <TouchableOpacity 
+                      disabled={isDeletingId === ac.id}
+                      onPress={async () => {
+                        console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
+                        Alert.alert(
+                          'Confirm Delete',
+                          `Are you sure you want to delete "${ac.title}"?`,
+                          [
+                            { text: 'Cancel', style: 'cancel' },
+                            { text: 'Delete', style: 'destructive', onPress: async () => {
+                              if (isDeletingId === ac.id) return;
+                              setIsDeletingId(ac.id);
+                              try {
+                                const res = await ChallengeService.delete(ac.id);
+                                if (res) {
+                                  Alert.alert('Success', 'Challenge removed');
+                                  await loadChallenge();
+                                }
+                              } catch (err: any) {
+                                Alert.alert('Error', err.message || 'Failed to delete challenge');
+                              } finally {
+                                setIsDeletingId(null);
                               }
-                            } catch (err: any) {
-                              Alert.alert('Error', err.message || 'Failed to delete challenge');
-                            }
-                          }}
-                        ]
-                      );
+                            }}
+                          ]
+                        );
                     }}>
-                      <Text style={{ color: '#8B0000', fontWeight: '900' }}>✕</Text>
+                      <Text style={{ color: isDeletingId === ac.id ? '#999' : '#8B0000', fontWeight: '900' }}>
+                        {isDeletingId === ac.id ? '...' : '✕'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 ))

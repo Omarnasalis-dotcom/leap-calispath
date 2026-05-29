@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -26,6 +26,13 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [inlineSuccess, setInlineSuccess] = useState<string | null>(null);
   const { theme } = useTheme();
+  const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (resetTimerRef.current) clearTimeout(resetTimerRef.current);
+    };
+  }, []);
 
   useEffect(() => {
     /**
@@ -118,7 +125,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       setInlineSuccess('PASSWORD UPDATED! YOU CAN NOW SIGN IN.');
 
       // Give the user a moment to see the success message, then go to login
-      setTimeout(() => {
+      resetTimerRef.current = setTimeout(() => {
         router.back();
       }, 2500);
     } catch (error: any) {
