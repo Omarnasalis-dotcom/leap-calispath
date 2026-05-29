@@ -7,6 +7,7 @@ import { View,
   Platform,
   TouchableOpacity } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
@@ -26,6 +27,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [inlineSuccess, setInlineSuccess] = useState<string | null>(null);
   const { theme } = useTheme();
+  const { clearPasswordReset } = useAuth();
   const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -124,9 +126,10 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
       setInlineSuccess('PASSWORD UPDATED! YOU CAN NOW SIGN IN.');
 
-      // Give the user a moment to see the success message, then go to login
-      resetTimerRef.current = setTimeout(() => {
-        router.back();
+      // Give the user a moment to see the success message, then clear reset state
+      resetTimerRef.current = setTimeout(async () => {
+        await clearPasswordReset();
+        router.replace('/auth');
       }, 2500);
     } catch (error: any) {
       setInlineError(error.message?.toUpperCase() ?? 'AN UNEXPECTED ERROR OCCURRED.');

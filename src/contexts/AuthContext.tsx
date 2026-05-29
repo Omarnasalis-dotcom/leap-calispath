@@ -6,6 +6,7 @@ import { AuthContextType, Profile } from '../types';
 import { User } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
+import * as Linking from 'expo-linking';
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -15,6 +16,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
   const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
+
+  // Handle deep link on cold start (e.g. password reset email link)
+  useEffect(() => {
+    async function handleInitialURL() {
+      try {
+        const url = await Linking.getInitialURL();
+        if (url && url.includes('reset-password')) {
+          const parsed = Linking.parse(url);
+          const token = parsed.queryParams?.token as string;
+          const type = parsed.queryParams?.type as string;
+          if (token && type === 'recovery') {
+            const { error } = await supabase.auth.verifyOtp({
+              token_hash: token,
+              type: 'recovery',
+            });
+            if (!error) {
+              setNeedsPasswordReset(true);
+              setUser(null);
+            }
+          }
+        }
+      } catch (err) {
+        // Silent — cold start URL parsing is best-effort
+      }
+    }
+
+    // Also listen for URLs when app is already open
+    const subscription = Linking.addEventListener('url', async ({ url }) => {
+      if (url && url.includes('reset-password')) {
+        const parsed = Linking.parse(url);
+        const token = parsed.queryParams?.token as string;
+        const type = parsed.queryParams?.type as string;
+        if (token && type === 'recovery') {
+          const { error } = await supabase.auth.verifyOtp({
+            token_hash: token,
+            type: 'recovery',
+          });
+          if (!error) {
+            setNeedsPasswordReset(true);
+            setUser(null);
+          }
+        }
+      }
+    });
+
+    handleInitialURL();
+    return () => subscription.remove();
+  }, []);
 
   useEffect(() => {
     // Check onboarding
