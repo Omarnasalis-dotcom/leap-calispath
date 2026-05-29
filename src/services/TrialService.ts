@@ -9,7 +9,8 @@ export interface TrialResult {
 }
 
 // Use the same URL pattern as supabase.ts
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || 'https://vxscvluyskawegmwaxnh.supabase.co';
+if (!process.env.EXPO_PUBLIC_SUPABASE_URL) throw new Error('EXPO_PUBLIC_SUPABASE_URL is not set.');
+const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/submit-trial-result`;
 
 export class TrialService {

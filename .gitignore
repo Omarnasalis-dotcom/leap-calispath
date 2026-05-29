@@ -7,3 +7,9 @@ dist/
 _backup/
 _backup/
 *.bak
+supabase/.temp/
+scratch/
+check_data.js
+sql_archive/
+schema_consolidated.sql
+swagger.json
