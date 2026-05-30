@@ -96,10 +96,16 @@ export function ProfileScreen({
   const [showWarriorModal, setShowWarriorModal] = useState(false);
 
   // Onboarding modal — show if user was assessed in the last 5 minutes
-  const isNewlyAssessed = profile?.assessed_at
-    ? (Date.now() - new Date(profile.assessed_at).getTime()) < 5 * 60 * 1000
-    : false;
-  const [showOnboarding, setShowOnboarding] = useState(isNewlyAssessed);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const onboardingChecked = React.useRef(false);
+  useEffect(() => {
+    if (onboardingChecked.current) return;
+    if (!profile?.assessed_at) return;
+    onboardingChecked.current = true;
+    const assessedAt = new Date(profile.assessed_at).getTime();
+    const isNew = (Date.now() - assessedAt) < 5 * 60 * 1000;
+    if (isNew) setShowOnboarding(true);
+  }, [profile?.assessed_at]);
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
 
   // Leaderboard Filtering
