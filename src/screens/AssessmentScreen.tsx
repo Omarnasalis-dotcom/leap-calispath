@@ -114,10 +114,10 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
     const variant = currentOption.value as MovementVariant;
     const reps = parseInt(customReps) || 0;
     
-    if (reps < 1) {
+    if (reps < 0) {
       Alert.alert(
         "Invalid Input",
-        "You must enter at least 1 rep. If you cannot do any, go BACK and select NO."
+        "You must enter at least 0 reps. If you cannot do any, you can enter 0 or go BACK and select NO."
       );
       return;
     }
@@ -250,7 +250,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
           </View>
         </View>
         <View style={{ alignItems: 'center', marginTop: 16 }}>
-          <LeapLogo size={180} animated={true} />
+          <LeapLogo size={100} animated={true} />
         </View>
 
         <View style={styles.agentContainer}>

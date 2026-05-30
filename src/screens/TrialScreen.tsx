@@ -61,6 +61,11 @@ export function TrialScreen({
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Cache route params on mount to prevent background wipe out (Bug 4)
+  const [initialMode] = useState<TrialMode>(mode);
+  const [initialPracticeTier] = useState<number | null>(practiceTier);
 
   const getTierAccentColor = (tier: number) => {
     if (tier <= 2) return '#B0BEC5'; // Foundation - Steel
@@ -95,9 +100,9 @@ export function TrialScreen({
 
   // Determine which tier to use
   const nextTier = profile ? profile.strength_tier : 0;
-  const targetTier = mode === 'practice' && practiceTier !== null
-    ? practiceTier
-    : mode === 'eternal'
+  const targetTier = initialMode === 'practice' && initialPracticeTier !== null
+    ? initialPracticeTier
+    : initialMode === 'eternal'
       ? 8 // Demigod Eternal
       : nextTier;
 
@@ -201,7 +206,7 @@ export function TrialScreen({
   }
 
   async function handleClaimRank() {
-    if (!user || !trial || !profile) return;
+    if (!user || !trial || !profile || isSubmitting) return;
 
     if (!TrialService.isTimeValid(trial.tier, timeSeconds)) {
       setShowDishonor(true);
@@ -209,6 +214,7 @@ export function TrialScreen({
     }
 
     setLoading(true);
+    setIsSubmitting(true);
     stopTimer();
 
     try {
@@ -216,13 +222,13 @@ export function TrialScreen({
         userId: user.id,
         tier: trial.tier,
         timeSeconds,
-        isProgression: mode === 'progression',
+        isProgression: initialMode === 'progression',
       });
 
       // CRITICAL: Await the profile refresh before showing victory
       await refreshProfile();
 
-      if (mode === 'progression') {
+      if (initialMode === 'progression') {
         setShowVictory(true);
       } else {
         onBack ? onBack() : null;
@@ -235,6 +241,7 @@ export function TrialScreen({
       }
     } finally {
       setLoading(false);
+      setIsSubmitting(false);
     }
   }
 
@@ -418,12 +425,12 @@ export function TrialScreen({
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Badges */}
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
-          {mode === 'practice' && (
+          {initialMode === 'practice' && (
             <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
               <Text style={[styles.badgeText, { color: theme.accent }]}>PRACTICE MODE</Text>
             </View>
           )}
-          {mode === 'eternal' && (
+          {initialMode === 'eternal' && (
             <View style={[styles.badge, { backgroundColor: accentColor }]}>
               <Text style={[styles.badgeText, { color: '#FFF' }]}>ETERNAL</Text>
             </View>

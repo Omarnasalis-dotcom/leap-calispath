@@ -90,7 +90,16 @@ export function AuthScreen() {
     setLoading(true);
     try {
       if (isSignUp) {
-        // Invite code is validated atomically by the redeem_invite_code RPC
+        // 1. Pre-check invite code exists and is unused (lightweight, not a claim)
+        const { data: codeCheck, error: codeCheckError } = await supabase
+          .from('invite_codes')
+          .select('id')
+          .ilike('code', inviteCode.trim())
+          .is('used_by', null)
+          .maybeSingle();
+        if (codeCheckError || !codeCheck) {
+          throw new Error('This invite code is invalid or already used. Please request a new one.');
+        }
 
         // 2. Check if username is already taken
         const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
@@ -114,16 +123,17 @@ export function AuthScreen() {
             p_user_id: authData.user.id
           });
 
-          if (redeemError || (redeemData && !redeemData.success)) {
-            console.error('Redeem Error:', redeemError || (redeemData && redeemData.error));
-            const msg = 'Account created, but we had trouble activating your access. Please contact support with your invite code.';
+          if (redeemError || !redeemData || redeemData.success === false) {
+            console.error('Redeem Error:', redeemError || redeemData.error);
+            const msg = 'This invite code has already been used or is invalid. Please request a new one.';
             if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Warrior Registered', msg);
-          } else {
-            const msg = 'Welcome to the Arena! Check your email to verify.';
-            if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Warrior Registered', msg);
+            else Alert.alert('Invalid Code', msg);
+            setLoading(false);
+            return;
           }
+          const msg = 'Welcome to the Arena! Check your email to verify.';
+          if (Platform.OS === 'web') window.alert(msg);
+          else Alert.alert('Warrior Registered', msg);
         }
         setIsSignUp(false);
       } else {

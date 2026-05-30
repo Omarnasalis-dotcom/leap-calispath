@@ -54,6 +54,8 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const [saving, setSaving] = useState(false);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const preStartTimeRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -119,35 +121,48 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     fetchLeaderboard();
   };
 
-  // Timer Logic
+  // Timer Logic — timestamp-based so tab switching does not affect accuracy
   useEffect(() => {
-    if (isPreTimerRunning && preCountdown > 0) {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (isPreTimerRunning) {
+      preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
       SoundService.playTick();
       timerRef.current = setInterval(() => {
-        setPreCountdown(prev => prev - 1);
-      }, 1000);
-    } else if (isPreTimerRunning && preCountdown === 0) {
-      setIsPreTimerRunning(false);
-      setIsTimerRunning(true);
-      SoundService.playBoxingBell();
-      if (timerRef.current) clearInterval(timerRef.current);
-    } else if (isTimerRunning && timeLeft > 0) {
+        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
+        const remaining = 5 - elapsed;
+        if (remaining <= 0) {
+          setPreCountdown(0);
+          setIsPreTimerRunning(false);
+          setIsTimerRunning(true);
+          SoundService.playBoxingBell();
+          if (timerRef.current) clearInterval(timerRef.current);
+        } else {
+          setPreCountdown(remaining);
+        }
+      }, 250);
+    } else if (isTimerRunning) {
+      startTimeRef.current = Date.now() - ((60 - timeLeft) * 1000);
       timerRef.current = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0) {
-      if (isTimerRunning) {
-        setIsTimerRunning(false);
-        setTimerFinished(true);
-        Vibration.vibrate([0, 500, 200, 500]);
-        SoundService.playDigitalBuzzer(2);
-      }
-      if (timerRef.current) clearInterval(timerRef.current);
+        const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+        const remaining = 60 - elapsed;
+        if (remaining <= 0) {
+          setTimeLeft(0);
+          setIsTimerRunning(false);
+          setTimerFinished(true);
+          Vibration.vibrate([0, 500, 200, 500]);
+          SoundService.playDigitalBuzzer(2);
+          if (timerRef.current) clearInterval(timerRef.current);
+        } else {
+          setTimeLeft(remaining);
+        }
+      }, 250);
     }
+
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
-  }, [isPreTimerRunning, preCountdown, isTimerRunning, timeLeft]);
+  }, [isPreTimerRunning, isTimerRunning]);
 
   const startTimer = () => {
     setPreCountdown(5);
