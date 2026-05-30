@@ -11,7 +11,7 @@ export default function Route() {
     <SpartanLayout>
       <AssessmentScreen 
         {...params}
-        onComplete={() => router.back()}
+        onComplete={() => router.replace('/')}
       />
     </SpartanLayout>
   );

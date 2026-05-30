@@ -45,6 +45,7 @@ import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progres
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 import { useRouter , router } from 'expo-router';
+import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
@@ -93,6 +94,12 @@ export function ProfileScreen({
   const [gloryLeaderboard, setGloryLeaderboard] = useState<any[]>([]);
   const [loadingLB, setLoadingLB] = useState(false);
   const [showWarriorModal, setShowWarriorModal] = useState(false);
+
+  // Onboarding modal — show if user was assessed in the last 5 minutes
+  const isNewlyAssessed = profile?.assessed_at
+    ? (Date.now() - new Date(profile.assessed_at).getTime()) < 5 * 60 * 1000
+    : false;
+  const [showOnboarding, setShowOnboarding] = useState(isNewlyAssessed);
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
 
   // Leaderboard Filtering
@@ -544,6 +551,16 @@ export function ProfileScreen({
       <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
 
     </View>
+      <OnboardingTutorialScreen
+        visible={showOnboarding}
+        strengthTier={profile?.strength_tier ?? 0}
+        onBeginTrial={() => {
+          setShowOnboarding(false);
+          const nextTier = Math.min((profile?.strength_tier ?? 0) + 1, 9);
+          router.push({ pathname: '/trial', params: { mode: 'progression', practiceTier: String(nextTier) } });
+        }}
+        onSkip={() => setShowOnboarding(false)}
+      />
     </GlobalErrorBoundary>
   );
 }
