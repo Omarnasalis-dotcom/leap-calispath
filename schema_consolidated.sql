@@ -824,3 +824,109 @@ BEGIN
     ORDER BY t_score DESC;
 END;
 $$;
+
+-- Secure RPC to submit initial assessment results
+-- Runs with SECURITY DEFINER privileges to bypass RLS/direct-client trigger constraints
+CREATE OR REPLACE FUNCTION public.submit_initial_assessment(p_tier INT)
+RETURNS VOID
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = ''
+AS $$
+DECLARE
+  v_locked_until TIMESTAMPTZ;
+BEGIN
+  v_locked_until := NOW() + INTERVAL '72 hours';
+  
+  UPDATE public.profiles
+  SET strength_tier = p_tier,
+      assessed_at = NOW(),
+      assessment_locked_until = v_locked_until,
+      updated_at = NOW()
+  WHERE id = auth.uid();
+END;
+$$;
+
+-- Revoke execution from public roles, grant exclusively to authenticated users
+REVOKE EXECUTE ON FUNCTION public.submit_initial_assessment(INT) FROM anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.submit_initial_assessment(INT) TO authenticated;
+
+-- =========================================================================
+-- Missing Tables & RLS Policies Added for Parity & Auditing (Phase 4)
+-- =========================================================================
+
+-- 1. trial_history table
+CREATE TABLE IF NOT EXISTS public.trial_history (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  tier_attempted INT NOT NULL,
+  time_seconds INT NOT NULL,
+  completed BOOLEAN DEFAULT TRUE,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on trial_history
+ALTER TABLE public.trial_history ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies for trial_history
+CREATE POLICY "Warriors can view their own trial history"
+  ON public.trial_history FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Warriors can insert their own trial history"
+  ON public.trial_history FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS trial_history_user_id_idx ON public.trial_history(user_id);
+
+-- 2. power_assessments table
+CREATE TABLE IF NOT EXISTS public.power_assessments (
+  user_id UUID PRIMARY KEY REFERENCES public.profiles(id) ON DELETE CASCADE,
+  power_tier INT DEFAULT 0,
+  pullup_1rm NUMERIC DEFAULT 0.0,
+  dip_1rm NUMERIC DEFAULT 0.0,
+  squat_1rm NUMERIC DEFAULT 0.0,
+  muscleup_1rm NUMERIC DEFAULT 0.0,
+  assessed_at TIMESTAMPTZ DEFAULT NOW(),
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on power_assessments
+ALTER TABLE public.power_assessments ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies for power_assessments
+CREATE POLICY "Warriors can view their own power assessments"
+  ON public.power_assessments FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Warriors can manage their own power assessments"
+  ON public.power_assessments FOR ALL
+  USING (auth.uid() = user_id)
+  WITH CHECK (auth.uid() = user_id);
+
+-- 3. one_min_max_logs table
+CREATE TABLE IF NOT EXISTS public.one_min_max_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  movement_id TEXT NOT NULL,
+  category_id TEXT NOT NULL,
+  reps INT NOT NULL,
+  points NUMERIC NOT NULL,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- Enable RLS on one_min_max_logs
+ALTER TABLE public.one_min_max_logs ENABLE ROW LEVEL SECURITY;
+
+-- RLS policies for one_min_max_logs
+CREATE POLICY "Warriors can view their own one min max logs"
+  ON public.one_min_max_logs FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Warriors can insert their own one min max logs"
+  ON public.one_min_max_logs FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE INDEX IF NOT EXISTS one_min_max_logs_user_id_idx ON public.one_min_max_logs(user_id);
+CREATE INDEX IF NOT EXISTS one_min_max_logs_movement_id_idx ON public.one_min_max_logs(movement_id);
+

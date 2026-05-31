@@ -36,6 +36,7 @@ import { LeaderboardService, GlobalWellRoundedEntry } from '../services/Leaderbo
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getTierLeaderboard, getPowerTierLeaderboard } from '../lib/leaderboard';
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
@@ -95,17 +96,27 @@ export function ProfileScreen({
   const [loadingLB, setLoadingLB] = useState(false);
   const [showWarriorModal, setShowWarriorModal] = useState(false);
 
-  // Onboarding modal — show if user was assessed in the last 5 minutes
+  // Onboarding modal — show if user was assessed in the last 5 minutes and hasn't seen it yet
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const onboardingChecked = React.useRef(false);
   useEffect(() => {
-    if (onboardingChecked.current) return;
-    if (!profile?.assessed_at) return;
-    onboardingChecked.current = true;
-    const assessedAt = new Date(profile.assessed_at).getTime();
-    const isNew = (Date.now() - assessedAt) < 5 * 60 * 1000;
-    if (isNew) setShowOnboarding(true);
-  }, [profile?.assessed_at]);
+    async function checkTutorialSeen() {
+      if (!profile?.id || !profile?.assessed_at) return;
+      try {
+        const key = `seen_profile_tutorial_${profile.id}`;
+        const hasSeen = await AsyncStorage.getItem(key);
+        if (hasSeen === 'true') return;
+
+        const assessedAt = new Date(profile.assessed_at).getTime();
+        const isNew = (Date.now() - assessedAt) < 5 * 60 * 1000;
+        if (isNew) {
+          setShowOnboarding(true);
+        }
+      } catch (e) {
+        console.warn('[ProfileScreen] Failed to read tutorial storage:', e);
+      }
+    }
+    checkTutorialSeen();
+  }, [profile?.id, profile?.assessed_at]);
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
 
   // Leaderboard Filtering
@@ -536,12 +547,28 @@ export function ProfileScreen({
       <OnboardingTutorialScreen
         visible={showOnboarding}
         strengthTier={profile?.strength_tier ?? 0}
-        onBeginTrial={() => {
+        onBeginTrial={async () => {
           setShowOnboarding(false);
+          if (profile?.id) {
+            try {
+              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
+            } catch (e) {
+              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
+            }
+          }
           const nextTier = Math.min((profile?.strength_tier ?? 0) + 1, 9);
-          router.push({ pathname: '/trial', params: { mode: 'progression', practiceTier: String(nextTier) } });
+          router.push({ pathname: '/trial', params: { mode: 'progression', tier: String(nextTier) } });
         }}
-        onSkip={() => setShowOnboarding(false)}
+        onSkip={async () => {
+          setShowOnboarding(false);
+          if (profile?.id) {
+            try {
+              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
+            } catch (e) {
+              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
+            }
+          }
+        }}
       />
     </GlobalErrorBoundary>
   );

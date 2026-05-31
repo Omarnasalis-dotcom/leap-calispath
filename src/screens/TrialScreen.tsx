@@ -172,7 +172,11 @@ export function TrialScreen({
 
   async function doAbandon() {
     if (user && trial) {
-      await TrialService.logAbandon(user.id, trial.tier, timeSeconds);
+      try {
+        await TrialService.logAbandon(user.id, trial.tier, timeSeconds);
+      } catch (e) {
+        console.warn('Failed to log abandonment:', e);
+      }
     }
     onBack ? onBack() : null;
   }

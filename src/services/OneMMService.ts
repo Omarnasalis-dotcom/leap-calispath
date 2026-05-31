@@ -52,9 +52,9 @@ export const OneMMService = {
 
     const totalPoints = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
 
-    // Get individual movement ranks
+    // Get individual movement ranks in parallel to eliminate N+1 waterfall latency
     const ranks: Record<string, number> = {};
-    for (const m of ONEMM_MOVEMENTS) {
+    const rankPromises = ONEMM_MOVEMENTS.map(async (m) => {
       const userMax = pbs[m.id] || 0;
       if (userMax > 0) {
         const { count } = await supabase
@@ -66,7 +66,8 @@ export const OneMMService = {
       } else {
         ranks[m.id] = 0;
       }
-    }
+    });
+    await Promise.all(rankPromises);
 
     // Global Overall Rank from Peak-based Leaderboard
     try {

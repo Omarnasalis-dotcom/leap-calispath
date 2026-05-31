@@ -54,44 +54,35 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
       const currentPowerTier = profile?.power_tier ?? 0;
       const finalTier = Math.max(newTier, currentPowerTier);
       
-      // Update power_pbs and power_points in database
-      const { error } = await supabase
+      // 1. Save raw PBs to power_assessments table
+      const { error: upsertErr } = await supabase
+        .from('power_assessments')
+        .upsert({
+          user_id: user.id,
+          pullup_1rm: inputs.pull_up,
+          dip_1rm: inputs.dip,
+          squat_1rm: inputs.squat,
+          muscleup_1rm: inputs.muscle_up,
+          assessed_at: new Date().toISOString(),
+        }, { onConflict: 'user_id' });
+
+      if (upsertErr) throw upsertErr;
+
+      // 2. Sync power points server-side via RPC (this securely updates power_points and power_tier)
+      const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: user.id });
+      if (rpcErr) throw rpcErr;
+
+      // 3. Update only non-restricted profile columns
+      const { error: profileErr } = await supabase
         .from('profiles')
         .update({
           power_pbs: inputs,
-          power_points: totalScore,
-          power_tier: finalTier,
           power_assessed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
         .eq('id', user.id);
 
-      if (error) throw error;
-      
-      // Only save to leaderboard if score improved
-      const { data: existing } = await supabase
-        .from('power_assessments')
-        .select('pullup_1rm, dip_1rm, squat_1rm, muscleup_1rm')
-        .eq('user_id', user.id)
-        .single();
-
-      const existingScore = existing 
-        ? (existing.pullup_1rm + existing.dip_1rm + existing.squat_1rm + (existing.muscleup_1rm * 2))
-        : 0;
-
-      if (totalScore > existingScore) {
-        await supabase
-          .from('power_assessments')
-          .upsert({
-            user_id: user.id,
-            power_tier: finalTier,
-            pullup_1rm: inputs.pull_up,
-            dip_1rm: inputs.dip,
-            squat_1rm: inputs.squat,
-            muscleup_1rm: inputs.muscle_up,
-            assessed_at: new Date().toISOString(),
-          }, { onConflict: 'user_id' });
-      }
+      if (profileErr) throw profileErr;
       
       // Refresh local profile
       await refreshProfile();

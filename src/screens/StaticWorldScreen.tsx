@@ -202,6 +202,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       await Promise.all([
         loadMovementData(),
         refreshUserHolds(),
+        StaticService.getWellRoundedLeaderboard(user.id)
+          .then(elite => setWellRoundedEntries(elite))
+          .catch(e => console.error('Error refreshing elite leaderboard:', e)),
+        selectedLevel ? loadLevelData() : Promise.resolve(),
         refreshProfile ? refreshProfile() : Promise.resolve(),
       ]);
     } catch (error: any) {

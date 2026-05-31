@@ -38,16 +38,79 @@ const WebStorageAdapter = {
   },
 };
 
-// Native storage using SecureStore
+// Native storage using SecureStore with chunking to bypass the 2048-byte limit per key
+const CHUNK_SIZE = 2000;
+
 const NativeStorageAdapter = {
-  getItem: (key: string): Promise<string | null> => {
-    return SecureStore.getItemAsync(key);
+  getItem: async (key: string): Promise<string | null> => {
+    try {
+      const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
+      if (chunksCountStr) {
+        const count = parseInt(chunksCountStr, 10);
+        if (!isNaN(count)) {
+          const promises = [];
+          for (let i = 0; i < count; i++) {
+            promises.push(SecureStore.getItemAsync(`${key}_chunk_${i}`));
+          }
+          const chunks = await Promise.all(promises);
+          if (chunks.some(chunk => chunk === null)) {
+            return null;
+          }
+          return chunks.join('');
+        }
+      }
+      return await SecureStore.getItemAsync(key);
+    } catch (e) {
+      console.warn('[Supabase Storage] Error reading from SecureStore:', e);
+      return null;
+    }
   },
-  setItem: (key: string, value: string): Promise<void> => {
-    return SecureStore.setItemAsync(key, value);
+  setItem: async (key: string, value: string): Promise<void> => {
+    try {
+      // Always clean up existing keys and chunk indexes first to prevent stale state
+      await NativeStorageAdapter.removeItem(key);
+
+      if (value.length <= CHUNK_SIZE) {
+        await SecureStore.setItemAsync(key, value);
+      } else {
+        const chunks: string[] = [];
+        for (let i = 0; i < value.length; i += CHUNK_SIZE) {
+          chunks.push(value.substring(i, i + CHUNK_SIZE));
+        }
+
+        // Save chunks count metadata first
+        await SecureStore.setItemAsync(`${key}_chunks`, chunks.length.toString());
+
+        // Save chunks in parallel
+        await Promise.all(
+          chunks.map((chunk, index) =>
+            SecureStore.setItemAsync(`${key}_chunk_${index}`, chunk)
+          )
+        );
+      }
+    } catch (e) {
+      console.error('[Supabase Storage] Error writing to SecureStore:', e);
+      throw e;
+    }
   },
-  removeItem: (key: string): Promise<void> => {
-    return SecureStore.deleteItemAsync(key);
+  removeItem: async (key: string): Promise<void> => {
+    try {
+      const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
+      if (chunksCountStr) {
+        const count = parseInt(chunksCountStr, 10);
+        if (!isNaN(count)) {
+          const promises = [];
+          for (let i = 0; i < count; i++) {
+            promises.push(SecureStore.deleteItemAsync(`${key}_chunk_${i}`));
+          }
+          promises.push(SecureStore.deleteItemAsync(`${key}_chunks`));
+          await Promise.all(promises);
+        }
+      }
+      await SecureStore.deleteItemAsync(key);
+    } catch (e) {
+      console.warn('[Supabase Storage] Error deleting from SecureStore:', e);
+    }
   },
 };
 

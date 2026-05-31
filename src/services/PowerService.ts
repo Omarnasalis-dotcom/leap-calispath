@@ -41,11 +41,11 @@ export const PowerService = {
     const totalPoints = calculateTotalPowerScore(pbMap);
     const level = getPowerLevel(totalPoints);
 
-    // Get ranks for each movement
+    // Get ranks for each movement in parallel to eliminate N+1 waterfall latency
     const ranks: Record<string, number> = {};
     const movements = ['pullup_1rm', 'dip_1rm', 'squat_1rm', 'muscleup_1rm'];
 
-    for (const field of movements) {
+    const rankPromises = movements.map(async (field) => {
       const val = pbs?.[field] || 0;
       let key = field.replace('_1rm', '');
       if (key === 'pullup') key = 'pull_up';
@@ -60,7 +60,8 @@ export const PowerService = {
       } else {
         ranks[key] = 0;
       }
-    }
+    });
+    await Promise.all(rankPromises);
 
     // Global Glory Rank - Direct query for reliability
     const { count: gloryCount } = await supabase
@@ -186,15 +187,25 @@ export const PowerService = {
       const newLevel = getPowerLevel(totalScore);
       const isPromotion = newLevel.id > oldLevel.id;
 
-      const { error: upsertErr } = await supabase
-        .from('power_assessments')
-        .upsert({
-          user_id: userId,
-          ...newPBs,
-          power_tier: newLevel.id,
-          assessed_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
-      if (upsertErr) throw upsertErr;
+      if (current) {
+        const { error: updateErr } = await supabase
+          .from('power_assessments')
+          .update({
+            ...newPBs,
+            assessed_at: new Date().toISOString(),
+          })
+          .eq('user_id', userId);
+        if (updateErr) throw updateErr;
+      } else {
+        const { error: insertErr } = await supabase
+          .from('power_assessments')
+          .insert({
+            user_id: userId,
+            ...newPBs,
+            assessed_at: new Date().toISOString(),
+          });
+        if (insertErr) throw insertErr;
+      }
 
       // Sync power points server-side via RPC
       const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: userId });
