@@ -19,16 +19,18 @@ let isSplashHidden = false;
 
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
+  const { user, profile, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
   const segments = useSegments();
   const router = useRouter();
 
   useEffect(() => {
     if (loading || hasSeenOnboarding === null) return;
 
+    // Wait for the profile to finish loading in the background if the user is logged in
+    if (user && !profile) return;
+
     const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
     const inOnboarding = segments[0] === 'onboarding';
-    
     
     // Auth and Onboarding state is resolved. We can now hide the native splash screen.
     if (!isSplashHidden) {
@@ -50,11 +52,20 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         router.replace('/auth');
       }
     } else {
+      // Gate unassessed users and force them to complete their strength assessment
+      if (!profile?.assessed_at) {
+        const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
+        if (!inAssessmentGroup) {
+          router.replace('/assessment');
+        }
+        return;
+      }
+
       if (inAuthGroup || inOnboarding) {
         router.replace('/');
       }
     }
-  }, [user, loading, hasSeenOnboarding, needsPasswordReset, segments]);
+  }, [user, profile, loading, hasSeenOnboarding, needsPasswordReset, segments]);
 
   if (loading || hasSeenOnboarding === null) {
     // Return null because the native splash screen is covering the view

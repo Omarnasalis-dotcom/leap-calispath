@@ -139,6 +139,28 @@ Deno.serve(async (req) => {
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 
+  // Get current user profile details
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from("profiles")
+    .select("strength_tier, best_times")
+    .eq("id", user.id)
+    .single();
+
+  if (profileError || !profile) {
+    return new Response(JSON.stringify({ error: "Profile not found" }), {
+      status: 404,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  // Enforce locked tier check
+  if (tier > profile.strength_tier) {
+    return new Response(JSON.stringify({ error: "FORBIDDEN", message: "This tier is currently locked." }), {
+      status: 403,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   // Insert into trial_history
   const { error: insertError } = await supabaseAdmin
     .from("trial_history")
@@ -159,34 +181,26 @@ Deno.serve(async (req) => {
 
   // Update profile PB if this is a progression trial and better than current
   if (mode === "progression") {
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
-      .select("strength_tier, best_times")
-      .eq("id", user.id)
-      .single();
+    const bestTimes = profile.best_times || {};
+    const currentBest = bestTimes[tier];
 
-    if (profile) {
-      const bestTimes = profile.best_times || {};
-      const currentBest = bestTimes[tier];
-
-      // Update PB if no previous best or new time is better (lower)
-      if (!currentBest || time_seconds < currentBest) {
-        bestTimes[tier] = time_seconds;
-      }
-
-      // ALWAYS advance tier if completing current tier, regardless of PB
-      const newTier = tier === profile.strength_tier
-        ? Math.min(tier + 1, 9)
-        : profile.strength_tier;
-
-      await supabaseAdmin
-        .from("profiles")
-        .update({
-          best_times: bestTimes,
-          strength_tier: Math.max(newTier, profile.strength_tier),
-        })
-        .eq("id", user.id);
+    // Update PB if no previous best or new time is better (lower)
+    if (!currentBest || time_seconds < currentBest) {
+      bestTimes[tier] = time_seconds;
     }
+
+    // ALWAYS advance tier if completing current tier, regardless of PB
+    const newTier = tier === profile.strength_tier
+      ? Math.min(tier + 1, 9)
+      : profile.strength_tier;
+
+    await supabaseAdmin
+      .from("profiles")
+      .update({
+        best_times: bestTimes,
+        strength_tier: Math.max(newTier, profile.strength_tier),
+      })
+      .eq("id", user.id);
   }
 
   return new Response(JSON.stringify({ success: true }), {

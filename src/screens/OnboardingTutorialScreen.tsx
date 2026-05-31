@@ -125,26 +125,47 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
     </Animated.View>
   );
 
-  const renderStep2 = () => (
-    <Animated.View style={[styles.stepContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
-      <Text style={[styles.stepTitle, { color: theme.text.primary }]}>YOUR FIRST OBJECTIVE</Text>
-      <View style={[styles.objectiveCard, { backgroundColor: theme.card.background, borderColor: accentColor }]}>
-        <Text style={[styles.objectiveLabel, { color: theme.text.tertiary }]}>NEXT RANK</Text>
-        <Text style={[styles.objectiveTier, { color: accentColor }]}>TIER {nextTier}</Text>
-        <Text style={[styles.objectiveTierName, { color: theme.text.primary }]}>{(TIER_NAMES[nextTier] ?? 'Max').toUpperCase()}</Text>
-        <View style={[styles.divider, { backgroundColor: theme.card.border, marginVertical: 12 }]} />
-        <Text style={[styles.objectiveDesc, { color: theme.text.secondary }]}>To level up, you must pass the Trial for Tier {nextTier}. Complete the workout within the time limit. No shortcuts.</Text>
-      </View>
-      <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
-        <TouchableOpacity style={[styles.ctaButton, { backgroundColor: accentColor }]} onPress={onBeginTrial} activeOpacity={0.85}>
-          <Text style={styles.ctaButtonText}>BEGIN FIRST TRIAL</Text>
-        </TouchableOpacity>
+  const renderStep2 = () => {
+    const isMaxTier = strengthTier === 9;
+    return (
+      <Animated.View style={[styles.stepContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+        <Text style={[styles.stepTitle, { color: theme.text.primary }]}>
+          {isMaxTier ? 'APEX WARRIOR' : 'YOUR FIRST OBJECTIVE'}
+        </Text>
+        <View style={[styles.objectiveCard, { backgroundColor: theme.card.background, borderColor: accentColor }]}>
+          <Text style={[styles.objectiveLabel, { color: theme.text.tertiary }]}>
+            {isMaxTier ? 'MAXIMUM RANK REACHED' : 'NEXT RANK'}
+          </Text>
+          <Text style={[styles.objectiveTier, { color: accentColor }]}>TIER {strengthTier}</Text>
+          <Text style={[styles.objectiveTierName, { color: theme.text.primary }]}>
+            {(TIER_NAMES[strengthTier] ?? 'Apex').toUpperCase()}
+          </Text>
+          <View style={[styles.divider, { backgroundColor: theme.card.border, marginVertical: 12 }]} />
+          <Text style={[styles.objectiveDesc, { color: theme.text.secondary }]}>
+            {isMaxTier
+              ? 'You have achieved the ultimate strength tier. There are no higher ranks to unlock. Explore the arena and dominate the leaderboards!'
+              : `To level up, you must pass the Trial for Tier ${nextTier}. Complete the workout within the time limit. No shortcuts.`}
+          </Text>
+        </View>
+        <Animated.View style={{ transform: [{ scale: pulseAnim }], width: '100%' }}>
+          <TouchableOpacity
+            style={[styles.ctaButton, { backgroundColor: accentColor }]}
+            onPress={isMaxTier ? onSkip : onBeginTrial}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.ctaButtonText}>
+              {isMaxTier ? 'EXPLORE DASHBOARD' : 'BEGIN FIRST TRIAL'}
+            </Text>
+          </TouchableOpacity>
+        </Animated.View>
+        {!isMaxTier && (
+          <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
+            <Text style={[styles.skipButtonText, { color: theme.text.tertiary }]}>Skip — Take me to the Dashboard</Text>
+          </TouchableOpacity>
+        )}
       </Animated.View>
-      <TouchableOpacity style={styles.skipButton} onPress={onSkip}>
-        <Text style={[styles.skipButtonText, { color: theme.text.tertiary }]}>Skip — Take me to the Dashboard</Text>
-      </TouchableOpacity>
-    </Animated.View>
-  );
+    );
+  };
 
   const renderDots = () => (
     <View style={styles.dotsRow}>

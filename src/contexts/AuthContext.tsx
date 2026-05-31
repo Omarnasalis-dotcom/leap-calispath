@@ -174,7 +174,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
 
-    console.log('Signup result:', { data, error });
     if (error) throw error;
   }
 

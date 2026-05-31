@@ -207,60 +207,36 @@ export function ProfileScreen({
       if (!profile?.id) return;
 
       try {
+        let syncedAny = false;
+
         // 1. Sync Static Points if needed
         if (profile.statics_tier === 0 || profile.statics_tier === null) {
-          const holds = await StaticService.getUserHolds(profile.id);
-          if (holds.length > 0) {
-            console.log('[Profile] Syncing Static points...');
-            const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
-            const peaks: Record<string, number> = { handstand: 0, front_lever: 0, back_lever: 0, planche: 0 };
-            (Array.isArray(holds) ? holds : []).forEach(h => {
-              const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
-              if (m && (h.points || 0) > peaks[m.category]) peaks[m.category] = h.points || 0;
-            });
-            const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-            if (total > 0) {
-              const { error } = await supabase.from('profiles').update({ statics_tier: total }).eq('id', profile.id);
-              if (error) console.error('[Profile] Failed to sync Static points:', error);
-            }
-          }
+          console.log('[Profile] Syncing Static points...');
+          const { error } = await supabase.rpc('sync_static_points', { p_user_id: profile.id });
+          if (error) console.error('[Profile] Failed to sync Static points:', error);
+          else syncedAny = true;
         }
 
         // 2. Sync Power Points if needed
         if (profile.power_points === 0 || profile.power_points === null) {
-          const { data: pbs } = await supabase.from('power_assessments').select('*').eq('user_id', profile.id).maybeSingle();
-          if (pbs) {
-            console.log('[Profile] Syncing Power points...');
-            const pbMap = { pull_up: pbs.pullup_1rm || 0, dip: pbs.dip_1rm || 0, squat: pbs.squat_1rm || 0, muscle_up: pbs.muscleup_1rm || 0 };
-            const total = calculateTotalPowerScore(pbMap);
-            if (total > 0) {
-              const { error } = await supabase.from('profiles').update({ power_points: total, power_tier: pbs.power_tier }).eq('id', profile.id);
-              if (error) console.error('[Profile] Failed to sync Power points:', error);
-            }
-          }
+          console.log('[Profile] Syncing Power points...');
+          const { error } = await supabase.rpc('sync_power_points', { p_user_id: profile.id });
+          if (error) console.error('[Profile] Failed to sync Power points:', error);
+          else syncedAny = true;
         }
 
         // 3. Sync Endurance (1MM) Points if needed
         if (profile.one_mm_points === 0 || profile.one_mm_points === null) {
-          const { data: logs } = await supabase.from('one_min_max_logs').select('*').eq('user_id', profile.id);
-          if (logs && logs.length > 0) {
-            console.log('[Profile] Syncing Endurance points...');
-            const { ONEMM_MOVEMENTS } = await import('../lib/oneMMLogic');
-            const patternPeaks: Record<string, number> = {};
-            (Array.isArray(logs) ? logs : []).forEach(log => {
-              const m = ONEMM_MOVEMENTS.find(mv => mv.id === log.movement_id);
-              if (m && (log.points || 0) > (patternPeaks[m.patternId] || 0)) patternPeaks[m.patternId] = log.points;
-            });
-            const total = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
-            if (total > 0) {
-              const { error } = await supabase.from('profiles').update({ one_mm_points: total }).eq('id', profile.id);
-              if (error) console.error('[Profile] Failed to sync Endurance points:', error);
-            }
-          }
+          console.log('[Profile] Syncing Endurance points...');
+          const { error } = await supabase.rpc('sync_onemm_points', { p_user_id: profile.id });
+          if (error) console.error('[Profile] Failed to sync Endurance points:', error);
+          else syncedAny = true;
         }
 
         // Refresh profile if any sync happened
-        if (refreshProfile) refreshProfile();
+        if (syncedAny && refreshProfile) {
+          await refreshProfile();
+        }
       } catch (e) {
         console.error('Failed self-healing sync:', e);
       }

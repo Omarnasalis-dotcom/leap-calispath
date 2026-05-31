@@ -190,15 +190,9 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       const lockedUntil = new Date();
       lockedUntil.setHours(lockedUntil.getHours() + 72);
 
-      const { error } = await supabase
-        .from('profiles')
-        .update({
-          strength_tier: tier,
-          assessed_at: new Date().toISOString(),
-          assessment_locked_until: lockedUntil.toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
+      const { error } = await supabase.rpc('submit_initial_assessment', {
+        p_tier: tier
+      });
 
       if (error) throw error;
 
