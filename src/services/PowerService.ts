@@ -196,20 +196,9 @@ export const PowerService = {
         }, { onConflict: 'user_id' });
       if (upsertErr) throw upsertErr;
 
-      const { error: updateErr } = await supabase
-        .from('profiles')
-        .update({
-          power_points: totalScore,
-          power_tier: newLevel.id,
-          power_pbs: {
-            pull_up: newPBs.pullup_1rm,
-            dip: newPBs.dip_1rm,
-            squat: newPBs.squat_1rm,
-            muscle_up: newPBs.muscleup_1rm,
-          }
-        })
-        .eq('id', userId);
-      if (updateErr) throw updateErr;
+      // Sync power points server-side via RPC
+      const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: userId });
+      if (rpcErr) throw rpcErr;
 
       return { isNewPB, isPromotion };
     }

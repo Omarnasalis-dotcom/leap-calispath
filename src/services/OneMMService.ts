@@ -136,13 +136,9 @@ export const OneMMService = {
       }
     });
 
-    const totalPoints = Object.values(patternPeaks).reduce((sum, p) => sum + p, 0);
-
-    const { error: updErr } = await supabase
-      .from('profiles')
-      .update({ one_mm_points: totalPoints })
-      .eq('id', userId);
-    if (updErr) throw updErr;
+    // Sync 1MM points server-side via RPC
+    const { error: rpcErr } = await supabase.rpc('sync_onemm_points', { p_user_id: userId });
+    if (rpcErr) throw rpcErr;
 
     return { isNewPB };
   },

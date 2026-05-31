@@ -75,40 +75,12 @@ export class StaticService {
       throw error;
     }
 
-    // 3. Update profile's aggregate static points (Well-Rounded Logic: Sum of Peaks)
+    // 3. Sync static points server-side via RPC
     try {
-      const { data: allHolds } = await supabase
-        .from('static_holds')
-        .select('movement_id, points')
-        .eq('user_id', userId);
-
-      if (allHolds) {
-        const { STATIC_MOVEMENTS } = await import('../lib/staticLogic');
-        
-        const peaks: Record<string, number> = {
-          handstand: 0,
-          front_lever: 0,
-          back_lever: 0,
-          planche: 0
-        };
-
-        (Array.isArray(allHolds) ? allHolds : []).forEach(h => {
-          const m = STATIC_MOVEMENTS.find(sm => sm.id === h.movement_id);
-          if (m && h.points > (peaks[m.category] || 0)) {
-            peaks[m.category] = h.points;
-          }
-        });
-
-        const totalPoints = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-
-        const { error: updErr } = await supabase
-          .from('profiles')
-          .update({ statics_tier: totalPoints })
-          .eq('id', userId);
-        if (updErr) throw updErr;
-      }
+      const { error: rpcErr } = await supabase.rpc('sync_static_points', { p_user_id: userId });
+      if (rpcErr) throw rpcErr;
     } catch (e) {
-      console.error('Error updating profile static points:', e);
+      console.error('Error syncing static points:', e);
     }
 
     return true;
