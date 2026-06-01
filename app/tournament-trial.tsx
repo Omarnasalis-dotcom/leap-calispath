@@ -21,7 +21,11 @@ export default function Route() {
         roundConfig={roundConfig}
         onClose={() => {
           TournamentStore.clear();
-          router.back();
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/clash');
+          }
         }}
       />
     </SpartanLayout>

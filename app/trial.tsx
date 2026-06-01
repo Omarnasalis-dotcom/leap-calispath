@@ -13,7 +13,13 @@ export default function Route() {
         mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
         onComplete={() => router.replace('/profile')}
-        onBack={() => router.back()}
+        onBack={() => {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/');
+          }
+        }}
       />
     </SpartanLayout>
   );
