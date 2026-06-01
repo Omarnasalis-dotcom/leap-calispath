@@ -59,6 +59,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
           router.replace('/assessment');
         }
         return;
+      } else {
+        // Redirect already assessed users away from assessment screens
+        if (segments[0] === 'assessment' || segments[0] === 'assessment-gate') {
+          router.replace('/');
+          return;
+        }
       }
 
       if (inAuthGroup || inOnboarding) {
