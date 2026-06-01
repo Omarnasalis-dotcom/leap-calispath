@@ -190,8 +190,8 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       setShowLogModal(false);
       fetchData();
       fetchLeaderboard();
-    } catch (error) {
-      Alert.alert('Error', 'Failed to save result.');
+    } catch (error: any) {
+      Alert.alert('Error', error.message || 'Failed to save result.');
     } finally {
       setSaving(false);
     }
