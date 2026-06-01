@@ -157,8 +157,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-    console.log('Attempting signup with timezone:', timezone);
-    
+        
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
