@@ -141,6 +141,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       setManualInput('');
       await Promise.all([
         fetchData(),
+        fetchLeaderboard(),
         refreshProfile ? refreshProfile() : Promise.resolve(),
       ]);
     } catch (error) {

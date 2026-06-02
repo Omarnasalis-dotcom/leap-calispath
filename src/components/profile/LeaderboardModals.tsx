@@ -116,21 +116,21 @@ export function LeaderboardModals({
                       <View style={styles.lbBreakdown}>
                         <View style={styles.lbBreakdownItem}>
                           <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{entry.static_pts}S</Text>
+                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.static_pts || 0).toFixed(2)}S</Text>
                         </View>
                         <View style={styles.lbBreakdownItem}>
                           <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{entry.power_pts}P</Text>
+                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.power_pts || 0).toFixed(2)}P</Text>
                         </View>
                         <View style={styles.lbBreakdownItem}>
                           <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{entry.endurance_pts}E</Text>
+                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.endurance_pts || 0).toFixed(2)}E</Text>
                         </View>
                       </View>
                     </View>
 
                     <View style={styles.lbScoreBox}>
-                      <Text style={[styles.lbScoreText, { color: theme.accent }]}>{entry.total_score}</Text>
+                      <Text style={[styles.lbScoreText, { color: theme.accent }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
                       <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>PTS</Text>
                     </View>
                   </View>

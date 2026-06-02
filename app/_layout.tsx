@@ -78,6 +78,50 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     return null;
   }
 
+  // 1. Wait for profile to load in the background if logged in
+  if (user && !profile) {
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+        <LeapLogo size={40} animated />
+      </View>
+    );
+  }
+
+  const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
+  const inOnboarding = segments[0] === 'onboarding';
+  const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
+
+  // 2. Prevent rendering children when a password reset is required
+  if (needsPasswordReset) {
+    if (segments[0] !== 'reset-password') {
+      return null;
+    }
+  }
+
+  // 3. Prevent rendering children for unauthenticated users accessing locked routes
+  if (!user) {
+    if (!hasSeenOnboarding && !inOnboarding) {
+      return null;
+    }
+    if (hasSeenOnboarding && !inAuthGroup) {
+      return null;
+    }
+  }
+
+  // 4. Prevent rendering children for unassessed users accessing locked routes
+  if (user && !profile?.assessed_at) {
+    if (!inAssessmentGroup) {
+      return null;
+    }
+  }
+
+  // 5. Prevent rendering children for assessed users accessing onboarding/auth/assessment routes
+  if (user && profile?.assessed_at) {
+    if (inAssessmentGroup || inAuthGroup || inOnboarding) {
+      return null;
+    }
+  }
+
   return children;
 }
 

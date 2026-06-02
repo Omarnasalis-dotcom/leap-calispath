@@ -47,7 +47,7 @@ export function ScoreBar({
           <Text style={[styles.scoreBarSubtitle, { color: 'rgba(0,0,0,0.3)', fontSize: 9, marginTop: 2 }]}>{subtitle}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
-          <Text style={[styles.scoreBarTotal, { color, fontSize: 24 }]}>{score.toLocaleString()}</Text>
+          <Text style={[styles.scoreBarTotal, { color, fontSize: 24 }]}>{score.toFixed(2)}</Text>
         </View>
       </View>
 
@@ -68,7 +68,7 @@ export function ScoreBar({
         {chips.map((c, idx) => (
           <View key={idx} style={styles.scoreChip}>
             <View style={[styles.scoreChipDot, { backgroundColor: c.color }]} />
-            <Text style={[styles.scoreChipVal, { color: mode === 'dark' ? '#FFF' : '#000', fontSize: 10 }]}>{c.value.toLocaleString()}</Text>
+            <Text style={[styles.scoreChipVal, { color: mode === 'dark' ? '#FFF' : '#000', fontSize: 10 }]}>{c.value.toFixed(2)}</Text>
             <Text style={[styles.scoreChipLbl, { color: 'rgba(0,0,0,0.25)', fontSize: 9 }]}>{c.label}</Text>
           </View>
         ))}

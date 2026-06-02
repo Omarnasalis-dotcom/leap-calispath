@@ -287,7 +287,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       const peaks: Record<string, number> = {};
       ONEMM_MOVEMENTS.forEach(m => {
         const reps = stats.pbs[m.id] || 0;
-        const points = reps * m.multiplier;
+        const points = calculateOneMMPoints(reps, m.categoryId);
         if (points > (peaks[m.patternId] || 0)) {
           peaks[m.patternId] = points;
         }

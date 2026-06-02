@@ -227,7 +227,7 @@ export const OneMMService = {
       .from('one_min_max_logs')
       .select(`
         user_id,
-        reps,
+        points,
         profiles:user_id (
           display_name
         )
@@ -236,7 +236,7 @@ export const OneMMService = {
 
     if (error) throw error;
 
-    // Aggregate reps per user
+    // Aggregate points per user
     const userMap = new Map();
     (Array.isArray(data) ? data : []).forEach((d: any) => {
       const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
@@ -245,7 +245,7 @@ export const OneMMService = {
         display_name: profile?.display_name || 'Warrior',
         value: 0
       };
-      current.value += d.reps;
+      current.value += Number(d.points || 0);
       userMap.set(d.user_id, current);
     });
 
