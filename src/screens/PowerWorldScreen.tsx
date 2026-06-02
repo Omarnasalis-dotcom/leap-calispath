@@ -240,7 +240,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
               bottomText="OF WORLD" 
            />
 
-           <TouchableOpacity
+            <TouchableOpacity
             onPress={() => setShowOverallModal(true)}
             activeOpacity={0.8}
            >
@@ -249,7 +249,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
                   size={110} 
                   active
                   topText="POWER SCORE"
-                  centerText={stats.totalPoints} 
+                  centerText={typeof stats.totalPoints === 'number' ? stats.totalPoints.toFixed(2) : stats.totalPoints} 
                   bottomText="TOTAL"
                   showCrown={stats.ranks.glory === 1}
               />
@@ -262,7 +262,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
            <MasteryRings 
               size={90} 
               topText="LEVEL GAP"
-              centerText={stats.level.id < 3 ? (POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints) : 'MAX'} 
+              centerText={stats.level.id < 3 ? Number(POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints).toFixed(2) : 'MAX'} 
               bottomText={stats.level.id < 3 ? `PTS TO ${POWER_LEVELS[stats.level.id + 1].name}` : "MAX TIER"} 
            />
         </View>
@@ -351,7 +351,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
                   </Text>
                   <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
                     <Text style={[styles.lbPointsText, { color: '#000' }]}>
-                      {item.value}
+                      {Number(item.value || 0).toFixed(2)}
                     </Text>
                   </View>
                 </View>
@@ -375,7 +375,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
               <View style={{ marginLeft: 12, flex: 1 }}>
                 <Text style={{ color: mode === 'dark' ? '#FFF' : '#FF5252', fontSize: 18, fontWeight: '800' }}>
                   {stats.level.id < 3 
-                    ? `${POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints} Points to ${POWER_LEVELS[stats.level.id + 1].name}`
+                    ? `${Number(POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints).toFixed(2)} Points to ${POWER_LEVELS[stats.level.id + 1].name}`
                     : 'MAXIMUM MASTERY ACHIEVED'}
                 </Text>
                 <Text style={{ color: theme.text.secondary, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
@@ -394,7 +394,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
             </View>
             {stats.level.id < 3 && (
               <Text style={{ color: '#FF5252', fontSize: 12, marginTop: 8, textAlign: 'right', fontWeight: '800', letterSpacing: 1 }}>
-                {stats.totalPoints} / {POWER_LEVELS[stats.level.id + 1].minPoints} PTS
+                {Number(stats.totalPoints).toFixed(2)} / {POWER_LEVELS[stats.level.id + 1].minPoints} PTS
               </Text>
             )}
           </View>
@@ -470,7 +470,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
                  <View key={i} style={styles.modalLBRow}>
                    <Text style={[styles.modalLBRank, { color: theme.accent }]}>#{i + 1}</Text>
                    <Text style={[styles.modalLBName, { color: theme.text.primary }]} numberOfLines={1}>{item.display_name.toUpperCase()}</Text>
-                   <Text style={[styles.modalLBValue, { color: theme.text.secondary }]}>{item.value}kg</Text>
+                   <Text style={[styles.modalLBValue, { color: theme.text.secondary }]}>{Number(item.value || 0).toFixed(2)}kg</Text>
                  </View>
                ))}
             </View>
@@ -534,7 +534,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
                     {item.display_name.toUpperCase()}
                   </Text>
                   <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
-                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{item.value} PTS</Text>
+                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.value || 0).toFixed(2)} PTS</Text>
                   </View>
                 </View>
               ))}

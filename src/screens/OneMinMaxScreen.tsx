@@ -340,7 +340,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
               <MasteryRings
                 size={100}
                 topText="1MM SCORE"
-                centerText={Math.round(peakData.total || 0)}
+                centerText={Number(peakData.total || 0).toFixed(2)}
                 bottomText="TOTAL PTS"
                 active
                 showCrown
@@ -485,7 +485,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                 {item.display_name.toUpperCase()}
               </Text>
               <View style={[styles.lbPointsFrame, { backgroundColor: '#FF7043' }]}>
-                <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.value || 0)}</Text>
+                <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.value || 0).toFixed(2)}</Text>
               </View>
             </View>
           ))}

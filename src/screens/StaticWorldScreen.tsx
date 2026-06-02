@@ -315,7 +315,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   const personalEntry = wellRoundedEntries.find(e => e.user_id === user?.id);
   const userRank = personalEntry?.rank || 0;
-  const displayScore = personalEntry ? Math.round(personalEntry.total_points) : Math.round(peakData.total);
+  const displayScore = personalEntry ? Number(personalEntry.total_points) : Number(peakData.total);
   
   let gapToNext = 0;
   if (userRank > 1 && wellRoundedEntries.length > 0) {
@@ -352,7 +352,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                    <MasteryRings 
                      size={100} 
                      topText="STATIC SCORE" 
-                     centerText={displayScore} 
+                     centerText={typeof displayScore === 'number' ? displayScore.toFixed(2) : displayScore} 
                      bottomText="TOTAL PTS"
                      active
                      showCrown={true}
@@ -550,7 +550,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                   {item.display_name.toUpperCase()}
                 </Text>
                 <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
-                  <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)}</Text>
+                  <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.total_points || 0).toFixed(2)}</Text>
                 </View>
               </View>
             ))}
@@ -626,7 +626,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                       {item.display_name.toUpperCase()}
                     </Text>
                     <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2' }]}>
-                      <Text style={[styles.lbPointsText, { color: '#000' }]}>{Math.round(item.total_points)} PTS</Text>
+                      <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.total_points || 0).toFixed(2)} PTS</Text>
                     </View>
                   </View>
                 ))}
