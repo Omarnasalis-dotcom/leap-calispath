@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { View } from 'react-native';
-import { Stack, useRouter, useSegments } from 'expo-router';
+import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
@@ -21,57 +21,17 @@ let isSplashHidden = false;
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
   const segments = useSegments();
-  const router = useRouter();
 
   useEffect(() => {
     if (loading || hasSeenOnboarding === null) return;
-
-    // Wait for the profile to finish loading in the background if the user is logged in
     if (user && !profile) return;
 
-    const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
-    const inOnboarding = segments[0] === 'onboarding';
-    
     // Auth and Onboarding state is resolved. We can now hide the native splash screen.
     if (!isSplashHidden) {
       SplashScreen.hideAsync().catch(() => {});
       isSplashHidden = true;
     }
-
-    if (needsPasswordReset) {
-      if (segments[0] !== 'reset-password') {
-        router.replace('/reset-password');
-      }
-      return;
-    }
-
-    if (!user) {
-      if (!hasSeenOnboarding && !inOnboarding) {
-        router.replace('/onboarding');
-      } else if (hasSeenOnboarding && !inAuthGroup) {
-        router.replace('/auth');
-      }
-    } else {
-      // Gate unassessed users and force them to complete their strength assessment
-      if (!profile?.assessed_at) {
-        const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
-        if (!inAssessmentGroup) {
-          router.replace('/assessment');
-        }
-        return;
-      } else {
-        // Redirect already assessed users away from assessment screens
-        if (segments[0] === 'assessment' || segments[0] === 'assessment-gate') {
-          router.replace('/');
-          return;
-        }
-      }
-
-      if (inAuthGroup || inOnboarding) {
-        router.replace('/');
-      }
-    }
-  }, [user, profile, loading, hasSeenOnboarding, needsPasswordReset, segments]);
+  }, [user, profile, loading, hasSeenOnboarding]);
 
   if (loading || hasSeenOnboarding === null) {
     // Return null because the native splash screen is covering the view
@@ -91,34 +51,32 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inOnboarding = segments[0] === 'onboarding';
   const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
 
-  // 2. Prevent rendering children when a password reset is required
+  // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
     if (segments[0] !== 'reset-password') {
-      return null;
+      return <Redirect href="/reset-password" />;
     }
   }
 
-  // 3. Prevent rendering children for unauthenticated users accessing locked routes
+  // 3. Prevent rendering children and redirect for unauthenticated users accessing locked routes
   if (!user) {
     if (!hasSeenOnboarding && !inOnboarding) {
-      return null;
+      return <Redirect href="/onboarding" />;
     }
     if (hasSeenOnboarding && !inAuthGroup) {
-      return null;
+      return <Redirect href="/auth" />;
     }
-  }
-
-  // 4. Prevent rendering children for unassessed users accessing locked routes
-  if (user && !profile?.assessed_at) {
-    if (!inAssessmentGroup) {
-      return null;
-    }
-  }
-
-  // 5. Prevent rendering children for assessed users accessing onboarding/auth/assessment routes
-  if (user && profile?.assessed_at) {
-    if (inAssessmentGroup || inAuthGroup || inOnboarding) {
-      return null;
+  } else {
+    // 4. Prevent rendering children and redirect unassessed users to assessment
+    if (!profile?.assessed_at) {
+      if (!inAssessmentGroup) {
+        return <Redirect href="/assessment" />;
+      }
+    } else {
+      // 5. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes
+      if (inAssessmentGroup || inAuthGroup || inOnboarding) {
+        return <Redirect href="/" />;
+      }
     }
   }
 
