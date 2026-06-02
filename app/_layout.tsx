@@ -22,6 +22,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
   const segments = useSegments();
 
+  console.log('[AuthGuard Diagnostic]', {
+    segments,
+    userId: user?.id,
+    profileLoaded: !!profile,
+    assessedAt: profile?.assessed_at,
+    loading,
+    hasSeenOnboarding,
+    needsPasswordReset
+  });
+
   useEffect(() => {
     if (loading || hasSeenOnboarding === null) return;
     if (user && !profile) return;
