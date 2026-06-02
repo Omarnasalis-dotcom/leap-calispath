@@ -57,8 +57,21 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             const code = params.get('code');
             const accessToken = params.get('access_token');
             const refreshToken = params.get('refresh_token');
+            const tokenHash = params.get('token_hash');
+            const type = params.get('type');
 
-            if (code) {
+            // Handle token_hash flow (from email template using {{ .TokenHash }})
+            if (tokenHash && type === 'recovery') {
+              const { data, error } = await supabase.auth.verifyOtp({
+                token_hash: tokenHash,
+                type: 'recovery',
+              });
+              if (error) throw error;
+              if (data?.session) {
+                setHasSession(true);
+                return;
+              }
+            } else if (code) {
               const { data, error } = await supabase.auth.exchangeCodeForSession(code);
               if (error) throw error;
               if (data?.session) {

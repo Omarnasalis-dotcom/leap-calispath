@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -38,12 +38,36 @@ export function AuthScreen() {
   const [isResetModalVisible, setIsResetModalVisible] = useState(false);
   const [resetEmail, setResetEmail] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const { signUp, signIn } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
 
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
+
+  // Cleanup cooldown timer on unmount
+  useEffect(() => {
+    return () => {
+      if (cooldownRef.current) clearInterval(cooldownRef.current);
+    };
+  }, []);
+
+  function startResendCooldown() {
+    setResendCooldown(60);
+    if (cooldownRef.current) clearInterval(cooldownRef.current);
+    cooldownRef.current = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  }
 
   async function handleResetPassword() {
     if (!resetEmail) {
@@ -61,12 +85,8 @@ export function AuthScreen() {
       
       if (error) throw error;
       
-      const successMsg = 'Check your email for a reset link';
-      if (Platform.OS === 'web') window.alert(successMsg);
-      else Alert.alert('Success', successMsg);
-      
-      setIsResetModalVisible(false);
-      setResetEmail('');
+      setResetSent(true);
+      startResendCooldown();
     } catch (error: any) {
       const message = error.message || 'An unexpected error occurred.';
       if (Platform.OS === 'web') window.alert(message);
@@ -385,7 +405,7 @@ export function AuthScreen() {
           visible={isResetModalVisible}
           animationType="fade"
           transparent={true}
-          onRequestClose={() => setIsResetModalVisible(false)}
+          onRequestClose={() => { setIsResetModalVisible(false); setResetSent(false); }}
         >
           <KeyboardAvoidingView 
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -395,30 +415,93 @@ export function AuthScreen() {
               <Text style={[styles.heading, { color: theme.text.primary, fontSize: 24, marginBottom: 16 }]}>
                 RESET <Text style={{ color: theme.accent }}>PASSWORD</Text>
               </Text>
-              
-              <Input 
-                label="Email" 
-                placeholder="warrior@email.com" 
-                value={resetEmail} 
-                onChangeText={setResetEmail} 
-                keyboardType="email-address"
-                autoCapitalize="none"
-              />
-              
-              <View style={{ marginTop: 8 }}>
-                <Button 
-                  title="SEND RESET LINK" 
-                  onPress={handleResetPassword} 
-                  loading={resetLoading}
-                />
-              </View>
-              
-              <TouchableOpacity 
-                style={{ marginTop: 16, alignItems: 'center', padding: 8 }} 
-                onPress={() => setIsResetModalVisible(false)}
-              >
-                <Text style={[styles.tabText, { color: theme.text.secondary }]}>CANCEL</Text>
-              </TouchableOpacity>
+
+              {resetSent ? (
+                <View style={{ alignItems: 'center' }}>
+                  {/* Checkmark icon */}
+                  <View style={[styles.resetSentIcon, { borderColor: theme.accent }]}>
+                    <Text style={{ color: theme.accent, fontSize: 28 }}>✓</Text>
+                  </View>
+
+                  <Text style={[styles.resetSentTitle, { color: theme.text.primary }]}>
+                    CHECK YOUR EMAIL
+                  </Text>
+                  <Text style={[styles.resetSentSubtext, { color: theme.text.secondary }]}>
+                    We sent a password reset link to
+                  </Text>
+                  <Text style={[styles.resetSentEmail, { color: theme.accent }]}>
+                    {resetEmail}
+                  </Text>
+                  <Text style={[styles.resetSentSubtext, { color: theme.text.tertiary, marginTop: 8 }]}>
+                    If you don't see it, check your spam folder.
+                  </Text>
+
+                  {/* Resend button with cooldown */}
+                  <TouchableOpacity
+                    style={[
+                      styles.resendButton,
+                      { borderColor: resendCooldown > 0 ? theme.card.border : theme.accent },
+                      resendCooldown > 0 && { opacity: 0.5 }
+                    ]}
+                    onPress={handleResetPassword}
+                    disabled={resendCooldown > 0 || resetLoading}
+                  >
+                    <Text style={[
+                      styles.resendButtonText,
+                      { color: resendCooldown > 0 ? theme.text.tertiary : theme.accent }
+                    ]}>
+                      {resetLoading
+                        ? 'SENDING...'
+                        : resendCooldown > 0
+                          ? `RESEND IN ${resendCooldown}S`
+                          : 'RESEND EMAIL'}
+                    </Text>
+                  </TouchableOpacity>
+
+                  {/* Use a different email */}
+                  <TouchableOpacity
+                    style={{ marginTop: 12, padding: 8 }}
+                    onPress={() => setResetSent(false)}
+                  >
+                    <Text style={[styles.tabText, { color: theme.text.secondary }]}>
+                      USE A DIFFERENT EMAIL
+                    </Text>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity 
+                    style={{ marginTop: 16, alignItems: 'center', padding: 8 }} 
+                    onPress={() => { setIsResetModalVisible(false); setResetSent(false); setResetEmail(''); }}
+                  >
+                    <Text style={[styles.tabText, { color: theme.text.secondary }]}>CLOSE</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : (
+                <View>
+                  <Input 
+                    label="Email" 
+                    placeholder="warrior@email.com" 
+                    value={resetEmail} 
+                    onChangeText={setResetEmail} 
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                  />
+                  
+                  <View style={{ marginTop: 8 }}>
+                    <Button 
+                      title="SEND RESET LINK" 
+                      onPress={handleResetPassword} 
+                      loading={resetLoading}
+                    />
+                  </View>
+                  
+                  <TouchableOpacity 
+                    style={{ marginTop: 16, alignItems: 'center', padding: 8 }} 
+                    onPress={() => { setIsResetModalVisible(false); setResetEmail(''); }}
+                  >
+                    <Text style={[styles.tabText, { color: theme.text.secondary }]}>CANCEL</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
             </View>
           </KeyboardAvoidingView>
         </Modal>
@@ -692,6 +775,45 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: -8,
     marginBottom: 16,
+  },
+  resetSentIcon: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  resetSentTitle: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 20,
+    letterSpacing: 1.5,
+    marginBottom: 8,
+  },
+  resetSentSubtext: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  resetSentEmail: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 15,
+    letterSpacing: 0.5,
+    marginTop: 4,
+  },
+  resendButton: {
+    marginTop: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderWidth: 1,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  resendButtonText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    letterSpacing: 1.5,
   },
   forgotText: {
     fontFamily: 'BarlowCondensed-SemiBold',
