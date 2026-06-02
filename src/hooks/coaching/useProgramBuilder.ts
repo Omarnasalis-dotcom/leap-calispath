@@ -215,14 +215,20 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       });
     };
 
-    Alert.alert(
-      'DELETE TEMPLATE',
-      'ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.',
-      [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'DELETE', style: 'destructive', onPress: performDelete }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.')) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'DELETE TEMPLATE',
+        'ARE YOU SURE YOU WANT TO DELETE THIS MASTER PROGRAM TEMPLATE? THIS CANNOT BE UNDONE.',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performDelete }
+        ]
+      );
+    }
   };
 
   // Load existing template configuration
@@ -1008,16 +1014,9 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
   });
 
   const handleDeleteWeek = () => {
-    Alert.alert(
-      "DELETE WEEK",
-      `ARE YOU SURE YOU WANT TO DELETE WEEK ${activeWeek}? THIS WILL REMOVE ALL DAYS AND BLOCKS IN THIS WEEK.`,
-      [
-        { text: "CANCEL", style: "cancel" },
-        { 
-          text: "DELETE", 
-          style: "destructive",
-          onPress: () => {
-            setWeeks(prev => {
+    if (Platform.OS === 'web') {
+      if (window.confirm(`ARE YOU SURE YOU WANT TO DELETE WEEK ${activeWeek}? THIS WILL REMOVE ALL DAYS AND BLOCKS IN THIS WEEK.`)) {
+        setWeeks(prev => {
               const maxW = Math.max(...Object.keys(prev).map(k => parseInt(k, 10)));
               const newWeeks = { ...prev };
               delete newWeeks[activeWeek];
@@ -1041,10 +1040,46 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
               return nextWeek;
             });
             showSuccessMessage(`WEEK ${activeWeek} DELETED SUCCESSFULLY`);
+      }
+    } else {
+      Alert.alert(
+        "DELETE WEEK",
+        `ARE YOU SURE YOU WANT TO DELETE WEEK ${activeWeek}? THIS WILL REMOVE ALL DAYS AND BLOCKS IN THIS WEEK.`,
+        [
+          { text: "CANCEL", style: "cancel" },
+          { 
+            text: "DELETE", 
+            style: "destructive",
+            onPress: () => {
+              setWeeks(prev => {
+                const maxW = Math.max(...Object.keys(prev).map(k => parseInt(k, 10)));
+                const newWeeks = { ...prev };
+                delete newWeeks[activeWeek];
+                
+                // Shift subsequent weeks down
+                for (let w = activeWeek + 1; w <= maxW; w++) {
+                  if (newWeeks[w]) {
+                    newWeeks[w - 1] = newWeeks[w];
+                    delete newWeeks[w];
+                  }
+                }
+                // Ensure we always have at least Week 1
+                if (Object.keys(newWeeks).length === 0) {
+                  newWeeks[1] = [];
+                }
+                return newWeeks;
+              });
+              
+              setActiveWeek(prev => {
+                const nextWeek = prev > 1 ? prev - 1 : 1;
+                return nextWeek;
+              });
+              showSuccessMessage(`WEEK ${activeWeek} DELETED SUCCESSFULLY`);
+            }
           }
-        }
-      ]
-    );
+        ]
+      );
+    }
   };
 
   const handleOpenCopyDayModal = (dayId: string) => {

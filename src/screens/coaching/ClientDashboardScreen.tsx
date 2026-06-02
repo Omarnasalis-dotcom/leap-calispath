@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, Platform } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -102,14 +102,20 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
       }
     };
 
-    Alert.alert(
-      'DELETE WEEK',
-      `ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED.`,
-      [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'DELETE', style: 'destructive', onPress: performDelete }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm(`ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED.`)) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'DELETE WEEK',
+        `ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED.`,
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performDelete }
+        ]
+      );
+    }
   };
 
   return (

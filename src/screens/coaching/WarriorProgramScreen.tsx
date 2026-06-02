@@ -169,21 +169,28 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
   const handleClose = () => {
     if (timerRunning) {
-      Alert.alert(
-        'ACTIVE TIMER',
-        'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
-        [
-          { text: 'STAY', style: 'cancel', onPress: () => {} },
-          {
-            text: 'LEAVE',
-            style: 'destructive',
-            onPress: () => {
-              setTimerRunning(false);
-              if (onClose) onClose();
+      if (Platform.OS === 'web') {
+        if (window.confirm('You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?')) {
+          setTimerRunning(false);
+          if (onClose) onClose();
+        }
+      } else {
+        Alert.alert(
+          'ACTIVE TIMER',
+          'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
+          [
+            { text: 'STAY', style: 'cancel', onPress: () => {} },
+            {
+              text: 'LEAVE',
+              style: 'destructive',
+              onPress: () => {
+                setTimerRunning(false);
+                if (onClose) onClose();
+              },
             },
-          },
-        ]
-      );
+          ]
+        );
+      }
     } else {
       if (onClose) onClose();
     }
@@ -598,31 +605,47 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   };
 
   const promptOptionalLogging = (blockId: string | number, status: 'completed' | 'missed', isWeighted: boolean = false) => {
-    Alert.alert(
-      "LOG DETAILS (OPTIONAL)",
-      "Would you like to add custom notes and intensity rating to this workout?",
-      [
-        {
-          text: "ADD DETAILS & NOTES",
-          onPress: () => {
-            setActiveLogBlockId(blockId);
-            setLogStatus(status);
-            setLogNotes('');
-            setLogRating(5);
-            setLogAmrapRounds('');
-            setLogForTimeDuration('');
-            setLogWeightUsed('');
-            setLogLadderProgress('');
-            setLogModalVisible(true);
+    if (Platform.OS === 'web') {
+      if (window.confirm("Would you like to add custom notes and intensity rating to this workout?\n\nOK for YES, Cancel for NO (Submit Directly)")) {
+        setActiveLogBlockId(blockId);
+        setLogStatus(status);
+        setLogNotes('');
+        setLogRating(5);
+        setLogAmrapRounds('');
+        setLogForTimeDuration('');
+        setLogWeightUsed('');
+        setLogLadderProgress('');
+        setLogModalVisible(true);
+      } else {
+        quickLogWorkout(blockId, status);
+      }
+    } else {
+      Alert.alert(
+        "LOG DETAILS (OPTIONAL)",
+        "Would you like to add custom notes and intensity rating to this workout?",
+        [
+          {
+            text: "ADD DETAILS & NOTES",
+            onPress: () => {
+              setActiveLogBlockId(blockId);
+              setLogStatus(status);
+              setLogNotes('');
+              setLogRating(5);
+              setLogAmrapRounds('');
+              setLogForTimeDuration('');
+              setLogWeightUsed('');
+              setLogLadderProgress('');
+              setLogModalVisible(true);
+            }
+          },
+          {
+            text: "DISMISS / SUBMIT DIRECTLY",
+            onPress: () => quickLogWorkout(blockId, status)
           }
-        },
-        {
-          text: "DISMISS / SUBMIT DIRECTLY",
-          onPress: () => quickLogWorkout(blockId, status)
-        }
-      ],
-      { cancelable: false }
-    );
+        ],
+        { cancelable: false }
+      );
+    }
   };
 
   const quickLogWorkout = async (blockId: string | number, status: 'completed' | 'missed') => {

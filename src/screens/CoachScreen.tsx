@@ -331,7 +331,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       await AsyncStorage.removeItem(STORAGE_KEY);
       startSession();
     };
-    Alert.alert('Clear?', 'Reset chat?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: performClear }]);
+    if (Platform.OS === 'web') { if (window.confirm('Reset chat?')) performClear(); } else { Alert.alert('Clear?', 'Reset chat?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: performClear }]); }
   };
 
   const renderText = (content: string, isUser: boolean) => {

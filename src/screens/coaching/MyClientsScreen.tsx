@@ -258,14 +258,20 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       }
     };
 
-    Alert.alert(
-      'DELETE CLIENT DATA',
-      'ARE YOU SURE YOU WANT TO DELETE THIS CLIENT AND WIPE ALL PROGRAM/LOG DATA?',
-      [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'DELETE', style: 'destructive', onPress: performWipe }
-      ]
-    );
+    if (Platform.OS === 'web') {
+      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS CLIENT AND WIPE ALL PROGRAM/LOG DATA?')) {
+        performWipe();
+      }
+    } else {
+      Alert.alert(
+        'DELETE CLIENT DATA',
+        'ARE YOU SURE YOU WANT TO DELETE THIS CLIENT AND WIPE ALL PROGRAM/LOG DATA?',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performWipe }
+        ]
+      );
+    }
   };
 
   const getInitials = (name: string): string => {
