@@ -90,6 +90,21 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // 6. Enforce strength tier gates for locked worlds (Static, Clash, Power, Champions)
+  const strengthTier = profile?.strength_tier || 0;
+  const tierLocks: Record<string, number> = {
+    'static-world': 1,
+    'power-world': 6,
+    'clash': 2,
+    'champions-arena': 8
+  };
+  const currentRoute = segments[0];
+  if (user && profile?.assessed_at && currentRoute && tierLocks[currentRoute] !== undefined) {
+    if (strengthTier < tierLocks[currentRoute]) {
+      return <Redirect href="/" />;
+    }
+  }
+
   return children;
 }
 
