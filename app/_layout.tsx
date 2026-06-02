@@ -6,6 +6,14 @@ import { StatusBar } from 'expo-status-bar';
 
 // Keep the native splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
+
+// Global guard: Strip all console logs in production to prevent data leaks
+if (!__DEV__) {
+  console.log = () => {};
+  console.warn = () => {};
+  console.info = () => {};
+}
+
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
 import { useStealthFonts } from '../hooks/useFonts';
