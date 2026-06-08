@@ -184,7 +184,12 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     if (!user || !selectedMovement || !repsInput) return;
     setSaving(true);
     try {
-      const reps = parseInt(repsInput);
+      const reps = parseInt(repsInput, 10);
+      if (isNaN(reps) || reps <= 0 || reps > 500) {
+        Alert.alert('Invalid', 'Please enter a valid number of reps (1-500).');
+        setSaving(false);
+        return;
+      }
       await OneMMService.saveLog(user.id, selectedMovement, reps);
       Alert.alert('Success', '1MM Result Logged!');
       setShowLogModal(false);

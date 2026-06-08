@@ -14,8 +14,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
-  const [hasSeenOnboarding, setHasSeenOnboarding] = useState<boolean | null>(null);
 
   // Handle deep link on cold start (e.g. password reset email link)
   useEffect(() => {
@@ -66,10 +66,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
-    // Check onboarding
-    AsyncStorage.getItem('hasSeenOnboarding').then(val => {
-      setHasSeenOnboarding(val === 'true');
-    });
     // Timeout safety - never stay loading forever
     const timeoutId = setTimeout(() => {
       setLoading(false);
@@ -140,19 +136,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function fetchProfile(userId: string) {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .eq('id', userId)
-      .single();
+    setProfileLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', userId)
+        .single();
 
-    if (error) {
-      console.error('Error fetching profile:', error);
-      return;
+      if (error) {
+        console.error('Error fetching profile:', error);
+        return;
+      }
+
+      setProfile(data);
+      registerPushToken(userId);
+    } finally {
+      setProfileLoading(false);
     }
-
-    setProfile(data);
-    registerPushToken(userId);
   }
 
   async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) {
@@ -212,17 +213,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function completeOnboarding() {
-    await AsyncStorage.setItem('hasSeenOnboarding', 'true');
-    setHasSeenOnboarding(true);
+    // Deprecated in V1. Unused.
   }
 
   const value: AuthContextType = {
     user,
     profile,
     loading,
+    profileLoading,
     needsPasswordReset,
-    hasSeenOnboarding,
-    completeOnboarding,
     signUp,
     signIn,
     signOut,
@@ -230,18 +229,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     clearPasswordReset,
   };
 
-  if (loading) {
-    return (
-      <View style={{ flex: 1, backgroundColor: '#000000', justifyContent: 'center', alignItems: 'center' }}>
-        <Text style={{ color: '#CD7F32', fontSize: 24, fontWeight: '900', letterSpacing: 4 }}>
-          LEAP CALISPATH
-        </Text>
-        <Text style={{ color: 'rgba(255,255,255,0.5)', marginTop: 8 }}>
-          Loading...
-        </Text>
-      </View>
-    );
-  }
 
   return (
     <AuthContext.Provider value={value}>

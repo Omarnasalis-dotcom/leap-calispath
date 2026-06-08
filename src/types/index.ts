@@ -75,9 +75,8 @@ export interface AuthContextType {
   user: User | null;
   profile: Profile | null;
   loading: boolean;
+  profileLoading: boolean;
   needsPasswordReset: boolean;
-  hasSeenOnboarding: boolean | null;
-  completeOnboarding: () => Promise<void>;
   signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;

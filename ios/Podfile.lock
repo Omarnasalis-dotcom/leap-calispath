@@ -82,7 +82,7 @@ PODS:
     - ExpoModulesCore
   - ExpoSharing (14.0.8):
     - ExpoModulesCore
-  - ExpoSplashScreen (55.0.20):
+  - ExpoSplashScreen (31.0.13):
     - ExpoModulesCore
   - FBLazyVector (0.81.5)
   - hermes-engine (0.81.5):
@@ -2428,7 +2428,7 @@ SPEC CHECKSUMS:
   ExpoModulesCore: 9e6a5514828e7dd5ded9e99d33557be2d284e660
   ExpoSecureStore: d32f751874a2ceb5aaeebeb3578e165c1ba2b24a
   ExpoSharing: 0d983394ed4a80334bab5a0d5384f75710feb7e8
-  ExpoSplashScreen: 3e64eed7a300d4e1131e8b419b5cea6e604adba7
+  ExpoSplashScreen: bc3cffefca2716e5f22350ca109badd7e50ec14d
   FBLazyVector: e95a291ad2dadb88e42b06e0c5fb8262de53ec12
   hermes-engine: 9f4dfe93326146a1c99eb535b1cb0b857a3cd172
   RCTDeprecation: 943572d4be82d480a48f4884f670135ae30bf990

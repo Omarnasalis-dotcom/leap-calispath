@@ -28,6 +28,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { DeleteAccountModal } from '../components/profile/DeleteAccountModal';
 import { WorldSelectorGrid } from '../components/profile/WorldSelectorGrid';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
 import { StrengthWorldView } from '../components/profile/StrengthWorldView';
@@ -45,7 +46,7 @@ import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
-import { useRouter , router } from 'expo-router';
+import { useRouter, router } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 
 interface ProfileScreenProps {
@@ -69,14 +70,19 @@ export function ProfileScreen({
   const onViewLeaderboards = (category: 'strength' | 'power', tier: number) => router.push({ pathname: '/leaderboard', params: { category, tier } });
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
-  const onOpenChampionsArena = () => router.push('/champions-arena');
-  const onOpenClash = () => router.push('/clash');
-  const onOpenTournamentArena = () => router.push('/tournament-arena');
-  const onOpenCoach = () => router.push('/coach');
+  const showV2Popup = () => {
+    if (Platform.OS === 'web') window.alert('Locked: This feature is coming in V2.');
+    else Alert.alert('Locked', 'This feature is coming in V2.');
+  };
+
+  const onOpenChampionsArena = showV2Popup;
+  const onOpenClash = showV2Popup;
+  const onOpenTournamentArena = showV2Popup;
+  const onOpenCoach = showV2Popup;
   const onOpenCoachingCenter = () => router.push('/exercise-library'); // Assuming this maps to coaching hub
   const onOpenWarriorProgram = () => router.push('/warrior-program');
   const onOpenAdmin = () => router.push('/admin-tournament');
-  
+
   const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme, mode } = useTheme();
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
@@ -140,7 +146,7 @@ export function ProfileScreen({
 
   // Edit Profile State
   const [showEditProfile, setShowEditProfile] = useState(false);
-  
+
 
   useEffect(() => {
     if (profile) {
@@ -317,233 +323,235 @@ export function ProfileScreen({
 
   return (
     <GlobalErrorBoundary>
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <ScrollView>
-        <ProfileHeader
-        profile={profile}
-        category={category}
-        activeCurrentTier={activeCurrentTier}
-        mode={mode}
-        theme={theme}
-        wraScore={wraScore}
-        staticPts={staticPts}
-        powerPts={powerPts}
-        mmPts={mmPts}
-        gloryPts={gloryPts}
-        WRA_MAX={WRA_MAX}
-        GLORY_MAX={GLORY_MAX}
-        onShowWarriorModal={() => setShowWarriorModal(true)}
-        onShowCoachPrompt={() => setShowCoachPrompt(true)}
-        onOpenAdmin={onOpenAdmin}
-        onFetchWRALeaderboard={fetchWRALeaderboard}
-        onFetchGloryLeaderboard={fetchGloryLeaderboard}
-        onOpenCoachingCenter={onOpenCoachingCenter}
-        onOpenWarriorProgram={onOpenWarriorProgram}
-      />
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <ScrollView>
+          <ProfileHeader
+            profile={profile}
+            category={category}
+            activeCurrentTier={activeCurrentTier}
+            mode={mode}
+            theme={theme}
+            wraScore={wraScore}
+            staticPts={staticPts}
+            powerPts={powerPts}
+            mmPts={mmPts}
+            gloryPts={gloryPts}
+            WRA_MAX={WRA_MAX}
+            GLORY_MAX={GLORY_MAX}
+            onShowWarriorModal={() => setShowWarriorModal(true)}
+            onShowCoachPrompt={() => setShowCoachPrompt(true)}
+            onOpenAdmin={onOpenAdmin}
+            onFetchWRALeaderboard={fetchWRALeaderboard}
+            onFetchGloryLeaderboard={fetchGloryLeaderboard}
+            onOpenCoachingCenter={onOpenCoachingCenter}
+            onOpenWarriorProgram={onOpenWarriorProgram}
+          />
 
-        {/* Mode Grid - 2 Column Layout */}
-        <WorldSelectorGrid
-          category={category}
-          strengthTier={profile?.strength_tier || 0}
-          mode={mode}
-          theme={theme}
-          onSwitchStrength={() => handleCategorySwitch('strength')}
-          onOpenPowerAssessment={onOpenPowerAssessment}
-          onOpenStaticWorld={onOpenStaticWorld}
-          onOpenOneMinMax={onOpenOneMinMax}
-          onOpenTournamentArena={onOpenTournamentArena}
-          onOpenClash={onOpenClash}
-          onOpenWeeklyChallenge={onOpenWeeklyChallenge}
-          onOpenChampionsArena={onOpenChampionsArena}
-        />
-        <TierSelectorRow
-          category={category}
-          selectedTier={selectedTier}
-          activeCurrentTier={activeCurrentTier}
-          theme={theme}
-          tierScrollRef={tierScrollRef}
-          onSelectTier={setSelectedTier}
-        />
+          {/* Mode Grid - 2 Column Layout */}
+          <WorldSelectorGrid
+            category={category}
+            strengthTier={profile?.strength_tier || 0}
+            mode={mode}
+            theme={theme}
+            onSwitchStrength={() => handleCategorySwitch('strength')}
+            onOpenPowerAssessment={onOpenPowerAssessment}
+            onOpenStaticWorld={onOpenStaticWorld}
+            onOpenOneMinMax={onOpenOneMinMax}
+            onOpenTournamentArena={onOpenTournamentArena}
+            onOpenClash={onOpenClash}
+            onOpenWeeklyChallenge={onOpenWeeklyChallenge}
+            onOpenChampionsArena={onOpenChampionsArena}
+          />
+          <TierSelectorRow
+            category={category}
+            selectedTier={selectedTier}
+            activeCurrentTier={activeCurrentTier}
+            theme={theme}
+            tierScrollRef={tierScrollRef}
+            onSelectTier={setSelectedTier}
+          />
 
-        <StrengthWorldView
-          profile={profile}
-          category={category}
-          selectedTier={selectedTier}
-          activeCurrentTier={activeCurrentTier}
-          isLocked={isLocked}
-          isLowerTier={isLowerTier}
-          tierName={tierName}
-          tierRankData={tierRankData}
-          isMuted={isMuted}
-          mode={mode}
-          theme={theme}
-          onStartTrial={onStartTrial}
-          onOpenPowerAssessment={onOpenPowerAssessment}
-          onViewLeaderboards={onViewLeaderboards}
-          onSignOut={handleSignOut}
-          onSetMuted={setIsMuted}
-          onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
-        />
+          <StrengthWorldView
+            profile={profile}
+            category={category}
+            selectedTier={selectedTier}
+            activeCurrentTier={activeCurrentTier}
+            isLocked={isLocked}
+            isLowerTier={isLowerTier}
+            tierName={tierName}
+            tierRankData={tierRankData}
+            isMuted={isMuted}
+            mode={mode}
+            theme={theme}
+            onStartTrial={onStartTrial}
+            onOpenPowerAssessment={onOpenPowerAssessment}
+            onViewLeaderboards={onViewLeaderboards}
+            onSignOut={handleSignOut}
+            onSetMuted={setIsMuted}
+            onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+          />
 
-      </ScrollView>
+          <DeleteAccountModal />
 
-      {/* Warrior Info Modal */}
-      <Modal
-        animationType="slide"
-        transparent={true}
-        visible={showWarriorModal}
-        onRequestClose={() => setShowWarriorModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
-            <View style={styles.modalHeader}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
-                <TouchableOpacity onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
-                  <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
+        </ScrollView>
+
+        {/* Warrior Info Modal */}
+        <Modal
+          animationType="slide"
+          transparent={true}
+          visible={showWarriorModal}
+          onRequestClose={() => setShowWarriorModal(false)}
+        >
+          <View style={styles.modalOverlay}>
+            <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
+              <View style={styles.modalHeader}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                  <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
+                  <TouchableOpacity onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
+                    <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
+                  </TouchableOpacity>
+                </View>
+                <TouchableOpacity onPress={() => setShowWarriorModal(false)}>
+                  <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity onPress={() => setShowWarriorModal(false)}>
-                <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
-              </TouchableOpacity>
-            </View>
 
-            <View style={styles.warriorInfoList}>
-              <View style={styles.warriorInfoItem}>
-                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>DISPLAY NAME</Text>
-                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.display_name || 'Warrior'}</Text>
+              <View style={styles.warriorInfoList}>
+                <View style={styles.warriorInfoItem}>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>DISPLAY NAME</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.display_name || 'Warrior'}</Text>
+                </View>
+                <View style={styles.warriorInfoItem}>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>EMAIL</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.email}</Text>
+                </View>
+                <View style={styles.warriorInfoItem}>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>JOINED ARENA</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}</Text>
+                </View>
+                <View style={styles.warriorInfoItem}>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>TIMEZONE</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{Intl.DateTimeFormat().resolvedOptions().timeZone}</Text>
+                </View>
               </View>
-              <View style={styles.warriorInfoItem}>
-                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>EMAIL</Text>
-                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.email}</Text>
-              </View>
-              <View style={styles.warriorInfoItem}>
-                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>JOINED ARENA</Text>
-                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.created_at ? new Date(profile.created_at).toLocaleDateString() : 'Unknown'}</Text>
-              </View>
-              <View style={styles.warriorInfoItem}>
-                <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>TIMEZONE</Text>
-                <Text style={[styles.infoValue, { color: theme.text.primary }]}>{Intl.DateTimeFormat().resolvedOptions().timeZone}</Text>
-              </View>
-            </View>
-
-            <TouchableOpacity
-              style={[styles.modalButton, { backgroundColor: theme.accent }]}
-              onPress={() => setShowWarriorModal(false)}
-            >
-              <Text style={styles.modalButtonText}>CLOSE</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-
-      <TierDetailsModal 
-        showTierModal={showTierModal}
-        setShowTierModal={setShowTierModal}
-        modalTier={modalTier}
-        category={category}
-        activeCurrentTier={activeCurrentTier}
-        onOpenPowerAssessment={onOpenPowerAssessment}
-        onStartTrial={onStartTrial}
-      />
-
-      {/* World Switching Overlay - Modern Design */}
-      {isSwitchingWorld && (
-        <View style={[styles.switchingOverlay, { backgroundColor: theme.background.primary }]}>
-          <View style={styles.worldTransition}>
-            {/* From World */}
-            <View style={[styles.worldBlock, { opacity: 0.3 }]}>
-              <Text style={styles.worldBlockIcon}>
-                {category === 'strength' ? '⚔️' : '⚡'}
-              </Text>
-              <Text style={[styles.worldBlockName, { color: theme.text.tertiary }]}>
-                {category === 'strength' ? 'STRENGTH' : 'POWER'}
-              </Text>
-            </View>
-
-            {/* To World */}
-            <View style={[styles.worldBlock, styles.worldBlockActive]}>
-              <View style={[styles.worldBlockGlow, { shadowColor: theme.accent }]} />
-              <Text style={styles.worldBlockIconLarge}>
-                {category === 'strength' ? '⚡' : '⚔️'}
-              </Text>
-              <Text style={[styles.worldBlockNameLarge, { color: theme.accent }]}>
-                {category === 'strength' ? 'POWER WORLD' : 'STRENGTH WORLD'}
-              </Text>
-              <Text style={[styles.worldBlockSubtitle, { color: theme.text.secondary }]}>
-                Entering...
-              </Text>
-            </View>
-
-            {/* Progress Bar */}
-            <View style={styles.progressContainer}>
-              <View style={[styles.progressBar, { backgroundColor: theme.card.background }]}>
-                <View style={[styles.progressFill, { backgroundColor: theme.accent, width: showLevelReveal ? '60%' : '90%' }]} />
-              </View>
-              <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
-                {showLevelReveal ? 'Preparing transition...' : 'Loading world data...'}
-              </Text>
-            </View>
-          </View>
-        </View>
-      )}
-      <LeaderboardModals 
-        showWRALeaderboard={showWRALeaderboard}
-        setShowWRALeaderboard={setShowWRALeaderboard}
-        showGloryLeaderboard={showGloryLeaderboard}
-        setShowGloryLeaderboard={setShowGloryLeaderboard}
-        loadingLB={loadingLB}
-        genderFilter={genderFilter}
-        setGenderFilter={setGenderFilter}
-        filteredWraLeaderboard={filteredWraLeaderboard}
-        filteredGloryLeaderboard={filteredGloryLeaderboard}
-      />
-
-      {/* AI COACH PROMPT MODAL */}
-      <Modal
-        visible={showCoachPrompt}
-        transparent
-        animationType="fade"
-        onRequestClose={() => setShowCoachPrompt(false)}
-      >
-        <View style={styles.coachPromptOverlay}>
-          <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-          <View style={[styles.coachPromptCard, { backgroundColor: theme.card.background, borderColor: theme.accent + '40' }]}>
-            <View style={[styles.coachPromptIconCircle, { backgroundColor: theme.accent + '15' }]}>
-              <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
-            </View>
-
-            <Text style={[styles.coachPromptTitle, { color: theme.text.primary }]}>LEAP COACH</Text>
-            <Text style={[styles.coachPromptText, { color: theme.text.secondary }]}>
-              Want to ask coach LEAP for guidance?
-            </Text>
-
-            <View style={styles.coachPromptButtons}>
-              <TouchableOpacity
-                style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]}
-                onPress={() => setShowCoachPrompt(false)}
-              >
-                <Text style={[styles.coachPromptBtnText, { color: theme.text.tertiary }]}>NOT NOW</Text>
-              </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]}
-                onPress={() => {
-                  setShowCoachPrompt(false);
-                  onOpenCoach?.();
-                }}
+                style={[styles.modalButton, { backgroundColor: theme.accent }]}
+                onPress={() => setShowWarriorModal(false)}
               >
-                <Text style={[styles.coachPromptBtnText, { color: '#000' }]}>ASK LEAP</Text>
+                <Text style={styles.modalButtonText}>CLOSE</Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      {/* EDIT PROFILE MODAL */}
-      <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
+        <TierDetailsModal
+          showTierModal={showTierModal}
+          setShowTierModal={setShowTierModal}
+          modalTier={modalTier}
+          category={category}
+          activeCurrentTier={activeCurrentTier}
+          onOpenPowerAssessment={onOpenPowerAssessment}
+          onStartTrial={onStartTrial}
+        />
 
-    </View>
+        {/* World Switching Overlay - Modern Design */}
+        {isSwitchingWorld && (
+          <View style={[styles.switchingOverlay, { backgroundColor: theme.background.primary }]}>
+            <View style={styles.worldTransition}>
+              {/* From World */}
+              <View style={[styles.worldBlock, { opacity: 0.3 }]}>
+                <Text style={styles.worldBlockIcon}>
+                  {category === 'strength' ? '⚔️' : '⚡'}
+                </Text>
+                <Text style={[styles.worldBlockName, { color: theme.text.tertiary }]}>
+                  {category === 'strength' ? 'STRENGTH' : 'POWER'}
+                </Text>
+              </View>
+
+              {/* To World */}
+              <View style={[styles.worldBlock, styles.worldBlockActive]}>
+                <View style={[styles.worldBlockGlow, { shadowColor: theme.accent }]} />
+                <Text style={styles.worldBlockIconLarge}>
+                  {category === 'strength' ? '⚡' : '⚔️'}
+                </Text>
+                <Text style={[styles.worldBlockNameLarge, { color: theme.accent }]}>
+                  {category === 'strength' ? 'POWER WORLD' : 'STRENGTH WORLD'}
+                </Text>
+                <Text style={[styles.worldBlockSubtitle, { color: theme.text.secondary }]}>
+                  Entering...
+                </Text>
+              </View>
+
+              {/* Progress Bar */}
+              <View style={styles.progressContainer}>
+                <View style={[styles.progressBar, { backgroundColor: theme.card.background }]}>
+                  <View style={[styles.progressFill, { backgroundColor: theme.accent, width: showLevelReveal ? '60%' : '90%' }]} />
+                </View>
+                <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
+                  {showLevelReveal ? 'Preparing transition...' : 'Loading world data...'}
+                </Text>
+              </View>
+            </View>
+          </View>
+        )}
+        <LeaderboardModals
+          showWRALeaderboard={showWRALeaderboard}
+          setShowWRALeaderboard={setShowWRALeaderboard}
+          showGloryLeaderboard={showGloryLeaderboard}
+          setShowGloryLeaderboard={setShowGloryLeaderboard}
+          loadingLB={loadingLB}
+          genderFilter={genderFilter}
+          setGenderFilter={setGenderFilter}
+          filteredWraLeaderboard={filteredWraLeaderboard}
+          filteredGloryLeaderboard={filteredGloryLeaderboard}
+        />
+
+        {/* AI COACH PROMPT MODAL */}
+        <Modal
+          visible={showCoachPrompt}
+          transparent
+          animationType="fade"
+          onRequestClose={() => setShowCoachPrompt(false)}
+        >
+          <View style={styles.coachPromptOverlay}>
+            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
+            <View style={[styles.coachPromptCard, { backgroundColor: theme.card.background, borderColor: theme.accent + '40' }]}>
+              <View style={[styles.coachPromptIconCircle, { backgroundColor: theme.accent + '15' }]}>
+                <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
+              </View>
+
+              <Text style={[styles.coachPromptTitle, { color: theme.text.primary }]}>LEAP COACH</Text>
+              <Text style={[styles.coachPromptText, { color: theme.text.secondary }]}>
+                Want to ask coach LEAP for guidance?
+              </Text>
+
+              <View style={styles.coachPromptButtons}>
+                <TouchableOpacity
+                  style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]}
+                  onPress={() => setShowCoachPrompt(false)}
+                >
+                  <Text style={[styles.coachPromptBtnText, { color: theme.text.tertiary }]}>NOT NOW</Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]}
+                  onPress={() => {
+                    setShowCoachPrompt(false);
+                    onOpenCoach?.();
+                  }}
+                >
+                  <Text style={[styles.coachPromptBtnText, { color: '#000' }]}>ASK LEAP</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+
+        {/* EDIT PROFILE MODAL */}
+        <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
+
+      </View>
       <OnboardingTutorialScreen
         visible={showOnboarding}
         strengthTier={profile?.strength_tier ?? 0}

@@ -49,10 +49,7 @@ export function WorldSelectorGrid({
     { id: 'power',      name: 'POWER',      icon: '⚡', unlockTier: 6, action: onOpenPowerAssessment },
     { id: 'static',     name: 'STATIC',     icon: '🧊', unlockTier: 1, action: onOpenStaticWorld },
     { id: '1mm',        name: '1MM',        icon: '⏱️', unlockTier: 0, action: onOpenOneMinMax },
-    { id: 'tournament', name: 'TOURNAMENT', icon: '🏟️', unlockTier: 0, action: onOpenTournamentArena },
-    { id: 'clash',      name: 'CLASH',      icon: '🔥', unlockTier: 2, action: onOpenClash },
     { id: 'weekly',     name: 'WEEKLY',     icon: '🏆', unlockTier: 0, action: onOpenWeeklyChallenge },
-    { id: 'champions',  name: 'CHAMPIONS',  icon: '🏛️', unlockTier: 8, action: onOpenChampionsArena },
   ];
 
   return (
@@ -101,7 +98,7 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   worldPillCompact: {
-    width: '23%',
+    width: '30%',
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 6,

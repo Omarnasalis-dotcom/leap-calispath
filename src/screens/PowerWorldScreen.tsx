@@ -116,7 +116,10 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
   const handleSaveWeight = async () => {
     if (!user || !selectedMovement || !manualInput || saving) return;
     const kg = parseFloat(manualInput);
-    if (isNaN(kg) || kg < 0) return;
+    if (isNaN(kg) || kg <= 0 || kg > 500) {
+      Alert.alert('Invalid', 'Please enter a valid weight (0.1 - 500 kg).');
+      return;
+    }
 
     setSaving(true);
     try {

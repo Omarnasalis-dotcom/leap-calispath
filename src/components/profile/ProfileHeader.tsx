@@ -57,16 +57,8 @@ export function ProfileHeader({
   return (
     <>
       {/* Coach + Admin Buttons - Grouped Top Left */}
-      <View style={{ position: 'absolute', top: 54, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-        <TouchableOpacity
-          activeOpacity={0.7}
-          onPress={onShowCoachPrompt}
-        >
-          <View style={[styles.coachBadge, { backgroundColor: theme.accent + '15', borderColor: theme.accent + '40', height: 24, paddingHorizontal: 6 }]}>
-            <MaterialCommunityIcons name="brain" size={12} color={theme.accent} />
-            <Text style={[styles.coachBadgeText, { color: theme.accent, fontSize: 8 }]}>COACH</Text>
-          </View>
-        </TouchableOpacity>
+      <View style={{ position: 'absolute', top: 12, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+
 
         {profile?.is_admin && (
           <TouchableOpacity
@@ -89,7 +81,7 @@ export function ProfileHeader({
       </View>
 
       {/* Access Status - Upper Center */}
-      <View style={{ position: 'absolute', top: 60, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
+      <View style={{ position: 'absolute', top: 16, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
         <Text style={{
           color: theme.text.tertiary,
           fontSize: 8,
@@ -175,7 +167,7 @@ export function ProfileHeader({
             {(category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || 'UNKNOWN'}
           </Text>
           <Text style={[styles.arcTierProgress, { color: theme.text.tertiary }]}>
-            {activeCurrentTier === 8 ? 'Maximum rank — Eternity' : `Tier ${activeCurrentTier} of 8`}
+            {activeCurrentTier >= 9 ? 'Maximum rank — Eternity' : `Tier ${activeCurrentTier} of 9`}
           </Text>
 
           {/* Score Bars */}
@@ -204,21 +196,6 @@ export function ProfileHeader({
                 { label: 'Static', value: staticPts, color: '#9FC5E8' },
                 { label: 'Power', value: powerPts, color: '#FF5722' },
                 { label: '1MM', value: mmPts, color: '#4CAF50' },
-              ]}
-            />
-            <ScoreBar
-              title="🏆 Glory Arena"
-              subtitle="Competitive Clash Performance"
-              score={gloryPts}
-              rank="Arena Ranks →"
-              max={GLORY_MAX}
-              color="#FF5252"
-              onPress={onFetchGloryLeaderboard}
-              showCrown={gloryPts > 0}
-              mode={mode}
-              cardBackground={theme.card.background}
-              chips={[
-                { label: 'Glory pts', value: gloryPts, color: '#FF5252' },
               ]}
             />
           </View>
@@ -292,7 +269,7 @@ export function ProfileHeader({
 const styles = StyleSheet.create({
   header: {
     padding: 24,
-    paddingTop: 60,
+    paddingTop: 36,
     alignItems: 'center',
     marginBottom: 16,
   },

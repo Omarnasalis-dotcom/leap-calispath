@@ -13,6 +13,7 @@ import {
   Modal,
   SafeAreaView,
   FlatList,
+  Linking,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -370,6 +371,23 @@ export function AuthScreen() {
                 onPress={handleSubmit} 
                 loading={loading}
               />
+
+              {isSignUp && (
+                <TouchableOpacity onPress={() => Linking.openURL('https://leap-arena.com/privacy')}>
+                  <Text style={{
+                    color: '#666',
+                    fontSize: 11,
+                    textAlign: 'center',
+                    marginTop: 16,
+                    letterSpacing: 0.5,
+                  }}>
+                    By signing up, you agree to our{' '}
+                    <Text style={{ color: '#CD7F32', textDecorationLine: 'underline' }}>
+                      Privacy Policy
+                    </Text>
+                  </Text>
+                </TouchableOpacity>
+              )}
 
               <TouchableOpacity style={styles.switchLink} onPress={() => setIsSignUp(!isSignUp)}>
                 <Text style={[styles.switchText, { color: theme.text.tertiary }]}>

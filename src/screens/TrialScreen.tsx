@@ -19,21 +19,12 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
+import { TIER_HARD_FLOORS } from '../constants/Progression';
 
 import { TrialService } from '../services/TrialService';
 import { useTimer } from '../hooks/useTimer';
 
-const TIER_HARD_FLOORS: Record<number, number> = {
-  0: 25,
-  1: 90,
-  2: 150,
-  3: 180,
-  4: 200,
-  5: 220,
-  6: 250,
-  7: 360,
-  8: 480,
-};
+
 
 type TrialMode = 'progression' | 'practice' | 'eternal';
 

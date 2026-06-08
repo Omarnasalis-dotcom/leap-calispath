@@ -48,7 +48,7 @@ export function TierDetailsModal({
             <View style={styles.modalHeader}>
               <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
                 <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {modalTier !== null ? (category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]).toUpperCase() : 'TIER'}
+                  {modalTier !== null ? ((category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]) || 'UNKNOWN').toUpperCase() : 'TIER'}
                 </Text>
               </View>
               <TouchableOpacity

@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { View } from 'react-native';
 import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
@@ -9,9 +9,9 @@ SplashScreen.preventAutoHideAsync();
 
 // Global guard: Strip all console logs in production to prevent data leaks
 if (!__DEV__) {
-  console.log = () => {};
-  console.warn = () => {};
-  console.info = () => {};
+  console.log = () => { };
+  console.warn = () => { };
+  console.info = () => { };
 }
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
@@ -22,45 +22,48 @@ import { LeapLogo } from '../src/components/LeapLogo';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 
-let isSplashHidden = false;
-
-
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
-  const { user, profile, loading, hasSeenOnboarding, needsPasswordReset } = useAuth();
+  const { user, profile, loading, profileLoading, needsPasswordReset } = useAuth();
   const segments = useSegments();
+  const splashHiddenRef = useRef(false);
 
-  console.log('[AuthGuard Diagnostic]', {
-    segments,
-    userId: user?.id,
-    profileLoaded: !!profile,
-    assessedAt: profile?.assessed_at,
-    loading,
-    hasSeenOnboarding,
-    needsPasswordReset
-  });
+  if (__DEV__) {
+    console.log('[AuthGuard Diagnostic]', {
+      segments,
+      userId: user?.id,
+      profileLoaded: !!profile,
+      assessedAt: profile?.assessed_at,
+      loading,
+      needsPasswordReset
+    });
+  }
 
   useEffect(() => {
-    if (loading || hasSeenOnboarding === null) return;
+    if (loading || profileLoading) return;
     if (user && !profile) return;
 
     // Auth and Onboarding state is resolved. We can now hide the native splash screen.
-    if (!isSplashHidden) {
-      SplashScreen.hideAsync().catch(() => {});
-      isSplashHidden = true;
+    if (!splashHiddenRef.current) {
+      SplashScreen.hideAsync().catch(() => { });
+      splashHiddenRef.current = true;
     }
-  }, [user, profile, loading, hasSeenOnboarding]);
+  }, [user, profile, loading, profileLoading]);
 
-  if (loading || hasSeenOnboarding === null) {
-    // Return null because the native splash screen is covering the view
-    return null;
+  if (loading || (profileLoading && !profile)) {
+    // If the native splash screen hides early in dev, this ensures they see the logo
+    return (
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+        <LeapLogo size={120} animated />
+      </View>
+    );
   }
 
   // 1. Wait for profile to load in the background if logged in
   if (user && !profile) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
-        <LeapLogo size={40} animated />
+        <LeapLogo size={120} animated />
       </View>
     );
   }
@@ -78,10 +81,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // 3. Prevent rendering children and redirect for unauthenticated users accessing locked routes
   if (!user) {
-    if (!hasSeenOnboarding && !inOnboarding) {
-      return <Redirect href="/onboarding" />;
-    }
-    if (hasSeenOnboarding && !inAuthGroup) {
+    if (!inAuthGroup) {
       return <Redirect href="/auth" />;
     }
   } else {
@@ -102,9 +102,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const strengthTier = profile?.strength_tier || 0;
   const tierLocks: Record<string, number> = {
     'static-world': 1,
-    'power-world': 6,
-    'clash': 2,
-    'champions-arena': 8
+    'power-world': 6
   };
   const currentRoute = segments[0];
   if (user && profile?.assessed_at && currentRoute && tierLocks[currentRoute] !== undefined) {
