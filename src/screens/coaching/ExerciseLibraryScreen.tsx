@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -423,7 +423,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   const canAdd = isAdmin || isCoach;
 
   // Render Exercise Item for FlatList
-  const renderExercise = ({ item: ex }: { item: Exercise }) => {
+  const renderExercise = useCallback(({ item: ex }: { item: Exercise }) => {
     const isOwner = ex.created_by === user?.id;
     const showDelete = isAdmin || (isCoach && isOwner);
 
@@ -565,7 +565,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
         </View>
       </LinearGradient>
     );
-  };
+  }, [isAdmin, isCoach, user?.id, solidCardBg, theme, handleOpenVideo, handleStartEdit, handleDeleteExercise]);
 
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>

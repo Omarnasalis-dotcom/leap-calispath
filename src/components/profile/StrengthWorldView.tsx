@@ -34,6 +34,7 @@ interface StrengthWorldViewProps {
   onSignOut: () => void;
   onSetMuted: (muted: boolean) => void;
   onShowTierModal: (tier: number) => void;
+  toggleTheme?: () => void;
 }
 
 export function StrengthWorldView({
@@ -54,7 +55,9 @@ export function StrengthWorldView({
   onSignOut,
   onSetMuted,
   onShowTierModal,
+  toggleTheme,
 }: StrengthWorldViewProps) {
+  const isDark = mode === 'dark';
   return (
     <>
       {/* Next Step Banner */}
@@ -255,6 +258,25 @@ export function StrengthWorldView({
           <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
             LEAVE THE ARENA
           </Text>
+        </TouchableOpacity>
+
+        {/* Theme Toggle Row */}
+        <TouchableOpacity
+          style={[styles.signOutButtonSmall, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}
+          onPress={toggleTheme}
+        >
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <MaterialCommunityIcons name="theme-light-dark" size={16} color={theme.text.tertiary} />
+            <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
+              DARK MODE
+            </Text>
+          </View>
+          <MaterialCommunityIcons
+            name={isDark ? "toggle-switch" : "toggle-switch-off"}
+            size={24}
+            color={isDark ? theme.accent : theme.text.tertiary}
+            style={{ marginTop: -2 }}
+          />
         </TouchableOpacity>
       </View>
     </>

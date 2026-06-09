@@ -70,29 +70,36 @@ export function DeleteAccountModal() {
 
   return (
     <>
-      <View style={{ marginTop: 40, marginBottom: 32, alignItems: 'center' }}>
-        <TouchableOpacity
-          onPress={() => {
-            setDeletePassword('');
-            setDeleteError('');
-            setShowDeleteModal(true);
-          }}
-          style={{
-            paddingVertical: 12,
-            paddingHorizontal: 24,
-          }}
-        >
-          <Text style={{
-            color: '#e24b4a',
-            fontSize: 14,
-            fontWeight: '600',
-            textDecorationLine: 'underline',
-            letterSpacing: 0.5,
-          }}>
-            Delete Account
+      <TouchableOpacity
+        onPress={() => {
+          setDeletePassword('');
+          setDeleteError('');
+          setShowDeleteModal(true);
+        }}
+        style={{
+          marginHorizontal: 16,
+          marginTop: 24,
+          marginBottom: 32,
+          padding: 16,
+          borderRadius: 10,
+          borderWidth: 1,
+          borderColor: 'rgba(226,75,74,0.3)',
+          backgroundColor: 'rgba(226,75,74,0.05)',
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: 12,
+        }}
+      >
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: '#e24b4a', fontSize: 13, fontWeight: '700', letterSpacing: 1 }}>
+            DELETE ACCOUNT
           </Text>
-        </TouchableOpacity>
-      </View>
+          <Text style={{ color: 'rgba(226,75,74,0.6)', fontSize: 11, marginTop: 2 }}>
+            Permanently removes all your data
+          </Text>
+        </View>
+        <Text style={{ color: 'rgba(226,75,74,0.4)', fontSize: 16 }}>›</Text>
+      </TouchableOpacity>
 
       <Modal
         visible={showDeleteModal}

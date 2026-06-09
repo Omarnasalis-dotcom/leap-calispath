@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProgramBlock, SelectedExercise } from '../../hooks/coaching/useProgramBuilder';
@@ -46,6 +46,29 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
   handleOpenCopyModal,
   handleDeleteBlockFromDay,
 }) => {
+  const [localBlockName, setLocalBlockName] = useState(block.name);
+  const [localBlockNotes, setLocalBlockNotes] = useState(block.notes);
+
+  useEffect(() => {
+    setLocalBlockName(block.name);
+  }, [block.name]);
+
+  useEffect(() => {
+    setLocalBlockNotes(block.notes);
+  }, [block.notes]);
+
+  const handleNameBlur = () => {
+    if (localBlockName !== block.name) {
+      handleUpdateBlockValue(dayId, block.id, 'name', localBlockName);
+    }
+  };
+
+  const handleNotesBlur = () => {
+    if (localBlockNotes !== block.notes) {
+      handleUpdateBlockValue(dayId, block.id, 'notes', localBlockNotes);
+    }
+  };
+
   return (
     <LinearGradient
       colors={['#7E57C2', '#FF5252', '#FF7043']}
@@ -68,8 +91,10 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
             <View style={{ flex: 1 }}>
               <TextInput
                 style={[styles.blockTitleInput, { color: theme.text.primary }]}
-                value={block.name}
-                onChangeText={(val) => handleUpdateBlockValue(dayId, block.id, 'name', val)}
+                value={localBlockName}
+                onChangeText={setLocalBlockName}
+                onBlur={handleNameBlur}
+                onEndEditing={handleNameBlur}
                 placeholder="BLOCK NAME (E.G. WARM-UP)"
                 placeholderTextColor="rgba(255, 255, 255, 0.25)"
               />
@@ -112,8 +137,10 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
             <View style={{ paddingVertical: 12 }}>
               <TextInput
                 style={[styles.blockNotesInput, { color: theme.text.secondary, borderColor: theme.card.border }]}
-                value={block.notes}
-                onChangeText={(val) => handleUpdateBlockValue(dayId, block.id, 'notes', val)}
+                value={localBlockNotes}
+                onChangeText={setLocalBlockNotes}
+                onBlur={handleNotesBlur}
+                onEndEditing={handleNotesBlur}
                 placeholder="Warm up instructions, block objectives, or performance notes..."
                 placeholderTextColor="rgba(255, 255, 255, 0.2)"
                 multiline={true}

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ProgramDay, ProgramBlock } from '../../hooks/coaching/useProgramBuilder';
@@ -67,6 +67,18 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
   handleOpenCopyDayModal,
   handleDeleteBlockFromDay,
 }) => {
+  const [localDayName, setLocalDayName] = useState(day.name);
+
+  useEffect(() => {
+    setLocalDayName(day.name);
+  }, [day.name]);
+
+  const handleBlur = () => {
+    if (localDayName !== day.name) {
+      handleUpdateDayName(day.id, localDayName);
+    }
+  };
+
   return (
     <LinearGradient
       colors={['#7E57C2', '#FF5252', '#FF7043']}
@@ -100,8 +112,10 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
                   color: theme.text.primary,
                   paddingVertical: 4,
                 }}
-                value={day.name.toUpperCase()}
-                onChangeText={(val) => handleUpdateDayName(day.id, val)}
+                value={(localDayName || '').toUpperCase()}
+                onChangeText={setLocalDayName}
+                onBlur={handleBlur}
+                onEndEditing={handleBlur}
                 placeholder="DAY NAME (E.G. SATURDAY)"
                 placeholderTextColor="rgba(255, 255, 255, 0.25)"
                 editable={!useWeeklyStructure}

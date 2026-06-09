@@ -49,6 +49,9 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { useRouter, router } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 
+// Module-level cache to track users who have already synced their points during the app session
+const syncedUserIds = new Set<string>();
+
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
@@ -84,7 +87,7 @@ export function ProfileScreen({
   const onOpenAdmin = () => router.push('/admin-tournament');
 
   const { profile, signOut, user, refreshProfile } = useAuth();
-  const { theme, mode } = useTheme();
+  const { theme, mode, toggleTheme } = useTheme();
   const hasSyncedOnMount = useRef(false);
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
@@ -221,11 +224,12 @@ export function ProfileScreen({
   }
 
   useEffect(() => {
-    if (hasSyncedOnMount.current) return;
+    if (hasSyncedOnMount.current || (profile?.id && syncedUserIds.has(profile.id))) return;
 
     async function syncAllPoints() {
       if (!profile?.id) return;
       hasSyncedOnMount.current = true;
+      syncedUserIds.add(profile.id);
 
       try {
         let syncedAny = false;
@@ -393,6 +397,7 @@ export function ProfileScreen({
             onSignOut={handleSignOut}
             onSetMuted={setIsMuted}
             onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+            toggleTheme={toggleTheme}
           />
 
           <DeleteAccountModal />

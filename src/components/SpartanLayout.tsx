@@ -4,7 +4,6 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '../contexts/ThemeContext';
-import { ThemeToggle } from '../../components/ThemeToggle';
 
 interface SpartanLayoutProps {
   children: React.ReactNode;
@@ -41,7 +40,6 @@ export function SpartanLayout({ children, hideToggle }: SpartanLayoutProps) {
           <Text style={styles.offlineText}>NO CONNECTION — RESULTS WON'T SAVE</Text>
         </View>
       )}
-      {!hideToggle && <ThemeToggle />}
       <View style={[styles.content, {
         paddingTop: insets.top,
         paddingBottom: insets.bottom

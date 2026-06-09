@@ -14,6 +14,8 @@ interface InputProps {
   id?: string;
   name?: string;
   autoComplete?: 'email' | 'current-password' | 'new-password' | 'name' | 'username' | 'off';
+  onBlur?: () => void;
+  onEndEditing?: () => void;
 }
 
 export function Input({
@@ -28,6 +30,8 @@ export function Input({
   id,
   name,
   autoComplete,
+  onBlur,
+  onEndEditing,
 }: InputProps) {
   const { theme } = useTheme();
   // Default autoCapitalize based on keyboardType if not specified
@@ -54,6 +58,8 @@ export function Input({
         keyboardType={keyboardType}
         autoCapitalize={autoCap}
         nativeID={id}
+        onBlur={onBlur}
+        onEndEditing={onEndEditing}
         {...(Platform.OS === 'web' && {
           id: id || name,
           name: name || id,

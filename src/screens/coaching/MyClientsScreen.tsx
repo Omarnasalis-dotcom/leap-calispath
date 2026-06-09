@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -290,11 +290,14 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
   };
 
   // Filter Warriors based on search query AND exclude clients already in active roster
-  const activeWarriorIds = new Set(assignments.map(a => a.warrior_id));
-  const filteredWarriors = warriors.filter(w =>
-    !activeWarriorIds.has(w.id) &&
-    (w.display_name || '').toLowerCase().includes(searchWarrior.toLowerCase())
-  );
+  const activeWarriorIds = useMemo(() => new Set(assignments.map(a => a.warrior_id)), [assignments]);
+  const filteredWarriors = useMemo(() => {
+    const query = searchWarrior.toLowerCase();
+    return warriors.filter(w =>
+      !activeWarriorIds.has(w.id) &&
+      (w.display_name || '').toLowerCase().includes(query)
+    );
+  }, [warriors, activeWarriorIds, searchWarrior]);
 
   return (
     <KeyboardAvoidingView
