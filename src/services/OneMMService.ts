@@ -1,6 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { calculateOneMMPoints, ONEMM_MOVEMENTS, ONEMM_CATEGORIES } from '../lib/oneMMLogic';
 
+// Module-level cache — persists for the app session
+let cachedOneMMStats: { userId: string; stats: OneMMUserStats; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export interface OneMMRanking {
   user_id: string;
   display_name: string;
@@ -21,9 +25,16 @@ export const OneMMService = {
    * Fetches user's 1MM personal bests and current rankings
    */
   async getUserStats(userId: string): Promise<OneMMUserStats> {
+    // Return cached data if fresh
+    if (cachedOneMMStats && 
+        cachedOneMMStats.userId === userId && 
+        Date.now() - cachedOneMMStats.timestamp < CACHE_TTL) {
+      return cachedOneMMStats.stats;
+    }
+
     const { data: logs, error } = await supabase
       .from('one_min_max_logs')
-      .select('*')
+      .select('id, user_id, movement_id, reps, points')
       .eq('user_id', userId);
 
     if (error) throw error;
@@ -69,20 +80,27 @@ export const OneMMService = {
     });
     await Promise.all(rankPromises);
 
-    // Global Overall Rank from Peak-based Leaderboard
+    const statsObj = { pbs, totalPoints, ranks };
+    cachedOneMMStats = { userId, stats: statsObj, timestamp: Date.now() };
+    return statsObj;
+  },
+
+  async getGloryRank(userId: string, totalPoints: number): Promise<number> {
     try {
       const { data: lbData } = await supabase.rpc('get_onemm_well_rounded_leaderboard');
       const personalEntry = (lbData || []).find((e: any) => e.u_id === userId);
-      ranks['glory'] = personalEntry ? Number(personalEntry.rnk) : 0;
+      return personalEntry ? Number(personalEntry.rnk) : 0;
     } catch (e) {
-      const { count: gloryCount } = await supabase
+      const { count } = await supabase
         .from('profiles')
         .select('*', { count: 'exact', head: true })
         .gt('one_mm_points', totalPoints);
-      ranks['glory'] = (gloryCount || 0) + 1;
+      return (count || 0) + 1;
     }
+  },
 
-    return { pbs, totalPoints, ranks };
+  invalidateCache() {
+    cachedOneMMStats = null;
   },
 
   /**
@@ -140,6 +158,8 @@ export const OneMMService = {
     // Sync 1MM points server-side via RPC
     const { error: rpcErr } = await supabase.rpc('sync_onemm_points', { p_user_id: userId });
     if (rpcErr) throw rpcErr;
+
+    OneMMService.invalidateCache();
 
     return { isNewPB };
   },

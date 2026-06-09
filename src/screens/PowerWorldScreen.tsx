@@ -19,6 +19,7 @@ import { CelebrationBanner } from '../components/CelebrationBanner';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
+import { Skeleton } from '../components/Skeleton';
 
 
 const { width } = Dimensions.get('window');
@@ -28,7 +29,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
   const { user, profile, refreshProfile } = useAuth();
   
   const [stats, setStats] = useState<PowerUserStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<'dashboard' | 'leaderboard'>('dashboard');
   const [selectedLevel, setSelectedLevel] = useState<number>(1);
@@ -224,6 +225,61 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       <View style={{ width: 40 }} />
     </View>
   );
+
+  const renderSkeleton = () => {
+    return (
+      <View style={styles.dashboard}>
+        <View style={{ alignItems: 'center', marginBottom: 15, marginTop: 10 }}>
+          <Skeleton width={100} height={12} borderRadius={4} />
+        </View>
+
+        <View style={[styles.heroRow, { justifyContent: 'space-around', alignItems: 'center', marginBottom: 20 }]}>
+          <Skeleton width={90} height={90} borderRadius={45} />
+          <Skeleton width={110} height={110} borderRadius={55} />
+          <Skeleton width={90} height={90} borderRadius={45} />
+        </View>
+
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <Skeleton width={150} height={16} borderRadius={4} />
+        </View>
+
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20, gap: 10 }}>
+          <Skeleton width={90} height={32} borderRadius={16} />
+          <Skeleton width={70} height={32} borderRadius={16} />
+          <Skeleton width={70} height={32} borderRadius={16} />
+        </View>
+
+        <View style={[styles.peakGrid, { paddingHorizontal: 16 }]}>
+          {Array.from({ length: 4 }).map((_, idx) => (
+            <View key={idx} style={[styles.peakItem, { alignItems: 'center', marginVertical: 10 }]}>
+              <Skeleton width={60} height={60} borderRadius={30} style={{ marginBottom: 8 }} />
+              <Skeleton width={75} height={12} borderRadius={4} />
+            </View>
+          ))}
+        </View>
+
+        <View style={{
+          marginTop: 20,
+          padding: 24,
+          borderRadius: 24,
+          backgroundColor: 'rgba(255, 82, 82, 0.05)',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 82, 82, 0.1)',
+          marginHorizontal: 16,
+          gap: 12
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Skeleton width={28} height={28} borderRadius={14} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Skeleton width="80%" height={16} borderRadius={4} />
+              <Skeleton width="50%" height={12} borderRadius={4} />
+            </View>
+          </View>
+          <Skeleton width="100%" height={8} borderRadius={4} />
+        </View>
+      </View>
+    );
+  };
 
   const renderDashboard = () => {
     if (!stats) return null;
@@ -432,7 +488,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {renderDashboard()}
+        {loading || !stats ? renderSkeleton() : renderDashboard()}
       </ScrollView>
 
       {/* LOG MODAL */}

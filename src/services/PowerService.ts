@@ -1,6 +1,10 @@
 import { supabase } from '../lib/supabase';
 import { calculateTotalPowerScore, getPowerLevel, POWER_LEVELS } from '../lib/powerLogic';
 
+// Module-level cache — persists for the app session
+let cachedPowerStats: { userId: string; stats: PowerUserStats; timestamp: number } | null = null;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
 export interface PowerMovementRanking {
   user_id: string;
   display_name: string;
@@ -23,9 +27,16 @@ export const PowerService = {
    * Fetches the user's Power PBs and calculated ranks
    */
   async getUserStats(userId: string): Promise<PowerUserStats> {
+    // Return cached data if fresh
+    if (cachedPowerStats && 
+        cachedPowerStats.userId === userId && 
+        Date.now() - cachedPowerStats.timestamp < CACHE_TTL) {
+      return cachedPowerStats.stats;
+    }
+
     const { data: pbs, error } = await supabase
       .from('power_assessments')
-      .select('*')
+      .select('pullup_1rm, dip_1rm, squat_1rm, muscleup_1rm')
       .eq('user_id', userId)
       .maybeSingle();
 
@@ -46,7 +57,7 @@ export const PowerService = {
     const movements = ['pullup_1rm', 'dip_1rm', 'squat_1rm', 'muscleup_1rm'];
 
     const rankPromises = movements.map(async (field) => {
-      const val = pbs?.[field] || 0;
+      const val = (pbs as any)?.[field] || 0;
       let key = field.replace('_1rm', '');
       if (key === 'pullup') key = 'pull_up';
       if (key === 'muscleup') key = 'muscle_up';
@@ -70,7 +81,13 @@ export const PowerService = {
       .gt('power_points', totalPoints);
     ranks['glory'] = (gloryCount || 0) + 1;
 
-    return { pbs: pbMap, totalPoints, level, ranks };
+    const statsObj = { pbs: pbMap, totalPoints, level, ranks };
+    cachedPowerStats = { userId, stats: statsObj, timestamp: Date.now() };
+    return statsObj;
+  },
+
+  invalidateCache() {
+    cachedPowerStats = null;
   },
 
   /**
@@ -210,6 +227,8 @@ export const PowerService = {
       // Sync power points server-side via RPC
       const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: userId });
       if (rpcErr) throw rpcErr;
+
+      PowerService.invalidateCache();
 
       return { isNewPB, isPromotion };
     }

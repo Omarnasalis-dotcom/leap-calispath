@@ -17,6 +17,7 @@ import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMSer
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
+import { Skeleton } from '../components/Skeleton';
 
 
 const { width } = Dimensions.get('window');
@@ -26,7 +27,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const { user, profile } = useAuth();
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'entry' | 'main' | 'advanced'>('overall');
   const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'entry' | 'main' | 'advanced'>('entry');
@@ -56,9 +57,13 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     try {
       const s = await OneMMService.getUserStats(user.id);
       setStats(s);
+      setLoading(false);
+      setRefreshing(false);
+
+      const rank = await OneMMService.getGloryRank(user.id, s.totalPoints);
+      setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: rank } } : prev);
     } catch (error) {
       console.error('Fetch 1MM error:', error);
-    } finally {
       setLoading(false);
       setRefreshing(false);
     }
@@ -202,6 +207,62 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       <View style={{ width: 40 }} />
     </View>
   );
+
+  const renderSkeleton = () => {
+    return (
+      <View style={styles.dashboard}>
+        <View style={{ alignItems: 'center', marginBottom: 15, marginTop: 10 }}>
+          <Skeleton width={100} height={12} borderRadius={4} />
+        </View>
+
+        <View style={[styles.heroRow, { justifyContent: 'space-around', alignItems: 'center', marginBottom: 20 }]}>
+          <Skeleton width={80} height={80} borderRadius={40} />
+          <Skeleton width={100} height={100} borderRadius={50} />
+          <Skeleton width={80} height={80} borderRadius={40} />
+        </View>
+
+        <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
+          <Skeleton width={150} height={16} borderRadius={4} />
+        </View>
+
+        <View style={{ flexDirection: 'row', paddingHorizontal: 16, marginBottom: 20, gap: 10 }}>
+          <Skeleton width={90} height={32} borderRadius={16} />
+          <Skeleton width={70} height={32} borderRadius={16} />
+          <Skeleton width={70} height={32} borderRadius={16} />
+          <Skeleton width={90} height={32} borderRadius={16} />
+        </View>
+
+        <View style={[styles.peakGrid, { paddingHorizontal: 16 }]}>
+          {Array.from({ length: 6 }).map((_, idx) => (
+            <View key={idx} style={[styles.peakItem, { alignItems: 'center', marginVertical: 10 }]}>
+              <Skeleton width={60} height={60} borderRadius={30} style={{ marginBottom: 8 }} />
+              <Skeleton width={75} height={12} borderRadius={4} />
+            </View>
+          ))}
+        </View>
+
+        <View style={{
+          marginTop: 20,
+          padding: 24,
+          borderRadius: 24,
+          backgroundColor: 'rgba(255, 112, 67, 0.05)',
+          borderWidth: 1,
+          borderColor: 'rgba(255, 112, 67, 0.1)',
+          marginHorizontal: 16,
+          gap: 12
+        }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <Skeleton width={28} height={28} borderRadius={14} />
+            <View style={{ flex: 1, gap: 6 }}>
+              <Skeleton width="80%" height={16} borderRadius={4} />
+              <Skeleton width="50%" height={12} borderRadius={4} />
+            </View>
+          </View>
+          <Skeleton width="100%" height={8} borderRadius={4} />
+        </View>
+      </View>
+    );
+  };
 
   const renderDashboard = () => {
     if (!stats) return null;
@@ -477,7 +538,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
-        {renderDashboard()}
+        {loading || !stats ? renderSkeleton() : renderDashboard()}
       </ScrollView>
 
       {/* 1MM TIMER MODAL */}
