@@ -54,44 +54,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const [showSubmitModal, setShowSubmitModal] = useState(false);
   const [showAdminModal, setShowAdminModal] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
-  const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
-  const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
-  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
-
-  const [isPreparing, setIsPreparing] = useState(false);
-  const [preCountdown, setPreCountdown] = useState(0);
-
-  // Lead-in Timer Logic
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPreparing && preCountdown > 0) {
-      SoundService.playTick();
-      interval = setInterval(() => {
-        setPreCountdown(prev => prev - 1);
-      }, 1000);
-    } else if (isPreparing && preCountdown === 0) {
-      setIsPreparing(false);
-      SoundService.playBoxingBell();
-      Vibration.vibrate(100);
-      startTimer();
-    }
-    return () => clearInterval(interval);
-  }, [isPreparing, preCountdown]);
-
-  // Sync timer when challenge loads
-  useEffect(() => {
-    if (challenge && !timerRunning && !isPreparing) {
-      setTimerSeconds(timerInitial);
-    }
-  }, [challenge, timerInitial, isPreparing]);
-  const [manualScore, setManualScore] = useState('');
-  
+  // Timer and submission states isolated in WeeklyChallengeSubmitModal
   const { safeMutate, isMutating: submitting } = useSafeMutation();
-  
-  // Reps-based challenge state
-  const [roundsCompleted, setRoundsCompleted] = useState('');
-  const [additionalReps, setAdditionalReps] = useState<Record<number, string>>({});
-  const [calculatedPoints, setCalculatedPoints] = useState(0);
   const isAdmin = (profile as any)?.is_admin === true;
   const userGroup = getUserGroup(profile?.strength_tier ?? 0);
   const groupInfo = GROUP_NAMES[userGroup];
@@ -114,25 +78,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     loadChallenge();
   }, []);
 
-  useEffect(() => {
-    if (challenge?.scoring_type === 'reps' && challenge.time_limit && timerRunning && timerSeconds <= 0) {
-      stopTimer();
-      SoundService.playDigitalBuzzer(2);
-      Vibration.vibrate([0, 500, 200, 500]);
-    }
-  }, [timerRunning, timerSeconds, challenge]);
-
-  const handleStartWithLeadIn = () => {
-    setPreCountdown(5);
-    setIsPreparing(true);
-    resetTimer();
-  };
-
-  const cancelPreparation = () => {
-    setIsPreparing(false);
-    setPreCountdown(0);
-    resetTimer();
-  };
+  // Timer effects and control handlers moved to WeeklyChallengeSubmitModal
 
   const [isDeletingId, setIsDeletingId] = useState<string | null>(null);
   
@@ -166,10 +112,6 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
         setEntries(mappedEntries);
 
-        // Initialize countdown timer for reps-based challenges
-        if (activeChallenge.scoring_type === 'reps' && activeChallenge.time_limit) {
-          setTimerSeconds(activeChallenge.time_limit * 60);
-        }
       } else {
         setEntries([]);
       }
@@ -188,66 +130,6 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   useEffect(() => {
     loadChallenge();
   }, [adminGroupView, selectedWeekStart]);
-
-  function calculatePointsFrom(rounds: string, repsMap: Record<number, string>) {
-    if (!challenge) return 0;
-    const roundsNum = parseInt(rounds) || 0;
-    let total = 0;
-    challenge.movements.forEach((m, idx) => {
-      const additional = parseInt(repsMap[idx] || '0') || 0;
-      total += (roundsNum * m.reps * m.points) + (additional * m.points);
-    });
-    return total;
-  }
-
-  function calculatePoints() {
-    return calculatePointsFrom(roundsCompleted, additionalReps);
-  }
-
-  async function handleSubmit(finalScore: number) {
-    if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
-      alert("This challenge has ended. You cannot submit scores for previous weeks.");
-      return;
-    }
-
-    if (!challenge || !user) return;
-    
-    await safeMutate(async () => {
-      const metadata = challenge.scoring_type === 'reps' ? {
-        rounds: roundsCompleted,
-        additionalReps
-      } : {
-        finalTimeFormatted: `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
-      };
-
-      const improved = await ChallengeService.submitScore({
-        challengeId: challenge.id,
-        userId: user.id,
-        score: finalScore,
-        scoringType: challenge.scoring_type,
-        metadata
-      });
-
-      return { data: improved, error: null };
-    }, {
-      onSuccess: async (improved) => {
-        if (improved) {
-          Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
-        } else {
-          Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
-        }
-        await loadChallenge();
-        setShowSubmitModal(false);
-        resetTimer();
-        setManualScore('');
-        setRoundsCompleted('');
-        setAdditionalReps({});
-        setCalculatedPoints(0);
-        setShowCelebration(true);
-      },
-      errorMessage: 'Failed to submit score'
-    });
-  }
 
   async function handleCreateChallenge() {
     if (!adminForm.title || adminForm.movements.length === 0) {
@@ -485,202 +367,20 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               <Text style={styles.adminButtonText}>⚙️ MANAGE CHALLENGES</Text>
             </TouchableOpacity>
           )}
+          
+          {showSubmitModal && challenge && (
+            <WeeklyChallengeSubmitModal
+              visible={showSubmitModal}
+              onClose={() => setShowSubmitModal(false)}
+              challenge={challenge}
+              user={user}
+              theme={theme}
+              selectedWeekStart={selectedWeekStart}
+              onSubmitSuccess={loadChallenge}
+            />
+          )}
         </>
       )}
-
-      {/* Submit Score Modal */}
-      <Modal visible={showSubmitModal} transparent animationType="slide" onRequestClose={() => setShowSubmitModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
-            <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
-              <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
-              </Text>
-
-              {/* Workout Reference in Modal */}
-              <View style={styles.modalWorkoutRef}>
-                {challenge?.movements.map((m, i) => (
-                  <Text key={i} style={{ color: theme.text.secondary, fontSize: 13, marginBottom: 4 }}>
-                    • {m.name}: <Text style={{ color: theme.accent, fontWeight: '700' }}>{m.reps} reps</Text>
-                  </Text>
-                ))}
-              </View>
-
-              <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
-
-              {challenge?.scoring_type === 'time' ? (
-                <>
-                  <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                    {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                  </Text>
-                  {isPreparing ? (
-                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                      <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
-                      <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
-                      <TouchableOpacity 
-                        style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]} 
-                        onPress={cancelPreparation}
-                      >
-                        <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
-                      </TouchableOpacity>
-                    </View>
-                  ) : (
-                    <TouchableOpacity
-                      style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                      onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
-                    >
-                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                    </TouchableOpacity>
-                  )}
-                  {!timerRunning && timerSeconds > 0 && (
-                    <TouchableOpacity
-                      style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
-                      onPress={() => resetTimer()}
-                    >
-                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
-                    </TouchableOpacity>
-                  )}
-                  {!timerRunning && timerSeconds > 0 && (
-                    <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
-                      onPress={() => handleSubmit(timerSeconds)}
-                      disabled={submitting}
-                    >
-                      {submitting ? (
-                        <LeapLogo size={40} animated />
-                      ) : (
-                        <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
-                      )}
-                    </TouchableOpacity>
-                  )}
-                </>
-              ) : (
-                <>
-                  {/* Reps-based challenge with countdown timer */}
-                  <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                    {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                  </Text>
-                  {isPreparing && (
-                    <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                      <Text style={{ color: theme.accent, fontSize: 64, fontWeight: '900' }}>{preCountdown}</Text>
-                      <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
-                      <TouchableOpacity
-                        style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]}
-                        onPress={cancelPreparation}
-                      >
-                        <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  <TouchableOpacity
-                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                    onPress={() => {
-                      if (!timerRunning && timerSeconds <= 0) {
-                        setTimerSeconds((challenge?.time_limit || 10) * 60);
-                      }
-                      timerRunning ? stopTimer() : handleStartWithLeadIn();
-                    }}
-                  >
-                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                  </TouchableOpacity>
-
-                  {/* Show entry form when timer hits 0 OR user skips */}
-                  {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
-                    <TouchableOpacity
-                      style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
-                      onPress={() => {
-                        stopTimer();
-                        setTimerSeconds(0);
-                      }}
-                    >
-                      <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
-                    </TouchableOpacity>
-                  ) : null}
-
-                  {/* Skip timer option */}
-                  {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
-                    <TouchableOpacity
-                      onPress={() => setTimerSeconds(0)}
-                      style={{ marginTop: 8 }}
-                    >
-                      <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
-                    </TouchableOpacity>
-                  )}
-
-                  {!timerRunning && timerSeconds === 0 ? (
-                    <>
-                      <Text style={[styles.orText, { color: theme.text.tertiary }]}>ENTER YOUR RESULTS</Text>
-
-                      {/* Rounds input */}
-                      <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS COMPLETED</Text>
-                      <TextInput
-                        style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                        value={roundsCompleted}
-                        onChangeText={(text) => {
-                          const newRounds = text;
-                          setRoundsCompleted(newRounds);
-                          setCalculatedPoints(calculatePointsFrom(newRounds, additionalReps));
-                        }}
-                        placeholder="e.g. 3"
-                        placeholderTextColor={theme.text.tertiary}
-                        keyboardType="numeric"
-                      />
-
-                      {/* Additional reps for each movement */}
-                      <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADDITIONAL REPS (if incomplete round)</Text>
-                      {challenge?.movements.map((m, idx) => (
-                        <View key={idx} style={styles.movementInputRow}>
-                          <Text style={[styles.movementInputLabel, { color: theme.text.primary }]}>{m.name}</Text>
-                          <TextInput
-                            style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                            value={additionalReps[idx] || ''}
-                            onChangeText={(text) => {
-                              const newReps = { ...additionalReps, [idx]: text };
-                              setAdditionalReps(newReps);
-                              setCalculatedPoints(calculatePointsFrom(roundsCompleted, newReps));
-                            }}
-                            placeholder="0"
-                            placeholderTextColor={theme.text.tertiary}
-                            keyboardType="numeric"
-                          />
-                        </View>
-                      ))}
-
-                      {/* Calculated points display */}
-                      <View style={[styles.pointsDisplay, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
-                        <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
-                        <Text style={[styles.pointsValue, { color: theme.accent }]}>{calculatedPoints}</Text>
-                      </View>
-
-                      <TouchableOpacity
-                        style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
-                        onPress={() => {
-                          const finalPoints = calculatePointsFrom(roundsCompleted, additionalReps);
-                          handleSubmit(finalPoints);
-                        }}
-                        disabled={submitting}
-                      >
-                        {submitting ? (
-                          <LeapLogo size={40} animated />
-                        ) : (
-                          <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
-                        )}
-                      </TouchableOpacity>
-                    </>
-                  ) : (
-                    !timerRunning && timerSeconds !== 0 && timerSeconds !== (challenge?.time_limit || 10) * 60 ? null :
-                      <Text style={[styles.orText, { color: theme.text.tertiary }]}>Start the timer to begin your workout</Text>
-                  )}
-                </>
-              )}
-
-              <TouchableOpacity onPress={() => setShowSubmitModal(false)}>
-                <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
 
       {/* Admin Modal */}
       <Modal visible={showAdminModal} transparent animationType="slide" onRequestClose={() => setShowAdminModal(false)}>
@@ -892,6 +592,329 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     </ScrollView>
   );
 }
+
+interface WeeklyChallengeSubmitModalProps {
+  visible: boolean;
+  onClose: () => void;
+  challenge: WeeklyChallenge;
+  user: any;
+  theme: any;
+  selectedWeekStart: string;
+  onSubmitSuccess: () => Promise<void>;
+}
+
+const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+  visible,
+  onClose,
+  challenge,
+  user,
+  theme,
+  selectedWeekStart,
+  onSubmitSuccess,
+}) => {
+  const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
+  const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
+  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
+
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
+
+  // Reps-based challenge state
+  const [roundsCompleted, setRoundsCompleted] = useState('');
+  const [additionalReps, setAdditionalReps] = useState<Record<number, string>>({});
+  const [calculatedPoints, setCalculatedPoints] = useState(0);
+
+  const { safeMutate, isMutating: submitting } = useSafeMutation();
+
+  // Lead-in Timer Logic
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+      startTimer();
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
+
+  // Sync timer when challenge loads
+  useEffect(() => {
+    if (challenge && !timerRunning && !isPreparing) {
+      setTimerSeconds(timerInitial);
+    }
+  }, [challenge, timerInitial, isPreparing]);
+
+  // Auto-stop countdown timer when it hits 0
+  useEffect(() => {
+    if (challenge?.scoring_type === 'reps' && challenge.time_limit && timerRunning && timerSeconds <= 0) {
+      stopTimer();
+      SoundService.playDigitalBuzzer(2);
+      Vibration.vibrate([0, 500, 200, 500]);
+    }
+  }, [timerRunning, timerSeconds, challenge]);
+
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+    resetTimer();
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+    resetTimer();
+  };
+
+  function calculatePointsFrom(rounds: string, repsMap: Record<number, string>) {
+    if (!challenge) return 0;
+    const roundsNum = parseInt(rounds) || 0;
+    let total = 0;
+    challenge.movements.forEach((m, idx) => {
+      const additional = parseInt(repsMap[idx] || '0') || 0;
+      total += (roundsNum * m.reps * m.points) + (additional * m.points);
+    });
+    return total;
+  }
+
+  async function handleSubmit(finalScore: number) {
+    if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
+      alert("This challenge has ended. You cannot submit scores for previous weeks.");
+      return;
+    }
+
+    if (!challenge || !user) return;
+    
+    await safeMutate(async () => {
+      const metadata = challenge.scoring_type === 'reps' ? {
+        rounds: roundsCompleted,
+        additionalReps
+      } : {
+        finalTimeFormatted: `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
+      };
+
+      const improved = await ChallengeService.submitScore({
+        challengeId: challenge.id,
+        userId: user.id,
+        score: finalScore,
+        scoringType: challenge.scoring_type,
+        metadata
+      });
+
+      return { data: improved, error: null };
+    }, {
+      onSuccess: async (improved) => {
+        if (improved) {
+          Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
+        } else {
+          Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
+        }
+        await onSubmitSuccess();
+        onClose();
+      }
+    });
+  }
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
+            <Text style={[styles.modalTitle, { color: theme.accent }]}>
+              {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
+            </Text>
+
+            {/* Workout Reference in Modal */}
+            <View style={styles.modalWorkoutRef}>
+              {challenge?.movements.map((m, i) => (
+                <Text key={i} style={{ color: theme.text.secondary, fontSize: 13, marginBottom: 4 }}>
+                  • {m.name}: <Text style={{ color: theme.accent, fontWeight: '700' }}>{m.reps} reps</Text>
+                </Text>
+              ))}
+            </View>
+
+            <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
+
+            {challenge?.scoring_type === 'time' ? (
+              <>
+                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                </Text>
+                {isPreparing ? (
+                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                    <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
+                    <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                    <TouchableOpacity 
+                      style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]} 
+                      onPress={cancelPreparation}
+                    >
+                      <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <TouchableOpacity
+                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                    onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
+                  >
+                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                  </TouchableOpacity>
+                )}
+                {!timerRunning && timerSeconds > 0 && (
+                  <TouchableOpacity
+                    style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
+                    onPress={() => resetTimer()}
+                  >
+                    <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
+                  </TouchableOpacity>
+                )}
+                {!timerRunning && timerSeconds > 0 && (
+                  <TouchableOpacity
+                    style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
+                    onPress={() => handleSubmit(timerSeconds)}
+                    disabled={submitting}
+                  >
+                    {submitting ? (
+                      <LeapLogo size={40} animated />
+                    ) : (
+                      <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
+                    )}
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              <>
+                {/* Reps-based challenge with countdown timer */}
+                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                </Text>
+                {isPreparing && (
+                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                    <Text style={{ color: theme.accent, fontSize: 64, fontWeight: '900' }}>{preCountdown}</Text>
+                    <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                    <TouchableOpacity
+                      style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]}
+                      onPress={cancelPreparation}
+                    >
+                      <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                <TouchableOpacity
+                  style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                  onPress={() => {
+                    if (!timerRunning && timerSeconds <= 0) {
+                      setTimerSeconds((challenge?.time_limit || 10) * 60);
+                    }
+                    timerRunning ? stopTimer() : handleStartWithLeadIn();
+                  }}
+                >
+                  <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                </TouchableOpacity>
+
+                {/* Show entry form when timer hits 0 OR user skips */}
+                {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
+                  <TouchableOpacity
+                    style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
+                    onPress={() => {
+                      stopTimer();
+                      setTimerSeconds(0);
+                    }}
+                  >
+                    <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
+                  </TouchableOpacity>
+                ) : null}
+
+                {/* Skip timer option */}
+                {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
+                  <TouchableOpacity
+                    onPress={() => setTimerSeconds(0)}
+                    style={{ marginTop: 8 }}
+                  >
+                    <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
+                  </TouchableOpacity>
+                )}
+
+                {!timerRunning && timerSeconds === 0 ? (
+                  <>
+                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>ENTER YOUR RESULTS</Text>
+
+                    {/* Rounds input */}
+                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS COMPLETED</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                      value={roundsCompleted}
+                      onChangeText={(text) => {
+                        const newRounds = text;
+                        setRoundsCompleted(newRounds);
+                        setCalculatedPoints(calculatePointsFrom(newRounds, additionalReps));
+                      }}
+                      placeholder="e.g. 3"
+                      placeholderTextColor={theme.text.tertiary}
+                      keyboardType="numeric"
+                    />
+
+                    {/* Additional reps for each movement */}
+                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADDITIONAL REPS (if incomplete round)</Text>
+                    {challenge?.movements.map((m, idx) => (
+                      <View key={idx} style={styles.movementInputRow}>
+                        <Text style={[styles.movementInputLabel, { color: theme.text.primary }]}>{m.name}</Text>
+                        <TextInput
+                          style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                          value={additionalReps[idx] || ''}
+                          onChangeText={(text) => {
+                            const newReps = { ...additionalReps, [idx]: text };
+                            setAdditionalReps(newReps);
+                            setCalculatedPoints(calculatePointsFrom(roundsCompleted, newReps));
+                          }}
+                          placeholder="0"
+                          placeholderTextColor={theme.text.tertiary}
+                          keyboardType="numeric"
+                        />
+                      </View>
+                    ))}
+
+                    {/* Calculated points display */}
+                    <View style={[styles.pointsDisplay, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
+                      <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
+                      <Text style={[styles.pointsValue, { color: theme.accent }]}>{calculatedPoints}</Text>
+                    </View>
+
+                    <TouchableOpacity
+                      style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
+                      onPress={() => {
+                        const finalPoints = calculatePointsFrom(roundsCompleted, additionalReps);
+                        handleSubmit(finalPoints);
+                      }}
+                      disabled={submitting}
+                    >
+                      {submitting ? (
+                        <LeapLogo size={40} animated />
+                      ) : (
+                        <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
+                      )}
+                    </TouchableOpacity>
+                  </>
+                ) : (
+                  !timerRunning && timerSeconds !== 0 && timerSeconds !== (challenge?.time_limit || 10) * 60 ? null :
+                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>Start the timer to begin your workout</Text>
+                )}
+              </>
+            )}
+
+            <TouchableOpacity onPress={onClose}>
+              <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        </ScrollView>
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1 },

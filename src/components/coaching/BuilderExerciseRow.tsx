@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity, Linking, StyleSheet } from 'react-native';
 import { SelectedExercise } from '../../hooks/coaching/useProgramBuilder';
 import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
@@ -24,6 +24,20 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
   handleUpdateExerciseValue,
   handleDeleteExerciseFromBlock
 }) => {
+  const [localSets, setLocalSets] = useState(ex.sets?.toString() ?? '');
+  const [localReps, setLocalReps] = useState(ex.reps?.toString() ?? '');
+  const [localRest, setLocalRest] = useState(ex.rest_seconds?.toString() ?? '');
+  const [localHold, setLocalHold] = useState(ex.hold_seconds?.toString() ?? '');
+  const [localNotes, setLocalNotes] = useState(ex.notes ?? '');
+
+  useEffect(() => {
+    setLocalSets(ex.sets?.toString() ?? '');
+    setLocalReps(ex.reps?.toString() ?? '');
+    setLocalRest(ex.rest_seconds?.toString() ?? '');
+    setLocalHold(ex.hold_seconds?.toString() ?? '');
+    setLocalNotes(ex.notes ?? '');
+  }, [ex.id]);
+
   return (
     <View
       style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}
@@ -56,8 +70,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>SETS</Text>
               <TextInput
                 style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                value={ex.sets}
-                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'sets', val)}
+                value={localSets}
+                onChangeText={setLocalSets}
+                onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'sets', localSets)}
+                onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'sets', localSets)}
                 keyboardType="numeric"
                 placeholder="4"
                 placeholderTextColor="rgba(255,255,255,0.1)"
@@ -67,8 +83,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REPS / TIME</Text>
               <TextInput
                 style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                value={ex.reps}
-                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', val)}
+                value={localReps}
+                onChangeText={setLocalReps}
+                onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
+                onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
                 placeholder="10"
                 placeholderTextColor="rgba(255,255,255,0.1)"
               />
@@ -77,8 +95,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>REST</Text>
               <TextInput
                 style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border }]}
-                value={ex.rest_seconds}
-                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', val)}
+                value={localRest}
+                onChangeText={setLocalRest}
+                onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', localRest)}
+                onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', localRest)}
                 keyboardType="numeric"
                 placeholder="90S"
                 placeholderTextColor="rgba(255,255,255,0.1)"
@@ -88,8 +108,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               <Text style={[styles.exInputLabel, { color: '#7E57C2' }]}>HOLD (S)</Text>
               <TextInput
                 style={[styles.exField, { color: '#7E57C2', borderColor: '#7E57C2' }]}
-                value={ex.hold_seconds}
-                onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', val)}
+                value={localHold}
+                onChangeText={setLocalHold}
+                onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
+                onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
                 keyboardType="numeric"
                 placeholder="—"
                 placeholderTextColor="rgba(126,87,194,0.3)"
@@ -110,8 +132,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
             <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
             <TextInput
               style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
-              value={ex.reps}
-              onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', val)}
+              value={localReps}
+              onChangeText={setLocalReps}
+              onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
+              onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
               placeholder="E.g. 10 reps, or 30s holds"
               placeholderTextColor="rgba(255,255,255,0.1)"
             />
@@ -123,8 +147,10 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
       <View style={{ width: '100%', marginTop: 8 }}>
         <TextInput
           style={[styles.exNotesField, { color: theme.text.secondary, borderColor: theme.card.border }]}
-          value={ex.notes}
-          onChangeText={(val) => handleUpdateExerciseValue(dayId, blockId, ex.id, 'notes', val)}
+          value={localNotes}
+          onChangeText={setLocalNotes}
+          onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'notes', localNotes)}
+          onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'notes', localNotes)}
           placeholder="Execution notes, tempo, weights, or details..."
           placeholderTextColor="rgba(255,255,255,0.15)"
         />

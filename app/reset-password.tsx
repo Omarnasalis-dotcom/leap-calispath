@@ -11,6 +11,7 @@ export default function Route() {
     <SpartanLayout>
       <ResetPasswordScreen 
         {...params}
+        onComplete={() => router.replace('/auth')}
       />
     </SpartanLayout>
   );

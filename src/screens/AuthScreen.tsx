@@ -81,7 +81,7 @@ export function AuthScreen() {
     setResetLoading(true);
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(resetEmail, {
-        redirectTo: 'leaparena://reset-password'
+        redirectTo: 'https://leap-arena.com/reset-password'
       });
       
       if (error) throw error;

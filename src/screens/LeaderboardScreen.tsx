@@ -6,7 +6,8 @@ import { View,
   ScrollView,
   TouchableOpacity,
   Alert,
-  Modal } from 'react-native';
+  Modal,
+  FlatList } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES } from '../types';
@@ -373,7 +374,7 @@ export function LeaderboardScreen({
           <Text style={[styles.emptySubtext, { color: theme.text.tertiary }]}>Be the first to claim a time and become the King of this tier!</Text>
         </View>
       ) : (
-        <ScrollView style={styles.listPreview} showsVerticalScrollIndicator={false}>
+        <View style={styles.listPreview}>
           {filteredEntries.slice(0, 5).map((entry, index) => {
             // Calculate gap for current user
             const showGap = entry.is_current_user && displayPersonalBest && displayPersonalBest.rank && displayPersonalBest.rank > 1;
@@ -440,7 +441,7 @@ export function LeaderboardScreen({
               </View>
             );
           })}
-        </ScrollView>
+        </View>
       )}
 
       {/* See More Button */}
@@ -468,10 +469,13 @@ export function LeaderboardScreen({
                 <Text style={[styles.closeButtonText, { color: theme.text.tertiary }]}>✕</Text>
               </TouchableOpacity>
             </View>
-            <ScrollView style={styles.fullLeaderboardList} showsVerticalScrollIndicator={false}>
-              {filteredEntries.slice(0, 10).map((entry, index) => (
+            <FlatList
+              style={styles.fullLeaderboardList}
+              data={filteredEntries}
+              keyExtractor={item => item.user_id}
+              showsVerticalScrollIndicator={false}
+              renderItem={({ item: entry, index }) => (
                 <View
-                  key={entry.user_id}
                   style={[
                     styles.entryRow,
                     entry.is_current_user && styles.entryRowCurrentUser,
@@ -510,8 +514,8 @@ export function LeaderboardScreen({
                     </Text>
                   </View>
                 </View>
-              ))}
-            </ScrollView>
+              )}
+            />
           </View>
         </View>
       </Modal>

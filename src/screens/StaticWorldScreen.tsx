@@ -60,9 +60,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
   const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>('handstand');
   
-  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
-  const [isPreparing, setIsPreparing] = useState(false);
-  const [preCountdown, setPreCountdown] = useState(0);
+  // Timer states isolated in StaticWorkoutLogModal
   const [manualInput, setManualInput] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
   const [userHolds, setUserHolds] = useState<Record<string, number>>({});
@@ -150,33 +148,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     }
   }
 
-  useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPreparing && preCountdown > 0) {
-      SoundService.playTick();
-      interval = setInterval(() => {
-        setPreCountdown(prev => prev - 1);
-      }, 1000);
-    } else if (isPreparing && preCountdown === 0) {
-      setIsPreparing(false);
-      SoundService.playBoxingBell();
-      Vibration.vibrate(100);
-      startTimer();
-    }
-    return () => clearInterval(interval);
-  }, [isPreparing, preCountdown]);
-
-  const handleStartWithLeadIn = () => {
-    setPreCountdown(5);
-    setIsPreparing(true);
-    resetTimer();
-  };
-
-  const cancelPreparation = () => {
-    setIsPreparing(false);
-    setPreCountdown(0);
-    resetTimer();
-  };
+  // Preparation intervals and control handlers moved to StaticWorkoutLogModal
 
   async function handleSaveHold(seconds: number) {
     if (!selectedMovement || !user || seconds <= 0) return;
@@ -198,7 +170,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       else Alert.alert('Success', msg);
 
       setShowLogModal(false);
-      resetTimer();
       await Promise.all([
         loadMovementData(),
         refreshUserHolds(),
@@ -635,128 +606,18 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         </View>
       </Modal>
 
-      <Modal visible={showLogModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
-             <View style={styles.modalHeader}>
-                <View style={{ flex: 1, marginRight: 10 }}>
-                  <Text style={[styles.modalTitle, { color: theme.text.primary }]} numberOfLines={2}>
-                    {selectedMovement?.name.toUpperCase()}
-                  </Text>
-                  {personalBest ? (
-                    <Text style={{ color: '#7E57C2', fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
-                      YOUR BEST: {personalBest.best_time_seconds}s (RANK #{personalBest.rank})
-                    </Text>
-                  ) : (
-                    <Text style={{ color: theme.text.tertiary, fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
-                      YOUR BEST: -- (UNRANKED)
-                    </Text>
-                  )}
-                </View>
-                <TouchableOpacity onPress={() => setShowLogModal(false)}>
-                   <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-                </TouchableOpacity>
-             </View>
-
-             <View style={styles.timerContainer}>
-                <Text style={[
-                  styles.timerText, 
-                  { color: isPreparing ? '#7E57C2' : theme.text.primary }
-                ]}>
-                  {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
-                </Text>
-                <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                  {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
-                </Text>
-             </View>
-
-             {isPreparing ? (
-                <TouchableOpacity 
-                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} 
-                  onPress={cancelPreparation}
-                >
-                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
-                </TouchableOpacity>
-             ) : (
-                <View style={{ gap: 10 }}>
-                  {!timerRunning ? (
-                    <>
-                      <TouchableOpacity 
-                        style={[styles.startBtn, { backgroundColor: "#7E57C2" }]} 
-                        onPress={handleStartWithLeadIn}
-                      >
-                        <Text style={styles.startBtnText}>{timerSeconds > 0 ? "RESTART TEST" : "START TIMER"}</Text>
-                      </TouchableOpacity>
-
-                      {timerSeconds > 0 && (
-                        <>
-                          <TouchableOpacity 
-                            style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]} 
-                            onPress={() => handleSaveHold(timerSeconds)}
-                            disabled={loading}
-                          >
-                            {loading ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                          </TouchableOpacity>
-
-                          <TouchableOpacity 
-                            style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                            onPress={resetTimer}
-                          >
-                            <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RESET / DISCARD</Text>
-                          </TouchableOpacity>
-                        </>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <TouchableOpacity 
-                        style={[styles.startBtn, { backgroundColor: "#FF5252" }]} 
-                        onPress={stopTimer}
-                      >
-                        <Text style={styles.startBtnText}>STOP & LOG</Text>
-                      </TouchableOpacity>
-
-                      <TouchableOpacity 
-                        style={[styles.cancelBtn, { borderColor: "#FF5252" }]}
-                        onPress={() => {
-                          stopTimer();
-                          resetTimer();
-                        }}
-                      >
-                        <Text style={[styles.cancelBtnText, { color: "#FF5252" }]}>CANCEL TEST</Text>
-                      </TouchableOpacity>
-                    </>
-                  )}
-                </View>
-             )}
-
-             <View style={{ marginTop: 30, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
-                <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
-                  TOP PERFORMERS
-                </Text>
-                <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 200 }} contentContainerStyle={{ paddingBottom: 20 }}>
-                   {entries.length > 0 ? entries.map((item, i) => (
-                      <View key={item.user_id} style={[styles.lbRow, { paddingVertical: 8 }, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
-                         <View style={[styles.lbRank, { width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>
-                            <Text style={{ color: i === 0 ? theme.accent : theme.text.secondary, fontWeight: '900', fontSize: 10 }}>{i + 1}</Text>
-                         </View>
-                         <Text style={[styles.lbName, { color: theme.text.primary, fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
-                           {item.display_name.toUpperCase()}
-                         </Text>
-                         <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2', paddingHorizontal: 8 }]}>
-                            <Text style={[styles.lbPointsText, { color: '#000', fontSize: 11 }]}>{Math.round(item.best_time_seconds)}s</Text>
-                         </View>
-                      </View>
-                   )) : (
-                      <Text style={{ textAlign: 'center', color: theme.text.tertiary, fontSize: 10, marginTop: 20 }}>
-                        NO HOLD TIMES RECORDED YET
-                      </Text>
-                   )}
-                </ScrollView>
-             </View>
-          </View>
-        </View>
-      </Modal>
+      {showLogModal && (
+        <StaticWorkoutLogModal
+          visible={showLogModal}
+          onClose={() => setShowLogModal(false)}
+          selectedMovement={selectedMovement}
+          personalBest={personalBest}
+          entries={entries}
+          user={user}
+          theme={theme}
+          onSaveHold={handleSaveHold}
+        />
+      )}
 
       <CelebrationBanner 
         visible={showCelebration}
@@ -770,6 +631,195 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     </View>
   );
 }
+
+interface StaticWorkoutLogModalProps {
+  visible: boolean;
+  onClose: () => void;
+  selectedMovement: any;
+  personalBest: any;
+  entries: any[];
+  user: any;
+  theme: any;
+  onSaveHold: (seconds: number) => Promise<void>;
+}
+
+const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
+  visible,
+  onClose,
+  selectedMovement,
+  personalBest,
+  entries,
+  user,
+  theme,
+  onSaveHold
+}) => {
+  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
+  const [isPreparing, setIsPreparing] = useState(false);
+  const [preCountdown, setPreCountdown] = useState(0);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let interval: NodeJS.Timeout;
+    if (isPreparing && preCountdown > 0) {
+      SoundService.playTick();
+      interval = setInterval(() => {
+        setPreCountdown(prev => prev - 1);
+      }, 1000);
+    } else if (isPreparing && preCountdown === 0) {
+      setIsPreparing(false);
+      SoundService.playBoxingBell();
+      Vibration.vibrate(100);
+      startTimer();
+    }
+    return () => clearInterval(interval);
+  }, [isPreparing, preCountdown]);
+
+  const handleStartWithLeadIn = () => {
+    setPreCountdown(5);
+    setIsPreparing(true);
+    resetTimer();
+  };
+
+  const cancelPreparation = () => {
+    setIsPreparing(false);
+    setPreCountdown(0);
+    resetTimer();
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      await onSaveHold(timerSeconds);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
+           <View style={styles.modalHeader}>
+              <View style={{ flex: 1, marginRight: 10 }}>
+                <Text style={[styles.modalTitle, { color: theme.text.primary }]} numberOfLines={2}>
+                  {selectedMovement?.name.toUpperCase()}
+                </Text>
+                {personalBest ? (
+                  <Text style={{ color: '#7E57C2', fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
+                    YOUR BEST: {personalBest.best_time_seconds}s (RANK #{personalBest.rank})
+                  </Text>
+                ) : (
+                  <Text style={{ color: theme.text.tertiary, fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
+                    YOUR BEST: -- (UNRANKED)
+                  </Text>
+                )}
+              </View>
+              <TouchableOpacity onPress={onClose}>
+                 <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
+              </TouchableOpacity>
+           </View>
+
+           <View style={styles.timerContainer}>
+              <Text style={[
+                styles.timerText, 
+                { color: isPreparing ? '#7E57C2' : theme.text.primary }
+              ]}>
+                {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
+              </Text>
+              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
+              </Text>
+           </View>
+
+           {isPreparing ? (
+              <TouchableOpacity 
+                style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} 
+                onPress={cancelPreparation}
+              >
+                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+              </TouchableOpacity>
+           ) : (
+              <View style={{ gap: 10 }}>
+                {!timerRunning ? (
+                  <>
+                    <TouchableOpacity 
+                      style={[styles.startBtn, { backgroundColor: "#7E57C2" }]} 
+                      onPress={handleStartWithLeadIn}
+                    >
+                      <Text style={styles.startBtnText}>{timerSeconds > 0 ? "RESTART TEST" : "START TIMER"}</Text>
+                    </TouchableOpacity>
+
+                    {timerSeconds > 0 && (
+                      <>
+                        <TouchableOpacity 
+                          style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]} 
+                          onPress={handleSave}
+                          disabled={saving}
+                        >
+                          {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                        </TouchableOpacity>
+
+                        <TouchableOpacity 
+                          style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
+                          onPress={resetTimer}
+                        >
+                          <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RESET / DISCARD</Text>
+                        </TouchableOpacity>
+                      </>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <TouchableOpacity 
+                      style={[styles.startBtn, { backgroundColor: "#FF5252" }]} 
+                      onPress={stopTimer}
+                    >
+                      <Text style={styles.startBtnText}>STOP & LOG</Text>
+                    </TouchableOpacity>
+
+                    <TouchableOpacity 
+                      style={[styles.cancelBtn, { borderColor: "#FF5252" }]}
+                      onPress={() => {
+                        stopTimer();
+                        resetTimer();
+                      }}
+                    >
+                      <Text style={[styles.cancelBtnText, { color: "#FF5252" }]}>CANCEL TEST</Text>
+                    </TouchableOpacity>
+                  </>
+                )}
+              </View>
+           )}
+
+           <View style={{ marginTop: 30, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
+              <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
+                TOP PERFORMERS
+              </Text>
+              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 200 }} contentContainerStyle={{ paddingBottom: 20 }}>
+                 {entries.length > 0 ? entries.map((item, i) => (
+                    <View key={item.user_id} style={[styles.lbRow, { paddingVertical: 8 }, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
+                       <View style={[styles.lbRank, { width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>
+                          <Text style={{ color: i === 0 ? theme.accent : theme.text.secondary, fontWeight: '900', fontSize: 10 }}>{i + 1}</Text>
+                       </View>
+                       <Text style={[styles.lbName, { color: theme.text.primary, fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
+                         {item.display_name.toUpperCase()}
+                       </Text>
+                       <View style={[styles.lbPointsFrame, { backgroundColor: '#7E57C2', paddingHorizontal: 8 }]}>
+                          <Text style={[styles.lbPointsText, { color: '#000', fontSize: 11 }]}>{Math.round(item.best_time_seconds)}s</Text>
+                       </View>
+                    </View>
+                 )) : (
+                    <Text style={{ textAlign: 'center', color: theme.text.tertiary, fontSize: 10, marginTop: 20 }}>
+                      NO HOLD TIMES RECORDED YET
+                    </Text>
+                 )}
+              </ScrollView>
+           </View>
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 40 },

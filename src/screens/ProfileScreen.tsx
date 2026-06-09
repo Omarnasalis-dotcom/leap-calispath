@@ -85,6 +85,7 @@ export function ProfileScreen({
 
   const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme, mode } = useTheme();
+  const hasSyncedOnMount = useRef(false);
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
@@ -220,8 +221,11 @@ export function ProfileScreen({
   }
 
   useEffect(() => {
+    if (hasSyncedOnMount.current) return;
+
     async function syncAllPoints() {
       if (!profile?.id) return;
+      hasSyncedOnMount.current = true;
 
       try {
         let syncedAny = false;

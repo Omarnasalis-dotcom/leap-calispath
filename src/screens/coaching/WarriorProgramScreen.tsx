@@ -96,37 +96,17 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [logLadderProgress, setLogLadderProgress] = useState('');
 
   // Active Timer State (Extracted to Hook)
-  const {
-    activeTimerBlockId,
-    timerType,
-    timeLeft,
-    timerRunning,
-    setTimerRunning,
-    elapsedTime,
-    timerModalVisible,
-    setTimerModalVisible,
-    timerPrepCountdown,
-    startTimerForBlock,
-    formatTimerString,
-    currentRound,
-    totalRounds,
-    handleStartRest,
-    restSeconds,
-    tabataPhase,
-    tabataWorkSecs,
-    tabataRestSecs
-  } = useWarriorTimer({ 
-    onAmrapComplete: (blockId) => {
-      if (!blockId) return;
-      setTimerModalVisible(false);
-      setActiveLogBlockId(blockId);
-      setLogStatus('completed');
-      setLogNotes('');
-      setLogRating(5);
-      setLogAmrapRounds('');
-      setLogModalVisible(true);
-    }
-  });
+  const [activeTimerBlock, setActiveTimerBlock] = useState<ProgramBlock | null>(null);
+
+  const startTimerForBlock = (block: ProgramBlock) => {
+    setActiveTimerBlock(block);
+  };
+
+  const formatTimerString = (seconds: number): string => {
+    const m = Math.floor(seconds / 60);
+    const s = seconds % 60;
+    return `${m}:${s < 10 ? '0' : ''}${s}`;
+  };
 
   // Video Preview Modal State removed (now opens natively)
 
@@ -138,53 +118,29 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
   // Recommendations State
   const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
-  
-  const notificationIdRef = useRef<string | null>(null);
-
-  // Background Notification Guard
-  useEffect(() => {
-    if (timerRunning && (timerType === 'amrap' || timerType === 'rest') && timeLeft > 0) {
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Time's up!",
-          body: "Your timer has finished. Get back to work!",
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: timeLeft
-        }
-      }).then(id => notificationIdRef.current = id).catch(err => console.error('Notification Schedule Error:', err));
-    } else {
-      if (notificationIdRef.current) {
-        Notifications.cancelScheduledNotificationAsync(notificationIdRef.current).catch(() => {});
-        notificationIdRef.current = null;
-      }
-    }
-  }, [timerRunning]);
 
   useEffect(() => {
     loadWarriorProgram();
   }, [warriorId]);
 
   const handleClose = () => {
-    if (timerRunning) {
+    if (activeTimerBlock !== null) {
       if (Platform.OS === 'web') {
-        if (window.confirm('You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?')) {
-          setTimerRunning(false);
+        if (window.confirm('You have an active workout in progress. Leaving this screen will reset it. Are you sure you want to leave?')) {
+          setActiveTimerBlock(null);
           if (onClose) onClose();
         }
       } else {
         Alert.alert(
-          'ACTIVE TIMER',
-          'You have an active timer running. Leaving this screen will reset it. Are you sure you want to leave?',
+          'ACTIVE WORKOUT',
+          'You have an active workout in progress. Leaving this screen will reset it. Are you sure you want to leave?',
           [
             { text: 'STAY', style: 'cancel', onPress: () => {} },
             {
               text: 'LEAVE',
               style: 'destructive',
               onPress: () => {
-                setTimerRunning(false);
+                setActiveTimerBlock(null);
                 if (onClose) onClose();
               },
             },
@@ -589,21 +545,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   };
 
 
-
-  const handleForTimeCompletion = (blockId: string | number | null, elapsedSeconds: number) => {
-    if (!blockId) return;
-    setTimerRunning(false);
-    setTimerModalVisible(false);
-
-    // Auto-open modal for FOR TIME to log time
-    setActiveLogBlockId(blockId);
-    setLogStatus('completed');
-    setLogNotes('');
-    setLogRating(5);
-    setLogForTimeDuration(formatTimerString(elapsedSeconds));
-    setLogModalVisible(true);
-  };
-
   const promptOptionalLogging = (blockId: string | number, status: 'completed' | 'missed', isWeighted: boolean = false) => {
     if (Platform.OS === 'web') {
       if (window.confirm("Would you like to add custom notes and intensity rating to this workout?\n\nOK for YES, Cancel for NO (Submit Directly)")) {
@@ -872,39 +813,41 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       />
 
       {/* VISUAL TIMER MODAL */}
-      <WarriorTimerModal
-        timerModalVisible={timerModalVisible}
-        setTimerModalVisible={setTimerModalVisible}
-        setTimerRunning={setTimerRunning}
-        timerRunning={timerRunning}
-        theme={theme}
-        bronzeGold={bronzeGold}
-        timerType={timerType}
-        timerPrepCountdown={timerPrepCountdown}
-        timeLeft={timeLeft}
-        elapsedTime={elapsedTime}
-        formatTimerString={formatTimerString}
-        handleForTimeCompletion={handleForTimeCompletion}
-        activeTimerBlockId={activeTimerBlockId}
-        days={days}
-        currentRound={currentRound}
-        totalRounds={totalRounds}
-        restSeconds={restSeconds}
-        handleStartRest={handleStartRest}
-        tabataPhase={tabataPhase}
-        tabataWorkSecs={tabataWorkSecs}
-        tabataRestSecs={tabataRestSecs}
-        handleBlockComplete={(blockId) => {
-          if (!blockId) return;
-          setTimerModalVisible(false);
-          setActiveLogBlockId(blockId);
-          setLogStatus('completed');
-          setLogNotes('');
-          setLogRating(5);
-          setLogAmrapRounds('');
-          setLogModalVisible(true);
-        }}
-      />
+      {activeTimerBlock && (
+        <WarriorTimerModal
+          activeBlock={activeTimerBlock}
+          theme={theme}
+          bronzeGold={bronzeGold}
+          onClose={() => setActiveTimerBlock(null)}
+          onAmrapComplete={(blockId) => {
+            setActiveTimerBlock(null);
+            setActiveLogBlockId(blockId);
+            setLogStatus('completed');
+            setLogNotes('');
+            setLogRating(5);
+            setLogAmrapRounds('');
+            setLogModalVisible(true);
+          }}
+          onForTimeComplete={(blockId, elapsedSeconds) => {
+            setActiveTimerBlock(null);
+            setActiveLogBlockId(blockId);
+            setLogStatus('completed');
+            setLogNotes('');
+            setLogRating(5);
+            setLogForTimeDuration(formatTimerString(elapsedSeconds));
+            setLogModalVisible(true);
+          }}
+          onBlockComplete={(blockId) => {
+            setActiveTimerBlock(null);
+            setActiveLogBlockId(blockId);
+            setLogStatus('completed');
+            setLogNotes('');
+            setLogRating(5);
+            setLogAmrapRounds('');
+            setLogModalVisible(true);
+          }}
+        />
+      )}
 
     </KeyboardAvoidingView>
     </GlobalErrorBoundary>

@@ -45,13 +45,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     return list.map((e, i) => ({ ...e, rank: i + 1 }));
   }, [modalLeaderboardData, genderFilter]);
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [preCountdown, setPreCountdown] = useState(0);
-  const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerFinished, setTimerFinished] = useState(false);
-  const [repsInput, setRepsInput] = useState('');
-  const [saving, setSaving] = useState(false);
+  // Timer states isolated in OneMinMaxTimerModal
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -121,75 +115,9 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     fetchLeaderboard();
   };
 
-  // Timer Logic — timestamp-based so tab switching does not affect accuracy
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
-
-    if (isPreTimerRunning) {
-      preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
-      SoundService.playTick();
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
-        const remaining = 5 - elapsed;
-        if (remaining <= 0) {
-          setPreCountdown(0);
-          setIsPreTimerRunning(false);
-          setIsTimerRunning(true);
-          SoundService.playBoxingBell();
-          if (timerRef.current) clearInterval(timerRef.current);
-        } else {
-          setPreCountdown(remaining);
-        }
-      }, 250);
-    } else if (isTimerRunning) {
-      startTimeRef.current = Date.now() - ((60 - timeLeft) * 1000);
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
-        const remaining = 60 - elapsed;
-        if (remaining <= 0) {
-          setTimeLeft(0);
-          setIsTimerRunning(false);
-          setTimerFinished(true);
-          Vibration.vibrate([0, 500, 200, 500]);
-          SoundService.playDigitalBuzzer(2);
-          if (timerRef.current) clearInterval(timerRef.current);
-        } else {
-          setTimeLeft(remaining);
-        }
-      }, 250);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [isPreTimerRunning, isTimerRunning]);
-
-  const startTimer = () => {
-    setPreCountdown(5);
-    setIsPreTimerRunning(true);
-    setIsTimerRunning(false);
-    setTimerFinished(false);
-    setTimeLeft(60);
-  };
-
-  const cancelTimer = () => {
-    setIsPreTimerRunning(false);
-    setIsTimerRunning(false);
-    setPreCountdown(0);
-    setTimeLeft(60);
-    if (timerRef.current) clearInterval(timerRef.current);
-  };
-
-  const handleSaveResult = async () => {
-    if (!user || !selectedMovement || !repsInput) return;
-    setSaving(true);
+  const handleSaveResult = async (reps: number) => {
+    if (!user || !selectedMovement) return;
     try {
-      const reps = parseInt(repsInput, 10);
-      if (isNaN(reps) || reps <= 0 || reps > 500) {
-        Alert.alert('Invalid', 'Please enter a valid number of reps (1-500).');
-        setSaving(false);
-        return;
-      }
       await OneMMService.saveLog(user.id, selectedMovement, reps);
       Alert.alert('Success', '1MM Result Logged!');
       setShowLogModal(false);
@@ -197,17 +125,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       fetchLeaderboard();
     } catch (error: any) {
       Alert.alert('Error', error.message || 'Failed to save result.');
-    } finally {
-      setSaving(false);
     }
-  };
-
-  const resetTimer = () => {
-    setTimerFinished(false);
-    setIsTimerRunning(false);
-    setIsPreTimerRunning(false);
-    setTimeLeft(60);
-    setRepsInput('');
   };
 
   const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
@@ -450,10 +368,6 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
                       if (isLocked) return;
                       setSelectedMovement(m.id);
                       setShowLogModal(true);
-                      setTimeLeft(60);
-                      setTimerFinished(false);
-                      setIsTimerRunning(false);
-                      setRepsInput('');
                     }}
                   >
                     <MaterialCommunityIcons name="timer-outline" size={10} color="#000" />
@@ -567,77 +481,17 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       </ScrollView>
 
       {/* 1MM TIMER MODAL */}
-      <Modal visible={showLogModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
-                {ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name.toUpperCase()}
-              </Text>
-              <TouchableOpacity onPress={() => setShowLogModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-              </TouchableOpacity>
-            </View>
-
-            <View style={styles.timerContainer}>
-              <Text style={[
-                styles.timerText, 
-                { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
-              ]}>
-                {isPreTimerRunning ? preCountdown : timeLeft}s
-              </Text>
-              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
-              </Text>
-            </View>
-
-            {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
-              <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
-                <Text style={styles.startBtnText}>START SPRINT</Text>
-              </TouchableOpacity>
-            )}
-
-            {(isPreTimerRunning || isTimerRunning) && (
-              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
-                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
-              </TouchableOpacity>
-            )}
-
-            {timerFinished && (
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
-                <TextInput
-                  style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
-                  keyboardType="numeric"
-                  value={repsInput}
-                  onChangeText={setRepsInput}
-                  autoFocus
-                  placeholder="0"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: theme.accent }]}
-                  onPress={handleSaveResult}
-                  disabled={saving}
-                >
-                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
-                  onPress={resetTimer}
-                >
-                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isTimerRunning && (
-              <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
-            )}
-          </View>
-        </View>
-      </Modal>
+      {showLogModal && (
+        <OneMinMaxTimerModal
+          visible={showLogModal}
+          onClose={() => setShowLogModal(false)}
+          movementId={selectedMovement}
+          movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
+          user={user}
+          theme={theme}
+          onSaveResult={handleSaveResult}
+        />
+      )}
 
       {/* MOVEMENT LEADERBOARD MODAL */}
       <Modal visible={showMovementLeaderboard} transparent animationType="fade">
@@ -743,6 +597,198 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     </LinearGradient>
   );
 }
+
+interface OneMinMaxTimerModalProps {
+  visible: boolean;
+  onClose: () => void;
+  movementId: string | null;
+  movementName: string;
+  user: any;
+  theme: any;
+  onSaveResult: (reps: number) => Promise<void>;
+}
+
+const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
+  visible,
+  onClose,
+  movementId,
+  movementName,
+  user,
+  theme,
+  onSaveResult
+}) => {
+  const [timeLeft, setTimeLeft] = useState(60);
+  const [preCountdown, setPreCountdown] = useState(0);
+  const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
+  const [isTimerRunning, setIsTimerRunning] = useState(false);
+  const [timerFinished, setTimerFinished] = useState(false);
+  const [repsInput, setRepsInput] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const startTimeRef = useRef<number | null>(null);
+  const preStartTimeRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (timerRef.current) clearInterval(timerRef.current);
+
+    if (isPreTimerRunning) {
+      preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
+      SoundService.playTick();
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
+        const remaining = 5 - elapsed;
+        if (remaining <= 0) {
+          setPreCountdown(0);
+          setIsPreTimerRunning(false);
+          setIsTimerRunning(true);
+          SoundService.playBoxingBell();
+          if (timerRef.current) clearInterval(timerRef.current);
+        } else {
+          setPreCountdown(prev => {
+            if (prev !== remaining) {
+              SoundService.playTick();
+            }
+            return remaining;
+          });
+        }
+      }, 250);
+    } else if (isTimerRunning) {
+      startTimeRef.current = Date.now() - ((60 - timeLeft) * 1000);
+      timerRef.current = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+        const remaining = 60 - elapsed;
+        if (remaining <= 0) {
+          setTimeLeft(0);
+          setIsTimerRunning(false);
+          setTimerFinished(true);
+          Vibration.vibrate([0, 500, 200, 500]);
+          SoundService.playDigitalBuzzer(2);
+          if (timerRef.current) clearInterval(timerRef.current);
+        } else {
+          setTimeLeft(remaining);
+        }
+      }, 250);
+    }
+
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [isPreTimerRunning, isTimerRunning]);
+
+  const startTimer = () => {
+    setPreCountdown(5);
+    setIsPreTimerRunning(true);
+    setIsTimerRunning(false);
+    setTimerFinished(false);
+    setTimeLeft(60);
+  };
+
+  const cancelTimer = () => {
+    setIsPreTimerRunning(false);
+    setIsTimerRunning(false);
+    setPreCountdown(0);
+    setTimeLeft(60);
+    if (timerRef.current) clearInterval(timerRef.current);
+  };
+
+  const resetTimer = () => {
+    setTimerFinished(false);
+    setIsTimerRunning(false);
+    setIsPreTimerRunning(false);
+    setTimeLeft(60);
+    setRepsInput('');
+  };
+
+  const handleSave = async () => {
+    if (!repsInput) return;
+    const reps = parseInt(repsInput, 10);
+    if (isNaN(reps) || reps <= 0 || reps > 500) {
+      Alert.alert('Invalid', 'Please enter a valid number of reps (1-500).');
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSaveResult(reps);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
+              {movementName.toUpperCase()}
+            </Text>
+            <TouchableOpacity onPress={onClose}>
+              <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.timerContainer}>
+            <Text style={[
+              styles.timerText, 
+              { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
+            ]}>
+              {isPreTimerRunning ? preCountdown : timeLeft}s
+            </Text>
+            <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+              {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
+            </Text>
+          </View>
+
+          {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
+            <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
+              <Text style={styles.startBtnText}>START SPRINT</Text>
+            </TouchableOpacity>
+          )}
+
+          {(isPreTimerRunning || isTimerRunning) && (
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
+              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
+            </TouchableOpacity>
+          )}
+
+          {timerFinished && (
+            <View style={styles.inputContainer}>
+              <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
+              <TextInput
+                style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
+                keyboardType="numeric"
+                value={repsInput}
+                onChangeText={setRepsInput}
+                autoFocus
+                placeholder="0"
+                placeholderTextColor="rgba(255,255,255,0.2)"
+              />
+              <TouchableOpacity
+                style={[styles.saveBtn, { backgroundColor: theme.accent }]}
+                onPress={handleSave}
+                disabled={saving}
+              >
+                {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
+                onPress={resetTimer}
+              >
+                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+
+          {isTimerRunning && (
+            <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
+          )}
+        </View>
+      </View>
+    </Modal>
+  );
+};
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 40 },
