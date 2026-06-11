@@ -129,7 +129,7 @@ export const PowerService = {
         const levelId = parseInt(type.split('_')[1]);
         const { data, error } = await supabase
           .from('profiles')
-          .select('id, display_name, power_points')
+          .select('id, display_name, power_points, gender')
           .eq('power_tier', levelId)
           .order('power_points', { ascending: false })
           .limit(50);
@@ -140,6 +140,7 @@ export const PowerService = {
           display_name: d.display_name || 'Warrior',
           value: d.power_points,
           points: d.power_points,
+          gender: d.gender,
           rank: i + 1
         }));
       }
@@ -154,7 +155,8 @@ export const PowerService = {
           user_id,
           ${cleanDbField},
           profiles:user_id (
-            display_name
+            display_name,
+            gender
           )
         `)
         .gt(cleanDbField, 0)
@@ -169,6 +171,7 @@ export const PowerService = {
       return (Array.isArray(data) ? data : []).map((d: any, i: number) => ({
         user_id: d.user_id,
         display_name: d.profiles?.display_name || 'Warrior',
+        gender: d.profiles?.gender,
         value: d[cleanDbField],
         points: type === 'muscle_up' ? d[cleanDbField] * 2 : d[cleanDbField],
         rank: i + 1

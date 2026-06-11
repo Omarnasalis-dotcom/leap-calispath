@@ -212,7 +212,7 @@ export const OneMMService = {
           }));
         }
 
-        return (Array.isArray(data) ? data : []).map((d: any) => ({
+        let entries = (Array.isArray(data) ? data : []).map((d: any) => ({
           user_id: d.u_id || d.user_id,
           display_name: d.d_name || d.display_name || 'Warrior',
           value: Number(d.t_score || d.total_points || 0),
@@ -220,6 +220,20 @@ export const OneMMService = {
           country: d.country,
           gender: d.gender
         }));
+
+        // Fetch gender mapping manually since RPC lacks it
+        const userIds = entries.map((e: any) => e.user_id).filter(Boolean);
+        if (userIds.length > 0) {
+          const { data: profiles } = await supabase.from('profiles').select('id, gender').in('id', userIds);
+          if (profiles) {
+            const genderMap = new Map(profiles.map(p => [p.id, p.gender]));
+            entries = entries.map((e: any) => ({
+              ...e,
+              gender: e.gender || genderMap.get(e.user_id)
+            }));
+          }
+        }
+        return entries;
       }
 
       // Movement-specific leaderboard (Max reps)
@@ -230,7 +244,8 @@ export const OneMMService = {
           user_id,
           reps,
           profiles:user_id (
-            display_name
+            display_name,
+            gender
           )
         `)
         .eq('movement_id', type)
@@ -246,6 +261,7 @@ export const OneMMService = {
           uniqueMap.set(d.user_id, {
             user_id: d.user_id,
             display_name: (Array.isArray(d.profiles) ? d.profiles[0]?.display_name : d.profiles?.display_name) || 'Warrior',
+            gender: (Array.isArray(d.profiles) ? d.profiles[0]?.gender : d.profiles?.gender),
             value: d.reps,
           });
         }
@@ -272,7 +288,8 @@ export const OneMMService = {
           user_id,
           points,
           profiles:user_id (
-            display_name
+            display_name,
+            gender
           )
         `)
         .eq('category_id', categoryId);
@@ -286,6 +303,7 @@ export const OneMMService = {
         const current = userMap.get(d.user_id) || {
           user_id: d.user_id,
           display_name: profile?.display_name || 'Warrior',
+          gender: profile?.gender,
           value: 0
         };
         current.value += Number(d.points || 0);
