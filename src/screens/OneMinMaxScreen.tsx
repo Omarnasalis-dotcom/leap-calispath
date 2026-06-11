@@ -13,11 +13,14 @@ import {
   calculateOneMMPoints
 } from '../lib/oneMMLogic';
 import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMService';
+import { useSafeAsync } from '../hooks/useSafeAsync';
+import { useMountedRef } from '../hooks/useMountedRef';
 
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 const { width } = Dimensions.get('window');
@@ -25,6 +28,8 @@ const { width } = Dimensions.get('window');
 export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const { theme, toggleTheme, mode } = useTheme();
   const { user, profile } = useAuth();
+  const isMounted = useMountedRef();
+  const { runAsync: runSafeSave } = useSafeAsync();
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -56,18 +61,21 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     if (!user) return;
     try {
       const s = await OneMMService.getUserStats(user.id);
+      if (!isMounted.current) return;
       setStats(s);
       setLoading(false);
       setRefreshing(false);
 
       const rank = await OneMMService.getGloryRank(user.id, s.totalPoints);
+      if (!isMounted.current) return;
       setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: rank } } : prev);
     } catch (error) {
       console.error('Fetch 1MM error:', error);
+      if (!isMounted.current) return;
       setLoading(false);
       setRefreshing(false);
     }
-  }, [user]);
+  }, [user, isMounted]);
 
   const fetchLeaderboard = useCallback(async () => {
     try {
@@ -77,15 +85,17 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       } else {
         data = await OneMMService.getCategoryLeaderboard(leaderboardTab);
       }
+      if (!isMounted.current) return;
       setLeaderboardData(data);
     } catch (error) {
       console.error('1MM Leaderboard error:', error);
     }
-  }, [leaderboardTab]);
+  }, [leaderboardTab, isMounted]);
 
   const fetchMovementLeaderboard = async (moveId: string) => {
     try {
       const data = await OneMMService.getLeaderboard(moveId);
+      if (!isMounted.current) return;
       setModalLeaderboardData(data);
       setShowMovementLeaderboard(true);
     } catch (error) {
@@ -94,13 +104,15 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   };
 
   const fetchOverallLeaderboard = async () => {
-    console.log('Fetching overall leaderboard...');
+    if (__DEV__) console.log('Fetching overall leaderboard...');
     setShowOverallModal(true); // Open modal immediately for better UX
     try {
       const data = await OneMMService.getLeaderboard('overall');
+      if (!isMounted.current) return;
       setModalLeaderboardData(data);
     } catch (error) {
       console.error('Overall LB error:', error);
+      if (!isMounted.current) return;
       Alert.alert('Error', 'Could not load leaderboard.');
       setShowOverallModal(false);
     }
@@ -122,15 +134,19 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
   const handleSaveResult = async (reps: number) => {
     if (!user || !selectedMovement) return;
-    try {
+    runSafeSave(async () => {
       await OneMMService.saveLog(user.id, selectedMovement, reps);
-      Alert.alert('Success', '1MM Result Logged!');
-      setShowLogModal(false);
-      fetchData();
-      fetchLeaderboard();
-    } catch (error: any) {
-      Alert.alert('Error', error.message || 'Failed to save result.');
-    }
+    }, {
+      onSuccess: () => {
+        Alert.alert('Success', '1MM Result Logged!');
+        setShowLogModal(false);
+        fetchData();
+        fetchLeaderboard();
+      },
+      onError: (error: any) => {
+        Alert.alert('Error', error.message || 'Failed to save result.');
+      }
+    });
   };
 
   const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
@@ -315,7 +331,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
           />
           <TouchableOpacity
             onPress={() => {
-              console.log('1MM Score button pressed');
+              if (__DEV__) console.log('1MM Score button pressed');
               fetchOverallLeaderboard();
             }}
             activeOpacity={0.8}
@@ -529,10 +545,11 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <LinearGradient
-      colors={[theme.background.primary, theme.background.secondary || '#000']}
-      style={[styles.container]}
-    >
+    <GlobalErrorBoundary>
+      <LinearGradient
+        colors={[theme.background.primary, theme.background.secondary || '#000']}
+        style={[styles.container]}
+      >
       {renderHeader()}
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
@@ -656,6 +673,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         </View>
       </Modal>
     </LinearGradient>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -678,6 +696,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   theme,
   onSaveResult
 }) => {
+  const isMounted = useMountedRef();
   const [timeLeft, setTimeLeft] = useState(60);
   const [preCountdown, setPreCountdown] = useState(0);
   const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
@@ -772,7 +791,9 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     try {
       await onSaveResult(reps);
     } finally {
-      setSaving(false);
+      if (isMounted.current) {
+        setSaving(false);
+      }
     }
   };
 

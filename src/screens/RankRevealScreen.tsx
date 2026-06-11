@@ -9,6 +9,7 @@ import {
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES, Profile } from '../types';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 const TIER_DESCRIPTIONS: Record<number, { desc: string; difficulty: number }> = {
   0: { desc: 'The starting point of every warrior', difficulty: 1 },
@@ -54,7 +55,8 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
 
   if (isHelot) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      <GlobalErrorBoundary>
+        <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
         <Animated.View
           style={[
             styles.content,
@@ -105,11 +107,13 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
           </TouchableOpacity>
         </Animated.View>
       </View>
+      </GlobalErrorBoundary>
     );
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <Animated.View
         style={[
           styles.content,
@@ -200,6 +204,7 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
         </TouchableOpacity>
       </Animated.View>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

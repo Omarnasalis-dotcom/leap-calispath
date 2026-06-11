@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { LeapLogo } from '../components/LeapLogo';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 const AVAILABLE_EXERCISES = [
@@ -532,98 +533,100 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT COMMAND</Text>
-        <TouchableOpacity onPress={onClose}>
-          <MaterialCommunityIcons name="close" size={24} color={theme.text.secondary} />
-        </TouchableOpacity>
-      </View>
-
-      {/* Tab Switcher */}
-      <View style={{ flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
-        <TouchableOpacity
-          onPress={() => setActiveTab('tournaments')}
-          style={{ flex: 1, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: activeTab === 'tournaments' ? theme.accent : theme.text.tertiary, alignItems: 'center' }}
-        >
-          <Text style={{ color: activeTab === 'tournaments' ? theme.accent : theme.text.tertiary, fontWeight: '900', fontSize: 12 }}>TOURNAMENTS</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => setActiveTab('codes')}
-          style={{ flex: 1, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: activeTab === 'codes' ? theme.accent : theme.text.tertiary, alignItems: 'center' }}
-        >
-          <Text style={{ color: activeTab === 'codes' ? theme.accent : theme.text.tertiary, fontWeight: '900', fontSize: 12 }}>CODES</Text>
-        </TouchableOpacity>
-      </View>
-
-      {activeTab === 'codes' ? (
-        <CodesTab theme={theme} />
-      ) : (
-        <ScrollView contentContainerStyle={styles.scroll}>
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.text.tertiary }]}>TOURNAMENT TITLE</Text>
-            <TextInput style={[styles.input, { backgroundColor: theme.card.background, color: theme.text.primary }]} placeholder="E.g. Summer Slam" placeholderTextColor={theme.text.tertiary} value={title} onChangeText={setTitle} />
-          </View>
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.text.tertiary }]}>PRIZE POOL (GP)</Text>
-            <TextInput style={[styles.input, { backgroundColor: theme.card.background, color: theme.text.primary }]} placeholder="100" placeholderTextColor={theme.text.tertiary} value={gpPool} onChangeText={setGpPool} keyboardType="numeric" />
-            <Text style={{ color: theme.text.tertiary, fontSize: 10, marginTop: 4 }}>
-              Split: 1st - {Math.floor(parseInt(gpPool || '0') * 0.75)} GP | 2nd - {Math.floor(parseInt(gpPool || '0') * 0.25)} GP
-            </Text>
-          </View>
-          <View style={styles.section}>
-            <Text style={[styles.label, { color: theme.text.tertiary }]}>TOURNAMENT TYPE</Text>
-            <View style={styles.tabRow}>
-              <TouchableOpacity onPress={() => setType('knockout')} style={[styles.typeBtn, { borderColor: type === 'knockout' ? theme.accent : 'transparent', backgroundColor: theme.card.background }]}>
-                <Text style={{ color: type === 'knockout' ? theme.accent : theme.text.secondary }}>KNOCKOUT</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setType('rank_based')} style={[styles.typeBtn, { borderColor: type === 'rank_based' ? theme.accent : 'transparent', backgroundColor: theme.card.background }]}>
-                <Text style={{ color: type === 'rank_based' ? theme.accent : theme.text.secondary }}>RANK BASED</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-          {type === 'knockout' ? renderKnockoutConfig() : renderRankBasedConfig()}
-          <View style={[styles.section, { marginTop: 20 }]}>
-            <Text style={[styles.label, { color: theme.text.tertiary, marginBottom: 8 }]}>ALLOWED TIERS (RESTRICT JOIN)</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((t: number) => {
-                const isSelected = allowedTiers.includes(t);
-                return (
-                  <TouchableOpacity key={t} onPress={() => { if (isSelected) { if (allowedTiers.length > 1) setAllowedTiers(allowedTiers.filter((x: number) => x !== t)); } else { setAllowedTiers([...allowedTiers, t].sort()); } }} style={[styles.tierChip, { backgroundColor: isSelected ? theme.accent : 'rgba(255,255,255,0.05)', borderColor: isSelected ? theme.accent : 'rgba(255,255,255,0.1)' }]}>
-                    <Text style={{ color: isSelected ? '#000' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>T{t}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </View>
-            <Text style={{ color: theme.text.tertiary, fontSize: 10, marginTop: 8 }}>
-              {allowedTiers.length === 9 ? 'Open to all tiers' : `Restricted to tiers: ${allowedTiers.join(', ')}`}
-            </Text>
-          </View>
-          <TouchableOpacity style={[styles.publishBtn, { backgroundColor: theme.accent }]} onPress={handlePublish} disabled={loading}>
-            {loading ? <LeapLogo size={40} animated /> : <Text style={styles.publishBtnText}>PUBLISH TOURNAMENT</Text>}
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose}>
+            <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
           </TouchableOpacity>
-          <View style={[styles.section, { marginTop: 40 }]}>
-            <Text style={[styles.headerTitle, { color: theme.text.primary, fontSize: 16, marginBottom: 12 }]}>EXISTING TOURNAMENTS</Text>
-            {existingTournaments.map((item: any) => (
-              <View key={item.id} style={[styles.historyCard, { backgroundColor: theme.card.background }]}>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ color: theme.text.primary, fontWeight: 'bold' }}>{item.config?.title}</Text>
-                  <Text style={{ color: theme.text.tertiary, fontSize: 10 }}>{item.status.toUpperCase()} • {item.config?.type.toUpperCase()}</Text>
-                </View>
-                {item.status === 'registration' && (
-                  <TouchableOpacity disabled={loading} onPress={() => handleDelete(item.id, item.status)}>
-                    <MaterialCommunityIcons name="trash-can-outline" size={20} color={loading ? '#999' : '#EF4444'} />
-                  </TouchableOpacity>
-                )}
+          <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT COMMAND</Text>
+          <TouchableOpacity onPress={onClose}>
+            <MaterialCommunityIcons name="close" size={24} color={theme.text.secondary} />
+          </TouchableOpacity>
+        </View>
+
+        {/* Tab Switcher */}
+        <View style={{ flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 8, gap: 12 }}>
+          <TouchableOpacity
+            onPress={() => setActiveTab('tournaments')}
+            style={{ flex: 1, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: activeTab === 'tournaments' ? theme.accent : theme.text.tertiary, alignItems: 'center' }}
+          >
+            <Text style={{ color: activeTab === 'tournaments' ? theme.accent : theme.text.tertiary, fontWeight: '900', fontSize: 12 }}>TOURNAMENTS</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => setActiveTab('codes')}
+            style={{ flex: 1, padding: 12, borderRadius: 12, borderWidth: 2, borderColor: activeTab === 'codes' ? theme.accent : theme.text.tertiary, alignItems: 'center' }}
+          >
+            <Text style={{ color: activeTab === 'codes' ? theme.accent : theme.text.tertiary, fontWeight: '900', fontSize: 12 }}>CODES</Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === 'codes' ? (
+          <CodesTab theme={theme} />
+        ) : (
+          <ScrollView contentContainerStyle={styles.scroll}>
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: theme.text.tertiary }]}>TOURNAMENT TITLE</Text>
+              <TextInput style={[styles.input, { backgroundColor: theme.card.background, color: theme.text.primary }]} placeholder="E.g. Summer Slam" placeholderTextColor={theme.text.tertiary} value={title} onChangeText={setTitle} />
+            </View>
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: theme.text.tertiary }]}>PRIZE POOL (GP)</Text>
+              <TextInput style={[styles.input, { backgroundColor: theme.card.background, color: theme.text.primary }]} placeholder="100" placeholderTextColor={theme.text.tertiary} value={gpPool} onChangeText={setGpPool} keyboardType="numeric" />
+              <Text style={{ color: theme.text.tertiary, fontSize: 10, marginTop: 4 }}>
+                Split: 1st - {Math.floor(parseInt(gpPool || '0') * 0.75)} GP | 2nd - {Math.floor(parseInt(gpPool || '0') * 0.25)} GP
+              </Text>
+            </View>
+            <View style={styles.section}>
+              <Text style={[styles.label, { color: theme.text.tertiary }]}>TOURNAMENT TYPE</Text>
+              <View style={styles.tabRow}>
+                <TouchableOpacity onPress={() => setType('knockout')} style={[styles.typeBtn, { borderColor: type === 'knockout' ? theme.accent : 'transparent', backgroundColor: theme.card.background }]}>
+                  <Text style={{ color: type === 'knockout' ? theme.accent : theme.text.secondary }}>KNOCKOUT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setType('rank_based')} style={[styles.typeBtn, { borderColor: type === 'rank_based' ? theme.accent : 'transparent', backgroundColor: theme.card.background }]}>
+                  <Text style={{ color: type === 'rank_based' ? theme.accent : theme.text.secondary }}>RANK BASED</Text>
+                </TouchableOpacity>
               </View>
-            ))}
-          </View>
-        </ScrollView>
-      )}
-    </View>
+            </View>
+            {type === 'knockout' ? renderKnockoutConfig() : renderRankBasedConfig()}
+            <View style={[styles.section, { marginTop: 20 }]}>
+              <Text style={[styles.label, { color: theme.text.tertiary, marginBottom: 8 }]}>ALLOWED TIERS (RESTRICT JOIN)</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+                {[0, 1, 2, 3, 4, 5, 6, 7, 8].map((t: number) => {
+                  const isSelected = allowedTiers.includes(t);
+                  return (
+                    <TouchableOpacity key={t} onPress={() => { if (isSelected) { if (allowedTiers.length > 1) setAllowedTiers(allowedTiers.filter((x: number) => x !== t)); } else { setAllowedTiers([...allowedTiers, t].sort()); } }} style={[styles.tierChip, { backgroundColor: isSelected ? theme.accent : 'rgba(255,255,255,0.05)', borderColor: isSelected ? theme.accent : 'rgba(255,255,255,0.1)' }]}>
+                      <Text style={{ color: isSelected ? '#000' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>T{t}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              <Text style={{ color: theme.text.tertiary, fontSize: 10, marginTop: 8 }}>
+                {allowedTiers.length === 9 ? 'Open to all tiers' : `Restricted to tiers: ${allowedTiers.join(', ')}`}
+              </Text>
+            </View>
+            <TouchableOpacity style={[styles.publishBtn, { backgroundColor: theme.accent }]} onPress={handlePublish} disabled={loading}>
+              {loading ? <LeapLogo size={40} animated /> : <Text style={styles.publishBtnText}>PUBLISH TOURNAMENT</Text>}
+            </TouchableOpacity>
+            <View style={[styles.section, { marginTop: 40 }]}>
+              <Text style={[styles.headerTitle, { color: theme.text.primary, fontSize: 16, marginBottom: 12 }]}>EXISTING TOURNAMENTS</Text>
+              {existingTournaments.map((item: any) => (
+                <View key={item.id} style={[styles.historyCard, { backgroundColor: theme.card.background }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: theme.text.primary, fontWeight: 'bold' }}>{item.config?.title}</Text>
+                    <Text style={{ color: theme.text.tertiary, fontSize: 10 }}>{item.status.toUpperCase()} • {item.config?.type.toUpperCase()}</Text>
+                  </View>
+                  {item.status === 'registration' && (
+                    <TouchableOpacity disabled={loading} onPress={() => handleDelete(item.id, item.status)}>
+                      <MaterialCommunityIcons name="trash-can-outline" size={20} color={loading ? '#999' : '#EF4444'} />
+                    </TouchableOpacity>
+                  )}
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+        )}
+      </View>
+    </GlobalErrorBoundary>
   );
 }
 

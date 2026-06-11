@@ -26,6 +26,7 @@ import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progres
 import { getCountryFlag } from '../constants/countries';
 import { LeaderboardSkeleton } from '../components/LeaderboardSkeleton';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 
@@ -140,7 +141,8 @@ export function LeaderboardScreen({
   const isDemigodEternal = selectedTier === 8 && isCurrentTier;
 
   return (
-    <ScrollView style={styles.container}>
+    <GlobalErrorBoundary>
+      <ScrollView style={styles.container}>
       {/* Back Button in Upper Left */}
       <View style={styles.backButtonContainer}>
         <TouchableOpacity style={[styles.backButton, { borderColor: theme.card.border }]} onPress={onClose}>
@@ -636,6 +638,7 @@ export function LeaderboardScreen({
         </View>
       </Modal>
     </ScrollView>
+    </GlobalErrorBoundary>
   );
 }
 

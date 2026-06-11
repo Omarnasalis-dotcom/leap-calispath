@@ -7,6 +7,7 @@ import { ArenaPhase, ArenaStep, ArenaService } from '../services/ArenaService';
 import { useAuth } from '../contexts/AuthContext';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 const { width } = Dimensions.get('window');
 
@@ -128,7 +129,8 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
 
   if (!isActive && !isPreparing && seconds === 0) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
+      <GlobalErrorBoundary>
+        <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
         <View style={styles.prepareBox}>
           <Text style={[styles.prepareLabel, { color: '#D32F2F' }]}>PREPARE FOR BATTLE</Text>
           <Text style={[styles.prepareTitle, { color: theme.text.primary }]}>{phase!.name}</Text>
@@ -151,23 +153,28 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
           </TouchableOpacity>
         </View>
       </View>
+      </GlobalErrorBoundary>
     );
   }
 
   if (isPreparing) {
     return (
-      <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center', alignItems: 'center' }]}>
+      <GlobalErrorBoundary>
+        <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center', alignItems: 'center' }]}>
         <Text style={[styles.prepareLabel, { color: '#D32F2F', fontSize: 24 }]}>{preCountdown}s</Text>
         <Text style={[styles.prepareTitle, { color: theme.text.primary, marginTop: 20 }]}>GET READY</Text>
         <TouchableOpacity style={[styles.cancelButton, { marginTop: 40 }]} onPress={cancelPreparation}>
           <Text style={[styles.cancelButtonText, { color: theme.text.tertiary, fontSize: 16 }]}>CANCEL PREPARATION</Text>
         </TouchableOpacity>
       </View>
+      </GlobalErrorBoundary>
     );
+
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* HUD Header - COMPETITIVE VIEW */}
       <View style={[styles.hudHeader, { borderBottomColor: theme.card.border }]}>
         <View style={styles.hudTimerSection}>
@@ -232,6 +239,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
         </TouchableOpacity>
       </ScrollView>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

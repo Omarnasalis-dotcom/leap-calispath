@@ -8,6 +8,8 @@ import { View,
   TouchableOpacity } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
+import { useMountedRef } from '../hooks/useMountedRef';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
@@ -19,6 +21,7 @@ interface ResetPasswordScreenProps {
 }
 
 export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
+  const isMounted = useMountedRef();
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -68,14 +71,14 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               });
               if (error) throw error;
               if (data?.session) {
-                setHasSession(true);
+                if (isMounted.current) setHasSession(true);
                 return;
               }
             } else if (code) {
               const { data, error } = await supabase.auth.exchangeCodeForSession(code);
               if (error) throw error;
               if (data?.session) {
-                setHasSession(true);
+                if (isMounted.current) setHasSession(true);
                 return;
               }
             } else if (accessToken && refreshToken) {
@@ -85,7 +88,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               });
               if (error) throw error;
               if (data?.session) {
-                setHasSession(true);
+                if (isMounted.current) setHasSession(true);
                 return;
               }
             }
@@ -95,18 +98,24 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
         // --- Mobile & Web fallback: check current session ---
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
-          setHasSession(true);
+          if (isMounted.current) setHasSession(true);
         } else {
-          setInlineError(
-            'NO ACTIVE RESET SESSION.\nPLEASE TAP THE RESET LINK IN YOUR EMAIL AGAIN.'
-          );
+          if (isMounted.current) {
+            setInlineError(
+              'NO ACTIVE RESET SESSION.\nPLEASE TAP THE RESET LINK IN YOUR EMAIL AGAIN.'
+            );
+          }
         }
       } catch (err: any) {
-        setInlineError(
-          err.message?.toUpperCase() ?? 'FAILED TO ESTABLISH PASSWORD RESET SESSION.'
-        );
+        if (isMounted.current) {
+          setInlineError(
+            err.message?.toUpperCase() ?? 'FAILED TO ESTABLISH PASSWORD RESET SESSION.'
+          );
+        }
       } finally {
-        setSessionLoading(false);
+        if (isMounted.current) {
+          setSessionLoading(false);
+        }
       }
     }
 
@@ -137,7 +146,9 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
 
-      setInlineSuccess('PASSWORD UPDATED! YOU CAN NOW SIGN IN.');
+      if (isMounted.current) {
+        setInlineSuccess('PASSWORD UPDATED! YOU CAN NOW SIGN IN.');
+      }
 
       // Give the user a moment to see the success message, then clear reset state
       resetTimerRef.current = setTimeout(async () => {
@@ -145,14 +156,19 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
         router.replace('/auth');
       }, 2500);
     } catch (error: any) {
-      setInlineError(error.message?.toUpperCase() ?? 'AN UNEXPECTED ERROR OCCURRED.');
+      if (isMounted.current) {
+        setInlineError(error.message?.toUpperCase() ?? 'AN UNEXPECTED ERROR OCCURRED.');
+      }
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }
 
   return (
-    <KeyboardAvoidingView
+    <GlobalErrorBoundary>
+      <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={[styles.container, { backgroundColor: theme.background.primary }]}
     >
@@ -231,6 +247,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
         )}
       </View>
     </KeyboardAvoidingView>
+    </GlobalErrorBoundary>
   );
 }
 

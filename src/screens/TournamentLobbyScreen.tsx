@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LeapLogo } from '../components/LeapLogo';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { debounce } from 'lodash';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 interface Props {
@@ -588,27 +589,29 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>{activeSession?.config?.title?.toUpperCase()}</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.back()}>
+            <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text.primary }]}>{activeSession?.config?.title?.toUpperCase()}</Text>
+          <View style={{ width: 32 }} />
+        </View>
 
-      <View style={styles.content}>
-        {activeSession.status === 'registration' && renderRegistration()}
-        {activeSession.status === 'active' && (activeSession.config?.type === 'knockout' ? renderActiveKnockout() : renderActiveRankBased())}
-        {activeSession.status === 'completed' && renderCompleted()}
-      </View>
+        <View style={styles.content}>
+          {activeSession.status === 'registration' && renderRegistration()}
+          {activeSession.status === 'active' && (activeSession.config?.type === 'knockout' ? renderActiveKnockout() : renderActiveRankBased())}
+          {activeSession.status === 'completed' && renderCompleted()}
+        </View>
 
-      <CelebrationBanner
-        visible={showCelebration}
-        {...celebrationProps}
-        onDismiss={() => setShowCelebration(false)}
-      />
-    </View>
+        <CelebrationBanner
+          visible={showCelebration}
+          {...celebrationProps}
+          onDismiss={() => setShowCelebration(false)}
+        />
+      </View>
+    </GlobalErrorBoundary>
   );
 }
 

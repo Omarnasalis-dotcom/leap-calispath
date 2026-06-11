@@ -19,6 +19,9 @@ import { WarriorCard } from '../components/atoms/WarriorCard';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { LeapLogo } from '../components/LeapLogo';
+import { useSafeAsync } from '../hooks/useSafeAsync';
+import { useMountedRef } from '../hooks/useMountedRef';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 const { width } = Dimensions.get('window');
@@ -39,6 +42,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const { theme, mode } = useTheme();
   const isDark = mode === 'dark';
   const { user, profile, refreshProfile } = useAuth();
+  const isMounted = useMountedRef();
+  const { runAsync: runSafeSave } = useSafeAsync();
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<1 | 2 | 3 | null>(null);
@@ -94,14 +99,16 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       const holds = await StaticService.getUserHolds(user.id);
       const holdMap: Record<string, number> = {};
       holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
+      if (!isMounted.current) return;
       setUserHolds(holdMap);
 
       const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+      if (!isMounted.current) return;
       setWellRoundedEntries(elite);
     } catch (error) {
       console.error('[StaticWorld] Error loading data:', error);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   }
 
@@ -110,6 +117,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     try {
       if (leaderboardTab === 'overall') {
         const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+        if (!isMounted.current) return;
         setWellRoundedEntries(elite);
       }
     } catch (e) {
@@ -121,6 +129,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     if (!selectedMovement || !user) return;
     try {
       const { entries: e, personalBest: pb } = await StaticService.getMovementLeaderboard(selectedMovement.id, user.id);
+      if (!isMounted.current) return;
       setEntries(e);
       setPersonalBest(pb);
     } catch (e) {
@@ -133,9 +142,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     setLoading(true);
     try {
       const e = await StaticService.getLevelLeaderboard(selectedLevel, user.id);
+      if (!isMounted.current) return;
       setLevelEntries(e);
     } finally {
-      setLoading(false);
+      if (isMounted.current) setLoading(false);
     }
   }
 
@@ -144,6 +154,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       const holds = await StaticService.getUserHolds(user.id);
       const holdMap: Record<string, number> = {};
       holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
+      if (!isMounted.current) return;
       setUserHolds(holdMap);
     }
   }
@@ -153,40 +164,47 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   async function handleSaveHold(seconds: number) {
     if (!selectedMovement || !user || seconds <= 0) return;
 
-    try {
-      setLoading(true);
+    setLoading(true);
+    runSafeSave(async () => {
       const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds);
 
       if (isPB) {
-        setCelebrationData({
-          stat: `NEW BEST: ${seconds}s`,
-          movement: selectedMovement?.name || 'Movement'
-        });
-        setShowCelebration(true);
+        if (isMounted.current) {
+          setCelebrationData({
+            stat: `NEW BEST: ${seconds}s`,
+            movement: selectedMovement?.name || 'Movement'
+          });
+          setShowCelebration(true);
+        }
       }
 
       const msg = isPB ? 'Personal Best Updated!' : 'Hold logged successfully';
       if (Platform.OS === 'web') alert(msg);
       else Alert.alert('Success', msg);
 
-      setShowLogModal(false);
+      if (isMounted.current) setShowLogModal(false);
+
       await Promise.all([
         loadMovementData(),
         refreshUserHolds(),
         StaticService.getWellRoundedLeaderboard(user.id)
-          .then(elite => setWellRoundedEntries(elite))
+          .then(elite => { if (isMounted.current) setWellRoundedEntries(elite); })
           .catch(e => console.error('Error refreshing elite leaderboard:', e)),
         selectedLevel ? loadLevelData() : Promise.resolve(),
         refreshProfile ? refreshProfile() : Promise.resolve(),
       ]);
-    } catch (error: any) {
-      console.error('Error saving hold:', error);
-      const msg = error.message || 'Failed to save hold';
-      if (Platform.OS === 'web') alert(msg);
-      else Alert.alert('Error', msg);
-    } finally {
-      setLoading(false);
-    }
+    }, {
+      onSuccess: () => {
+        setLoading(false);
+      },
+      onError: (error: any) => {
+        setLoading(false);
+        console.error('Error saving hold:', error);
+        const msg = error.message || 'Failed to save hold';
+        if (Platform.OS === 'web') alert(msg);
+        else Alert.alert('Error', msg);
+      }
+    });
   }
 
   const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
@@ -298,7 +316,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {renderLapHeader()}
       
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
@@ -628,7 +647,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
         onDismiss={() => setShowCelebration(false)}
       />
-    </View>
+      </View>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -657,6 +677,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   const [isPreparing, setIsPreparing] = useState(false);
   const [preCountdown, setPreCountdown] = useState(0);
   const [saving, setSaving] = useState(false);
+  const isMounted = useMountedRef();
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -691,7 +712,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
     try {
       await onSaveHold(timerSeconds);
     } finally {
-      setSaving(false);
+      if (isMounted.current) setSaving(false);
     }
   };
 

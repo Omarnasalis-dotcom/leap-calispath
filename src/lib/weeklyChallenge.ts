@@ -70,13 +70,13 @@ export function getCurrentWeekStart(): string {
   const date = String(saturday.getDate()).padStart(2, '0');
   
   const result = `${year}-${month}-${date}`;
-  console.log('getCurrentWeekStart (Local Saturday):', { now, day, daysBack, saturday, result });
+  if (__DEV__) console.log('getCurrentWeekStart (Local Saturday):', { now, day, daysBack, saturday, result });
   return result;
 }
 
 export async function getActiveChallenge(groupId: 1 | 2 | 3): Promise<WeeklyChallenge | null> {
   const weekStart = getCurrentWeekStart();
-  console.log('getActiveChallenge:', { groupId, weekStart });
+  if (__DEV__) console.log('getActiveChallenge:', { groupId, weekStart });
   const { data, error } = await supabase
     .from('weekly_challenges')
     .select('*')
@@ -96,7 +96,7 @@ export async function getChallengeLeaderboard(
   currentUserId: string,
   scoringType: 'time' | 'reps'
 ): Promise<WeeklyEntry[]> {
-  console.log('Fetching leaderboard for challenge:', challengeId, 'user:', currentUserId);
+  if (__DEV__) console.log('Fetching leaderboard for challenge:', challengeId, 'user:', currentUserId);
   const { data, error } = await supabase
     .from('weekly_entries')
     .select(`
@@ -115,7 +115,7 @@ export async function getChallengeLeaderboard(
     return [];
   }
   
-  console.log('Raw leaderboard data count:', data?.length);
+  if (__DEV__) console.log('Raw leaderboard data count:', data?.length);
 
   return (data || []).map((entry: any, index: number) => ({
     id: entry.id,
@@ -135,7 +135,7 @@ export async function submitChallengeScore(
   scoringType: 'time' | 'reps',
   metadata: any = {}
 ): Promise<boolean> {
-  console.log('submitChallengeScore starting', { challengeId, userId, score, scoringType });
+  if (__DEV__) console.log('submitChallengeScore starting', { challengeId, userId, score, scoringType });
   
   const { data: existing, error: existingError } = await supabase
     .from('weekly_entries')
@@ -157,10 +157,10 @@ export async function submitChallengeScore(
       ? (existingScore === 0 || newScore < existingScore)
       : newScore > existingScore;
     
-    console.log('Score comparison:', { existingScore, newScore, isBetter });
+    if (__DEV__) console.log('Score comparison:', { existingScore, newScore, isBetter });
     
     if (!isBetter) {
-      console.log('Score not improved. Returning false.');
+      if (__DEV__) console.log('Score not improved. Returning false.');
       return false;
     }
     
@@ -174,9 +174,9 @@ export async function submitChallengeScore(
       console.error('Update error:', updateError);
       return false;
     }
-    console.log('Update successful!');
+    if (__DEV__) console.log('Update successful!');
   } else {
-    console.log('No existing score. Inserting new entry...');
+    if (__DEV__) console.log('No existing score. Inserting new entry...');
     const { error: insertError } = await supabase
       .from('weekly_entries')
       .insert({ challenge_id: challengeId, user_id: userId, score: Number(score), metadata });
@@ -185,7 +185,7 @@ export async function submitChallengeScore(
       console.error('Insert error:', insertError);
       return false;
     }
-    console.log('Insert successful!');
+    if (__DEV__) console.log('Insert successful!');
   }
   return true;
 }

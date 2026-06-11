@@ -15,6 +15,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { calculateTotalPowerScore, getPowerLevel } from '../lib/powerLogic';
 import { Button } from '../components/Button';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 export interface PowerMovementPBs {
   [key: string]: number;
@@ -108,138 +109,140 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   }
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={styles.header}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>POWER ASSESSMENT</Text>
-        <Text style={[styles.subtitle, { color: theme.text.tertiary }]}>
-          Enter your additional weight for each movement
-        </Text>
-      </View>
-
-      <View style={styles.form}>
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.text.primary }]}>
-            Pull-up Weight (kg)
+    <GlobalErrorBoundary>
+      <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={styles.header}>
+          <Text style={[styles.title, { color: theme.text.primary }]}>POWER ASSESSMENT</Text>
+          <Text style={[styles.subtitle, { color: theme.text.tertiary }]}>
+            Enter your additional weight for each movement
           </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.card.background,
-                borderColor: theme.card.border,
-                color: theme.text.primary,
-              }
-            ]}
-            value={inputs.pull_up.toString()}
-            onChangeText={(text) => {
-              const val = parseFloat(text) || 0;
-              setInputs({ ...inputs, pull_up: val });
-            }}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor={theme.text.tertiary}
-          />
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.text.primary }]}>
-            Dip Weight (kg)
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.card.background,
-                borderColor: theme.card.border,
-                color: theme.text.primary,
-              }
-            ]}
-            value={inputs.dip.toString()}
-            onChangeText={(text) => {
-              const val = parseFloat(text) || 0;
-              setInputs({ ...inputs, dip: val });
-            }}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor={theme.text.tertiary}
-          />
+        <View style={styles.form}>
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text.primary }]}>
+              Pull-up Weight (kg)
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card.background,
+                  borderColor: theme.card.border,
+                  color: theme.text.primary,
+                }
+              ]}
+              value={inputs.pull_up.toString()}
+              onChangeText={(text) => {
+                const val = parseFloat(text) || 0;
+                setInputs({ ...inputs, pull_up: val });
+              }}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.text.tertiary}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text.primary }]}>
+              Dip Weight (kg)
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card.background,
+                  borderColor: theme.card.border,
+                  color: theme.text.primary,
+                }
+              ]}
+              value={inputs.dip.toString()}
+              onChangeText={(text) => {
+                const val = parseFloat(text) || 0;
+                setInputs({ ...inputs, dip: val });
+              }}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.text.tertiary}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text.primary }]}>
+              Squat Weight (kg)
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card.background,
+                  borderColor: theme.card.border,
+                  color: theme.text.primary,
+                }
+              ]}
+              value={inputs.squat.toString()}
+              onChangeText={(text) => {
+                const val = parseFloat(text) || 0;
+                setInputs({ ...inputs, squat: val });
+              }}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.text.tertiary}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={[styles.label, { color: theme.text.primary }]}>
+              Muscle-up Weight (kg)
+              <Text style={[styles.multiplierHint, { color: theme.accent }]}> × 2</Text>
+            </Text>
+            <TextInput
+              style={[
+                styles.input,
+                {
+                  backgroundColor: theme.card.background,
+                  borderColor: theme.card.border,
+                  color: theme.text.primary,
+                }
+              ]}
+              value={inputs.muscle_up.toString()}
+              onChangeText={(text) => {
+                const val = parseFloat(text) || 0;
+                setInputs({ ...inputs, muscle_up: val });
+              }}
+              keyboardType="numeric"
+              placeholder="0"
+              placeholderTextColor={theme.text.tertiary}
+            />
+          </View>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.text.primary }]}>
-            Squat Weight (kg)
+        <View style={[styles.scoreCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+          <Text style={[styles.scoreTitle, { color: theme.text.primary }]}>CALCULATED SCORE</Text>
+          <Text style={[styles.scoreFormula, { color: theme.text.tertiary }]}>
+            {inputs.pull_up} + {inputs.dip} + {inputs.squat} + ({inputs.muscle_up} × 2)
           </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.card.background,
-                borderColor: theme.card.border,
-                color: theme.text.primary,
-              }
-            ]}
-            value={inputs.squat.toString()}
-            onChangeText={(text) => {
-              const val = parseFloat(text) || 0;
-              setInputs({ ...inputs, squat: val });
-            }}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor={theme.text.tertiary}
-          />
+          <Text style={[styles.totalScore, { color: theme.accent }]}>{totalScore} Points</Text>
+          <Text style={[styles.tierResult, { color: theme.text.secondary }]}>
+            Power Tier {newTier}
+          </Text>
         </View>
 
-        <View style={styles.inputGroup}>
-          <Text style={[styles.label, { color: theme.text.primary }]}>
-            Muscle-up Weight (kg)
-            <Text style={[styles.multiplierHint, { color: theme.accent }]}> × 2</Text>
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: theme.card.background,
-                borderColor: theme.card.border,
-                color: theme.text.primary,
-              }
-            ]}
-            value={inputs.muscle_up.toString()}
-            onChangeText={(text) => {
-              const val = parseFloat(text) || 0;
-              setInputs({ ...inputs, muscle_up: val });
-            }}
-            keyboardType="numeric"
-            placeholder="0"
-            placeholderTextColor={theme.text.tertiary}
+        <View style={styles.actions}>
+          <Button
+            title="ABANDON"
+            onPress={handleAbandon}
+            variant="secondary"
+            loading={loading}
+          />
+          <Button
+            title="SAVE ASSESSMENT"
+            onPress={handleSubmit}
+            loading={loading}
           />
         </View>
-      </View>
-
-      <View style={[styles.scoreCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-        <Text style={[styles.scoreTitle, { color: theme.text.primary }]}>CALCULATED SCORE</Text>
-        <Text style={[styles.scoreFormula, { color: theme.text.tertiary }]}>
-          {inputs.pull_up} + {inputs.dip} + {inputs.squat} + ({inputs.muscle_up} × 2)
-        </Text>
-        <Text style={[styles.totalScore, { color: theme.accent }]}>{totalScore} Points</Text>
-        <Text style={[styles.tierResult, { color: theme.text.secondary }]}>
-          Power Tier {newTier}
-        </Text>
-      </View>
-
-      <View style={styles.actions}>
-        <Button
-          title="ABANDON"
-          onPress={handleAbandon}
-          variant="secondary"
-          loading={loading}
-        />
-        <Button
-          title="SAVE ASSESSMENT"
-          onPress={handleSubmit}
-          loading={loading}
-        />
-      </View>
-    </ScrollView>
+      </ScrollView>
+    </GlobalErrorBoundary>
   );
 }
 

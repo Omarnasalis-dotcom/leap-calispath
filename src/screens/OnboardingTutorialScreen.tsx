@@ -7,6 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { TIER_NAMES } from '../types';
 import { LeapLogo } from '../components/LeapLogo';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 const { height: SCREEN_HEIGHT } = Dimensions.get('window');
 
@@ -179,34 +180,36 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
   );
 
   return (
-    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onSkip}>
-      <View style={styles.overlay}>
-        <View style={[styles.sheet, { backgroundColor: theme.background.secondary, paddingBottom: Math.max(insets.bottom + 16, 28) }]}>
-          <View style={styles.headerRow}>
-            {renderDots()}
-            <TouchableOpacity onPress={onSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <Text style={[styles.closeX, { color: theme.text.tertiary }]}>✕</Text>
-            </TouchableOpacity>
-          </View>
-          <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-            {step === 0 && renderStep0()}
-            {step === 1 && renderStep1()}
-            {step === 2 && renderStep2()}
-          </ScrollView>
-          {step < 2 && (
-            <View style={styles.navRow}>
-              {step > 0
-                ? <TouchableOpacity style={styles.backBtn} onPress={goBack}><Text style={[styles.backBtnText, { color: theme.text.secondary }]}>Back</Text></TouchableOpacity>
-                : <View style={{ flex: 1 }} />
-              }
-              <TouchableOpacity style={[styles.nextBtn, { backgroundColor: accentColor }]} onPress={goNext}>
-                <Text style={styles.nextBtnText}>{step === 0 ? 'Explore the Worlds' : 'Your Objective'}</Text>
+    <GlobalErrorBoundary>
+      <Modal visible={visible} transparent animationType="fade" statusBarTranslucent onRequestClose={onSkip}>
+        <View style={styles.overlay}>
+          <View style={[styles.sheet, { backgroundColor: theme.background.secondary, paddingBottom: Math.max(insets.bottom + 16, 28) }]}>
+            <View style={styles.headerRow}>
+              {renderDots()}
+              <TouchableOpacity onPress={onSkip} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+                <Text style={[styles.closeX, { color: theme.text.tertiary }]}>✕</Text>
               </TouchableOpacity>
             </View>
-          )}
+            <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+              {step === 0 && renderStep0()}
+              {step === 1 && renderStep1()}
+              {step === 2 && renderStep2()}
+            </ScrollView>
+            {step < 2 && (
+              <View style={styles.navRow}>
+                {step > 0
+                  ? <TouchableOpacity style={styles.backBtn} onPress={goBack}><Text style={[styles.backBtnText, { color: theme.text.secondary }]}>Back</Text></TouchableOpacity>
+                  : <View style={{ flex: 1 }} />
+                }
+                <TouchableOpacity style={[styles.nextBtn, { backgroundColor: accentColor }]} onPress={goNext}>
+                  <Text style={styles.nextBtnText}>{step === 0 ? 'Explore the Worlds' : 'Your Objective'}</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
         </View>
-      </View>
-    </Modal>
+      </Modal>
+    </GlobalErrorBoundary>
   );
 }
 

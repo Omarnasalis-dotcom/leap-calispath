@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { ClashLogic } from '../lib/clashLogic';
 import { LeapLogo } from '../components/LeapLogo';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 interface ClashScreenProps {
@@ -209,7 +210,8 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
           <MaterialCommunityIcons name="arrow-left" size={28} color={theme.text.primary} />
@@ -331,6 +333,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
         </View>
       </ScrollView>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

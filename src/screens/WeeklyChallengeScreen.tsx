@@ -16,7 +16,9 @@ import { CelebrationBanner } from '../components/CelebrationBanner';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { LeapLogo } from '../components/LeapLogo';
+import { useMountedRef } from '../hooks/useMountedRef';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -46,6 +48,7 @@ interface WeeklyChallengeScreenProps {
 
 export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const { theme } = useTheme();
+  const isMounted = useMountedRef();
   const { user, profile } = useAuth();
   const [challenge, setChallenge] = useState<WeeklyChallenge | null>(null);
   const [entries, setEntries] = useState<WeeklyEntry[]>([]);
@@ -88,6 +91,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       const targetGroup = isAdmin ? adminGroupView : userGroup;
       const activeChallenge = await ChallengeService.getActive(targetGroup, selectedWeekStart);
 
+      if (!isMounted.current) return;
       setChallenge(activeChallenge);
 
       if (activeChallenge) {
@@ -110,20 +114,25 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           is_current_user: e.user_id === user?.id
         }));
 
+        if (!isMounted.current) return;
         setEntries(mappedEntries);
 
       } else {
+        if (!isMounted.current) return;
         setEntries([]);
       }
 
       if (isAdmin) {
         const all = await ChallengeService.getAllActiveForWeek(selectedWeekStart);
+        if (!isMounted.current) return;
         setAllChallenges(all);
       }
     } catch (error) {
       console.error('Error loading challenge:', error);
     } finally {
-      setLoading(false);
+      if (isMounted.current) {
+        setLoading(false);
+      }
     }
   }
 
@@ -150,7 +159,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     }, {
       onSuccess: async () => {
         Alert.alert('Success', 'Challenge published successfully!');
-        setShowAdminModal(false);
+        if (isMounted.current) {
+          setShowAdminModal(false);
+        }
         await loadChallenge();
       },
       errorMessage: 'Failed to create challenge'
@@ -176,9 +187,11 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     }, {
       onSuccess: async () => {
         Alert.alert('Success', 'Challenge deleted');
-        setChallenge(null);
-        setEntries([]);
-        setShowAdminModal(false);
+        if (isMounted.current) {
+          setChallenge(null);
+          setEntries([]);
+          setShowAdminModal(false);
+        }
         await loadChallenge();
       },
       errorMessage: 'Failed to delete'
@@ -196,400 +209,402 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const userEntry = entries.find(e => e.is_current_user);
 
   return (
-    <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={onClose} style={[styles.backButton, { borderColor: theme.card.border }]}>
-          <Text style={{ color: theme.text.secondary }}>←</Text>
-        </TouchableOpacity>
-        <Text style={[styles.title, { color: theme.accent }]}>WEEKLY CHALLENGE</Text>
-        {isAdmin ? (
-          <TouchableOpacity onPress={() => setShowAdminModal(true)} style={[styles.backButton, { borderColor: theme.accent, backgroundColor: 'rgba(205,127,50,0.1)' }]}>
-            <Text style={{ color: theme.accent }}>⚙️</Text>
+    <GlobalErrorBoundary>
+      <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={onClose} style={[styles.backButton, { borderColor: theme.card.border }]}>
+            <Text style={{ color: theme.text.secondary }}>←</Text>
           </TouchableOpacity>
-        ) : (
-          <View style={{ width: 40 }} />
-        )}
-      </View>
-
-      {/* Week Navigation */}
-      <View style={styles.weekNav}>
-        <TouchableOpacity
-          onPress={() => {
-            const d = new Date(selectedWeekStart);
-            d.setDate(d.getDate() - 7);
-            setSelectedWeekStart(d.toISOString().split('T')[0]);
-          }}
-          style={styles.weekNavBtn}
-        >
-          <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>◀</Text>
-        </TouchableOpacity>
-
-        <View style={styles.weekLabelContainer}>
-          <Text style={[styles.weekLabel, { color: theme.text.primary }]}>
-            {new Date(selectedWeekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            {selectedWeekStart === ChallengeService.getCurrentWeekStart() ? ' (ACTIVE)' : ' (ENDED)'}
-          </Text>
-        </View>
-
-        <TouchableOpacity
-          onPress={() => {
-            if (selectedWeekStart === ChallengeService.getCurrentWeekStart()) return;
-            const d = new Date(selectedWeekStart);
-            d.setDate(d.getDate() + 7);
-            setSelectedWeekStart(d.toISOString().split('T')[0]);
-          }}
-          style={[styles.weekNavBtn, { opacity: selectedWeekStart === ChallengeService.getCurrentWeekStart() ? 0.2 : 1 }]}
-        >
-          <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>▶</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Group Badge & Admin Group Switcher */}
-      {isAdmin ? (
-        <View style={styles.adminGroupSwitcher}>
-          {([1, 2, 3] as const).map(g => (
-            <TouchableOpacity
-              key={g}
-              style={[styles.adminGroupTab, { borderBottomColor: adminGroupView === g ? theme.accent : 'transparent' }]}
-              onPress={() => setAdminGroupView(g)}
-            >
-              <Text style={[styles.adminGroupTabText, { color: adminGroupView === g ? theme.accent : theme.text.tertiary }]}>
-                {GROUP_NAMES[g].name}
-              </Text>
+          <Text style={[styles.title, { color: theme.accent }]}>WEEKLY CHALLENGE</Text>
+          {isAdmin ? (
+            <TouchableOpacity onPress={() => setShowAdminModal(true)} style={[styles.backButton, { borderColor: theme.accent, backgroundColor: 'rgba(205,127,50,0.1)' }]}>
+              <Text style={{ color: theme.accent }}>⚙️</Text>
             </TouchableOpacity>
-          ))}
-        </View>
-      ) : (
-        <View style={[styles.groupBadge, { backgroundColor: theme.card.background, borderColor: theme.accent }]}>
-          <Text style={[styles.groupName, { color: theme.accent }]}>{groupInfo.name}</Text>
-          <Text style={[styles.groupTiers, { color: theme.text.tertiary }]}>Tier {groupInfo.tiers}</Text>
-        </View>
-      )}
-
-      {loading ? (
-        <LeapLogo size={40} animated />
-      ) : !challenge ? (
-        <View style={styles.emptyState}>
-          <Text style={[styles.emptyIcon]}>⏳</Text>
-          <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO CHALLENGE THIS WEEK</Text>
-          <Text style={[styles.emptySubtitle, { color: theme.text.tertiary }]}>Check back Saturday for a new challenge</Text>
-          {isAdmin && (
-            <TouchableOpacity
-              style={[styles.adminButton, { backgroundColor: theme.accent }]}
-              onPress={() => setShowAdminModal(true)}
-            >
-              <Text style={styles.adminButtonText}>+ CREATE CHALLENGE</Text>
-            </TouchableOpacity>
+          ) : (
+            <View style={{ width: 40 }} />
           )}
         </View>
-      ) : (
-        <>
-          {/* Challenge Card */}
-          <View style={[styles.challengeCard, { backgroundColor: theme.card.background, borderColor: theme.accent }]}>
-            <Text style={[styles.challengeTitle, { color: theme.accent }]}>{challenge.title}</Text>
-            {challenge.description ? (
-              <Text style={[styles.challengeDesc, { color: theme.text.secondary }]}>{challenge.description}</Text>
-            ) : null}
-            <View style={[styles.scoringBadge, { backgroundColor: challenge.scoring_type === 'time' ? 'rgba(205,127,50,0.1)' : 'rgba(100,200,100,0.1)' }]}>
-              <Text style={[styles.scoringText, { color: theme.accent }]}>
-                {challenge.scoring_type === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
-              </Text>
-            </View>
+
+        {/* Week Navigation */}
+        <View style={styles.weekNav}>
+          <TouchableOpacity
+            onPress={() => {
+              const d = new Date(selectedWeekStart);
+              d.setDate(d.getDate() - 7);
+              setSelectedWeekStart(d.toISOString().split('T')[0]);
+            }}
+            style={styles.weekNavBtn}
+          >
+            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>◀</Text>
+          </TouchableOpacity>
+
+          <View style={styles.weekLabelContainer}>
+            <Text style={[styles.weekLabel, { color: theme.text.primary }]}>
+              {new Date(selectedWeekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              {selectedWeekStart === ChallengeService.getCurrentWeekStart() ? ' (ACTIVE)' : ' (ENDED)'}
+            </Text>
           </View>
 
-          {/* Movements */}
-          <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>MOVEMENTS</Text>
-          {challenge.movements.map((m, i) => (
-            <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name}</Text>
-              <View style={styles.movementRight}>
-                <Text style={[styles.movementReps, { color: theme.accent }]}>{m.reps} reps</Text>
-                {challenge.scoring_type === 'reps' && (
-                  <Text style={[styles.movementPoints, { color: theme.text.tertiary }]}>{m.points}pts each</Text>
-                )}
+          <TouchableOpacity
+            onPress={() => {
+              if (selectedWeekStart === ChallengeService.getCurrentWeekStart()) return;
+              const d = new Date(selectedWeekStart);
+              d.setDate(d.getDate() + 7);
+              setSelectedWeekStart(d.toISOString().split('T')[0]);
+            }}
+            style={[styles.weekNavBtn, { opacity: selectedWeekStart === ChallengeService.getCurrentWeekStart() ? 0.2 : 1 }]}
+          >
+            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>▶</Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Group Badge & Admin Group Switcher */}
+        {isAdmin ? (
+          <View style={styles.adminGroupSwitcher}>
+            {([1, 2, 3] as const).map(g => (
+              <TouchableOpacity
+                key={g}
+                style={[styles.adminGroupTab, { borderBottomColor: adminGroupView === g ? theme.accent : 'transparent' }]}
+                onPress={() => setAdminGroupView(g)}
+              >
+                <Text style={[styles.adminGroupTabText, { color: adminGroupView === g ? theme.accent : theme.text.tertiary }]}>
+                  {GROUP_NAMES[g].name}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ) : (
+          <View style={[styles.groupBadge, { backgroundColor: theme.card.background, borderColor: theme.accent }]}>
+            <Text style={[styles.groupName, { color: theme.accent }]}>{groupInfo.name}</Text>
+            <Text style={[styles.groupTiers, { color: theme.text.tertiary }]}>Tier {groupInfo.tiers}</Text>
+          </View>
+        )}
+
+        {loading ? (
+          <LeapLogo size={40} animated />
+        ) : !challenge ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyIcon]}>⏳</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO CHALLENGE THIS WEEK</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.text.tertiary }]}>Check back Saturday for a new challenge</Text>
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.adminButton, { backgroundColor: theme.accent }]}
+                onPress={() => setShowAdminModal(true)}
+              >
+                <Text style={styles.adminButtonText}>+ CREATE CHALLENGE</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        ) : (
+          <>
+            {/* Challenge Card */}
+            <View style={[styles.challengeCard, { backgroundColor: theme.card.background, borderColor: theme.accent }]}>
+              <Text style={[styles.challengeTitle, { color: theme.accent }]}>{challenge.title}</Text>
+              {challenge.description ? (
+                <Text style={[styles.challengeDesc, { color: theme.text.secondary }]}>{challenge.description}</Text>
+              ) : null}
+              <View style={[styles.scoringBadge, { backgroundColor: challenge.scoring_type === 'time' ? 'rgba(205,127,50,0.1)' : 'rgba(100,200,100,0.1)' }]}>
+                <Text style={[styles.scoringText, { color: theme.accent }]}>
+                  {challenge.scoring_type === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
+                </Text>
               </View>
             </View>
-          ))}
 
-          {/* Your Score */}
-          {userEntry && (
-            <View style={[styles.yourScore, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
-              <Text style={[styles.yourScoreLabel, { color: theme.text.tertiary }]}>YOUR BEST</Text>
-              <Text style={[styles.yourScoreValue, { color: theme.accent }]}>
-                {challenge.scoring_type === 'time'
-                  ? `${Math.floor(userEntry.score / 60)}:${String(Math.floor(userEntry.score % 60)).padStart(2, '0')}`
-                  : `${userEntry.score} pts`}
-              </Text>
-              <Text style={[styles.yourScoreRank, { color: theme.text.secondary }]}>RANK #{userEntry.rank}</Text>
-            </View>
-          )}
+            {/* Movements */}
+            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>MOVEMENTS</Text>
+            {challenge.movements.map((m, i) => (
+              <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name}</Text>
+                <View style={styles.movementRight}>
+                  <Text style={[styles.movementReps, { color: theme.accent }]}>{m.reps} reps</Text>
+                  {challenge.scoring_type === 'reps' && (
+                    <Text style={[styles.movementPoints, { color: theme.text.tertiary }]}>{m.points}pts each</Text>
+                  )}
+                </View>
+              </View>
+            ))}
 
-          {/* Submit Button */}
-          <TouchableOpacity
-            style={[styles.submitButton, { backgroundColor: theme.accent }]}
-            onPress={() => setShowSubmitModal(true)}
-          >
-            <Text style={styles.submitButtonText}>
-              {userEntry ? 'IMPROVE YOUR SCORE' : 'SUBMIT YOUR SCORE'}
-            </Text>
-          </TouchableOpacity>
+            {/* Your Score */}
+            {userEntry && (
+              <View style={[styles.yourScore, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
+                <Text style={[styles.yourScoreLabel, { color: theme.text.tertiary }]}>YOUR BEST</Text>
+                <Text style={[styles.yourScoreValue, { color: theme.accent }]}>
+                  {challenge.scoring_type === 'time'
+                    ? `${Math.floor(userEntry.score / 60)}:${String(Math.floor(userEntry.score % 60)).padStart(2, '0')}`
+                    : `${userEntry.score} pts`}
+                </Text>
+                <Text style={[styles.yourScoreRank, { color: theme.text.secondary }]}>RANK #{userEntry.rank}</Text>
+              </View>
+            )}
 
-          {/* Leaderboard */}
-          <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
-          {entries.length === 0 ? (
-            <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>No entries yet. Be the first!</Text>
-          ) : entries.slice(0, 10).map((entry, index) => (
-            <View key={entry.id} style={[styles.entryRow, {
-              backgroundColor: entry.is_current_user ? 'rgba(205,127,50,0.1)' : theme.card.background,
-              borderColor: entry.is_current_user ? theme.accent : theme.card.border
-            }]}>
-              <Text style={[styles.entryRank, { color: theme.accent }]}>
-                {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${entry.rank}`}
-              </Text>
-              <Text style={[styles.entryName, { color: entry.is_current_user ? theme.accent : theme.text.primary }]}>
-                {entry.display_name}
-                {entry.is_current_user && ' (YOU)'}
-              </Text>
-              <Text style={[styles.entryScore, { color: theme.accent }]}>
-                {challenge.scoring_type === 'time'
-                  ? `${Math.floor(entry.score / 60)}:${String(Math.floor(entry.score % 60)).padStart(2, '0')}`
-                  : `${entry.score} pts`}
-              </Text>
-            </View>
-          ))}
-
-          {isAdmin && (
+            {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.adminButton, { backgroundColor: theme.accent, marginTop: 16 }]}
-              onPress={() => setShowAdminModal(true)}
+              style={[styles.submitButton, { backgroundColor: theme.accent }]}
+              onPress={() => setShowSubmitModal(true)}
             >
-              <Text style={styles.adminButtonText}>⚙️ MANAGE CHALLENGES</Text>
+              <Text style={styles.submitButtonText}>
+                {userEntry ? 'IMPROVE YOUR SCORE' : 'SUBMIT YOUR SCORE'}
+              </Text>
             </TouchableOpacity>
-          )}
-          
-          {showSubmitModal && challenge && (
-            <WeeklyChallengeSubmitModal
-              visible={showSubmitModal}
-              onClose={() => setShowSubmitModal(false)}
-              challenge={challenge}
-              user={user}
-              theme={theme}
-              selectedWeekStart={selectedWeekStart}
-              onSubmitSuccess={loadChallenge}
-            />
-          )}
-        </>
-      )}
 
-      {/* Admin Modal */}
-      <Modal visible={showAdminModal} transparent animationType="slide" onRequestClose={() => setShowAdminModal(false)}>
-        <View style={styles.modalOverlay}>
-          <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
-            <View style={[styles.adminModalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
-              <Text style={[styles.modalTitle, { color: theme.accent }]}>COACH DASHBOARD</Text>
+            {/* Leaderboard */}
+            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
+            {entries.length === 0 ? (
+              <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>No entries yet. Be the first!</Text>
+            ) : entries.slice(0, 10).map((entry, index) => (
+              <View key={entry.id} style={[styles.entryRow, {
+                backgroundColor: entry.is_current_user ? 'rgba(205,127,50,0.1)' : theme.card.background,
+                borderColor: entry.is_current_user ? theme.accent : theme.card.border
+              }]}>
+                <Text style={[styles.entryRank, { color: theme.accent }]}>
+                  {index === 0 ? '🥇' : index === 1 ? '🥈' : index === 2 ? '🥉' : `#${entry.rank}`}
+                </Text>
+                <Text style={[styles.entryName, { color: entry.is_current_user ? theme.accent : theme.text.primary }]}>
+                  {entry.display_name}
+                  {entry.is_current_user && ' (YOU)'}
+                </Text>
+                <Text style={[styles.entryScore, { color: theme.accent }]}>
+                  {challenge.scoring_type === 'time'
+                    ? `${Math.floor(entry.score / 60)}:${String(Math.floor(entry.score % 60)).padStart(2, '0')}`
+                    : `${entry.score} pts`}
+                </Text>
+              </View>
+            ))}
 
-              {/* Active Challenges List */}
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ACTIVE CHALLENGES THIS WEEK</Text>
-              {allChallenges.length === 0 ? (
-                <Text style={{ color: theme.text.tertiary, fontSize: 12, marginBottom: 12 }}>No challenges live yet.</Text>
-              ) : (
-                allChallenges.map(ac => (
-                  <View key={ac.id} style={[styles.activeChallengeRow, { backgroundColor: theme.card.background }]}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
-                      <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
-                    </View>
-                    <TouchableOpacity 
-                      disabled={isDeletingId === ac.id}
-                      onPress={async () => {
-                        console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
-                        Alert.alert(
-                          'Confirm Delete',
-                          `Are you sure you want to delete "${ac.title}"?`,
-                          [
-                            { text: 'Cancel', style: 'cancel' },
-                            { text: 'Delete', style: 'destructive', onPress: async () => {
-                              if (isDeletingId === ac.id) return;
-                              setIsDeletingId(ac.id);
-                              try {
-                                const res = await ChallengeService.delete(ac.id);
-                                if (res) {
-                                  Alert.alert('Success', 'Challenge removed');
-                                  await loadChallenge();
+            {isAdmin && (
+              <TouchableOpacity
+                style={[styles.adminButton, { backgroundColor: theme.accent, marginTop: 16 }]}
+                onPress={() => setShowAdminModal(true)}
+              >
+                <Text style={styles.adminButtonText}>⚙️ MANAGE CHALLENGES</Text>
+              </TouchableOpacity>
+            )}
+            
+            {showSubmitModal && challenge && (
+              <WeeklyChallengeSubmitModal
+                visible={showSubmitModal}
+                onClose={() => setShowSubmitModal(false)}
+                challenge={challenge}
+                user={user}
+                theme={theme}
+                selectedWeekStart={selectedWeekStart}
+                onSubmitSuccess={loadChallenge}
+              />
+            )}
+          </>
+        )}
+
+        {/* Admin Modal */}
+        <Modal visible={showAdminModal} transparent animationType="slide" onRequestClose={() => setShowAdminModal(false)}>
+          <View style={styles.modalOverlay}>
+            <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
+              <View style={[styles.adminModalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
+                <Text style={[styles.modalTitle, { color: theme.accent }]}>COACH DASHBOARD</Text>
+
+                {/* Active Challenges List */}
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ACTIVE CHALLENGES THIS WEEK</Text>
+                {allChallenges.length === 0 ? (
+                  <Text style={{ color: theme.text.tertiary, fontSize: 12, marginBottom: 12 }}>No challenges live yet.</Text>
+                ) : (
+                  allChallenges.map(ac => (
+                    <View key={ac.id} style={[styles.activeChallengeRow, { backgroundColor: theme.card.background }]}>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
+                        <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
+                      </View>
+                      <TouchableOpacity 
+                        disabled={isDeletingId === ac.id}
+                        onPress={async () => {
+                          if (__DEV__) console.log('DELETE BUTTON CLICKED for challenge:', ac.id);
+                          Alert.alert(
+                            'Confirm Delete',
+                            `Are you sure you want to delete "${ac.title}"?`,
+                            [
+                              { text: 'Cancel', style: 'cancel' },
+                              { text: 'Delete', style: 'destructive', onPress: async () => {
+                                if (isDeletingId === ac.id) return;
+                                setIsDeletingId(ac.id);
+                                try {
+                                  const res = await ChallengeService.delete(ac.id);
+                                  if (res) {
+                                    Alert.alert('Success', 'Challenge removed');
+                                    await loadChallenge();
+                                  }
+                                } catch (err: any) {
+                                  Alert.alert('Error', err.message || 'Failed to delete challenge');
+                                } finally {
+                                  setIsDeletingId(null);
                                 }
-                              } catch (err: any) {
-                                Alert.alert('Error', err.message || 'Failed to delete challenge');
-                              } finally {
-                                setIsDeletingId(null);
-                              }
-                            }}
-                          ]
-                        );
-                    }}>
-                      <Text style={{ color: isDeletingId === ac.id ? '#999' : '#8B0000', fontWeight: '900' }}>
-                        {isDeletingId === ac.id ? '...' : '✕'}
+                              }}
+                            ]
+                          );
+                      }}>
+                        <Text style={{ color: isDeletingId === ac.id ? '#999' : '#8B0000', fontWeight: '900' }}>
+                          {isDeletingId === ac.id ? '...' : '✕'}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  ))
+                )}
+
+                <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
+
+                <Text style={[styles.modalTitle, { color: theme.accent, fontSize: 16 }]}>CREATE NEW CHALLENGE</Text>
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET GROUP</Text>
+                <View style={styles.groupSelector}>
+                  {([1, 2, 3] as const).map(g => (
+                    <TouchableOpacity
+                      key={g}
+                      style={[styles.groupOption, { borderColor: adminForm.group_id === g ? theme.accent : theme.card.border, backgroundColor: adminForm.group_id === g ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
+                      onPress={() => setAdminForm({ ...adminForm, group_id: g })}
+                    >
+                      <Text style={[styles.groupOptionText, { color: adminForm.group_id === g ? theme.accent : theme.text.tertiary }]}>
+                        {GROUP_NAMES[g].name}
                       </Text>
                     </TouchableOpacity>
+                  ))}
+                </View>
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TITLE</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                  value={adminForm.title}
+                  onChangeText={t => setAdminForm({ ...adminForm, title: t })}
+                  placeholder="e.g. THE IRON GAUNTLET"
+                  placeholderTextColor={theme.text.tertiary}
+                />
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>DESCRIPTION (optional)</Text>
+                <TextInput
+                  style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                  value={adminForm.description}
+                  onChangeText={t => setAdminForm({ ...adminForm, description: t })}
+                  placeholder="Challenge description"
+                  placeholderTextColor={theme.text.tertiary}
+                />
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>SCORING TYPE</Text>
+                <View style={styles.groupSelector}>
+                  {(['time', 'reps'] as const).map(s => (
+                    <TouchableOpacity
+                      key={s}
+                      style={[styles.groupOption, { borderColor: adminForm.scoring_type === s ? theme.accent : theme.card.border, backgroundColor: adminForm.scoring_type === s ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
+                      onPress={() => setAdminForm({ ...adminForm, scoring_type: s })}
+                    >
+                      <Text style={[styles.groupOptionText, { color: adminForm.scoring_type === s ? theme.accent : theme.text.tertiary }]}>
+                        {s === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                {adminForm.scoring_type === 'reps' && (
+                  <>
+                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TIME LIMIT (MINUTES)</Text>
+                    <TextInput
+                      style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                      value={String(adminForm.time_limit)}
+                      onChangeText={t => setAdminForm({ ...adminForm, time_limit: parseInt(t) || 10 })}
+                      placeholder="e.g. 10"
+                      placeholderTextColor={theme.text.tertiary}
+                      keyboardType="numeric"
+                    />
+                  </>
+                )}
+                <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADD MOVEMENTS</Text>
+                <View style={styles.movementInputRow}>
+                  <View style={{ flex: 1 }}>
+                    <TouchableOpacity
+                      style={[styles.movementInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, justifyContent: 'center' }]}
+                      onPress={() => setShowMovementDropdown(!showMovementDropdown)}
+                    >
+                      <Text style={{ color: newMovement.name ? theme.text.primary : theme.text.tertiary }}>
+                        {newMovement.name || 'Select movement'}
+                      </Text>
+                    </TouchableOpacity>
+                    {showMovementDropdown && (
+                      <View style={[styles.dropdown, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                        <ScrollView style={{ width: '100%' }}>
+                          {Object.entries(MOVEMENT_POINTS).map(([name, points]) => (
+                            <TouchableOpacity
+                              key={name}
+                              style={styles.dropdownItem}
+                              onPress={() => {
+                                setNewMovement({ ...newMovement, name, points });
+                                setShowMovementDropdown(false);
+                              }}
+                            >
+                              <Text style={{ color: theme.text.primary }}>{name} ({points} pts)</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
                   </View>
-                ))
-              )}
-
-              <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
-
-              <Text style={[styles.modalTitle, { color: theme.accent, fontSize: 16 }]}>CREATE NEW CHALLENGE</Text>
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET GROUP</Text>
-              <View style={styles.groupSelector}>
-                {([1, 2, 3] as const).map(g => (
-                  <TouchableOpacity
-                    key={g}
-                    style={[styles.groupOption, { borderColor: adminForm.group_id === g ? theme.accent : theme.card.border, backgroundColor: adminForm.group_id === g ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
-                    onPress={() => setAdminForm({ ...adminForm, group_id: g })}
-                  >
-                    <Text style={[styles.groupOptionText, { color: adminForm.group_id === g ? theme.accent : theme.text.tertiary }]}>
-                      {GROUP_NAMES[g].name}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TITLE</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                value={adminForm.title}
-                onChangeText={t => setAdminForm({ ...adminForm, title: t })}
-                placeholder="e.g. THE IRON GAUNTLET"
-                placeholderTextColor={theme.text.tertiary}
-              />
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>DESCRIPTION (optional)</Text>
-              <TextInput
-                style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                value={adminForm.description}
-                onChangeText={t => setAdminForm({ ...adminForm, description: t })}
-                placeholder="Challenge description"
-                placeholderTextColor={theme.text.tertiary}
-              />
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>SCORING TYPE</Text>
-              <View style={styles.groupSelector}>
-                {(['time', 'reps'] as const).map(s => (
-                  <TouchableOpacity
-                    key={s}
-                    style={[styles.groupOption, { borderColor: adminForm.scoring_type === s ? theme.accent : theme.card.border, backgroundColor: adminForm.scoring_type === s ? 'rgba(205,127,50,0.1)' : theme.card.background }]}
-                    onPress={() => setAdminForm({ ...adminForm, scoring_type: s })}
-                  >
-                    <Text style={[styles.groupOptionText, { color: adminForm.scoring_type === s ? theme.accent : theme.text.tertiary }]}>
-                      {s === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-              {adminForm.scoring_type === 'reps' && (
-                <>
-                  <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TIME LIMIT (MINUTES)</Text>
                   <TextInput
-                    style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                    value={String(adminForm.time_limit)}
-                    onChangeText={t => setAdminForm({ ...adminForm, time_limit: parseInt(t) || 10 })}
-                    placeholder="e.g. 10"
+                    style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+                    value={newMovement.reps ? String(newMovement.reps) : ''}
+                    onChangeText={t => setNewMovement({ ...newMovement, reps: parseInt(t) || 0 })}
+                    placeholder="Reps"
                     placeholderTextColor={theme.text.tertiary}
                     keyboardType="numeric"
                   />
-                </>
-              )}
-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADD MOVEMENTS</Text>
-              <View style={styles.movementInputRow}>
-                <View style={{ flex: 1 }}>
                   <TouchableOpacity
-                    style={[styles.movementInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, justifyContent: 'center' }]}
-                    onPress={() => setShowMovementDropdown(!showMovementDropdown)}
+                    style={[styles.addBtn, { backgroundColor: theme.accent }]}
+                    onPress={() => {
+                      if (newMovement.name && newMovement.reps > 0) {
+                        setAdminForm({
+                          ...adminForm,
+                          movements: [...adminForm.movements, { ...newMovement, points: newMovement.points || MOVEMENT_POINTS[newMovement.name] || 1 }]
+                        });
+                        setNewMovement({ name: '', reps: 0, points: 0 });
+                      }
+                    }}
                   >
-                    <Text style={{ color: newMovement.name ? theme.text.primary : theme.text.tertiary }}>
-                      {newMovement.name || 'Select movement'}
-                    </Text>
+                    <Text style={{ color: '#fff', fontWeight: '900' }}>+</Text>
                   </TouchableOpacity>
-                  {showMovementDropdown && (
-                    <View style={[styles.dropdown, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                      <ScrollView style={{ width: '100%' }}>
-                        {Object.entries(MOVEMENT_POINTS).map(([name, points]) => (
-                          <TouchableOpacity
-                            key={name}
-                            style={styles.dropdownItem}
-                            onPress={() => {
-                              setNewMovement({ ...newMovement, name, points });
-                              setShowMovementDropdown(false);
-                            }}
-                          >
-                            <Text style={{ color: theme.text.primary }}>{name} ({points} pts)</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
-                    </View>
-                  )}
                 </View>
-                <TextInput
-                  style={[styles.repsInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
-                  value={newMovement.reps ? String(newMovement.reps) : ''}
-                  onChangeText={t => setNewMovement({ ...newMovement, reps: parseInt(t) || 0 })}
-                  placeholder="Reps"
-                  placeholderTextColor={theme.text.tertiary}
-                  keyboardType="numeric"
-                />
+                {adminForm.movements.map((m, i) => (
+                  <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                    <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name} × {m.reps}</Text>
+                    <TouchableOpacity onPress={() => setAdminForm({ ...adminForm, movements: adminForm.movements.filter((_, idx) => idx !== i) })}>
+                      <Text style={{ color: '#8B0000' }}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {challenge && (
+                  <TouchableOpacity
+                    style={[styles.saveBtn, { backgroundColor: '#8B0000', marginTop: 24 }]}
+                    onPress={handleDeleteChallenge}
+                  >
+                    <Text style={styles.timerBtnText}>DELETE CHALLENGE</Text>
+                  </TouchableOpacity>
+                )}
                 <TouchableOpacity
-                  style={[styles.addBtn, { backgroundColor: theme.accent }]}
-                  onPress={() => {
-                    if (newMovement.name && newMovement.reps > 0) {
-                      setAdminForm({
-                        ...adminForm,
-                        movements: [...adminForm.movements, { ...newMovement, points: newMovement.points || MOVEMENT_POINTS[newMovement.name] || 1 }]
-                      });
-                      setNewMovement({ name: '', reps: 0, points: 0 });
-                    }
-                  }}
+                  style={[styles.saveBtn, { backgroundColor: theme.accent, marginTop: challenge ? 12 : 24 }]}
+                  onPress={handleCreateChallenge}
                 >
-                  <Text style={{ color: '#fff', fontWeight: '900' }}>+</Text>
+                  <Text style={styles.timerBtnText}>PUBLISH CHALLENGE</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setShowAdminModal(false)} style={{ marginTop: 12, alignItems: 'center' }}>
+                  <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
                 </TouchableOpacity>
               </View>
-              {adminForm.movements.map((m, i) => (
-                <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                  <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name} × {m.reps}</Text>
-                  <TouchableOpacity onPress={() => setAdminForm({ ...adminForm, movements: adminForm.movements.filter((_, idx) => idx !== i) })}>
-                    <Text style={{ color: '#8B0000' }}>✕</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-              {challenge && (
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: '#8B0000', marginTop: 24 }]}
-                  onPress={handleDeleteChallenge}
-                >
-                  <Text style={styles.timerBtnText}>DELETE CHALLENGE</Text>
-                </TouchableOpacity>
-              )}
-              <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: theme.accent, marginTop: challenge ? 12 : 24 }]}
-                onPress={handleCreateChallenge}
-              >
-                <Text style={styles.timerBtnText}>PUBLISH CHALLENGE</Text>
-              </TouchableOpacity>
-              <TouchableOpacity onPress={() => setShowAdminModal(false)} style={{ marginTop: 12, alignItems: 'center' }}>
-                <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </View>
-      </Modal>
+            </ScrollView>
+          </View>
+        </Modal>
 
-      <CelebrationBanner
-        visible={showCelebration}
-        title="WEEKLY WARRIOR"
-        subtitle="Challenge Complete"
-        stat="Weekly Challenge Conquered"
-        emoji="🏆"
-        userName={profile?.display_name || 'WARRIOR'}
-        onDismiss={() => {
-          setShowCelebration(false);
-        }}
-      />
-    </ScrollView>
+        <CelebrationBanner
+          visible={showCelebration}
+          title="WEEKLY WARRIOR"
+          subtitle="Challenge Complete"
+          stat="Weekly Challenge Conquered"
+          emoji="🏆"
+          userName={profile?.display_name || 'WARRIOR'}
+          onDismiss={() => {
+            setShowCelebration(false);
+          }}
+        />
+      </ScrollView>
+    </GlobalErrorBoundary>
   );
 }
 
@@ -612,6 +627,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
   selectedWeekStart,
   onSubmitSuccess,
 }) => {
+  const isMounted = useMountedRef();
   const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
   const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
@@ -721,7 +737,8 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
   }
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <GlobalErrorBoundary>
+      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
       <View style={styles.modalOverlay}>
         <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
@@ -913,6 +930,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
         </ScrollView>
       </View>
     </Modal>
+    </GlobalErrorBoundary>
   );
 };
 

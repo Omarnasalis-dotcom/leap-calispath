@@ -6,6 +6,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ArenaService, ArenaPhase } from '../services/ArenaService';
 import { useAuth } from '../contexts/AuthContext';
 import { LeapLogo } from '../components/LeapLogo';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 interface ChampionsArenaScreenProps {
@@ -67,7 +68,8 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
         <TouchableOpacity onPress={onClose} style={styles.backButton}>
@@ -214,6 +216,7 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
         )}
       </ScrollView>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

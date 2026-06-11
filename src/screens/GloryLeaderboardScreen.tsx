@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { getGloryLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
 import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 interface GloryLeaderboardScreenProps {
@@ -52,92 +53,94 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={[styles.header, { justifyContent: 'flex-start' }]}>
-        <View style={{ position: 'absolute', left: 0, right: 0, bottom: 20, alignItems: 'center' }}>
-          <View style={styles.tierNameHeaderFrame}>
-            <Text style={[styles.tierNameHeaderText, { color: '#CD7F32' }]}>HALL OF GLORY</Text>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={[styles.header, { justifyContent: 'flex-start' }]}>
+          <View style={{ position: 'absolute', left: 0, right: 0, bottom: 20, alignItems: 'center' }}>
+            <View style={styles.tierNameHeaderFrame}>
+              <Text style={[styles.tierNameHeaderText, { color: '#CD7F32' }]}>HALL OF GLORY</Text>
+            </View>
           </View>
+          <TouchableOpacity onPress={onClose} style={[styles.closeButton, { zIndex: 10 }]}>
+            <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={onClose} style={[styles.closeButton, { zIndex: 10 }]}>
-          <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
-        </TouchableOpacity>
-      </View>
 
-      {loading ? (
-        <View style={styles.loading}><LeapLogo size={40} animated /></View>
-      ) : (
-        <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
-          {/* Gender Filters */}
-          <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
-            {['ALL', 'MALE', 'FEMALE'].map((filter) => (
-              <TouchableOpacity
-                key={filter}
-                style={{
-                  paddingVertical: 6,
-                  paddingHorizontal: 16,
-                  borderRadius: 20,
-                  backgroundColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.05)',
-                  borderWidth: 1,
-                  borderColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.1)'
-                }}
-                onPress={() => setGenderFilter(filter as any)}
-              >
-                <Text style={{
-                  fontSize: 12,
-                  fontWeight: '900',
-                  color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)'
-                }}>
-                  {filter}
-                </Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {filteredEntries.map((entry) => {
-            const isCurrentUser = entry.is_current_user;
-            return (
-              <View
-                key={entry.user_id}
-                style={[
-                  styles.entryRow,
-                  isCurrentUser && styles.entryRowCurrentUser,
-                  entry.rank <= 3 && styles.entryRowTopThree
-                ]}
-              >
-                <View style={styles.rankContainer}>
-                  {renderMedal(entry.rank)}
-                </View>
-
-                <Text
-                  style={[
-                    styles.entryName,
-                    isCurrentUser && styles.entryNameCurrentUser
-                  ]}
-                  numberOfLines={1}
+        {loading ? (
+          <View style={styles.loading}><LeapLogo size={40} animated /></View>
+        ) : (
+          <ScrollView style={styles.list} showsVerticalScrollIndicator={false}>
+            {/* Gender Filters */}
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
+              {['ALL', 'MALE', 'FEMALE'].map((filter) => (
+                <TouchableOpacity
+                  key={filter}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    backgroundColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.05)',
+                    borderWidth: 1,
+                    borderColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.1)'
+                  }}
+                  onPress={() => setGenderFilter(filter as any)}
                 >
-                  <Text style={{ fontSize: 16 }}>{getCountryFlag(entry.country)} </Text>
-                  {entry.display_name.toUpperCase()}
-                  {isCurrentUser && <Text style={styles.youText}> (YOU)</Text>}
-                </Text>
-
-                <View style={styles.timeContainer}>
-                  <Text style={[styles.entryTime, { color: '#FFA500' }]}>
-                    {entry.best_time_seconds}
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: '900',
+                    color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)'
+                  }}>
+                    {filter}
                   </Text>
-                  <Text style={styles.unitText}>GP</Text>
-                </View>
-              </View>
-            );
-          })}
-          <View style={styles.footerSpacer} />
-        </ScrollView>
-      )}
+                </TouchableOpacity>
+              ))}
+            </View>
 
-      <View style={styles.floatingFooter}>
-        <Text style={styles.footerHint}>DUEL TO RISE IN THE HALL OF GLORY</Text>
+            {filteredEntries.map((entry) => {
+              const isCurrentUser = entry.is_current_user;
+              return (
+                <View
+                  key={entry.user_id}
+                  style={[
+                    styles.entryRow,
+                    isCurrentUser && styles.entryRowCurrentUser,
+                    entry.rank <= 3 && styles.entryRowTopThree
+                  ]}
+                >
+                  <View style={styles.rankContainer}>
+                    {renderMedal(entry.rank)}
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.entryName,
+                      isCurrentUser && styles.entryNameCurrentUser
+                    ]}
+                    numberOfLines={1}
+                  >
+                    <Text style={{ fontSize: 16 }}>{getCountryFlag(entry.country)} </Text>
+                    {entry.display_name.toUpperCase()}
+                    {isCurrentUser && <Text style={styles.youText}> (YOU)</Text>}
+                  </Text>
+
+                  <View style={styles.timeContainer}>
+                    <Text style={[styles.entryTime, { color: '#FFA500' }]}>
+                      {entry.best_time_seconds}
+                    </Text>
+                    <Text style={styles.unitText}>GP</Text>
+                  </View>
+                </View>
+              );
+            })}
+            <View style={styles.footerSpacer} />
+          </ScrollView>
+        )}
+
+        <View style={styles.floatingFooter}>
+          <Text style={styles.footerHint}>DUEL TO RISE IN THE HALL OF GLORY</Text>
+        </View>
       </View>
-    </View>
+    </GlobalErrorBoundary>
   );
 }
 

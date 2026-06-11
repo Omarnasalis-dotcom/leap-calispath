@@ -10,6 +10,7 @@ import {
   Animated,
 } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 interface AssessmentGateScreenProps {
   onStartAssessment?: () => void;
@@ -88,7 +89,8 @@ export function AssessmentGateScreen({ onStartAssessment }: AssessmentGateScreen
   const isLastSlide = currentSlide === STORY_SLIDES.length - 1;
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* Progress Dots */}
       <View style={styles.progressContainer}>
         {STORY_SLIDES.map((_, index) => (
@@ -192,7 +194,8 @@ export function AssessmentGateScreen({ onStartAssessment }: AssessmentGateScreen
           )}
         </View>
       </ScrollView>
-    </View>
+      </View>
+    </GlobalErrorBoundary>
   );
 }
 

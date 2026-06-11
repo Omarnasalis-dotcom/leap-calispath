@@ -37,12 +37,9 @@ serve(async (req) => {
     // 3. Create admin client to delete the user
     const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
     const rawServiceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    console.log("SECRET_KEYS raw:", rawSecretKeys);
-    console.log("SERVICE_ROLE_KEY raw:", rawServiceRole);
 
     const secretKeys = JSON.parse(rawSecretKeys!);
     const serviceRoleKey = secretKeys.service_role ?? secretKeys.serviceRole ?? secretKeys[Object.keys(secretKeys)[0]];
-    console.log("Resolved key prefix:", serviceRoleKey?.substring(0, 20));
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,

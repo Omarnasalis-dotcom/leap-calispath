@@ -68,7 +68,7 @@ export class ClashService {
   static async searchWarriors(query: string, currentUserId: string): Promise<Profile[]> {
     if (query.length < 2) return [];
 
-    console.log('SEARCHING_WARRIOR:', { query, currentUserId });
+    if (__DEV__) console.log('SEARCHING_WARRIOR:', { query, currentUserId });
 
     const { data, error } = await supabase
       .from('profiles')
@@ -83,7 +83,7 @@ export class ClashService {
       throw error;
     }
     
-    console.log('SEARCH_RESULTS:', data?.length || 0);
+    if (__DEV__) console.log('SEARCH_RESULTS:', data?.length || 0);
     return data || [];
   }
 

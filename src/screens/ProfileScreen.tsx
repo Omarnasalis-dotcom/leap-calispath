@@ -236,7 +236,7 @@ export function ProfileScreen({
 
         // 1. Sync Static Points if needed
         if (profile.statics_tier === 0 || profile.statics_tier === null) {
-          console.log('[Profile] Syncing Static points...');
+          if (__DEV__) console.log('[Profile] Syncing Static points...');
           const { error } = await supabase.rpc('sync_static_points', { p_user_id: profile.id });
           if (error) console.error('[Profile] Failed to sync Static points:', error);
           else syncedAny = true;
@@ -244,7 +244,7 @@ export function ProfileScreen({
 
         // 2. Sync Power Points if needed
         if (profile.power_points === 0 || profile.power_points === null) {
-          console.log('[Profile] Syncing Power points...');
+          if (__DEV__) console.log('[Profile] Syncing Power points...');
           const { error } = await supabase.rpc('sync_power_points', { p_user_id: profile.id });
           if (error) console.error('[Profile] Failed to sync Power points:', error);
           else syncedAny = true;
@@ -252,7 +252,7 @@ export function ProfileScreen({
 
         // 3. Sync Endurance (1MM) Points if needed
         if (profile.one_mm_points === 0 || profile.one_mm_points === null) {
-          console.log('[Profile] Syncing Endurance points...');
+          if (__DEV__) console.log('[Profile] Syncing Endurance points...');
           const { error } = await supabase.rpc('sync_onemm_points', { p_user_id: profile.id });
           if (error) console.error('[Profile] Failed to sync Endurance points:', error);
           else syncedAny = true;

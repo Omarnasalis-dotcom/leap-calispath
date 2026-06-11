@@ -9,6 +9,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { TournamentLogic } from '../lib/tournamentLogic';
 import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 interface UniversalWorkoutProps {
   sessionId?: string;
@@ -119,7 +120,8 @@ export function UniversalWorkoutScreen({ sessionId, day, dayConfig, participant,
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* HEADER */}
       <View style={styles.header}>
         <TouchableOpacity onPress={onClose} disabled={isActive}>
@@ -222,6 +224,7 @@ export function UniversalWorkoutScreen({ sessionId, day, dayConfig, participant,
         </View>
       </View>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

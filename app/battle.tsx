@@ -1,17 +1,14 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { BattleScreen } from '../src/screens/BattleScreen';
+import { LockedFeature } from '../src/components/LockedFeature';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
-  const router = useRouter();
-  const { clashId } = useLocalSearchParams<{ clashId: string }>();
-
   return (
     <SpartanLayout hideToggle>
-      <BattleScreen
-        clashId={clashId}
-        onFinish={() => router.replace('/profile')}
+      <LockedFeature
+        title="ONLINE CLASH"
+        description="Online Clash is currently locked and will be available in Season 2."
+        season={2}
       />
     </SpartanLayout>
   );

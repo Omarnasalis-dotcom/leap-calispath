@@ -9,6 +9,7 @@ import { supabase } from '../lib/supabase';
 import { TournamentService } from '../services/TournamentService';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { LeapLogo } from '../components/LeapLogo';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 export function TournamentArenaScreen({ navigation }: { navigation: any }) {
@@ -109,7 +110,7 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
     const allowed = session.config?.allowed_tiers;
     const userTier = Number(profile.strength_tier || 0);
 
-    console.log('LOBBY ENTRY VALIDATION:', {
+    if (__DEV__) console.log('LOBBY ENTRY VALIDATION:', {
       userTier,
       allowed,
       isEligible: allowed ? allowed.map(Number).includes(userTier) : 'no restriction'
@@ -209,46 +210,48 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={[styles.header, { justifyContent: 'flex-start' }]}>
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
-          <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT ARENA</Text>
-      </View>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={[styles.header, { justifyContent: 'flex-start' }]}>
+          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 16 }}>
+            <MaterialCommunityIcons name="arrow-left" size={24} color={theme.text.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT ARENA</Text>
+        </View>
 
-      <View style={styles.tabRow}>
-        <TouchableOpacity 
-          onPress={() => setActiveTab('arena')}
-          style={[styles.tab, activeTab === 'arena' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'arena' ? theme.text.primary : theme.text.tertiary }]}>ARENA</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => setActiveTab('leaderboard')}
-          style={[styles.tab, activeTab === 'leaderboard' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
-        >
-          <Text style={[styles.tabText, { color: activeTab === 'leaderboard' ? theme.text.primary : theme.text.tertiary }]}>LEADERBOARD</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={styles.tabRow}>
+          <TouchableOpacity 
+            onPress={() => setActiveTab('arena')}
+            style={[styles.tab, activeTab === 'arena' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'arena' ? theme.text.primary : theme.text.tertiary }]}>ARENA</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            onPress={() => setActiveTab('leaderboard')}
+            style={[styles.tab, activeTab === 'leaderboard' && { borderBottomColor: theme.accent, borderBottomWidth: 2 }]}
+          >
+            <Text style={[styles.tabText, { color: activeTab === 'leaderboard' ? theme.text.primary : theme.text.tertiary }]}>LEADERBOARD</Text>
+          </TouchableOpacity>
+        </View>
 
-      <ScrollView 
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
-      >
-        {activeTab === 'arena' ? (
-          activeSessions.length > 0 ? (
-            activeSessions.map(s => renderActiveCard(s))
-          ) : (
-            <View style={styles.emptyState}>
-              <MaterialCommunityIcons name="sword-cross" size={80} color={theme.text.tertiary} />
-              <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>THE ARENA IS QUIET</Text>
-              <Text style={[styles.emptySub, { color: theme.text.secondary }]}>No active tournaments at the moment. Check back soon for the next gauntlet.</Text>
-            </View>
-          )
-        ) : renderLeaderboard()}
-      </ScrollView>
-    </View>
+        <ScrollView 
+          contentContainerStyle={styles.scroll}
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+        >
+          {activeTab === 'arena' ? (
+            activeSessions.length > 0 ? (
+              activeSessions.map(s => renderActiveCard(s))
+            ) : (
+              <View style={styles.emptyState}>
+                <MaterialCommunityIcons name="sword-cross" size={80} color={theme.text.tertiary} />
+                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>THE ARENA IS QUIET</Text>
+                <Text style={[styles.emptySub, { color: theme.text.secondary }]}>No active tournaments at the moment. Check back soon for the next gauntlet.</Text>
+              </View>
+            )
+          ) : renderLeaderboard()}
+        </ScrollView>
+      </View>
+    </GlobalErrorBoundary>
   );
 }
 

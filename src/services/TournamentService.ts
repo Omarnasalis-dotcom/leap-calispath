@@ -55,7 +55,7 @@ export class TournamentService {
         .eq('id', sessionId)
         .single();
 
-      console.log('JOIN VALIDATION:', {
+      if (__DEV__) console.log('JOIN VALIDATION:', {
         sessionId,
         userTier,
         allowedTiers: session?.config?.allowed_tiers,
@@ -66,7 +66,7 @@ export class TournamentService {
         const allowed = session.config.allowed_tiers;
         const tierNum = Number(userTier);
         if (!allowed.map(Number).includes(tierNum)) {
-          console.log('JOIN REJECTED: Tier mismatch');
+          if (__DEV__) console.log('JOIN REJECTED: Tier mismatch');
           throw new Error(`This tournament is not fit for your current tier (T${tierNum}).`);
         }
       }
@@ -165,7 +165,7 @@ export class TournamentService {
 
         if (lockAcquired) {
           try {
-            console.log('AUTO_ADVANCE: day completed =', day, 'advancing to', day + 1);
+            if (__DEV__) console.log('AUTO_ADVANCE: day completed =', day, 'advancing to', day + 1);
             await this.advanceToRound(sessionId, day + 1);
           } finally {
             await supabase.rpc('release_tournament_advance_lock', { p_session_id: sessionId });
@@ -241,14 +241,14 @@ export class TournamentService {
         p => p.trials_used >= (config.max_trials || 999)
       );
 
-      console.log('TRIALS_CHECK: allExhausted =', allExhausted, 'trials_used =', participant.trials_used + 1, 'max =', config.max_trials);
+      if (__DEV__) console.log('TRIALS_CHECK: allExhausted =', allExhausted, 'trials_used =', participant.trials_used + 1, 'max =', config.max_trials);
       if (allExhausted && allParticipants && allParticipants.length > 0) {
         // IDEMPOTENCY GUARD: Claim lock to prevent multiple closures
         const { data: lockAcquired } = await supabase.rpc('claim_tournament_advance_lock', { p_session_id: sessionId });
 
         if (lockAcquired) {
           try {
-            console.log('AUTO_CLOSING rank-based tournament');
+            if (__DEV__) console.log('AUTO_CLOSING rank-based tournament');
             await this.closeRankBasedTournament(sessionId);
           } finally {
             await supabase.rpc('release_tournament_advance_lock', { p_session_id: sessionId });
@@ -321,9 +321,9 @@ export class TournamentService {
       }
 
       // Check for winner
-      console.log('ADVANCE: survivors =', survivors.length, 'nextRound =', nextRound);
+      if (__DEV__) console.log('ADVANCE: survivors =', survivors.length, 'nextRound =', nextRound);
       if (survivors.length === 1 && nextRound > 1) {
-        console.log('CALLING handleTournamentEnd for', survivors[0]);
+        if (__DEV__) console.log('CALLING handleTournamentEnd for', survivors[0]);
         await this.handleTournamentEnd(sessionId, survivors[0]);
         return;
       }
@@ -613,7 +613,7 @@ export class TournamentService {
       if (!session || session.status !== 'active' || !session.round_deadline) return;
 
       if (new Date() > new Date(session.round_deadline)) {
-        console.log('EXPIRY: Deadline passed for session', sessionId);
+        if (__DEV__) console.log('EXPIRY: Deadline passed for session', sessionId);
         const configType = (session.config as any)?.type;
         if (configType === 'knockout') {
           await this.checkAndAutoEliminate(sessionId);

@@ -15,11 +15,14 @@ import {
   calculatePowerPoints
 } from '../lib/powerLogic';
 import { PowerService, PowerUserStats } from '../services/PowerService';
+import { useSafeAsync } from '../hooks/useSafeAsync';
+import { useMountedRef } from '../hooks/useMountedRef';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 const { width } = Dimensions.get('window');
@@ -27,6 +30,8 @@ const { width } = Dimensions.get('window');
 export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
   const { theme, toggleTheme, mode } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
+  const isMounted = useMountedRef();
+  const { runAsync: runSafeSave } = useSafeAsync();
   
   const [stats, setStats] = useState<PowerUserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -62,37 +67,45 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
     if (!user) return;
     try {
       const s = await PowerService.getUserStats(user.id);
+      if (!isMounted.current) return;
       setStats(s);
     } catch (error) {
       console.error('Fetch error:', error);
+      if (!isMounted.current) return;
       Alert.alert('Error', 'Failed to load power stats. Please check your connection.');
     } finally {
-      setLoading(false);
-      setRefreshing(false);
+      if (isMounted.current) {
+        setLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, [user]);
+  }, [user, isMounted]);
 
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardData([]);
     try {
       const data = await PowerService.getLeaderboard(leaderboardTab as any);
+      if (!isMounted.current) return;
       setLeaderboardData(data);
     } catch (error) {
       console.error('Leaderboard error:', error);
+      if (!isMounted.current) return;
       Alert.alert('Error', 'Failed to load leaderboard data.');
     }
-  }, [leaderboardTab]);
+  }, [leaderboardTab, isMounted]);
 
   const fetchModalLeaderboard = useCallback(async (moveId: string) => {
     setModalLeaderboardData([]);
     try {
       const data = await PowerService.getLeaderboard(moveId as any);
+      if (!isMounted.current) return;
       setModalLeaderboardData(data);
     } catch (error) {
       console.error('Modal Leaderboard error:', error);
+      if (!isMounted.current) return;
       Alert.alert('Error', 'Failed to load movement rankings.');
     }
-  }, []);
+  }, [isMounted]);
 
   useEffect(() => {
     fetchData();
@@ -123,37 +136,43 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
     }
 
     setSaving(true);
-    try {
+    runSafeSave(async () => {
       const { isNewPB, isPromotion } = await PowerService.savePB(user.id, selectedMovement, kg);
       
       if (isNewPB) {
         const movement = POWER_MOVEMENTS.find(m => m.id === selectedMovement);
         const points = calculatePowerPoints(selectedMovement, kg);
         
-        setCelebrationProps({
-          title: isPromotion ? 'LEVEL PROMOTED!' : 'NEW POWER PB!',
-          subtitle: isPromotion ? `WELCOME TO ${getPowerLevel(stats?.totalPoints || 0).name}` : movement?.name,
-          stat: `${kg}kg (+${points} pts)`,
-          emoji: isPromotion ? '⚡' : '🔥',
-          userName: profile?.display_name || 'WARRIOR',
-          rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : 'STRENGTH GAIN',
-        });
-        setShowCelebration(true);
+        if (isMounted.current) {
+          setCelebrationProps({
+            title: isPromotion ? 'LEVEL PROMOTED!' : 'NEW POWER PB!',
+            subtitle: isPromotion ? `WELCOME TO ${getPowerLevel(stats?.totalPoints || 0).name}` : movement?.name,
+            stat: `${kg}kg (+${points} pts)`,
+            emoji: isPromotion ? '⚡' : '🔥',
+            userName: profile?.display_name || 'WARRIOR',
+            rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : 'STRENGTH GAIN',
+          });
+          setShowCelebration(true);
+        }
       }
 
-      setShowLogModal(false);
-      setManualInput('');
       await Promise.all([
         fetchData(),
         fetchLeaderboard(),
         refreshProfile ? refreshProfile() : Promise.resolve(),
       ]);
-    } catch (error) {
-      console.error('Save error:', error);
-      Alert.alert('Error', 'Failed to save PR.');
-    } finally {
-      setSaving(false);
-    }
+    }, {
+      onSuccess: () => {
+        setSaving(false);
+        setShowLogModal(false);
+        setManualInput('');
+      },
+      onError: (error: any) => {
+        setSaving(false);
+        console.error('Save error:', error);
+        Alert.alert('Error', 'Failed to save PR.');
+      }
+    });
   };
 
   const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
@@ -479,10 +498,11 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
   };
 
   return (
-    <LinearGradient 
-      colors={[theme.background.primary, theme.background.secondary || '#000']} 
-      style={[styles.container]}
-    >
+    <GlobalErrorBoundary>
+      <LinearGradient 
+        colors={[theme.background.primary, theme.background.secondary || '#000']} 
+        style={[styles.container]}
+      >
       {renderHeader()}
       <ScrollView 
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
@@ -609,6 +629,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         onDismiss={() => setShowCelebration(false)}
       />
     </LinearGradient>
+    </GlobalErrorBoundary>
   );
 }
 

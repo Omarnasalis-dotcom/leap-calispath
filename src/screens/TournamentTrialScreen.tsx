@@ -11,6 +11,7 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { LeapLogo } from '../components/LeapLogo';
 import { useSafeAsync } from '../hooks/useSafeAsync';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 
 interface Props {
@@ -260,135 +261,137 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
   }
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-      <View style={styles.header}>
-        <TouchableOpacity 
-          onPress={() => {
-            if (isActive) {
-              Alert.alert('Battle in Progress', 'The arena is locked. You must finish the battle or wait for the timer to expire.');
-            } else {
-              router.back();
-            }
-          }}
-        >
-          <MaterialCommunityIcons name="close" size={32} color={theme.text.primary} />
-        </TouchableOpacity>
-        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT TRIAL</Text>
-        <View style={{ width: 32 }} />
-      </View>
+    <GlobalErrorBoundary>
+      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+        <View style={styles.header}>
+          <TouchableOpacity 
+            onPress={() => {
+              if (isActive) {
+                Alert.alert('Battle in Progress', 'The arena is locked. You must finish the battle or wait for the timer to expire.');
+              } else {
+                router.back();
+              }
+            }}
+          >
+            <MaterialCommunityIcons name="close" size={32} color={theme.text.primary} />
+          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: theme.text.primary }]}>TOURNAMENT TRIAL</Text>
+          <View style={{ width: 32 }} />
+        </View>
 
-      <View style={styles.content}>
-        <View style={styles.timerCircle}>
-          <Text style={[
-            styles.timerText, 
-            { color: timeLeft < 30 && (roundConfig.mode === 'amrap' || sessionType === 'rank_based') ? '#EF4444' : theme.text.primary }
-          ]}>
-            {formatTimer(timeLeft)}
-          </Text>
-          <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>
-            {roundConfig.mode === 'amrap' ? 'TIME REMAINING' : 'ELAPSED TIME'}
-          </Text>
-          {roundConfig.mode === 'for_time' && (roundConfig as any).max_seconds !== undefined && (
-            <Text style={{ fontSize: 10, color: theme.accent, fontWeight: '700', marginTop: 4 }}>
-              CAP: {formatTimer(maxSeconds)}
+        <View style={styles.content}>
+          <View style={styles.timerCircle}>
+            <Text style={[
+              styles.timerText, 
+              { color: timeLeft < 30 && (roundConfig.mode === 'amrap' || sessionType === 'rank_based') ? '#EF4444' : theme.text.primary }
+            ]}>
+              {formatTimer(timeLeft)}
             </Text>
-          )}
-        </View>
-
-        {roundConfig.mode === 'amrap' && (
-          <View style={[styles.timerCircle, { marginTop: 0, marginBottom: 20 }]}>
-            <View style={styles.repControl}>
-              <TouchableOpacity onPress={() => handleCircuitRound(-1)} style={styles.repBtn}>
-                <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
-              </TouchableOpacity>
-              <View style={{ alignItems: 'center', minWidth: 100 }}>
-                <Text style={[styles.timerText, { fontSize: 48, color: theme.text.primary }]}>{rounds}</Text>
-                <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>CIRCUIT ROUNDS</Text>
-              </View>
-              <TouchableOpacity onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
-                <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
-              </TouchableOpacity>
-            </View>
+            <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>
+              {roundConfig.mode === 'amrap' ? 'TIME REMAINING' : 'ELAPSED TIME'}
+            </Text>
+            {roundConfig.mode === 'for_time' && (roundConfig as any).max_seconds !== undefined && (
+              <Text style={{ fontSize: 10, color: theme.accent, fontWeight: '700', marginTop: 4 }}>
+                CAP: {formatTimer(maxSeconds)}
+              </Text>
+            )}
           </View>
-        )}
 
-        <ScrollView style={{ width: '100%' }}>
-          {roundConfig.exercises.map((ex, i) => (
-            <View key={i} style={[styles.exerciseCard, { backgroundColor: theme.card.background }]}>
-              <View style={{ flex: 1 }}>
-                <Text style={[styles.exName, { color: theme.text.primary }]}>{ex.name.toUpperCase()}</Text>
-                <Text style={[styles.exTarget, { color: theme.text.tertiary }]}>TARGET: {ex.target_reps} REPS</Text>
-              </View>
-              
-              {roundConfig.mode === 'for_time' ? (
-                <TouchableOpacity 
-                  onPress={() => handleToggleExercise(i)}
-                  style={{ padding: 12 }}
-                >
-                  <MaterialCommunityIcons 
-                    name={checkedExercises[i] ? "checkbox-marked" : "checkbox-blank-outline"} 
-                    size={28} 
-                    color={checkedExercises[i] ? theme.accent : theme.text.tertiary} 
-                  />
+          {roundConfig.mode === 'amrap' && (
+            <View style={[styles.timerCircle, { marginTop: 0, marginBottom: 20 }]}>
+              <View style={styles.repControl}>
+                <TouchableOpacity onPress={() => handleCircuitRound(-1)} style={styles.repBtn}>
+                  <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
                 </TouchableOpacity>
-              ) : roundConfig.mode === 'amrap' ? (
-                <View style={styles.repControl}>
-                  <TouchableOpacity onPress={() => handleRankExtraRep(i, -1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                    <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
-                  </TouchableOpacity>
-                  <View style={{ alignItems: 'center' }}>
-                    <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
-                    <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>EXTRA</Text>
-                  </View>
-                  <TouchableOpacity onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
-                    <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
-                  </TouchableOpacity>
+                <View style={{ alignItems: 'center', minWidth: 100 }}>
+                  <Text style={[styles.timerText, { fontSize: 48, color: theme.text.primary }]}>{rounds}</Text>
+                  <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>CIRCUIT ROUNDS</Text>
                 </View>
-              ) : (
-                <View style={styles.repControl}>
-                  <TouchableOpacity onPress={() => handleRep(i, -1)} style={styles.repBtn}>
-                    <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
-                  </TouchableOpacity>
-                  <Text style={[styles.repValue, { color: theme.accent }]}>{exerciseReps[i]}</Text>
-                  <TouchableOpacity onPress={() => handleRep(i, 1)} style={styles.repBtn}>
-                    <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
-                  </TouchableOpacity>
-                </View>
-              )}
+                <TouchableOpacity onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
+                  <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
+                </TouchableOpacity>
+              </View>
             </View>
-          ))}
-        </ScrollView>
-
-        <View style={styles.footer}>
-          {isPreparing ? (
-            <View style={{ alignItems: 'center', width: '100%' }}>
-              <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
-              <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
-              <TouchableOpacity 
-                style={[styles.finishBtn, { borderColor: theme.text.tertiary }]} 
-                onPress={cancelPreparation}
-              >
-                <Text style={{ color: theme.text.tertiary, fontWeight: '900' }}>CANCEL PREPARATION</Text>
-              </TouchableOpacity>
-            </View>
-          ) : !isActive && !isFinished ? (
-            <TouchableOpacity style={[styles.mainBtn, { backgroundColor: theme.accent }]} onPress={handleStartWithLeadIn}>
-              <Text style={styles.mainBtnText}>START BATTLE</Text>
-            </TouchableOpacity>
-          ) : isFinished ? (
-            <TouchableOpacity 
-              style={[styles.mainBtn, { backgroundColor: theme.accent }]} 
-              onPress={handleSubmit}
-              disabled={loading}
-            >
-              {loading ? <LeapLogo size={40} animated /> : <Text style={styles.mainBtnText}>SUBMIT RESULTS</Text>}
-            </TouchableOpacity>
-          ) : (
-            <View style={{ height: 50 }} /> // Spacer instead of finish early button
           )}
+
+          <ScrollView style={{ width: '100%' }}>
+            {roundConfig.exercises.map((ex, i) => (
+              <View key={i} style={[styles.exerciseCard, { backgroundColor: theme.card.background }]}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.exName, { color: theme.text.primary }]}>{ex.name.toUpperCase()}</Text>
+                  <Text style={[styles.exTarget, { color: theme.text.tertiary }]}>TARGET: {ex.target_reps} REPS</Text>
+                </View>
+                
+                {roundConfig.mode === 'for_time' ? (
+                  <TouchableOpacity 
+                    onPress={() => handleToggleExercise(i)}
+                    style={{ padding: 12 }}
+                  >
+                    <MaterialCommunityIcons 
+                      name={checkedExercises[i] ? "checkbox-marked" : "checkbox-blank-outline"} 
+                      size={28} 
+                      color={checkedExercises[i] ? theme.accent : theme.text.tertiary} 
+                    />
+                  </TouchableOpacity>
+                ) : roundConfig.mode === 'amrap' ? (
+                  <View style={styles.repControl}>
+                    <TouchableOpacity onPress={() => handleRankExtraRep(i, -1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
+                      <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
+                    </TouchableOpacity>
+                    <View style={{ alignItems: 'center' }}>
+                      <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
+                      <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>EXTRA</Text>
+                    </View>
+                    <TouchableOpacity onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
+                      <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
+                    </TouchableOpacity>
+                  </View>
+                ) : (
+                  <View style={styles.repControl}>
+                    <TouchableOpacity onPress={() => handleRep(i, -1)} style={styles.repBtn}>
+                      <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
+                    </TouchableOpacity>
+                    <Text style={[styles.repValue, { color: theme.accent }]}>{exerciseReps[i]}</Text>
+                    <TouchableOpacity onPress={() => handleRep(i, 1)} style={styles.repBtn}>
+                      <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            ))}
+          </ScrollView>
+
+          <View style={styles.footer}>
+            {isPreparing ? (
+              <View style={{ alignItems: 'center', width: '100%' }}>
+                <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
+                <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                <TouchableOpacity 
+                  style={[styles.finishBtn, { borderColor: theme.text.tertiary }]} 
+                  onPress={cancelPreparation}
+                >
+                  <Text style={{ color: theme.text.tertiary, fontWeight: '900' }}>CANCEL PREPARATION</Text>
+                </TouchableOpacity>
+              </View>
+            ) : !isActive && !isFinished ? (
+              <TouchableOpacity style={[styles.mainBtn, { backgroundColor: theme.accent }]} onPress={handleStartWithLeadIn}>
+                <Text style={styles.mainBtnText}>START BATTLE</Text>
+              </TouchableOpacity>
+            ) : isFinished ? (
+              <TouchableOpacity 
+                style={[styles.mainBtn, { backgroundColor: theme.accent }]} 
+                onPress={handleSubmit}
+                disabled={loading}
+              >
+                {loading ? <LeapLogo size={40} animated /> : <Text style={styles.mainBtnText}>SUBMIT RESULTS</Text>}
+              </TouchableOpacity>
+            ) : (
+              <View style={{ height: 50 }} /> // Spacer instead of finish early button
+            )}
+          </View>
         </View>
       </View>
-    </View>
+    </GlobalErrorBoundary>
   );
 }
 

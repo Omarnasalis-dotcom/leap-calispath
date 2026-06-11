@@ -17,6 +17,7 @@ import {
 import { LeapLogo } from '../components/LeapLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import {
   calculateSpartanRank,
@@ -220,10 +221,11 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   };
 
   return (
-    <KeyboardAvoidingView 
-      style={[styles.container, { backgroundColor: theme.background.primary }]}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-    >
+    <GlobalErrorBoundary>
+      <KeyboardAvoidingView 
+        style={[styles.container, { backgroundColor: theme.background.primary }]}
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      >
       <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         
         <View style={styles.header}>
@@ -321,7 +323,8 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
           )}
         </View>
       </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
+    </GlobalErrorBoundary>
   );
 }
 

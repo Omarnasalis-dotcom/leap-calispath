@@ -49,7 +49,7 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
           notificationIdRef.current = identifier;
         }
       } catch (e) {
-        console.log('Failed to schedule notification', e);
+        if (__DEV__) console.log('Failed to schedule notification', e);
       }
     }
   };
@@ -64,7 +64,7 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
         await Notifications.cancelScheduledNotificationAsync(notificationIdRef.current);
         notificationIdRef.current = null;
       } catch (e) {
-        console.log('Failed to cancel notification', e);
+        if (__DEV__) console.log('Failed to cancel notification', e);
       }
     }
   };

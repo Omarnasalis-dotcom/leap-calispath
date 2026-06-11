@@ -3,6 +3,7 @@ dist/
 .expo/
 *.log
 .env
+.env.local
 .DS_Store
 _backup/
 _backup/

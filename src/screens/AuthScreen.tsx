@@ -17,6 +17,7 @@ import {
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
 import { Button } from '../components/Button';
@@ -219,7 +220,8 @@ export function AuthScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: theme.card.background }}>
+    <GlobalErrorBoundary>
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.card.background }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={[styles.container, { backgroundColor: theme.card.background }]}
@@ -577,7 +579,8 @@ export function AuthScreen() {
 
       </ScrollView>
     </KeyboardAvoidingView>
-    </SafeAreaView>
+      </SafeAreaView>
+    </GlobalErrorBoundary>
   );
 }
 

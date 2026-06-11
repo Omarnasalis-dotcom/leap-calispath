@@ -1,22 +1,14 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
-import { TournamentLobbyScreen } from '../src/screens/TournamentLobbyScreen';
+import { LockedFeature } from '../src/components/LockedFeature';
 import { SpartanLayout } from '../src/components/SpartanLayout';
-import { TournamentStore } from '../src/lib/TournamentStore';
 
 export default function Route() {
-  const router = useRouter();
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
-
   return (
-    <SpartanLayout>
-      <TournamentLobbyScreen
-        sessionId={sessionId}
-        onClose={() => router.back()}
-        onEnterWorkout={(sid, roundConfig) => {
-          TournamentStore.setRoundConfig(sid, roundConfig);
-          router.push('/tournament-trial');
-        }}
+    <SpartanLayout hideToggle>
+      <LockedFeature
+        title="TOURNAMENT ARENA"
+        description="Tournament Arena is currently locked and will be available in Season 2."
+        season={2}
       />
     </SpartanLayout>
   );

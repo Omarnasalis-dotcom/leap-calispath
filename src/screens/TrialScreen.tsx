@@ -20,9 +20,11 @@ import { Vibration } from 'react-native';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
 import { TIER_NAMES } from '../types';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 import { TrialService } from '../services/TrialService';
 import { useTimer } from '../hooks/useTimer';
+import { useSafeAsync } from '../hooks/useSafeAsync';
 
 
 
@@ -52,7 +54,8 @@ export function TrialScreen({
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  const { runAsync: runSafeSubmit, isExecuting: isSubmitting } = useSafeAsync();
 
   // Cache route params on mount to prevent background wipe out (Bug 4)
   const [initialMode] = useState<TrialMode>(mode);
@@ -200,7 +203,7 @@ export function TrialScreen({
     handleBack();
   }
 
-  async function handleClaimRank() {
+  function handleClaimRank() {
     if (!user || !trial || !profile || isSubmitting) return;
 
     if (!TrialService.isTimeValid(trial.tier, timeSeconds)) {
@@ -209,10 +212,9 @@ export function TrialScreen({
     }
 
     setLoading(true);
-    setIsSubmitting(true);
     stopTimer();
 
-    try {
+    runSafeSubmit(async () => {
       await TrialService.submitResult({
         userId: user.id,
         tier: trial.tier,
@@ -222,36 +224,41 @@ export function TrialScreen({
 
       // CRITICAL: Await the profile refresh before showing victory
       await refreshProfile();
-
-      if (initialMode === 'progression') {
-        setShowVictory(true);
-      } else {
-        onBack ? onBack() : null;
+    }, {
+      onSuccess: () => {
+        setLoading(false);
+        if (initialMode === 'progression') {
+          setShowVictory(true);
+        } else {
+          onBack ? onBack() : null;
+        }
+      },
+      onError: (error: any) => {
+        setLoading(false);
+        if (error.message?.includes('DISHONOR')) {
+          setShowDishonor(true);
+        } else {
+          Alert.alert('Error', error.message || 'Failed to save time');
+        }
       }
-    } catch (error: any) {
-      if (error.message?.includes('DISHONOR')) {
-        setShowDishonor(true);
-      } else {
-        Alert.alert('Error', error.message || 'Failed to save time');
-      }
-    } finally {
-      setLoading(false);
-      setIsSubmitting(false);
-    }
+    });
   }
 
   // removed allCompleted and canClaim logic here
 
   if (!trial) {
     return (
-      <View style={styles.container}>
-        <Text style={[styles.loadingText, { color: theme.text.secondary }]}>Loading trial...</Text>
-      </View>
+      <GlobalErrorBoundary>
+        <View style={styles.container}>
+          <Text style={[styles.loadingText, { color: theme.text.secondary }]}>Loading trial...</Text>
+        </View>
+      </GlobalErrorBoundary>
     );
   }
 
   if (showDishonor) {
     return (
+      <GlobalErrorBoundary>
       <Animated.View style={{
         flex: 1,
         backgroundColor: '#0A0A0F',
@@ -387,16 +394,19 @@ export function TrialScreen({
           </Animated.View>
         </Animated.View>
       </Animated.View>
+      </GlobalErrorBoundary>
     );
   }
 
   if (showVictory) {
     return (
-      <VictoryScreen
-        tier={trial.tier}
-        timeSeconds={timeSeconds}
-        onContinue={onComplete}
-      />
+      <GlobalErrorBoundary>
+        <VictoryScreen
+          tier={trial.tier}
+          timeSeconds={timeSeconds}
+          onContinue={onComplete}
+        />
+      </GlobalErrorBoundary>
     );
   }
 
@@ -405,6 +415,7 @@ export function TrialScreen({
   const nextStep2 = currentStepIdx + 2 < trial.movements.length ? trial.movements[currentStepIdx + 2] : null;
 
   return (
+    <GlobalErrorBoundary>
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
@@ -540,6 +551,7 @@ export function TrialScreen({
         )}
       </ScrollView>
     </View>
+    </GlobalErrorBoundary>
   );
 }
 

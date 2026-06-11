@@ -31,6 +31,23 @@ serve(async (req: Request) => {
     })
   }
 
+  // Admin gate check for V1
+  const supabaseAdmin = createClient(
+    Deno.env.get('SUPABASE_URL') ?? '',
+    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
+  )
+  const { data: profile, error: profileError } = await supabaseAdmin
+    .from('profiles')
+    .select('is_admin')
+    .eq('id', user.id)
+    .single()
+
+  if (profileError || !profile?.is_admin) {
+    return new Response(JSON.stringify({ error: 'Forbidden', message: 'AI Coach is coming in Season 2.' }), {
+      status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+    })
+  }
+
   try {
     const body = await req.json()
     const { contents, generationConfig } = body
