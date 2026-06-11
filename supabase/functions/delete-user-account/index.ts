@@ -34,12 +34,27 @@ serve(async (req) => {
       });
     }
 
-    // 3. Create admin client to delete the user
-    const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
+    // 3. Create admin client to delete the user using a robust service role key resolution flow
     const rawServiceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    let serviceRoleKey = rawServiceRole || "";
 
-    const secretKeys = JSON.parse(rawSecretKeys!);
-    const serviceRoleKey = secretKeys.service_role ?? secretKeys.serviceRole ?? secretKeys[Object.keys(secretKeys)[0]];
+    if (!serviceRoleKey) {
+      const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
+      if (rawSecretKeys) {
+        try {
+          const secretKeys = JSON.parse(rawSecretKeys);
+          serviceRoleKey = secretKeys.service_role ?? secretKeys.serviceRole ?? secretKeys[Object.keys(secretKeys)[0]] ?? "";
+        } catch {
+          // Fallback handled via empty check below
+        }
+      }
+    }
+
+    if (!serviceRoleKey) {
+      return new Response(JSON.stringify({ error: "Missing service role credentials" }), {
+        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
+      });
+    }
 
     const supabaseAdmin = createClient(
       Deno.env.get("SUPABASE_URL")!,
