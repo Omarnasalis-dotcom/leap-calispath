@@ -345,7 +345,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               onPress={() => setShowSubmitModal(true)}
             >
               <Text style={styles.submitButtonText}>
-                {userEntry ? 'IMPROVE YOUR SCORE' : 'SUBMIT YOUR SCORE'}
+                START CHALLENGE
               </Text>
             </TouchableOpacity>
 
@@ -681,6 +681,11 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
     resetTimer();
   };
 
+  // Start lead-in countdown automatically when modal mounts
+  useEffect(() => {
+    handleStartWithLeadIn();
+  }, []);
+
   const cancelPreparation = () => {
     setIsPreparing(false);
     setPreCountdown(0);
@@ -738,122 +743,171 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
 
   return (
     <GlobalErrorBoundary>
-      <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
+      <Modal
+        visible={visible}
+        transparent={false}
+        animationType="slide"
+        presentationStyle="fullScreen"
+        onRequestClose={onClose}
+      >
+      <View style={[styles.modalOverlay, { backgroundColor: theme.background.primary }]}>
+        <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
             <Text style={[styles.modalTitle, { color: theme.accent }]}>
               {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
             </Text>
 
             {/* Workout Reference in Modal */}
-            <View style={styles.modalWorkoutRef}>
-              {challenge?.movements.map((m, i) => (
-                <Text key={i} style={{ color: theme.text.secondary, fontSize: 13, marginBottom: 4 }}>
-                  • {m.name}: <Text style={{ color: theme.accent, fontWeight: '700' }}>{m.reps} reps</Text>
-                </Text>
-              ))}
+            <View style={[styles.modalWorkoutRef, { borderColor: theme.accent + '22' }]}>
+              <View style={styles.workoutHeaderRow}>
+                <Text style={[styles.workoutHeaderTitle, { color: theme.accent }]}>CHALLENGE PROTOCOL</Text>
+                {challenge?.scoring_type === 'reps' && (
+                  <Text style={[styles.workoutHeaderSubtitle, { color: theme.text.tertiary }]}>
+                    ⏱ {challenge.time_limit} Min Limit
+                  </Text>
+                )}
+              </View>
+
+              <View style={styles.workoutMovementList}>
+                {challenge?.movements.map((m, i) => (
+                  <View 
+                    key={i} 
+                    style={[
+                      styles.workoutMovementItem, 
+                      { borderBottomColor: i === challenge.movements.length - 1 ? 'transparent' : 'rgba(255,255,255,0.04)' }
+                    ]}
+                  >
+                    <View style={[styles.stepBadge, { backgroundColor: theme.accent + '15' }]}>
+                      <Text style={[styles.stepText, { color: theme.accent }]}>{i + 1}</Text>
+                    </View>
+
+                    <Text style={[styles.workoutMovementName, { color: theme.text.primary }]} numberOfLines={1}>
+                      {m.name}
+                    </Text>
+
+                    <View style={styles.badgeContainer}>
+                      <View style={[styles.repBadge, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
+                        <Text style={[styles.repText, { color: theme.text.secondary }]}>
+                          {m.reps} Reps
+                        </Text>
+                      </View>
+                      
+                      {challenge.scoring_type === 'reps' && (
+                        <View style={[styles.pointPill, { backgroundColor: 'rgba(74, 222, 128, 0.1)' }]}>
+                          <Text style={styles.pointPillText}>
+                            +{m.points} Pts
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </View>
+                ))}
+              </View>
             </View>
 
             <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
 
             {challenge?.scoring_type === 'time' ? (
               <>
-                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                </Text>
                 {isPreparing ? (
-                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                    <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
-                    <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                  <View style={{ alignItems: 'center', marginVertical: 30 }}>
+                    <Text style={{ color: theme.accent, fontSize: 96, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{preCountdown}</Text>
+                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>GET READY</Text>
                     <TouchableOpacity 
-                      style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]} 
+                      style={[styles.timerBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]} 
                       onPress={cancelPreparation}
                     >
-                      <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <TouchableOpacity
-                    style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                    onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
-                  >
-                    <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                  </TouchableOpacity>
-                )}
-                {!timerRunning && timerSeconds > 0 && (
-                  <TouchableOpacity
-                    style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
-                    onPress={() => resetTimer()}
-                  >
-                    <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
-                  </TouchableOpacity>
-                )}
-                {!timerRunning && timerSeconds > 0 && (
-                  <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
-                    onPress={() => handleSubmit(timerSeconds)}
-                    disabled={submitting}
-                  >
-                    {submitting ? (
-                      <LeapLogo size={40} animated />
-                    ) : (
-                      <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
+                  <>
+                    <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                      {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                      onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
+                    >
+                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                    </TouchableOpacity>
+                    {!timerRunning && timerSeconds > 0 && (
+                      <TouchableOpacity
+                        style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
+                        onPress={() => resetTimer()}
+                      >
+                        <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
+                      </TouchableOpacity>
                     )}
-                  </TouchableOpacity>
+                    {!timerRunning && timerSeconds > 0 && (
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: theme.accent, opacity: submitting ? 0.7 : 1 }]}
+                        onPress={() => handleSubmit(timerSeconds)}
+                        disabled={submitting}
+                      >
+                        {submitting ? (
+                          <LeapLogo size={40} animated />
+                        ) : (
+                          <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
+                        )}
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
               </>
             ) : (
               <>
                 {/* Reps-based challenge with countdown timer */}
-                <Text style={[styles.timerDisplay, { color: theme.accent }]}>
-                  {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
-                </Text>
-                {isPreparing && (
-                  <View style={{ alignItems: 'center', marginBottom: 20 }}>
-                    <Text style={{ color: theme.accent, fontSize: 64, fontWeight: '900' }}>{preCountdown}</Text>
-                    <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
+                {isPreparing ? (
+                  <View style={{ alignItems: 'center', marginVertical: 30 }}>
+                    <Text style={{ color: theme.accent, fontSize: 96, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{preCountdown}</Text>
+                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>GET READY</Text>
                     <TouchableOpacity
-                      style={[styles.timerBtn, { backgroundColor: 'transparent', borderColor: theme.text.tertiary, borderWidth: 1 }]}
+                      style={[styles.timerBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]}
                       onPress={cancelPreparation}
                     >
-                      <Text style={[styles.timerBtnText, { color: theme.text.tertiary }]}>CANCEL</Text>
+                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
                     </TouchableOpacity>
                   </View>
-                )}
-                <TouchableOpacity
-                  style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
-                  onPress={() => {
-                    if (!timerRunning && timerSeconds <= 0) {
-                      setTimerSeconds((challenge?.time_limit || 10) * 60);
-                    }
-                    timerRunning ? stopTimer() : handleStartWithLeadIn();
-                  }}
-                >
-                  <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
-                </TouchableOpacity>
+                ) : (
+                  <>
+                    <Text style={[styles.timerDisplay, { color: theme.accent }]}>
+                      {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}
+                    </Text>
+                    <TouchableOpacity
+                      style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
+                      onPress={() => {
+                        if (!timerRunning && timerSeconds <= 0) {
+                          setTimerSeconds((challenge?.time_limit || 10) * 60);
+                        }
+                        timerRunning ? stopTimer() : handleStartWithLeadIn();
+                      }}
+                    >
+                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                    </TouchableOpacity>
 
-                {/* Show entry form when timer hits 0 OR user skips */}
-                {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
-                  <TouchableOpacity
-                    style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
-                    onPress={() => {
-                      stopTimer();
-                      setTimerSeconds(0);
-                    }}
-                  >
-                    <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
-                  </TouchableOpacity>
-                ) : null}
+                    {/* Show entry form when timer hits 0 OR user skips */}
+                    {(!timerRunning && timerSeconds === 0) || (!timerRunning && timerSeconds < (challenge?.time_limit || 10) * 60 && timerSeconds > 0) ? (
+                      <TouchableOpacity
+                        style={[styles.saveBtn, { backgroundColor: 'rgba(205,127,50,0.2)', marginTop: 4 }]}
+                        onPress={() => {
+                          stopTimer();
+                          setTimerSeconds(0);
+                        }}
+                      >
+                        <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
+                      </TouchableOpacity>
+                    ) : null}
 
-                {/* Skip timer option */}
-                {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
-                  <TouchableOpacity
-                    onPress={() => setTimerSeconds(0)}
-                    style={{ marginTop: 8 }}
-                  >
-                    <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
-                  </TouchableOpacity>
+                    {/* Skip timer option */}
+                    {!timerRunning && timerSeconds === (challenge?.time_limit || 10) * 60 && (
+                      <TouchableOpacity
+                        onPress={() => setTimerSeconds(0)}
+                        style={{ marginTop: 8 }}
+                      >
+                        <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
+                      </TouchableOpacity>
+                    )}
+                  </>
                 )}
 
                 {!timerRunning && timerSeconds === 0 ? (
@@ -926,7 +980,6 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
             <TouchableOpacity onPress={onClose}>
               <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
             </TouchableOpacity>
-          </View>
         </ScrollView>
       </View>
     </Modal>
@@ -975,9 +1028,94 @@ const styles = StyleSheet.create({
   weekLabelContainer: { paddingHorizontal: 20, alignItems: 'center' },
   weekLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
-  modalScrollContent: { flexGrow: 1, alignItems: 'center', padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 16, width: '100%' },
-  modalContent: { width: Platform.OS === 'web' ? 400 : '100%', borderRadius: 16, borderWidth: 1, padding: 24, paddingBottom: 40, alignItems: 'center', maxHeight: '85%' },
-  modalWorkoutRef: { width: '100%', padding: 12, backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 8, maxHeight: 120, overflow: 'hidden' },
+  modalScrollContent: { flexGrow: 1, alignItems: 'center', padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 16, paddingBottom: 60, width: '100%' },
+  modalContent: { width: Platform.OS === 'web' ? 400 : '100%', borderRadius: 16, padding: 24, paddingBottom: 40, alignItems: 'center' },
+  modalWorkoutRef: {
+    width: '100%',
+    padding: 16,
+    backgroundColor: 'rgba(255,255,255,0.03)',
+    borderRadius: 14,
+    borderWidth: 1.5,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 3,
+  },
+  workoutHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+    paddingBottom: 8,
+    width: '100%',
+  },
+  workoutHeaderTitle: {
+    fontSize: 10,
+    fontWeight: '900',
+    letterSpacing: 2,
+  },
+  workoutHeaderSubtitle: {
+    fontSize: 10,
+    fontWeight: '700',
+  },
+  workoutMovementList: {
+    width: '100%',
+    gap: 2,
+  },
+  workoutMovementItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    width: '100%',
+  },
+  stepBadge: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  stepText: {
+    fontSize: 10,
+    fontWeight: '900',
+  },
+  workoutMovementName: {
+    flex: 1,
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    marginRight: 8,
+  },
+  badgeContainer: {
+    flexDirection: 'row',
+    gap: 6,
+    alignItems: 'center',
+  },
+  repBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  repText: {
+    fontSize: 11,
+    fontWeight: '700',
+  },
+  pointPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+  },
+  pointPillText: {
+    color: '#4ADE80',
+    fontSize: 10,
+    fontWeight: '900',
+  },
   adminGroupSwitcher: { flexDirection: 'row', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.1)', marginBottom: 16 },
   adminGroupTab: { flex: 1, alignItems: 'center', paddingVertical: 12, borderBottomWidth: 2 },
   adminGroupTabText: { fontSize: 12, fontWeight: '900', letterSpacing: 1 },
