@@ -1,4 +1,16 @@
 {
+  "redirects": [
+    {
+      "source": "/instagram",
+      "destination": "https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet",
+      "permanent": true
+    },
+    {
+      "source": "/ig",
+      "destination": "https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet",
+      "permanent": true
+    }
+  ],
   "rewrites": [
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/request", "destination": "/request.html" },
