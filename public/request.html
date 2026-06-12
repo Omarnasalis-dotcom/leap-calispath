@@ -303,7 +303,7 @@
       font-size: 13px;
       line-height: 1.5;
       margin-top: 16px;
-      display: none;
+      display: none; /* Controlled via JS display toggles */
       align-items: center;
       gap: 8px;
     }
@@ -312,14 +312,12 @@
       background: rgba(244, 67, 54, 0.1);
       border: 1px solid rgba(244, 67, 54, 0.2);
       color: var(--error);
-      display: flex;
     }
 
     .message.success {
       background: rgba(76, 175, 80, 0.1);
       border: 1px solid rgba(76, 175, 80, 0.2);
       color: var(--success);
-      display: flex;
     }
 
     /* Success Screen View */
@@ -457,6 +455,7 @@
           Follow us on Instagram <span style="color: #FFF; margin-left: 4px;">@leap.arena</span>
         </a>
 
+        <!-- Initially hidden message banner -->
         <div class="message error" id="error-message"></div>
       </div>
 
