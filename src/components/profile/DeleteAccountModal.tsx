@@ -26,7 +26,11 @@ export function DeleteAccountModal() {
       });
 
       if (signInError) {
-        setDeleteError(`AUTH ERROR: ${signInError.message} (${signInError.status})`);
+        if (signInError.status === 400 || signInError.message.toLowerCase().includes('invalid')) {
+          setDeleteError('Incorrect password. Please try again.');
+        } else {
+          setDeleteError(signInError.message || 'Authentication failed. Please try again.');
+        }
         setDeleteLoading(false);
         return;
       }
