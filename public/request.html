@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leap Arena | Request Access</title>
+  
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Supabase JS Client CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+  <style>
+    :root {
+      --bg-primary: #000000;
+      --card-bg: rgba(18, 18, 18, 0.7);
+      --card-border: rgba(255, 255, 255, 0.08);
+      --accent: #CD7F32; /* Bronze Accent */
+      --accent-hover: #e59344;
+      --text-primary: #ffffff;
+      --text-secondary: #aaaaaa;
+      --text-tertiary: #666666;
+      --success: #4caf50;
+      --error: #f44336;
+      --input-bg: rgba(255, 255, 255, 0.03);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body, html {
+      width: 100%;
+      height: 100%;
+      background-color: var(--bg-primary);
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      color: var(--text-primary);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow-x: hidden;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Subtle background grid effect */
+    .bg-grid {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background-image: 
+        linear-gradient(rgba(205, 127, 50, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(205, 127, 50, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      z-index: 1;
+      pointer-events: none;
+    }
+
+    /* Radial glow in the background */
+    .bg-glow {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: 600px;
+      height: 600px;
+      background: radial-gradient(circle, rgba(205, 127, 50, 0.08) 0%, transparent 70%);
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 480px;
+      padding: 24px;
+      z-index: 10;
+      position: relative;
+    }
+
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 24px;
+      padding: 40px 32px;
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
+      transition: transform 0.3s ease, border-color 0.3s ease;
+    }
+
+    .card:hover {
+      border-color: rgba(205, 127, 50, 0.2);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    .logo-container {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .accent-bar {
+      width: 4px;
+      height: 28px;
+      background-color: var(--accent);
+      border-radius: 2px;
+    }
+
+    .brand-name {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 24px;
+      font-weight: 900;
+      letter-spacing: 2px;
+    }
+
+    .brand-name span {
+      color: var(--accent);
+    }
+
+    .eyebrow {
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 3px;
+      color: var(--accent);
+      text-transform: uppercase;
+      margin-top: 4px;
+    }
+
+    .title {
+      font-size: 28px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 16px;
+      margin-bottom: 8px;
+    }
+
+    .subtitle {
+      color: var(--text-secondary);
+      font-size: 14px;
+      line-height: 1.6;
+    }
+
+    /* Form Styles */
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .label {
+      display: block;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1.5px;
+      text-transform: uppercase;
+      color: var(--text-primary);
+      margin-bottom: 8px;
+    }
+
+    .input {
+      width: 100%;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px 16px;
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 14px;
+      outline: none;
+      transition: all 0.2s ease;
+    }
+
+    .input:focus {
+      border-color: var(--accent);
+      background: rgba(255, 255, 255, 0.05);
+      box-shadow: 0 0 0 3px rgba(205, 127, 50, 0.15);
+    }
+
+    .textarea {
+      resize: none;
+      height: 100px;
+    }
+
+    /* Toggle Selector for Experience */
+    .experience-selector {
+      display: flex;
+      gap: 8px;
+    }
+
+    .exp-option {
+      flex: 1;
+      background: var(--input-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      color: var(--text-secondary);
+    }
+
+    .exp-option.active {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--bg-primary);
+      box-shadow: 0 8px 16px rgba(205, 127, 50, 0.25);
+    }
+
+    .btn {
+      width: 100%;
+      background: var(--accent);
+      color: var(--bg-primary);
+      border: none;
+      border-radius: 12px;
+      padding: 16px;
+      font-family: inherit;
+      font-size: 14px;
+      font-weight: 800;
+      letter-spacing: 1px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: all 0.2s ease;
+      margin-top: 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .btn:hover {
+      background: var(--accent-hover);
+      box-shadow: 0 12px 24px rgba(205, 127, 50, 0.3);
+    }
+
+    .btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 18px;
+      height: 18px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-top-color: #000;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      display: none;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    /* Notification Banner */
+    .message {
+      padding: 14px;
+      border-radius: 12px;
+      font-size: 13px;
+      line-height: 1.5;
+      margin-top: 16px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .message.error {
+      background: rgba(244, 67, 54, 0.1);
+      border: 1px solid rgba(244, 67, 54, 0.2);
+      color: var(--error);
+      display: flex;
+    }
+
+    .message.success {
+      background: rgba(76, 175, 80, 0.1);
+      border: 1px solid rgba(76, 175, 80, 0.2);
+      color: var(--success);
+      display: flex;
+    }
+
+    /* Success Screen View */
+    .success-view {
+      display: none;
+      text-align: center;
+    }
+
+    .success-icon {
+      width: 64px;
+      height: 64px;
+      border: 2px solid var(--accent);
+      border-radius: 50%;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      margin: 0 auto 24px;
+      font-size: 32px;
+      color: var(--accent);
+      box-shadow: 0 8px 24px rgba(205, 127, 50, 0.15);
+      animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+    }
+
+    @keyframes scaleIn {
+      from { transform: scale(0.6); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 24px;
+      font-size: 11px;
+      color: var(--text-tertiary);
+      letter-spacing: 0.5px;
+    }
+
+    .footer a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: color 0.2s ease;
+    }
+
+    .footer a:hover {
+      color: var(--accent-hover);
+      text-decoration: underline;
+    }
+
+    /* Error Boundary View */
+    .error-boundary {
+      display: none;
+      text-align: center;
+      padding: 24px;
+    }
+
+    .error-boundary h2 {
+      color: var(--error);
+      font-size: 20px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+    }
+
+    .error-boundary p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="bg-grid"></div>
+  <div class="bg-glow"></div>
+
+  <div class="container" id="app-container">
+    <!-- Standard View Card -->
+    <div class="card" id="form-card">
+      <div id="form-content">
+        <div class="header">
+          <div class="logo-container">
+            <div class="accent-bar"></div>
+            <div class="brand-name">LEAP<span>ARENA</span></div>
+          </div>
+          <div class="eyebrow">Calisthenics</div>
+          <h1 class="title">Join The Queue</h1>
+          <p class="subtitle">Enter your details to request an exclusive invite code to the Arena.</p>
+        </div>
+
+        <form id="invite-form" onsubmit="handleSubmit(event)">
+          <!-- Name -->
+          <div class="form-group">
+            <label class="label" for="user-name">Full Name</label>
+            <input type="text" id="user-name" class="input" placeholder="Alex Warrior" required maxlength="100">
+          </div>
+
+          <!-- Email -->
+          <div class="form-group">
+            <label class="label" for="user-email">Email Address</label>
+            <input type="email" id="user-email" class="input" placeholder="warrior@email.com" required maxlength="150">
+          </div>
+
+          <!-- Instagram -->
+          <div class="form-group">
+            <label class="label" for="user-insta">Instagram Handle</label>
+            <input type="text" id="user-insta" class="input" placeholder="@alex_warrior" maxlength="50">
+          </div>
+
+          <!-- Experience -->
+          <div class="form-group">
+            <label class="label">Experience Level</label>
+            <div class="experience-selector">
+              <div class="exp-option active" data-value="beginner" onclick="selectExp(this)">Beginner</div>
+              <div class="exp-option" data-value="intermediate" onclick="selectExp(this)">Intermediate</div>
+              <div class="exp-option" data-value="advanced" onclick="selectExp(this)">Advanced</div>
+            </div>
+          </div>
+
+          <!-- Why Join -->
+          <div class="form-group">
+            <label class="label" for="user-motivation">Why do you want to enter the Arena?</label>
+            <textarea id="user-motivation" class="input textarea" placeholder="Tell us about your calisthenics goals..." required maxlength="500"></textarea>
+          </div>
+
+          <!-- Submit Button -->
+          <button type="submit" id="submit-btn" class="btn">
+            <span>Request Invite Code</span>
+            <div class="spinner" id="btn-spinner"></div>
+          </button>
+        </form>
+
+        <div class="message error" id="error-message"></div>
+      </div>
+
+      <!-- Success View (Toggled after submission) -->
+      <div class="success-view" id="success-content">
+        <div class="success-icon">✓</div>
+        <h2 class="title">REQUEST SUBMITTED</h2>
+        <p class="subtitle" style="margin-bottom: 24px;">Your application has been received and added to our queue. We review requests based on active calisthenics criteria.</p>
+        <p class="subtitle" style="font-size: 13px; color: var(--accent);">If approved, your invitation code will be sent to your email address.</p>
+      </div>
+    </div>
+
+    <!-- Error Boundary Display (Toggled on fallback error) -->
+    <div class="card error-boundary" id="error-boundary-card">
+      <h2>Something went wrong</h2>
+      <p>We encountered an error loading this form. Please reload the page or try again later.</p>
+      <button onclick="location.reload()" class="btn" style="max-width: 200px; margin: 0 auto;">Reload Page</button>
+    </div>
+
+    <div class="footer">
+      Already have an invite code? Download the app or return to <a href="/">Login</a>.
+    </div>
+  </div>
+
+  <script>
+    // Global Error Boundary Handler
+    window.onerror = function(message, source, lineno, colno, error) {
+      console.error("Uncaught error:", message, error);
+      document.getElementById('form-content').style.display = 'none';
+      document.getElementById('success-content').style.display = 'none';
+      document.getElementById('error-boundary-card').style.display = 'block';
+      return true;
+    };
+
+    // Client Config matching .env.local
+    const supabaseUrl = 'https://vxscvluyskawegmwaxnh.supabase.co';
+    const supabaseAnonKey = 'sb_publishable_Wa4fK1CBgsnYhH5IN7P1Vw_cCKVguLa';
+    let supabaseClient = null;
+
+    try {
+      supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
+    } catch (err) {
+      console.error("Failed to initialize Supabase client:", err);
+      throw err;
+    }
+
+    let selectedExperience = 'beginner';
+
+    // Check if user has already submitted a request (Spam prevention & state guarding)
+    document.addEventListener('DOMContentLoaded', () => {
+      try {
+        if (localStorage.getItem('has_requested_invite_leap') === 'true') {
+          showSuccessScreen();
+        }
+      } catch (err) {
+        console.warn("Storage check failed:", err);
+      }
+    });
+
+    function selectExp(element) {
+      document.querySelectorAll('.exp-option').forEach(el => el.classList.remove('active'));
+      element.classList.add('active');
+      selectedExperience = element.getAttribute('data-value');
+    }
+
+    // Input sanitization to prevent script injections
+    function sanitize(string) {
+      const temp = document.createElement('div');
+      temp.textContent = string;
+      return temp.innerHTML.trim();
+    }
+
+    function showSuccessScreen() {
+      document.getElementById('form-content').style.display = 'none';
+      document.getElementById('success-content').style.display = 'block';
+    }
+
+    async function handleSubmit(event) {
+      event.preventDefault();
+      
+      const name = sanitize(document.getElementById('user-name').value);
+      const email = sanitize(document.getElementById('user-email').value);
+      const instagram = sanitize(document.getElementById('user-insta').value);
+      const whyJoin = sanitize(document.getElementById('user-motivation').value);
+      
+      const submitBtn = document.getElementById('submit-btn');
+      const spinner = document.getElementById('btn-spinner');
+      const errMsg = document.getElementById('error-message');
+      
+      // Reset state
+      errMsg.style.display = 'none';
+      submitBtn.disabled = true;
+      spinner.style.display = 'block';
+
+      try {
+        // Double-check localStorage on submit as well
+        if (localStorage.getItem('has_requested_invite_leap') === 'true') {
+          showSuccessScreen();
+          return;
+        }
+
+        // Insert into Supabase table
+        const { error } = await supabaseClient
+          .from('invite_requests')
+          .insert([
+            { 
+              name, 
+              email, 
+              instagram: instagram || null, 
+              experience: selectedExperience, 
+              why_join: whyJoin 
+            }
+          ]);
+
+        if (error) {
+          // Check for unique constraint violation (duplicate request)
+          if (error.code === '23505') {
+            throw new Error("You have already requested an invite code using this email address!");
+          }
+          throw error;
+        }
+
+        // Store flag locally to prevent multiple requests
+        localStorage.setItem('has_requested_invite_leap', 'true');
+        showSuccessScreen();
+
+      } catch (err) {
+        console.error("Submission failed:", err);
+        errMsg.textContent = err.message || "Failed to submit request. Please try again later.";
+        errMsg.style.display = 'flex';
+        submitBtn.disabled = false;
+        spinner.style.display = 'none';
+      }
+    }
+  </script>
+</body>
+</html>
