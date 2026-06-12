@@ -43,8 +43,8 @@
       display: flex;
       justify-content: center;
       align-items: flex-start; /* Aligns content from the top to prevent cut-off */
-      padding-top: 60px; /* Safe distance from top screen border */
-      padding-bottom: 60px;
+      padding-top: 20px; /* Reduced top gap to position card closer to the upper border */
+      padding-bottom: 40px;
       overflow-y: auto;
       -webkit-font-smoothing: antialiased;
     }
@@ -255,6 +255,32 @@
       cursor: not-allowed;
     }
 
+    /* Premium Instagram Banner Button inside the card */
+    .instagram-banner {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(229, 62, 62, 0.1);
+      border: 1px solid rgba(229, 62, 62, 0.2);
+      padding: 14px 20px; /* Matched form input padding */
+      border-radius: 12px; /* Matched input border-radius */
+      color: var(--accent) !important;
+      font-weight: 700;
+      text-decoration: none !important;
+      transition: all 0.2s ease;
+      font-size: 13px;
+      letter-spacing: 0.5px;
+      width: 100%;
+      justify-content: center;
+    }
+
+    .instagram-banner:hover {
+      background: rgba(229, 62, 62, 0.2);
+      border-color: var(--accent);
+      transform: translateY(-1px);
+      box-shadow: 0 8px 16px rgba(229, 62, 62, 0.15);
+    }
+
     /* Spinner */
     .spinner {
       width: 18px;
@@ -325,47 +351,22 @@
     /* Footer styling */
     .footer {
       text-align: center;
-      margin-top: 32px;
-      font-size: 13px;
-      color: var(--text-secondary); /* High contrast */
-      line-height: 2;
+      margin-top: 24px;
+      font-size: 12px;
+      color: var(--text-secondary);
+      line-height: 1.8;
     }
 
     .footer a {
       color: var(--accent);
       text-decoration: none;
-      font-weight: 700;
+      font-weight: 600;
       transition: color 0.2s ease;
     }
 
     .footer a:hover {
       color: var(--accent-hover);
       text-decoration: underline;
-    }
-
-    /* Premium Instagram Banner Button */
-    .instagram-banner {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(229, 62, 62, 0.1);
-      border: 1px solid rgba(229, 62, 62, 0.2);
-      padding: 10px 20px;
-      border-radius: 30px;
-      color: var(--accent) !important;
-      font-weight: 700;
-      text-decoration: none !important;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      letter-spacing: 0.5px;
-      margin-bottom: 12px;
-    }
-
-    .instagram-banner:hover {
-      background: rgba(229, 62, 62, 0.2);
-      border-color: var(--accent);
-      transform: translateY(-1px);
-      box-shadow: 0 4px 12px rgba(229, 62, 62, 0.15);
     }
 
     /* Error Boundary View */
@@ -445,11 +446,16 @@
           </div>
 
           <!-- Submit Button -->
-          <button type="submit" id="submit-btn" class="btn">
+          <button type="submit" id="submit-btn" class="btn" style="margin-bottom: 16px;">
             <span>Request Invite Code</span>
             <div class="spinner" id="btn-spinner"></div>
           </button>
         </form>
+
+        <!-- Instagram Banner moved inside the card, directly below the form submit button -->
+        <a href="https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet" target="_blank" class="instagram-banner">
+          Follow us on Instagram <span style="color: #FFF; margin-left: 4px;">@leap.arena</span>
+        </a>
 
         <div class="message error" id="error-message"></div>
       </div>
@@ -471,10 +477,6 @@
     </div>
 
     <div class="footer">
-      <a href="https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet" target="_blank" class="instagram-banner">
-        Follow us on Instagram <span style="color: #FFF;">@leap.arena</span>
-      </a>
-      <br>
       Already have an invite code? Download the app or return to <a href="/">Login</a>.
     </div>
   </div>
