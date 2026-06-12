@@ -427,6 +427,12 @@
             <input type="text" id="user-insta" class="input" placeholder="@alex_warrior" maxlength="50">
           </div>
 
+          <!-- Mobile Number (Optional) -->
+          <div class="form-group">
+            <label class="label" for="user-phone">Mobile Number (Optional)</label>
+            <input type="tel" id="user-phone" class="input" placeholder="+1 (234) 567-8900" maxlength="30">
+          </div>
+
           <!-- Experience -->
           <div class="form-group">
             <label class="label">Experience Level</label>
@@ -539,6 +545,7 @@
       const name = sanitize(document.getElementById('user-name').value);
       const email = sanitize(document.getElementById('user-email').value);
       const instagram = sanitize(document.getElementById('user-insta').value);
+      const phone = sanitize(document.getElementById('user-phone').value);
       const whyJoin = sanitize(document.getElementById('user-motivation').value);
       
       const submitBtn = document.getElementById('submit-btn');
@@ -565,6 +572,7 @@
               name, 
               email, 
               instagram: instagram || null, 
+              phone: phone || null,
               experience: selectedExperience, 
               why_join: whyJoin 
             }
