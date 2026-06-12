@@ -977,9 +977,11 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
               </>
             )}
 
-            <TouchableOpacity onPress={onClose}>
-              <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
-            </TouchableOpacity>
+            {!isPreparing && (
+              <TouchableOpacity onPress={onClose}>
+                <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
+              </TouchableOpacity>
+            )}
         </ScrollView>
       </View>
     </Modal>
