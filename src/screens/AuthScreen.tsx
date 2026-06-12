@@ -353,13 +353,28 @@ export function AuthScreen() {
               />
               
               {isSignUp && (
-                <Input 
-                  label="Invite Code" 
-                  placeholder="LEAP-XXXXXXXX" 
-                  value={inviteCode} 
-                  onChangeText={setInviteCode}
-                  autoCapitalize="characters"
-                />
+                <View style={{ marginBottom: 16 }}>
+                  <Input 
+                    label="Invite Code" 
+                    placeholder="LEAP-XXXXXXXX" 
+                    value={inviteCode} 
+                    onChangeText={setInviteCode}
+                    autoCapitalize="characters"
+                  />
+                  <TouchableOpacity 
+                    onPress={() => Linking.openURL('https://leap-arena.com/request')}
+                    style={{ marginTop: 6, alignSelf: 'flex-start' }}
+                  >
+                    <Text style={{
+                      color: theme.accent, 
+                      fontSize: 12, 
+                      fontWeight: '600',
+                      textDecorationLine: 'underline'
+                    }}>
+                      Don't have an invite code? Request one here
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               )}
 
               {!isSignUp && (
