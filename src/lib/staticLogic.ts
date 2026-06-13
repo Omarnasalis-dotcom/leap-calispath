@@ -56,5 +56,5 @@ export function getCategoryMovements(category: string): StaticMovement[] {
 }
 
 export function isStaticWorldUnlocked(strengthTier: number): boolean {
-  return strengthTier >= 4;
+  return strengthTier >= 1;
 }

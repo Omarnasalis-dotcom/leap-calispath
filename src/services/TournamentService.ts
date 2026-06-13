@@ -535,22 +535,11 @@ export class TournamentService {
         else if (rank === 2) gpReward = Math.floor(payout * 0.25);
 
         if (gpReward > 0) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('tournament_gp, glory_score')
-            .eq('id', p.user_id)
-            .single();
-
-          if (profile) {
-            const { error: gpErr } = await supabase
-              .from('profiles')
-              .update({
-                tournament_gp: (profile.tournament_gp || 0) + gpReward,
-                glory_score: (profile.glory_score || 0) + gpReward
-              })
-              .eq('id', p.user_id);
-            if (gpErr) throw gpErr;
-          }
+          const { error: gpErr } = await supabase.rpc('payout_tournament', {
+            p_user_id: p.user_id,
+            p_gp_reward: gpReward
+          });
+          if (gpErr) throw gpErr;
         }
       }
     } catch (error) {
@@ -672,22 +661,11 @@ export class TournamentService {
         else if (rank === 2) gpReward = Math.floor(payout * 0.25);
 
         if (gpReward > 0) {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('tournament_gp, glory_score')
-            .eq('id', p.user_id)
-            .single();
-
-          if (profile) {
-            const { error: gpErr } = await supabase
-              .from('profiles')
-              .update({
-                tournament_gp: (profile.tournament_gp || 0) + gpReward,
-                glory_score: (profile.glory_score || 0) + gpReward
-              })
-              .eq('id', p.user_id);
-            if (gpErr) throw gpErr;
-          }
+          const { error: gpErr } = await supabase.rpc('payout_tournament', {
+            p_user_id: p.user_id,
+            p_gp_reward: gpReward
+          });
+          if (gpErr) throw gpErr;
         }
       }
     } catch (error) {

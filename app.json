@@ -20,7 +20,8 @@
       "buildNumber": "1",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "NSPhotoLibraryUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library."
+        "NSPhotoLibraryUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library.",
+        "NSPhotoLibraryAddUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library."
       }
     },
     "android": {
