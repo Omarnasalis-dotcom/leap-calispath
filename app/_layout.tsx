@@ -128,7 +128,9 @@ export default function RootLayout() {
         <ThemeProvider>
           <AuthProvider>
             <AuthGuard>
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }} />
+              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+                <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+              </Stack>
             </AuthGuard>
             <StatusBar style="auto" />
           </AuthProvider>

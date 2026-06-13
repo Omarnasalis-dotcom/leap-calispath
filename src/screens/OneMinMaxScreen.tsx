@@ -1,7 +1,7 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, Modal,
+  TextInput, Alert, Platform, Modal, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
   Dimensions, RefreshControl, Animated, Vibration } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -765,11 +765,33 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   };
 
   const cancelTimer = () => {
+    if (isPreTimerRunning || isTimerRunning || timerFinished) {
+      if (Platform.OS === 'web') {
+        if (window.confirm('Are you sure you want to abandon this 1MM sprint? Progress will be lost.')) {
+          executeCancel();
+        }
+      } else {
+        Alert.alert(
+          'ABANDON SPRINT',
+          'Are you sure you want to abandon this 1MM sprint? Progress will be lost.',
+          [
+            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
+            { text: 'ABANDON', style: 'destructive', onPress: executeCancel },
+          ]
+        );
+      }
+    } else {
+      executeCancel();
+    }
+  };
+
+  const executeCancel = () => {
     setIsPreTimerRunning(false);
     setIsTimerRunning(false);
     setPreCountdown(0);
     setTimeLeft(60);
     if (timerRef.current) clearInterval(timerRef.current);
+    onClose();
   };
 
   const resetTimer = () => {
@@ -798,76 +820,81 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-          <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
-              {movementName.toUpperCase()}
-            </Text>
-            <TouchableOpacity onPress={onClose}>
-              <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.timerContainer}>
-            <Text style={[
-              styles.timerText, 
-              { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
-            ]}>
-              {isPreTimerRunning ? preCountdown : timeLeft}s
-            </Text>
-            <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-              {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
-            </Text>
-          </View>
-
-          {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
-            <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
-              <Text style={styles.startBtnText}>START SPRINT</Text>
-            </TouchableOpacity>
-          )}
-
-          {(isPreTimerRunning || isTimerRunning) && (
-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
-              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
-            </TouchableOpacity>
-          )}
-
-          {timerFinished && (
-            <View style={styles.inputContainer}>
-              <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
-              <TextInput
-                style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
-                keyboardType="numeric"
-                value={repsInput}
-                onChangeText={setRepsInput}
-                autoFocus
-                placeholder="0"
-                placeholderTextColor="rgba(255,255,255,0.2)"
-              />
-              <TouchableOpacity
-                style={[styles.saveBtn, { backgroundColor: theme.accent }]}
-                onPress={handleSave}
-                disabled={saving}
-              >
-                {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
-                onPress={resetTimer}
-              >
-                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={cancelTimer}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView 
+          style={styles.modalOverlay} 
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        >
+          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
+                {movementName.toUpperCase()}
+              </Text>
+              <TouchableOpacity onPress={cancelTimer}>
+                <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
               </TouchableOpacity>
             </View>
-          )}
 
-          {isTimerRunning && (
-            <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
-          )}
-        </View>
-      </View>
+            <View style={styles.timerContainer}>
+              <Text style={[
+                styles.timerText, 
+                { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
+              ]}>
+                {isPreTimerRunning ? preCountdown : timeLeft}s
+              </Text>
+              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
+              </Text>
+            </View>
+
+            {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
+              <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
+                <Text style={styles.startBtnText}>START SPRINT</Text>
+              </TouchableOpacity>
+            )}
+
+            {(isPreTimerRunning || isTimerRunning) && (
+              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
+                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
+              </TouchableOpacity>
+            )}
+
+            {timerFinished && (
+              <View style={styles.inputContainer}>
+                <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
+                <TextInput
+                  style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
+                  keyboardType="numeric"
+                  value={repsInput}
+                  onChangeText={setRepsInput}
+                  autoFocus
+                  placeholder="0"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                />
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: theme.accent }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
+                  onPress={resetTimer}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {isTimerRunning && (
+              <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
+            )}
+          </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };

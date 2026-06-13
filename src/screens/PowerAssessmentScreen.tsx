@@ -18,11 +18,11 @@ import { Button } from '../components/Button';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 export interface PowerMovementPBs {
-  [key: string]: number;
-  pull_up: number;
-  dip: number;
-  squat: number;
-  muscle_up: number;
+  [key: string]: string;
+  pull_up: string;
+  dip: string;
+  squat: string;
+  muscle_up: string;
 }
 
 interface PowerAssessmentScreenProps {
@@ -35,14 +35,23 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   const { theme } = useTheme();
   
   const [inputs, setInputs] = useState<PowerMovementPBs>({
-    pull_up: 0,
-    dip: 0,
-    squat: 0,
-    muscle_up: 0,
+    pull_up: '',
+    dip: '',
+    squat: '',
+    muscle_up: '',
   });
   
   const [loading, setLoading] = useState(false);
-  const totalScore = calculateTotalPowerScore(inputs);
+
+  // Compute numeric values for calculations
+  const numericPBs = {
+    pull_up: parseFloat(inputs.pull_up) || 0,
+    dip: parseFloat(inputs.dip) || 0,
+    squat: parseFloat(inputs.squat) || 0,
+    muscle_up: parseFloat(inputs.muscle_up) || 0,
+  };
+
+  const totalScore = calculateTotalPowerScore(numericPBs);
   const newTier = getPowerLevel(totalScore).id;
 
   async function handleSubmit() {
@@ -60,10 +69,10 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
         .from('power_assessments')
         .upsert({
           user_id: user.id,
-          pullup_1rm: inputs.pull_up,
-          dip_1rm: inputs.dip,
-          squat_1rm: inputs.squat,
-          muscleup_1rm: inputs.muscle_up,
+          pullup_1rm: numericPBs.pull_up,
+          dip_1rm: numericPBs.dip,
+          squat_1rm: numericPBs.squat,
+          muscleup_1rm: numericPBs.muscle_up,
           assessed_at: new Date().toISOString(),
         }, { onConflict: 'user_id' });
 
@@ -77,7 +86,7 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
       const { error: profileErr } = await supabase
         .from('profiles')
         .update({
-          power_pbs: inputs,
+          power_pbs: numericPBs,
           power_assessed_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
@@ -132,11 +141,8 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
                   color: theme.text.primary,
                 }
               ]}
-              value={inputs.pull_up.toString()}
-              onChangeText={(text) => {
-                const val = parseFloat(text) || 0;
-                setInputs({ ...inputs, pull_up: val });
-              }}
+              value={inputs.pull_up}
+              onChangeText={(text) => setInputs({ ...inputs, pull_up: text })}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={theme.text.tertiary}
@@ -156,11 +162,8 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
                   color: theme.text.primary,
                 }
               ]}
-              value={inputs.dip.toString()}
-              onChangeText={(text) => {
-                const val = parseFloat(text) || 0;
-                setInputs({ ...inputs, dip: val });
-              }}
+              value={inputs.dip}
+              onChangeText={(text) => setInputs({ ...inputs, dip: text })}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={theme.text.tertiary}
@@ -180,11 +183,8 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
                   color: theme.text.primary,
                 }
               ]}
-              value={inputs.squat.toString()}
-              onChangeText={(text) => {
-                const val = parseFloat(text) || 0;
-                setInputs({ ...inputs, squat: val });
-              }}
+              value={inputs.squat}
+              onChangeText={(text) => setInputs({ ...inputs, squat: text })}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={theme.text.tertiary}
@@ -205,11 +205,8 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
                   color: theme.text.primary,
                 }
               ]}
-              value={inputs.muscle_up.toString()}
-              onChangeText={(text) => {
-                const val = parseFloat(text) || 0;
-                setInputs({ ...inputs, muscle_up: val });
-              }}
+              value={inputs.muscle_up}
+              onChangeText={(text) => setInputs({ ...inputs, muscle_up: text })}
               keyboardType="numeric"
               placeholder="0"
               placeholderTextColor={theme.text.tertiary}
@@ -220,7 +217,7 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
         <View style={[styles.scoreCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
           <Text style={[styles.scoreTitle, { color: theme.text.primary }]}>CALCULATED SCORE</Text>
           <Text style={[styles.scoreFormula, { color: theme.text.tertiary }]}>
-            {inputs.pull_up} + {inputs.dip} + {inputs.squat} + ({inputs.muscle_up} × 2)
+            {numericPBs.pull_up} + {numericPBs.dip} + {numericPBs.squat} + ({numericPBs.muscle_up} × 2)
           </Text>
           <Text style={[styles.totalScore, { color: theme.accent }]}>{totalScore} Points</Text>
           <Text style={[styles.tierResult, { color: theme.text.secondary }]}>

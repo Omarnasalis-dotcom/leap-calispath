@@ -73,18 +73,16 @@ export async function getPowerTierLeaderboard(
   currentUserId: string
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
   const { data, error } = await supabase
-    .from('power_assessments')
+    .from('profiles')
     .select(`
-      user_id,
-      pullup_1rm,
-      dip_1rm,
-      squat_1rm,
-      muscleup_1rm,
-      power_tier,
-      profiles:user_id (display_name, power_points, country, gender)
+      id,
+      display_name,
+      power_points,
+      country,
+      gender
     `)
     .eq('power_tier', tier)
-    .order('power_points', { foreignTable: 'profiles', ascending: false })
+    .order('power_points', { ascending: false })
     .limit(100);
 
   if (error || !data) {
@@ -93,14 +91,14 @@ export async function getPowerTierLeaderboard(
   }
 
   const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
-    user_id: record.user_id,
-    display_name: record.profiles?.display_name || 'Unknown Warrior',
+    user_id: record.id,
+    display_name: record.display_name || 'Unknown Warrior',
     tier,
-    best_time_seconds: record.pullup_1rm + record.dip_1rm + record.squat_1rm + (record.muscleup_1rm * 2),
+    best_time_seconds: record.power_points || 0,
     rank: index + 1,
-    is_current_user: record.user_id === currentUserId,
-    country: record.profiles?.country,
-    gender: record.profiles?.gender,
+    is_current_user: record.id === currentUserId,
+    country: record.country,
+    gender: record.gender,
   }));
 
   const personalEntry = entries.find(e => e.is_current_user);

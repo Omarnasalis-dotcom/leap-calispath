@@ -110,18 +110,23 @@ export function AuthScreen() {
     }
 
     setLoading(true);
+    let inviteCodeReserved = false;
     try {
       if (isSignUp) {
-        // 1. Pre-check invite code exists and is unused (lightweight, not a claim)
-        const { data: codeCheck, error: codeCheckError } = await supabase
-          .from('invite_codes')
-          .select('id')
-          .ilike('code', inviteCode.trim())
-          .is('used_by', null)
-          .maybeSingle();
-        if (codeCheckError || !codeCheck) {
-          throw new Error('This invite code is invalid or already used. Please request a new one.');
+        // 1. Atomically reserve the invite code to prevent race conditions
+        const { data: reserveData, error: reserveError } = await supabase.rpc('reserve_invite_code', {
+          p_code: inviteCode.trim()
+        });
+        
+        if (reserveError) {
+          console.error('Reserve RPC Error:', reserveError);
+          throw new Error(`Database Error: ${reserveError.message}`);
         }
+        
+        if (!reserveData || reserveData.success === false) {
+          throw new Error(`Reservation Failed: ${reserveData?.error || 'Unknown error'}`);
+        }
+        inviteCodeReserved = true;
 
         // 2. Check if username is already taken
         const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
@@ -137,7 +142,7 @@ export function AuthScreen() {
         // 3. Create the User
         await signUp(email, password, { firstName, lastName, gender: gender!, country, displayName });
 
-        // 3. Redeem using your RPC function (using the EXACT code from the database)
+        // 4. Redeem and finalize the reserved code
         const { data: authData } = await supabase.auth.getUser();
         if (authData?.user?.id) {
           const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
@@ -147,12 +152,15 @@ export function AuthScreen() {
 
           if (redeemError || !redeemData || redeemData.success === false) {
             console.error('Redeem Error:', redeemError || redeemData.error);
-            const msg = 'This invite code has already been used or is invalid. Please request a new one.';
+            const msg = 'Failed to finalize invite code redemption. Please contact support.';
             if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Invalid Code', msg);
+            else Alert.alert('Arena Error', msg);
             setLoading(false);
             return;
           }
+          
+          inviteCodeReserved = false; // Successfully redeemed, no need to release
+          
           const msg = 'Welcome to the Arena! Check your email to verify.';
           if (Platform.OS === 'web') window.alert(msg);
           else Alert.alert('Warrior Registered', msg);
@@ -164,6 +172,11 @@ export function AuthScreen() {
     } catch (error: any) {
       if (isSignUp) {
         setDisplayName(''); // Clear the display name on failure to prevent auth state leaks
+        
+        // If signup failed but we reserved a code, release it back to the pool
+        if (inviteCodeReserved) {
+          await supabase.rpc('release_invite_code', { p_code: inviteCode.trim() });
+        }
       }
       const message = error.message || 'An unexpected error occurred.';
       if (Platform.OS === 'web') {

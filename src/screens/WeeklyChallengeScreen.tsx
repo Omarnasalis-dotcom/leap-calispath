@@ -1,6 +1,6 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, Alert, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
@@ -692,6 +692,40 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
     resetTimer();
   };
 
+  const handleCancel = () => {
+    const hasStartedChallenge = challenge?.scoring_type === 'reps' 
+      ? timerSeconds !== (challenge?.time_limit || 10) * 60 
+      : timerSeconds > 0;
+
+    if (isPreparing || timerRunning || hasStartedChallenge) {
+      if (Platform.OS === 'web') {
+        if (window.confirm('Are you sure you want to abandon this weekly challenge? Progress will be lost.')) {
+          executeCancel();
+        }
+      } else {
+        Alert.alert(
+          'ABANDON CHALLENGE',
+          'Are you sure you want to abandon this weekly challenge? Progress will be lost.',
+          [
+            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
+            {
+              text: 'ABANDON',
+              style: 'destructive',
+              onPress: executeCancel,
+            },
+          ]
+        );
+      }
+    } else {
+      executeCancel();
+    }
+  };
+
+  const executeCancel = () => {
+    cancelPreparation();
+    onClose();
+  };
+
   function calculatePointsFrom(rounds: string, repsMap: Record<number, string>) {
     if (!challenge) return 0;
     const roundsNum = parseInt(rounds) || 0;
@@ -748,10 +782,14 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
         transparent={false}
         animationType="slide"
         presentationStyle="fullScreen"
-        onRequestClose={onClose}
+        onRequestClose={handleCancel}
       >
-      <View style={[styles.modalOverlay, { backgroundColor: theme.background.primary }]}>
-        <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <KeyboardAvoidingView 
+            style={[styles.modalOverlay, { backgroundColor: theme.background.primary }]}
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          >
+            <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
             <Text style={[styles.modalTitle, { color: theme.accent }]}>
               {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
             </Text>
@@ -978,12 +1016,13 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
             )}
 
             {!isPreparing && (
-              <TouchableOpacity onPress={onClose}>
+              <TouchableOpacity onPress={handleCancel}>
                 <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
               </TouchableOpacity>
             )}
-        </ScrollView>
-      </View>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
     </GlobalErrorBoundary>
   );

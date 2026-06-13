@@ -5,7 +5,7 @@ import * as Notifications from 'expo-notifications';
 export interface UseTimerResult {
   seconds: number;
   isRunning: boolean;
-  start: () => void;
+  start: (offsetSeconds?: number) => void;
   stop: () => void;
   reset: () => void;
   setSeconds: (s: number) => void;
@@ -18,17 +18,22 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const notificationIdRef = useRef<string | null>(null);
 
-  const start = async () => {
+  const start = async (offsetSeconds: number = 0) => {
     if (isRunning) return;
     setIsRunning(true);
     let elapsed = 0;
+    
+    const baseSeconds = offsetSeconds > 0 ? offsetSeconds : seconds;
+    
     // If we're resuming, we need to adjust the start time
     if (mode === 'up') {
-      startTimeRef.current = Date.now() - (seconds * 1000);
+      startTimeRef.current = Date.now() - (baseSeconds * 1000);
+      if (offsetSeconds > 0) setSeconds(baseSeconds);
     } else {
       // For countdown, we track how many seconds have *already* elapsed
-      elapsed = initialSeconds - seconds;
+      elapsed = initialSeconds - baseSeconds;
       startTimeRef.current = Date.now() - (elapsed * 1000);
+      if (offsetSeconds > 0) setSeconds(baseSeconds);
     }
 
     if (mode === 'down' && Platform.OS !== 'web') {
@@ -131,6 +136,25 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
           setSeconds(remaining > 0 ? remaining : 0);
           if (remaining <= 0) stop();
         }
+
+        // Reboot the interval to guarantee it ticks even if iOS killed it during a background snapshot
+        if (intervalRef.current) clearInterval(intervalRef.current);
+        intervalRef.current = setInterval(() => {
+          if (startTimeRef.current !== null) {
+            const currentDelta = Math.floor((Date.now() - startTimeRef.current) / 1000);
+            if (mode === 'up') {
+              setSeconds(currentDelta);
+            } else {
+              const currentRemaining = initialSeconds - currentDelta;
+              if (currentRemaining <= 0) {
+                setSeconds(0);
+                stop();
+              } else {
+                setSeconds(currentRemaining);
+              }
+            }
+          }
+        }, 500);
       }
     };
     const subscription = AppState.addEventListener('change', handleAppStateChange);

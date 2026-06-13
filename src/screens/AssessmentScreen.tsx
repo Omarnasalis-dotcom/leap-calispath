@@ -1,5 +1,5 @@
 import { useRouter, router } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -40,6 +40,7 @@ const QUICK_REPS = [5, 10, 15, 20, 25, 30, 40, 50];
 export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const { user, refreshProfile } = useAuth();
   const { theme } = useTheme();
+  const inputRef = useRef<TextInput>(null);
   
   const [currentStep, setCurrentStep] = useState(0);
   const [currentVariantIndex, setCurrentVariantIndex] = useState(0);
@@ -284,15 +285,17 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
                 How many {currentOption.label}s can you do?
               </Text>
               
-              <TextInput
-                style={[styles.repInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-                value={customReps}
-                onChangeText={setCustomReps}
-                keyboardType="number-pad"
-                placeholder="0"
-                placeholderTextColor={theme.text.tertiary}
-                autoFocus
-              />
+              <TouchableOpacity activeOpacity={1} onPress={() => inputRef.current?.focus()} style={{ width: '100%' }}>
+                <TextInput
+                  ref={inputRef}
+                  style={[styles.repInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                  value={customReps}
+                  onChangeText={setCustomReps}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={theme.text.tertiary}
+                />
+              </TouchableOpacity>
 
               <View style={styles.quickRepsGrid}>
                 {QUICK_REPS.map((reps) => (

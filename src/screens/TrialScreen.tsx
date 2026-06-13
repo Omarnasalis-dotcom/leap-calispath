@@ -10,6 +10,7 @@ import {
   Animated,
   Easing,
   Platform,
+  AppState,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -54,6 +55,8 @@ export function TrialScreen({
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
+  const prepStartTimeRef = useRef<number | null>(null);
+  const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { runAsync: runSafeSubmit, isExecuting: isSubmitting } = useSafeAsync();
 
@@ -133,26 +136,79 @@ export function TrialScreen({
 
   function startTrial() {
     setPrepCountdown(5);
+    prepStartTimeRef.current = Date.now();
   }
 
   function cancelPreparation() {
     setPrepCountdown(null);
+    prepStartTimeRef.current = null;
+    if (prepTimerRef.current) {
+      clearInterval(prepTimerRef.current);
+      prepTimerRef.current = null;
+    }
   }
 
   useEffect(() => {
+    if (prepTimerRef.current) {
+      clearInterval(prepTimerRef.current);
+      prepTimerRef.current = null;
+    }
+
     if (prepCountdown === null) return;
 
-    if (prepCountdown > 0) {
-      SoundService.playTick();
-      const timer = setTimeout(() => setPrepCountdown(prepCountdown - 1), 1000);
-      return () => clearTimeout(timer);
-    } else {
+    // Use dynamic elapsed comparison relative to starting timestamp to prevent background freeze
+    if (!prepStartTimeRef.current) {
+      prepStartTimeRef.current = Date.now() - ((5 - prepCountdown) * 1000);
+    }
+
+    SoundService.playTick();
+
+    const handleTimeout = (offset: number = 0) => {
+      setPrepCountdown(null);
+      prepStartTimeRef.current = null;
       setHasStarted(true);
       SoundService.playBoxingBell();
       Vibration.vibrate(100);
-      startTimer();
-    }
-  }, [prepCountdown]);
+      startTimer(offset);
+      if (prepTimerRef.current) {
+        clearInterval(prepTimerRef.current);
+        prepTimerRef.current = null;
+      }
+    };
+
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active' && prepStartTimeRef.current) {
+        const elapsed = Math.floor((Date.now() - prepStartTimeRef.current) / 1000);
+        if (elapsed >= 5) {
+          handleTimeout(elapsed - 5);
+        }
+      }
+    });
+
+    prepTimerRef.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - prepStartTimeRef.current!) / 1000);
+      const remaining = 5 - elapsed;
+
+      if (remaining <= 0) {
+        handleTimeout(elapsed - 5);
+      } else {
+        setPrepCountdown(prev => {
+          if (prev !== null && prev !== remaining) {
+            SoundService.playTick();
+          }
+          return remaining;
+        });
+      }
+    }, 250);
+
+    return () => {
+      sub.remove();
+      if (prepTimerRef.current) {
+        clearInterval(prepTimerRef.current);
+        prepTimerRef.current = null;
+      }
+    };
+  }, [prepCountdown === null]);
 
   function handleNextStep() {
     if (!hasStarted || !trial) return;

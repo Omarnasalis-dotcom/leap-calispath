@@ -1,5 +1,5 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { TrialScreen } from '../src/screens/TrialScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
@@ -9,6 +9,7 @@ export default function Route() {
 
   return (
     <SpartanLayout hideToggle>
+      <Stack.Screen options={{ gestureEnabled: false }} />
       <TrialScreen
         mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
