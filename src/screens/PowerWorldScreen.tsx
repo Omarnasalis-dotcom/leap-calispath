@@ -135,6 +135,8 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       return;
     }
 
+    let shouldShowCelebration = false;
+
     setSaving(true);
     runSafeSave(async () => {
       const { isNewPB, isPromotion } = await PowerService.savePB(user.id, selectedMovement, kg);
@@ -152,7 +154,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
             userName: profile?.display_name || 'WARRIOR',
             rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : 'STRENGTH GAIN',
           });
-          setShowCelebration(true);
+          shouldShowCelebration = true;
         }
       }
 
@@ -166,6 +168,16 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         setSaving(false);
         setShowLogModal(false);
         setManualInput('');
+        
+        // Defer the celebration modal to prevent iOS multiple overlapping modals bug 
+        // which causes the screen to freeze and become unresponsive
+        if (shouldShowCelebration && isMounted.current) {
+          setTimeout(() => {
+            if (isMounted.current) {
+              setShowCelebration(true);
+            }
+          }, 400);
+        }
       },
       onError: (error: any) => {
         setSaving(false);

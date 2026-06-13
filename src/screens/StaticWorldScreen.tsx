@@ -707,6 +707,27 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
     resetTimer();
   };
 
+  const handleClose = () => {
+    if (timerRunning || isPreparing) {
+      Alert.alert(
+        'Cancel Test?',
+        'You have a timer currently running. Are you sure you want to cancel and exit?',
+        [
+          { text: 'Keep Going', style: 'cancel' },
+          { text: 'Cancel Test', style: 'destructive', onPress: () => {
+            if (timerRunning) stopTimer();
+            setIsPreparing(false);
+            setPreCountdown(0);
+            resetTimer();
+            onClose();
+          }}
+        ]
+      );
+    } else {
+      onClose();
+    }
+  };
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -717,7 +738,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
            <View style={styles.modalHeader}>
@@ -735,7 +756,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
                   </Text>
                 )}
               </View>
-              <TouchableOpacity onPress={onClose}>
+              <TouchableOpacity onPress={handleClose}>
                  <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
               </TouchableOpacity>
            </View>

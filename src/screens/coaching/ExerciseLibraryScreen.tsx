@@ -56,10 +56,10 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedFocus, setSelectedFocus] = useState<string>('all');
   const [selectedDifficulty, setSelectedDifficulty] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [debouncedQuery, setDebouncedQuery] = useState('');
 
-  // Video Preview Modal State
-  const [videoModalVisible, setVideoModalVisible] = useState(false);
-  const [activeVideoUrl, setActiveVideoUrl] = useState('');
+  // Video Preview State (Removed Modal)
 
   // Single Add Modal States
   const [modalVisible, setModalVisible] = useState(false);
@@ -89,8 +89,15 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   const formDifficulties: Array<'beginner' | 'intermediate' | 'advanced'> = ['beginner', 'intermediate', 'advanced'];
 
   useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedQuery(searchQuery);
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
+  useEffect(() => {
     fetchExercises(true);
-  }, [selectedCategory, selectedFocus, selectedDifficulty]);
+  }, [selectedCategory, selectedFocus, selectedDifficulty, debouncedQuery]);
 
   async function fetchExercises(isRefresh = false) {
     if (isRefresh) {
@@ -120,6 +127,9 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       }
       if (selectedDifficulty !== 'all') {
         query = query.eq('difficulty', selectedDifficulty);
+      }
+      if (debouncedQuery.trim()) {
+        query = query.ilike('name', `%${debouncedQuery.trim()}%`);
       }
 
       const { data, count, error } = await query
@@ -217,7 +227,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       }
 
       handleCloseModal();
-      fetchExercises();
+      fetchExercises(true);
     } catch (err: any) {
       setModalError(err.message?.toUpperCase() || 'FAILED TO SAVE EXERCISE.');
     } finally {
@@ -252,8 +262,9 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
   const handleOpenVideo = (url: string) => {
     if (url) {
-      setActiveVideoUrl(url);
-      setVideoModalVisible(true);
+      Linking.openURL(url).catch(() => {
+        Linking.openURL(`https://www.youtube.com`);
+      });
     }
   };
 
@@ -412,7 +423,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       setPreviewRows([]);
       setCsvText('');
       setImportStep(1);
-      fetchExercises();
+      fetchExercises(true);
     } catch (err: any) {
       setImportError(err.message?.toUpperCase() || 'FAILED TO IMPORT EXERCISES.');
     } finally {
@@ -421,6 +432,8 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   };
 
   const canAdd = isAdmin || isCoach;
+
+
 
   // Render Exercise Item for FlatList
   const renderExercise = useCallback(({ item: ex }: { item: Exercise }) => {
@@ -616,6 +629,17 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
             </TouchableOpacity>
           </LinearGradient>
         )}
+      </View>
+
+      {/* SEARCH BAR */}
+      <View style={{ paddingHorizontal: 20, marginBottom: 12 }}>
+        <TextInput
+          placeholder="Search movements..."
+          value={searchQuery}
+          onChangeText={setSearchQuery}
+          style={{ backgroundColor: solidCardBg, borderRadius: 8, borderWidth: 1, borderColor: inactiveBorder, padding: 16, color: theme.text.primary, fontSize: 16 }}
+          placeholderTextColor={theme.text.tertiary}
+        />
       </View>
 
       {/* FILTER CONTROLS */}
@@ -1053,96 +1077,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       </Modal>
 
 
-      {/* IN-APP VIDEO PREVIEW MODAL */}
-      <Modal
-        visible={videoModalVisible}
-        animationType="fade"
-        transparent={true}
-        onRequestClose={() => {
-          setVideoModalVisible(false);
-          setActiveVideoUrl('');
-        }}
-      >
-        <View style={styles.videoOverlay}>
-          <View style={[styles.videoContentCard, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
-            
-            {/* HEADER CONTROLS */}
-            <View style={styles.videoHeader}>
-              <Text style={[styles.videoHeading, { color: theme.text.primary }]}>
-                EXERCISE <Text style={{ color: bronzeGold }}>DEMO</Text>
-              </Text>
-              <TouchableOpacity
-                style={styles.videoCloseBtn}
-                onPress={() => {
-                  setVideoModalVisible(false);
-                  setActiveVideoUrl('');
-                }}
-              >
-                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13 }}>CLOSE</Text>
-              </TouchableOpacity>
-            </View>
 
-            {/* VIDEO CONTAINER */}
-            <View style={styles.playerContainer}>
-              {Platform.OS === 'web' ? (
-                <iframe
-                  src={getYouTubeEmbedUrl(activeVideoUrl)}
-                  style={{ width: '100%', height: '100%', borderRadius: 6, border: 'none' }}
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 20 }}>
-                  <Text style={{ fontSize: 48 }}>▶</Text>
-                  <Text style={{ 
-                    color: theme.text.primary, 
-                    fontFamily: 'BarlowCondensed-ExtraBold', 
-                    fontSize: 16, 
-                    letterSpacing: 1, 
-                    textAlign: 'center' 
-                  }}>
-                    OPEN VIDEO DEMO
-                  </Text>
-                  <Text style={{ 
-                    color: theme.text.secondary, 
-                    fontFamily: 'BarlowCondensed-Bold', 
-                    fontSize: 12, 
-                    textAlign: 'center',
-                    lineHeight: 18
-                  }}>
-                    TAP BELOW TO WATCH IN YOUTUBE OR BROWSER
-                  </Text>
-                  <TouchableOpacity
-                    style={{
-                      backgroundColor: '#FF0000',
-                      paddingVertical: 14,
-                      paddingHorizontal: 32,
-                      borderRadius: 8,
-                      flexDirection: 'row',
-                      alignItems: 'center',
-                      gap: 10,
-                    }}
-                    onPress={() => {
-                      if (activeVideoUrl) {
-                        Linking.openURL(activeVideoUrl).catch(() => {
-                          Linking.openURL(`https://www.youtube.com`);
-                        });
-                      }
-                      setVideoModalVisible(false);
-                      setActiveVideoUrl('');
-                    }}
-                  >
-                    <Text style={{ color: '#FFF', fontSize: 16 }}>▶</Text>
-                    <Text style={{ color: '#FFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1 }}>
-                      WATCH ON YOUTUBE
-                    </Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          </View>
-        </View>
-      </Modal>
     </View>
   );
 }

@@ -79,7 +79,7 @@ interface ProgramBuilderScreenProps {
   onClose?: () => void;
 }
 
-export function useProgramBuilder(templateId?: string, propCoachId?: string, weekNum?: string) {
+export function useProgramBuilder(templateId?: string, propCoachId?: string, weekNum?: string, onSaveSuccess?: () => void) {
   const coachId = propCoachId;
 
   // Template State
@@ -998,7 +998,11 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         setIsCreatingNew(false);
         setActiveTemplateId(undefined);
         setLoading(false);
-        router.back();
+        if (onSaveSuccess) {
+          onSaveSuccess();
+        } else {
+          router.back();
+        }
       },
       onError: (err) => {
         setErrorMsg(err.message?.toUpperCase() || 'FAILED TO SAVE WORKOUT PROGRAM.');
