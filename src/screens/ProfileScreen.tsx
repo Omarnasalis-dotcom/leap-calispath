@@ -50,7 +50,7 @@ import { useRouter, router } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 
 // Module-level cache to track users who have already synced their points during the app session
-const syncedUserIds = new Set<string>();
+
 
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
@@ -61,6 +61,7 @@ export function ProfileScreen({
   initialCategory = 'strength',
   initialTier = 0
 }: ProfileScreenProps) {
+  const syncedUserIds = useRef(new Set<string>());
   const router = useRouter();
   // Replaced navigation props with router calls
   const onOpenAssessment = () => router.push('/assessment');
@@ -224,12 +225,12 @@ export function ProfileScreen({
   }
 
   useEffect(() => {
-    if (hasSyncedOnMount.current || (profile?.id && syncedUserIds.has(profile.id))) return;
+    if (hasSyncedOnMount.current || (profile?.id && syncedUserIds.current.has(profile.id))) return;
 
     async function syncAllPoints() {
       if (!profile?.id) return;
       hasSyncedOnMount.current = true;
-      syncedUserIds.add(profile.id);
+      syncedUserIds.current.add(profile.id);
 
       try {
         let syncedAny = false;

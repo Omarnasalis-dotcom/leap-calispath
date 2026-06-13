@@ -111,6 +111,23 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // 7. Block coaching/admin routes from non-admin, non-coach users
+  const coachingRoutes = [
+    'warrior-program',
+    'exercise-library',
+    'my-clients',
+    'client-dashboard',
+    'program-builder',
+    'progress-tracking'
+  ];
+  if (user && profile?.assessed_at && currentRoute && coachingRoutes.includes(currentRoute)) {
+    const isAdmin = profile?.is_admin === true;
+    const isCoach = profile?.is_coach === true || isAdmin;
+    if (!isCoach) {
+      return <Redirect href="/" />;
+    }
+  }
+
   return children;
 }
 
