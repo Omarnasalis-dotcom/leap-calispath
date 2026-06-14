@@ -52,8 +52,16 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
     const updates: any = {};
     if (!profile.gender && editGender) updates.gender = editGender;
     if (!profile.country && editCountry) updates.country = editCountry;
-    if (!profile.first_name && editFirstName.trim()) updates.first_name = editFirstName.trim();
-    if (!profile.last_name && editLastName.trim()) updates.last_name = editLastName.trim();
+    
+    const cleanFirstName = editFirstName.trim();
+    if (cleanFirstName !== (profile.first_name || '')) {
+      updates.first_name = cleanFirstName;
+    }
+    
+    const cleanLastName = editLastName.trim();
+    if (cleanLastName !== (profile.last_name || '')) {
+      updates.last_name = cleanLastName;
+    }
     
     if (Object.keys(updates).length === 0) {
       onClose();
@@ -90,54 +98,44 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
                 <MaterialCommunityIcons name="close" size={24} color={theme.text.secondary} />
               </TouchableOpacity>
             </View>
-
+ 
             <View style={{ marginBottom: 16 }}>
               <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>USERNAME (READ-ONLY)</Text>
-              <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+              <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                 <Text style={{ color: '#0A84FF', fontWeight: 'bold' }}>@{profile?.display_name || '-'}</Text>
+                <MaterialCommunityIcons name="lock-outline" size={14} color={theme.text.tertiary} />
               </View>
             </View>
 
             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>FIRST NAME</Text>
-                {profile?.first_name ? (
-                  <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                    <Text style={{ color: theme.text.secondary }}>{profile.first_name}</Text>
-                  </View>
-                ) : (
-                  <TextInput
-                    style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
-                    placeholder="First Name"
-                    placeholderTextColor={theme.text.tertiary}
-                    value={editFirstName}
-                    onChangeText={setEditFirstName}
-                  />
-                )}
+                <TextInput
+                  style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
+                  placeholder="First Name"
+                  placeholderTextColor={theme.text.tertiary}
+                  value={editFirstName}
+                  onChangeText={setEditFirstName}
+                />
               </View>
               <View style={{ flex: 1 }}>
                 <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>LAST NAME</Text>
-                {profile?.last_name ? (
-                  <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                    <Text style={{ color: theme.text.secondary }}>{profile.last_name}</Text>
-                  </View>
-                ) : (
-                  <TextInput
-                    style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
-                    placeholder="Last Name"
-                    placeholderTextColor={theme.text.tertiary}
-                    value={editLastName}
-                    onChangeText={setEditLastName}
-                  />
-                )}
+                <TextInput
+                  style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
+                  placeholder="Last Name"
+                  placeholderTextColor={theme.text.tertiary}
+                  value={editLastName}
+                  onChangeText={setEditLastName}
+                />
               </View>
             </View>
 
             <View style={{ marginBottom: 16 }}>
               <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>GENDER</Text>
               {profile?.gender ? (
-                <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                   <Text style={{ color: theme.text.secondary }}>{profile.gender}</Text>
+                  <MaterialCommunityIcons name="lock-outline" size={14} color={theme.text.tertiary} />
                 </View>
               ) : (
                 <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -160,8 +158,9 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
             <View style={{ marginBottom: 24 }}>
               <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>COUNTRY</Text>
               {profile?.country ? (
-                <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }]}>
                   <Text style={{ color: theme.text.secondary }}>{profile.country}</Text>
+                  <MaterialCommunityIcons name="lock-outline" size={14} color={theme.text.tertiary} />
                 </View>
               ) : (
                 <TouchableOpacity 
@@ -174,6 +173,10 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
                 </TouchableOpacity>
               )}
             </View>
+
+            <Text style={{ color: theme.text.tertiary, fontSize: 10, textAlign: 'center', marginBottom: 20, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 0.5, lineHeight: 14 }}>
+              USERNAME, GENDER AND COUNTRY CAN ONLY BE SET ONCE. TO UPDATE LOCKED FIELDS, PLEASE CONTACT SUPPORT.
+            </Text>
 
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.accent }]}

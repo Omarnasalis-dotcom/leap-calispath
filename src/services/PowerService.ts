@@ -193,8 +193,12 @@ export const PowerService = {
         .eq('user_id', userId)
         .maybeSingle();
 
-      const field = `${movementId}_1rm`;
-      const oldVal = current?.[field] || 0;
+      let cleanField = 'pullup_1rm';
+      if (movementId === 'dip') cleanField = 'dip_1rm';
+      if (movementId === 'squat') cleanField = 'squat_1rm';
+      if (movementId === 'muscle_up') cleanField = 'muscleup_1rm';
+
+      const oldVal = current?.[cleanField] || 0;
       const isNewPB = kg > oldVal;
 
       if (isNewPB) {
@@ -205,51 +209,21 @@ export const PowerService = {
           muscleup_1rm: movementId === 'muscle_up' ? kg : current?.muscleup_1rm || 0,
         };
 
-        const totalScore = calculateTotalPowerScore({
-          pull_up: newPBs.pullup_1rm,
-          dip: newPBs.dip_1rm,
-          squat: newPBs.squat_1rm,
-          muscle_up: newPBs.muscleup_1rm,
+        const { data: rpcData, error: rpcErr } = await supabase.rpc('submit_power_assessment', {
+          p_pullup: newPBs.pullup_1rm,
+          p_dip: newPBs.dip_1rm,
+          p_squat: newPBs.squat_1rm,
+          p_muscleup: newPBs.muscleup_1rm
         });
 
-        const oldScore = calculateTotalPowerScore({
-          pull_up: current?.pullup_1rm || 0,
-          dip: current?.dip_1rm || 0,
-          squat: current?.squat_1rm || 0,
-          muscle_up: current?.muscleup_1rm || 0,
-        });
-
-        const oldLevel = getPowerLevel(oldScore);
-        const newLevel = getPowerLevel(totalScore);
-        const isPromotion = newLevel.id > oldLevel.id;
-
-        if (current) {
-          const { error: updateErr } = await supabase
-            .from('power_assessments')
-            .update({
-              ...newPBs,
-              assessed_at: new Date().toISOString(),
-            })
-            .eq('user_id', userId);
-          if (updateErr) throw updateErr;
-        } else {
-          const { error: insertErr } = await supabase
-            .from('power_assessments')
-            .insert({
-              user_id: userId,
-              ...newPBs,
-              assessed_at: new Date().toISOString(),
-            });
-          if (insertErr) throw insertErr;
-        }
-
-        // Sync power points server-side via RPC
-        const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: userId });
         if (rpcErr) throw rpcErr;
 
         PowerService.invalidateCache();
 
-        return { isNewPB, isPromotion };
+        const isNewPBResult = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_new_pb : false;
+        const isPromotion = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_promotion : false;
+
+        return { isNewPB: isNewPBResult, isPromotion };
       }
 
       return { isNewPB: false, isPromotion: false };

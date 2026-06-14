@@ -120,60 +120,16 @@ export const OneMMService = {
    */
   async saveLog(userId: string, movementId: string, reps: number): Promise<{ isNewPB: boolean }> {
     try {
-      const movement = ONEMM_MOVEMENTS.find(m => m.id === movementId);
-      if (!movement) throw new Error('Invalid movement');
-
-      const points = calculateOneMMPoints(reps, movement.categoryId);
-
-      // 1. Save to logs
-      const { error: logError } = await supabase
-        .from('one_min_max_logs')
-        .insert({
-          user_id: userId,
-          movement_id: movementId,
-          category_id: movement.categoryId,
-          reps,
-          points
-        });
-
-      if (logError) throw logError;
-
-      // 2. Check if it's a new PB for this movement to decide on profile update
-      // Note: We sum ALL logs for points, but only track PB for display
-      const { data: existingMax } = await supabase
-        .from('one_min_max_logs')
-        .select('reps')
-        .eq('user_id', userId)
-        .eq('movement_id', movementId)
-        .order('reps', { ascending: false })
-        .limit(1)
-        .single();
-
-      const isNewPB = reps >= (existingMax?.reps || 0);
-
-      // 3. Update profile points (Peak Performance per Pattern)
-      const { data: allLogs } = await supabase
-        .from('one_min_max_logs')
-        .select('movement_id, points')
-        .eq('user_id', userId);
-
-      const patternPeaks: Record<string, number> = {};
-      (Array.isArray(allLogs) ? allLogs : []).forEach(log => {
-        const movement = ONEMM_MOVEMENTS.find(m => m.id === log.movement_id);
-        if (movement) {
-          const pid = movement.patternId;
-          if (log.points > (patternPeaks[pid] || 0)) {
-            patternPeaks[pid] = log.points;
-          }
-        }
+      const { data, error } = await supabase.rpc('submit_onemm_log', {
+        p_movement_id: movementId,
+        p_reps: reps
       });
 
-      // Sync 1MM points server-side via RPC
-      const { error: rpcErr } = await supabase.rpc('sync_onemm_points', { p_user_id: userId });
-      if (rpcErr) throw rpcErr;
+      if (error) throw error;
 
       OneMMService.invalidateCache();
 
+      const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
       return { isNewPB };
     } catch (err) {
       console.error('Exception saving 1MM log:', err);

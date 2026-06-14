@@ -74,35 +74,18 @@ export class ChallengeService {
     scoringType: 'reps' | 'time';
     metadata?: any;
   }) {
-    const { challengeId, userId, score, scoringType, metadata } = params;
+    const { challengeId, score, metadata } = params;
 
-    // 1. Check for existing score
-    const { data: existing } = await supabase
-      .from('weekly_entries')
-      .select('score')
-      .eq('challenge_id', challengeId)
-      .eq('user_id', userId)
-      .maybeSingle();
+    const { data, error } = await supabase.rpc('submit_weekly_score', {
+      p_challenge_id: challengeId,
+      p_score: score,
+      p_metadata: metadata || {}
+    });
 
-    // 2. Determine if new score is better
-    const isBetter = !existing || (scoringType === 'time' ? score < existing.score : score > existing.score);
+    if (error) throw error;
 
-    if (isBetter) {
-      const { error } = await supabase
-        .from('weekly_entries')
-        .upsert({
-          challenge_id: challengeId,
-          user_id: userId,
-          score,
-          metadata,
-          submitted_at: new Date().toISOString(),
-        }, { onConflict: 'challenge_id,user_id' });
-
-      if (error) throw error;
-      return true;
-    }
-
-    return false;
+    const isBetter = Array.isArray(data) && data.length > 0 ? !!data[0].is_better : false;
+    return isBetter;
   }
 
   /**

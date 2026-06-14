@@ -1,8 +1,8 @@
 import { useRouter } from 'expo-router';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
-  Dimensions, Vibration } from 'react-native';
+  Dimensions, Vibration, AppState } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCountryFlag } from '../constants/countries';
@@ -678,25 +678,67 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   const [preCountdown, setPreCountdown] = useState(0);
   const [saving, setSaving] = useState(false);
   const isMounted = useMountedRef();
+  const prepStartTimeRef = useRef<number | null>(null);
+  const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    let interval: NodeJS.Timeout;
-    if (isPreparing && preCountdown > 0) {
+    if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+
+    if (isPreparing) {
+      if (!prepStartTimeRef.current) {
+        prepStartTimeRef.current = Date.now();
+      }
       SoundService.playTick();
-      interval = setInterval(() => {
-        setPreCountdown(prev => prev - 1);
-      }, 1000);
-    } else if (isPreparing && preCountdown === 0) {
-      setIsPreparing(false);
-      SoundService.playBoxingBell();
-      Vibration.vibrate(100);
-      startTimer();
+
+      const sub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active' && prepStartTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - prepStartTimeRef.current) / 1000);
+          if (elapsed >= 5) {
+            setIsPreparing(false);
+            setPreCountdown(0);
+            SoundService.playBoxingBell();
+            Vibration.vibrate(100);
+            startTimer(elapsed - 5);
+            if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+          }
+        }
+      });
+
+      prepTimerRef.current = setInterval(() => {
+        if (prepStartTimeRef.current) {
+          const elapsed = Math.floor((Date.now() - prepStartTimeRef.current) / 1000);
+          const remaining = 5 - elapsed;
+
+          if (remaining <= 0) {
+            setIsPreparing(false);
+            setPreCountdown(0);
+            SoundService.playBoxingBell();
+            Vibration.vibrate(100);
+            startTimer(elapsed - 5);
+            if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+          } else {
+            setPreCountdown(prev => {
+              if (prev !== remaining) {
+                SoundService.playTick();
+              }
+              return remaining;
+            });
+          }
+        }
+      }, 250);
+
+      return () => {
+        sub.remove();
+        if (prepTimerRef.current) clearInterval(prepTimerRef.current);
+      };
+    } else {
+      prepStartTimeRef.current = null;
     }
-    return () => clearInterval(interval);
-  }, [isPreparing, preCountdown]);
+  }, [isPreparing]);
 
   const handleStartWithLeadIn = () => {
     setPreCountdown(5);
+    prepStartTimeRef.current = Date.now();
     setIsPreparing(true);
     resetTimer();
   };
@@ -704,6 +746,11 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   const cancelPreparation = () => {
     setIsPreparing(false);
     setPreCountdown(0);
+    prepStartTimeRef.current = null;
+    if (prepTimerRef.current) {
+      clearInterval(prepTimerRef.current);
+      prepTimerRef.current = null;
+    }
     resetTimer();
   };
 
@@ -718,6 +765,11 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
             if (timerRunning) stopTimer();
             setIsPreparing(false);
             setPreCountdown(0);
+            prepStartTimeRef.current = null;
+            if (prepTimerRef.current) {
+              clearInterval(prepTimerRef.current);
+              prepTimerRef.current = null;
+            }
             resetTimer();
             onClose();
           }}

@@ -2,7 +2,7 @@ import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
-  Dimensions, RefreshControl, Animated, Vibration } from 'react-native';
+  Dimensions, RefreshControl, Animated, Vibration, AppState } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
@@ -712,18 +712,26 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   useEffect(() => {
     if (timerRef.current) clearInterval(timerRef.current);
 
-    if (isPreTimerRunning) {
-      preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
-      SoundService.playTick();
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
+    const checkTimerStatus = () => {
+      if (isPreTimerRunning && preStartTimeRef.current !== null) {
+        const elapsed = Math.floor((Date.now() - preStartTimeRef.current) / 1000);
         const remaining = 5 - elapsed;
         if (remaining <= 0) {
-          setPreCountdown(0);
+          const activeElapsed = elapsed - 5;
           setIsPreTimerRunning(false);
-          setIsTimerRunning(true);
           SoundService.playBoxingBell();
-          if (timerRef.current) clearInterval(timerRef.current);
+          if (activeElapsed >= 60) {
+            setTimeLeft(0);
+            setIsTimerRunning(false);
+            setTimerFinished(true);
+            Vibration.vibrate([0, 500, 200, 500]);
+            SoundService.playDigitalBuzzer(2);
+            if (timerRef.current) clearInterval(timerRef.current);
+          } else {
+            startTimeRef.current = preStartTimeRef.current + 5000;
+            setTimeLeft(60 - activeElapsed);
+            setIsTimerRunning(true);
+          }
         } else {
           setPreCountdown(prev => {
             if (prev !== remaining) {
@@ -732,11 +740,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
             return remaining;
           });
         }
-      }, 250);
-    } else if (isTimerRunning) {
-      startTimeRef.current = Date.now() - ((60 - timeLeft) * 1000);
-      timerRef.current = setInterval(() => {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current!) / 1000);
+      } else if (isTimerRunning && startTimeRef.current !== null) {
+        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
         const remaining = 60 - elapsed;
         if (remaining <= 0) {
           setTimeLeft(0);
@@ -748,12 +753,24 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
         } else {
           setTimeLeft(remaining);
         }
-      }, 250);
-    }
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
+      }
     };
+
+    if (isPreTimerRunning || isTimerRunning) {
+      checkTimerStatus();
+      timerRef.current = setInterval(checkTimerStatus, 250);
+
+      const sub = AppState.addEventListener('change', (nextState) => {
+        if (nextState === 'active') {
+          checkTimerStatus();
+        }
+      });
+
+      return () => {
+        sub.remove();
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    }
   }, [isPreTimerRunning, isTimerRunning]);
 
   const startTimer = () => {
@@ -762,6 +779,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     setIsTimerRunning(false);
     setTimerFinished(false);
     setTimeLeft(60);
+    preStartTimeRef.current = Date.now();
+    startTimeRef.current = null;
   };
 
   const cancelTimer = () => {
@@ -790,6 +809,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     setIsTimerRunning(false);
     setPreCountdown(0);
     setTimeLeft(60);
+    preStartTimeRef.current = null;
+    startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
     onClose();
   };
@@ -800,6 +821,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     setIsPreTimerRunning(false);
     setTimeLeft(60);
     setRepsInput('');
+    preStartTimeRef.current = null;
+    startTimeRef.current = null;
   };
 
   const handleSave = async () => {

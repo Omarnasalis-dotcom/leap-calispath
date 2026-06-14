@@ -46,44 +46,18 @@ export class StaticService {
   static async saveHold(userId: string, movementId: string, seconds: number): Promise<boolean> {
     if (seconds <= 0) return false;
 
-    const points = calculatePoints(movementId, seconds);
-    
-    // Check if this is a PB (Personal Best)
-    const { data: existing } = await supabase
-      .from('static_holds')
-      .select('hold_seconds')
-      .eq('user_id', userId)
-      .eq('movement_id', movementId)
-      .single();
-
-    if (existing && existing.hold_seconds >= seconds) {
-      return false; // Not a PB
-    }
-
-    const { error } = await supabase
-      .from('static_holds')
-      .upsert({
-        user_id: userId,
-        movement_id: movementId,
-        hold_seconds: seconds,
-        points,
-        created_at: new Date().toISOString()
-      }, { onConflict: 'user_id,movement_id' });
+    const { data, error } = await supabase.rpc('submit_static_hold', {
+      p_movement_id: movementId,
+      p_hold_seconds: seconds
+    });
 
     if (error) {
       console.error('Error saving static hold:', error);
       throw error;
     }
 
-    // 3. Sync static points server-side via RPC
-    try {
-      const { error: rpcErr } = await supabase.rpc('sync_static_points', { p_user_id: userId });
-      if (rpcErr) throw rpcErr;
-    } catch (e) {
-      console.error('Error syncing static points:', e);
-    }
-
-    return true;
+    const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
+    return isNewPB;
   }
 
   /**
