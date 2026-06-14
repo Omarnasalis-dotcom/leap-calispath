@@ -150,8 +150,9 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         }
       }
 
-      const msg = isNewPB ? 'Personal Best Updated!' : '1MM Result Logged!';
-      Alert.alert('Success', msg);
+      if (!isNewPB) {
+        Alert.alert('Success', '1MM Result Logged!');
+      }
     }, {
       onSuccess: () => {
         setShowLogModal(false);

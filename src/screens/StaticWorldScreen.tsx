@@ -178,9 +178,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         }
       }
 
-      const msg = isPB ? 'Personal Best Updated!' : 'Hold logged successfully';
-      if (Platform.OS === 'web') alert(msg);
-      else Alert.alert('Success', msg);
+      if (!isPB) {
+        if (Platform.OS === 'web') alert('Hold logged successfully');
+        else Alert.alert('Success', 'Hold logged successfully');
+      }
 
       if (isMounted.current) setShowLogModal(false);
 
