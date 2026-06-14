@@ -133,7 +133,7 @@ export const OneMMService = {
       const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
       return { isNewPB };
     } catch (err) {
-      console.error('Exception saving 1MM log:', JSON.stringify(err), err?.message, err?.code);
+      console.error('Exception saving 1MM log:', JSON.stringify(err), (err as any)?.message, (err as any)?.code);
       throw err;
     }
   },

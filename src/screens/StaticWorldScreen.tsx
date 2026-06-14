@@ -164,6 +164,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   async function handleSaveHold(seconds: number) {
     if (!selectedMovement || !user || seconds <= 0) return;
 
+    let shouldCelebrate = false;
+
     setLoading(true);
     runSafeSave(async () => {
       const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds);
@@ -171,10 +173,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       if (isPB) {
         if (isMounted.current) {
           setCelebrationData({
-            stat: `NEW BEST: ${seconds}s`,
+            stat: `${seconds}s`,
             movement: selectedMovement?.name || 'Movement'
           });
-          setShowCelebration(true);
+          shouldCelebrate = true;
         }
       }
 
@@ -182,8 +184,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         if (Platform.OS === 'web') alert('Hold logged successfully');
         else Alert.alert('Success', 'Hold logged successfully');
       }
-
-      if (isMounted.current) setShowLogModal(false);
 
       await Promise.all([
         loadMovementData(),
@@ -197,6 +197,16 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     }, {
       onSuccess: () => {
         setLoading(false);
+        if (isMounted.current) setShowLogModal(false);
+
+        // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
+        if (shouldCelebrate && isMounted.current) {
+          setTimeout(() => {
+            if (isMounted.current) {
+              setShowCelebration(true);
+            }
+          }, 400);
+        }
       },
       onError: (error: any) => {
         setLoading(false);
@@ -641,12 +651,15 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
       <CelebrationBanner 
         visible={showCelebration}
-        title="STATIC MASTERY"
-        subtitle={celebrationData.movement}
+        title={celebrationData.movement?.toUpperCase()}
+        subtitle="NEW PR"
         stat={celebrationData.stat}
         emoji="💎"
         userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
         onDismiss={() => setShowCelebration(false)}
+        headerText="STATIC WORLD"
+        showLeapLogo={true}
+        accentColor="#7E57C2"
       />
       </View>
     </GlobalErrorBoundary>

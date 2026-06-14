@@ -137,16 +137,18 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
   const handleSaveResult = async (reps: number) => {
     if (!user || !selectedMovement) return;
+    let shouldCelebrate = false;
+
     runSafeSave(async () => {
       const { isNewPB } = await OneMMService.saveLog(user.id, selectedMovement, reps);
 
       if (isNewPB) {
         if (isMounted.current) {
           setCelebrationData({
-            stat: `NEW BEST: ${reps} reps`,
-            movement: selectedMovement || 'Movement'
+            stat: `${reps} REPS`,
+            movement: ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || 'Movement'
           });
-          setShowCelebration(true);
+          shouldCelebrate = true;
         }
       }
 
@@ -158,6 +160,15 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         setShowLogModal(false);
         fetchData();
         fetchLeaderboard();
+
+        // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
+        if (shouldCelebrate && isMounted.current) {
+          setTimeout(() => {
+            if (isMounted.current) {
+              setShowCelebration(true);
+            }
+          }, 400);
+        }
       },
       onError: (error: any) => {
         Alert.alert('Error', error.message || 'Failed to save result.');
@@ -692,12 +703,15 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
       <CelebrationBanner
         visible={showCelebration}
-        title="ENDURANCE PEAK"
-        subtitle={celebrationData.movement}
+        title={celebrationData.movement?.toUpperCase()}
+        subtitle="NEW PR"
         stat={celebrationData.stat}
         emoji="🔥"
         userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
         onDismiss={() => setShowCelebration(false)}
+        headerText="ENDURANCE WORLD"
+        showLeapLogo={true}
+        accentColor="#FF7043"
       />
     </GlobalErrorBoundary>
   );

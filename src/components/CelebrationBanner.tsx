@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -9,11 +9,14 @@ import {
   Dimensions,
   Alert,
   Platform,
+  Vibration,
 } from 'react-native';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 import { useTheme } from '../contexts/ThemeContext';
+import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { LeapLogo } from './LeapLogo';
 
 const { height } = Dimensions.get('window');
 
@@ -27,7 +30,35 @@ interface CelebrationProps {
   rank?: string;        // e.g. "RANK #1"
   leaderboard?: { name: string; score: string; rank: number }[];
   onDismiss: () => void;
+  headerText?: string;
+  showLeapLogo?: boolean;
+  accentColor?: string;
 }
+
+const POWER_QUOTES = [
+  "DEFEAT GRAVITY WITH PURE POWER.",
+  "HEAVY WEIGHTS BUILD HEAVY WARRIORS.",
+  "POWER IS THE ONLY TRUTH.",
+  "LIMITS ARE BORN TO BE BROKEN.",
+  "THE BAR WILL ALWAYS BEND TO RESOLVE.",
+  "UNLEASH THE WARRIOR WITHIN."
+];
+
+const STATIC_QUOTES = [
+  "FIND PEACE IN THE HOLD.",
+  "DEFY GRAVITY WITH STILLNESS.",
+  "STRENGTH IS CONTROL.",
+  "HOLD THE LINE.",
+  "MIND OVER BODY."
+];
+
+const ENDURANCE_QUOTES = [
+  "LEAP PAST YOUR LIMITS. ENDURE.",
+  "EMBRACE THE BURN.",
+  "ONE MORE REP. EVERY TIME.",
+  "DIG DEEPER THAN THE PAIN.",
+  "OUTLAST THE OPPOSITION."
+];
 
 export function CelebrationBanner({
   visible,
@@ -39,14 +70,41 @@ export function CelebrationBanner({
   rank,
   leaderboard,
   onDismiss,
+  headerText,
+  showLeapLogo,
+  accentColor,
 }: CelebrationProps) {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
+  const cardAccent = accentColor || theme.accent;
+
+  const getAccentAlpha = (color: string, alphaHex: string) => {
+    if (color.startsWith('#') && color.length === 7) {
+      return `${color}${alphaHex}`;
+    }
+    return color;
+  };
   const viewShotRef = useRef<View>(null);
   const slideAnim = useRef(new Animated.Value(height)).current;
   const opacityAnim = useRef(new Animated.Value(0)).current;
+  const statScale = useRef(new Animated.Value(0.5)).current;
+  const logoScale = useRef(new Animated.Value(0)).current;
+  const [quote, setQuote] = useState('');
 
   useEffect(() => {
     if (visible) {
+      Vibration.vibrate([0, 50, 100, 50]);
+      SoundService.playBoxingBell();
+
+      // Pick a random quote based on the header text or fallback
+      let quotePool = POWER_QUOTES;
+      if (headerText === 'STATIC WORLD' || title?.includes('STATIC')) {
+        quotePool = STATIC_QUOTES;
+      } else if (headerText === 'ENDURANCE WORLD' || title?.includes('ENDURANCE')) {
+        quotePool = ENDURANCE_QUOTES;
+      }
+      const randomQuote = quotePool[Math.floor(Math.random() * quotePool.length)];
+      setQuote(randomQuote);
+
       Animated.parallel([
         Animated.spring(slideAnim, {
           toValue: 0,
@@ -59,10 +117,28 @@ export function CelebrationBanner({
           duration: 300,
           useNativeDriver: true,
         }),
+        Animated.spring(logoScale, {
+          toValue: 1,
+          useNativeDriver: true,
+          tension: 100,
+          friction: 6,
+        }),
+      ]).start();
+
+      Animated.sequence([
+        Animated.delay(300),
+        Animated.spring(statScale, {
+          toValue: 1,
+          tension: 120,
+          friction: 6,
+          useNativeDriver: true,
+        })
       ]).start();
     } else {
       slideAnim.setValue(height);
       opacityAnim.setValue(0);
+      statScale.setValue(0.5);
+      logoScale.setValue(0);
     }
   }, [visible]);
 
@@ -178,7 +254,7 @@ export function CelebrationBanner({
   });
 
   const SectionDivider = () => (
-    <View style={[styles.sectionDivider, { backgroundColor: 'rgba(255,255,255,0.1)' }]} />
+    <View style={[styles.sectionDivider, { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)' }]} />
   );
 
   return (
@@ -200,26 +276,65 @@ export function CelebrationBanner({
               styles.card,
               {
                 backgroundColor: theme.background.primary,
-                borderColor: theme.accent,
+                borderColor: cardAccent,
+                shadowColor: cardAccent,
+                shadowOffset: { width: 0, height: 0 },
+                shadowOpacity: 0.6,
+                shadowRadius: 20,
+                elevation: 10,
               }
             ]}
           >
-            <Text style={[styles.logoText, { color: theme.accent }]}>LEAP ARENA</Text>
-            <Text style={styles.emoji}>{emoji}</Text>
+            <Text style={[styles.logoText, { color: cardAccent }]}>{headerText || 'LEAP ARENA'}</Text>
+            
+            <Animated.View style={{ transform: [{ scale: logoScale }] }}>
+              {showLeapLogo ? (
+                <View style={{ marginTop: 6, marginBottom: 6 }}>
+                  <LeapLogo size={80} animated={true} />
+                </View>
+              ) : (
+                <Text style={styles.emoji}>{emoji}</Text>
+              )}
+            </Animated.View>
 
             <SectionDivider />
 
             <View style={styles.mainInfoSection}>
               <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
-              <Text style={[styles.userName, { color: theme.accent }]} numberOfLines={1}>
-                {userName}
-              </Text>
+              {subtitle && subtitle.toUpperCase() !== 'NEW PR' ? (
+                <View style={[styles.badgeContainer, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
+                  <Text style={[styles.subtitleText, { color: cardAccent }]} numberOfLines={1}>
+                    {subtitle.toUpperCase()}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={[styles.userNameTag, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
+                <View style={[styles.cornerPrBadge, { backgroundColor: cardAccent }]}>
+                  <Text style={styles.cornerPrText}>PR</Text>
+                </View>
+                <Text style={[styles.userName, { color: theme.text.primary }]} numberOfLines={1}>
+                  {userName?.toUpperCase()}
+                </Text>
+              </View>
             </View>
 
             <SectionDivider />
 
             <View style={styles.achievementSection}>
-              <Text style={[styles.statValueBig, { color: theme.accent }]}>{stat}</Text>
+              <Animated.View style={[styles.statRow, { transform: [{ scale: statScale }] }]}>
+                {subtitle && subtitle.toUpperCase() === 'NEW PR' ? (
+                  <View style={[styles.statBox, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
+                    <Text style={[styles.statBoxText, { color: cardAccent }]}>
+                      {subtitle.toUpperCase()}
+                    </Text>
+                  </View>
+                ) : null}
+                <View style={[styles.statBox, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
+                  <Text style={[styles.statBoxText, { color: cardAccent }]}>
+                    {stat}
+                  </Text>
+                </View>
+              </Animated.View>
               {rank && (
                 <Text style={[styles.rankTextSmall, { color: theme.text.secondary }]}>{rank}</Text>
               )}
@@ -232,11 +347,11 @@ export function CelebrationBanner({
                   <Text style={[styles.leaderboardTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
                   {leaderboard.map((entry, i) => (
                     <View key={i} style={styles.leaderboardRow}>
-                      <Text style={[styles.lbRank, { color: theme.accent }]}>#{entry.rank}</Text>
+                      <Text style={[styles.lbRank, { color: cardAccent }]}>#{entry.rank}</Text>
                       <Text style={[styles.lbName, { color: '#EEE' }]} numberOfLines={1}>
                         {entry.name.toUpperCase()}
                       </Text>
-                      <Text style={[styles.lbScore, { color: theme.accent }]}>{entry.score}</Text>
+                      <Text style={[styles.lbScore, { color: cardAccent }]}>{entry.score}</Text>
                     </View>
                   ))}
                 </View>
@@ -245,27 +360,32 @@ export function CelebrationBanner({
 
             <SectionDivider />
             
-            <Text style={[styles.dateText, { color: '#555' }]}>{today}</Text>
+            <Text style={[styles.dateText, { color: '#777' }]}>{today}</Text>
+            {quote ? (
+              <Text style={[styles.quoteText, { color: theme.text.tertiary, marginTop: 6, marginBottom: 8 }]}>
+                "{quote}"
+              </Text>
+            ) : null}
           </View>
 
           {/* ACTION BUTTONS */}
           <View style={styles.buttonContainer}>
             <TouchableOpacity
-              style={[styles.actionButton, { backgroundColor: theme.accent }]}
+              style={[styles.actionButton, { backgroundColor: cardAccent }]}
               onPress={handleShare}
             >
               <Text style={styles.buttonText}>📸 SHARE</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
-              style={[styles.actionButton, styles.outlineButton, { borderColor: theme.accent }]}
+              style={[styles.actionButton, styles.outlineButton, { borderColor: cardAccent }]}
               onPress={handleSave}
             >
-              <Text style={[styles.buttonText, { color: theme.accent }]}>SAVE</Text>
+              <Text style={[styles.buttonText, { color: cardAccent }]}>SAVE</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss}>
-              <Text style={[styles.dismissText, { color: theme.text.secondary }]}>DISMISS</Text>
+              <Text style={[styles.dismissText, { color: 'rgba(255, 255, 255, 0.6)' }]}>DISMISS</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -295,23 +415,32 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     borderWidth: 2,
     alignItems: 'center',
-    overflow: 'hidden',
   },
   logoText: {
     fontFamily: Platform.OS === 'ios' ? 'System' : 'sans-serif-condensed',
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: '800',
     letterSpacing: 2,
-    marginBottom: 8,
+    marginBottom: 6,
   },
   emoji: {
     fontSize: 64,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  quoteText: {
+    fontSize: 10,
+    fontStyle: 'italic',
+    fontWeight: '700',
+    textAlign: 'center',
+    letterSpacing: 1,
+    marginTop: 4,
+    opacity: 0.8,
+    paddingHorizontal: 12,
   },
   sectionDivider: {
     width: '100%',
     height: 1,
-    marginVertical: 16,
+    marginVertical: 6,
   },
   mainInfoSection: {
     width: '100%',
@@ -325,10 +454,51 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     marginBottom: 4,
   },
-  userName: {
-    fontSize: 18,
+  subtitleText: {
+    fontSize: 13,
     fontWeight: '900',
     textAlign: 'center',
+    letterSpacing: 2,
+    textTransform: 'uppercase',
+  },
+  badgeContainer: {
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    marginTop: 8,
+    marginBottom: 8,
+  },
+  userNameTag: {
+    borderWidth: 1.5,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    borderRadius: 8,
+    alignSelf: 'center',
+    marginTop: 10,
+    marginBottom: 4,
+    position: 'relative',
+  },
+  cornerPrBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    borderRadius: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cornerPrText: {
+    color: '#FFF',
+    fontSize: 8,
+    fontWeight: '900',
+  },
+  userName: {
+    fontSize: 16,
+    fontWeight: '900',
+    textAlign: 'center',
+    letterSpacing: 0.5,
   },
   achievementSection: {
     width: '100%',
@@ -337,6 +507,27 @@ const styles = StyleSheet.create({
   statValueBig: {
     fontSize: 36,
     fontWeight: '900',
+    textAlign: 'center',
+  },
+  statRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  statBox: {
+    borderWidth: 2,
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+    minWidth: 100,
+  },
+  statBoxText: {
+    fontSize: 24,
+    fontWeight: '900',
+    letterSpacing: 0.5,
     textAlign: 'center',
   },
   rankTextSmall: {

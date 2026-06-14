@@ -147,12 +147,15 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         
         if (isMounted.current) {
           setCelebrationProps({
-            title: isPromotion ? 'LEVEL PROMOTED!' : 'NEW POWER PB!',
-            subtitle: isPromotion ? `WELCOME TO ${getPowerLevel(stats?.totalPoints || 0).name}` : movement?.name,
-            stat: `${kg}kg (+${points} pts)`,
+            title: isPromotion ? 'LEVEL PROMOTED!' : `${movement?.name?.toUpperCase()}`,
+            subtitle: isPromotion ? `WELCOME TO ${getPowerLevel(stats?.totalPoints || 0).name}` : 'NEW PR',
+            stat: `${kg} KG`,
             emoji: isPromotion ? '⚡' : '🔥',
             userName: profile?.display_name || 'WARRIOR',
-            rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : 'STRENGTH GAIN',
+            rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : undefined,
+            headerText: 'POWER WORLD',
+            showLeapLogo: true,
+            accentColor: '#FF5252',
           });
           shouldShowCelebration = true;
         }

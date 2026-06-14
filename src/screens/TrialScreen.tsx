@@ -481,7 +481,15 @@ export function TrialScreen({
         <View style={[styles.headerTitleFrame, { borderColor: accentColor }]}>
           <Text style={[styles.title, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
         </View>
-        <View style={{ width: 44 }} />
+        <View style={styles.headerRightSlot}>
+          {hasStarted && (
+            <View style={[styles.headerTimerCircle, { borderColor: accentColor }]}>
+              <Text style={[styles.headerTimerText, { color: accentColor }]}>
+                {formatTime(timeSeconds)}
+              </Text>
+            </View>
+          )}
+        </View>
       </View>
 
       <ScrollView contentContainerStyle={styles.scrollContent}>
@@ -706,7 +714,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     paddingHorizontal: 12,
     paddingVertical: 6,
-    borderRadius: 4,
+    borderRadius: 20,
   },
   title: {
     fontSize: 14,
@@ -1008,5 +1016,23 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 8,
+  },
+  headerRightSlot: {
+    width: 44,
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+  },
+  headerTimerCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  headerTimerText: {
+    fontSize: 9,
+    fontWeight: '900',
+    fontVariant: ['tabular-nums'],
   },
 });
