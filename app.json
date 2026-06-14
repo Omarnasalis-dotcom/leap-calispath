@@ -18,6 +18,9 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.leap.calispath",
       "buildNumber": "1",
+      "entitlements": {
+        "aps-environment": "production"
+      },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library.",

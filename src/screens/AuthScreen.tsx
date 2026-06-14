@@ -161,7 +161,7 @@ export function AuthScreen() {
           
           inviteCodeReserved = false; // Successfully redeemed, no need to release
           
-          const msg = 'Welcome to the Arena! Check your email to verify.';
+          const msg = 'Welcome to the Arena! You can now sign in.';
           if (Platform.OS === 'web') window.alert(msg);
           else Alert.alert('Warrior Registered', msg);
         }
