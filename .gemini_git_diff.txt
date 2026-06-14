@@ -1,0 +1,807 @@
+diff --git a/app/trial.tsx b/app/trial.tsx
+index 30f43bd..027804f 100644
+--- a/app/trial.tsx
++++ b/app/trial.tsx
+@@ -1,5 +1,5 @@
+ import React from 'react';
+-import { useRouter, useLocalSearchParams } from 'expo-router';
++import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+ import { TrialScreen } from '../src/screens/TrialScreen';
+ import { SpartanLayout } from '../src/components/SpartanLayout';
+ 
+@@ -9,6 +9,7 @@ export default function Route() {
+ 
+   return (
+     <SpartanLayout hideToggle>
++      <Stack.Screen options={{ gestureEnabled: false }} />
+       <TrialScreen
+         mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
+         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
+diff --git a/src/components/profile/EditProfileModal.tsx b/src/components/profile/EditProfileModal.tsx
+index c10f58d..3820caf 100644
+--- a/src/components/profile/EditProfileModal.tsx
++++ b/src/components/profile/EditProfileModal.tsx
+@@ -50,10 +50,10 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }:
+     if (!profile?.id) return;
+     
+     const updates: any = {};
+-    if (!profile.gender && editGender) updates.gender = editGender;
+-    if (!profile.country && editCountry) updates.country = editCountry;
+-    if (!profile.first_name && editFirstName.trim()) updates.first_name = editFirstName.trim();
+-    if (!profile.last_name && editLastName.trim()) updates.last_name = editLastName.trim();
++    if (editGender !== profile.gender) updates.gender = editGender;
++    if (editCountry !== profile.country) updates.country = editCountry;
++    if (editFirstName.trim() !== (profile.first_name || '')) updates.first_name = editFirstName.trim();
++    if (editLastName.trim() !== (profile.last_name || '')) updates.last_name = editLastName.trim();
+     
+     if (Object.keys(updates).length === 0) {
+       onClose();
+@@ -101,43 +101,31 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }:
+             <View style={{ flexDirection: 'row', gap: 12, marginBottom: 16 }}>
+               <View style={{ flex: 1 }}>
+                 <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>FIRST NAME</Text>
+-                {profile?.first_name ? (
+-                  <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+-                    <Text style={{ color: theme.text.secondary }}>{profile.first_name}</Text>
+-                  </View>
+-                ) : (
+-                  <TextInput
+-                    style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
+-                    placeholder="First Name"
+-                    placeholderTextColor={theme.text.tertiary}
+-                    value={editFirstName}
+-                    onChangeText={setEditFirstName}
+-                  />
+-                )}
++                <TextInput
++                  style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
++                  placeholder="First Name"
++                  placeholderTextColor={theme.text.tertiary}
++                  value={editFirstName}
++                  onChangeText={setEditFirstName}
++                />
+               </View>
+               <View style={{ flex: 1 }}>
+                 <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>LAST NAME</Text>
+-                {profile?.last_name ? (
+-                  <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+-                    <Text style={{ color: theme.text.secondary }}>{profile.last_name}</Text>
+-                  </View>
+-                ) : (
+-                  <TextInput
+-                    style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
+-                    placeholder="Last Name"
+-                    placeholderTextColor={theme.text.tertiary}
+-                    value={editLastName}
+-                    onChangeText={setEditLastName}
+-                  />
+-                )}
++                <TextInput
++                  style={[styles.readOnlyInput, { color: theme.text.primary, borderColor: theme.card.border, paddingVertical: 12 }]}
++                  placeholder="Last Name"
++                  placeholderTextColor={theme.text.tertiary}
++                  value={editLastName}
++                  onChangeText={setEditLastName}
++                />
+               </View>
+             </View>
+ 
+             <View style={{ marginBottom: 16 }}>
+-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>GENDER</Text>
++              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>GENDER {profile?.gender && '(READ-ONLY)'}</Text>
+               {profile?.gender ? (
+                 <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+-                  <Text style={{ color: theme.text.secondary }}>{profile.gender}</Text>
++                  <Text style={{ color: theme.text.primary, fontWeight: 'bold' }}>{profile.gender.toUpperCase()}</Text>
+                 </View>
+               ) : (
+                 <View style={{ flexDirection: 'row', gap: 12 }}>
+@@ -158,10 +146,10 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }:
+             </View>
+ 
+             <View style={{ marginBottom: 24 }}>
+-              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>COUNTRY</Text>
++              <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>COUNTRY {profile?.country && '(READ-ONLY)'}</Text>
+               {profile?.country ? (
+                 <View style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+-                  <Text style={{ color: theme.text.secondary }}>{profile.country}</Text>
++                  <Text style={{ color: theme.text.primary, fontWeight: 'bold' }}>{profile.country.toUpperCase()}</Text>
+                 </View>
+               ) : (
+                 <TouchableOpacity 
+diff --git a/src/contexts/AuthContext.tsx b/src/contexts/AuthContext.tsx
+index 387c148..990be1b 100644
+--- a/src/contexts/AuthContext.tsx
++++ b/src/contexts/AuthContext.tsx
+@@ -146,6 +146,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+ 
+       if (error) {
+         console.error('Error fetching profile:', error);
++        if (error.code === 'PGRST116') {
++          // Force sign out to clear cached invalid session on the device
++          supabase.auth.signOut().catch(() => {});
++        }
+         return;
+       }
+ 
+@@ -156,7 +160,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+     }
+   }
+ 
+-  async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) {
++  async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string, inviteCode: string }) {
+     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+         
+     const { data, error } = await supabase.auth.signUp({
+@@ -169,7 +173,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
+           last_name: metadata?.lastName,
+           gender: metadata?.gender,
+           country: metadata?.country,
+-          display_name: metadata?.displayName
++          display_name: metadata?.displayName,
++          invite_code: metadata?.inviteCode
+         },
+       },
+     });
+diff --git a/src/screens/AssessmentScreen.tsx b/src/screens/AssessmentScreen.tsx
+index f3afc3a..e10a86e 100644
+--- a/src/screens/AssessmentScreen.tsx
++++ b/src/screens/AssessmentScreen.tsx
+@@ -291,7 +291,6 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
+                 keyboardType="number-pad"
+                 placeholder="0"
+                 placeholderTextColor={theme.text.tertiary}
+-                autoFocus
+               />
+ 
+               <View style={styles.quickRepsGrid}>
+diff --git a/src/screens/AuthScreen.tsx b/src/screens/AuthScreen.tsx
+index bbfec69..e6c2e4d 100644
+--- a/src/screens/AuthScreen.tsx
++++ b/src/screens/AuthScreen.tsx
+@@ -112,18 +112,7 @@ export function AuthScreen() {
+     setLoading(true);
+     try {
+       if (isSignUp) {
+-        // 1. Pre-check invite code exists and is unused (lightweight, not a claim)
+-        const { data: codeCheck, error: codeCheckError } = await supabase
+-          .from('invite_codes')
+-          .select('id')
+-          .ilike('code', inviteCode.trim())
+-          .is('used_by', null)
+-          .maybeSingle();
+-        if (codeCheckError || !codeCheck) {
+-          throw new Error('This invite code is invalid or already used. Please request a new one.');
+-        }
+-
+-        // 2. Check if username is already taken
++        // 1. Check if username is already taken
+         const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
+           username: displayName.trim()
+         });
+@@ -134,29 +123,20 @@ export function AuthScreen() {
+           throw new Error('This username is already taken. Please choose another one.');
+         }
+ 
+-        // 3. Create the User
+-        await signUp(email, password, { firstName, lastName, gender: gender!, country, displayName });
+-
+-        // 3. Redeem using your RPC function (using the EXACT code from the database)
+-        const { data: authData } = await supabase.auth.getUser();
+-        if (authData?.user?.id) {
+-          const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
+-            p_code: inviteCode.trim(),
+-            p_user_id: authData.user.id
+-          });
+-
+-          if (redeemError || !redeemData || redeemData.success === false) {
+-            console.error('Redeem Error:', redeemError || redeemData.error);
+-            const msg = 'This invite code has already been used or is invalid. Please request a new one.';
+-            if (Platform.OS === 'web') window.alert(msg);
+-            else Alert.alert('Invalid Code', msg);
+-            setLoading(false);
+-            return;
+-          }
+-          const msg = 'Welcome to the Arena! Check your email to verify.';
+-          if (Platform.OS === 'web') window.alert(msg);
+-          else Alert.alert('Warrior Registered', msg);
+-        }
++        // 2. Create the User (the DB trigger validates and claims the invite code atomically)
++        await signUp(email, password, { 
++          firstName, 
++          lastName, 
++          gender: gender!, 
++          country, 
++          displayName, 
++          inviteCode: inviteCode.trim() 
++        });
++
++        const msg = 'Welcome to the Arena! Check your email to verify.';
++        if (Platform.OS === 'web') window.alert(msg);
++        else Alert.alert('Warrior Registered', msg);
++        
+         setIsSignUp(false);
+       } else {
+         await signIn(email, password);
+diff --git a/src/screens/OneMinMaxScreen.tsx b/src/screens/OneMinMaxScreen.tsx
+index 481c68d..0a0cbe7 100644
+--- a/src/screens/OneMinMaxScreen.tsx
++++ b/src/screens/OneMinMaxScreen.tsx
+@@ -1,8 +1,9 @@
+-import { useRouter, useLocalSearchParams , router } from 'expo-router';
++import { useRouter, useLocalSearchParams, router, Stack } from 'expo-router';
+ import React, { useState, useEffect, useCallback, useRef } from 'react';
+ import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+   TextInput, Alert, Platform, Modal,
+-  Dimensions, RefreshControl, Animated, Vibration } from 'react-native';
++  Dimensions, RefreshControl, Animated, Vibration,
++  KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+ import { MaterialCommunityIcons } from '@expo/vector-icons';
+ import { LinearGradient } from 'expo-linear-gradient';
+ import { useTheme } from '../contexts/ThemeContext';
+@@ -546,6 +547,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
+ 
+   return (
+     <GlobalErrorBoundary>
++      <Stack.Screen options={{ gestureEnabled: !showLogModal }} />
+       <LinearGradient
+         colors={[theme.background.primary, theme.background.secondary || '#000']}
+         style={[styles.container]}
+@@ -797,77 +799,111 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
+     }
+   };
+ 
+-  return (
+-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+-      <View style={styles.modalOverlay}>
+-        <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+-          <View style={styles.modalHeader}>
+-            <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
+-              {movementName.toUpperCase()}
+-            </Text>
+-            <TouchableOpacity onPress={onClose}>
+-              <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
+-            </TouchableOpacity>
+-          </View>
++  const handleCancel = () => {
++    if (isPreTimerRunning || isTimerRunning) {
++      if (Platform.OS === 'web') {
++        if (window.confirm('Are you sure you want to abandon this 1MM sprint? Progress will be lost.')) {
++          onClose();
++        }
++      } else {
++        Alert.alert(
++          'ABANDON WORKOUT',
++          'Are you sure you want to abandon this 1MM sprint? Progress will be lost.',
++          [
++            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
++            {
++              text: 'ABANDON',
++              style: 'destructive',
++              onPress: () => onClose(),
++            },
++          ]
++        );
++      }
++    } else {
++      onClose();
++    }
++  };
+ 
+-          <View style={styles.timerContainer}>
+-            <Text style={[
+-              styles.timerText, 
+-              { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
+-            ]}>
+-              {isPreTimerRunning ? preCountdown : timeLeft}s
+-            </Text>
+-            <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+-              {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
+-            </Text>
+-          </View>
++  return (
++    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleCancel}>
++      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
++        <View style={styles.modalOverlay}>
++          <KeyboardAvoidingView
++            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
++            style={{ width: '100%', alignItems: 'center' }}
++          >
++            <TouchableWithoutFeedback onPress={() => {}}>
++              <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
++                <View style={styles.modalHeader}>
++                  <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
++                    {movementName.toUpperCase()}
++                  </Text>
++                  <TouchableOpacity onPress={handleCancel}>
++                    <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
++                  </TouchableOpacity>
++                </View>
+ 
+-          {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
+-            <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
+-              <Text style={styles.startBtnText}>START SPRINT</Text>
+-            </TouchableOpacity>
+-          )}
++                <View style={styles.timerContainer}>
++                  <Text style={[
++                    styles.timerText, 
++                    { color: isPreTimerRunning ? theme.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
++                  ]}>
++                    {isPreTimerRunning ? preCountdown : timeLeft}s
++                  </Text>
++                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
++                    {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
++                  </Text>
++                </View>
+ 
+-          {(isPreTimerRunning || isTimerRunning) && (
+-            <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
+-              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
+-            </TouchableOpacity>
+-          )}
++                {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
++                  <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
++                    <Text style={styles.startBtnText}>START SPRINT</Text>
++                  </TouchableOpacity>
++                )}
+ 
+-          {timerFinished && (
+-            <View style={styles.inputContainer}>
+-              <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
+-              <TextInput
+-                style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
+-                keyboardType="numeric"
+-                value={repsInput}
+-                onChangeText={setRepsInput}
+-                autoFocus
+-                placeholder="0"
+-                placeholderTextColor="rgba(255,255,255,0.2)"
+-              />
+-              <TouchableOpacity
+-                style={[styles.saveBtn, { backgroundColor: theme.accent }]}
+-                onPress={handleSave}
+-                disabled={saving}
+-              >
+-                {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+-              </TouchableOpacity>
++                {(isPreTimerRunning || isTimerRunning) && (
++                  <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
++                    <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
++                  </TouchableOpacity>
++                )}
+ 
+-              <TouchableOpacity
+-                style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
+-                onPress={resetTimer}
+-              >
+-                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
+-              </TouchableOpacity>
+-            </View>
+-          )}
++                {timerFinished && (
++                  <View style={styles.inputContainer}>
++                    <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
++                    <TextInput
++                      style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
++                      keyboardType="numeric"
++                      value={repsInput}
++                      onChangeText={setRepsInput}
++                      autoFocus
++                      placeholder="0"
++                      placeholderTextColor="rgba(255,255,255,0.2)"
++                    />
++                    <TouchableOpacity
++                      style={[styles.saveBtn, { backgroundColor: theme.accent }]}
++                      onPress={handleSave}
++                      disabled={saving}
++                    >
++                      {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
++                    </TouchableOpacity>
++
++                    <TouchableOpacity
++                      style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
++                      onPress={resetTimer}
++                    >
++                      <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
++                    </TouchableOpacity>
++                  </View>
++                )}
+ 
+-          {isTimerRunning && (
+-            <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
+-          )}
++                {isTimerRunning && (
++                  <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
++                )}
++              </View>
++            </TouchableWithoutFeedback>
++          </KeyboardAvoidingView>
+         </View>
+-      </View>
++      </TouchableWithoutFeedback>
+     </Modal>
+   );
+ };
+diff --git a/src/screens/StaticWorldScreen.tsx b/src/screens/StaticWorldScreen.tsx
+index 830dc31..cff1190 100644
+--- a/src/screens/StaticWorldScreen.tsx
++++ b/src/screens/StaticWorldScreen.tsx
+@@ -1,5 +1,5 @@
+ import { useRouter } from 'expo-router';
+-import React, { useState, useEffect } from 'react';
++import React, { useState, useEffect, useRef } from 'react';
+ import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
+   TextInput, Alert, Platform, Modal,
+   Dimensions, Vibration } from 'react-native';
+@@ -679,31 +679,78 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
+   const [saving, setSaving] = useState(false);
+   const isMounted = useMountedRef();
+ 
++  const preStartTimeRef = useRef<number | null>(null);
++  const preTimerRef = useRef<NodeJS.Timeout | null>(null);
++
+   useEffect(() => {
+-    let interval: NodeJS.Timeout;
+-    if (isPreparing && preCountdown > 0) {
++    if (preTimerRef.current) {
++      clearInterval(preTimerRef.current);
++      preTimerRef.current = null;
++    }
++
++    if (!isPreparing) return;
++
++    if (preCountdown > 0) {
++      if (!preStartTimeRef.current) {
++        preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
++      }
++      
+       SoundService.playTick();
+-      interval = setInterval(() => {
+-        setPreCountdown(prev => prev - 1);
+-      }, 1000);
+-    } else if (isPreparing && preCountdown === 0) {
++
++      preTimerRef.current = setInterval(() => {
++        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
++        const remaining = 5 - elapsed;
++
++        if (remaining <= 0) {
++          setIsPreparing(false);
++          setPreCountdown(0);
++          preStartTimeRef.current = null;
++          SoundService.playBoxingBell();
++          Vibration.vibrate(100);
++          startTimer();
++          if (preTimerRef.current) {
++            clearInterval(preTimerRef.current);
++            preTimerRef.current = null;
++          }
++        } else {
++          setPreCountdown(prev => {
++            if (prev !== remaining && remaining > 0) {
++              SoundService.playTick();
++            }
++            return remaining;
++          });
++        }
++      }, 250);
++    } else if (preCountdown === 0) {
+       setIsPreparing(false);
+       SoundService.playBoxingBell();
+       Vibration.vibrate(100);
+       startTimer();
+     }
+-    return () => clearInterval(interval);
+-  }, [isPreparing, preCountdown]);
++
++    return () => {
++      if (preTimerRef.current) {
++        clearInterval(preTimerRef.current);
++        preTimerRef.current = null;
++      }
++    };
++  }, [isPreparing]);
+ 
+   const handleStartWithLeadIn = () => {
+     setPreCountdown(5);
+     setIsPreparing(true);
++    preStartTimeRef.current = Date.now();
+     resetTimer();
+   };
+ 
+   const cancelPreparation = () => {
+     setIsPreparing(false);
+     setPreCountdown(0);
++    preStartTimeRef.current = null;
++    if (preTimerRef.current) {
++      clearInterval(preTimerRef.current);
++      preTimerRef.current = null;
++    }
+     resetTimer();
+   };
+ 
+diff --git a/src/screens/TrialScreen.tsx b/src/screens/TrialScreen.tsx
+index 048f958..e676cbb 100644
+--- a/src/screens/TrialScreen.tsx
++++ b/src/screens/TrialScreen.tsx
+@@ -54,6 +54,8 @@ export function TrialScreen({
+   const [showVictory, setShowVictory] = useState(false);
+   const [showDishonor, setShowDishonor] = useState(false);
+   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
++  const prepStartTimeRef = useRef<number | null>(null);
++  const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
+ 
+   const { runAsync: runSafeSubmit, isExecuting: isSubmitting } = useSafeAsync();
+ 
+@@ -133,26 +135,65 @@ export function TrialScreen({
+ 
+   function startTrial() {
+     setPrepCountdown(5);
++    prepStartTimeRef.current = Date.now();
+   }
+ 
+   function cancelPreparation() {
+     setPrepCountdown(null);
++    prepStartTimeRef.current = null;
++    if (prepTimerRef.current) {
++      clearInterval(prepTimerRef.current);
++      prepTimerRef.current = null;
++    }
+   }
+ 
+   useEffect(() => {
++    if (prepTimerRef.current) {
++      clearInterval(prepTimerRef.current);
++      prepTimerRef.current = null;
++    }
++
+     if (prepCountdown === null) return;
+ 
+-    if (prepCountdown > 0) {
+-      SoundService.playTick();
+-      const timer = setTimeout(() => setPrepCountdown(prepCountdown - 1), 1000);
+-      return () => clearTimeout(timer);
+-    } else {
+-      setHasStarted(true);
+-      SoundService.playBoxingBell();
+-      Vibration.vibrate(100);
+-      startTimer();
++    // Use dynamic elapsed comparison relative to starting timestamp to prevent background freeze
++    if (!prepStartTimeRef.current) {
++      prepStartTimeRef.current = Date.now() - ((5 - prepCountdown) * 1000);
+     }
+-  }, [prepCountdown]);
++
++    SoundService.playTick();
++
++    prepTimerRef.current = setInterval(() => {
++      const elapsed = Math.floor((Date.now() - prepStartTimeRef.current!) / 1000);
++      const remaining = 5 - elapsed;
++
++      if (remaining <= 0) {
++        setPrepCountdown(null);
++        prepStartTimeRef.current = null;
++        setHasStarted(true);
++        SoundService.playBoxingBell();
++        Vibration.vibrate(100);
++        startTimer();
++        if (prepTimerRef.current) {
++          clearInterval(prepTimerRef.current);
++          prepTimerRef.current = null;
++        }
++      } else {
++        setPrepCountdown(prev => {
++          if (prev !== null && prev !== remaining) {
++            SoundService.playTick();
++          }
++          return remaining;
++        });
++      }
++    }, 250);
++
++    return () => {
++      if (prepTimerRef.current) {
++        clearInterval(prepTimerRef.current);
++        prepTimerRef.current = null;
++      }
++    };
++  }, [prepCountdown === null]);
+ 
+   function handleNextStep() {
+     if (!hasStarted || !trial) return;
+diff --git a/src/screens/WeeklyChallengeScreen.tsx b/src/screens/WeeklyChallengeScreen.tsx
+index a547411..618adf6 100644
+--- a/src/screens/WeeklyChallengeScreen.tsx
++++ b/src/screens/WeeklyChallengeScreen.tsx
+@@ -1,4 +1,4 @@
+-import { useRouter, useLocalSearchParams , router } from 'expo-router';
++import { useRouter, useLocalSearchParams, router, Stack } from 'expo-router';
+ import React, { useState, useEffect, useRef } from 'react';
+ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal, TextInput, Platform, Alert } from 'react-native';
+ import { supabase } from '../lib/supabase';
+@@ -210,6 +210,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
+ 
+   return (
+     <GlobalErrorBoundary>
++      <Stack.Screen options={{ gestureEnabled: !showSubmitModal }} />
+       <ScrollView style={[styles.container, { backgroundColor: theme.background.primary }]}>
+         {/* Header */}
+         <View style={styles.header}>
+@@ -635,6 +636,9 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+   const [isPreparing, setIsPreparing] = useState(false);
+   const [preCountdown, setPreCountdown] = useState(0);
+ 
++  const preStartTimeRef = useRef<number | null>(null);
++  const preTimerRef = useRef<NodeJS.Timeout | null>(null);
++
+   // Reps-based challenge state
+   const [roundsCompleted, setRoundsCompleted] = useState('');
+   const [additionalReps, setAdditionalReps] = useState<Record<number, string>>({});
+@@ -644,20 +648,58 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+ 
+   // Lead-in Timer Logic
+   useEffect(() => {
+-    let interval: NodeJS.Timeout;
+-    if (isPreparing && preCountdown > 0) {
++    if (preTimerRef.current) {
++      clearInterval(preTimerRef.current);
++      preTimerRef.current = null;
++    }
++
++    if (!isPreparing) return;
++
++    if (preCountdown > 0) {
++      if (!preStartTimeRef.current) {
++        preStartTimeRef.current = Date.now() - ((5 - preCountdown) * 1000);
++      }
++      
+       SoundService.playTick();
+-      interval = setInterval(() => {
+-        setPreCountdown(prev => prev - 1);
+-      }, 1000);
+-    } else if (isPreparing && preCountdown === 0) {
++
++      preTimerRef.current = setInterval(() => {
++        const elapsed = Math.floor((Date.now() - preStartTimeRef.current!) / 1000);
++        const remaining = 5 - elapsed;
++
++        if (remaining <= 0) {
++          setIsPreparing(false);
++          setPreCountdown(0);
++          preStartTimeRef.current = null;
++          SoundService.playBoxingBell();
++          Vibration.vibrate(100);
++          startTimer();
++          if (preTimerRef.current) {
++            clearInterval(preTimerRef.current);
++            preTimerRef.current = null;
++          }
++        } else {
++          setPreCountdown(prev => {
++            if (prev !== remaining && remaining > 0) {
++              SoundService.playTick();
++            }
++            return remaining;
++          });
++        }
++      }, 250);
++    } else if (preCountdown === 0) {
+       setIsPreparing(false);
+       SoundService.playBoxingBell();
+       Vibration.vibrate(100);
+       startTimer();
+     }
+-    return () => clearInterval(interval);
+-  }, [isPreparing, preCountdown]);
++
++    return () => {
++      if (preTimerRef.current) {
++        clearInterval(preTimerRef.current);
++        preTimerRef.current = null;
++      }
++    };
++  }, [isPreparing]);
+ 
+   // Sync timer when challenge loads
+   useEffect(() => {
+@@ -678,6 +720,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+   const handleStartWithLeadIn = () => {
+     setPreCountdown(5);
+     setIsPreparing(true);
++    preStartTimeRef.current = Date.now();
+     resetTimer();
+   };
+ 
+@@ -689,6 +732,11 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+   const cancelPreparation = () => {
+     setIsPreparing(false);
+     setPreCountdown(0);
++    preStartTimeRef.current = null;
++    if (preTimerRef.current) {
++      clearInterval(preTimerRef.current);
++      preTimerRef.current = null;
++    }
+     resetTimer();
+   };
+ 
+@@ -741,6 +789,35 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+     });
+   }
+ 
++  const handleCancel = () => {
++    const hasStartedChallenge = challenge?.scoring_type === 'reps' 
++      ? timerSeconds !== (challenge?.time_limit || 10) * 60 
++      : timerSeconds > 0;
++
++    if (isPreparing || timerRunning || hasStartedChallenge) {
++      if (Platform.OS === 'web') {
++        if (window.confirm('Are you sure you want to abandon this weekly challenge? Progress will be lost.')) {
++          onClose();
++        }
++      } else {
++        Alert.alert(
++          'ABANDON CHALLENGE',
++          'Are you sure you want to abandon this weekly challenge? Progress will be lost.',
++          [
++            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
++            {
++              text: 'ABANDON',
++              style: 'destructive',
++              onPress: () => onClose(),
++            },
++          ]
++        );
++      }
++    } else {
++      onClose();
++    }
++  };
++
+   return (
+     <GlobalErrorBoundary>
+       <Modal
+@@ -748,7 +825,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+         transparent={false}
+         animationType="slide"
+         presentationStyle="fullScreen"
+-        onRequestClose={onClose}
++        onRequestClose={handleCancel}
+       >
+       <View style={[styles.modalOverlay, { backgroundColor: theme.background.primary }]}>
+         <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
+@@ -978,7 +1055,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
+             )}
+ 
+             {!isPreparing && (
+-              <TouchableOpacity onPress={onClose}>
++              <TouchableOpacity onPress={handleCancel}>
+                 <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
+               </TouchableOpacity>
+             )}
+diff --git a/src/types/index.ts b/src/types/index.ts
+index 35b683e..4070feb 100644
+--- a/src/types/index.ts
++++ b/src/types/index.ts
+@@ -77,7 +77,7 @@ export interface AuthContextType {
+   loading: boolean;
+   profileLoading: boolean;
+   needsPasswordReset: boolean;
+-  signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) => Promise<void>;
++  signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string, inviteCode: string }) => Promise<void>;
+   signIn: (email: string, password: string) => Promise<void>;
+   signOut: () => Promise<void>;
+   refreshProfile: () => Promise<void>;
+diff --git a/vercel.json b/vercel.json
+index da1cf4c..45dd5d6 100644
+--- a/vercel.json
++++ b/vercel.json
+@@ -14,6 +14,8 @@
+   "rewrites": [
+     { "source": "/privacy", "destination": "/privacy.html" },
+     { "source": "/request", "destination": "/request.html" },
++    { "source": "/reset-password", "destination": "/" },
++    { "source": "/auth/v1/verify", "destination": "/" },
+     { "source": "/(.*)", "destination": "/" }
+   ]
+ }
