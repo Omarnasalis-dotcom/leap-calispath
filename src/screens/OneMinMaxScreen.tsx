@@ -21,6 +21,7 @@ import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { CelebrationBanner } from '../components/CelebrationBanner';
 
 
 const { width } = Dimensions.get('window');
@@ -30,6 +31,8 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const { user, profile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -135,10 +138,22 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const handleSaveResult = async (reps: number) => {
     if (!user || !selectedMovement) return;
     runSafeSave(async () => {
-      await OneMMService.saveLog(user.id, selectedMovement, reps);
+      const { isNewPB } = await OneMMService.saveLog(user.id, selectedMovement, reps);
+
+      if (isNewPB) {
+        if (isMounted.current) {
+          setCelebrationData({
+            stat: `NEW BEST: ${reps} reps`,
+            movement: selectedMovement || 'Movement'
+          });
+          setShowCelebration(true);
+        }
+      }
+
+      const msg = isNewPB ? 'Personal Best Updated!' : '1MM Result Logged!';
+      Alert.alert('Success', msg);
     }, {
       onSuccess: () => {
-        Alert.alert('Success', '1MM Result Logged!');
         setShowLogModal(false);
         fetchData();
         fetchLeaderboard();
@@ -673,6 +688,16 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         </View>
       </Modal>
     </LinearGradient>
+
+      <CelebrationBanner
+        visible={showCelebration}
+        title="ENDURANCE PEAK"
+        subtitle={celebrationData.movement}
+        stat={celebrationData.stat}
+        emoji="🔥"
+        userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
+        onDismiss={() => setShowCelebration(false)}
+      />
     </GlobalErrorBoundary>
   );
 }
