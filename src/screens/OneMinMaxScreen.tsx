@@ -828,8 +828,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   const handleSave = async () => {
     if (!repsInput) return;
     const reps = parseInt(repsInput, 10);
-    if (isNaN(reps) || reps <= 0 || reps > 500) {
-      Alert.alert('Invalid', 'Please enter a valid number of reps (1-500).');
+    if (isNaN(reps) || reps <= 0 || reps > 150) {
+      Alert.alert('Invalid', 'Please enter a valid number of reps (1-150).');
       return;
     }
     setSaving(true);

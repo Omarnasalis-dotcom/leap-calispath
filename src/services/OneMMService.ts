@@ -120,6 +120,7 @@ export const OneMMService = {
    */
   async saveLog(userId: string, movementId: string, reps: number): Promise<{ isNewPB: boolean }> {
     try {
+      await supabase.auth.refreshSession();
       const { data, error } = await supabase.rpc('submit_onemm_log', {
         p_movement_id: movementId,
         p_reps: reps
@@ -132,8 +133,8 @@ export const OneMMService = {
       const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
       return { isNewPB };
     } catch (err) {
-      console.error('Exception saving 1MM log:', err);
-      return { isNewPB: false };
+      console.error('Exception saving 1MM log:', JSON.stringify(err), err?.message, err?.code);
+      throw err;
     }
   },
 
