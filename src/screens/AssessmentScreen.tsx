@@ -47,6 +47,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const [askingReps, setAskingReps] = useState(false);
   const [customReps, setCustomReps] = useState('');
   const [loading, setLoading] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const [history, setHistory] = useState<{ step: number; variantIndex: number; askingReps: boolean }[]>([]);
 
@@ -178,6 +179,8 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
 
   async function submitAssessment(finalAssessments = assessments) {
     if (!user) return;
+    if (isSubmittingRef.current) return;
+    isSubmittingRef.current = true;
 
     setLoading(true);
     try {
@@ -209,6 +212,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       Alert.alert('Error', error.message || 'Failed to save assessment');
     } finally {
       setLoading(false);
+      isSubmittingRef.current = false;
     }
   }
 
