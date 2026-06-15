@@ -148,59 +148,19 @@ export async function submitChallengeScore(
   scoringType: 'time' | 'reps',
   metadata: any = {}
 ): Promise<boolean> {
-  if (__DEV__) console.log('submitChallengeScore starting', { challengeId, userId, score, scoringType });
-  
-  const { data: existing, error: existingError } = await supabase
-    .from('weekly_entries')
-    .select('score')
-    .eq('challenge_id', challengeId)
-    .eq('user_id', userId)
-    .maybeSingle();
+  const { data, error } = await supabase.rpc('submit_weekly_score', {
+    p_challenge_id: challengeId,
+    p_score: score,
+    p_metadata: metadata
+  });
 
-  if (existingError) {
-    console.error('Check existing entry error:', existingError);
+  if (error) {
+    console.error('submitChallengeScore error:', error);
+    return false;
   }
 
-  if (existing) {
-    const existingScore = Number(existing.score);
-    const newScore = Number(score);
-    
-    // Safety check: if existing is 0 (due to bug) and we are in time mode, allow overwrite.
-    const isBetter = scoringType === 'time' 
-      ? (existingScore === 0 || newScore < existingScore)
-      : newScore > existingScore;
-    
-    if (__DEV__) console.log('Score comparison:', { existingScore, newScore, isBetter });
-    
-    if (!isBetter) {
-      if (__DEV__) console.log('Score not improved. Returning false.');
-      return false;
-    }
-    
-    const { error: updateError } = await supabase
-      .from('weekly_entries')
-      .update({ score: newScore, metadata, submitted_at: new Date().toISOString() })
-      .eq('challenge_id', challengeId)
-      .eq('user_id', userId);
-      
-    if (updateError) {
-      console.error('Update error:', updateError);
-      return false;
-    }
-    if (__DEV__) console.log('Update successful!');
-  } else {
-    if (__DEV__) console.log('No existing score. Inserting new entry...');
-    const { error: insertError } = await supabase
-      .from('weekly_entries')
-      .insert({ challenge_id: challengeId, user_id: userId, score: Number(score), metadata });
-      
-    if (insertError) {
-      console.error('Insert error:', insertError);
-      return false;
-    }
-    if (__DEV__) console.log('Insert successful!');
-  }
-  return true;
+  const result = Array.isArray(data) && data.length > 0 ? data[0] : data;
+  return result?.is_better === true;
 }
 
 export async function getAllActiveChallengesForWeek(): Promise<WeeklyChallenge[]> {
