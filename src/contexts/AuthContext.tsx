@@ -24,7 +24,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const url = await Linking.getInitialURL();
         if (url && url.includes('reset-password')) {
           const parsed = Linking.parse(url);
-          const token = parsed.queryParams?.token as string;
+          const token = (parsed.queryParams?.token_hash || parsed.queryParams?.token) as string;
           const type = parsed.queryParams?.type as string;
           if (token && type === 'recovery') {
             const { error } = await supabase.auth.verifyOtp({
@@ -46,7 +46,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const subscription = Linking.addEventListener('url', async ({ url }) => {
       if (url && url.includes('reset-password')) {
         const parsed = Linking.parse(url);
-        const token = parsed.queryParams?.token as string;
+        const token = (parsed.queryParams?.token_hash || parsed.queryParams?.token) as string;
         const type = parsed.queryParams?.type as string;
         if (token && type === 'recovery') {
           const { error } = await supabase.auth.verifyOtp({
