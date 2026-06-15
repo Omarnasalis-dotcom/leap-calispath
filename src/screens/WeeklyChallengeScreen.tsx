@@ -341,11 +341,17 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, { backgroundColor: theme.accent }]}
-              onPress={() => setShowSubmitModal(true)}
+              style={[styles.submitButton, { backgroundColor: selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? '#444' : theme.accent, opacity: selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? 0.5 : 1 }]}
+              onPress={() => {
+                if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
+                  Alert.alert('Challenge Ended', 'This challenge has ended. You cannot start a previous week challenge.');
+                  return;
+                }
+                setShowSubmitModal(true);
+              }}
             >
               <Text style={styles.submitButtonText}>
-                START CHALLENGE
+                {selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? 'CHALLENGE ENDED' : 'START CHALLENGE'}
               </Text>
             </TouchableOpacity>
 
@@ -784,12 +790,11 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
         presentationStyle="fullScreen"
         onRequestClose={handleCancel}
       >
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
           <KeyboardAvoidingView 
             style={[styles.modalOverlay, { backgroundColor: theme.background.primary }]}
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           >
-            <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true}>
+            <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
             <Text style={[styles.modalTitle, { color: theme.accent }]}>
               {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
             </Text>
@@ -1022,7 +1027,6 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
             )}
           </ScrollView>
         </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
     </Modal>
     </GlobalErrorBoundary>
   );
@@ -1068,7 +1072,7 @@ const styles = StyleSheet.create({
   weekNavBtn: { padding: 10 },
   weekLabelContainer: { paddingHorizontal: 20, alignItems: 'center' },
   weekLabel: { fontSize: 13, fontWeight: '900', letterSpacing: 1 },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)' },
   modalScrollContent: { flexGrow: 1, alignItems: 'center', padding: 16, paddingTop: Platform.OS === 'ios' ? 60 : 16, paddingBottom: 60, width: '100%' },
   modalContent: { width: Platform.OS === 'web' ? 400 : '100%', borderRadius: 16, padding: 24, paddingBottom: 40, alignItems: 'center' },
   modalWorkoutRef: {
