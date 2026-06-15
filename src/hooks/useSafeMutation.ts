@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
 import { useMountedRef } from './useMountedRef';
 
@@ -12,13 +12,15 @@ interface SafeMutationOptions<T> {
 
 export function useSafeMutation() {
   const [isMutating, setIsMutating] = useState(false);
+  const mutatingRef = useRef(false);
   const isMounted = useMountedRef();
 
   const safeMutate = useCallback(async <T,>(
     mutationFn: () => Promise<{ data?: T | null; error?: any }>,
     options?: SafeMutationOptions<T>
   ) => {
-    if (isMutating) return { data: null, error: new Error('Mutation already in progress') };
+    if (mutatingRef.current) return { data: null, error: new Error('Mutation already in progress') };
+    mutatingRef.current = true;
 
     if (isMounted.current) {
       setIsMutating(true);
@@ -65,11 +67,12 @@ export function useSafeMutation() {
       }
       return { data: null, error: err };
     } finally {
+      mutatingRef.current = false;
       if (isMounted.current) {
         setIsMutating(false);
       }
     }
-  }, [isMutating, isMounted]);
+  }, [isMounted]);
 
   return { safeMutate, isMutating };
 }

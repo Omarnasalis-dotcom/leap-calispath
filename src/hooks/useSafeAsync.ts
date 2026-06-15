@@ -1,9 +1,10 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { useMountedRef } from './useMountedRef';
 import { handleAsyncError } from '../lib/asyncErrorHandler';
 
 export function useSafeAsync() {
   const [isExecuting, setIsExecuting] = useState(false);
+  const executingRef = useRef(false);
   const isMounted = useMountedRef();
 
   const runAsync = useCallback(async (
@@ -14,7 +15,8 @@ export function useSafeAsync() {
       errorMessage?: string;
     }
   ) => {
-    if (isExecuting) return;
+    if (executingRef.current) return;
+    executingRef.current = true;
     setIsExecuting(true);
     
     try {
@@ -31,11 +33,12 @@ export function useSafeAsync() {
         }
       }
     } finally {
+      executingRef.current = false;
       if (isMounted.current) {
         setIsExecuting(false);
       }
     }
-  }, [isExecuting, isMounted]);
+  }, [isMounted]);
 
   return { runAsync, isExecuting };
 }
