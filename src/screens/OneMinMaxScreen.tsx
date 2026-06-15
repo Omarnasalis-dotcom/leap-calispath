@@ -28,7 +28,7 @@ const { width } = Dimensions.get('window');
 
 export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const { theme, toggleTheme, mode } = useTheme();
-  const { user, profile } = useAuth();
+  const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
   const [showCelebration, setShowCelebration] = useState(false);
@@ -160,6 +160,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         setShowLogModal(false);
         fetchData();
         fetchLeaderboard();
+        if (refreshProfile) refreshProfile();
 
         // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
         if (shouldCelebrate && isMounted.current) {
