@@ -60,34 +60,26 @@ export function StrengthWorldView({
   const isDark = mode === 'dark';
   return (
     <>
-      {/* Next Step Banner */}
-      {category === 'strength' && (profile?.strength_tier ?? 0) <= 8 && (
-        <WarriorCard
-          variant="accent"
-          style={styles.nextStepBanner}
-          padding={0}
-        >
-          <TouchableOpacity
-            style={styles.nextStepPressable}
-            onPress={() => {
-              const actualNextTier = profile?.strength_tier ?? 0;
-              if (onStartTrial) onStartTrial(actualNextTier);
-            }}
-          >
-            <View style={styles.nextStepContent}>
-              <Text style={[styles.nextStepLabel, { color: theme.text.tertiary }]}>⚔️ YOUR NEXT CHALLENGE</Text>
-              <Text style={[styles.nextStepTitle, { color: theme.accent }]}>
-                Complete the {TIER_NAMES[profile?.strength_tier ?? 0]} Trial
-              </Text>
-              <Text style={[styles.nextStepSubtitle, { color: theme.text.secondary }]}>
-                Advance to {TIER_NAMES[Math.min((profile?.strength_tier ?? 0) + 1, 9)]}
-              </Text>
-            </View>
-            <Text style={[styles.nextStepArrow, { color: theme.accent }]}>→</Text>
-          </TouchableOpacity>
-        </WarriorCard>
-      )}
 
+
+      {/* Primary Action Button */}
+      {category === 'strength' && !isLocked && (
+        <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
+          <Text style={{ color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 2, textAlign: 'center', marginBottom: 8 }}>
+            {isLowerTier ? 'PRACTICE MODE' : 'NEXT CHALLENGE'}
+          </Text>
+          <TouchableOpacity
+            style={[styles.primaryActionButton, { backgroundColor: isLowerTier ? 'transparent' : theme.accent, borderWidth: isLowerTier ? 1 : 0, borderColor: theme.accent }]}
+            onPress={() => onStartTrial && onStartTrial(isLowerTier ? selectedTier : undefined)}
+          >
+            <Text style={[styles.primaryActionButtonText, { color: isLowerTier ? theme.accent : '#000' }]}>
+              {isLowerTier
+                ? `PRACTICE ${TIER_NAMES[selectedTier]?.toUpperCase()}`
+                : `START ${TIER_NAMES[profile?.strength_tier ?? 0]?.toUpperCase()} TRIAL`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
       {/* Selected Tier Card */}
       <WarriorCard
         style={styles.modernTierCard}
@@ -183,24 +175,7 @@ export function StrengthWorldView({
                 )}
               </Text>
             )}
-            {onStartTrial && !isLowerTier && !isLocked && (
-              <TouchableOpacity
-                style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
-                onPress={() => onStartTrial()}
-              >
-                <Text style={styles.primaryActionButtonText}>
-                  {`START ${TIER_NAMES[profile?.strength_tier ?? 0].toUpperCase()}`}
-                </Text>
-              </TouchableOpacity>
-            )}
-            {onStartTrial && isLowerTier && (
-              <TouchableOpacity
-                style={[styles.primaryActionButton, { backgroundColor: theme.accent }]}
-                onPress={() => onStartTrial(selectedTier)}
-              >
-                <Text style={styles.primaryActionButtonText}>PRACTICE</Text>
-              </TouchableOpacity>
-            )}
+
           </>
         ) : (
           <>
@@ -380,7 +355,7 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   primaryActionButton: {
-    marginHorizontal: 16,
+    width: '100%',
     marginTop: 8,
     borderRadius: 12,
     paddingVertical: 14,
