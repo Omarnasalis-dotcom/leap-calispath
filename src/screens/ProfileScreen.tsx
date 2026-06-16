@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useCallback, useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -46,7 +46,7 @@ import { StaticService } from '../services/StaticService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
-import { useRouter, router } from 'expo-router';
+import { useRouter, router, useFocusEffect } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 
 // Module-level cache to track users who have already synced their points during the app session
@@ -191,6 +191,24 @@ export function ProfileScreen({
     }
     loadRank();
   }, [selectedTier, category, profile?.id]);
+
+  // Refresh rank when screen comes back into focus (e.g. after trial)
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
+      fetcher(selectedTier, profile.id)
+        .then(({ entries }) => {
+          const userIdx = entries.findIndex((e: any) => e.user_id === profile.id);
+          if (userIdx !== -1) {
+            setTierRankData({ rank: userIdx + 1, total: entries.length, gap: null });
+          } else {
+            setTierRankData({ rank: null, total: entries.length, gap: null });
+          }
+        })
+        .catch(() => {});
+    }, [selectedTier, category, profile?.id])
+  );
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
