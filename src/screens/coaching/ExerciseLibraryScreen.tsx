@@ -335,10 +335,10 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       document.body.removeChild(link);
     } else {
       try {
-        const FileSystem = require('expo-file-system');
+        const FileSystem = require('expo-file-system/legacy');
         const Sharing = require('expo-sharing');
         const fileUri = FileSystem.documentDirectory + 'exercise_template.csv';
-        await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: FileSystem.EncodingType.UTF8 });
+        await FileSystem.writeAsStringAsync(fileUri, csvContent, { encoding: 'utf8' });
         await Sharing.shareAsync(fileUri);
       } catch (err) {
         console.error("Error sharing CSV template:", err);
@@ -347,7 +347,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
   };
 
   // Upload/Parse CSV File Trigger (Web & Native Paste Fallback)
-  const triggerFileSelect = () => {
+  const triggerFileSelect = async () => {
     setImportError(null);
     if (Platform.OS === 'web') {
       const input = document.createElement('input');
@@ -374,7 +374,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       };
       input.click();
     } else {
-      // Native fallback triggers CSV text parse state
+      // Native: show paste UI (file picker requires native build)
       setImportStep(1);
     }
   };
@@ -398,6 +398,12 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
     setImportSaving(true);
     setImportError(null);
     try {
+      // Safety: limit bulk imports to 200 rows
+      if (previewRows.length > 200) {
+        setImportError('MAXIMUM 200 EXERCISES PER IMPORT. PLEASE SPLIT YOUR CSV.');
+        setImportSaving(false);
+        return;
+      }
       const inserts = previewRows.map(row => {
         const cats = [];
         if (row.category && row.category.trim()) cats.push(row.category.toLowerCase().trim());
@@ -406,7 +412,9 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
         return {
           name: row.name.trim(),
-          youtube_url: row.youtube_url ? row.youtube_url.trim() : '',
+          youtube_url: row.youtube_url && (row.youtube_url.includes('youtube.com') || row.youtube_url.includes('youtu.be'))
+            ? row.youtube_url.trim()
+            : '',
           category: finalCategory,
           difficulty: (row.difficulty || 'beginner').toLowerCase().trim(),
           created_by: user?.id
