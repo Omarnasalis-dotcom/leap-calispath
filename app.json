@@ -25,7 +25,7 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSPhotoLibraryUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library.",
         "NSPhotoLibraryAddUsageDescription": "Allow Leap Arena to save workout completion banners to your photo library.",
-        "NSUserNotificationsUsageDescription": "Leap Arena sends notifications to alert you about trial results, clash challenges, and weekly challenge updates."
+        "NSUserNotificationsUsageDescription": "Leap Arena sends notifications to alert you when your workout timer completes."
       }
     },
     "android": {
