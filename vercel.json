@@ -14,8 +14,8 @@
   "rewrites": [
     { "source": "/privacy", "destination": "/privacy.html" },
     { "source": "/request", "destination": "/request.html" },
-    { "source": "/reset-password", "destination": "/" },
-    { "source": "/auth/v1/verify", "destination": "/" },
+    { "source": "/reset-password", "destination": "/download.html" },
+    { "source": "/auth/v1/verify", "destination": "/download.html" },
     { "source": "/(.*)", "destination": "/download.html" }
   ]
 }

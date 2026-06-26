@@ -1,236 +1,239 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Download Leap Arena</title>
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leap Arena</title>
 
-    body {
-      background-color: #000;
-      color: #e8e6df;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 40px 24px;
-      -webkit-font-smoothing: antialiased;
-    }
+<style>
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+}
 
-    .glow {
-      position: fixed;
-      top: -200px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(ellipse, rgba(205,127,50,0.12) 0%, transparent 70%);
-      pointer-events: none;
-      z-index: 0;
-    }
+body{
+background:#000;
+color:#fff;
+font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+display:flex;
+justify-content:center;
+align-items:center;
+min-height:100vh;
+padding:40px 20px;
+overflow-x:hidden;
+}
 
-    .container {
-      position: relative;
-      z-index: 1;
-      text-align: center;
-      max-width: 480px;
-      width: 100%;
-    }
+body::before{
+content:"";
+position:fixed;
+top:-250px;
+left:50%;
+transform:translateX(-50%);
+width:700px;
+height:700px;
+background:radial-gradient(circle,rgba(205,127,50,.18),transparent 70%);
+pointer-events:none;
+}
 
-    .logo-wrap {
-      margin-bottom: 40px;
-    }
+.container{
+position:relative;
+z-index:1;
+max-width:520px;
+width:100%;
+text-align:center;
+}
 
-    .logo-wrap img {
-      height: 72px;
-      width: auto;
-    }
+.logo{
+width:180px;
+margin:0 auto 30px;
+display:block;
+}
 
-    .eyebrow {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 4px;
-      text-transform: uppercase;
-      color: #CD7F32;
-      margin-bottom: 16px;
-    }
+.badge{
+display:inline-block;
+padding:8px 14px;
+border:1px solid rgba(205,127,50,.35);
+border-radius:999px;
+font-size:12px;
+letter-spacing:1px;
+text-transform:uppercase;
+color:#CD7F32;
+margin-bottom:24px;
+}
 
-    h1 {
-      font-size: 36px;
-      font-weight: 800;
-      color: #fff;
-      letter-spacing: 0.5px;
-      line-height: 1.15;
-      margin-bottom: 16px;
-    }
+h1{
+font-size:44px;
+font-weight:800;
+line-height:1.1;
+margin-bottom:18px;
+}
 
-    .subtitle {
-      font-size: 15px;
-      color: rgba(232,230,223,0.55);
-      line-height: 1.7;
-      margin-bottom: 48px;
-    }
+.description{
+color:rgba(255,255,255,.68);
+font-size:17px;
+line-height:1.8;
+margin-bottom:42px;
+}
 
-    .divider {
-      width: 40px;
-      height: 1px;
-      background: rgba(205,127,50,0.4);
-      margin: 0 auto 48px;
-    }
+.buttons{
+display:flex;
+flex-direction:column;
+gap:16px;
+margin-bottom:40px;
+}
 
-    .buttons {
-      display: flex;
-      flex-direction: column;
-      gap: 14px;
-      width: 100%;
-    }
+.button{
+display:flex;
+align-items:center;
+justify-content:center;
+padding:18px;
+border-radius:14px;
+font-size:17px;
+font-weight:700;
+text-decoration:none;
+transition:.2s;
+}
 
-    .btn {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 14px;
-      padding: 18px 28px;
-      border-radius: 12px;
-      text-decoration: none;
-      font-size: 15px;
-      font-weight: 600;
-      letter-spacing: 0.3px;
-      transition: transform 0.15s ease, opacity 0.15s ease;
-      cursor: pointer;
-    }
+.button:hover{
+transform:translateY(-2px);
+}
 
-    .btn:active {
-      transform: scale(0.97);
-      opacity: 0.85;
-    }
+.apple{
+background:#fff;
+color:#000;
+}
 
-    .btn-apple {
-      background: #fff;
-      color: #000;
-    }
+.android{
+border:1px solid rgba(205,127,50,.4);
+color:#fff;
+}
 
-    .btn-android {
-      background: transparent;
-      color: #e8e6df;
-      border: 1px solid rgba(205,127,50,0.4);
-    }
+.note{
+margin-bottom:28px;
+font-size:14px;
+color:rgba(255,255,255,.55);
+}
 
-    .btn-android:hover {
-      border-color: rgba(205,127,50,0.8);
-    }
+.note a{
+color:#CD7F32;
+text-decoration:none;
+font-weight:600;
+}
 
-    .btn-icon {
-      width: 24px;
-      height: 24px;
-      flex-shrink: 0;
-    }
+.footer-links{
+display:flex;
+justify-content:center;
+gap:20px;
+flex-wrap:wrap;
+margin-bottom:20px;
+}
 
-    .btn-text {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-    }
+.footer-links a{
+color:rgba(255,255,255,.55);
+text-decoration:none;
+font-size:14px;
+}
 
-    .btn-label {
-      font-size: 11px;
-      font-weight: 400;
-      opacity: 0.6;
-      letter-spacing: 0.5px;
-    }
+.footer-links a:hover{
+color:#CD7F32;
+}
 
-    .btn-store {
-      font-size: 16px;
-      font-weight: 700;
-    }
+.copyright{
+font-size:13px;
+color:rgba(255,255,255,.35);
+}
 
-    .footer {
-      margin-top: 56px;
-      font-size: 12px;
-      color: rgba(232,230,223,0.25);
-      letter-spacing: 0.5px;
-    }
+@media(max-width:600px){
 
-    .footer a {
-      color: rgba(205,127,50,0.6);
-      text-decoration: none;
-    }
+.logo{
+width:140px;
+}
 
-    .footer a:hover {
-      color: #CD7F32;
-    }
+h1{
+font-size:34px;
+}
 
-    /* Auto-highlight the right button based on device */
-    .btn-apple { order: 1; }
-    .btn-android { order: 2; }
+.description{
+font-size:16px;
+}
 
-    @media (max-width: 400px) {
-      h1 { font-size: 28px; }
-    }
-  </style>
-  <script>
-    // Detect device and reorder buttons
-    window.addEventListener('DOMContentLoaded', () => {
-      const ua = navigator.userAgent;
-      const isAndroid = /android/i.test(ua);
-      const isIOS = /iphone|ipad|ipod/i.test(ua);
-
-      if (isAndroid) {
-        document.querySelector('.btn-android').style.order = '0';
-        document.querySelector('.btn-apple').style.order = '1';
-      }
-    });
-  </script>
+}
+</style>
 </head>
+
 <body>
-  <div class="glow"></div>
-  <div class="container">
 
-    <div class="logo-wrap">
-      <img src="/white-logo.png" alt="Leap Arena" onerror="this.style.display='none'">
-    </div>
+<div class="container">
 
-    <p class="eyebrow">Now Available</p>
-    <h1>Train. Compete.<br>Dominate.</h1>
-    <p class="subtitle">Leap Arena is now on mobile. Download the app to access all features, tournaments, and your profile.</p>
+<img src="/white-logo.png" class="logo" alt="Leap Arena">
 
-    <div class="divider"></div>
+<div class="badge">
+Available on iPhone & Android
+</div>
 
-    <div class="buttons">
-      <a class="btn btn-apple" href="https://apps.apple.com/eg/app/leap-arena/id6779574061" target="_blank" rel="noopener">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/>
-        </svg>
-        <span class="btn-text">
-          <span class="btn-label">Download on the</span>
-          <span class="btn-store">App Store</span>
-        </span>
-      </a>
+<h1>Level Up Your Calisthenics</h1>
 
-      <a class="btn btn-android" href="https://drive.google.com/file/d/1qrGcpBRBetEBze6ZgKRKp_njoGn3DpQW/view?usp=sharing" target="_blank" rel="noopener">
-        <svg class="btn-icon" viewBox="0 0 24 24" fill="currentColor">
-          <path d="M17.523 15.341 14.58 10.16l2.828-4.905A1 1 0 0 0 16.54 4H7.46a1 1 0 0 0-.868 1.255L9.42 10.16l-2.943 5.181A1 1 0 0 0 7.344 17H9v3a1 1 0 0 0 2 0v-3h2v3a1 1 0 0 0 2 0v-3h1.656a1 1 0 0 0 .867-1.659z"/>
-        </svg>
-        <span class="btn-text">
-          <span class="btn-label">Get it on</span>
-          <span class="btn-store">Android (APK)</span>
-        </span>
-      </a>
-    </div>
+<p class="description">
+Track your workouts, master new skills, compete in tournaments and become part of the LEAP community.
+</p>
 
-    <div class="footer">
-      <a href="https://leap-arena.com/privacy">Privacy Policy</a>
-      &nbsp;·&nbsp;
-      <a href="https://leap-arena.com/request">Request Invite</a>
-      &nbsp;&nbsp;&nbsp;
-      <a href="https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet" target="_blank" rel="noopener">Instagram</a>
-      &nbsp;·&nbsp;
-      © 2026 Leap Arena
-    </div>
+<div class="buttons">
 
-  </div>
+<a class="button apple"
+href="https://apps.apple.com/eg/app/leap-arena/id6779574061"
+target="_blank">
+ Download on the App Store
+</a>
+
+<a class="button android"
+href="https://drive.google.com/file/d/1qrGcpBRBetEBze6ZgKRKp_njoGn3DpQW/view?usp=sharing"
+target="_blank">
+Download for Android
+</a>
+
+</div>
+
+<div class="note">
+Already have an invitation code?
+<br><br>
+<a href="https://leap-arena.com/request">
+Request Invitation Code
+</a>
+</div>
+
+<div class="footer-links">
+
+<a href="https://leap-arena.com/privacy">
+Privacy Policy
+</a>
+
+<a href="https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet" target="_blank">
+Instagram
+</a>
+
+</div>
+
+<div class="copyright">
+© 2026 Leap Arena
+</div>
+
+</div>
+
+<script>
+const ua=navigator.userAgent.toLowerCase();
+
+const apple=document.querySelector(".apple");
+const android=document.querySelector(".android");
+
+if(ua.includes("android")){
+android.style.order=-1;
+}
+
+if(/iphone|ipad|ipod/.test(ua)){
+apple.style.order=-1;
+}
+</script>
+
 </body>
 </html>
