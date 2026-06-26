@@ -16,6 +16,6 @@
     { "source": "/request", "destination": "/request.html" },
     { "source": "/reset-password", "destination": "/" },
     { "source": "/auth/v1/verify", "destination": "/" },
-    { "source": "/(.*)", "destination": "/" }
+    { "source": "/(.*)", "destination": "/download.html" }
   ]
 }
