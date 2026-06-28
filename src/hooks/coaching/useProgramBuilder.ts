@@ -162,9 +162,14 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
 
       if (error) throw error;
 
-      const { data: blocksData, error: blocksError } = await supabase
-        .from('program_blocks')
-        .select('id, template_id');
+      const templateIds = (data || []).map((t: any) => t.id);
+
+      const { data: blocksData, error: blocksError } = templateIds.length
+        ? await supabase
+            .from('program_blocks')
+            .select('id, template_id')
+            .in('template_id', templateIds)
+        : { data: [], error: null };
 
       if (blocksError) throw blocksError;
 
@@ -372,7 +377,8 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           weekDaysMap[weekNum][dayKey] = {
             id: dayId,
             name: dayName,
-            blocks: []
+            blocks: [],
+            focusTag: parsed.metadata.focus_tag,
           };
           weekDayOrder[weekNum].push(dayKey);
         }
@@ -872,132 +878,76 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       return;
     }
 
+    // Flatten weeks/days/blocks into one ordered array — the RPC does the
+    // actual upsert/delete/insert atomically, so this is pure payload-building.
+    const blocksPayload: any[] = [];
+    let blockIdx = 0;
+    for (const weekNumStr of Object.keys(validWeeks)) {
+      const weekNum = parseInt(weekNumStr, 10);
+      const weekDays = validWeeks[weekNum];
+
+      for (const d of weekDays) {
+        for (const block of d.blocks) {
+          const combinedName = `${d.name.trim()} | ${block.name.trim() || 'Workout Routine'}`;
+
+          const metadata = block.metadata || { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' };
+          if (d.focusTag) {
+            metadata.focus_tag = d.focusTag;
+          } else {
+            delete metadata.focus_tag;
+          }
+          const serializedNotes = BlockConceptParser.stringify(metadata, block.notes);
+
+          blocksPayload.push({
+            db_id: block.db_id || null,
+            name: combinedName,
+            notes: serializedNotes,
+            order_index: blockIdx,
+            week_number: weekNum,
+            exercises: block.exercises.map((ex, exIdx) => ({
+              exercise_id: ex.exercise_id,
+              sets: parseInt(ex.sets) || null,
+              reps: ex.reps.trim(),
+              rest_seconds: parseInt(ex.rest_seconds) || null,
+              hold_seconds: parseInt(ex.hold_seconds) || null,
+              notes: ex.notes.trim(),
+              order_index: exIdx
+            }))
+          });
+          blockIdx++;
+        }
+      }
+    }
+
     setLoading(true);
     await safeMutate(async () => {
-      let currentTemplateId = activeTemplateId;
+      const { data: result, error } = await supabase.rpc('save_program_template', {
+        p_template_id: activeTemplateId || null,
+        p_name: templateName.trim(),
+        p_description: templateDesc.trim(),
+        p_blocks: blocksPayload
+      });
 
-      // 1. Insert or Update general program template details
-      if (currentTemplateId) {
-        const { error } = await supabase
-          .from('program_templates')
-          .update({
-            name: templateName.trim(),
-            description: templateDesc.trim()
-          })
-          .eq('id', currentTemplateId);
-
-        if (error) return { error };
-      } else {
-        const { data, error } = await supabase
-          .from('program_templates')
-          .insert({
-            name: templateName.trim(),
-            description: templateDesc.trim(),
-            coach_id: coachId
-          })
-          .select('id')
-          .single();
-
-        if (error) return { error };
-        currentTemplateId = data.id;
+      if (error) return { error };
+      if (!result?.success) {
+        return { error: new Error(result?.error === 'NOT_FOUND' ? 'Template not found.' : 'Failed to save workout program.') };
       }
 
-      // Identify which blocks are currently in the UI
-      const currentBlockIds = Object.values(validWeeks)
-        .flatMap(weekDays => weekDays.flatMap(d => d.blocks.map(b => b.db_id)))
-        .filter(Boolean);
-
-      // If we are in edit mode, carefully delete removed blocks and wipe old exercises
-      if (activeTemplateId) {
-        const { data: previousBlocks } = await supabase
-          .from('program_blocks')
-          .select('id')
-          .eq('template_id', activeTemplateId);
-
-        if (previousBlocks && previousBlocks.length > 0) {
-          const allPreviousBlockIds = previousBlocks.map((b: any) => b.id);
-          
-          // Always wipe exercises safely to avoid manual diffing
-          const { error: delExErr } = await supabase.from('block_exercises').delete().in('block_id', allPreviousBlockIds);
-          if (delExErr) return { error: delExErr };
-
-          // Find blocks that were DELETED by the coach in the UI
-          const blockIdsToDelete = allPreviousBlockIds.filter(id => !currentBlockIds.includes(id));
-          
-          if (blockIdsToDelete.length > 0) {
-            // Attempt to delete. If they have workout_logs attached, this will fail. We ignore the error safely.
-            await supabase.from('program_blocks').delete().in('id', blockIdsToDelete);
-          }
-        }
-      }
-
-      // 2. Flatten and Insert blocks and block exercises in correct ordering sequence
-      let blockIdx = 0;
-      for (const weekNumStr of Object.keys(validWeeks)) {
-        const weekNum = parseInt(weekNumStr, 10);
-        const weekDays = validWeeks[weekNum];
-        
-        for (const d of weekDays) {
-          for (const block of d.blocks) {
-            const combinedName = `${d.name.trim()} | ${block.name.trim() || 'Workout Routine'}`;
-
-            const metadata = block.metadata || { type: 'single', rounds: '4', rest_after_round: '90', timer_seconds: '10' };
-            if (d.focusTag) {
-              metadata.focus_tag = d.focusTag;
-            } else {
-              delete metadata.focus_tag;
-            }
-            const serializedNotes = BlockConceptParser.stringify(metadata, block.notes);
-
-            const blockPayload: any = {
-              template_id: currentTemplateId,
-              name: combinedName,
-              notes: serializedNotes,
-              order_index: blockIdx,
-              week_number: weekNum
-            };
-
-            if (block.db_id) {
-              blockPayload.id = block.db_id;
-            }
-
-            const { data: savedBlock, error: blockInsertError } = await supabase
-              .from('program_blocks')
-              .upsert(blockPayload)
-              .select('id')
-              .single();
-
-            if (blockInsertError) return { error: blockInsertError };
-
-            // Insert exercises for the block
-            if (block.exercises.length > 0) {
-              const exerciseInserts = block.exercises.map((ex, exIdx) => ({
-                block_id: savedBlock.id,
-                exercise_id: ex.exercise_id,
-                sets: parseInt(ex.sets) || null,
-                reps: ex.reps.trim(),
-                rest_seconds: parseInt(ex.rest_seconds) || null,
-                hold_seconds: parseInt(ex.hold_seconds) || null,
-                notes: ex.notes.trim(),
-                order_index: exIdx
-              }));
-
-              const { error: exercisesInsertError } = await supabase
-                .from('block_exercises')
-                .insert(exerciseInserts);
-
-              if (exercisesInsertError) return { error: exercisesInsertError };
-            }
-            blockIdx++;
-          }
-        }
-      }
-      return { data: null, error: null };
+      return { data: result, error: null };
     }, {
-      onSuccess: () => {
+      onSuccess: (result: any) => {
         setIsCreatingNew(false);
         setActiveTemplateId(undefined);
         setLoading(false);
+
+        const undeletableCount = result?.undeletable_block_ids?.length || 0;
+        if (undeletableCount > 0) {
+          Alert.alert(
+            'Some blocks were kept',
+            `${undeletableCount} removed block${undeletableCount > 1 ? 's' : ''} couldn't be deleted because warrior(s) already have logged history against ${undeletableCount > 1 ? 'them' : 'it'}. Everything else saved successfully.`
+          );
+        }
+
         if (onSaveSuccess) {
           onSaveSuccess();
         } else {

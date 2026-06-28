@@ -6,7 +6,11 @@ import { Modal,
   ScrollView,
   TextInput,
   Linking,
-  StyleSheet } from 'react-native';
+  StyleSheet,
+  KeyboardAvoidingView,
+  TouchableWithoutFeedback,
+  Keyboard,
+  Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LeapLogo } from '../LeapLogo';
@@ -63,7 +67,8 @@ export function ExercisePickerModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <View style={styles.modalOverlay}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
           <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
             SELECT <Text style={{ color: bronzeGold }}>EXERCISE</Text>
@@ -148,7 +153,8 @@ export function ExercisePickerModal({
             <Text style={[styles.cancelButtonText, { color: theme.text.secondary }]}>CLOSE</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 }

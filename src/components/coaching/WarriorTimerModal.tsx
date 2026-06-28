@@ -58,6 +58,9 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   } = useWarriorTimer({
     onAmrapComplete: (blockId) => {
       onAmrapComplete(blockId);
+    },
+    onForTimeComplete: (blockId, elapsedSeconds) => {
+      onForTimeComplete(blockId, elapsedSeconds);
     }
   });
 

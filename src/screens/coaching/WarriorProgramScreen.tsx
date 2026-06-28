@@ -84,6 +84,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const days = weeksData[activeWeek] || [];
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string | number, boolean>>({});
+  const [togglingBlockIds, setTogglingBlockIds] = useState<Record<string | number, boolean>>({});
 
   // Log Form State
   const [logModalVisible, setLogModalVisible] = useState(false);
@@ -414,6 +415,8 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   }
 
   const handleToggleBlockStatus = async (blockId: string | number, currentStatus: 'completed' | 'missed' | 'none') => {
+    if (togglingBlockIds[blockId]) return;
+
     let nextStatus: 'completed' | 'missed' | 'none' = 'completed';
     if (currentStatus === 'completed') {
       nextStatus = 'missed';
@@ -424,28 +427,17 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
 
+    setTogglingBlockIds(prev => ({ ...prev, [blockId]: true }));
     try {
-      // 1. Delete any workout logs today for this block
-      await supabase
-        .from('workout_logs')
-        .delete()
-        .eq('warrior_id', warriorId)
-        .eq('block_id', blockId)
-        .gte('completed_at', startOfToday.toISOString());
+      const { error } = await supabase.rpc('toggle_block_status', {
+        p_warrior_id: warriorId,
+        p_warrior_program_id: warriorProgramId,
+        p_block_id: blockId,
+        p_next_status: nextStatus,
+        p_start_of_today: startOfToday.toISOString()
+      });
 
-      // 2. Insert new log if not none
-      if (nextStatus !== 'none') {
-        const notes = nextStatus === 'missed' ? '[STATUS:MISSED]' : '';
-        await supabase
-          .from('workout_logs')
-          .insert({
-            warrior_program_id: warriorProgramId,
-            warrior_id: warriorId,
-            block_id: blockId,
-            notes,
-            rating: 5
-          });
-      }
+      if (error) throw error;
 
       // Optimistically update the UI state
       const updateBlockInDays = (dayList: ProgramDay[]) => {
@@ -455,10 +447,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         }));
       };
 
-      if (days && days.length > 0) {
-        // NOTE: setDays is undefined in the original snippet, correcting to use setWeeksData pattern
-      }
-      
       setWeeksData(prev => {
         const next = { ...prev };
         if (next[activeWeek]) {
@@ -471,6 +459,12 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       console.error("Failed to toggle block status:", err);
       // Revert on failure
       await loadWarriorProgram();
+    } finally {
+      setTogglingBlockIds(prev => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
     }
   };
 
@@ -775,6 +769,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                         strengthTier={strengthTier}
                         toggleBlockExpanded={toggleBlockExpanded}
                         handleToggleBlockStatus={handleToggleBlockStatus}
+                        isTogglingStatus={!!togglingBlockIds[block.id]}
                         handleOpenLogging={handleOpenLogModal}
                         startTimerForBlock={startTimerForBlock}
                         handleOpenVideo={handleOpenVideo}

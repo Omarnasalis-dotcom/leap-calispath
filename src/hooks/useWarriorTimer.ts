@@ -9,9 +9,10 @@ export interface ProgramBlockParams {
 
 interface UseWarriorTimerProps {
   onAmrapComplete: (blockId: string | number) => void;
+  onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
 }
 
-export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
+export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarriorTimerProps) {
   const [activeTimerBlockId, setActiveTimerBlockId] = useState<string | number | null>(null);
   const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | 'tabata' | null>(null);
   const [tabataPhase, setTabataPhase] = useState<'work' | 'rest'>('work');
@@ -28,8 +29,30 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
   const [restSeconds, setRestSeconds] = useState<number>(0);
   const [timeCapSecs, setTimeCapSecs] = useState<number>(0);
 
+  // Timer completions are detected inside setState updaters (the tick
+  // effects below), which run during this hook's own render — calling
+  // onAmrapComplete/onForTimeComplete directly from there would update the
+  // parent component's state while this one is still rendering. Recording
+  // the completion as local state and firing the actual callback from an
+  // effect defers it until after render commits, which is safe.
+  const [completionEvent, setCompletionEvent] = useState<
+    | { type: 'amrap'; blockId: string | number }
+    | { type: 'fortime'; blockId: string | number; elapsedSeconds: number }
+    | null
+  >(null);
+
   const lastTickRef = useRef<number | null>(null);
   const appState = useRef(AppState.currentState);
+
+  useEffect(() => {
+    if (!completionEvent) return;
+    if (completionEvent.type === 'amrap') {
+      onAmrapComplete(completionEvent.blockId);
+    } else {
+      onForTimeComplete(completionEvent.blockId, completionEvent.elapsedSeconds);
+    }
+    setCompletionEvent(null);
+  }, [completionEvent, onAmrapComplete, onForTimeComplete]);
 
   // Background state syncing logic
   useEffect(() => {
@@ -57,7 +80,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
                   } else {
                     SoundServiceInstance.playDigitalBuzzer();
                     if (timerType === 'amrap' && activeTimerBlockId) {
-                      onAmrapComplete(activeTimerBlockId);
+                      setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
                     }
                   }
                   return 0;
@@ -71,7 +94,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
                   setTimerRunning(false);
                   SoundServiceInstance.playDigitalBuzzer();
                   if (activeTimerBlockId) {
-                    onAmrapComplete(activeTimerBlockId);
+                    setCompletionEvent({ type: 'fortime', blockId: activeTimerBlockId, elapsedSeconds: timeCapSecs });
                   }
                   return timeCapSecs;
                 }
@@ -91,7 +114,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
     return () => {
       subscription.remove();
     };
-  }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete]);
+  }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete, onForTimeComplete, timeCapSecs]);
 
   // Prep Countdown Effect
   useEffect(() => {
@@ -139,7 +162,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
               } else {
                 SoundServiceInstance.playDigitalBuzzer();
                 if (timerType === 'amrap' && activeTimerBlockId) {
-                  onAmrapComplete(activeTimerBlockId);
+                  setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
                 }
               }
               return 0;
@@ -154,7 +177,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
               clearInterval(interval);
               SoundServiceInstance.playDigitalBuzzer();
               if (activeTimerBlockId) {
-                onAmrapComplete(activeTimerBlockId);
+                setCompletionEvent({ type: 'fortime', blockId: activeTimerBlockId, elapsedSeconds: timeCapSecs });
               }
               return timeCapSecs;
             }
@@ -176,7 +199,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
                       setTimerRunning(false);
                       clearInterval(interval);
                       SoundServiceInstance.playDigitalBuzzer(4);
-                      if (activeTimerBlockId) onAmrapComplete(activeTimerBlockId);
+                      if (activeTimerBlockId) setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
                       return r;
                     }
                     SoundServiceInstance.playBoxingBell();
@@ -197,7 +220,7 @@ export function useWarriorTimer({ onAmrapComplete }: UseWarriorTimerProps) {
       lastTickRef.current = null;
     }
     return () => clearInterval(interval);
-  }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete]);
+  }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete, onForTimeComplete, timeCapSecs]);
 
   // Cleanup when modal closes
   useEffect(() => {

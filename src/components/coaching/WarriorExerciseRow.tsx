@@ -149,6 +149,13 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               </TouchableOpacity>
             )}
           </>
+        ) : blockMetadata?.timing_system === 'tabata' ? (
+          <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
+            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
+            <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
+              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+            </Text>
+          </View>
         ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
           <>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
@@ -162,13 +169,6 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               </View>
             )}
           </>
-        ) : blockMetadata?.timing_system === 'tabata' ? (
-          <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
-            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
-            <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
-              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
-            </Text>
-          </View>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={[styles.detailBadge, { borderColor: bronzeGold, flex: 1, alignItems: 'flex-start', backgroundColor: 'rgba(200,160,64,0.05)' }]}>
             <Text style={[styles.detailLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>

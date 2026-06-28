@@ -25,6 +25,7 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
 
   const [timeCap, setTimeCap] = useState(String(initialMetadata.time_cap_min || initialMetadata.timer_seconds || '10'));
   const [rounds, setRounds] = useState(String(initialMetadata.rounds || '4'));
+  const [restAfterRound, setRestAfterRound] = useState(String(initialMetadata.rest_after_round || '90'));
   const [ladderStart, setLadderStart] = useState(String(initialMetadata.ladder_start || '20'));
   const [ladderSub, setLadderSub] = useState(String(initialMetadata.ladder_sub || '2'));
   const [ladderDirection, setLadderDirection] = useState<'down' | 'up'>(initialMetadata.ladder_direction || 'down');
@@ -64,12 +65,16 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
       payload.is_weighted = isWeighted;
     }
 
+    if (timingSystem === 'straight_set' && structure !== 'single') {
+      payload.rest_after_round = restAfterRound;
+    }
+
     if (isTierTrial) {
       payload.is_tier_trial = true;
     }
 
     onChange(payload);
-  }, [timingSystem, structure, timeCap, rounds, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tabataWork, tabataRest, tabataRounds]);
+  }, [timingSystem, structure, timeCap, rounds, restAfterRound, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tabataWork, tabataRest, tabataRounds]);
 
   const TimingOption = ({ value, label }: { value: any, label: string }) => {
     const active = timingSystem === value;
@@ -186,6 +191,18 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
             keyboardType="number-pad"
             value={rounds}
             onChangeText={setRounds}
+          />
+        </View>
+      )}
+
+      {timingSystem === 'straight_set' && structure !== 'single' && (
+        <View style={styles.inputGroup}>
+          <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>REST BETWEEN ROUNDS (SECONDS)</Text>
+          <TextInput
+            style={[styles.input, { color: theme.text.primary, borderColor: theme.card.border, backgroundColor: mode === 'dark' ? '#111' : '#F5F5F5' }]}
+            keyboardType="number-pad"
+            value={restAfterRound}
+            onChangeText={setRestAfterRound}
           />
         </View>
       )}

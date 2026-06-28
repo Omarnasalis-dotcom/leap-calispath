@@ -16,6 +16,7 @@ interface WarriorBlockCardProps {
   strengthTier: number | string;
   toggleBlockExpanded: (blockId: string | number) => void;
   handleToggleBlockStatus: (blockId: string | number, currentStatus: 'none' | 'completed' | 'missed') => void;
+  isTogglingStatus?: boolean;
   handleOpenLogging: (blockId: string | number) => void;
   startTimerForBlock: (block: ProgramBlock) => void;
   handleOpenVideo: (url: string) => void;
@@ -31,6 +32,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   strengthTier,
   toggleBlockExpanded,
   handleToggleBlockStatus,
+  isTogglingStatus,
   handleOpenLogging,
   startTimerForBlock,
   handleOpenVideo,
@@ -100,7 +102,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               )}
             </View>
             <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 6 }}
+              style={{ flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 6, opacity: isTogglingStatus ? 0.5 : 1 }}
+              disabled={isTogglingStatus}
               onPress={(e) => {
                 e.stopPropagation();
                 handleToggleBlockStatus(block.id, block.completedStatus || 'none');

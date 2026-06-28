@@ -141,33 +141,34 @@ export function CopyBlockModal({
     }
   }
 
+  function toExercisePayload(ex: SelectedExercise, idx: number) {
+    return {
+      exercise_id: ex.exercise_id,
+      sets: parseInt(ex.sets) || null,
+      reps: (ex.reps || '').trim(),
+      rest_seconds: parseInt(ex.rest_seconds) || null,
+      hold_seconds: parseInt(ex.hold_seconds || '0') || null,
+      is_weighted: ex.is_weighted || false,
+      notes: (ex.notes || '').trim(),
+      order_index: idx,
+    };
+  }
+
   async function copyBlockToClient(templateId: string) {
     if (!sourceBlock) return;
-    
+
     await safeMutate(async () => {
       const notesWithMeta = sourceBlock!.metadata
         ? BlockConceptParser.stringify(sourceBlock!.metadata, sourceBlock!.notes || '')
         : (sourceBlock!.notes || '');
-      const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', templateId);
-      const orderIndex = existingBlocks ? existingBlocks.length : 0;
-      const { data: newBlock, error: blockErr } = await supabase
-        .from('program_blocks')
-        .insert({ template_id: templateId, name: `DAY 1 | ${sourceBlock!.name}`, notes: notesWithMeta, order_index: orderIndex, week_number: 1 })
-        .select('id').single();
-      if (blockErr) return { error: blockErr };
-      if (sourceBlock!.exercises.length > 0) {
-        const { error: exErr } = await supabase.from('block_exercises').insert(
-          sourceBlock!.exercises.map((ex, idx) => ({
-            block_id: newBlock.id, exercise_id: ex.exercise_id,
-            sets: parseInt(ex.sets) || null, reps: (ex.reps || '').trim(),
-            rest_seconds: parseInt(ex.rest_seconds) || null, 
-            hold_seconds: parseInt(ex.hold_seconds || '0') || null,
-            is_weighted: ex.is_weighted || false,
-            notes: (ex.notes || '').trim(), order_index: idx,
-          }))
-        );
-        if (exErr) return { error: exErr };
-      }
+      const { error } = await supabase.rpc('copy_block_to_template', {
+        p_template_id: templateId,
+        p_name: `DAY 1 | ${sourceBlock!.name}`,
+        p_notes: notesWithMeta,
+        p_week_number: 1,
+        p_exercises: sourceBlock!.exercises.map(toExercisePayload),
+      });
+      if (error) return { error };
       return { data: null, error: null };
     }, {
       onSuccess: () => showSuccess('BLOCK COPIED TO CLIENT!'),
@@ -175,33 +176,24 @@ export function CopyBlockModal({
     });
   }
 
+  function toBlocksPayload(blocks: ProgramBlock[], dayName: string) {
+    return blocks.map((block) => ({
+      name: `${dayName} | ${block.name}`,
+      notes: block.metadata ? BlockConceptParser.stringify(block.metadata, block.notes || '') : (block.notes || ''),
+      week_number: 1,
+      exercises: block.exercises.map(toExercisePayload),
+    }));
+  }
+
   async function copyDayToClient(templateId: string) {
     if (!sourceDay) return;
-    
+
     await safeMutate(async () => {
-      const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', templateId);
-      let orderIndex = existingBlocks ? existingBlocks.length : 0;
-      for (const block of sourceDay!.blocks) {
-        const notesWithMeta = block.metadata ? BlockConceptParser.stringify(block.metadata, block.notes || '') : (block.notes || '');
-        const { data: newBlock, error: blockErr } = await supabase
-          .from('program_blocks')
-          .insert({ template_id: templateId, name: `${sourceDay!.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
-          .select('id').single();
-        if (blockErr) return { error: blockErr };
-        if (block.exercises.length > 0) {
-          const { error: exErr } = await supabase.from('block_exercises').insert(
-            block.exercises.map((ex, idx) => ({
-              block_id: newBlock.id, exercise_id: ex.exercise_id,
-              sets: parseInt(ex.sets) || null, reps: (ex.reps || '').trim(),
-              rest_seconds: parseInt(ex.rest_seconds) || null, 
-              hold_seconds: parseInt(ex.hold_seconds || '0') || null,
-              is_weighted: ex.is_weighted || false,
-              notes: (ex.notes || '').trim(), order_index: idx,
-            }))
-          );
-          if (exErr) return { error: exErr };
-        }
-      }
+      const { error } = await supabase.rpc('copy_day_to_template', {
+        p_template_id: templateId,
+        p_blocks: toBlocksPayload(sourceDay!.blocks, sourceDay!.name),
+      });
+      if (error) return { error };
       return { data: null, error: null };
     }, {
       onSuccess: () => showSuccess('DAY COPIED TO CLIENT!'),
@@ -211,31 +203,13 @@ export function CopyBlockModal({
 
   async function copyDayToTemplate(targetTemplateId: string) {
     if (!sourceDay) return;
-    
+
     await safeMutate(async () => {
-      const { data: existingBlocks } = await supabase.from('program_blocks').select('id').eq('template_id', targetTemplateId);
-      let orderIndex = existingBlocks ? existingBlocks.length : 0;
-      for (const block of sourceDay!.blocks) {
-        const notesWithMeta = block.metadata ? BlockConceptParser.stringify(block.metadata, block.notes || '') : (block.notes || '');
-        const { data: newBlock, error: blockErr } = await supabase
-          .from('program_blocks')
-          .insert({ template_id: targetTemplateId, name: `${sourceDay!.name} | ${block.name}`, notes: notesWithMeta, order_index: orderIndex++, week_number: 1 })
-          .select('id').single();
-        if (blockErr) return { error: blockErr };
-        if (block.exercises.length > 0) {
-          const { error: exErr } = await supabase.from('block_exercises').insert(
-            block.exercises.map((ex, idx) => ({
-              block_id: newBlock.id, exercise_id: ex.exercise_id,
-              sets: parseInt(ex.sets) || null, reps: (ex.reps || '').trim(),
-              rest_seconds: parseInt(ex.rest_seconds) || null, 
-              hold_seconds: parseInt(ex.hold_seconds || '0') || null,
-              is_weighted: ex.is_weighted || false,
-              notes: (ex.notes || '').trim(), order_index: idx,
-            }))
-          );
-          if (exErr) return { error: exErr };
-        }
-      }
+      const { error } = await supabase.rpc('copy_day_to_template', {
+        p_template_id: targetTemplateId,
+        p_blocks: toBlocksPayload(sourceDay!.blocks, sourceDay!.name),
+      });
+      if (error) return { error };
       return { data: null, error: null };
     }, {
       onSuccess: () => showSuccess('DAY COPIED TO TEMPLATE!'),
