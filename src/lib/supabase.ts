@@ -78,15 +78,15 @@ const NativeStorageAdapter = {
           chunks.push(value.substring(i, i + CHUNK_SIZE));
         }
 
-        // Save chunks count metadata first
-        await SecureStore.setItemAsync(`${key}_chunks`, chunks.length.toString());
-
-        // Save chunks in parallel
+        // Save chunks in parallel first
         await Promise.all(
           chunks.map((chunk, index) =>
             SecureStore.setItemAsync(`${key}_chunk_${index}`, chunk)
           )
         );
+
+        // Save count last — this is the commit signal
+        await SecureStore.setItemAsync(`${key}_chunks`, chunks.length.toString());
       }
     } catch (e) {
       console.error('[Supabase Storage] Error writing to SecureStore:', e);
