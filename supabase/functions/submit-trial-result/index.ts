@@ -18,6 +18,16 @@ const TIER_HARD_FLOORS: Record<number, number> = {
 // Minimum seconds between any two trial submissions from the same user
 const SUBMISSION_COOLDOWN_SECONDS = 30;
 
+// Known Postgres SQLSTATE codes that can surface from the submit_trial_result RPC,
+// mapped to a clearer client-facing message and the appropriate HTTP status.
+const PG_ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
+  "57014": { status: 503, message: "The request timed out. Please try again." },
+  "40001": { status: 409, message: "Submission conflicted with another request. Please try again." },
+  "40P01": { status: 409, message: "Submission conflicted with another request. Please try again." },
+  "23505": { status: 409, message: "This trial was already recorded." },
+  "23503": { status: 400, message: "Invalid submission — referenced profile not found." },
+};
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
@@ -114,14 +124,14 @@ Deno.serve(async (req) => {
   // Rate limit check — when was the last submission?
   const { data: lastSubmission } = await supabase
     .from("trial_history")
-    .select("created_at")
+    .select("attempted_at")
     .eq("user_id", user.id)
-    .order("created_at", { ascending: false })
+    .order("attempted_at", { ascending: false })
     .limit(1)
     .maybeSingle();
 
-  if (lastSubmission?.created_at) {
-    const secondsSinceLast = (Date.now() - new Date(lastSubmission.created_at).getTime()) / 1000;
+  if (lastSubmission?.attempted_at) {
+    const secondsSinceLast = (Date.now() - new Date(lastSubmission.attempted_at).getTime()) / 1000;
     if (secondsSinceLast < SUBMISSION_COOLDOWN_SECONDS) {
       return new Response(JSON.stringify({
         error: "TOO_FAST",
@@ -133,74 +143,50 @@ Deno.serve(async (req) => {
     }
   }
 
-  // All checks passed — save the result using admin client
+  // All checks passed — save the result using admin client. The insert + profile
+  // update happen atomically inside the submit_trial_result DB function so a
+  // failure partway through can't leave the two out of sync.
   const supabaseAdmin = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
     Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
   );
 
-  // Get current user profile details
-  const { data: profile, error: profileError } = await supabaseAdmin
-    .from("profiles")
-    .select("strength_tier, best_times")
-    .eq("id", user.id)
-    .single();
+  const { data: result, error: rpcError } = await supabaseAdmin.rpc("submit_trial_result", {
+    p_user_id: user.id,
+    p_tier: tier,
+    p_time_seconds: time_seconds,
+    p_mode: mode,
+  });
 
-  if (profileError || !profile) {
-    return new Response(JSON.stringify({ error: "Profile not found" }), {
-      status: 404,
+  if (rpcError) {
+    console.error("submit_trial_result error:", rpcError);
+    const known = PG_ERROR_RESPONSES[rpcError.code ?? ""];
+    return new Response(JSON.stringify({
+      error: known ? rpcError.code : "Failed to save trial result",
+      message: known?.message ?? "Failed to save trial result. Please try again.",
+    }), {
+      status: known?.status ?? 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
-  // Enforce locked tier check
-  if (tier > profile.strength_tier) {
-    return new Response(JSON.stringify({ error: "FORBIDDEN", message: "This tier is currently locked." }), {
-      status: 403,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
-  // Insert into trial_history
-  const { error: insertError } = await supabaseAdmin
-    .from("trial_history")
-    .insert({
-      user_id: user.id,
-      tier_attempted: tier,
-      time_seconds,
-      completed: true,
-    });
-
-  if (insertError) {
-    console.error("Insert error:", insertError);
+  if (!result?.success) {
+    if (result?.error === "FORBIDDEN") {
+      return new Response(JSON.stringify({ error: "FORBIDDEN", message: "This tier is currently locked." }), {
+        status: 403,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (result?.error === "NOT_FOUND") {
+      return new Response(JSON.stringify({ error: "Profile not found" }), {
+        status: 404,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     return new Response(JSON.stringify({ error: "Failed to save trial result" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  }
-
-  // Update profile PB if this is a progression trial and better than current
-  if (mode === "progression") {
-    const bestTimes = profile.best_times || {};
-    const currentBest = bestTimes[tier];
-
-    // Update PB if no previous best or new time is better (lower)
-    if (!currentBest || time_seconds < currentBest) {
-      bestTimes[tier] = time_seconds;
-    }
-
-    // ALWAYS advance tier if completing current tier, regardless of PB
-    const newTier = tier === profile.strength_tier
-      ? Math.min(tier + 1, 9)
-      : profile.strength_tier;
-
-    await supabaseAdmin
-      .from("profiles")
-      .update({
-        best_times: bestTimes,
-        strength_tier: Math.max(newTier, profile.strength_tier),
-      })
-      .eq("id", user.id);
   }
 
   return new Response(JSON.stringify({ success: true }), {

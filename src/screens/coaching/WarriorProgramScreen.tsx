@@ -5,10 +5,12 @@ import { View,
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   Modal,
   TextInput,
   Platform,
   Linking,
+  Keyboard,
   KeyboardAvoidingView,
   Alert } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -650,7 +652,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       enabled={Platform.OS !== 'web'}
     >
-      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
         {/* HEADER BAR */}
         <View style={[styles.header, { borderBottomWidth: 0, paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 10, marginBottom: 0, justifyContent: 'center', alignItems: 'center', position: 'relative' }]}>
           <LinearGradient

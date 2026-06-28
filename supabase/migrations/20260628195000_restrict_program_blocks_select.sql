@@ -1,0 +1,12 @@
+-- "Anyone authenticated can view blocks" was `using (true)`, letting any
+-- logged-in user read every coach's program blocks. Unlike program_templates,
+-- this table already has correctly-scoped SELECT coverage via three other
+-- policies that this permissive one was silently overriding (RLS policies
+-- are OR'd together):
+--   - "Coaches manage blocks" (FOR ALL, scoped via program_templates.coach_id)
+--   - "Admin manages all blocks" (FOR ALL, is_admin override)
+--   - "Warriors can read their program blocks" (FOR SELECT, scoped via
+--     warrior_programs.warrior_id, status = 'active')
+-- So no replacement policy is needed — just removing the redundant
+-- over-permissive one restores the intended scoping.
+DROP POLICY IF EXISTS "Anyone authenticated can view blocks" ON "public"."program_blocks";

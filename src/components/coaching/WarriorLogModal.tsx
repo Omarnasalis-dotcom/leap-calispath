@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeapLogo } from '../../components/LeapLogo';
 
@@ -68,7 +68,8 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
       animationType="fade"
       onRequestClose={() => setLogModalVisible(false)}
     >
-      <View style={styles.modalOverlay}>
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
           <Text style={[styles.modalHeading, { color: theme.text.primary }]}>LOG WORKOUT DETAILS</Text>
 
@@ -231,7 +232,8 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
             </TouchableOpacity>
           </View>
         </View>
-      </View>
+        </KeyboardAvoidingView>
+      </TouchableWithoutFeedback>
     </Modal>
   );
 };

@@ -75,12 +75,8 @@ export const PowerService = {
       });
       await Promise.all(rankPromises);
 
-      // Global Glory Rank - Direct query for reliability
-      const { count: gloryCount } = await supabase
-        .from('profiles')
-        .select('*', { count: 'exact', head: true })
-        .gt('power_points', totalPoints);
-      ranks['glory'] = (gloryCount || 0) + 1;
+      // Glory rank is resolved by the caller from the glory leaderboard list it already
+      // fetches (top 50), falling back to getGloryRank() only if the user isn't in it.
 
       const statsObj = { pbs: pbMap, totalPoints, level, ranks };
       cachedPowerStats = { userId, stats: statsObj, timestamp: Date.now() };
@@ -98,6 +94,18 @@ export const PowerService = {
 
   invalidateCache() {
     cachedPowerStats = null;
+  },
+
+  /**
+   * Direct count query for the user's global glory rank. Only needed as a fallback
+   * when the user doesn't appear in the top-50 glory leaderboard list.
+   */
+  async getGloryRank(totalPoints: number): Promise<number> {
+    const { count: gloryCount } = await supabase
+      .from('profiles')
+      .select('*', { count: 'exact', head: true })
+      .gt('power_points', totalPoints);
+    return (gloryCount || 0) + 1;
   },
 
   /**

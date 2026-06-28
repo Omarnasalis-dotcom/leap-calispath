@@ -94,6 +94,24 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
     }
   }, [leaderboardTab, isMounted]);
 
+  // Derive the user's glory rank from the leaderboard list already fetched above instead
+  // of a separate count query. Only falls back to a direct query if they're outside the
+  // top 50 the list returns.
+  useEffect(() => {
+    if (leaderboardTab !== 'glory' || !user || !stats || leaderboardData.length === 0) return;
+    if (stats.ranks.glory) return;
+
+    const userIdx = leaderboardData.findIndex((e: any) => e.user_id === user.id);
+    if (userIdx !== -1) {
+      setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: userIdx + 1 } } : prev);
+    } else {
+      PowerService.getGloryRank(stats.totalPoints).then(rank => {
+        if (!isMounted.current) return;
+        setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: rank } } : prev);
+      });
+    }
+  }, [leaderboardData, leaderboardTab, user, stats, isMounted]);
+
   const fetchModalLeaderboard = useCallback(async (moveId: string) => {
     setModalLeaderboardData([]);
     try {

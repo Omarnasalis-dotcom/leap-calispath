@@ -459,6 +459,7 @@ export function LeaderboardScreen({
                   )}
                 </View>
               </View>
+              </View>
             );
           })}
         </View>
