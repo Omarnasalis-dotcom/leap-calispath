@@ -41,6 +41,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const { user, refreshProfile } = useAuth();
   const { theme } = useTheme();
   const inputRef = useRef<TextInput>(null);
+  const scrollRef = useRef<ScrollView>(null);
   
   const [currentStep, setCurrentStep] = useState(0);
   const [currentVariantIndex, setCurrentVariantIndex] = useState(0);
@@ -227,11 +228,11 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
 
   return (
     <GlobalErrorBoundary>
-      <KeyboardAvoidingView 
+      <KeyboardAvoidingView
         style={[styles.container, { backgroundColor: theme.background.primary }]}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       >
-      <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
         
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
@@ -298,6 +299,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
                   keyboardType="number-pad"
                   placeholder="0"
                   placeholderTextColor={theme.text.tertiary}
+                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150)}
                 />
               </TouchableOpacity>
 

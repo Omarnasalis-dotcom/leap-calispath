@@ -8,6 +8,14 @@ export interface TrialResult {
   isProgression: boolean;
 }
 
+export interface TrialResultResponse {
+  success: true;
+  is_first_completion: boolean;
+  is_new_best: boolean;
+  tier_advanced: boolean;
+  previous_best_time_seconds: number | null;
+}
+
 // Use the same URL pattern as supabase.ts (graceful fallback — never crash at module level)
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const EDGE_FUNCTION_URL = `${SUPABASE_URL}/functions/v1/submit-trial-result`;
@@ -27,7 +35,7 @@ export class TrialService {
    * Submits a trial result via the Edge Function (server-side validated).
    * The Edge Function handles: auth, hard floor check, cooldown, and DB write.
    */
-  static async submitResult(result: TrialResult) {
+  static async submitResult(result: TrialResult): Promise<TrialResultResponse> {
     const { tier, timeSeconds, isProgression } = result;
 
     // Client-side pre-check for immediate UX feedback
@@ -81,7 +89,7 @@ export class TrialService {
       throw new Error(data.error || 'Failed to save trial result. Please try again.');
     }
 
-    return { success: true };
+    return data as TrialResultResponse;
   }
 
   /**

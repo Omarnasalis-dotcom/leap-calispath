@@ -7,10 +7,10 @@ export function useSafeAsync() {
   const executingRef = useRef(false);
   const isMounted = useMountedRef();
 
-  const runAsync = useCallback(async (
-    asyncFn: () => Promise<void>,
+  const runAsync = useCallback(async <T>(
+    asyncFn: () => Promise<T>,
     options?: {
-      onSuccess?: () => void;
+      onSuccess?: (result: T) => void;
       onError?: (e: any) => void;
       errorMessage?: string;
     }
@@ -18,11 +18,11 @@ export function useSafeAsync() {
     if (executingRef.current) return;
     executingRef.current = true;
     setIsExecuting(true);
-    
+
     try {
-      await asyncFn();
+      const result = await asyncFn();
       if (isMounted.current && options?.onSuccess) {
-        options.onSuccess();
+        options.onSuccess(result);
       }
     } catch (e: any) {
       if (isMounted.current) {

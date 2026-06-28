@@ -11,6 +11,8 @@ import {
   Easing,
   Platform,
   AppState,
+  Modal,
+  ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -51,9 +53,14 @@ export function TrialScreen({
   const [trial, setTrial] = useState<Trial | null>(null);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [hasStarted, setHasStarted] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
+  const [feedbackCard, setFeedbackCard] = useState<{
+    kind: 'first_completion' | 'new_best';
+    tier: number;
+    timeSeconds: number;
+    previousTimeSeconds?: number | null;
+  } | null>(null);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
   const prepStartTimeRef = useRef<number | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -267,11 +274,10 @@ export function TrialScreen({
       return;
     }
 
-    setLoading(true);
     stopTimer();
 
     runSafeSubmit(async () => {
-      await TrialService.submitResult({
+      const result = await TrialService.submitResult({
         userId: user.id,
         tier: trial.tier,
         timeSeconds,
@@ -280,17 +286,25 @@ export function TrialScreen({
 
       // CRITICAL: Await the profile refresh before showing victory
       await refreshProfile();
+      return result;
     }, {
-      onSuccess: () => {
-        setLoading(false);
-        if (initialMode === 'progression') {
+      onSuccess: (result) => {
+        if (result?.tier_advanced) {
           setShowVictory(true);
+        } else if (result?.is_first_completion) {
+          setFeedbackCard({ kind: 'first_completion', tier: trial.tier, timeSeconds });
+        } else if (result?.is_new_best) {
+          setFeedbackCard({
+            kind: 'new_best',
+            tier: trial.tier,
+            timeSeconds,
+            previousTimeSeconds: result.previous_best_time_seconds ?? null,
+          });
         } else {
           onBack ? onBack() : null;
         }
       },
       onError: (error: any) => {
-        setLoading(false);
         if (error.message?.includes('DISHONOR')) {
           setShowDishonor(true);
         } else {
@@ -599,13 +613,22 @@ export function TrialScreen({
               </View>
             )}
 
-            <TouchableOpacity 
-              style={[styles.completeStepButton, { backgroundColor: accentColor }]} 
+            <TouchableOpacity
+              style={[
+                styles.completeStepButton,
+                { backgroundColor: accentColor },
+                isSubmitting && styles.completeStepButtonDisabled,
+              ]}
               onPress={handleNextStep}
+              disabled={isSubmitting}
             >
-              <Text style={styles.completeStepText}>
-                {currentStepIdx === trial.movements.length - 1 ? 'FINISH TRIAL' : 'STEP COMPLETED'}
-              </Text>
+              {isSubmitting && currentStepIdx === trial.movements.length - 1 ? (
+                <ActivityIndicator color="#FFF" />
+              ) : (
+                <Text style={styles.completeStepText}>
+                  {currentStepIdx === trial.movements.length - 1 ? 'FINISH TRIAL' : 'STEP COMPLETED'}
+                </Text>
+              )}
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.abandonBottomButton} onPress={handleAbandon}>
@@ -614,8 +637,85 @@ export function TrialScreen({
           </View>
         )}
       </ScrollView>
+      <TrialFeedbackModal
+        visible={feedbackCard !== null}
+        kind={feedbackCard?.kind ?? 'first_completion'}
+        tier={feedbackCard?.tier ?? trial.tier}
+        timeSeconds={feedbackCard?.timeSeconds ?? timeSeconds}
+        previousTimeSeconds={feedbackCard?.previousTimeSeconds}
+        onDismiss={() => {
+          setFeedbackCard(null);
+          onBack ? onBack() : null;
+        }}
+      />
     </View>
     </GlobalErrorBoundary>
+  );
+}
+
+function TrialFeedbackModal({
+  visible,
+  kind,
+  tier,
+  timeSeconds,
+  previousTimeSeconds,
+  onDismiss,
+}: {
+  visible: boolean;
+  kind: 'first_completion' | 'new_best';
+  tier: number;
+  timeSeconds: number;
+  previousTimeSeconds?: number | null;
+  onDismiss: () => void;
+}) {
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [scaleAnim] = useState(new Animated.Value(0.85));
+
+  useEffect(() => {
+    if (visible) {
+      Animated.parallel([
+        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
+        Animated.spring(scaleAnim, { toValue: 1, friction: 6, useNativeDriver: true }),
+      ]).start();
+    } else {
+      fadeAnim.setValue(0);
+      scaleAnim.setValue(0.85);
+    }
+  }, [visible]);
+
+  const tierName = TIER_NAMES[tier];
+  const label = kind === 'first_completion' ? 'MILESTONE' : 'PERSONAL RECORD';
+  const title = kind === 'first_completion' ? 'TIER COMPLETE' : 'NEW BEST TIME';
+  const icon = kind === 'first_completion' ? 'shield-star' : 'trophy-award';
+  const showComparison = kind === 'new_best' && previousTimeSeconds != null;
+
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
+      <View style={styles.feedbackOverlay}>
+        <Animated.View style={[styles.feedbackCard, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+          <View style={styles.feedbackSeal}>
+            <MaterialCommunityIcons name={icon} size={40} color="#CD7F32" />
+          </View>
+          <Text style={styles.feedbackLabel}>{label}</Text>
+          <Text style={styles.feedbackTitle}>{title}</Text>
+          <Text style={styles.feedbackSubtitle}>{tierName?.toUpperCase()} · TIER {tier}</Text>
+
+          {showComparison ? (
+            <View style={styles.feedbackTimeRow}>
+              <Text style={styles.feedbackOldTime}>{formatTime(previousTimeSeconds!)}</Text>
+              <MaterialCommunityIcons name="arrow-right" size={16} color="rgba(255,255,255,0.35)" style={{ marginHorizontal: 10 }} />
+              <Text style={[styles.feedbackNewTime, styles.feedbackNewTimeInRow]}>{formatTime(timeSeconds)}</Text>
+            </View>
+          ) : (
+            <Text style={styles.feedbackNewTime}>{formatTime(timeSeconds)}</Text>
+          )}
+
+          <TouchableOpacity style={styles.feedbackButton} onPress={onDismiss}>
+            <Text style={styles.feedbackButtonText}>CONTINUE</Text>
+          </TouchableOpacity>
+        </Animated.View>
+      </View>
+    </Modal>
   );
 }
 
@@ -924,6 +1024,9 @@ const styles = StyleSheet.create({
     marginTop: 32,
     elevation: 8,
   },
+  completeStepButtonDisabled: {
+    opacity: 0.6,
+  },
   completeStepText: {
     color: '#FFF',
     fontSize: 16,
@@ -1016,6 +1119,100 @@ const styles = StyleSheet.create({
     fontSize: 18,
     color: 'rgba(255,255,255,0.5)',
     marginTop: 8,
+  },
+  feedbackOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  feedbackCard: {
+    borderRadius: 28,
+    paddingVertical: 36,
+    paddingHorizontal: 28,
+    maxWidth: 320,
+    width: '100%',
+    alignItems: 'center',
+    backgroundColor: '#13131A',
+    borderWidth: 1,
+    borderColor: 'rgba(205,127,50,0.35)',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.6,
+    shadowRadius: 24,
+    elevation: 12,
+  },
+  feedbackSeal: {
+    width: 84,
+    height: 84,
+    borderRadius: 42,
+    backgroundColor: 'rgba(205,127,50,0.15)',
+    borderWidth: 2,
+    borderColor: '#CD7F32',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 18,
+    shadowColor: '#CD7F32',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 16,
+  },
+  feedbackLabel: {
+    fontSize: 11,
+    fontWeight: '900',
+    color: 'rgba(205,127,50,0.85)',
+    letterSpacing: 3,
+  },
+  feedbackTitle: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1.5,
+    marginTop: 6,
+  },
+  feedbackSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.45)',
+    letterSpacing: 1,
+    marginTop: 8,
+  },
+  feedbackTimeRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 24,
+  },
+  feedbackOldTime: {
+    fontSize: 16,
+    color: 'rgba(255,255,255,0.35)',
+    textDecorationLine: 'line-through',
+  },
+  feedbackNewTime: {
+    fontSize: 24,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 1,
+    marginTop: 24,
+  },
+  feedbackNewTimeInRow: {
+    marginTop: 0,
+  },
+  feedbackButton: {
+    marginTop: 32,
+    backgroundColor: '#8B0000',
+    paddingVertical: 14,
+    paddingHorizontal: 36,
+    borderRadius: 10,
+    shadowColor: '#8B0000',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+  },
+  feedbackButtonText: {
+    fontSize: 14,
+    fontWeight: '900',
+    color: '#FFFFFF',
+    letterSpacing: 2,
   },
   headerRightSlot: {
     width: 44,
