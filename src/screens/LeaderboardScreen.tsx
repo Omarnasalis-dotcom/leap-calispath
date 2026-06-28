@@ -377,29 +377,47 @@ export function LeaderboardScreen({
         </View>
       ) : (
         <View style={styles.listPreview}>
-          {filteredEntries.slice(0, 5).map((entry, index) => {
-            // Calculate gap for current user
-            const showGap = entry.is_current_user && displayPersonalBest && displayPersonalBest.rank && displayPersonalBest.rank > 1;
+          {(() => {
+            const top3 = filteredEntries.slice(0, 3);
+            const currentUserEntry = filteredEntries.find(e => e.is_current_user);
+            const currentUserInTop3 = currentUserEntry && (currentUserEntry.rank ?? 0) <= 3;
+            const previewEntries = currentUserEntry && !currentUserInTop3
+              ? [...top3, currentUserEntry]
+              : top3;
+            return previewEntries;
+          })().map((entry, index) => {
+            const isCurrentUser = entry.is_current_user;
+            const currentUserEntry = filteredEntries.find(e => e.is_current_user);
+            const currentUserInTop3 = currentUserEntry && (currentUserEntry.rank ?? 0) <= 3;
+            const isSeparatorRow = isCurrentUser && !currentUserInTop3 && index === 3;
+            const showGap = isCurrentUser && displayPersonalBest && displayPersonalBest.rank && displayPersonalBest.rank > 1;
             const nextEntry = showGap ? filteredEntries.find(e => e.rank === displayPersonalBest.rank! - 1) : null;
             const gapValue = showGap && nextEntry
               ? `-${formatLeaderboardTime((displayPersonalBest!.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
               : null;
-            
+
             return (
-              <View
-                key={entry.user_id}
-                style={[
-                  styles.entryRow,
-                  entry.is_current_user && styles.entryRowCurrentUser,
-                  index < 3 && styles.entryRowTopThree,
-                ]}
-              >
+              <View key={entry.user_id}>
+                {isSeparatorRow && (
+                  <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6, paddingHorizontal: 4 }}>
+                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(205,127,50,0.3)' }} />
+                    <Text style={{ color: 'rgba(205,127,50,0.5)', fontSize: 10, marginHorizontal: 8, letterSpacing: 1 }}>YOUR RANK</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(205,127,50,0.3)' }} />
+                  </View>
+                )}
+                <View
+                  style={[
+                    styles.entryRow,
+                    entry.is_current_user && styles.entryRowCurrentUser,
+                    (entry.rank ?? 0) <= 3 && styles.entryRowTopThree,
+                  ]}
+                >
                 {/* Rank - Medal or Number */}
                 <View style={styles.rankContainer}>
-                  {index === 0 && <Text style={styles.medal}>🥇</Text>}
-                  {index === 1 && <Text style={styles.medal}>🥈</Text>}
-                  {index === 2 && <Text style={styles.medal}>🥉</Text>}
-                  {index > 2 && (
+                  {entry.rank === 1 && <Text style={styles.medal}>🥇</Text>}
+                  {entry.rank === 2 && <Text style={styles.medal}>🥈</Text>}
+                  {entry.rank === 3 && <Text style={styles.medal}>🥉</Text>}
+                  {(entry.rank ?? 0) > 3 && (
                     <View style={[styles.rankCircle, { borderColor: entry.is_current_user ? theme.accent : theme.card.border }]}>
                       <Text style={[styles.rankNumber, { color: entry.is_current_user ? theme.accent : theme.text.tertiary }]}>{entry.rank}</Text>
                     </View>
@@ -447,7 +465,7 @@ export function LeaderboardScreen({
       )}
 
       {/* See More Button */}
-      {filteredEntries.length > 5 && (
+      {filteredEntries.length > 3 && (
         <TouchableOpacity 
           style={styles.seeMoreButton}
           onPress={() => setShowLeaderboardModal(true)}
@@ -476,6 +494,8 @@ export function LeaderboardScreen({
               data={filteredEntries}
               keyExtractor={item => item.user_id}
               showsVerticalScrollIndicator={false}
+              getItemLayout={(_, index) => ({ length: 73, offset: 73 * index, index })}
+              initialScrollIndex={Math.max(0, (filteredEntries.findIndex(e => e.is_current_user)) - 2)}
               renderItem={({ item: entry, index }) => (
                 <View
                   style={[
