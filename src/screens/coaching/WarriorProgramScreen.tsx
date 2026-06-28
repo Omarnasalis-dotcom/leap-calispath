@@ -111,8 +111,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     return `${m}:${s < 10 ? '0' : ''}${s}`;
   };
 
-  // Video Preview Modal State removed (now opens natively)
-
   // Performance Points States
   const [staticPoints, setStaticPoints] = useState<number>(0);
   const [powerPoints, setPowerPoints] = useState<number>(0);

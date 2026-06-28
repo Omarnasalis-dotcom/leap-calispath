@@ -113,7 +113,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   // 7. Block coaching/admin routes from non-admin, non-coach users
   const coachingRoutes = [
-    'exercise-library',
+    'coaching-hub',
     'my-clients',
     'client-dashboard',
     'program-builder',

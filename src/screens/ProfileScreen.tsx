@@ -83,7 +83,7 @@ export function ProfileScreen({
   const onOpenClash = showV2Popup;
   const onOpenTournamentArena = showV2Popup;
   const onOpenCoach = showV2Popup;
-  const onOpenCoachingCenter = () => router.push('/exercise-library'); // Assuming this maps to coaching hub
+  const onOpenCoachingCenter = () => router.push('/coaching-hub');
   const onOpenWarriorProgram = () => router.push('/warrior-program');
   const onOpenAdmin = () => router.push('/admin-tournament');
 

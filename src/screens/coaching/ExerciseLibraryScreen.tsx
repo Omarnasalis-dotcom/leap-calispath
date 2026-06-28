@@ -36,6 +36,15 @@ interface ExerciseLibraryScreenProps {
   isCoach?: boolean;
 }
 
+function isValidYouTubeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const match = withProtocol.match(/^https?:\/\/([^\/?#]+)/i);
+  if (!match) return false;
+  const host = match[1].toLowerCase().replace(/^(www\.|m\.)/, '');
+  return host === 'youtube.com' || host === 'youtu.be';
+}
+
 export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: ExerciseLibraryScreenProps) {
   const { user } = useAuth();
   const { theme, mode } = useTheme();
@@ -192,7 +201,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       return;
     }
 
-    if (!newYoutubeUrl.includes('youtube.com') && !newYoutubeUrl.includes('youtu.be')) {
+    if (!isValidYouTubeUrl(newYoutubeUrl)) {
       setModalError('PLEASE PROVIDE A VALID YOUTUBE URL.');
       return;
     }
@@ -431,7 +440,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
         return {
           name: row.name.trim(),
-          youtube_url: row.youtube_url && (row.youtube_url.includes('youtube.com') || row.youtube_url.includes('youtu.be'))
+          youtube_url: row.youtube_url && isValidYouTubeUrl(row.youtube_url)
             ? row.youtube_url.trim()
             : '',
           category: finalCategory,

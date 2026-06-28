@@ -44,8 +44,8 @@ export function BuilderWeekNavigator({
                   onPress={() => {
                     const maxW = Math.max(...Object.keys(weeks).map(k => parseInt(k, 10)));
                     const nextW = maxW + 1;
-                    
-                    const prevDays = weeks[maxW] || [];
+
+                    const prevDays = weeks[activeWeek] || [];
                     const clonedDays: any[] = prevDays.map((d: any) => ({
                       id: Math.random().toString(36).substr(2, 9),
                       name: d.name,
