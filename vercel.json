@@ -12,10 +12,48 @@
     }
   ],
   "rewrites": [
-    { "source": "/privacy", "destination": "/privacy.html" },
-    { "source": "/request", "destination": "/request.html" },
-    { "source": "/reset-password", "destination": "/" },
-    { "source": "/auth/v1/verify", "destination": "/" },
-    { "source": "/(.*)", "destination": "/download.html" }
+    {
+      "source": "/privacy",
+      "destination": "/privacy.html"
+    },
+    {
+      "source": "/request",
+      "destination": "/request.html"
+    },
+    {
+      "source": "/reset-password",
+      "destination": "/"
+    },
+    {
+      "source": "/auth/v1/verify",
+      "destination": "/"
+    },
+    {
+      "source": "/(.*)",
+      "destination": "/download.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "/(.*)",
+      "headers": [
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: https:; connect-src 'self' https://*.supabase.co wss://*.supabase.co; frame-ancestors 'none';"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        }
+      ]
+    }
   ]
 }
