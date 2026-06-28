@@ -491,24 +491,25 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (logNotes) finalNotes += logNotes;
       finalNotes = finalNotes.trim();
 
-      let timerId: NodeJS.Timeout | null = null;
-      const timeoutPromise = new Promise((_, reject) => {
-        timerId = setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000);
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const { error } = await Promise.race([
-        supabase.from('workout_logs').insert({
-          warrior_program_id: warriorProgramId,
-          warrior_id: warriorId,
-          block_id: activeLogBlockId,
-          notes: finalNotes,
-          rating: logRating
-        }),
-        timeoutPromise
-      ]) as any;
+      const { error } = await supabase.from('workout_logs').insert({
+        warrior_program_id: warriorProgramId,
+        warrior_id: warriorId,
+        block_id: activeLogBlockId,
+        notes: finalNotes,
+        rating: logRating
+      }).abortSignal(controller.signal);
 
-      if (timerId) clearTimeout(timerId);
-      if (error) throw error;
+      clearTimeout(timeoutId);
+
+      if (error) {
+        if (error.message?.toLowerCase().includes('abort')) {
+          throw new Error('Network request timed out. Please check your connection.');
+        }
+        throw error;
+      }
 
       setLogModalVisible(false);
       
@@ -530,9 +531,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       });
 
     } catch (err: any) {
-      if (err.message?.includes('timed out')) {
-        // timeout already cleared
-      }
       Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO LOG WORKOUT.');
       await loadWarriorProgram();
     } finally {

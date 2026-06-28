@@ -10,7 +10,8 @@ import { View,
   Platform,
   Linking,
   KeyboardAvoidingView,
-  TextInput } from 'react-native';
+  TextInput,
+  Alert } from 'react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -235,19 +236,37 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
     }
   }
 
-  async function handleDeleteExercise(id: string | number) {
-    setErrorMsg(null);
-    try {
-      const { error } = await supabase
-        .from('exercise_library')
-        .delete()
-        .eq('id', id);
+  function handleDeleteExercise(id: string | number, name: string) {
+    const performDelete = async () => {
+      setErrorMsg(null);
+      try {
+        const { error } = await supabase
+          .from('exercise_library')
+          .delete()
+          .eq('id', id);
 
-      if (error) throw error;
-      fetchExercises();
-    } catch (err: any) {
-      setErrorMsg(err.message?.toUpperCase() || 'FAILED TO DELETE EXERCISE.');
+        if (error) throw error;
+        fetchExercises();
+      } catch (err: any) {
+        setErrorMsg(err.message?.toUpperCase() || 'FAILED TO DELETE EXERCISE.');
+      }
+    };
+
+    if (Platform.OS === 'web') {
+      if (window.confirm(`DELETE "${name.toUpperCase()}"? THIS EXERCISE IS SHARED — IT MAY BE USED IN OTHER COACHES' PROGRAMS.`)) {
+        performDelete();
+      }
+      return;
     }
+
+    Alert.alert(
+      'DELETE EXERCISE?',
+      `"${name.toUpperCase()}" IS A SHARED EXERCISE — IT MAY BE USED IN OTHER COACHES' PROGRAMS. THIS CANNOT BE UNDONE.`,
+      [
+        { text: 'CANCEL', style: 'cancel' },
+        { text: 'DELETE', style: 'destructive', onPress: performDelete },
+      ]
+    );
   }
 
   function getYouTubeEmbedUrl(url: string): string {
@@ -574,7 +593,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
                       gap: 6,
                       width: 110
                     }}
-                    onPress={() => handleDeleteExercise(ex.id)}
+                    onPress={() => handleDeleteExercise(ex.id, ex.name)}
                   >
                     <Text style={{ color: '#FF5252', fontSize: 10 }}>✖</Text>
                     <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, color: '#FF5252' }}>DELETE</Text>
