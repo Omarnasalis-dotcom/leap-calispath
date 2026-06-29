@@ -4,600 +4,316 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Leap Arena | Request Access</title>
-  
-  <!-- Fonts -->
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@700;900&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-  
-  <!-- Supabase JS Client CDN -->
+  <link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900&family=Archivo+Expanded:wght@500;600;700;800;900&display=swap" rel="stylesheet">
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
   <style>
-    :root {
-      --bg-primary: #000000;
-      --card-bg: rgba(18, 18, 18, 0.75);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --accent: #E53E3E; /* Red Accent */
-      --accent-hover: #EF4444; /* Brighter Red Hover */
-      --text-primary: #ffffff;
-      --text-secondary: #aaaaaa;
-      --text-tertiary: #666666;
-      --success: #4caf50;
-      --error: #e53e3e;
-      --input-bg: rgba(255, 255, 255, 0.03);
+    :root{
+      --bg:#08080A;
+      --text:#F4F2F0;
+      --text-secondary:#9A9AA0;
+      --text-tertiary:#5C5C62;
+      --accent:#FF5647;
+      --accent-hover:#FF6B5E;
+      --accent-soft:#FF7A6E;
+      --error:#FF6B5E;
+      --success:#4caf50;
     }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
+    *{margin:0;padding:0;box-sizing:border-box;}
+    body,html{width:100%;min-height:100vh;background:var(--bg);font-family:'Archivo',sans-serif;color:var(--text);-webkit-font-smoothing:antialiased;}
+    a{text-decoration:none;color:inherit;}
+    .heading{font-family:'Archivo Expanded',sans-serif;text-transform:uppercase;}
+
+    @keyframes leapPulse{0%,100%{opacity:.55;}50%{opacity:1;}}
+    input::placeholder,textarea::placeholder{color:var(--text-tertiary);}
+    input:focus,textarea:focus{outline:none;border-color:rgba(255,86,71,.7)!important;background:rgba(255,86,71,.04)!important;}
+
+    .page{
+      min-height:100vh;width:100%;display:flex;justify-content:center;
+      padding:56px 24px;position:relative;overflow:hidden;
+    }
+    .ring-backdrop{
+      position:absolute;top:-260px;left:50%;transform:translateX(-50%);
+      width:1100px;height:1100px;border-radius:50%;
+      background:repeating-radial-gradient(circle, rgba(255,86,71,.10) 0 2px, transparent 2px 64px);
+      -webkit-mask-image:radial-gradient(circle,#000 0%,#000 36%,transparent 66%);
+      mask-image:radial-gradient(circle,#000 0%,#000 36%,transparent 66%);
+      pointer-events:none;
+    }
+    .glow-backdrop{
+      position:absolute;top:-80px;left:50%;transform:translateX(-50%);
+      width:560px;height:560px;border-radius:50%;
+      background:radial-gradient(circle, rgba(255,86,71,.18) 0%, rgba(255,86,71,0) 70%);
+      pointer-events:none;
     }
 
-    body, html {
-      width: 100%;
-      min-height: 100vh;
-      background-color: var(--bg-primary);
-      font-family: 'Plus Jakarta Sans', sans-serif;
-      color: var(--text-primary);
-      display: flex;
-      justify-content: center;
-      align-items: flex-start; /* Aligns content from the top to prevent cut-off */
-      padding-top: 20px; /* Reduced top gap to position card closer to the upper border */
-      padding-bottom: 40px;
-      overflow-y: auto;
-      -webkit-font-smoothing: antialiased;
-    }
+    .container{position:relative;width:100%;max-width:560px;}
+    .back-link{display:inline-flex;align-items:center;gap:8px;font-size:14px;font-weight:600;color:var(--text-secondary);margin-bottom:36px;}
 
-    /* Subtle background grid effect */
-    .bg-grid {
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      height: 100%;
-      background-image: 
-        linear-gradient(rgba(229, 62, 62, 0.02) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(229, 62, 62, 0.02) 1px, transparent 1px);
-      background-size: 40px 40px;
-      z-index: 1;
-      pointer-events: none;
-    }
+    .header{text-align:center;margin-bottom:48px;}
+    .brand{display:inline-flex;align-items:center;gap:14px;margin-bottom:10px;}
+    .brand img{height:26px;width:auto;}
+    .brand span{font-family:'Archivo Expanded',sans-serif;font-weight:700;font-size:18px;letter-spacing:.42em;padding-left:5px;}
+    .eyebrow{font-family:'Archivo Expanded',sans-serif;font-weight:600;font-size:13px;letter-spacing:.38em;color:var(--accent);}
+    .title{font-weight:900;font-size:46px;letter-spacing:-.01em;margin-top:30px;}
+    .subtitle{font-size:17px;line-height:1.55;color:var(--text-secondary);max-width:400px;margin:18px auto 0;}
 
-    /* Radial glow in the background */
-    .bg-glow {
-      position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      width: 600px;
-      height: 600px;
-      background: radial-gradient(circle, rgba(229, 62, 62, 0.06) 0%, transparent 70%);
-      z-index: 2;
-      pointer-events: none;
+    .card{background:rgba(255,255,255,.02);border:1px solid rgba(255,255,255,.07);border-radius:24px;padding:40px 36px;}
+    form{display:flex;flex-direction:column;gap:26px;}
+    .field{display:flex;flex-direction:column;gap:11px;}
+    .field label{font-family:'Archivo Expanded',sans-serif;font-weight:700;font-size:12px;letter-spacing:.16em;color:#C9C9CF;}
+    .field input,.field textarea{
+      height:56px;padding:0 18px;font-size:16px;font-family:'Archivo',sans-serif;color:var(--text);
+      background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.1);border-radius:14px;
+      transition:border-color .15s ease, background .15s ease;
     }
+    .field textarea{height:auto;min-height:120px;padding:16px 18px;resize:vertical;}
 
-    .container {
-      width: 100%;
-      max-width: 480px;
-      padding: 24px;
-      z-index: 10;
-      position: relative;
+    .level-selector{display:flex;gap:12px;}
+    .level-option{
+      flex:1;height:52px;cursor:pointer;border-radius:12px;font-family:'Archivo Expanded',sans-serif;font-weight:700;font-size:13px;
+      letter-spacing:.1em;text-transform:uppercase;transition:all .15s ease;background:rgba(255,255,255,.03);color:var(--text-secondary);
+      border:1px solid rgba(255,255,255,.12);display:flex;align-items:center;justify-content:center;
     }
+    .level-option.active{background:var(--accent);color:#0A0A0B;border-color:var(--accent);box-shadow:0 8px 24px -8px rgba(255,86,71,.7);}
 
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 24px;
-      padding: 40px 32px;
-      backdrop-filter: blur(16px);
-      -webkit-backdrop-filter: blur(16px);
-      box-shadow: 0 24px 48px rgba(0, 0, 0, 0.8), inset 0 1px 0 rgba(255, 255, 255, 0.05);
-      transition: transform 0.3s ease, border-color 0.3s ease;
+    .submit-btn{
+      height:60px;margin-top:6px;border:none;cursor:pointer;border-radius:16px;background:var(--accent);
+      box-shadow:0 20px 48px -14px rgba(255,86,71,.6);font-family:'Archivo Expanded',sans-serif;font-weight:900;font-size:17px;
+      letter-spacing:.06em;text-transform:uppercase;color:#0A0A0B;transition:transform .18s ease, background .18s ease;
+      display:flex;justify-content:center;align-items:center;gap:10px;
     }
+    .submit-btn:hover{background:var(--accent-hover);transform:translateY(-2px);}
+    .submit-btn:active{transform:translateY(0);}
+    .submit-btn:disabled{opacity:.5;cursor:not-allowed;transform:none;}
 
-    .card:hover {
-      border-color: rgba(229, 62, 62, 0.2);
-    }
+    .spinner{width:18px;height:18px;border:3px solid rgba(0,0,0,.25);border-top-color:#0A0A0B;border-radius:50%;animation:spin .8s linear infinite;display:none;}
+    @keyframes spin{to{transform:rotate(360deg);}}
 
-    .header {
-      text-align: center;
-      margin-bottom: 32px;
+    .message{padding:16px 18px;border-radius:14px;font-size:14px;line-height:1.5;display:none;align-items:center;gap:12px;}
+    .message.error{background:rgba(255,86,71,.1);border:1px solid rgba(255,86,71,.3);color:var(--error);}
+    .message.success{
+      background:rgba(255,86,71,.1);border:1px solid rgba(255,86,71,.4);color:#FFC9C2;
     }
+    .message .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px 2px rgba(255,86,71,.9);animation:leapPulse 1.8s ease-in-out infinite;flex-shrink:0;}
 
-    .logo-container {
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 8px;
+    .success-view{display:none;text-align:center;}
+    .success-icon{
+      width:64px;height:64px;border:2px solid var(--accent);border-radius:50%;display:flex;justify-content:center;align-items:center;
+      margin:0 auto 24px;font-size:32px;color:var(--accent);box-shadow:0 8px 24px rgba(255,86,71,.15);
+      animation:scaleIn .4s cubic-bezier(0.175,0.885,0.32,1.275);
     }
+    @keyframes scaleIn{from{transform:scale(.6);opacity:0;}to{transform:scale(1);opacity:1;}}
 
-    .accent-bar {
-      width: 4px;
-      height: 28px;
-      background-color: var(--accent);
-      border-radius: 2px;
-    }
+    .footer{text-align:center;margin-top:24px;font-size:12px;color:var(--text-secondary);line-height:1.8;}
+    .footer a{color:var(--accent);font-weight:600;transition:color .2s ease;}
+    .footer a:hover{color:var(--accent-hover);text-decoration:underline;}
 
-    .brand-name {
-      font-family: 'Orbitron', sans-serif;
-      font-size: 24px;
-      font-weight: 900;
-      letter-spacing: 2px;
-    }
-
-    .brand-name span {
-      color: var(--accent);
-    }
-
-    .eyebrow {
-      font-size: 11px;
-      font-weight: 800;
-      letter-spacing: 3.5px;
-      color: var(--accent);
-      text-transform: uppercase;
-      margin-top: 4px;
-      margin-bottom: 12px;
-    }
-
-    .title {
-      font-size: 26px;
-      font-weight: 800;
-      text-transform: uppercase;
-      letter-spacing: 0.5px;
-      margin-top: 16px;
-      margin-bottom: 8px;
-    }
-
-    .subtitle {
-      color: var(--text-secondary);
-      font-size: 13px;
-      line-height: 1.6;
-    }
-
-    /* Form Styles */
-    .form-group {
-      margin-bottom: 20px;
-    }
-
-    .label {
-      display: block;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 1.5px;
-      text-transform: uppercase;
-      color: var(--text-primary);
-      margin-bottom: 8px;
-    }
-
-    .input {
-      width: 100%;
-      background: var(--input-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 14px 16px;
-      color: var(--text-primary);
-      font-family: inherit;
-      font-size: 14px;
-      outline: none;
-      transition: all 0.2s ease;
-    }
-
-    .input:focus {
-      border-color: var(--accent);
-      background: rgba(255, 255, 255, 0.05);
-      box-shadow: 0 0 0 3px rgba(229, 62, 62, 0.15);
-    }
-
-    .textarea {
-      resize: none;
-      height: 100px;
-    }
-
-    /* Toggle Selector for Experience */
-    .experience-selector {
-      display: flex;
-      gap: 8px;
-    }
-
-    .exp-option {
-      flex: 1;
-      background: var(--input-bg);
-      border: 1px solid var(--card-border);
-      border-radius: 12px;
-      padding: 12px;
-      text-align: center;
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 1px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: all 0.2s ease;
-      color: var(--text-secondary);
-    }
-
-    .exp-option.active {
-      background: var(--accent);
-      border-color: var(--accent);
-      color: var(--text-primary);
-      box-shadow: 0 8px 16px rgba(229, 62, 62, 0.25);
-    }
-
-    .btn {
-      width: 100%;
-      background: var(--accent);
-      color: var(--text-primary);
-      border: none;
-      border-radius: 12px;
-      padding: 16px;
-      font-family: inherit;
-      font-size: 14px;
-      font-weight: 800;
-      letter-spacing: 1px;
-      cursor: pointer;
-      text-transform: uppercase;
-      transition: all 0.2s ease;
-      margin-top: 12px;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      gap: 10px;
-    }
-
-    .btn:hover {
-      background: var(--accent-hover);
-      box-shadow: 0 12px 24px rgba(229, 62, 62, 0.3);
-    }
-
-    .btn:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-
-    /* Premium Instagram Banner Button inside the card */
-    .instagram-banner {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      background: rgba(229, 62, 62, 0.1);
-      border: 1px solid rgba(229, 62, 62, 0.2);
-      padding: 14px 20px; /* Matched form input padding */
-      border-radius: 12px; /* Matched input border-radius */
-      color: var(--accent) !important;
-      font-weight: 700;
-      text-decoration: none !important;
-      transition: all 0.2s ease;
-      font-size: 13px;
-      letter-spacing: 0.5px;
-      width: 100%;
-      justify-content: center;
-    }
-
-    .instagram-banner:hover {
-      background: rgba(229, 62, 62, 0.2);
-      border-color: var(--accent);
-      transform: translateY(-1px);
-      box-shadow: 0 8px 16px rgba(229, 62, 62, 0.15);
-    }
-
-    /* Spinner */
-    .spinner {
-      width: 18px;
-      height: 18px;
-      border: 3px solid rgba(255,255,255,0.2);
-      border-top-color: #fff;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-      display: none;
-    }
-
-    @keyframes spin {
-      to { transform: rotate(360deg); }
-    }
-
-    /* Notification Banner */
-    .message {
-      padding: 14px;
-      border-radius: 12px;
-      font-size: 13px;
-      line-height: 1.5;
-      margin-top: 16px;
-      display: none; /* Controlled via JS display toggles */
-      align-items: center;
-      gap: 8px;
-    }
-
-    .message.error {
-      background: rgba(244, 67, 54, 0.1);
-      border: 1px solid rgba(244, 67, 54, 0.2);
-      color: var(--error);
-    }
-
-    .message.success {
-      background: rgba(76, 175, 80, 0.1);
-      border: 1px solid rgba(76, 175, 80, 0.2);
-      color: var(--success);
-    }
-
-    /* Success Screen View */
-    .success-view {
-      display: none;
-      text-align: center;
-    }
-
-    .success-icon {
-      width: 64px;
-      height: 64px;
-      border: 2px solid var(--accent);
-      border-radius: 50%;
-      display: flex;
-      justify-content: center;
-      align-items: center;
-      margin: 0 auto 24px;
-      font-size: 32px;
-      color: var(--accent);
-      box-shadow: 0 8px 24px rgba(229, 62, 62, 0.15);
-      animation: scaleIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    }
-
-    @keyframes scaleIn {
-      from { transform: scale(0.6); opacity: 0; }
-      to { transform: scale(1); opacity: 1; }
-    }
-
-    /* Footer styling */
-    .footer {
-      text-align: center;
-      margin-top: 24px;
-      font-size: 12px;
-      color: var(--text-secondary);
-      line-height: 1.8;
-    }
-
-    .footer a {
-      color: var(--accent);
-      text-decoration: none;
-      font-weight: 600;
-      transition: color 0.2s ease;
-    }
-
-    .footer a:hover {
-      color: var(--accent-hover);
-      text-decoration: underline;
-    }
-
-    /* Error Boundary View */
-    .error-boundary {
-      display: none;
-      text-align: center;
-      padding: 24px;
-    }
-
-    .error-boundary h2 {
-      color: var(--error);
-      font-size: 20px;
-      margin-bottom: 12px;
-      text-transform: uppercase;
-    }
-
-    .error-boundary p {
-      font-size: 13px;
-      color: var(--text-secondary);
-      margin-bottom: 20px;
-    }
+    .error-boundary{display:none;text-align:center;padding:24px;}
+    .error-boundary h2{color:var(--error);font-size:20px;margin-bottom:12px;text-transform:uppercase;}
+    .error-boundary p{font-size:13px;color:var(--text-secondary);margin-bottom:20px;}
   </style>
 </head>
 <body>
 
-  <div class="bg-grid"></div>
-  <div class="bg-glow"></div>
+<div class="page">
+  <div class="ring-backdrop"></div>
+  <div class="glow-backdrop"></div>
 
   <div class="container" id="app-container">
-    <!-- Standard View Card -->
     <div class="card" id="form-card">
       <div id="form-content">
+        <a href="/" class="back-link">&larr; Back to home</a>
+
         <div class="header">
-          <!-- Text Logo Restored -->
-          <div class="logo-container">
-            <div class="accent-bar"></div>
-            <div class="brand-name">LEAP<span>ARENA</span></div>
+          <div class="brand">
+            <img src="/assets/leap-wordmark.png" alt="LEAP">
+            <span>ARENA</span>
           </div>
-          <div class="eyebrow">Calisthenics</div>
-          <h1 class="title">Join The Queue</h1>
+          <div class="eyebrow">CALISTHENICS</div>
+          <h1 class="heading title">Join The Queue</h1>
           <p class="subtitle">Enter your details to request an exclusive invite code to the Arena.</p>
         </div>
 
         <form id="invite-form" onsubmit="handleSubmit(event)">
-          <!-- Name -->
-          <div class="form-group">
-            <label class="label" for="user-name">Full Name</label>
-            <input type="text" id="user-name" class="input" placeholder="Alex Warrior" required maxlength="100">
+          <div class="field">
+            <label for="user-name">Full Name</label>
+            <input type="text" id="user-name" placeholder="Alex Warrior" required maxlength="100">
           </div>
 
-          <!-- Email -->
-          <div class="form-group">
-            <label class="label" for="user-email">Email Address</label>
-            <input type="email" id="user-email" class="input" placeholder="warrior@email.com" required maxlength="150">
+          <div class="field">
+            <label for="user-email">Email Address</label>
+            <input type="email" id="user-email" placeholder="warrior@email.com" required maxlength="150">
           </div>
 
-          <!-- Instagram -->
-          <div class="form-group">
-            <label class="label" for="user-insta">Instagram (Optional)</label>
-            <input type="text" id="user-insta" class="input" placeholder="@alex_warrior" maxlength="50">
+          <div class="field">
+            <label for="user-insta">Instagram (Optional)</label>
+            <input type="text" id="user-insta" placeholder="@alex_warrior" maxlength="50">
           </div>
 
-          <!-- Mobile Number (Optional) -->
-          <div class="form-group">
-            <label class="label" for="user-phone">Mobile Number (Optional)</label>
-            <input type="tel" id="user-phone" class="input" placeholder="+1 (234) 567-8900" maxlength="30">
+          <div class="field">
+            <label for="user-phone">Mobile Number (Optional)</label>
+            <input type="tel" id="user-phone" placeholder="+1 (234) 567-8900" maxlength="30">
           </div>
 
-          <!-- Experience -->
-          <div class="form-group">
-            <label class="label">Experience Level</label>
-            <div class="experience-selector">
-              <div class="exp-option active" data-value="beginner" onclick="selectExp(this)">Beginner</div>
-              <div class="exp-option" data-value="intermediate" onclick="selectExp(this)">Intermediate</div>
-              <div class="exp-option" data-value="advanced" onclick="selectExp(this)">Advanced</div>
+          <div class="field">
+            <label>Experience Level</label>
+            <div class="level-selector">
+              <div class="level-option active" data-value="beginner" onclick="selectExp(this)">Beginner</div>
+              <div class="level-option" data-value="intermediate" onclick="selectExp(this)">Intermediate</div>
+              <div class="level-option" data-value="advanced" onclick="selectExp(this)">Advanced</div>
             </div>
           </div>
 
-          <!-- Why Join -->
-          <div class="form-group">
-            <label class="label" for="user-motivation">Why do you want to enter the Arena?</label>
-            <textarea id="user-motivation" class="input textarea" placeholder="Tell us about your calisthenics goals..." required maxlength="500"></textarea>
+          <div class="field">
+            <label for="user-motivation">Why do you want to enter the Arena?</label>
+            <textarea id="user-motivation" placeholder="Tell us about your calisthenics goals..." required maxlength="500"></textarea>
           </div>
 
-          <!-- Submit Button -->
-          <button type="submit" id="submit-btn" class="btn" style="margin-bottom: 16px;">
+          <button type="submit" id="submit-btn" class="submit-btn">
             <span>Request Invite Code</span>
             <div class="spinner" id="btn-spinner"></div>
           </button>
         </form>
 
-        <!-- Instagram Banner moved inside the card, directly below the form submit button -->
-        <a href="https://www.instagram.com/leap.arena/?utm_source=ig_web_button_share_sheet" target="_blank" class="instagram-banner">
-          Follow us on Instagram <span style="color: #FFF; margin-left: 4px;">@leap.arena</span>
-        </a>
-
-        <!-- Initially hidden message banner -->
         <div class="message error" id="error-message"></div>
       </div>
 
-      <!-- Success View (Toggled after submission) -->
       <div class="success-view" id="success-content">
         <div class="success-icon">✓</div>
-        <h2 class="title">REQUEST SUBMITTED</h2>
-        <p class="subtitle" style="margin-bottom: 24px;">Your application has been received and added to our queue. We review requests based on active calisthenics criteria.</p>
-        <p class="subtitle" style="font-size: 13px; color: var(--accent);">If approved, your invitation code will be sent to your email address.</p>
+        <h2 class="heading title" style="font-size:28px;">REQUEST SUBMITTED</h2>
+        <p class="subtitle" style="margin-bottom:24px;">Your application has been received and added to our queue. We review requests based on active calisthenics criteria.</p>
+        <div class="message success" style="display:flex; margin-bottom:0;">
+          <span class="dot"></span>
+          <span>If approved, your invitation code will be sent to your email address.</span>
+        </div>
       </div>
     </div>
 
-    <!-- Error Boundary Display (Toggled on fallback error) -->
     <div class="card error-boundary" id="error-boundary-card">
-      <h2>Something went wrong</h2>
+      <h2 class="heading">Something went wrong</h2>
       <p>We encountered an error loading this form. Please reload the page or try again later.</p>
-      <button onclick="location.reload()" class="btn" style="max-width: 200px; margin: 0 auto;">Reload Page</button>
+      <button onclick="location.reload()" class="submit-btn" style="max-width:200px; margin:0 auto;"><span>Reload Page</span></button>
     </div>
 
     <div class="footer">
-      Already have an invite code? Download the app or return to <a href="/">Login</a>.
+      Already have an invite code? Download the app or return to <a href="/">Home</a>.
     </div>
   </div>
+</div>
 
-  <script>
-    // Global Error Boundary Handler
-    window.onerror = function(message, source, lineno, colno, error) {
-      console.error("Uncaught error:", message, error);
-      document.getElementById('form-content').style.display = 'none';
-      document.getElementById('success-content').style.display = 'none';
-      document.getElementById('error-boundary-card').style.display = 'block';
-      return true;
-    };
+<script>
+  // Global Error Boundary Handler
+  window.onerror = function(message, source, lineno, colno, error) {
+    console.error("Uncaught error:", message, error);
+    document.getElementById('form-content').style.display = 'none';
+    document.getElementById('success-content').style.display = 'none';
+    document.getElementById('error-boundary-card').style.display = 'block';
+    return true;
+  };
 
-    // Client Config matching .env.local
-    const supabaseUrl = 'https://vxscvluyskawegmwaxnh.supabase.co';
-    const supabaseAnonKey = 'sb_publishable_Wa4fK1CBgsnYhH5IN7P1Vw_cCKVguLa';
-    let supabaseClient = null;
+  // Client Config matching .env.local
+  const supabaseUrl = 'https://vxscvluyskawegmwaxnh.supabase.co';
+  const supabaseAnonKey = 'sb_publishable_Wa4fK1CBgsnYhH5IN7P1Vw_cCKVguLa';
+  let supabaseClient = null;
+
+  try {
+    supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
+  } catch (err) {
+    console.error("Failed to initialize Supabase client:", err);
+    throw err;
+  }
+
+  let selectedExperience = 'beginner';
+
+  // Check if user has already submitted a request (Spam prevention & state guarding)
+  document.addEventListener('DOMContentLoaded', () => {
+    try {
+      if (localStorage.getItem('has_requested_invite_leap') === 'true') {
+        showSuccessScreen();
+      }
+    } catch (err) {
+      console.warn("Storage check failed:", err);
+    }
+  });
+
+  function selectExp(element) {
+    document.querySelectorAll('.level-option').forEach(el => el.classList.remove('active'));
+    element.classList.add('active');
+    selectedExperience = element.getAttribute('data-value');
+  }
+
+  // Input sanitization to prevent script injections
+  function sanitize(string) {
+    const temp = document.createElement('div');
+    temp.textContent = string;
+    return temp.innerHTML.trim();
+  }
+
+  function showSuccessScreen() {
+    document.getElementById('form-content').style.display = 'none';
+    document.getElementById('success-content').style.display = 'block';
+  }
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+
+    const name = sanitize(document.getElementById('user-name').value);
+    const email = sanitize(document.getElementById('user-email').value);
+    const instagram = sanitize(document.getElementById('user-insta').value);
+    const phone = sanitize(document.getElementById('user-phone').value);
+    const whyJoin = sanitize(document.getElementById('user-motivation').value);
+
+    const submitBtn = document.getElementById('submit-btn');
+    const spinner = document.getElementById('btn-spinner');
+    const errMsg = document.getElementById('error-message');
+
+    errMsg.style.display = 'none';
+    submitBtn.disabled = true;
+    spinner.style.display = 'block';
 
     try {
-      supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
-    } catch (err) {
-      console.error("Failed to initialize Supabase client:", err);
-      throw err;
-    }
-
-    let selectedExperience = 'beginner';
-
-    // Check if user has already submitted a request (Spam prevention & state guarding)
-    document.addEventListener('DOMContentLoaded', () => {
-      try {
-        if (localStorage.getItem('has_requested_invite_leap') === 'true') {
-          showSuccessScreen();
-        }
-      } catch (err) {
-        console.warn("Storage check failed:", err);
-      }
-    });
-
-    function selectExp(element) {
-      document.querySelectorAll('.exp-option').forEach(el => el.classList.remove('active'));
-      element.classList.add('active');
-      selectedExperience = element.getAttribute('data-value');
-    }
-
-    // Input sanitization to prevent script injections
-    function sanitize(string) {
-      const temp = document.createElement('div');
-      temp.textContent = string;
-      return temp.innerHTML.trim();
-    }
-
-    function showSuccessScreen() {
-      document.getElementById('form-content').style.display = 'none';
-      document.getElementById('success-content').style.display = 'block';
-    }
-
-    async function handleSubmit(event) {
-      event.preventDefault();
-      
-      const name = sanitize(document.getElementById('user-name').value);
-      const email = sanitize(document.getElementById('user-email').value);
-      const instagram = sanitize(document.getElementById('user-insta').value);
-      const phone = sanitize(document.getElementById('user-phone').value);
-      const whyJoin = sanitize(document.getElementById('user-motivation').value);
-      
-      const submitBtn = document.getElementById('submit-btn');
-      const spinner = document.getElementById('btn-spinner');
-      const errMsg = document.getElementById('error-message');
-      
-      // Reset state
-      errMsg.style.display = 'none';
-      submitBtn.disabled = true;
-      spinner.style.display = 'block';
-
-      try {
-        // Double-check localStorage on submit as well
-        if (localStorage.getItem('has_requested_invite_leap') === 'true') {
-          showSuccessScreen();
-          return;
-        }
-
-        // Insert into Supabase table
-        const { error } = await supabaseClient
-          .from('invite_requests')
-          .insert([
-            { 
-              name, 
-              email, 
-              instagram: instagram || null, 
-              phone: phone || null,
-              experience: selectedExperience, 
-              why_join: whyJoin 
-            }
-          ]);
-
-        if (error) {
-          // Check for unique constraint violation (duplicate request)
-          if (error.code === '23505') {
-            throw new Error("You have already requested an invite code using this email address!");
-          }
-          throw error;
-        }
-
-        // Store flag locally to prevent multiple requests
-        localStorage.setItem('has_requested_invite_leap', 'true');
+      if (localStorage.getItem('has_requested_invite_leap') === 'true') {
         showSuccessScreen();
-
-      } catch (err) {
-        console.error("Submission failed:", err);
-        errMsg.textContent = err.message || "Failed to submit request. Please try again later.";
-        errMsg.style.display = 'flex';
-        submitBtn.disabled = false;
-        spinner.style.display = 'none';
+        return;
       }
+
+      const { error } = await supabaseClient
+        .from('invite_requests')
+        .insert([
+          {
+            name,
+            email,
+            instagram: instagram || null,
+            phone: phone || null,
+            experience: selectedExperience,
+            why_join: whyJoin
+          }
+        ]);
+
+      if (error) {
+        if (error.code === '23505') {
+          throw new Error("You have already requested an invite code using this email address!");
+        }
+        throw error;
+      }
+
+      localStorage.setItem('has_requested_invite_leap', 'true');
+      showSuccessScreen();
+
+    } catch (err) {
+      console.error("Submission failed:", err);
+      errMsg.textContent = err.message || "Failed to submit request. Please try again later.";
+      errMsg.style.display = 'flex';
+      submitBtn.disabled = false;
+      spinner.style.display = 'none';
     }
-  </script>
+  }
+</script>
 </body>
 </html>
