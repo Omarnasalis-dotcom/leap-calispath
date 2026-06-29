@@ -210,7 +210,14 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       },
       onError: (error: any) => {
         setLoading(false);
-        console.error('Error saving hold:', error);
+        // P1001-P1004 are submit_static_hold's own anti-cheat validation
+        // (negative time / invalid movement / ceiling exceeded / cooldown
+        // active) - expected outcomes, not bugs, so skip the console noise
+        // and just show the message. Mirrors TrialScreen's DISHONOR handling.
+        const isAntiCheatRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code);
+        if (!isAntiCheatRejection) {
+          console.error('Error saving hold:', error);
+        }
         const msg = error.message || 'Failed to save hold';
         if (Platform.OS === 'web') alert(msg);
         else Alert.alert('Error', msg);
