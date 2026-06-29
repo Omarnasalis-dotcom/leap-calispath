@@ -306,18 +306,14 @@ export class TournamentService {
           }
         }
 
-        // Mark non-survivors as eliminated
-        const nonSurvivors = (Array.isArray(participants) ? participants : [])
-          .filter(p => !p.is_eliminated && !survivors.includes(p.user_id))
-          .map(p => p.id);
-
-        if (nonSurvivors.length > 0) {
-          const { error: elimErr } = await supabase
-            .from('tournament_participants')
-            .update({ is_eliminated: true })
-            .in('id', nonSurvivors);
-          if (elimErr) throw elimErr;
-        }
+        // Mark non-survivors as eliminated. The RPC derives losers from
+        // tournament_matches.winner_id for this round itself rather than
+        // trusting a client-supplied survivor list.
+        const { error: elimErr } = await supabase.rpc('eliminate_tournament_match_losers', {
+          p_session_id: sessionId,
+          p_round: nextRound - 1,
+        });
+        if (elimErr) throw elimErr;
       }
 
       // Check for winner
@@ -478,77 +474,27 @@ export class TournamentService {
   }
 
   /**
-   * Handle end of tournament and award prizes
+   * Handle end of tournament and award prizes. Ranking, final_rank
+   * assignment, and payout are all computed server-side in
+   * conclude_knockout_tournament (idempotent, rank-consistent) rather than
+   * via direct client writes to other participants' rows.
    */
   static async handleTournamentEnd(sessionId: string, winnerId: string) {
     try {
-      // Mark session as completed
-      const { error: updErr } = await supabase
-        .from('tournament_sessions')
-        .update({ status: 'completed' })
-        .eq('id', sessionId);
-      if (updErr) throw updErr;
-
-      const { data: session } = await supabase
-        .from('tournament_sessions')
-        .select('*, config:tournament_configs(*)')
-        .eq('id', sessionId)
-        .single();
-
-      const { data: participants } = await supabase
-        .from('tournament_participants')
-        .select('*')
-        .eq('tournament_id', sessionId);
-
-      if (!participants) return;
-
-      // Sort: winner first, then by max round reached (keys in scores), then total points
-      const ranked = (Array.isArray(participants) ? participants : []).sort((a, b) => {
-        if (a.user_id === winnerId) return -1;
-        if (b.user_id === winnerId) return 1;
-
-        const maxRoundA = Math.max(0, ...Object.keys(a.scores || {}).map(Number));
-        const maxRoundB = Math.max(0, ...Object.keys(b.scores || {}).map(Number));
-
-        if (maxRoundA !== maxRoundB) return maxRoundB - maxRoundA;
-
-        const totalA = Object.values(a.scores || {}).reduce((sum: number, s: any) => sum + (s.final || 0), 0);
-        const totalB = Object.values(b.scores || {}).reduce((sum: number, s: any) => sum + (s.final || 0), 0);
-        return totalB - totalA;
+      const { error } = await supabase.rpc('conclude_knockout_tournament', {
+        p_session_id: sessionId,
+        p_winner_user_id: winnerId,
       });
-
-      const payout = session.config.payout_gp || 0;
-
-      for (let i = 0; i < ranked.length; i++) {
-        const p = ranked[i];
-        const rank = i + 1;
-
-        const { error: rankErr } = await supabase
-          .from('tournament_participants')
-          .update({ final_rank: rank })
-          .eq('id', p.id);
-        if (rankErr) throw rankErr;
-
-        // Award GP
-        let gpReward = 0;
-        if (rank === 1) gpReward = Math.floor(payout * 0.75);
-        else if (rank === 2) gpReward = Math.floor(payout * 0.25);
-
-        if (gpReward > 0) {
-          const { error: gpErr } = await supabase.rpc('payout_tournament', {
-            p_user_id: p.user_id,
-            p_gp_reward: gpReward
-          });
-          if (gpErr) throw gpErr;
-        }
-      }
+      if (error) throw error;
     } catch (error) {
       console.error('TournamentService.handleTournamentEnd failed:', error);
     }
   }
 
   /**
-   * Auto-eliminate participants who missed the deadline
+   * Auto-eliminate participants who missed the deadline. The RPC
+   * re-verifies the deadline and derives non-submitters server-side rather
+   * than trusting the client's read of round_deadline/current_round.
    */
   static async checkAndAutoEliminate(sessionId: string) {
     try {
@@ -561,26 +507,13 @@ export class TournamentService {
       if (!session || !session.round_deadline) return;
 
       if (new Date() > new Date(session.round_deadline)) {
-        const { data: offenders } = await supabase
-          .from('tournament_participants')
-          .select('id, scores')
-          .eq('tournament_id', sessionId)
-          .eq('is_eliminated', false);
+        const { data: eliminatedCount, error: elimErr } = await supabase.rpc('auto_eliminate_non_submitters', {
+          p_session_id: sessionId,
+        });
+        if (elimErr) throw elimErr;
 
-        if (offenders) {
-          const nonSubmitters = (Array.isArray(offenders) ? offenders : [])
-            .filter(p => !p.scores?.[session.current_round])
-            .map(p => p.id);
-
-          if (nonSubmitters.length > 0) {
-            const { error: elimErr } = await supabase
-              .from('tournament_participants')
-              .update({ is_eliminated: true })
-              .in('id', nonSubmitters);
-            if (elimErr) throw elimErr;
-
-            await this.advanceToRound(sessionId, session.current_round + 1);
-          }
+        if ((eliminatedCount || 0) > 0) {
+          await this.advanceToRound(sessionId, session.current_round + 1);
         }
       }
     } catch (error) {
@@ -616,58 +549,18 @@ export class TournamentService {
   }
 
   /**
-   * Close rank-based tournament and award prizes
+   * Close rank-based tournament and award prizes. Ranking (by total_score,
+   * tiebreak by earlier last_trial_at), final_rank assignment, and payout
+   * are all computed server-side in conclude_rank_based_tournament
+   * (idempotent via a row lock + status check) rather than via direct
+   * client writes to other participants' rows.
    */
   static async closeRankBasedTournament(sessionId: string) {
     try {
-      const { data: session } = await supabase
-        .from('tournament_sessions')
-        .select('*, config:tournament_configs(*)')
-        .eq('id', sessionId)
-        .single();
-
-      const { data: participants } = await supabase
-        .from('tournament_participants')
-        .select('*')
-        .eq('tournament_id', sessionId)
-        .order('total_score', { ascending: false })
-        .order('last_trial_at', { ascending: true }); // Tiebreak: earlier trial wins
-
-      if (!participants) return;
-
-      // ATOMIC CHECK: Ensure tournament isn't already completed
-      if (session.status === 'completed') return;
-
-      const { error: updErr } = await supabase
-        .from('tournament_sessions')
-        .update({ status: 'completed' })
-        .eq('id', sessionId);
-      if (updErr) throw updErr;
-
-      const payout = session.config.payout_gp || 0;
-
-      for (let i = 0; i < participants.length; i++) {
-        const p = participants[i];
-        const rank = i + 1;
-
-        const { error: rankErr } = await supabase
-          .from('tournament_participants')
-          .update({ final_rank: rank })
-          .eq('id', p.id);
-        if (rankErr) throw rankErr;
-
-        let gpReward = 0;
-        if (rank === 1) gpReward = Math.floor(payout * 0.75);
-        else if (rank === 2) gpReward = Math.floor(payout * 0.25);
-
-        if (gpReward > 0) {
-          const { error: gpErr } = await supabase.rpc('payout_tournament', {
-            p_user_id: p.user_id,
-            p_gp_reward: gpReward
-          });
-          if (gpErr) throw gpErr;
-        }
-      }
+      const { error } = await supabase.rpc('conclude_rank_based_tournament', {
+        p_session_id: sessionId,
+      });
+      if (error) throw error;
     } catch (error) {
       console.error('TournamentService.closeRankBasedTournament failed:', error);
     }
