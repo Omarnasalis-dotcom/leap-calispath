@@ -50,7 +50,7 @@ nav{
 .nav-links a.nav-link{font-size:15px;font-weight:600;color:var(--text-secondary);}
 .nav-cta{
   font-family:'Archivo Expanded',sans-serif;font-weight:700;font-size:14px;letter-spacing:.08em;text-transform:uppercase;
-  color:#0A0A0B;background:var(--accent);padding:12px 22px;border-radius:100px;
+  color:#0A0A0B;background:var(--accent);padding:12px 22px;border-radius:100px;white-space:nowrap;
 }
 
 /* ===== HERO ===== */
@@ -156,6 +156,8 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
   .hero-sub{font-size:18px;}
   .phone-wrap{order:-1;}
   #paths,#features,#download{padding:72px 24px;}
+  .hero-ctas{flex-direction:column;align-items:stretch;}
+  .btn{width:100%;}
   .paths-grid{grid-template-columns:1fr;}
   .features-grid{grid-template-columns:1fr;}
   #paths h2,#features h2{font-size:36px;}
@@ -168,6 +170,7 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
   .hero-title{font-size:40px;}
   .btn{height:54px;padding:0 22px;font-size:16px;}
   .live-badge .label{font-size:11px;}
+  .nav-cta{padding:10px 14px;font-size:11px;letter-spacing:.04em;}
 }
 </style>
 </head>
