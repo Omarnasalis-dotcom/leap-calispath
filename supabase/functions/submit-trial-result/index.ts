@@ -143,16 +143,12 @@ Deno.serve(async (req) => {
     }
   }
 
-  // All checks passed — save the result using admin client. The insert + profile
-  // update happen atomically inside the submit_trial_result DB function so a
-  // failure partway through can't leave the two out of sync.
-  const supabaseAdmin = createClient(
-    Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
-  );
-
-  const { data: result, error: rpcError } = await supabaseAdmin.rpc("submit_trial_result", {
-    p_user_id: user.id,
+  // All checks passed — save the result. submit_trial_result derives the user
+  // from auth.uid() internally (not a client-supplied id), so this must run
+  // as the caller's own authenticated session, not an admin/service-role
+  // client. The insert + profile update happen atomically inside the DB
+  // function so a failure partway through can't leave the two out of sync.
+  const { data: result, error: rpcError } = await supabase.rpc("submit_trial_result", {
     p_tier: tier,
     p_time_seconds: time_seconds,
     p_mode: mode,
