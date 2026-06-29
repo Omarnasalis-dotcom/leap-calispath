@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Leap Arena</title>
+<link rel="icon" type="image/png" href="/favicon.png">
+<link rel="icon" href="/favicon.ico" sizes="any">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -129,7 +131,7 @@ header{position:relative;padding:96px 48px 120px;max-width:1280px;margin:0 auto;
 .store-buttons{display:flex;gap:16px;justify-content:center;margin-top:46px;flex-wrap:wrap;}
 .store-btn{display:flex;align-items:center;gap:14px;padding:16px 28px;border-radius:16px;background:var(--text);color:#0A0A0B;transition:transform .18s ease;}
 .store-btn:hover{transform:translateY(-2px);}
-.store-btn .icon{font-size:30px;}
+.store-btn .icon{display:flex;align-items:center;justify-content:center;width:30px;}
 .store-btn .icon.android{font-family:'Archivo Expanded',sans-serif;font-weight:900;font-size:28px;color:var(--accent);}
 .store-btn .store-label{display:block;font-size:12px;letter-spacing:.04em;opacity:.7;}
 .store-btn .store-name{display:block;font-family:'Archivo Expanded',sans-serif;font-weight:800;font-size:21px;line-height:1.1;}
@@ -181,7 +183,7 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
     <a class="nav-link" href="#paths">Paths</a>
     <a class="nav-link" href="#features">Features</a>
     <a class="nav-link" href="#download">Download</a>
-    <a class="nav-cta" href="https://apps.apple.com/eg/app/leap-arena/id6779574061" target="_blank" rel="noopener">Get the App</a>
+    <a class="nav-cta" href="#download">Get the App</a>
   </div>
 </nav>
 
@@ -267,7 +269,9 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
     <p>Download LEAP Arena free and turn your next workout into the first move of a much bigger game.</p>
     <div class="store-buttons">
       <a class="store-btn apple" href="https://apps.apple.com/eg/app/leap-arena/id6779574061" target="_blank" rel="noopener">
-        <span class="icon"></span>
+        <span class="icon">
+          <svg width="26" height="30" viewBox="0 0 384 512" fill="#0A0A0B" aria-hidden="true"><path d="M318.7 268.7c-.2-36.7 16.4-64.4 50-84.8-18.8-26.9-47.2-41.7-84.7-44.6-35.5-2.8-74.3 20.7-88.5 20.7-15 0-49.4-19.7-76.4-19.2C56.9 141.5 0 184.7 0 274.6c0 27.7 5.1 56.4 15.3 86.1 13.6 39.7 62.6 137 113.7 135.4 27-.6 46-19.2 81.1-19.2 34.1 0 51.7 19.2 81.1 19.2 51.5-.7 95.9-89.3 108.9-129.1-69.4-32.7-81.4-95.9-81.4-98.3zM257.9 64.8c25.5-30.4 23.2-58.1 22.4-68.1-22.5 1.3-48.6 15.4-63.4 32.9-16.3 18.7-25.8 41.8-23.8 67.7 24-1.8 45.8-13.5 64.8-32.5z"/></svg>
+        </span>
         <span><span class="store-label">Download on the</span><span class="store-name">App Store</span></span>
       </a>
       <a class="store-btn android" href="https://drive.google.com/file/d/1qrGcpBRBetEBze6ZgKRKp_njoGn3DpQW/view?usp=sharing" target="_blank" rel="noopener">
