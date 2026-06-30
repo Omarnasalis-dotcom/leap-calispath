@@ -241,42 +241,23 @@ export const OneMMService = {
   },
 
   /**
-   * Fetches leaderboard for a specific category (Sum of reps in that category)
+   * Fetches leaderboard for a specific category (Sum of points in that category)
    */
   async getCategoryLeaderboard(categoryId: string): Promise<OneMMRanking[]> {
     try {
-      const { data, error } = await supabase
-        .from('one_min_max_logs')
-        .select(`
-          user_id,
-          points,
-          profiles:user_id (
-            display_name,
-            gender
-          )
-        `)
-        .eq('category_id', categoryId);
+      const { data, error } = await supabase.rpc('get_onemm_category_leaderboard', {
+        p_category_id: categoryId
+      });
 
       if (error) throw error;
 
-      // Aggregate points per user
-      const userMap = new Map();
-      (Array.isArray(data) ? data : []).forEach((d: any) => {
-        const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
-        const current = userMap.get(d.user_id) || {
-          user_id: d.user_id,
-          display_name: profile?.display_name || 'Warrior',
-          gender: profile?.gender,
-          value: 0
-        };
-        current.value += Number(d.points || 0);
-        userMap.set(d.user_id, current);
-      });
-
-      return Array.from(userMap.values())
-        .sort((a, b) => b.value - a.value)
-        .slice(0, 50)
-        .map((d, i) => ({ ...d, rank: i + 1 }));
+      return (Array.isArray(data) ? data : []).map((d: any) => ({
+        user_id: d.u_id,
+        display_name: d.d_name || 'Warrior',
+        gender: d.gender,
+        value: Number(d.t_score || 0),
+        rank: Number(d.rnk || 0),
+      }));
     } catch (err) {
       console.error('Exception fetching 1MM category leaderboard:', err);
       return [];
