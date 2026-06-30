@@ -31,7 +31,7 @@ export function calculatePowerPoints(movementId: string, kg: number): number {
 }
 
 export function calculateTotalPowerScore(pbs: Record<string, number>): number {
-  return (pbs.pull_up || 0) + (pbs.dip || 0) + (pbs.squat || 0) + ((pbs.muscle_up || 0) * 2);
+  return POWER_MOVEMENTS.reduce((total, m) => total + (pbs[m.id] || 0) * m.multiplier, 0);
 }
 
 export function getPowerLevel(totalPoints: number): PowerLevel {

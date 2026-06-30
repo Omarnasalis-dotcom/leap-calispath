@@ -18,6 +18,11 @@ const TIER_HARD_FLOORS: Record<number, number> = {
 // Minimum seconds between any two trial submissions from the same user
 const SUBMISSION_COOLDOWN_SECONDS = 30;
 
+// Maximum plausible trial time — no real trial should take over an hour.
+// The submit_trial_result RPC also enforces this against the tier_hard_floors
+// DB table, so this is a fast-fail cache to avoid unnecessary DB work.
+const MAX_TIME_SECONDS = 3600;
+
 // Known Postgres SQLSTATE codes that can surface from the submit_trial_result RPC,
 // mapped to a clearer client-facing message and the appropriate HTTP status.
 const PG_ERROR_RESPONSES: Record<string, { status: number; message: string }> = {
@@ -85,8 +90,8 @@ Deno.serve(async (req) => {
     });
   }
 
-  // Validate time is a positive number
-  if (typeof time_seconds !== "number" || time_seconds <= 0) {
+  // Validate time is a positive number within the plausible range
+  if (typeof time_seconds !== "number" || time_seconds <= 0 || time_seconds > MAX_TIME_SECONDS) {
     return new Response(JSON.stringify({ error: "Invalid time" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
