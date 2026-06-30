@@ -98,9 +98,14 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
       await refreshProfile();
       
       onComplete(finalTier);
-    } catch (error) {
-      console.error('Error saving power assessment:', error);
-      Alert.alert('Error', 'Failed to save your power assessment. Please try again.');
+    } catch (error: any) {
+      // P1001 = bounds exceeded, P1002 = cooldown active — expected outcomes,
+      // not bugs. Mirrors the pattern on StaticWorldScreen and OneMinMaxScreen.
+      const isExpectedRejection = ['P1001', 'P1002'].includes(error?.code);
+      if (!isExpectedRejection) {
+        console.error('Error saving power assessment:', error);
+      }
+      Alert.alert('Error', error?.message || 'Failed to save your power assessment. Please try again.');
     } finally {
       setLoading(false);
     }

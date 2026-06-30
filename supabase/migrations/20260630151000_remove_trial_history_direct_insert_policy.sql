@@ -1,0 +1,13 @@
+-- "Warriors insert own trials" allowed any authenticated user to call
+-- supabase.from('trial_history').insert({tier_attempted:9, time_seconds:1,
+-- completed:true}) directly, bypassing both the Edge Function (hard-floor +
+-- cooldown checks) and the RPC's tier-gate (p_tier > strength_tier → FORBIDDEN).
+-- Fake records with arbitrary tier/time would appear on get_tier_leaderboard —
+-- real leaderboard poisoning regardless of the user's actual strength tier.
+--
+-- The INSERT policy is unnecessary: submit_trial_result is SECURITY DEFINER
+-- and bypasses RLS entirely, so the only legitimate write path works fine
+-- without this policy. Same pattern already used for static_holds and
+-- one_min_max_logs (SELECT-only policy, RPC-only writes). Dropping it closes
+-- the direct-insert exploit with no change to any app code.
+DROP POLICY IF EXISTS "Warriors insert own trials" ON "public"."trial_history";
