@@ -7,6 +7,11 @@ export interface OneMMMovement {
   minTier: number;
 }
 
+// Single source of truth for WorldSelectorGrid, OnboardingTutorialScreen,
+// and AssessmentEngine — mirrors isStaticWorldUnlocked/isPowerWorldUnlocked
+// in staticLogic.ts and powerLogic.ts.
+export const ONEMM_UNLOCK_TIER = 0;
+
 export const ONEMM_CATEGORIES = {
   entry: { id: 'entry', name: 'ENTRY', multiplier: 0.25, tiers: [0, 4] },
   main: { id: 'main', name: 'MAIN', multiplier: 0.5, tiers: [5, 8] },

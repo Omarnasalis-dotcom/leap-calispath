@@ -6,6 +6,7 @@ import {
   StyleSheet,
   Alert,
 } from 'react-native';
+import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
 
 interface World {
   id: string;
@@ -48,7 +49,7 @@ export function WorldSelectorGrid({
     { id: 'strength',   name: 'STRENGTH',   icon: '⚔️', unlockTier: 0, action: onSwitchStrength },
     { id: 'power',      name: 'POWER',      icon: '⚡', unlockTier: 6, action: onOpenPowerAssessment },
     { id: 'static',     name: 'STATIC',     icon: '🧊', unlockTier: 1, action: onOpenStaticWorld },
-    { id: '1mm',        name: '1MM',        icon: '⏱️', unlockTier: 0, action: onOpenOneMinMax },
+    { id: '1mm',        name: '1MM',        icon: '⏱️', unlockTier: ONEMM_UNLOCK_TIER, action: onOpenOneMinMax },
     { id: 'weekly',     name: 'WEEKLY',     icon: '🏆', unlockTier: 0, action: onOpenWeeklyChallenge },
   ];
 
