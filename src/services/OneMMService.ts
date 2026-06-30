@@ -133,7 +133,13 @@ export const OneMMService = {
       const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
       return { isNewPB };
     } catch (err) {
-      console.error('Exception saving 1MM log:', JSON.stringify(err), (err as any)?.message, (err as any)?.code);
+      // P1001-P1004 are submit_onemm_log's own validation codes (negative
+      // reps / invalid movement / ceiling exceeded / cooldown active) —
+      // expected outcomes, not bugs. Mirrors StaticWorldScreen's handling.
+      const isExpectedRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes((err as any)?.code);
+      if (!isExpectedRejection) {
+        console.error('Exception saving 1MM log:', err);
+      }
       throw err;
     }
   },

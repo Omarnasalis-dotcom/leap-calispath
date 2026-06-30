@@ -172,6 +172,10 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         }
       },
       onError: (error: any) => {
+        const isExpectedRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code);
+        if (!isExpectedRejection) {
+          console.error('Error saving 1MM result:', error);
+        }
         Alert.alert('Error', error.message || 'Failed to save result.');
       }
     });
