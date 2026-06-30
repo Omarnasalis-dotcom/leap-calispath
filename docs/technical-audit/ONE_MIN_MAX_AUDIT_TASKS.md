@@ -6,7 +6,7 @@ Findings from a full audit of the 1MM World feature (`OneMinMaxScreen`, `OneMMSe
 
 ## 🔴 Critical
 
-- [ ] **No anti-cheat ceiling proportional to movement difficulty, and no submission cooldown, on `submit_onemm_log`** — `supabase/migrations/20260614102615_remote_schema.sql:1623-1697`. The only validation is a flat `0–150` rep bound applied identically to every movement:
+- [x] **No anti-cheat ceiling proportional to movement difficulty, and no submission cooldown, on `submit_onemm_log`** — `supabase/migrations/20260614102615_remote_schema.sql:1623-1697`. The only validation is a flat `0–150` rep bound applied identically to every movement:
   ```sql
   IF p_reps < 0 OR p_reps > 150 THEN
       RAISE EXCEPTION 'Rep count exceeds realistic human capability.';
@@ -16,7 +16,7 @@ Findings from a full audit of the 1MM World feature (`OneMinMaxScreen`, `OneMMSe
 
 ## 🟠 High
 
-- [ ] **Movement→category→multiplier and movement→pattern mappings are hand-duplicated across three SQL functions, no reference table** — identical to the Static World duplication problem fixed via the new `static_movements` table. Here, the same 10-movement mapping is hardcoded three separate times:
+- [x] **Movement→category→multiplier and movement→pattern mappings are hand-duplicated across three SQL functions, no reference table** — identical to the Static World duplication problem fixed via the new `static_movements` table. Here, the same 10-movement mapping is hardcoded three separate times:
   - `submit_onemm_log` (`...remote_schema.sql:1648-1660`) — movement → category_id + multiplier:
     ```sql
     CASE p_movement_id
