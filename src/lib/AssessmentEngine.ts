@@ -20,12 +20,12 @@ export class AssessmentEngine {
    * Determine the user's weakest world based on point accumulation
    */
   static getWeakestWorld(oneMmPoints: number, powerPoints: number, staticPoints: number, strengthTier: number): World {
-    // If they haven't unlocked Power (tier 6) or Static (tier 4), Endurance is the only world
-    if (strengthTier < 4) return 'ENDURANCE';
+    // If they haven't unlocked Power (tier 6) or Static (tier 1), Endurance is the only world
+    if (strengthTier < 1) return 'ENDURANCE';
 
     // Normalize scores to a basic 0-100 scale for comparison based on mid-tier expectations
-    const enduranceNorm = Math.min((oneMmPoints / 200) * 100, 100); 
-    const staticNorm = strengthTier >= 4 ? Math.min((staticPoints / 50) * 100, 100) : 100;
+    const enduranceNorm = Math.min((oneMmPoints / 200) * 100, 100);
+    const staticNorm = strengthTier >= 1 ? Math.min((staticPoints / 50) * 100, 100) : 100;
     const powerNorm = strengthTier >= 6 ? Math.min((powerPoints / 140) * 100, 100) : 100;
 
     if (enduranceNorm <= staticNorm && enduranceNorm <= powerNorm) return 'ENDURANCE';
@@ -81,7 +81,7 @@ export class AssessmentEngine {
 
     const validStatic = staticIds
       .map(id => STATIC_MOVEMENTS.find(m => m.id === id))
-      .filter((m): m is StaticMovement => m !== undefined && strengthTier >= 4);
+      .filter((m): m is StaticMovement => m !== undefined && strengthTier >= 1);
 
     return { validOneMm, validPower, validStatic };
   }
