@@ -175,28 +175,14 @@ export const OneMMService = {
           }));
         }
 
-        let entries = (Array.isArray(data) ? data : []).map((d: any) => ({
-          user_id: d.u_id || d.user_id,
-          display_name: d.d_name || d.display_name || 'Warrior',
-          value: Number(d.t_score || d.total_points || 0),
-          rank: Number(d.rnk || d.rank || 0),
+        return (Array.isArray(data) ? data : []).map((d: any) => ({
+          user_id: d.u_id,
+          display_name: d.d_name || 'Warrior',
+          value: Number(d.t_score || 0),
+          rank: Number(d.rnk || 0),
           country: d.country,
-          gender: d.gender
+          gender: d.gender,
         }));
-
-        // Fetch gender mapping manually since RPC lacks it
-        const userIds = entries.map((e: any) => e.user_id).filter(Boolean);
-        if (userIds.length > 0) {
-          const { data: profiles } = await supabase.from('profiles').select('id, gender').in('id', userIds);
-          if (profiles) {
-            const genderMap = new Map(profiles.map(p => [p.id, p.gender]));
-            entries = entries.map((e: any) => ({
-              ...e,
-              gender: e.gender || genderMap.get(e.user_id)
-            }));
-          }
-        }
-        return entries;
       }
 
       // Movement-specific leaderboard (Max reps)
