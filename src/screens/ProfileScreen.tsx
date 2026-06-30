@@ -253,29 +253,27 @@ export function ProfileScreen({
       try {
         let syncedAny = false;
 
-        // 1. Sync Static Points if needed
-        if (profile.statics_tier === 0 || profile.statics_tier === null) {
-          if (__DEV__) console.log('[Profile] Syncing Static points...');
-          const { error } = await supabase.rpc('sync_static_points', { p_user_id: profile.id });
-          if (error) console.error('[Profile] Failed to sync Static points:', error);
-          else syncedAny = true;
-        }
+        // Always re-sync all world points on profile mount. Each RPC is a
+        // fast aggregate + single UPDATE so the overhead per open is small,
+        // and it catches stale-but-nonzero values (not just first-time zeros)
+        // that the old conditional check could never detect.
+        // 1. Static points
+        if (__DEV__) console.log('[Profile] Syncing Static points...');
+        const { error: staticErr } = await supabase.rpc('sync_static_points', { p_user_id: profile.id });
+        if (staticErr) console.error('[Profile] Failed to sync Static points:', staticErr);
+        else syncedAny = true;
 
-        // 2. Sync Power Points if needed
-        if (profile.power_points === 0 || profile.power_points === null) {
-          if (__DEV__) console.log('[Profile] Syncing Power points...');
-          const { error } = await supabase.rpc('sync_power_points', { p_user_id: profile.id });
-          if (error) console.error('[Profile] Failed to sync Power points:', error);
-          else syncedAny = true;
-        }
+        // 2. Power points
+        if (__DEV__) console.log('[Profile] Syncing Power points...');
+        const { error: powerErr } = await supabase.rpc('sync_power_points', { p_user_id: profile.id });
+        if (powerErr) console.error('[Profile] Failed to sync Power points:', powerErr);
+        else syncedAny = true;
 
-        // 3. Sync Endurance (1MM) Points if needed
-        if (profile.one_mm_points === 0 || profile.one_mm_points === null) {
-          if (__DEV__) console.log('[Profile] Syncing Endurance points...');
-          const { error } = await supabase.rpc('sync_onemm_points', { p_user_id: profile.id });
-          if (error) console.error('[Profile] Failed to sync Endurance points:', error);
-          else syncedAny = true;
-        }
+        // 3. Endurance (1MM) points
+        if (__DEV__) console.log('[Profile] Syncing Endurance points...');
+        const { error: onemmErr } = await supabase.rpc('sync_onemm_points', { p_user_id: profile.id });
+        if (onemmErr) console.error('[Profile] Failed to sync Endurance points:', onemmErr);
+        else syncedAny = true;
 
         // Refresh profile if any sync happened
         if (syncedAny && refreshProfile) {
