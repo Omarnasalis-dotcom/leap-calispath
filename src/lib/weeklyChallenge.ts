@@ -71,20 +71,18 @@ export function getUserGroup(strengthTier: number): 1 | 2 | 3 {
 
 export function getCurrentWeekStart(): string {
   const now = new Date();
-  const day = now.getDay(); // 0 (Sun) to 6 (Sat)
+  // Use UTC to match Supabase's UTC-stored week_start dates and ChallengeService.
+  const day = now.getUTCDay(); // 0 (Sun) to 6 (Sat)
   const daysBack = (day + 1) % 7;
-  
-  const saturday = new Date(now);
-  saturday.setDate(now.getDate() - daysBack);
-  
-  // Use local date components to avoid timezone shifts
-  const year = saturday.getFullYear();
-  const month = String(saturday.getMonth() + 1).padStart(2, '0');
-  const date = String(saturday.getDate()).padStart(2, '0');
-  
-  const result = `${year}-${month}-${date}`;
-  if (__DEV__) console.log('getCurrentWeekStart (Local Saturday):', { now, day, daysBack, saturday, result });
-  return result;
+  const saturday = new Date(Date.UTC(
+    now.getUTCFullYear(),
+    now.getUTCMonth(),
+    now.getUTCDate() - daysBack
+  ));
+  const year = saturday.getUTCFullYear();
+  const month = String(saturday.getUTCMonth() + 1).padStart(2, '0');
+  const date = String(saturday.getUTCDate()).padStart(2, '0');
+  return `${year}-${month}-${date}`;
 }
 
 export async function getActiveChallenge(groupId: 1 | 2 | 3): Promise<WeeklyChallenge | null> {
