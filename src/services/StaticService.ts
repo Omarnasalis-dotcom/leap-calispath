@@ -174,18 +174,6 @@ export class StaticService {
       is_current_user: e.u_id === currentUserId
     }));
 
-    // Fetch gender mapping manually since RPC lacks it
-    const userIds = entries.map((e: any) => e.user_id).filter(Boolean);
-    if (userIds.length > 0) {
-      const { data: profiles } = await supabase.from('profiles').select('id, gender').in('id', userIds);
-      if (profiles) {
-        const genderMap = new Map(profiles.map(p => [p.id, p.gender]));
-        entries = entries.map((e: any) => ({
-          ...e,
-          gender: e.gender || genderMap.get(e.user_id)
-        }));
-      }
-    }
     return entries;
   }
 }
