@@ -38,7 +38,7 @@ Findings from a full read-only audit of the Weekly Challenge feature (`WeeklyCha
 
 ## 🟢 Low
 
-- [ ] **`MOVEMENT_POINTS` has duplicate keys with different casing/pluralisation** — `src/lib/weeklyChallenge.ts:36-57`: `'Squat': 4` and `'Squats': 4` both exist (different keys, same value), likewise `'Lunge': 6` and `'Lunges': 6`. These are lookup keys matched against movement names from `weekly_challenges.movements` (JSONB). If a challenge creator uses "Squat" and a different admin uses "Squats", the scoring lookup works but the duplication is fragile — a point-value change needs to update both keys.
+- [x] **`MOVEMENT_POINTS` has duplicate keys with different casing/pluralisation** — `src/lib/weeklyChallenge.ts:36-57`: `'Squat': 4` and `'Squats': 4` both exist (different keys, same value), likewise `'Lunge': 6` and `'Lunges': 6`. These are lookup keys matched against movement names from `weekly_challenges.movements` (JSONB). If a challenge creator uses "Squat" and a different admin uses "Squats", the scoring lookup works but the duplication is fragile — a point-value change needs to update both keys.
 
 - [ ] **`WeeklyChallengeScreen` is 1191 lines** — the screen handles challenge display, score submission, admin panel (create/delete challenges), leaderboard, week navigation, and timer all in one file. This is not a functional bug but makes it the largest screen in the codebase by a significant margin (~2× others). Worth splitting into sub-components when the feature stabilises.
 

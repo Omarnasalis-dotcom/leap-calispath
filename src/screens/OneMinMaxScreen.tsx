@@ -54,11 +54,6 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
     return list.map((e, i) => ({ ...e, rank: i + 1 }));
   }, [modalLeaderboardData, genderFilter]);
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
-  // Timer states isolated in OneMinMaxTimerModal
-
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const preStartTimeRef = useRef<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -102,6 +97,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       setModalLeaderboardData(data);
       setShowMovementLeaderboard(true);
     } catch (error) {
+      if (!isMounted.current) return;
       console.error('Movement LB error:', error);
     }
   };
@@ -595,7 +591,6 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
         <OneMinMaxTimerModal
           visible={showLogModal}
           onClose={() => setShowLogModal(false)}
-          movementId={selectedMovement}
           movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
           user={user}
           theme={theme}
@@ -725,7 +720,6 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 interface OneMinMaxTimerModalProps {
   visible: boolean;
   onClose: () => void;
-  movementId: string | null;
   movementName: string;
   user: any;
   theme: any;
@@ -735,7 +729,6 @@ interface OneMinMaxTimerModalProps {
 const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   visible,
   onClose,
-  movementId,
   movementName,
   user,
   theme,

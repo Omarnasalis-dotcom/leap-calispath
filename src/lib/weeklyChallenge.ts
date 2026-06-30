@@ -29,7 +29,6 @@ export interface WeeklyEntry {
 export const MOVEMENT_POINTS: Record<string, number> = {
   'Knee Push-ups': 1,
   'Bench Dips': 1,
-  'Squat': 4,
   'Squats': 4,
   'Squat Jumps': 4,
   'Hanging Knee Raises': 4,
@@ -43,7 +42,6 @@ export const MOVEMENT_POINTS: Record<string, number> = {
   'Toes to Bar': 5,
   'Deadlift': 5,
   'Pike Push-ups': 5,
-  'Lunge': 6,
   'Lunges': 6,
   'Dips': 7,
   'Pull-ups': 10,

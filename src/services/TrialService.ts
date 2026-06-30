@@ -28,7 +28,7 @@ export class TrialService {
   static isTimeValid(tier: number, timeSeconds: number): boolean {
     const minTime = TIER_HARD_FLOORS[tier];
     if (minTime === undefined) return false;
-    return timeSeconds >= minTime;
+    return timeSeconds >= minTime && timeSeconds <= 3600;
   }
 
   /**

@@ -65,8 +65,6 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
   const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>('handstand');
   
-  // Timer states isolated in StaticWorkoutLogModal
-  const [manualInput, setManualInput] = useState('');
   const [showLogModal, setShowLogModal] = useState(false);
   const [userHolds, setUserHolds] = useState<Record<string, number>>({});
   const [showCelebration, setShowCelebration] = useState(false);

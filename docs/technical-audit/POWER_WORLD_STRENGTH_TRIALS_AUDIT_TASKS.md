@@ -57,7 +57,7 @@ Core files: `src/lib/trials.ts` (RITES_OF_PASSAGE), `src/services/TrialService.t
 
 ### 🟢 Low
 
-- [ ] **`TrialService.isTimeValid()` only checks the hard floor, not a maximum** — `src/services/TrialService.ts:28-31`. Client-side pre-check has no upper bound, same gap as the server. Harmless in practice but inconsistent.
+- [x] **`TrialService.isTimeValid()` only checks the hard floor, not a maximum** — `src/services/TrialService.ts:28-31`. Client-side pre-check has no upper bound, same gap as the server. Harmless in practice but inconsistent.
 
 - [ ] **`RITES_OF_PASSAGE` (trial movements/reps) is client-side only** — `src/lib/trials.ts`. The DB has no record of what each trial actually consists of. Neither the Edge Function nor the RPC validates that the user performed the correct movements — only the time floor is checked server-side. This is a known, accepted architectural choice (honor-system), but worth documenting explicitly since it means any time above the floor is accepted regardless of whether the user actually completed the workout.
 
