@@ -101,7 +101,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           .select('*, profiles!user_id (display_name)')
           .eq('challenge_id', activeChallenge.id)
           .order('score', { ascending: activeChallenge.scoring_type === 'time' })
-          .order('submitted_at', { ascending: true });
+          .order('submitted_at', { ascending: true })
+          .limit(100);
 
         if (error) throw error;
 
