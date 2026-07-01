@@ -21,6 +21,10 @@
       "destination": "/request.html"
     },
     {
+      "source": "/account-deletion",
+      "destination": "/account-deletion.html"
+    },
+    {
       "source": "/reset-password",
       "destination": "/"
     },

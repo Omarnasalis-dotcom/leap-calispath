@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Account Deletion Policy — Leap Arena</title>
+  <link rel="icon" type="image/png" href="/favicon.png">
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: #000;
+      color: #e8e6df;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Helvetica Neue', sans-serif;
+      font-size: 15px;
+      line-height: 1.75;
+      -webkit-font-smoothing: antialiased;
+    }
+    .container {
+      max-width: 780px;
+      margin: 0 auto;
+      padding: 60px 24px 100px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 56px;
+      padding-bottom: 40px;
+      border-bottom: 1px solid rgba(229,9,20,0.2);
+    }
+    .logo {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+      color: #E50914;
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: 32px;
+      font-weight: 800;
+      color: #fff;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+    .meta {
+      font-size: 13px;
+      color: #666;
+      letter-spacing: 0.5px;
+    }
+    .meta span { margin: 0 8px; color: #333; }
+    h2 {
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 2.5px;
+      text-transform: uppercase;
+      color: #E50914;
+      margin: 48px 0 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    h2::before {
+      content: '';
+      display: block;
+      width: 20px;
+      height: 1px;
+      background: #E50914;
+      flex-shrink: 0;
+    }
+    p {
+      color: rgba(232,230,223,0.75);
+      margin-bottom: 12px;
+    }
+    ol, ul {
+      padding-left: 0;
+      margin: 8px 0 16px;
+      list-style: none;
+      counter-reset: step;
+    }
+    ol li {
+      counter-increment: step;
+      color: rgba(232,230,223,0.85);
+      padding: 10px 0 10px 44px;
+      position: relative;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+    }
+    ol li:last-child { border-bottom: none; }
+    ol li::before {
+      content: counter(step);
+      position: absolute;
+      left: 0;
+      top: 8px;
+      width: 26px;
+      height: 26px;
+      border-radius: 50%;
+      background: rgba(229,9,20,0.12);
+      border: 1px solid rgba(229,9,20,0.4);
+      color: #E50914;
+      font-weight: 700;
+      font-size: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    ul li {
+      color: rgba(232,230,223,0.75);
+      padding: 5px 0 5px 20px;
+      position: relative;
+    }
+    ul li::before {
+      content: '•';
+      position: absolute;
+      left: 0;
+      color: #E50914;
+      font-weight: 700;
+    }
+    .divider {
+      border: none;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      margin: 40px 0;
+    }
+    .highlight {
+      background: rgba(229,9,20,0.06);
+      border-left: 3px solid #E50914;
+      padding: 16px 20px;
+      border-radius: 0 8px 8px 0;
+      margin: 16px 0;
+    }
+    .highlight p { margin: 0; color: rgba(232,230,223,0.85); }
+    .contact-block {
+      background: #0d0d0d;
+      border: 1px solid rgba(229,9,20,0.2);
+      border-radius: 12px;
+      padding: 28px;
+      margin-top: 16px;
+    }
+    .contact-row {
+      display: flex;
+      gap: 12px;
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      font-size: 14px;
+    }
+    .contact-row:last-child { border-bottom: none; }
+    .contact-label {
+      color: #E50914;
+      font-weight: 700;
+      min-width: 100px;
+      font-size: 12px;
+      letter-spacing: 1px;
+      text-transform: uppercase;
+      padding-top: 1px;
+    }
+    .contact-value { color: rgba(232,230,223,0.8); }
+    .footer {
+      text-align: center;
+      margin-top: 64px;
+      padding-top: 32px;
+      border-top: 1px solid rgba(255,255,255,0.06);
+      font-size: 12px;
+      color: #444;
+      letter-spacing: 0.5px;
+    }
+    a { color: #E50914; text-decoration: none; }
+    a:hover { text-decoration: underline; }
+
+    @media (max-width: 480px) {
+      .container { padding: 40px 18px 80px; }
+      h1 { font-size: 26px; }
+      .meta span { display: block; margin: 4px 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+
+    <div class="header">
+      <div class="logo">Leap Arena</div>
+      <h1>Account Deletion Policy</h1>
+      <div class="meta">
+        Developer: Omar Nasser
+        <span>·</span>
+        Contact: Omarnasalis@outlook.com
+      </div>
+    </div>
+
+    <h2>How to Delete Your Account</h2>
+    <ol>
+      <li>Open the Leap Arena app</li>
+      <li>Go to your <strong>Profile</strong></li>
+      <li>Tap <strong>"Delete Account"</strong></li>
+      <li>Confirm deletion when prompted</li>
+    </ol>
+
+    <hr class="divider">
+
+    <h2>What Gets Deleted</h2>
+    <div class="highlight">
+      <p>All of your personal data is removed, including your name, email address, fitness scores, and leaderboard data.</p>
+    </div>
+    <ul>
+      <li>Name and account details</li>
+      <li>Email address</li>
+      <li>Fitness scores and trial history</li>
+      <li>Leaderboard data and rankings</li>
+    </ul>
+
+    <hr class="divider">
+
+    <h2>Retention Period</h2>
+    <p>Your data is <strong>immediately and permanently deleted</strong> upon confirmation. Once your account deletion is confirmed, this action cannot be undone and your data cannot be recovered.</p>
+
+    <hr class="divider">
+
+    <h2>Need Help?</h2>
+    <p>If you run into any issues deleting your account, or have questions about this policy, reach out and we'll help.</p>
+
+    <div class="contact-block">
+      <div class="contact-row">
+        <div class="contact-label">App</div>
+        <div class="contact-value">Leap Arena</div>
+      </div>
+      <div class="contact-row">
+        <div class="contact-label">Developer</div>
+        <div class="contact-value">Omar Nasser</div>
+      </div>
+      <div class="contact-row">
+        <div class="contact-label">Email</div>
+        <div class="contact-value">Omarnasalis@outlook.com</div>
+      </div>
+    </div>
+
+    <div class="footer">
+      © 2026 Leap Arena · Omar Nasser · All rights reserved.
+    </div>
+
+  </div>
+</body>
+</html>
