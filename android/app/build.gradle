@@ -110,9 +110,9 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            // Release signing is handled by EAS Build (eas build --profile production).
+            // Do NOT add a local signingConfig here — running gradlew assembleRelease
+            // locally produces an unsigned APK, which is intentional (fail loudly).
             def enableShrinkResources = findProperty('android.enableShrinkResourcesInReleaseBuilds') ?: 'false'
             shrinkResources enableShrinkResources.toBoolean()
             minifyEnabled enableMinifyInReleaseBuilds
