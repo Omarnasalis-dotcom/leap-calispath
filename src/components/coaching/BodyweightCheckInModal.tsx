@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 
 interface BodyweightCheckInModalProps {
@@ -8,6 +8,9 @@ interface BodyweightCheckInModalProps {
   onSubmit: (weightKg: number) => void;
   onSkip: () => void;
   loading?: boolean;
+  // Pre-fills the input when reopened to edit an already-logged weekly entry
+  // rather than a fresh check-in.
+  currentValue?: number | null;
 }
 
 export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
@@ -17,8 +20,16 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
   onSubmit,
   onSkip,
   loading,
+  currentValue,
 }) => {
   const [weight, setWeight] = useState('');
+  const isEditing = currentValue !== null && currentValue !== undefined;
+
+  useEffect(() => {
+    if (visible) {
+      setWeight(isEditing ? String(currentValue) : '');
+    }
+  }, [visible, currentValue]);
 
   const handleSubmit = () => {
     const parsed = parseFloat(weight);
@@ -38,7 +49,7 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
           <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
             <Text style={[styles.modalHeading, { color: theme.text.primary }]}>WEEKLY CHECK-IN</Text>
             <Text style={[styles.modalSubtext, { color: theme.text.secondary }]}>
-              LOG YOUR BODYWEIGHT FOR THIS WEEK
+              {isEditing ? 'UPDATE YOUR BODYWEIGHT FOR THIS WEEK' : 'LOG YOUR BODYWEIGHT FOR THIS WEEK (OPTIONAL)'}
             </Text>
 
             <View style={{ marginBottom: 24, width: '100%' }}>
@@ -59,7 +70,7 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
                 onPress={onSkip}
                 disabled={loading}
               >
-                <Text style={[styles.modalSkipBtnText, { color: theme.text.secondary }]}>SKIP</Text>
+                <Text style={[styles.modalSkipBtnText, { color: theme.text.secondary }]}>{isEditing ? 'CANCEL' : 'SKIP'}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSubmitBtn, { backgroundColor: bronzeGold, opacity: (!weight || loading) ? 0.5 : 1 }]}

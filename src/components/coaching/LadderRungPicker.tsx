@@ -52,10 +52,9 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   const [currentRoundIndex, setCurrentRoundIndex] = useState(0);
   const intervalRef = useRef<any>(null);
   const isInline = !!onFinalize;
-  // Continuous single-attempt timers (AMRAP cap or FOR TIME stopwatch) support
-  // tap-to-reset since there's one timer for the whole ladder; plain REST
-  // (repeatable between rungs) intentionally doesn't need that affordance.
-  const supportsTapReset = countUp || timerLabel === 'AMRAP';
+  // Every running timer (AMRAP/FOR TIME's single continuous timer, and the
+  // plain REST-between-rungs timer) supports tap-to-reset.
+  const supportsTapReset = true;
   // Only plain REST-between-rungs ladders auto-progress round by round — AMRAP
   // and FOR TIME ladders run one continuous timer for the whole attempt instead.
   const isRestMode = !countUp && timerLabel === 'REST';
@@ -256,7 +255,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                     style={styles.timerSquareGradientBorder}
                   >
                     <View style={[styles.timerSquare, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>START TIME</Text>
+                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{isRestMode ? 'START REST' : 'START TIME'}</Text>
                       <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14 }}>
                         {countUp ? '0:00' : formatRest(restSeconds)}
                       </Text>

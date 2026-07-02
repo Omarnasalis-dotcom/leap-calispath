@@ -131,6 +131,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [logRpe, setLogRpe] = useState<number | null>(null);
   const [logMissedReason, setLogMissedReason] = useState<MissedReason | null>(null);
   const [logMissedDetail, setLogMissedDetail] = useState('');
+  // Today's already-submitted workout_logs rows, keyed by block_id — lets
+  // "EDIT LOG" pre-fill the modal with what was actually saved instead of
+  // opening blank and forcing the warrior to redo the whole entry.
+  const [loggedDetails, setLoggedDetails] = useState<Record<string, {
+    notes: string; feel: string | null; rpe: number | null;
+    missed_reason: string | null; missed_detail: string | null;
+  }>>({});
 
   // Active Timer State (Extracted to Hook)
   const [activeTimerBlock, setActiveTimerBlock] = useState<ProgramBlock | null>(null);
@@ -164,10 +171,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   // Recommendations State
   const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
 
-  // Weekly bodyweight check-in
+  // Weekly bodyweight check-in — optional (skippable), and once entered for
+  // the week it can be reopened and changed rather than being locked in;
+  // bodyweightLogId tracks whether a row already exists this week so
+  // handleSubmitBodyweight updates it instead of inserting a duplicate.
   const [showBodyweightCheckIn, setShowBodyweightCheckIn] = useState(false);
   const [bodyweightSaving, setBodyweightSaving] = useState(false);
   const [bodyweightThisWeek, setBodyweightThisWeek] = useState<number | null>(null);
+  const [bodyweightLogId, setBodyweightLogId] = useState<string | null>(null);
 
   // Session-complete tracking — the workout progress button at the bottom of
   // the block list is the only way into this now (no more auto-popup); it
@@ -221,18 +232,34 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setShowBodyweightCheckIn(true);
     } else if (data) {
       setBodyweightThisWeek(data.weight_kg);
+      setBodyweightLogId(data.id);
     }
   }
 
   const handleSubmitBodyweight = async (weightKg: number) => {
     setBodyweightSaving(true);
     try {
-      const { error } = await supabase.from('bodyweight_logs').insert({
-        warrior_id: warriorId,
-        warrior_program_id: warriorProgramId || null,
-        weight_kg: weightKg,
-      });
-      if (error) throw error;
+      // Once a week already has an entry, editing it updates that same row
+      // instead of inserting a second one for the week.
+      if (bodyweightLogId) {
+        const { error } = await supabase
+          .from('bodyweight_logs')
+          .update({ weight_kg: weightKg })
+          .eq('id', bodyweightLogId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('bodyweight_logs')
+          .insert({
+            warrior_id: warriorId,
+            warrior_program_id: warriorProgramId || null,
+            weight_kg: weightKg,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        setBodyweightLogId(data.id);
+      }
       setBodyweightThisWeek(weightKg);
       setShowBodyweightCheckIn(false);
     } catch (err: any) {
@@ -352,13 +379,22 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
       const { data: loggedToday, error: loggedError } = await supabase
         .from('workout_logs')
-        .select('block_id, notes')
+        .select('block_id, notes, feel, rpe, missed_reason, missed_detail')
         .eq('warrior_id', warriorId)
         .gte('completed_at', startOfToday.toISOString());
 
       if (loggedError) throw loggedError;
 
       const loggedBlockMap = new Map((loggedToday || []).map((l: any) => [l.block_id, l.notes || '']));
+      setLoggedDetails(Object.fromEntries(
+        (loggedToday || []).map((l: any) => [l.block_id, {
+          notes: l.notes || '',
+          feel: l.feel,
+          rpe: l.rpe,
+          missed_reason: l.missed_reason,
+          missed_detail: l.missed_detail,
+        }])
+      ));
 
       // 4. FIX N+1: Batch Fetch all block exercises for all blocks
       const blockIds = (blocksData || []).map(b => b.id);
@@ -596,17 +632,87 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  // Open Log modal for specific block
-  const handleOpenLogModal = (blockId: string | number) => {
-    if (isBlockLocked(blockId)) return;
+  // Reverses handleLogWorkout/quickLogWorkout's finalNotes composition — pulls
+  // the AMRAP/FOR TIME/ladder/weight '[LOG] ...' lines back out of a saved
+  // notes string so "EDIT LOG" can restore them instead of opening blank.
+  const parseLoggedNotes = (notes: string) => {
+    let amrapRounds = '';
+    let forTimeDuration = '';
+    let ladderProgress = '';
+    let weightUsed = '';
+    const freeLines: string[] = [];
+    (notes || '').split('\n').forEach(rawLine => {
+      const line = rawLine.trim();
+      if (!line) return;
+      let m: RegExpMatchArray | null;
+      if ((m = line.match(/^\[LOG\] Completed: (.+) Rounds\/Reps$/))) {
+        amrapRounds = m[1];
+      } else if ((m = line.match(/^\[LOG\] Finished in: (.+)$/))) {
+        forTimeDuration = m[1];
+      } else if ((m = line.match(/^\[LOG\] Ladder Progress: (.+)$/))) {
+        ladderProgress = m[1];
+      } else if ((m = line.match(/^\[LOG\] Weight Used: (.+) KG$/))) {
+        weightUsed = m[1];
+      } else {
+        freeLines.push(line);
+      }
+    });
+    return { amrapRounds, forTimeDuration, ladderProgress, weightUsed, freeText: freeLines.join('\n') };
+  };
+
+  // Open Log modal for specific block — pre-fills from the already-submitted
+  // log (if any) so "EDIT LOG" lets the warrior adjust what's there instead
+  // of forcing a full rewrite. initialStatus is set when opened from the
+  // header DONE/SKIP buttons (see WarriorBlockCard), so the modal comes up
+  // already in that status for the warrior to fill in and submit — SKIP
+  // bypasses the lock check the same way the quick-toggle path always has,
+  // since skipping past a locked block must stay possible.
+  const handleOpenLogModal = (blockId: string | number, initialStatus?: 'completed' | 'missed') => {
+    if (isBlockLocked(blockId) && initialStatus !== 'missed') return;
     setActiveLogBlockId(blockId);
-    setLogNotes('');
-    setLogStatus('completed');
     setLogRating(5);
-    setLogFeel(null);
-    setLogRpe(null);
-    setLogMissedReason(null);
-    setLogMissedDetail('');
+
+    const existing = loggedDetails[blockId];
+    if (existing) {
+      const isMissed = existing.notes.startsWith('[STATUS:MISSED]');
+      setLogStatus(isMissed ? 'missed' : 'completed');
+      setLogFeel((existing.feel as Feel) ?? null);
+      setLogRpe(existing.rpe ?? null);
+      setLogMissedReason((existing.missed_reason as MissedReason) ?? null);
+      setLogMissedDetail(existing.missed_detail || '');
+      if (isMissed) {
+        // '[STATUS:MISSED]' replaces the whole notes field on save (see
+        // log_block_with_sets), so there's nothing structured to recover here.
+        setLogNotes('');
+        setLogAmrapRounds('');
+        setLogForTimeDuration('');
+        setLogLadderProgress('');
+        setLogWeightUsed('');
+      } else {
+        const parsed = parseLoggedNotes(existing.notes);
+        setLogNotes(parsed.freeText);
+        setLogAmrapRounds(parsed.amrapRounds);
+        setLogForTimeDuration(parsed.forTimeDuration);
+        setLogLadderProgress(parsed.ladderProgress);
+        setLogWeightUsed(parsed.weightUsed);
+      }
+    } else {
+      setLogNotes('');
+      setLogStatus('completed');
+      setLogFeel(null);
+      setLogRpe(null);
+      setLogMissedReason(null);
+      setLogMissedDetail('');
+      setLogAmrapRounds('');
+      setLogForTimeDuration('');
+      setLogLadderProgress('');
+      setLogWeightUsed('');
+    }
+
+    if (initialStatus) {
+      setLogStatus(initialStatus);
+    }
+
     setLogModalVisible(true);
   };
 
@@ -1017,6 +1123,37 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   }}
                   theme={theme}
                 />
+                {/* WEEKLY BODYWEIGHT — optional, once per week, tap to log or change it */}
+                <TouchableOpacity
+                  onPress={() => setShowBodyweightCheckIn(true)}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    alignSelf: 'center',
+                    borderWidth: 1,
+                    borderRadius: 20,
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderColor: bodyweightThisWeek !== null ? bronzeGold : theme.card.border,
+                    backgroundColor: bodyweightThisWeek !== null ? 'rgba(200,160,64,0.08)' : 'transparent',
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'BarlowCondensed-Bold',
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                    color: bodyweightThisWeek !== null ? bronzeGold : theme.text.secondary,
+                  }}>
+                    {bodyweightThisWeek !== null ? `BODYWEIGHT: ${bodyweightThisWeek}KG` : '+ LOG BODYWEIGHT (OPTIONAL)'}
+                  </Text>
+                  {bodyweightThisWeek !== null && (
+                    <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.tertiary }}>
+                      EDIT
+                    </Text>
+                  )}
+                </TouchableOpacity>
                 {/* PROGRESS STATS BAR */}
                 <DayProgressBar
                   blocks={days[activeDayIndex]?.blocks || []}
@@ -1102,6 +1239,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         onSubmit={handleSubmitBodyweight}
         onSkip={() => setShowBodyweightCheckIn(false)}
         loading={bodyweightSaving}
+        currentValue={bodyweightThisWeek}
       />
 
       {/* SESSION COMPLETE / WORKOUT STATS */}

@@ -23,7 +23,7 @@ interface WarriorBlockCardProps {
   toggleBlockExpanded: (blockId: string | number) => void;
   handleToggleBlockStatus: (blockId: string | number, targetStatus: 'none' | 'completed' | 'missed') => void;
   isTogglingStatus?: boolean;
-  handleOpenLogging: (blockId: string | number) => void;
+  handleOpenLogging: (blockId: string | number, initialStatus?: 'completed' | 'missed') => void;
   startTimerForBlock: (block: ProgramBlock) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo: (exerciseId: string | number, url: string) => void;
@@ -162,8 +162,12 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               )}
             </View>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {/* DONE — marks the block completed. Requires the block to be
-                  unlocked, since completing it implies actually doing the work. */}
+              {/* DONE — marking a block done opens the log modal so the warrior
+                  fills in feel/RPE (and can't complete it with no detail at all);
+                  tapping DONE again on an already-completed block is just an
+                  instant undo back to unlogged, which stays a quick toggle.
+                  Requires the block to be unlocked either way, since completing
+                  it implies actually doing the work. */}
               <TouchableOpacity
                 style={{
                   width: 40,
@@ -179,7 +183,11 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 disabled={isTogglingStatus || isLocked}
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleToggleBlockStatus(block.id, block.completedStatus === 'completed' ? 'none' : 'completed');
+                  if (block.completedStatus === 'completed') {
+                    handleToggleBlockStatus(block.id, 'none');
+                  } else {
+                    handleOpenLogging(block.id, 'completed');
+                  }
                 }}
               >
                 {block.completedStatus === 'completed' && (
@@ -187,9 +195,13 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 )}
               </TouchableOpacity>
 
-              {/* SKIP — marks the block missed and moves on. Always tappable,
-                  even while locked, so a warrior can skip past a block instead
-                  of being stuck on it. */}
+              {/* SKIP — marking a block missed opens the log modal (as 'missed')
+                  so the warrior can give a reason instead of it being logged
+                  with none. Always tappable, even while locked, so a warrior
+                  can skip past a block instead of being stuck on it — the
+                  modal open itself bypasses the lock check the same way the
+                  old quick-toggle always did. Tapping SKIP again on an
+                  already-missed block is an instant undo, same as DONE. */}
               <TouchableOpacity
                 style={{
                   width: 40,
@@ -205,7 +217,11 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 disabled={isTogglingStatus}
                 onPress={(e) => {
                   e.stopPropagation();
-                  handleToggleBlockStatus(block.id, block.completedStatus === 'missed' ? 'none' : 'missed');
+                  if (block.completedStatus === 'missed') {
+                    handleToggleBlockStatus(block.id, 'none');
+                  } else {
+                    handleOpenLogging(block.id, 'missed');
+                  }
                 }}
               >
                 <Text style={{ color: block.completedStatus === 'missed' ? '#FF6B6B' : theme.text.tertiary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>SKIP</Text>

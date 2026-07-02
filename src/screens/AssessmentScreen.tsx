@@ -169,13 +169,12 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       } else {
         setCustomReps('');
       }
-    } else {
-      if (router.canGoBack()) {
-        router.back();
-      } else {
-        router.replace('/');
-      }
+    } else if (router.canGoBack()) {
+      router.back();
     }
+    // No back history and nothing to go back to — stay put. AuthGuard already
+    // keeps unassessed users on /assessment, so an imperative replace('/') here
+    // would just race that redirect for no benefit (see app/assessment.tsx).
   }
 
   async function submitAssessment(finalAssessments = assessments) {
@@ -203,11 +202,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       if (error) throw error;
 
       await refreshProfile();
-      if (onComplete) {
-        onComplete();
-      } else {
-        router.replace('/');
-      }
+      onComplete();
     } catch (error: any) {
       console.error('Assessment error:', error);
       Alert.alert('Error', error.message || 'Failed to save assessment');

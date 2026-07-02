@@ -69,6 +69,27 @@ export const SetRow: React.FC<SetRowProps> = ({
     }
   };
 
+  // Reps/weight stay editable through the rest period — the set isn't
+  // "fully done" until rest finishes (see isFullyDone) — and re-submit the
+  // logged entry so a correction made during rest isn't lost.
+  const adjustReps = (delta: number) => {
+    if (isFullyDone) return;
+    const next = Math.max(0, reps + delta);
+    setReps(next);
+    if (restActive) {
+      const parsedWeight = weight ? parseFloat(weight) : undefined;
+      onSetComplete({ setIndex, reps: next, weight: parsedWeight });
+    }
+  };
+
+  const handleWeightChange = (text: string) => {
+    setWeight(text);
+    if (restActive) {
+      const parsedWeight = text ? parseFloat(text) : undefined;
+      onSetComplete({ setIndex, reps, weight: parsedWeight });
+    }
+  };
+
   return (
     <View style={[styles.row, { borderColor: theme.card.border }]}>
       <View style={[styles.setBadge, { borderColor: isFullyDone ? '#4CAF50' : theme.card.border, backgroundColor: isFullyDone ? 'rgba(76,175,80,0.12)' : 'transparent' }]}>
@@ -80,16 +101,16 @@ export const SetRow: React.FC<SetRowProps> = ({
       <View style={styles.stepperGroup}>
         <TouchableOpacity
           style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-          disabled={completed}
-          onPress={() => setReps(prev => Math.max(0, prev - 1))}
+          disabled={isFullyDone}
+          onPress={() => adjustReps(-1)}
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>−</Text>
         </TouchableOpacity>
         <Text style={[styles.repsValue, { color: theme.text.primary }]}>{reps}</Text>
         <TouchableOpacity
           style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-          disabled={completed}
-          onPress={() => setReps(prev => prev + 1)}
+          disabled={isFullyDone}
+          onPress={() => adjustReps(1)}
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
         </TouchableOpacity>
@@ -103,8 +124,8 @@ export const SetRow: React.FC<SetRowProps> = ({
           placeholder="KG"
           placeholderTextColor={theme.text.tertiary}
           value={weight}
-          editable={!completed}
-          onChangeText={setWeight}
+          editable={!isFullyDone}
+          onChangeText={handleWeightChange}
         />
       )}
 
