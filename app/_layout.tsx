@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View } from 'react-native';
+import { View, Platform } from 'react-native';
 import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
@@ -49,6 +49,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       splashHiddenRef.current = true;
     }
   }, [user, profile, loading, profileLoading]);
+
+  // The web build is only ever meant to be reachable at /reset-password (everything
+  // else on leap-arena.com is static marketing/legal pages served outside this SPA).
+  // But once that route loads, the whole Expo Router bundle is in the browser, so
+  // client-side navigation (e.g. router.replace) could otherwise expose the full
+  // app. Force a hard exit back to the marketing site for any other route on web.
+  const isWebOutsideResetPassword = Platform.OS === 'web' && !!segments[0] && segments[0] !== 'reset-password';
+  useEffect(() => {
+    if (isWebOutsideResetPassword && typeof window !== 'undefined') {
+      window.location.href = '/';
+    }
+  }, [isWebOutsideResetPassword]);
+
+  if (isWebOutsideResetPassword) {
+    return null;
+  }
 
   if (loading || (profileLoading && !profile)) {
     // If the native splash screen hides early in dev, this ensures they see the logo

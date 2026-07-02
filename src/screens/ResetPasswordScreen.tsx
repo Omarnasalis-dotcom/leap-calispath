@@ -1,4 +1,4 @@
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
+import { useRouter, useLocalSearchParams } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import { View,
   Text,
@@ -29,6 +29,13 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
   const [hasSession, setHasSession] = useState(false);
   const [inlineError, setInlineError] = useState<string | null>(null);
   const [inlineSuccess, setInlineSuccess] = useState<string | null>(null);
+  const [pendingVerify, setPendingVerify] = useState<
+    | { kind: 'token_hash'; value: string }
+    | { kind: 'code'; value: string }
+    | { kind: 'session'; accessToken: string; refreshToken: string }
+    | null
+  >(null);
+  const [verifying, setVerifying] = useState(false);
   const { theme } = useTheme();
   const { clearPasswordReset } = useAuth();
   const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,13 +51,16 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
      * On mobile: Supabase has already established a temporary PASSWORD_RECOVERY
      * session before AuthContext surfaced this screen, so we just verify it exists.
      *
-     * On web: we additionally try to exchange a code/token from the URL hash.
+     * On web: the recovery token is single-use, and email link scanners (Outlook
+     * Safe Links, mail-client link previews, etc.) will fetch/render this page
+     * before the human clicks anything. So on web we only *parse* the token here
+     * and defer the actual verifyOtp/exchangeCodeForSession call until the user
+     * explicitly taps a button — bots don't do that.
      */
-    async function checkSession() {
+    async function detectSession() {
       setSessionLoading(true);
       setInlineError(null);
       try {
-        // --- Web: parse tokens from URL ---
         if (Platform.OS === 'web' && typeof window !== 'undefined') {
           const hash = window?.location?.hash ?? '';
           const search = window?.location?.search ?? '';
@@ -63,39 +73,24 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             const tokenHash = params.get('token_hash');
             const type = params.get('type');
 
-            // Handle token_hash flow (from email template using {{ .TokenHash }})
             if (tokenHash && type === 'recovery') {
-              const { data, error } = await supabase.auth.verifyOtp({
-                token_hash: tokenHash,
-                type: 'recovery',
-              });
-              if (error) throw error;
-              if (data?.session) {
-                if (isMounted.current) setHasSession(true);
-                return;
-              }
+              if (isMounted.current) setPendingVerify({ kind: 'token_hash', value: tokenHash });
+              return;
             } else if (code) {
-              const { data, error } = await supabase.auth.exchangeCodeForSession(code);
-              if (error) throw error;
-              if (data?.session) {
-                if (isMounted.current) setHasSession(true);
-                return;
-              }
+              if (isMounted.current) setPendingVerify({ kind: 'code', value: code });
+              return;
             } else if (accessToken && refreshToken) {
-              const { data, error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken,
-              });
-              if (error) throw error;
-              if (data?.session) {
-                if (isMounted.current) setHasSession(true);
-                return;
+              if (isMounted.current) {
+                setPendingVerify({ kind: 'session', accessToken, refreshToken });
               }
+              return;
             }
           }
         }
 
-        // --- Mobile & Web fallback: check current session ---
+        // Native, or web with no verification params in the URL: check for an
+        // already-established session (native's deep link handler verifies
+        // up front in AuthContext before this screen ever mounts).
         const { data: { session } } = await supabase.auth.getSession();
         if (session) {
           if (isMounted.current) setHasSession(true);
@@ -119,8 +114,60 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       }
     }
 
-    checkSession();
+    detectSession();
   }, []);
+
+  async function handleConfirmResetLink() {
+    if (!pendingVerify) return;
+    setVerifying(true);
+    setInlineError(null);
+    try {
+      let result;
+      if (pendingVerify.kind === 'token_hash') {
+        result = await supabase.auth.verifyOtp({
+          token_hash: pendingVerify.value,
+          type: 'recovery',
+        });
+      } else if (pendingVerify.kind === 'code') {
+        result = await supabase.auth.exchangeCodeForSession(pendingVerify.value);
+      } else {
+        result = await supabase.auth.setSession({
+          access_token: pendingVerify.accessToken,
+          refresh_token: pendingVerify.refreshToken,
+        });
+      }
+      if (result.error) throw result.error;
+      if (result.data?.session) {
+        if (isMounted.current) {
+          setHasSession(true);
+          setPendingVerify(null);
+        }
+      } else {
+        throw new Error('Could not establish a reset session.');
+      }
+    } catch (err: any) {
+      if (isMounted.current) {
+        setInlineError(
+          err.message?.toUpperCase() ?? 'THIS RESET LINK IS INVALID OR HAS EXPIRED.'
+        );
+        setPendingVerify(null);
+      }
+    } finally {
+      if (isMounted.current) setVerifying(false);
+    }
+  }
+
+  function exitToLogin() {
+    // Web must never soft-navigate into the in-app sign-in screen — the whole
+    // Expo Router bundle is already loaded once /reset-password renders, so a
+    // client-side router.replace('/auth') would expose the full app. A hard
+    // navigation re-triggers Vercel's rewrite and lands on the download page.
+    if (Platform.OS === 'web' && typeof window !== 'undefined') {
+      window.location.href = '/';
+      return;
+    }
+    onComplete?.();
+  }
 
   async function handleSubmit() {
     setInlineError(null);
@@ -153,7 +200,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       // Give the user a moment to see the success message, then clear reset state
       resetTimerRef.current = setTimeout(async () => {
         await clearPasswordReset();
-        router.replace('/auth');
+        exitToLogin();
       }, 2500);
     } catch (error: any) {
       if (isMounted.current) {
@@ -191,9 +238,29 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             </Text>
             <TouchableOpacity
               style={[styles.actionButton, { backgroundColor: theme.accent }]}
-              onPress={onComplete}
+              onPress={exitToLogin}
             >
               <Text style={styles.actionButtonText}>CONTINUE TO LOGIN</Text>
+            </TouchableOpacity>
+          </View>
+        ) : pendingVerify ? (
+          <View style={styles.feedbackContainer}>
+            <Text style={[styles.subheading, { color: theme.text.secondary, textAlign: 'center', marginBottom: 24 }]}>
+              For your security, tap below to continue with your password reset.
+            </Text>
+            {inlineError && (
+              <View style={styles.errorBanner}>
+                <Text style={styles.errorText}>{inlineError}</Text>
+              </View>
+            )}
+            <TouchableOpacity
+              style={[styles.actionButton, { backgroundColor: theme.accent, opacity: verifying ? 0.6 : 1 }]}
+              onPress={handleConfirmResetLink}
+              disabled={verifying}
+            >
+              <Text style={styles.actionButtonText}>
+                {verifying ? 'VERIFYING...' : 'CONTINUE RESET'}
+              </Text>
             </TouchableOpacity>
           </View>
         ) : (
@@ -237,7 +304,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
             <TouchableOpacity
               style={{ marginTop: 24, alignItems: 'center' }}
-              onPress={onComplete}
+              onPress={exitToLogin}
             >
               <Text style={[styles.cancelText, { color: theme.text.secondary }]}>
                 RETURN TO LOGIN
