@@ -26,11 +26,11 @@
     },
     {
       "source": "/reset-password",
-      "destination": "/"
+      "destination": "/app.html"
     },
     {
       "source": "/auth/v1/verify",
-      "destination": "/"
+      "destination": "/app.html"
     },
     {
       "source": "/(.*)",
