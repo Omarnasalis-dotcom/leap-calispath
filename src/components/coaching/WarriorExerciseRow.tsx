@@ -22,7 +22,9 @@ interface WarriorExerciseRowProps {
   solidCardBg: string;
   bronzeGold: string;
   blockMetadata?: any;
-  handleOpenVideo: (url: string) => void;
+  onToggleVideo: (exerciseId: string | number, url: string) => void;
+  isVideoActive?: boolean;
+  hideSetControls?: boolean;
 }
 
 export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
@@ -31,7 +33,9 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
   solidCardBg,
   bronzeGold,
   blockMetadata,
-  handleOpenVideo,
+  onToggleVideo,
+  isVideoActive,
+  hideSetControls,
 }) => {
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
@@ -76,34 +80,34 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
 
   return (
     <View style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}>
-      <View style={styles.exInfoRow}>
-        <View style={{ flex: 1 }}>
-          <Text style={[styles.exTitle, { color: theme.text.primary }]}>
-            {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}> (WEIGHTED)</Text>}
-          </Text>
-        </View>
+      <View style={[styles.exInfoRow, { justifyContent: 'flex-start' }]}>
+        <Text style={[styles.exTitle, { color: theme.text.primary, flex: 1 }]} numberOfLines={1}>
+          {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}> (WEIGHTED)</Text>}
+        </Text>
 
         {exercise.youtube_url ? (
           <LinearGradient
             colors={['#7E57C2', '#FF5252', '#FF7043']}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
-            style={{ borderRadius: 12, padding: 1.2 }}
+            style={{ borderRadius: 12, padding: 1.2, marginLeft: 8 }}
           >
             <TouchableOpacity
-              onPress={() => handleOpenVideo(exercise.youtube_url)}
+              onPress={() => onToggleVideo(exercise.id, exercise.youtube_url)}
               style={{
                 flexDirection: 'row',
                 alignItems: 'center',
-                backgroundColor: solidCardBg,
+                backgroundColor: isVideoActive ? 'rgba(255,82,82,0.12)' : solidCardBg,
                 paddingVertical: 3,
                 paddingHorizontal: 8,
                 borderRadius: 11,
                 gap: 4
               }}
             >
-              <Text style={{ color: '#FF5252', fontSize: 9 }}>▶</Text>
-              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>DEMO</Text>
+              <Text style={{ color: '#FF5252', fontSize: 9 }}>{isVideoActive ? '✕' : '▶'}</Text>
+              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
+                {isVideoActive ? 'CLOSE' : 'WATCH'}
+              </Text>
             </TouchableOpacity>
           </LinearGradient>
         ) : null}
@@ -111,7 +115,32 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
 
       {/* Sets / Reps / Rest Badges Row */}
       <View style={styles.exDetailsRow}>
-        {(!blockMetadata || (!blockMetadata.type && !blockMetadata.structure) || blockMetadata.type === 'single' || blockMetadata.structure === 'single') ? (
+        {(blockMetadata?.timing_system === 'amrap' || blockMetadata?.timing_system === 'fortime' || blockMetadata?.type === 'amrap' || blockMetadata?.type === 'fortime') ? (
+          <View style={[styles.detailBadge, { borderColor: theme.card.border, flex: 1, alignItems: 'flex-start' }]}>
+            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS PER ROUND</Text>
+            <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>{exercise.reps}</Text>
+          </View>
+        ) : blockMetadata?.timing_system === 'tabata' ? (
+          <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
+            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
+            <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
+              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+            </Text>
+          </View>
+        ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
+          <>
+            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
+              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
+            </View>
+            {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
+              <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
+                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
+                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
+              </View>
+            )}
+          </>
+        ) : (!blockMetadata || (!blockMetadata.type && !blockMetadata.structure) || blockMetadata.type === 'single' || blockMetadata.structure === 'single') ? (
           <>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
               <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>SETS</Text>
@@ -131,7 +160,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.rest_seconds}S</Text>
             </View>
-            {restSecs > 0 && (
+            {!hideSetControls && restSecs > 0 && (
               <TouchableOpacity
                 onPress={restActive ? cancelRest : startRest}
                 style={[styles.detailBadge, {
@@ -147,26 +176,6 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
                   {restActive ? formatRest(restTimeLeft) : restCompleted ? 'NEXT SET' : '▶'}
                 </Text>
               </TouchableOpacity>
-            )}
-          </>
-        ) : blockMetadata?.timing_system === 'tabata' ? (
-          <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
-            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
-            <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
-              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
-            </Text>
-          </View>
-        ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
-          <>
-            <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
-              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
-            </View>
-            {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
-              <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
-                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
-                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
-              </View>
             )}
           </>
         ) : blockMetadata?.structure === 'ladder' ? (
@@ -208,7 +217,7 @@ const styles = StyleSheet.create({
   },
   exTitle: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 15,
+    fontSize: 13,
     letterSpacing: 0.6,
     flex: 1,
   },
@@ -228,14 +237,14 @@ const styles = StyleSheet.create({
   },
   detailLabel: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 8,
+    fontSize: 7,
     letterSpacing: 0.8,
     marginBottom: 2,
     opacity: 0.7,
   },
   detailValue: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 13,
+    fontSize: 11,
     letterSpacing: 0.5,
   },
   exNotes: {

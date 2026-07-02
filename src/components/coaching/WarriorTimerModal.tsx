@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
@@ -25,9 +25,9 @@ interface WarriorTimerModalProps {
   onClose: () => void;
   theme: any;
   bronzeGold: string;
-  onAmrapComplete: (blockId: string | number) => void;
+  onAmrapComplete: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
-  onBlockComplete: (blockId: string | number) => void;
+  onBlockComplete: (blockId: string | number, roundsCompleted?: number, holdTimes?: number[]) => void;
 }
 
 export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
@@ -55,14 +55,33 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
     tabataPhase,
     tabataWorkSecs,
     tabataRestSecs,
+    amrapRoundsCompleted,
+    logRound,
+    holdTimes,
+    logHoldTime,
   } = useWarriorTimer({
-    onAmrapComplete: (blockId) => {
-      onAmrapComplete(blockId);
+    onAmrapComplete: (blockId, roundsCompleted) => {
+      onAmrapComplete(blockId, roundsCompleted);
     },
     onForTimeComplete: (blockId, elapsedSeconds) => {
       onForTimeComplete(blockId, elapsedSeconds);
-    }
+    },
+    onTabataComplete: (blockId, roundsCompleted, tabataHoldTimes) => {
+      onBlockComplete(blockId, roundsCompleted, tabataHoldTimes);
+    },
   });
+
+  const isHoldExercise = activeBlock.exercises.some(
+    ex => ex.hold_seconds && parseInt(String(ex.hold_seconds), 10) > 0
+  );
+  const [holdInput, setHoldInput] = React.useState('');
+
+  const handleLogHold = () => {
+    const parsed = parseFloat(holdInput);
+    if (!holdInput || isNaN(parsed) || parsed <= 0) return;
+    logHoldTime(parsed);
+    setHoldInput('');
+  };
 
   const [showEndWarning, setShowEndWarning] = React.useState(false);
   const notificationIdRef = useRef<string | null>(null);
@@ -177,6 +196,89 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 </Text>
               </View>
             </LinearGradient>
+
+            {/* Tabata round dots + best-hold capture */}
+            {timerType === 'tabata' && (
+              <View style={{ alignItems: 'center', marginBottom: 20, gap: 12 }}>
+                <View style={{ flexDirection: 'row', gap: 6 }}>
+                  {Array.from({ length: totalRounds }).map((_, i) => {
+                    const roundNum = i + 1;
+                    const isDone = roundNum < currentRound || (roundNum === currentRound && tabataPhase === 'rest');
+                    return (
+                      <View
+                        key={roundNum}
+                        style={{
+                          width: 14,
+                          height: 14,
+                          borderRadius: 7,
+                          borderWidth: 1,
+                          borderColor: isDone ? '#4CAF50' : theme.card.border,
+                          backgroundColor: isDone ? '#4CAF50' : 'transparent',
+                        }}
+                      />
+                    );
+                  })}
+                </View>
+                {isHoldExercise && timerPrepCountdown === null && (
+                  <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+                    <TextInput
+                      style={{
+                        borderWidth: 1,
+                        borderColor: theme.card.border,
+                        borderRadius: 6,
+                        paddingVertical: 6,
+                        paddingHorizontal: 10,
+                        color: theme.text.primary,
+                        fontFamily: 'BarlowCondensed-Bold',
+                        width: 70,
+                        textAlign: 'center',
+                      }}
+                      keyboardType="decimal-pad"
+                      placeholder="SECS"
+                      placeholderTextColor={theme.text.tertiary}
+                      value={holdInput}
+                      onChangeText={setHoldInput}
+                    />
+                    <TouchableOpacity
+                      onPress={handleLogHold}
+                      style={{ borderWidth: 1, borderColor: bronzeGold, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 12 }}
+                    >
+                      <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>LOG BEST HOLD</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+                {holdTimes.length > 0 && (
+                  <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10 }}>
+                    BEST HOLD SO FAR: {Math.max(...holdTimes)}S
+                  </Text>
+                )}
+              </View>
+            )}
+
+            {/* AMRAP round counter */}
+            {timerType === 'amrap' && (
+              <View style={{ alignItems: 'center', marginBottom: 20, gap: 10 }}>
+                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1 }}>
+                  ROUNDS COMPLETED: {amrapRoundsCompleted}
+                </Text>
+                <TouchableOpacity
+                  disabled={timerPrepCountdown !== null || !timerRunning}
+                  onPress={logRound}
+                  style={{ opacity: (timerPrepCountdown !== null || !timerRunning) ? 0.4 : 1 }}
+                >
+                  <LinearGradient
+                    colors={['#7E57C2', '#FF5252', '#FF7043']}
+                    start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
+                    style={{ borderRadius: 30, width: 64, height: 64, alignItems: 'center', justifyContent: 'center' }}
+                  >
+                    <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 28 }}>+1</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+                <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5 }}>
+                  ROUND
+                </Text>
+              </View>
+            )}
 
             {/* Controls */}
             <View style={{ flexDirection: 'row', gap: 12, width: '100%', marginBottom: 20 }}>

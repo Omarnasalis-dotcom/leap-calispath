@@ -8,11 +8,12 @@ export interface ProgramBlockParams {
 }
 
 interface UseWarriorTimerProps {
-  onAmrapComplete: (blockId: string | number) => void;
+  onAmrapComplete: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
+  onTabataComplete?: (blockId: string | number, roundsCompleted: number, holdTimes: number[]) => void;
 }
 
-export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarriorTimerProps) {
+export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataComplete }: UseWarriorTimerProps) {
   const [activeTimerBlockId, setActiveTimerBlockId] = useState<string | number | null>(null);
   const [timerType, setTimerType] = useState<'amrap' | 'fortime' | 'rest' | 'tabata' | null>(null);
   const [tabataPhase, setTabataPhase] = useState<'work' | 'rest'>('work');
@@ -29,6 +30,35 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
   const [restSeconds, setRestSeconds] = useState<number>(0);
   const [timeCapSecs, setTimeCapSecs] = useState<number>(0);
 
+  // AMRAP round counting — distinct from currentRound/totalRounds (which
+  // drive Tabata/rest cycling): AMRAP has no fixed round count, the warrior
+  // just taps +1 for each completed round as they go. Mirrored into a ref so
+  // the tick effect's completion callback (set up once per timer, not
+  // re-subscribed on every tap) reads the latest count rather than a stale one.
+  const [amrapRoundsCompleted, setAmrapRoundsCompleted] = useState<number>(0);
+  const amrapRoundsRef = useRef(0);
+
+  const logRound = useCallback(() => {
+    setAmrapRoundsCompleted(prev => {
+      const next = prev + 1;
+      amrapRoundsRef.current = next;
+      return next;
+    });
+  }, []);
+
+  // Tabata best-hold tracking, one entry appended per round for hold/skill exercises.
+  // Mirrored into a ref for the same stale-closure reason as amrapRoundsRef.
+  const [holdTimes, setHoldTimes] = useState<number[]>([]);
+  const holdTimesRef = useRef<number[]>([]);
+
+  const logHoldTime = useCallback((seconds: number) => {
+    setHoldTimes(prev => {
+      const next = [...prev, seconds];
+      holdTimesRef.current = next;
+      return next;
+    });
+  }, []);
+
   // Timer completions are detected inside setState updaters (the tick
   // effects below), which run during this hook's own render — calling
   // onAmrapComplete/onForTimeComplete directly from there would update the
@@ -36,8 +66,9 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
   // the completion as local state and firing the actual callback from an
   // effect defers it until after render commits, which is safe.
   const [completionEvent, setCompletionEvent] = useState<
-    | { type: 'amrap'; blockId: string | number }
+    | { type: 'amrap'; blockId: string | number; roundsCompleted?: number }
     | { type: 'fortime'; blockId: string | number; elapsedSeconds: number }
+    | { type: 'tabata'; blockId: string | number; roundsCompleted: number; holdTimes: number[] }
     | null
   >(null);
 
@@ -47,12 +78,14 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
   useEffect(() => {
     if (!completionEvent) return;
     if (completionEvent.type === 'amrap') {
-      onAmrapComplete(completionEvent.blockId);
+      onAmrapComplete(completionEvent.blockId, completionEvent.roundsCompleted ?? 0);
+    } else if (completionEvent.type === 'tabata') {
+      onTabataComplete?.(completionEvent.blockId, completionEvent.roundsCompleted, completionEvent.holdTimes);
     } else {
       onForTimeComplete(completionEvent.blockId, completionEvent.elapsedSeconds);
     }
     setCompletionEvent(null);
-  }, [completionEvent, onAmrapComplete, onForTimeComplete]);
+  }, [completionEvent, onAmrapComplete, onForTimeComplete, onTabataComplete]);
 
   // Background state syncing logic
   useEffect(() => {
@@ -80,7 +113,7 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
                   } else {
                     SoundServiceInstance.playDigitalBuzzer();
                     if (timerType === 'amrap' && activeTimerBlockId) {
-                      setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
+                      setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId, roundsCompleted: amrapRoundsRef.current });
                     }
                   }
                   return 0;
@@ -162,7 +195,7 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
               } else {
                 SoundServiceInstance.playDigitalBuzzer();
                 if (timerType === 'amrap' && activeTimerBlockId) {
-                  setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
+                  setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId, roundsCompleted: amrapRoundsRef.current });
                 }
               }
               return 0;
@@ -199,7 +232,14 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
                       setTimerRunning(false);
                       clearInterval(interval);
                       SoundServiceInstance.playDigitalBuzzer(4);
-                      if (activeTimerBlockId) setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId });
+                      if (activeTimerBlockId) {
+                        setCompletionEvent({
+                          type: 'tabata',
+                          blockId: activeTimerBlockId,
+                          roundsCompleted: nextRound - 1,
+                          holdTimes: holdTimesRef.current,
+                        });
+                      }
                       return r;
                     }
                     SoundServiceInstance.playBoxingBell();
@@ -234,7 +274,11 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
     setActiveTimerBlockId(block.id);
     const metaType = block.metadata?.timing_system || block.metadata?.type;
     const structure = block.metadata?.structure || block.metadata?.type;
-    
+
+    setAmrapRoundsCompleted(0);
+    amrapRoundsRef.current = 0;
+    setHoldTimes([]);
+
     let tr = 1;
     if (block.metadata?.rounds) {
       tr = parseInt(String(block.metadata.rounds), 10);
@@ -314,6 +358,10 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete }: UseWarri
     restSeconds,
     tabataPhase,
     tabataWorkSecs,
-    tabataRestSecs
+    tabataRestSecs,
+    amrapRoundsCompleted,
+    logRound,
+    holdTimes,
+    logHoldTime
   };
 }

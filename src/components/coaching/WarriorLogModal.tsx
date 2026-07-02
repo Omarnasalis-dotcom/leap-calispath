@@ -2,6 +2,8 @@ import React from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeapLogo } from '../../components/LeapLogo';
+import { FeelRpePicker, Feel } from './FeelRpePicker';
+import { MissedReasonPicker, MissedReason } from './MissedReasonPicker';
 
 interface MinimalBlock {
   id: string | number;
@@ -35,6 +37,14 @@ interface WarriorLogModalProps {
   setLogNotes: (val: string) => void;
   handleLogWorkout: () => void;
   logLoading: boolean;
+  logFeel: Feel | null;
+  setLogFeel: (val: Feel) => void;
+  logRpe: number | null;
+  setLogRpe: (val: number) => void;
+  logMissedReason: MissedReason | null;
+  setLogMissedReason: (val: MissedReason) => void;
+  logMissedDetail: string;
+  setLogMissedDetail: (val: string) => void;
 }
 
 export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
@@ -60,6 +70,14 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
   setLogNotes,
   handleLogWorkout,
   logLoading,
+  logFeel,
+  setLogFeel,
+  logRpe,
+  setLogRpe,
+  logMissedReason,
+  setLogMissedReason,
+  logMissedDetail,
+  setLogMissedDetail,
 }) => {
   return (
     <Modal
@@ -116,7 +134,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
             const meta = activeLogBlock.metadata;
             return (
               <View style={{ marginBottom: 20, width: '100%', gap: 12 }}>
-                {(meta?.timing_system === 'amrap' || meta?.type === 'amrap') && (
+                {(meta?.timing_system === 'amrap' || meta?.type === 'amrap') && meta?.structure !== 'ladder' && (
                   <View>
                     <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>ROUNDS / REPS COMPLETED</Text>
                     <TextInput
@@ -128,7 +146,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     />
                   </View>
                 )}
-                {(meta?.timing_system === 'fortime' || meta?.type === 'fortime') && (
+                {(meta?.timing_system === 'fortime' || meta?.type === 'fortime') && meta?.structure !== 'ladder' && (
                   <View>
                     <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>TIME TO FINISH</Text>
                     <TextInput
@@ -153,39 +171,44 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     />
                   </View>
                 )}
-                {meta?.structure === 'ladder' && (
+                {meta?.structure === 'ladder' && logLadderProgress ? (
                   <View>
-                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>HOW FAR DID YOU REACH?</Text>
-                    <TextInput
-                      style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                      placeholder="e.g. Finished round of 14, plus 5 reps"
-                      placeholderTextColor="rgba(255,255,255,0.15)"
-                      value={logLadderProgress}
-                      onChangeText={setLogLadderProgress}
-                    />
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>LADDER RESULT</Text>
+                    <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 }}>
+                      {logLadderProgress}
+                    </Text>
                   </View>
-                )}
+                ) : null}
               </View>
             );
           })()}
 
-          {/* Performance rating */}
-          <View style={styles.ratingSection}>
-            <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>RATE INTENSITY / PERFORMANCE</Text>
-            <View style={styles.starsRow}>
-              {[1, 2, 3, 4, 5].map((ratingVal) => (
-                <TouchableOpacity
-                  key={ratingVal}
-                  style={styles.starBtn}
-                  onPress={() => setLogRating(ratingVal)}
-                >
-                  <Text style={[styles.starChar, { color: ratingVal <= logRating ? '#FF7043' : 'rgba(255,255,255,0.1)' }]}>
-                    ★
-                  </Text>
-                </TouchableOpacity>
-              ))}
+          {/* Missed reason (only when marked missed) */}
+          {logStatus === 'missed' && (
+            <View style={{ marginBottom: 20, width: '100%' }}>
+              <MissedReasonPicker
+                theme={theme}
+                missedReason={logMissedReason}
+                setMissedReason={setLogMissedReason}
+                missedDetail={logMissedDetail}
+                setMissedDetail={setLogMissedDetail}
+              />
             </View>
-          </View>
+          )}
+
+          {/* Feel + RPE (only when completed) */}
+          {logStatus === 'completed' && (
+            <View style={{ marginBottom: 20, width: '100%' }}>
+              <FeelRpePicker
+                theme={theme}
+                bronzeGold={bronzeGold}
+                feel={logFeel}
+                setFeel={setLogFeel}
+                rpe={logRpe}
+                setRpe={setLogRpe}
+              />
+            </View>
+          )}
 
           {/* Performance notes */}
           <View style={styles.notesSection}>

@@ -102,20 +102,26 @@ export class BlockConceptParser {
     return `${prefix} • ${names}`;
   }
 
-  static getLadderSequence(metadata: ConceptMetadata): string {
-    if (metadata.structure !== 'ladder' || !metadata.rounds || !metadata.ladder_start) return '';
+  static getLadderRungs(metadata: ConceptMetadata): number[] {
+    if (metadata.structure !== 'ladder' || !metadata.rounds || !metadata.ladder_start) return [];
     const r = parseInt(String(metadata.rounds), 10);
     const start = parseInt(String(metadata.ladder_start), 10);
     const step = parseInt(String(metadata.ladder_sub || 0), 10);
     const isUp = metadata.ladder_direction === 'up';
-    
-    const sequence = [];
+
+    const sequence: number[] = [];
     for (let i = 0; i < r; i++) {
       const val = isUp
         ? start + (step * i)
         : Math.max(0, start - (step * i));
       sequence.push(val);
     }
+    return sequence;
+  }
+
+  static getLadderSequence(metadata: ConceptMetadata): string {
+    const sequence = this.getLadderRungs(metadata);
+    if (sequence.length === 0) return '';
     return sequence.join(', ') + ' REPS';
   }
 
