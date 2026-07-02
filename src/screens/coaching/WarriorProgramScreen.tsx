@@ -364,14 +364,25 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setTemplateId(activeTemplateId);
       setWarriorProgramId(actualAssignment.id);
 
-      // 2. Fetch program blocks
-      const { data: blocksData, error: blocksError } = await supabase
+      // 2. Fetch program blocks — excluding any week the coach has archived
+      // (program_week_archive), which stays fully visible to the coach but
+      // drops out of the warrior's own program view here.
+      const { data: archivedWeeksData, error: archivedWeeksError } = await supabase
+        .from('program_week_archive')
+        .select('week_number')
+        .eq('template_id', activeTemplateId);
+
+      if (archivedWeeksError) throw archivedWeeksError;
+      const archivedWeeks = new Set((archivedWeeksData || []).map(w => w.week_number));
+
+      const { data: rawBlocksData, error: blocksError } = await supabase
         .from('program_blocks')
         .select('id, name, notes, order_index, week_number')
         .eq('template_id', activeTemplateId)
         .order('order_index', { ascending: true });
 
       if (blocksError) throw blocksError;
+      const blocksData = (rawBlocksData || []).filter(b => !archivedWeeks.has(b.week_number || 1));
 
       // 3. Fetch completion status today
       const startOfToday = new Date();

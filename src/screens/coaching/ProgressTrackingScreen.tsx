@@ -7,12 +7,14 @@ import { View,
   TouchableOpacity,
   Modal,
   Platform,
-  TextInput } from 'react-native';
+  TextInput,
+  Alert } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { LeapLogo } from '../../components/LeapLogo';
 import { fetchWeekExportPayload, shareWeekExportPayload } from '../../lib/ProgramExportBuilder';
+import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload } from '../../lib/ProgramImportParser';
 
 
 interface WarriorProgress {
@@ -81,6 +83,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyLogs, setHistoryLogs] = useState<WorkoutLogHistory[]>([]);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   // Coach note for the currently-viewed week — one per (warrior_program, week).
   const [weekNote, setWeekNote] = useState('');
@@ -365,6 +368,60 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
       console.error('Failed to export week:', err);
     } finally {
       setExporting(false);
+    }
+  };
+
+  // Picks an AI-edited (or hand-edited) week JSON file, validates it,
+  // resolves each exercise to a real exercise_library row, and always adds
+  // it as a new week onto the client's program via the same append-only
+  // RPC used elsewhere in this screen — an import never overwrites or
+  // archives anything on its own.
+  const handleImportWeek = async () => {
+    if (!selectedWarrior || !coachId) return;
+    setImporting(true);
+    try {
+      const DocumentPicker = require('expo-document-picker');
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json' });
+      if (result.canceled || !result.assets?.[0]) {
+        setImporting(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const text = Platform.OS === 'web'
+        ? await (await fetch(asset.uri)).text()
+        : await require('expo-file-system/legacy').readAsStringAsync(asset.uri, { encoding: 'utf8' });
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        Alert.alert('IMPORT FAILED', 'That file is not valid JSON.');
+        return;
+      }
+
+      const validation = validateWeekImportPayload(parsed);
+      if (!validation.valid) {
+        Alert.alert('IMPORT FAILED', validation.error || 'The file is not in the expected shape.');
+        return;
+      }
+
+      const resolved = await resolveImportedExercises(parsed.blocks, coachId);
+      const blocks = buildImportBlocksPayload(parsed, resolved);
+
+      const { error } = await supabase.rpc('append_weeks_to_client_program', {
+        p_warrior_program_id: selectedWarrior.warriorProgramId,
+        p_blocks: blocks,
+      });
+      if (error) throw error;
+
+      Alert.alert('IMPORTED', `Added ${validation.blockCount} block(s) as a new week.`);
+      await handleOpenHistoryModal(selectedWarrior);
+    } catch (err: any) {
+      console.error('Failed to import week:', err);
+      Alert.alert('IMPORT FAILED', err.message?.toUpperCase() || 'FAILED TO IMPORT WEEK.');
+    } finally {
+      setImporting(false);
     }
   };
 
@@ -725,18 +782,30 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
               </ScrollView>
             )}
 
-            <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
-              {!historyLoading && selectedWeek !== null && (
+            {!historyLoading && selectedWeek !== null && (
+              <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>
                 <TouchableOpacity
                   onPress={handleExportWeek}
-                  disabled={exporting}
+                  disabled={exporting || importing}
                   style={[styles.exportBtn, { borderColor: bronzeGold, opacity: exporting ? 0.6 : 1 }]}
                 >
                   <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
                     {exporting ? 'EXPORTING...' : `EXPORT WEEK ${selectedWeek}`}
                   </Text>
                 </TouchableOpacity>
-              )}
+                <TouchableOpacity
+                  onPress={handleImportWeek}
+                  disabled={exporting || importing}
+                  style={[styles.exportBtn, { borderColor: theme.card.border, opacity: importing ? 0.6 : 1 }]}
+                >
+                  <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
+                    {importing ? 'IMPORTING...' : 'IMPORT WEEK'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
               <LinearGradient
                 colors={['#7E57C2', '#FF5252', '#FF7043']}
                 start={{ x: 0, y: 0 }}
