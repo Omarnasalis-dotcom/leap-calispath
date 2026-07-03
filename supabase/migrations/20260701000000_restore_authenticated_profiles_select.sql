@@ -1,0 +1,21 @@
+-- Migration 20260630190000 revoked table-level SELECT from authenticated and
+-- replaced it with column-level grants to block PII cross-user reads. This
+-- broke TestFlight 1.0.1, which calls from('profiles').select('*') directly:
+-- PostgREST expands select=* to all 35 columns (including email/push_token)
+-- and PostgreSQL rejects the query because authenticated lacks table-level
+-- SELECT. Result: profile never loads, AuthGuard spins on "user && !profile"
+-- indefinitely — the custom LEAP loading screen hangs forever.
+--
+-- Fix: restore table-level SELECT for authenticated. The primary security
+-- concern was anon (unauthenticated) read access, which remains closed — the
+-- "Public profiles are viewable by everyone" policy and the anon table grant
+-- from 20260630190000 are NOT restored here. Authenticated cross-user read of
+-- email/push_token is a secondary concern that can be re-enforced once all
+-- deployed binaries use get_my_profile() for own-row reads instead of
+-- from('profiles').select('*').
+--
+-- The column-level grants from 20260630190000 remain in place; they are
+-- superseded by this table-level grant but document the intended steady-state
+-- once backward compatibility is no longer required.
+
+GRANT SELECT ON TABLE public.profiles TO authenticated;
