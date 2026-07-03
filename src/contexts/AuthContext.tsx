@@ -17,8 +17,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
 
-  // Handle deep link on cold start (e.g. password reset email link)
+  // Handle deep link on cold start (e.g. password reset email link).
+  // Native only: on web this raced with ResetPasswordScreen's own gated
+  // verifyOtp call for the same single-use recovery token — whichever of
+  // the two fired second always failed with "invalid or expired", and a
+  // silent failure here (no error surfaced) could leave a stale existing
+  // session in place, letting the user fall through into the main app
+  // instead of the reset flow. Web owns this entirely in ResetPasswordScreen.
   useEffect(() => {
+    if (Platform.OS === 'web') return;
+
     async function handleInitialURL() {
       try {
         const url = await Linking.getInitialURL();
