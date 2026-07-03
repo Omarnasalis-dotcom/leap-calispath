@@ -9,7 +9,6 @@ import { View,
   Modal,
   TextInput,
   Platform,
-  Linking,
   Keyboard,
   KeyboardAvoidingView,
   Alert } from 'react-native';
@@ -32,6 +31,22 @@ import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramHeaderCard, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
+import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
+import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
+import { WorkoutProgressButton } from '../../components/coaching/WorkoutProgressButton';
+import { SetLogEntry } from '../../components/coaching/SetRow';
+import { Feel } from '../../components/coaching/FeelRpePicker';
+import { MissedReason } from '../../components/coaching/MissedReasonPicker';
+import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
+
+function getStartOfIsoWeek(date: Date): Date {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as week start
+  d.setDate(diff);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
 
 
 export interface ExerciseDetail {
@@ -42,6 +57,7 @@ export interface ExerciseDetail {
   reps: string;
   rest_seconds: string | number;
   hold_seconds?: string | number;
+  is_weighted?: boolean;
   notes: string;
 }
 
@@ -86,6 +102,19 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string | number, boolean>>({});
   const [togglingBlockIds, setTogglingBlockIds] = useState<Record<string | number, boolean>>({});
 
+  // In-progress per-set logging state, keyed by blockId -> exerciseId -> logged sets.
+  // Only persisted (via log_block_with_sets) in one batch write when the block is logged.
+  const [blockSetProgress, setBlockSetProgress] = useState<Record<string | number, Record<string | number, SetLogEntry[]>>>({});
+
+  const handleSetLogged = (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => {
+    setBlockSetProgress(prev => {
+      const blockEntry = prev[blockId] || {};
+      const existing = blockEntry[exerciseId] || [];
+      const next = [...existing.filter(s => s.setIndex !== entry.setIndex), entry];
+      return { ...prev, [blockId]: { ...blockEntry, [exerciseId]: next } };
+    });
+  };
+
   // Log Form State
   const [logModalVisible, setLogModalVisible] = useState(false);
   const [activeLogBlockId, setActiveLogBlockId] = useState<string | number | null>(null);
@@ -97,11 +126,33 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [logForTimeDuration, setLogForTimeDuration] = useState('');
   const [logWeightUsed, setLogWeightUsed] = useState('');
   const [logLadderProgress, setLogLadderProgress] = useState('');
+  const [pendingHoldTimes, setPendingHoldTimes] = useState<number[]>([]);
+  const [logFeel, setLogFeel] = useState<Feel | null>(null);
+  const [logRpe, setLogRpe] = useState<number | null>(null);
+  const [logMissedReason, setLogMissedReason] = useState<MissedReason | null>(null);
+  const [logMissedDetail, setLogMissedDetail] = useState('');
+  // Today's already-submitted workout_logs rows, keyed by block_id — lets
+  // "EDIT LOG" pre-fill the modal with what was actually saved instead of
+  // opening blank and forcing the warrior to redo the whole entry.
+  const [loggedDetails, setLoggedDetails] = useState<Record<string, {
+    notes: string; feel: string | null; rpe: number | null;
+    missed_reason: string | null; missed_detail: string | null;
+  }>>({});
 
   // Active Timer State (Extracted to Hook)
   const [activeTimerBlock, setActiveTimerBlock] = useState<ProgramBlock | null>(null);
 
+  // Defensive re-check in case a stale render lets a locked action through
+  // (see the isLocked prop passed to WarriorBlockCard for the primary gate).
+  const isBlockLocked = (blockId: string | number): boolean => {
+    const blocks = weeksData[activeWeek]?.[activeDayIndex]?.blocks || [];
+    const index = blocks.findIndex(b => b.id === blockId);
+    if (index <= 0) return false;
+    return blocks[index - 1].completedStatus === 'none';
+  };
+
   const startTimerForBlock = (block: ProgramBlock) => {
+    if (isBlockLocked(block.id)) return;
     setActiveTimerBlock(block);
   };
 
@@ -120,9 +171,119 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   // Recommendations State
   const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
 
+  // Weekly bodyweight check-in — optional (skippable), and once entered for
+  // the week it can be reopened and changed rather than being locked in;
+  // bodyweightLogId tracks whether a row already exists this week so
+  // handleSubmitBodyweight updates it instead of inserting a duplicate.
+  const [showBodyweightCheckIn, setShowBodyweightCheckIn] = useState(false);
+  const [bodyweightSaving, setBodyweightSaving] = useState(false);
+  const [bodyweightThisWeek, setBodyweightThisWeek] = useState<number | null>(null);
+  const [bodyweightLogId, setBodyweightLogId] = useState<string | null>(null);
+
+  // Session-complete tracking — the workout progress button at the bottom of
+  // the block list is the only way into this now (no more auto-popup); it
+  // opens the same stats view whether the day is finished or still in progress.
+  const sessionStartRef = useRef<number>(Date.now());
+  const [showSessionComplete, setShowSessionComplete] = useState(false);
+  // Which exercise's demo video is currently open inline — only one at a time,
+  // app-wide, so opening a new one closes whatever was previously playing.
+  const [activeVideoExerciseId, setActiveVideoExerciseId] = useState<string | number | null>(null);
+  // Total reps logged today — accumulated as blocks are submitted (see
+  // handleLogWorkout/quickLogWorkout) since blockSetProgress for a block is
+  // cleared once it's logged, so it can't be summed after the fact.
+  const [sessionTotalReps, setSessionTotalReps] = useState(0);
+
+  useEffect(() => {
+    sessionStartRef.current = Date.now();
+    setSessionTotalReps(0);
+  }, [activeDayIndex, activeWeek]);
+
+  const loggableBlocks = (days[activeDayIndex]?.blocks || []).filter(b => !b.metadata?.is_tier_trial);
+  // "Addressed" = every block has some status (completed or missed) — this is
+  // what flips the button/stats screen to "WORKOUT DONE" and unlocks Send to
+  // Coach. "Completed-only" drives the fill bar / completion % / blocks-done
+  // stat, since a missed block shouldn't visually count as progress.
+  const blocksCompletedCount = loggableBlocks.filter(b => b.completedStatus === 'completed').length;
+  const blocksAddressedCount = loggableBlocks.filter(b => b.completedStatus !== 'none').length;
+  const blocksTotalCount = loggableBlocks.length;
+  const isWorkoutAddressed = blocksTotalCount > 0 && blocksAddressedCount === blocksTotalCount;
+  const exercisesDoneCount = loggableBlocks
+    .filter(b => b.completedStatus !== 'none')
+    .reduce((sum, b) => sum + b.exercises.length, 0);
+
+  const handleWorkoutDonePress = () => {
+    const unaddressedCount = blocksTotalCount - blocksAddressedCount;
+    if (unaddressedCount <= 0) {
+      setShowSessionComplete(true);
+      return;
+    }
+    Alert.alert(
+      unaddressedCount === 1 ? '1 BLOCK NOT LOGGED YET' : `${unaddressedCount} BLOCKS NOT LOGGED YET`,
+      'Mark them as completed or missed so your coach has the full picture — or continue anyway.',
+      [
+        { text: 'REVIEW', style: 'cancel' },
+        { text: 'CONTINUE ANYWAY', onPress: () => setShowSessionComplete(true) },
+      ]
+    );
+  };
+
   useEffect(() => {
     loadWarriorProgram();
+    checkBodyweightCheckIn();
   }, [warriorId]);
+
+  async function checkBodyweightCheckIn() {
+    if (!warriorId) return;
+    const startOfWeek = getStartOfIsoWeek(new Date());
+    const { data, error } = await supabase
+      .from('bodyweight_logs')
+      .select('id, weight_kg')
+      .eq('warrior_id', warriorId)
+      .gte('logged_at', startOfWeek.toISOString())
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!error && !data) {
+      setShowBodyweightCheckIn(true);
+    } else if (data) {
+      setBodyweightThisWeek(data.weight_kg);
+      setBodyweightLogId(data.id);
+    }
+  }
+
+  const handleSubmitBodyweight = async (weightKg: number) => {
+    setBodyweightSaving(true);
+    try {
+      // Once a week already has an entry, editing it updates that same row
+      // instead of inserting a second one for the week.
+      if (bodyweightLogId) {
+        const { error } = await supabase
+          .from('bodyweight_logs')
+          .update({ weight_kg: weightKg })
+          .eq('id', bodyweightLogId);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('bodyweight_logs')
+          .insert({
+            warrior_id: warriorId,
+            warrior_program_id: warriorProgramId || null,
+            weight_kg: weightKg,
+          })
+          .select('id')
+          .single();
+        if (error) throw error;
+        setBodyweightLogId(data.id);
+      }
+      setBodyweightThisWeek(weightKg);
+      setShowBodyweightCheckIn(false);
+    } catch (err: any) {
+      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO SAVE BODYWEIGHT.');
+    } finally {
+      setBodyweightSaving(false);
+    }
+  };
 
   const handleClose = () => {
     if (activeTimerBlock !== null) {
@@ -219,14 +380,33 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setTemplateId(activeTemplateId);
       setWarriorProgramId(actualAssignment.id);
 
-      // 2. Fetch program blocks
-      const { data: blocksData, error: blocksError } = await supabase
+      // 2. Fetch program blocks — excluding any week the coach has archived
+      // (program_week_archive), which stays fully visible to the coach but
+      // drops out of the warrior's own program view here.
+      const { data: archivedWeeksData, error: archivedWeeksError } = await supabase
+        .from('program_week_archive')
+        .select('week_number')
+        .eq('template_id', activeTemplateId);
+
+      if (archivedWeeksError) throw archivedWeeksError;
+      const archivedWeeks = new Set((archivedWeeksData || []).map(w => w.week_number));
+
+      const { data: rawBlocksData, error: blocksError } = await supabase
         .from('program_blocks')
         .select('id, name, notes, order_index, week_number')
         .eq('template_id', activeTemplateId)
         .order('order_index', { ascending: true });
 
       if (blocksError) throw blocksError;
+      const blocksData = (rawBlocksData || []).filter(b => !archivedWeeks.has(b.week_number || 1));
+
+      // Renumber remaining weeks sequentially for display only — the raw
+      // week_number values aren't touched (coach-side views and the export
+      // builder still use them as-is), but if e.g. week 1 got archived and
+      // weeks 2-3 remain, the warrior should see "Week 1, Week 2", not a
+      // confusing "Week 2, Week 3" gap.
+      const remainingRawWeeks = Array.from(new Set((blocksData || []).map(b => b.week_number || 1))).sort((a, b) => a - b);
+      const rawToDisplayWeek = new Map<number, number>(remainingRawWeeks.map((raw, idx) => [raw, idx + 1]));
 
       // 3. Fetch completion status today
       const startOfToday = new Date();
@@ -234,13 +414,22 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
       const { data: loggedToday, error: loggedError } = await supabase
         .from('workout_logs')
-        .select('block_id, notes')
+        .select('block_id, notes, feel, rpe, missed_reason, missed_detail')
         .eq('warrior_id', warriorId)
         .gte('completed_at', startOfToday.toISOString());
 
       if (loggedError) throw loggedError;
 
       const loggedBlockMap = new Map((loggedToday || []).map((l: any) => [l.block_id, l.notes || '']));
+      setLoggedDetails(Object.fromEntries(
+        (loggedToday || []).map((l: any) => [l.block_id, {
+          notes: l.notes || '',
+          feel: l.feel,
+          rpe: l.rpe,
+          missed_reason: l.missed_reason,
+          missed_detail: l.missed_detail,
+        }])
+      ));
 
       // 4. FIX N+1: Batch Fetch all block exercises for all blocks
       const blockIds = (blocksData || []).map(b => b.id);
@@ -320,7 +509,8 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           ? (notesStr.startsWith('[STATUS:MISSED]') ? 'missed' : 'completed')
           : 'none';
           
-        const weekNum = block.week_number || 1;
+        const rawWeekNum = block.week_number || 1;
+        const weekNum = rawToDisplayWeek.get(rawWeekNum) ?? rawWeekNum;
 
         const mappedBlock: ProgramBlock = {
           id: block.id,
@@ -412,15 +602,17 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   }
 
-  const handleToggleBlockStatus = async (blockId: string | number, currentStatus: 'completed' | 'missed' | 'none') => {
+  // targetStatus is the explicit state to switch to (not a cycle) — the DONE and
+  // SKIP buttons in WarriorBlockCard each toggle their own status directly.
+  // Marking "missed" (skip) is deliberately allowed even while the block is
+  // locked, so a warrior can skip past a block they don't want to do instead
+  // of being stuck; only marking "completed" requires it to be unlocked.
+  const handleToggleBlockStatus = async (blockId: string | number, targetStatus: 'completed' | 'missed' | 'none') => {
     if (togglingBlockIds[blockId]) return;
+    if (targetStatus === 'completed' && isBlockLocked(blockId)) return;
 
-    let nextStatus: 'completed' | 'missed' | 'none' = 'completed';
-    if (currentStatus === 'completed') {
-      nextStatus = 'missed';
-    } else if (currentStatus === 'missed') {
-      nextStatus = 'none';
-    }
+    const nextStatus = targetStatus;
+    const previousStatus = days.flatMap(d => d.blocks).find(b => b.id === blockId)?.completedStatus || 'none';
 
     const startOfToday = new Date();
     startOfToday.setHours(0, 0, 0, 0);
@@ -453,6 +645,16 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         return next;
       });
 
+      // Quick-toggling straight to "completed" (no detailed per-set logging)
+      // still needs to count toward the session's total reps, using the
+      // prescribed sets × reps fallback in sumBlockReps. Reverting back off
+      // "completed" removes what was added so the total stays accurate.
+      if (nextStatus === 'completed' && previousStatus !== 'completed') {
+        setSessionTotalReps(prev => prev + sumBlockReps(blockId));
+      } else if (previousStatus === 'completed' && nextStatus !== 'completed') {
+        setSessionTotalReps(prev => Math.max(0, prev - sumBlockReps(blockId)));
+      }
+
     } catch (err: any) {
       console.error("Failed to toggle block status:", err);
       // Revert on failure
@@ -466,22 +668,215 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  // Open Log modal for specific block
-  const handleOpenLogModal = (blockId: string | number) => {
+  // Reverses handleLogWorkout/quickLogWorkout's finalNotes composition — pulls
+  // the AMRAP/FOR TIME/ladder/weight '[LOG] ...' lines back out of a saved
+  // notes string so "EDIT LOG" can restore them instead of opening blank.
+  const parseLoggedNotes = (notes: string) => {
+    let amrapRounds = '';
+    let forTimeDuration = '';
+    let ladderProgress = '';
+    let weightUsed = '';
+    const freeLines: string[] = [];
+    (notes || '').split('\n').forEach(rawLine => {
+      const line = rawLine.trim();
+      if (!line) return;
+      let m: RegExpMatchArray | null;
+      if ((m = line.match(/^\[LOG\] Completed: (.+) Rounds\/Reps$/))) {
+        amrapRounds = m[1];
+      } else if ((m = line.match(/^\[LOG\] Finished in: (.+)$/))) {
+        forTimeDuration = m[1];
+      } else if ((m = line.match(/^\[LOG\] Ladder Progress: (.+)$/))) {
+        ladderProgress = m[1];
+      } else if ((m = line.match(/^\[LOG\] Weight Used: (.+) KG$/))) {
+        weightUsed = m[1];
+      } else {
+        freeLines.push(line);
+      }
+    });
+    return { amrapRounds, forTimeDuration, ladderProgress, weightUsed, freeText: freeLines.join('\n') };
+  };
+
+  // Open Log modal for specific block — pre-fills from the already-submitted
+  // log (if any) so "EDIT LOG" lets the warrior adjust what's there instead
+  // of forcing a full rewrite. initialStatus is set when opened from the
+  // header DONE/SKIP buttons (see WarriorBlockCard), so the modal comes up
+  // already in that status for the warrior to fill in and submit — SKIP
+  // bypasses the lock check the same way the quick-toggle path always has,
+  // since skipping past a locked block must stay possible.
+  const handleOpenLogModal = (blockId: string | number, initialStatus?: 'completed' | 'missed') => {
+    if (isBlockLocked(blockId) && initialStatus !== 'missed') return;
+    setActiveLogBlockId(blockId);
+    setLogRating(5);
+
+    const existing = loggedDetails[blockId];
+    if (existing) {
+      const isMissed = existing.notes.startsWith('[STATUS:MISSED]');
+      setLogStatus(isMissed ? 'missed' : 'completed');
+      setLogFeel((existing.feel as Feel) ?? null);
+      setLogRpe(existing.rpe ?? null);
+      setLogMissedReason((existing.missed_reason as MissedReason) ?? null);
+      setLogMissedDetail(existing.missed_detail || '');
+      if (isMissed) {
+        // '[STATUS:MISSED]' replaces the whole notes field on save (see
+        // log_block_with_sets), so there's nothing structured to recover here.
+        setLogNotes('');
+        setLogAmrapRounds('');
+        setLogForTimeDuration('');
+        setLogLadderProgress('');
+        setLogWeightUsed('');
+      } else {
+        const parsed = parseLoggedNotes(existing.notes);
+        setLogNotes(parsed.freeText);
+        setLogAmrapRounds(parsed.amrapRounds);
+        setLogForTimeDuration(parsed.forTimeDuration);
+        setLogLadderProgress(parsed.ladderProgress);
+        setLogWeightUsed(parsed.weightUsed);
+      }
+    } else {
+      setLogNotes('');
+      setLogStatus('completed');
+      setLogFeel(null);
+      setLogRpe(null);
+      setLogMissedReason(null);
+      setLogMissedDetail('');
+      setLogAmrapRounds('');
+      setLogForTimeDuration('');
+      setLogLadderProgress('');
+      setLogWeightUsed('');
+    }
+
+    if (initialStatus) {
+      setLogStatus(initialStatus);
+    }
+
+    setLogModalVisible(true);
+  };
+
+  // Fired when the inline ladder logger (rendered inside the block card)
+  // finalizes an attempt — opens the log modal pre-filled with the ladder
+  // progress summary so the warrior can still add feel/RPE before submitting.
+  const handleLadderFinalize = (blockId: string | number, summary: string) => {
+    if (isBlockLocked(blockId)) return;
     setActiveLogBlockId(blockId);
     setLogNotes('');
     setLogStatus('completed');
     setLogRating(5);
+    setLogFeel(null);
+    setLogRpe(null);
+    setLogMissedReason(null);
+    setLogMissedDetail('');
+    setLogLadderProgress(summary);
+    setLogModalVisible(true);
+  };
+
+  // Fired when the inline AMRAP timer (rendered inside the block card) finalizes
+  // an attempt — opens the log modal pre-filled with the round count, same as
+  // the ladder logger above, so the warrior can still add feel/RPE before submitting.
+  const handleAmrapFinalize = (blockId: string | number, roundsCompleted: number) => {
+    if (isBlockLocked(blockId)) return;
+    setActiveLogBlockId(blockId);
+    setLogNotes('');
+    setLogStatus('completed');
+    setLogRating(5);
+    setLogFeel(null);
+    setLogRpe(null);
+    setLogMissedReason(null);
+    setLogMissedDetail('');
+    setLogAmrapRounds(String(roundsCompleted));
+    setLogModalVisible(true);
+  };
+
+  // Fired when the inline FOR TIME timer (rendered inside the block card)
+  // finalizes an attempt — opens the log modal pre-filled with the result.
+  // Submitting before the time cap means the full workout (all rounds) got
+  // done, so the elapsed time itself is the score. If the cap ran out first,
+  // the tracked round count is what's reported instead — "how far did you get."
+  const handleForTimeFinalize = (blockId: string | number, result: ForTimeResult) => {
+    if (isBlockLocked(blockId)) return;
+    setActiveLogBlockId(blockId);
+    setLogNotes('');
+    setLogStatus('completed');
+    setLogRating(5);
+    setLogFeel(null);
+    setLogRpe(null);
+    setLogMissedReason(null);
+    setLogMissedDetail('');
+    setLogForTimeDuration(
+      result.capped
+        ? `Reached round ${result.roundsCompleted} of ${result.totalRounds} (time cap reached)`
+        : formatTimerString(result.elapsedSeconds)
+    );
     setLogModalVisible(true);
   };
 
   // Insert workout log into workout_logs table
+  // Prescribed sets × reps for a block, from the program definition itself —
+  // the fallback used when a block was marked done via the quick DONE/SKIP
+  // header toggle rather than actual per-set logging, so "total reps" isn't
+  // just silently 0 for blocks nobody opened up to log in detail.
+  const getPrescribedReps = (blockId: string | number): number => {
+    const block = days.flatMap(d => d.blocks).find(b => b.id === blockId);
+    if (!block) return 0;
+    return block.exercises.reduce((sum, ex) => {
+      const sets = parseInt(String(ex.sets || '1'), 10) || 1;
+      const reps = parseInt(String(ex.reps || '0'), 10) || 0;
+      return sum + sets * reps;
+    }, 0);
+  };
+
+  // Sum of reps logged for a block so far, used for the "total reps" session
+  // stat. Prefers actual per-set/round reps tracked in blockSetProgress
+  // (straight-set/circuit/superset/ladder); falls back to the prescribed
+  // sets × reps when no detailed logging happened for this block at all.
+  const sumBlockReps = (blockId: string | number): number => {
+    const exerciseSets = blockSetProgress[blockId] || {};
+    const logged = Object.values(exerciseSets).reduce(
+      (sum, entries) => sum + entries.reduce((s, e: SetLogEntry) => s + (e.reps || 0), 0),
+      0
+    );
+    return logged > 0 ? logged : getPrescribedReps(blockId);
+  };
+
+  // Assembles the workout_set_logs payload for a block: per-set entries from
+  // blockSetProgress (straight-set blocks) plus any Tabata hold times logged
+  // during the timer session. AMRAP round counts are captured in the notes
+  // text (see finalNotes below) rather than as synthetic set rows, since
+  // there's no per-round weight/reps detail worth storing structurally there.
+  const buildSetsPayload = (blockId: string | number) => {
+    const sets: { block_exercise_id: string | number | null; set_index: number; reps_completed: number | null; weight_used: number | null; hold_seconds: number | null }[] = [];
+
+    const exerciseSets = blockSetProgress[blockId] || {};
+    Object.entries(exerciseSets).forEach(([exerciseId, entries]) => {
+      entries.forEach((entry: SetLogEntry) => {
+        sets.push({
+          block_exercise_id: exerciseId,
+          set_index: entry.setIndex,
+          reps_completed: entry.reps,
+          weight_used: entry.weight ?? null,
+          hold_seconds: null,
+        });
+      });
+    });
+
+    pendingHoldTimes.forEach((seconds, i) => {
+      sets.push({
+        block_exercise_id: null,
+        set_index: i + 1,
+        reps_completed: null,
+        weight_used: null,
+        hold_seconds: seconds,
+      });
+    });
+
+    return sets;
+  };
+
   const handleLogWorkout = async () => {
     if (!activeLogBlockId || !templateId) return;
 
     setLogLoading(true);
     try {
-      let finalNotes = logStatus === 'missed' ? '[STATUS:MISSED] ' : '';
+      let finalNotes = '';
       if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
       if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
       if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
@@ -489,15 +884,25 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (logNotes) finalNotes += logNotes;
       finalNotes = finalNotes.trim();
 
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const { error } = await supabase.from('workout_logs').insert({
-        warrior_program_id: warriorProgramId,
-        warrior_id: warriorId,
-        block_id: activeLogBlockId,
-        notes: finalNotes,
-        rating: logRating
+      const { error } = await supabase.rpc('log_block_with_sets', {
+        p_warrior_id: warriorId,
+        p_warrior_program_id: warriorProgramId,
+        p_block_id: activeLogBlockId,
+        p_status: logStatus,
+        p_feel: logStatus === 'completed' ? logFeel : null,
+        p_rpe: logStatus === 'completed' ? logRpe : null,
+        p_missed_reason: logStatus === 'missed' ? logMissedReason : null,
+        p_missed_detail: logStatus === 'missed' ? logMissedDetail : null,
+        p_notes: finalNotes,
+        p_session_seconds: null,
+        p_start_of_today: startOfToday.toISOString(),
+        p_sets: buildSetsPayload(activeLogBlockId),
       }).abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
@@ -510,7 +915,16 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       }
 
       setLogModalVisible(false);
-      
+      setSessionTotalReps(prev => prev + sumBlockReps(activeLogBlockId));
+      setBlockSetProgress(prev => {
+        const next = { ...prev };
+        delete next[activeLogBlockId];
+        return next;
+      });
+      setPendingHoldTimes([]);
+      // Collapse the just-logged block so the next unlocked block is easy to open.
+      setExpandedBlocks(prev => ({ ...prev, [activeLogBlockId]: false }));
+
       // Optimistically update UI
       const nextStatus = logStatus;
       const updateBlockInDays = (dayList: ProgramDay[]) => {
@@ -544,6 +958,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         setLogStatus(status);
         setLogNotes('');
         setLogRating(5);
+        setLogFeel(null);
+        setLogRpe(null);
+        setLogMissedReason(null);
+        setLogMissedDetail('');
         setLogAmrapRounds('');
         setLogForTimeDuration('');
         setLogWeightUsed('');
@@ -564,6 +982,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
               setLogStatus(status);
               setLogNotes('');
               setLogRating(5);
+            setLogFeel(null);
+            setLogRpe(null);
+            setLogMissedReason(null);
+            setLogMissedDetail('');
               setLogAmrapRounds('');
               setLogForTimeDuration('');
               setLogWeightUsed('');
@@ -585,12 +1007,15 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     if (!templateId) return;
     setLogLoading(true);
     try {
-      let finalNotes = status === 'missed' ? '[STATUS:MISSED] ' : '';
+      let finalNotes = '';
       if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
       if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
       if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
       if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
       if (logNotes) finalNotes += logNotes;
+
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
 
       let timerId: NodeJS.Timeout | null = null;
       const timeoutPromise = new Promise((_, reject) => {
@@ -598,18 +1023,34 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       });
 
       const { error } = await Promise.race([
-        supabase.from('workout_logs').insert({
-          warrior_program_id: warriorProgramId,
-          warrior_id: warriorId,
-          block_id: blockId,
-          notes: finalNotes.trim(),
-          rating: logRating
+        supabase.rpc('log_block_with_sets', {
+          p_warrior_id: warriorId,
+          p_warrior_program_id: warriorProgramId,
+          p_block_id: blockId,
+          p_status: status,
+          p_feel: status === 'completed' ? logFeel : null,
+          p_rpe: status === 'completed' ? logRpe : null,
+          p_missed_reason: status === 'missed' ? logMissedReason : null,
+          p_missed_detail: status === 'missed' ? logMissedDetail : null,
+          p_notes: finalNotes.trim(),
+          p_session_seconds: null,
+          p_start_of_today: startOfToday.toISOString(),
+          p_sets: buildSetsPayload(blockId),
         }),
         timeoutPromise
       ]) as any;
 
       if (timerId) clearTimeout(timerId);
       if (error) throw error;
+      setSessionTotalReps(prev => prev + sumBlockReps(blockId));
+      setBlockSetProgress(prev => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+      setPendingHoldTimes([]);
+      // Collapse the just-logged block so the next unlocked block is easy to open.
+      setExpandedBlocks(prev => ({ ...prev, [blockId]: false }));
       await loadWarriorProgram();
       setLogModalVisible(false);
     } catch (err: any) {
@@ -627,12 +1068,9 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }));
   };
 
-  const handleOpenVideo = (url: string) => {
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Could not open video. Please try again.');
-      });
-    }
+  const handleToggleVideo = (exerciseId: string | number, url: string) => {
+    if (!url) return;
+    setActiveVideoExerciseId(prev => (prev === exerciseId ? null : exerciseId));
   };
 
   return (
@@ -721,6 +1159,37 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   }}
                   theme={theme}
                 />
+                {/* WEEKLY BODYWEIGHT — optional, once per week, tap to log or change it */}
+                <TouchableOpacity
+                  onPress={() => setShowBodyweightCheckIn(true)}
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: 6,
+                    alignSelf: 'center',
+                    borderWidth: 1,
+                    borderRadius: 20,
+                    paddingVertical: 8,
+                    paddingHorizontal: 16,
+                    borderColor: bodyweightThisWeek !== null ? bronzeGold : theme.card.border,
+                    backgroundColor: bodyweightThisWeek !== null ? 'rgba(200,160,64,0.08)' : 'transparent',
+                  }}
+                >
+                  <Text style={{
+                    fontFamily: 'BarlowCondensed-Bold',
+                    fontSize: 11,
+                    letterSpacing: 0.5,
+                    color: bodyweightThisWeek !== null ? bronzeGold : theme.text.secondary,
+                  }}>
+                    {bodyweightThisWeek !== null ? `BODYWEIGHT: ${bodyweightThisWeek}KG` : '+ LOG BODYWEIGHT (OPTIONAL)'}
+                  </Text>
+                  {bodyweightThisWeek !== null && (
+                    <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.tertiary }}>
+                      EDIT
+                    </Text>
+                  )}
+                </TouchableOpacity>
                 {/* PROGRESS STATS BAR */}
                 <DayProgressBar
                   blocks={days[activeDayIndex]?.blocks || []}
@@ -752,7 +1221,12 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 />
                 {/* BLOCKS / WORKOUTS LIST */}
                 <View style={{ gap: 16, paddingBottom: 100 }}>
-                  {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock) => {
+                  {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock, index: number) => {
+                    // Blocks are no longer gated behind completing the previous
+                    // one in order — a warrior can log any block whenever they
+                    // want. handleWorkoutDonePress below nudges them to log any
+                    // still-unaddressed blocks before finishing instead.
+                    const isLocked = false;
                     return (
                       <WarriorBlockCard
                         key={block.id}
@@ -768,16 +1242,61 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                         isTogglingStatus={!!togglingBlockIds[block.id]}
                         handleOpenLogging={handleOpenLogModal}
                         startTimerForBlock={startTimerForBlock}
-                        handleOpenVideo={handleOpenVideo}
+                        activeVideoExerciseId={activeVideoExerciseId}
+                        onToggleVideo={handleToggleVideo}
+                        isLocked={isLocked}
+                        loggedSetsByExercise={blockSetProgress[block.id]}
+                        onSetLogged={handleSetLogged}
+                        onLadderFinalize={handleLadderFinalize}
+                        onAmrapFinalize={handleAmrapFinalize}
+                        onForTimeFinalize={handleForTimeFinalize}
                       />
                     );
                   })}
+
+                  {blocksTotalCount > 0 && (
+                    <WorkoutProgressButton
+                      theme={theme}
+                      blocksCompleted={blocksCompletedCount}
+                      blocksTotal={blocksTotalCount}
+                      isAddressed={isWorkoutAddressed}
+                      onPress={handleWorkoutDonePress}
+                    />
+                  )}
                 </View>
               </View>
             )}
           </View>
         )}
       </ScrollView>
+
+      {/* WEEKLY BODYWEIGHT CHECK-IN */}
+      <BodyweightCheckInModal
+        visible={showBodyweightCheckIn}
+        theme={theme}
+        bronzeGold={bronzeGold}
+        onSubmit={handleSubmitBodyweight}
+        onSkip={() => setShowBodyweightCheckIn(false)}
+        loading={bodyweightSaving}
+        currentValue={bodyweightThisWeek}
+      />
+
+      {/* SESSION COMPLETE / WORKOUT STATS */}
+      <SessionCompleteScreen
+        visible={showSessionComplete}
+        theme={theme}
+        bronzeGold={bronzeGold}
+        programName={programName}
+        dayName={days[activeDayIndex]?.name || ''}
+        blocksCompleted={blocksCompletedCount}
+        blocksTotal={blocksTotalCount}
+        isAddressed={isWorkoutAddressed}
+        exercisesDone={exercisesDoneCount}
+        totalReps={sessionTotalReps}
+        bodyweightKg={bodyweightThisWeek}
+        sessionSeconds={Math.floor((Date.now() - sessionStartRef.current) / 1000)}
+        onClose={() => setShowSessionComplete(false)}
+      />
 
       {/* LOG DETAILS MODAL */}
       <WarriorLogModal
@@ -803,6 +1322,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         setLogNotes={setLogNotes}
         handleLogWorkout={handleLogWorkout}
         logLoading={logLoading}
+        logFeel={logFeel}
+        setLogFeel={setLogFeel}
+        logRpe={logRpe}
+        setLogRpe={setLogRpe}
+        logMissedReason={logMissedReason}
+        setLogMissedReason={setLogMissedReason}
+        logMissedDetail={logMissedDetail}
+        setLogMissedDetail={setLogMissedDetail}
       />
 
       {/* VISUAL TIMER MODAL */}
@@ -812,13 +1339,17 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           theme={theme}
           bronzeGold={bronzeGold}
           onClose={() => setActiveTimerBlock(null)}
-          onAmrapComplete={(blockId) => {
+          onAmrapComplete={(blockId, roundsCompleted) => {
             setActiveTimerBlock(null);
             setActiveLogBlockId(blockId);
             setLogStatus('completed');
             setLogNotes('');
             setLogRating(5);
-            setLogAmrapRounds('');
+            setLogFeel(null);
+            setLogRpe(null);
+            setLogMissedReason(null);
+            setLogMissedDetail('');
+            setLogAmrapRounds(String(roundsCompleted));
             setLogModalVisible(true);
           }}
           onForTimeComplete={(blockId, elapsedSeconds) => {
@@ -827,16 +1358,25 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             setLogStatus('completed');
             setLogNotes('');
             setLogRating(5);
+            setLogFeel(null);
+            setLogRpe(null);
+            setLogMissedReason(null);
+            setLogMissedDetail('');
             setLogForTimeDuration(formatTimerString(elapsedSeconds));
             setLogModalVisible(true);
           }}
-          onBlockComplete={(blockId) => {
+          onBlockComplete={(blockId, roundsCompleted, tabataHoldTimes) => {
             setActiveTimerBlock(null);
             setActiveLogBlockId(blockId);
             setLogStatus('completed');
             setLogNotes('');
             setLogRating(5);
-            setLogAmrapRounds('');
+            setLogFeel(null);
+            setLogRpe(null);
+            setLogMissedReason(null);
+            setLogMissedDetail('');
+            setLogAmrapRounds(roundsCompleted !== undefined ? String(roundsCompleted) : '');
+            setPendingHoldTimes(tabataHoldTimes || []);
             setLogModalVisible(true);
           }}
         />

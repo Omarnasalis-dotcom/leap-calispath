@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ConceptMetadata } from '../../lib/BlockConceptParser';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { TIER_NAMES } from '../../types';
 
 interface BlockConfigWizardProps {
   initialMetadata: ConceptMetadata;
@@ -34,6 +35,9 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
   const [tabataRest, setTabataRest] = useState(String(initialMetadata.tabata_rest_seconds || '10'));
   const [tabataRounds, setTabataRounds] = useState(String(initialMetadata.tabata_rounds || '8'));
   const [isTierTrial, setIsTierTrial] = useState(!!initialMetadata.is_tier_trial);
+  // undefined means "use the warrior's current tier" — preserves old blocks
+  // built before a fixed tier could be assigned.
+  const [tierTrialTier, setTierTrialTier] = useState<number | undefined>(initialMetadata.tier_trial_tier);
 
   useEffect(() => {
     // Compile into ConceptMetadata
@@ -71,10 +75,13 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
 
     if (isTierTrial) {
       payload.is_tier_trial = true;
+      if (tierTrialTier !== undefined) {
+        payload.tier_trial_tier = tierTrialTier;
+      }
     }
 
     onChange(payload);
-  }, [timingSystem, structure, timeCap, rounds, restAfterRound, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tabataWork, tabataRest, tabataRounds]);
+  }, [timingSystem, structure, timeCap, rounds, restAfterRound, ladderStart, ladderSub, ladderDirection, isWeighted, isTierTrial, tierTrialTier, tabataWork, tabataRest, tabataRounds]);
 
   const TimingOption = ({ value, label }: { value: any, label: string }) => {
     const active = timingSystem === value;
@@ -258,13 +265,43 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
       )}
 
       <Text style={[styles.sectionTitle, { color: theme.text.primary, marginTop: 24 }]}>3. SPECIAL ROUTING</Text>
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.checkboxRow}
         onPress={() => setIsTierTrial(!isTierTrial)}
       >
         <MaterialCommunityIcons name={isTierTrial ? "checkbox-marked" : "checkbox-blank-outline"} size={24} color={isTierTrial ? theme.accent : theme.text.tertiary} />
         <Text style={[styles.checkboxLabel, { color: theme.text.primary }]}>SET AS STRENGTH TIER TRIAL ROUTE</Text>
       </TouchableOpacity>
+
+      {isTierTrial && (
+        <View style={{ marginTop: 12 }}>
+          <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1, marginBottom: 8 }}>
+            TIER TO ASSIGN {tierTrialTier === undefined ? '(WARRIOR\'S CURRENT TIER)' : ''}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[styles.optionBtn, { borderColor: tierTrialTier === undefined ? theme.accent : theme.card.border, backgroundColor: tierTrialTier === undefined ? 'rgba(255, 82, 82, 0.1)' : 'transparent' }]}
+                onPress={() => setTierTrialTier(undefined)}
+              >
+                <Text style={[styles.optionText, { color: tierTrialTier === undefined ? theme.accent : theme.text.secondary }]}>AUTO (CURRENT)</Text>
+              </TouchableOpacity>
+              {TIER_NAMES.map((name, tier) => {
+                const active = tierTrialTier === tier;
+                return (
+                  <TouchableOpacity
+                    key={tier}
+                    style={[styles.optionBtn, { borderColor: active ? theme.accent : theme.card.border, backgroundColor: active ? 'rgba(255, 82, 82, 0.1)' : 'transparent' }]}
+                    onPress={() => setTierTrialTier(tier)}
+                  >
+                    <Text style={[styles.optionText, { color: active ? theme.accent : theme.text.secondary }]}>TIER {tier} — {name.toUpperCase()}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+          </ScrollView>
+        </View>
+      )}
     </View>
   );
 }

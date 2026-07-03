@@ -80,11 +80,13 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
         style={[styles.blockCard, { backgroundColor: solidCardBg, borderColor: 'transparent', borderRadius: 11, marginBottom: 0 }]}
       >
         {/* Block Header and Controls */}
-        <TouchableOpacity 
-          onPress={() => toggleBlock(block.id)}
+        <View
           style={[styles.blockHeader, { borderBottomWidth: expandedBlocks[block.id] ? 1 : 0, borderBottomColor: 'rgba(255,255,255,0.05)' }]}
         >
-          <View style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => toggleBlock(block.id)}
+            style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}
+          >
             <Text style={{ color: theme.text.secondary, fontSize: 14, marginRight: 8 }}>
               {expandedBlocks[block.id] ? '▼' : '▶'}
             </Text>
@@ -104,8 +106,28 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
                 </Text>
               )}
             </View>
+          </TouchableOpacity>
+
+          {/* Block Reorder Controls — always visible, no need to expand */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[styles.reorderBtn, blockIdx === 0 && { opacity: 0.3 }]}
+              onPress={() => handleMoveBlockWithinDay(dayId, blockIdx, 'up')}
+              disabled={blockIdx === 0}
+            >
+              <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[styles.reorderBtn, isLastBlock && { opacity: 0.3 }]}
+              onPress={() => handleMoveBlockWithinDay(dayId, blockIdx, 'down')}
+              disabled={isLastBlock}
+            >
+              <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* WORKOUT CONCEPT SELECTOR & CONFIGURATION WIZARD */}
         {expandedBlocks[block.id] && (
@@ -183,22 +205,8 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
                 <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE TO BLOCK</Text>
               </TouchableOpacity>
 
-              {/* Block Action Buttons (Moved from Header) */}
+              {/* Block Action Buttons (reorder controls now live in the always-visible header) */}
               <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 16 }}>
-                <TouchableOpacity
-                  style={[styles.reorderBtn, blockIdx === 0 && { opacity: 0.3 }]}
-                  onPress={() => handleMoveBlockWithinDay(dayId, blockIdx, 'up')}
-                  disabled={blockIdx === 0}
-                >
-                  <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.reorderBtn, isLastBlock && { opacity: 0.3 }]}
-                  onPress={() => handleMoveBlockWithinDay(dayId, blockIdx, 'down')}
-                  disabled={isLastBlock}
-                >
-                  <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
-                </TouchableOpacity>
                 <LinearGradient
                   colors={['#7E57C2', '#FF5252', '#FF7043']}
                   start={{ x: 0, y: 0 }}

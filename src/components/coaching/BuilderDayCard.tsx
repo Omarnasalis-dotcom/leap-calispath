@@ -95,11 +95,13 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
         }}
       >
         {/* Day Header Row */}
-        <TouchableOpacity 
-          onPress={() => toggleDay(day.id)}
+        <View
           style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: expandedDays[day.id] ? 1 : 0, borderBottomColor: 'rgba(200,160,64,0.1)', paddingBottom: expandedDays[day.id] ? 12 : 0 }}
         >
-          <View style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity
+            onPress={() => toggleDay(day.id)}
+            style={{ flex: 1, marginRight: 12, flexDirection: 'row', alignItems: 'center' }}
+          >
             <Text style={{ color: bronzeGold, fontSize: 18, marginRight: 8, fontFamily: 'BarlowCondensed-ExtraBold' }}>
               {expandedDays[day.id] ? '▼' : '▶'}
             </Text>
@@ -126,8 +128,28 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
                 </Text>
               )}
             </View>
+          </TouchableOpacity>
+
+          {/* Day Reorder Controls — always visible, no need to expand */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+            <TouchableOpacity
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[styles.reorderBtn, dayIdx === 0 && { opacity: 0.3 }]}
+              onPress={() => handleMoveDay(dayIdx, 'up')}
+              disabled={dayIdx === 0}
+            >
+              <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+              style={[styles.reorderBtn, dayIdx === daysLength - 1 && { opacity: 0.3 }]}
+              onPress={() => handleMoveDay(dayIdx, 'down')}
+              disabled={dayIdx === daysLength - 1}
+            >
+              <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
+            </TouchableOpacity>
           </View>
-        </TouchableOpacity>
+        </View>
 
         {/* Focus Tag Selector */}
         {expandedDays[day.id] && (
@@ -196,22 +218,8 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
               )}
             </View>
             
-            {/* Day Action Buttons (Moved from Header) */}
+            {/* Day Action Buttons (reorder controls now live in the always-visible header) */}
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 6, marginTop: 16 }}>
-              <TouchableOpacity
-                style={[styles.reorderBtn, dayIdx === 0 && { opacity: 0.3 }]}
-                onPress={() => handleMoveDay(dayIdx, 'up')}
-                disabled={dayIdx === 0}
-              >
-                <Text style={{ color: theme.text.primary, fontSize: 16 }}>▲</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.reorderBtn, dayIdx === daysLength - 1 && { opacity: 0.3 }]}
-                onPress={() => handleMoveDay(dayIdx, 'down')}
-                disabled={dayIdx === daysLength - 1}
-              >
-                <Text style={{ color: theme.text.primary, fontSize: 16 }}>▼</Text>
-              </TouchableOpacity>
                 {!useWeeklyStructure && (
                 <LinearGradient
                   colors={['#FF5252', '#FF7043', '#FF8A80']}
@@ -264,7 +272,10 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
 
 const styles = StyleSheet.create({
   reorderBtn: {
-    padding: 6,
+    width: 28,
+    height: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.05)',
   },

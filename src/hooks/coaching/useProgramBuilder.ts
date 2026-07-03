@@ -25,6 +25,12 @@ import { LeapLogo } from '../../components/LeapLogo';
 import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
 import { BlockConfigWizard } from '../../components/coaching/BlockConfigWizard';
 import { useSafeMutation } from '../useSafeMutation';
+import {
+  fetchMasterTemplateExportPayload,
+  shareMasterTemplateExportPayload,
+  buildMasterTemplateBlocksPayload,
+} from '../../lib/MasterTemplateTransfer';
+import { validateWeekImportPayload, resolveImportedExercises } from '../../lib/ProgramImportParser';
 
 
 interface ExerciseLibraryItem {
@@ -137,6 +143,10 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
   const [targetBlocks, setTargetBlocks] = useState<{ id: string; name: string }[]>([]);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
+  // Master template export/import (catalog-level, not tied to any warrior)
+  const [exportingTemplateId, setExportingTemplateId] = useState<string | null>(null);
+  const [importingTemplate, setImportingTemplate] = useState(false);
+
   const categories = ['all', 'push', 'pull', 'legs', 'core', 'skill'];
 
   const { safeMutate } = useSafeMutation();
@@ -216,7 +226,11 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         onError: (err) => {
           Alert.alert('DELETE FAILED', err.message?.toUpperCase() || 'FAILED TO DELETE TEMPLATE.');
           setCatalogLoading(false);
-        }
+        },
+        // "Assigned to a client" is an expected, already-messaged outcome of
+        // trying to delete an in-use template, not a bug — don't trigger the
+        // dev-mode redbox for it.
+        skipConsoleError: true
       });
     };
 
@@ -233,6 +247,76 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           { text: 'DELETE', style: 'destructive', onPress: performDelete }
         ]
       );
+    }
+  };
+
+  const handleExportMasterTemplate = async (templateId: string, name: string, description: string) => {
+    setExportingTemplateId(templateId);
+    try {
+      const payload = await fetchMasterTemplateExportPayload(templateId, name, description);
+      await shareMasterTemplateExportPayload(payload, name);
+    } catch (err: any) {
+      console.error('Failed to export master template:', err);
+      Alert.alert('EXPORT FAILED', err.message?.toUpperCase() || 'FAILED TO EXPORT TEMPLATE.');
+    } finally {
+      setExportingTemplateId(null);
+    }
+  };
+
+  const handleImportMasterTemplate = async () => {
+    if (!coachId) return;
+    setImportingTemplate(true);
+    try {
+      const DocumentPicker = require('expo-document-picker');
+      const result = await DocumentPicker.getDocumentAsync({ type: 'application/json' });
+      if (result.canceled || !result.assets?.[0]) {
+        setImportingTemplate(false);
+        return;
+      }
+
+      const asset = result.assets[0];
+      const text = Platform.OS === 'web'
+        ? await (await fetch(asset.uri)).text()
+        : await require('expo-file-system/legacy').readAsStringAsync(asset.uri, { encoding: 'utf8' });
+
+      let parsed: any;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        Alert.alert('IMPORT FAILED', 'That file is not valid JSON.');
+        return;
+      }
+
+      const validation = validateWeekImportPayload(parsed);
+      if (!validation.valid) {
+        Alert.alert('IMPORT FAILED', validation.error || 'The file is not in the expected shape.');
+        return;
+      }
+
+      const templateName = (parsed.template_name || 'IMPORTED TEMPLATE').toString();
+      const description = (parsed.description || '').toString();
+
+      const resolved = await resolveImportedExercises(parsed.blocks, coachId);
+      const blocks = buildMasterTemplateBlocksPayload(parsed, resolved);
+
+      const { data: result2, error } = await supabase.rpc('save_program_template', {
+        p_template_id: null,
+        p_name: templateName,
+        p_description: description,
+        p_blocks: blocks,
+      });
+      if (error) throw error;
+      if (!result2?.success) {
+        throw new Error('Failed to save imported template.');
+      }
+
+      Alert.alert('IMPORTED', `Created "${templateName}" with ${validation.blockCount} block(s).`);
+      await loadMasterTemplates();
+    } catch (err: any) {
+      console.error('Failed to import master template:', err);
+      Alert.alert('IMPORT FAILED', err.message?.toUpperCase() || 'FAILED TO IMPORT TEMPLATE.');
+    } finally {
+      setImportingTemplate(false);
     }
   };
 
@@ -776,7 +860,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           block_id: targetBlockDbId,
           exercise_id: ex.exercise_id,
           sets: parseInt(ex.sets) || null,
-          reps: ex.reps.trim(),
+          reps: parseInt(ex.reps) || null,
           rest_seconds: parseInt(ex.rest_seconds) || null,
           hold_seconds: parseInt(ex.hold_seconds) || null,
           notes: ex.notes.trim(),
@@ -907,7 +991,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
             exercises: block.exercises.map((ex, exIdx) => ({
               exercise_id: ex.exercise_id,
               sets: parseInt(ex.sets) || null,
-              reps: ex.reps.trim(),
+              reps: parseInt(ex.reps) || null,
               rest_seconds: parseInt(ex.rest_seconds) || null,
               hold_seconds: parseInt(ex.hold_seconds) || null,
               notes: ex.notes.trim(),
@@ -1078,11 +1162,15 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       selectedTemplateId, setSelectedTemplateId,
       targetBlocks, setTargetBlocks,
       successMessage, setSuccessMessage,
+      exportingTemplateId,
+      importingTemplate,
       coachId
     },
     actions: {
       loadMasterTemplates,
       handleDeleteTemplate,
+      handleExportMasterTemplate,
+      handleImportMasterTemplate,
       loadExistingTemplate,
       fetchExerciseLibrary,
       handleOpenPicker,

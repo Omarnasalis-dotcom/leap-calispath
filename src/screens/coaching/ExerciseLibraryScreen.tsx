@@ -523,7 +523,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
                 style={{ padding: 1, borderRadius: 12 }}
               >
                 <View style={{ backgroundColor: solidCardBg, paddingVertical: 2, paddingHorizontal: 8, borderRadius: 11 }}>
-                  <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.secondary }}>{ex.difficulty.toUpperCase()}</Text>
+                  <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.secondary }}>{(ex.difficulty || 'UNRATED').toUpperCase()}</Text>
                 </View>
               </LinearGradient>
             </View>

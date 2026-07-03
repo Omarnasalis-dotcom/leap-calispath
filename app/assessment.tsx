@@ -1,17 +1,21 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useLocalSearchParams } from 'expo-router';
 import { AssessmentScreen } from '../src/screens/AssessmentScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
-  const router = useRouter();
   const params = useLocalSearchParams();
-  
+
   return (
     <SpartanLayout>
-      <AssessmentScreen 
+      <AssessmentScreen
         {...params}
-        onComplete={() => router.replace('/')}
+        // No navigation here — refreshProfile() inside AssessmentScreen updates
+        // profile.assessed_at, which AuthGuard (app/_layout.tsx) already redirects
+        // on declaratively. An imperative router.replace('/') here used to race
+        // that Redirect and intermittently throw "REPLACE ... not handled by any
+        // navigator" once the assessment stack started tearing down.
+        onComplete={() => {}}
       />
     </SpartanLayout>
   );

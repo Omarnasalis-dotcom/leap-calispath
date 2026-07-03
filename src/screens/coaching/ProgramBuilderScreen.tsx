@@ -79,6 +79,8 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
     targetBlocks, setTargetBlocks,
     successMessage, setSuccessMessage,
     filteredLibrary,
+    exportingTemplateId,
+    importingTemplate,
     coachId
   } = state;
 
@@ -87,6 +89,8 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
   const {
     loadMasterTemplates,
     handleDeleteTemplate,
+    handleExportMasterTemplate,
+    handleImportMasterTemplate,
     loadExistingTemplate,
     fetchExerciseLibrary,
     handleOpenPicker,
@@ -155,7 +159,21 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
           </View>
 
           <View style={styles.header}>
-            <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <TouchableOpacity
+              onPress={() => {
+                // Mid-edit (or mid-create), back should return to the catalog
+                // list first — same as tapping CATALOG — not exit the builder
+                // entirely. Only exit once already at the catalog level.
+                if (activeTemplateId || isCreatingNew) {
+                  setActiveTemplateId(undefined);
+                  setIsCreatingNew(false);
+                  loadMasterTemplates();
+                } else if (onClose) {
+                  onClose();
+                }
+              }}
+              style={styles.closeButton}
+            >
               <Text style={[styles.closeButtonText, { color: theme.text.secondary }]}>← BACK</Text>
             </TouchableOpacity>
 
@@ -225,6 +243,10 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
               setActiveTemplateId={setActiveTemplateId}
               loadExistingTemplate={loadExistingTemplate}
               handleDeleteTemplate={handleDeleteTemplate}
+              handleExportMasterTemplate={handleExportMasterTemplate}
+              handleImportMasterTemplate={handleImportMasterTemplate}
+              exportingTemplateId={exportingTemplateId}
+              importingTemplate={importingTemplate}
             />
           ) : (
             <View style={{ width: '100%', gap: 20 }}>

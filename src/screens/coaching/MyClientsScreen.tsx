@@ -15,6 +15,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
+import { applyTemplateToExistingClient, ClientProgramWriteMode } from '../../lib/ClientProgramWriter';
 
 
 interface WarriorProfile {
@@ -66,7 +67,15 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
   const [searchWarrior, setSearchWarrior] = useState('');
   const [selectedWarrior, setSelectedWarrior] = useState<WarriorProfile | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<ProgramTemplate | null>(null);
-  
+
+  // Assign-mode choice — shown instead of immediately assigning when the
+  // selected warrior already has an active program, since a straight
+  // assign_program_template call would clone a new template and orphan
+  // their existing weeks/history.
+  const [showAssignModeModal, setShowAssignModeModal] = useState(false);
+  const [existingAssignmentForWarrior, setExistingAssignmentForWarrior] = useState<WarriorProgramAssignment | null>(null);
+  const [assignModeLoading, setAssignModeLoading] = useState(false);
+
   // Loading & Error States
   const [loading, setLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
@@ -185,11 +194,20 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       return;
     }
 
+    // Already has an active program — assigning a template here shouldn't
+    // silently clone-and-orphan their existing weeks. Ask how to combine it.
+    const existing = assignments.find(a => a.warrior_id === selectedWarrior.id && a.status === 'active');
+    if (existing) {
+      setExistingAssignmentForWarrior(existing);
+      setShowAssignModeModal(true);
+      return;
+    }
+
     setActionLoading(true);
     try {
       // Use the newly created RPC to clone the template and all blocks/exercises on the DB side instantly
       const customName = `${selectedWarrior.display_name.split(' ')[0]}'s ${selectedTemplate.name}`;
-      
+
       const { data: newTemplateId, error: rpcError } = await supabase.rpc('assign_program_template', {
         p_coach_id: coachId,
         p_warrior_id: selectedWarrior.id,
@@ -207,6 +225,46 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO ASSIGN WORKOUT PROGRAM.');
     } finally {
       setActionLoading(false);
+    }
+  };
+
+  // Applies the coach's chosen combine-mode to an existing client using the
+  // selected master template's blocks. OVERWRITE permanently deletes the
+  // client's current weeks and logged workout history for this program, so
+  // it gets its own explicit, clearly-worded confirmation before proceeding.
+  const handleConfirmAssignMode = (mode: ClientProgramWriteMode) => {
+    if (!existingAssignmentForWarrior || !selectedTemplate) return;
+
+    const proceed = async () => {
+      setAssignModeLoading(true);
+      try {
+        await applyTemplateToExistingClient(mode, existingAssignmentForWarrior.id, selectedTemplate.id);
+        setShowAssignModeModal(false);
+        setExistingAssignmentForWarrior(null);
+        setSelectedWarrior(null);
+        setSelectedTemplate(null);
+        setSearchWarrior('');
+        await fetchAssignmentsList();
+      } catch (err: any) {
+        setErrorMsg(err.message?.toUpperCase() || 'FAILED TO UPDATE CLIENT PROGRAM.');
+      } finally {
+        setAssignModeLoading(false);
+      }
+    };
+
+    if (mode === 'overwrite') {
+      const warriorName = existingAssignmentForWarrior.profiles?.display_name?.toUpperCase() || 'THIS CLIENT';
+      const warning = `THIS WILL PERMANENTLY DELETE ${warriorName}'S EXISTING PROGRAM WEEKS AND ALL THEIR LOGGED WORKOUT HISTORY FOR THIS PROGRAM. THIS CANNOT BE UNDONE.`;
+      if (Platform.OS === 'web') {
+        if (window.confirm(warning)) proceed();
+      } else {
+        Alert.alert('OVERWRITE PROGRAM?', warning, [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE & OVERWRITE', style: 'destructive', onPress: proceed },
+        ]);
+      }
+    } else {
+      proceed();
     }
   };
 
@@ -289,15 +347,16 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
     });
   };
 
-  // Filter Warriors based on search query AND exclude clients already in active roster
-  const activeWarriorIds = useMemo(() => new Set(assignments.map(a => a.warrior_id)), [assignments]);
+  // Filter warriors based on search query. Warriors already on the active
+  // roster are intentionally included — re-selecting one is how a coach
+  // re-assigns/combines a program for an existing client (see the
+  // assign-mode choice modal in handleAssignProgram).
   const filteredWarriors = useMemo(() => {
     const query = searchWarrior.toLowerCase();
     return warriors.filter(w =>
-      !activeWarriorIds.has(w.id) &&
       (w.display_name || '').toLowerCase().includes(query)
     );
-  }, [warriors, activeWarriorIds, searchWarrior]);
+  }, [warriors, searchWarrior]);
 
   return (
     <KeyboardAvoidingView
@@ -577,7 +636,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
-                          onPress={() => router.push(`/client-dashboard?warriorId=${assignment.warrior_id}&templateId=${assignment.template_id}`)}
+                          onPress={() => router.push(`/client-dashboard?warriorId=${assignment.warrior_id}&templateId=${assignment.template_id}&coachId=${assignment.coach_id}`)}
                         >
                           <Text style={[styles.controlBtnText, { color: '#FFF' }]}>MANAGE CLIENT</Text>
                         </TouchableOpacity>
@@ -672,6 +731,90 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
             </View>
           </View>
         </View>
+      </Modal>
+
+      {/* ASSIGN-MODE CHOICE MODAL — shown when the selected warrior already has an active program */}
+      <Modal
+        visible={showAssignModeModal}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={() => setShowAssignModeModal(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => { if (!assignModeLoading) { setShowAssignModeModal(false); setExistingAssignmentForWarrior(null); } }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => {}}
+            style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold, maxHeight: '85%' }]}
+          >
+          <ScrollView showsVerticalScrollIndicator={false}>
+            <Text style={[styles.modalHeading, { color: theme.text.primary }]}>CLIENT ALREADY HAS A PROGRAM</Text>
+
+            {existingAssignmentForWarrior && selectedTemplate && (
+              <View style={{ alignItems: 'center', marginBottom: 20 }}>
+                <Text style={{ color: theme.text.secondary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5, textAlign: 'center' }}>
+                  {existingAssignmentForWarrior.profiles?.display_name?.toUpperCase()} IS ALREADY ON{' '}
+                  {existingAssignmentForWarrior.program_templates?.name?.toUpperCase()}
+                </Text>
+                <Text style={{ color: bronzeGold, fontSize: 12, fontFamily: 'BarlowCondensed-Bold', marginTop: 4 }}>
+                  HOW SHOULD {selectedTemplate.name.toUpperCase()} BE ADDED?
+                </Text>
+              </View>
+            )}
+
+            <View style={{ gap: 10, marginBottom: 20 }}>
+              <TouchableOpacity
+                style={[styles.assignModeCard, { borderColor: theme.card.border }]}
+                onPress={() => handleConfirmAssignMode('append')}
+                disabled={assignModeLoading}
+              >
+                <Text style={[styles.assignModeTitle, { color: theme.text.primary }]}>ADD AS NEW WEEK</Text>
+                <Text style={[styles.assignModeDesc, { color: theme.text.secondary }]}>
+                  Keeps every existing week visible and untouched — the new template's days are added on top as the next week(s).
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.assignModeCard, { borderColor: theme.card.border }]}
+                onPress={() => handleConfirmAssignMode('archive')}
+                disabled={assignModeLoading}
+              >
+                <Text style={[styles.assignModeTitle, { color: theme.text.primary }]}>ARCHIVE OLD WEEKS</Text>
+                <Text style={[styles.assignModeDesc, { color: theme.text.secondary }]}>
+                  Hides the client's current weeks from their app (nothing is deleted — you can still see and export them), then adds the new template as fresh weeks.
+                </Text>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.assignModeCard, { borderColor: '#FF6B6B' }]}
+                onPress={() => handleConfirmAssignMode('overwrite')}
+                disabled={assignModeLoading}
+              >
+                <Text style={[styles.assignModeTitle, { color: '#FF6B6B' }]}>OVERWRITE — DELETE</Text>
+                <Text style={[styles.assignModeDesc, { color: theme.text.secondary }]}>
+                  Permanently deletes the client's current weeks and all logged workout history for this program. Cannot be undone.
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {assignModeLoading ? (
+              <View style={{ alignItems: 'center' }}>
+                <LeapLogo size={40} animated />
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={[styles.modalCloseBtn, { borderColor: theme.card.border, width: '100%' }]}
+                onPress={() => { setShowAssignModeModal(false); setExistingAssignmentForWarrior(null); }}
+              >
+                <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
+              </TouchableOpacity>
+            )}
+          </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </KeyboardAvoidingView>
   );
@@ -980,6 +1123,22 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 13,
     letterSpacing: 0.5,
+  },
+  assignModeCard: {
+    borderWidth: 1,
+    borderRadius: 8,
+    padding: 14,
+    gap: 6,
+  },
+  assignModeTitle: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 14,
+    letterSpacing: 0.5,
+  },
+  assignModeDesc: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 12,
+    lineHeight: 16,
   },
   modalBtnRow: {
     flexDirection: 'row',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Input } from '../../components/Input';
@@ -14,39 +14,14 @@ export function BuilderHeader({
   theme,
   inactiveBorder
 }: any) {
-  const [localTemplateName, setLocalTemplateName] = useState(templateName);
-  const [localTemplateDesc, setLocalTemplateDesc] = useState(templateDesc);
-
-  useEffect(() => {
-    setLocalTemplateName(templateName);
-  }, [templateName]);
-
-  useEffect(() => {
-    setLocalTemplateDesc(templateDesc);
-  }, [templateDesc]);
-
-  const handleNameBlur = () => {
-    if (localTemplateName !== templateName) {
-      setTemplateName(localTemplateName);
-    }
-  };
-
-  const handleDescBlur = () => {
-    if (localTemplateDesc !== templateDesc) {
-      setTemplateDesc(localTemplateDesc);
-    }
-  };
-
   return (
 <View style={[styles.sectionCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
               <Text style={[styles.sectionLabel, { color: theme.text.primary }]}>PROGRAM DETAILS</Text>
               <Input
                 label="PROGRAM NAME"
                 placeholder="E.G. 12-WEEK STRENGTH SYSTEM"
-                value={localTemplateName}
-                onChangeText={setLocalTemplateName}
-                onBlur={handleNameBlur}
-                onEndEditing={handleNameBlur}
+                value={templateName}
+                onChangeText={setTemplateName}
               />
               <View style={styles.inputContainerStyle}>
                 <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>PROGRAM DESCRIPTION</Text>
@@ -59,10 +34,8 @@ export function BuilderHeader({
                       color: theme.text.primary,
                     }
                   ]}
-                  value={localTemplateDesc}
-                  onChangeText={setLocalTemplateDesc}
-                  onBlur={handleDescBlur}
-                  onEndEditing={handleDescBlur}
+                  value={templateDesc}
+                  onChangeText={setTemplateDesc}
                   placeholder="Describe the target outcomes, focus areas, and instructions..."
                   placeholderTextColor={theme.text.tertiary}
                   multiline={true}

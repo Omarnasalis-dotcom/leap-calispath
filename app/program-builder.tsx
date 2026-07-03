@@ -9,8 +9,9 @@ export default function Route() {
   
   return (
     <SpartanLayout>
-      <ProgramBuilderScreen 
+      <ProgramBuilderScreen
         {...params}
+        onClose={() => router.back()}
       />
     </SpartanLayout>
   );

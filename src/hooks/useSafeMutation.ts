@@ -8,6 +8,10 @@ interface SafeMutationOptions<T> {
   errorMessage?: string;
   rollback?: () => void;
   skipAlert?: boolean;
+  // For errors that are an expected, already-handled validation outcome
+  // (e.g. "can't delete, it's still in use") rather than a genuine bug —
+  // skips the console.error that otherwise triggers a dev-mode redbox.
+  skipConsoleError?: boolean;
 }
 
 export function useSafeMutation() {
@@ -29,8 +33,10 @@ export function useSafeMutation() {
       const { data, error } = await mutationFn();
 
       if (error) {
-        console.error('Mutation error:', error);
-        
+        if (!options?.skipConsoleError) {
+          console.error('Mutation error:', error);
+        }
+
         if (options?.rollback) {
           options.rollback();
         }
@@ -51,8 +57,10 @@ export function useSafeMutation() {
       }
       return { data, error: null };
     } catch (err: any) {
-      console.error('Unexpected error during mutation:', err);
-      
+      if (!options?.skipConsoleError) {
+        console.error('Unexpected error during mutation:', err);
+      }
+
       if (options?.rollback) {
         options.rollback();
       }
