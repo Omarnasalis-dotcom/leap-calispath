@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { View, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
@@ -16,6 +16,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
+  // onAuthStateChange below is registered once (mount-only effect) and would
+  // otherwise close over a stale `needsPasswordReset` value forever; track
+  // the live value in a ref so that closure can read current state.
+  const needsPasswordResetRef = useRef(false);
+  useEffect(() => {
+    needsPasswordResetRef.current = needsPasswordReset;
+  }, [needsPasswordReset]);
 
   // Handle deep link on cold start (e.g. password reset email link).
   // Native only: on web this raced with ResetPasswordScreen's own gated
@@ -108,6 +115,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // to the reset password screen instead of the main app.
         setNeedsPasswordReset(true);
         setUser(null); // keep them out of the main app
+        return;
+      }
+
+      if (needsPasswordResetRef.current) {
+        // Still mid-reset: updateUser({password}) fires USER_UPDATED on the
+        // same recovery session. Letting that fall through to setUser/
+        // fetchProfile below flips profileLoading on while profile is still
+        // null, which trips AuthGuard's loading-spinner check and unmounts
+        // the reset screen mid-flow — losing its pending exit timer and
+        // bouncing back into a fresh, re-triggered verification attempt.
         return;
       }
 
