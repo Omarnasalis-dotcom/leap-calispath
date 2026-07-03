@@ -36,6 +36,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     | null
   >(null);
   const [verifying, setVerifying] = useState(false);
+  const verifyInFlightRef = useRef(false);
   const { theme } = useTheme();
   const { clearPasswordReset } = useAuth();
   const resetTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -118,7 +119,13 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
   }, []);
 
   async function handleConfirmResetLink() {
-    if (!pendingVerify) return;
+    // Guard with a ref, not just `verifying` state — state updates aren't
+    // synchronous, so a fast double-tap can fire this twice before the
+    // disabled prop re-renders. The recovery token is single-use: a second
+    // in-flight call would consume nothing but still land in the catch
+    // block and stomp the first call's success with an "expired" error.
+    if (verifyInFlightRef.current || !pendingVerify) return;
+    verifyInFlightRef.current = true;
     setVerifying(true);
     setInlineError(null);
     try {
@@ -153,6 +160,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
         setPendingVerify(null);
       }
     } finally {
+      verifyInFlightRef.current = false;
       if (isMounted.current) setVerifying(false);
     }
   }
