@@ -12,6 +12,7 @@ export interface ConceptMetadata {
   is_weighted?: boolean;
   rest_after_round?: string | number;
   is_tier_trial?: boolean;
+  tier_trial_tier?: number;
   focus_tag?: 'PULL' | 'PUSH' | 'LEGS' | 'FULL_BODY' | 'CORE' | 'NONE';
   
   // Legacy support for older blocks

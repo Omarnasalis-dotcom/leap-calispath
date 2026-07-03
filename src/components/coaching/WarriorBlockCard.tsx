@@ -89,6 +89,16 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const isMissed = block.completedStatus === 'missed';
   const activeVideoExercise = block.exercises.find((ex: ExerciseDetail) => ex.id === activeVideoExerciseId) || null;
 
+  // A coach-assigned fixed tier only applies if the warrior has actually
+  // unlocked it (reached it via progression) — sending them at a tier they
+  // haven't gotten to yet doesn't make sense, so fall back to their current
+  // tier same as when no fixed tier is set at all.
+  const currentTierNum = Number(strengthTier) || 0;
+  const fixedTrialTier = block.metadata?.tier_trial_tier;
+  const tierTrialTargetTier = (fixedTrialTier !== undefined && fixedTrialTier <= currentTierNum)
+    ? fixedTrialTier
+    : currentTierNum;
+
   return (
     <View style={{ gap: 12 }}>
     {activeVideoExercise && (
@@ -117,12 +127,12 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           onPress={() => {
             router.push({
               pathname: '/trial',
-              params: { mode: 'practice', tier: strengthTier }
+              params: { mode: 'practice', tier: tierTrialTargetTier }
             });
           }}
         >
           <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24, color: theme.text.primary, letterSpacing: 2 }}>
-            PRACTICE TIER {strengthTier}
+            PRACTICE TIER {tierTrialTargetTier}
           </Text>
           <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1, marginTop: 4 }}>
             START OFFICIAL TIER ASSESSMENT

@@ -18,7 +18,11 @@ export function BuilderMasterSelector({
   setIsCreatingNew,
   setActiveTemplateId,
   loadExistingTemplate,
-  handleDeleteTemplate
+  handleDeleteTemplate,
+  handleExportMasterTemplate,
+  handleImportMasterTemplate,
+  exportingTemplateId,
+  importingTemplate
 }: any) {
   return (
 <View style={{ width: '100%', gap: 20 }}>
@@ -48,6 +52,16 @@ export function BuilderMasterSelector({
                 <Text style={[styles.createNewCardText, { color: theme.text.primary }]}>+ CREATE NEW MASTER TEMPLATE</Text>
               </TouchableOpacity>
             </LinearGradient>
+
+            <TouchableOpacity
+              style={{ borderWidth: 1, borderColor: theme.card.border, borderRadius: 10, paddingVertical: 14, alignItems: 'center', opacity: importingTemplate ? 0.6 : 1 }}
+              onPress={handleImportMasterTemplate}
+              disabled={importingTemplate}
+            >
+              <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
+                {importingTemplate ? 'IMPORTING...' : 'IMPORT TEMPLATE FROM JSON'}
+              </Text>
+            </TouchableOpacity>
 
             <View style={{ gap: 12, marginTop: 10 }}>
               <Text style={[styles.sectionTitleStyle, { color: theme.text.primary }]}>
@@ -88,7 +102,7 @@ export function BuilderMasterSelector({
                         ) : null}
                       </View>
 
-                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                         <TouchableOpacity
                           style={[styles.catalogCardEditBtn, { borderColor: bronzeGold }]}
                           onPress={() => {
@@ -97,6 +111,16 @@ export function BuilderMasterSelector({
                           }}
                         >
                           <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>EDIT</Text>
+                        </TouchableOpacity>
+
+                        <TouchableOpacity
+                          style={[styles.catalogCardEditBtn, { borderColor: theme.card.border, opacity: exportingTemplateId === t.id ? 0.6 : 1 }]}
+                          onPress={() => handleExportMasterTemplate(t.id, t.name, t.description)}
+                          disabled={exportingTemplateId === t.id}
+                        >
+                          <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>
+                            {exportingTemplateId === t.id ? 'EXPORTING...' : 'EXPORT'}
+                          </Text>
                         </TouchableOpacity>
 
                         <TouchableOpacity

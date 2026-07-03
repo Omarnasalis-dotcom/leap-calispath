@@ -211,6 +211,22 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     .filter(b => b.completedStatus !== 'none')
     .reduce((sum, b) => sum + b.exercises.length, 0);
 
+  const handleWorkoutDonePress = () => {
+    const unaddressedCount = blocksTotalCount - blocksAddressedCount;
+    if (unaddressedCount <= 0) {
+      setShowSessionComplete(true);
+      return;
+    }
+    Alert.alert(
+      unaddressedCount === 1 ? '1 BLOCK NOT LOGGED YET' : `${unaddressedCount} BLOCKS NOT LOGGED YET`,
+      'Mark them as completed or missed so your coach has the full picture — or continue anyway.',
+      [
+        { text: 'REVIEW', style: 'cancel' },
+        { text: 'CONTINUE ANYWAY', onPress: () => setShowSessionComplete(true) },
+      ]
+    );
+  };
+
   useEffect(() => {
     loadWarriorProgram();
     checkBodyweightCheckIn();
@@ -1206,8 +1222,11 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 {/* BLOCKS / WORKOUTS LIST */}
                 <View style={{ gap: 16, paddingBottom: 100 }}>
                   {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock, index: number) => {
-                    const previousBlock = index > 0 ? days[activeDayIndex].blocks[index - 1] : null;
-                    const isLocked = !!previousBlock && previousBlock.completedStatus === 'none';
+                    // Blocks are no longer gated behind completing the previous
+                    // one in order — a warrior can log any block whenever they
+                    // want. handleWorkoutDonePress below nudges them to log any
+                    // still-unaddressed blocks before finishing instead.
+                    const isLocked = false;
                     return (
                       <WarriorBlockCard
                         key={block.id}
@@ -1241,7 +1260,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                       blocksCompleted={blocksCompletedCount}
                       blocksTotal={blocksTotalCount}
                       isAddressed={isWorkoutAddressed}
-                      onPress={() => setShowSessionComplete(true)}
+                      onPress={handleWorkoutDonePress}
                     />
                   )}
                 </View>
