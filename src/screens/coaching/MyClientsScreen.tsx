@@ -347,15 +347,16 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
     });
   };
 
-  // Filter Warriors based on search query AND exclude clients already in active roster
-  const activeWarriorIds = useMemo(() => new Set(assignments.map(a => a.warrior_id)), [assignments]);
+  // Filter warriors based on search query. Warriors already on the active
+  // roster are intentionally included — re-selecting one is how a coach
+  // re-assigns/combines a program for an existing client (see the
+  // assign-mode choice modal in handleAssignProgram).
   const filteredWarriors = useMemo(() => {
     const query = searchWarrior.toLowerCase();
     return warriors.filter(w =>
-      !activeWarriorIds.has(w.id) &&
       (w.display_name || '').toLowerCase().includes(query)
     );
-  }, [warriors, activeWarriorIds, searchWarrior]);
+  }, [warriors, searchWarrior]);
 
   return (
     <KeyboardAvoidingView
@@ -635,7 +636,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                             alignItems: 'center',
                             justifyContent: 'center',
                           }}
-                          onPress={() => router.push(`/client-dashboard?warriorId=${assignment.warrior_id}&templateId=${assignment.template_id}`)}
+                          onPress={() => router.push(`/client-dashboard?warriorId=${assignment.warrior_id}&templateId=${assignment.template_id}&coachId=${assignment.coach_id}`)}
                         >
                           <Text style={[styles.controlBtnText, { color: '#FFF' }]}>MANAGE CLIENT</Text>
                         </TouchableOpacity>
@@ -739,8 +740,17 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
         animationType="fade"
         onRequestClose={() => setShowAssignModeModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => { if (!assignModeLoading) { setShowAssignModeModal(false); setExistingAssignmentForWarrior(null); } }}
+        >
+          <TouchableOpacity
+            activeOpacity={1}
+            onPress={() => {}}
+            style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold, maxHeight: '85%' }]}
+          >
+          <ScrollView showsVerticalScrollIndicator={false}>
             <Text style={[styles.modalHeading, { color: theme.text.primary }]}>CLIENT ALREADY HAS A PROGRAM</Text>
 
             {existingAssignmentForWarrior && selectedTemplate && (
@@ -802,8 +812,9 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                 <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
               </TouchableOpacity>
             )}
-          </View>
-        </View>
+          </ScrollView>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
     </KeyboardAvoidingView>
   );

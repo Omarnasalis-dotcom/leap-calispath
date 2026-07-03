@@ -384,6 +384,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       if (blocksError) throw blocksError;
       const blocksData = (rawBlocksData || []).filter(b => !archivedWeeks.has(b.week_number || 1));
 
+      // Renumber remaining weeks sequentially for display only — the raw
+      // week_number values aren't touched (coach-side views and the export
+      // builder still use them as-is), but if e.g. week 1 got archived and
+      // weeks 2-3 remain, the warrior should see "Week 1, Week 2", not a
+      // confusing "Week 2, Week 3" gap.
+      const remainingRawWeeks = Array.from(new Set((blocksData || []).map(b => b.week_number || 1))).sort((a, b) => a - b);
+      const rawToDisplayWeek = new Map<number, number>(remainingRawWeeks.map((raw, idx) => [raw, idx + 1]));
+
       // 3. Fetch completion status today
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
@@ -485,7 +493,8 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           ? (notesStr.startsWith('[STATUS:MISSED]') ? 'missed' : 'completed')
           : 'none';
           
-        const weekNum = block.week_number || 1;
+        const rawWeekNum = block.week_number || 1;
+        const weekNum = rawToDisplayWeek.get(rawWeekNum) ?? rawWeekNum;
 
         const mappedBlock: ProgramBlock = {
           id: block.id,

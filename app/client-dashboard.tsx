@@ -9,9 +9,10 @@ export default function Route() {
   
   return (
     <SpartanLayout>
-      <ClientDashboardScreen 
+      <ClientDashboardScreen
         warriorId={params.warriorId as string}
         templateId={params.templateId as string}
+        coachId={params.coachId as string}
       />
     </SpartanLayout>
   );

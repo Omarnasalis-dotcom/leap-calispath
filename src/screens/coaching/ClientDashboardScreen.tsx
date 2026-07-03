@@ -9,9 +9,10 @@ import { LeapLogo } from '../../components/LeapLogo';
 interface ClientDashboardScreenProps {
   warriorId: string;
   templateId: string;
+  coachId?: string;
 }
 
-export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboardScreenProps) {
+export function ClientDashboardScreen({ warriorId, templateId, coachId }: ClientDashboardScreenProps) {
   const router = useRouter();
   const { theme } = useTheme();
   const bronzeGold = '#C8A040';
@@ -23,6 +24,7 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
   const [warriorName, setWarriorName] = useState('WARRIOR');
   const [warriorTier, setWarriorTier] = useState(1);
   const [weeks, setWeeks] = useState<number[]>([]);
+  const [archivedWeeks, setArchivedWeeks] = useState<Set<number>>(new Set());
   const [assignmentId, setAssignmentId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -59,7 +61,7 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
         .from('program_blocks')
         .select('week_number')
         .eq('template_id', templateId);
-        
+
       if (blocksError) throw blocksError;
 
       const uniqueWeeks = new Set<number>();
@@ -70,6 +72,17 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
 
       setWeeks(Array.from(uniqueWeeks).sort((a, b) => a - b));
 
+      // 4. Fetch archived weeks — hidden from the warrior's own program view,
+      // but the coach should still see these clearly marked, not indistinguishable
+      // from currently-active weeks.
+      const { data: archived, error: archivedError } = await supabase
+        .from('program_week_archive')
+        .select('week_number')
+        .eq('template_id', templateId);
+
+      if (archivedError) throw archivedError;
+      setArchivedWeeks(new Set((archived || []).map(a => a.week_number)));
+
     } catch (err: any) {
       const fullErr = `Error: ${err.message || 'Unknown'}\nCode: ${err.code || 'N/A'}\nDetails: ${err.details || 'N/A'}`;
       setErrorMsg(fullErr.toUpperCase());
@@ -79,7 +92,7 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
   }
 
   const handleEditWeek = (weekNum: number) => {
-    router.push(`/program-builder?templateId=${templateId}&weekNum=${weekNum}`);
+    router.push(`/program-builder?templateId=${templateId}&weekNum=${weekNum}&coachId=${coachId}`);
   };
 
   const handleDeleteWeek = async (weekNum: number) => {
@@ -167,11 +180,15 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
                 </TouchableOpacity>
               </View>
             ) : (
-              weeks.map(wNum => (
-                <View key={wNum} style={[styles.weekCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+              weeks.map(wNum => {
+                const isArchived = archivedWeeks.has(wNum);
+                return (
+                <View key={wNum} style={[styles.weekCard, { backgroundColor: theme.card.background, borderColor: isArchived ? 'rgba(255,255,255,0.15)' : theme.card.border, opacity: isArchived ? 0.6 : 1 }]}>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.weekTitle, { color: theme.text.primary }]}>WEEK {wNum}</Text>
-                    <Text style={{ color: theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Bold' }}>ACTIVE PROGRAMMING</Text>
+                    <Text style={{ color: isArchived ? '#C8A040' : theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Bold' }}>
+                      {isArchived ? 'ARCHIVED — HIDDEN FROM WARRIOR' : 'ACTIVE PROGRAMMING'}
+                    </Text>
                   </View>
                   <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                     <TouchableOpacity
@@ -196,7 +213,8 @@ export function ClientDashboardScreen({ warriorId, templateId }: ClientDashboard
                     </LinearGradient>
                   </View>
                 </View>
-              ))
+                );
+              })
             )}
           </View>
         )}
