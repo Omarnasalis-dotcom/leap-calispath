@@ -71,6 +71,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
   const inOnboarding = segments[0] === 'onboarding';
   const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
+  const isResetPassword = segments[0] === 'reset-password';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
@@ -91,8 +92,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         return <Redirect href="/assessment" />;
       }
     } else {
-      // 5. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes
-      if (inAssessmentGroup || inAuthGroup || inOnboarding) {
+      // 5. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes.
+      // reset-password is deliberately excluded: it must stay reachable regardless of
+      // whatever session happens to already exist (a stale cached session, or the
+      // transient USER_UPDATED event fired mid-flow by updateUser() during the reset
+      // itself) — otherwise this redirect fires before the reset flow ever completes.
+      if (inAssessmentGroup || (inAuthGroup && !isResetPassword) || inOnboarding) {
         return <Redirect href="/" />;
       }
     }
