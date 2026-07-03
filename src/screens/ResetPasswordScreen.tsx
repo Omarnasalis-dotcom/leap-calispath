@@ -289,6 +289,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
+              autoCapitalize="none"
               autoComplete="new-password"
             />
 
@@ -298,6 +299,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
+              autoCapitalize="none"
               autoComplete="new-password"
             />
 
