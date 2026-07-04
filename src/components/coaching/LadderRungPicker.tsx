@@ -3,6 +3,12 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
+export interface LadderExercise {
+  id: string | number;
+  name: string;
+  youtube_url?: string;
+}
+
 interface LadderRungPickerProps {
   theme: any;
   bronzeGold: string;
@@ -20,12 +26,14 @@ interface LadderRungPickerProps {
   // Count up from 0 (FOR TIME) instead of counting down from restSeconds
   // (REST / AMRAP). Auto-stops at restSeconds if provided as a cap.
   countUp?: boolean;
-  // Ladders are structurally single-exercise, so the demo video applies to
-  // the whole block rather than a per-row list like the other structures.
-  exerciseName?: string;
-  youtubeUrl?: string;
-  isVideoActive?: boolean;
-  onToggleVideo?: (url: string) => void;
+  // A ladder can list multiple exercises done together at each rung's rep
+  // count (like a superset run at ladder reps) — the rung/rest/extra-reps
+  // tracking below stays one shared attempt across all of them, matching
+  // how CircuitRoundCard/AmrapInlineTimer track a shared round across
+  // multiple exercises instead of tracking each independently.
+  exercises?: LadderExercise[];
+  activeVideoExerciseId?: string | number | null;
+  onToggleVideo?: (exerciseId: string | number, url: string) => void;
 }
 
 export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
@@ -37,9 +45,8 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   onFinalize,
   timerLabel = 'REST',
   countUp = false,
-  exerciseName,
-  youtubeUrl,
-  isVideoActive,
+  exercises,
+  activeVideoExerciseId,
   onToggleVideo,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
@@ -183,22 +190,28 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
         style={styles.cardGradientBorder}
       >
         <View style={[styles.card, { backgroundColor: theme.card.background }]}>
-          {exerciseName ? (
-            <View style={styles.exerciseNameRow}>
-              <Text style={[styles.exerciseNameText, { color: theme.text.primary, flex: 1, marginRight: youtubeUrl ? 0 : 8 }]} numberOfLines={1}>{exerciseName.toUpperCase()}</Text>
-              {youtubeUrl && onToggleVideo ? (
+          {(exercises || []).map((ex, i) => (
+            <View
+              key={ex.id}
+              style={[
+                styles.exerciseNameRow,
+                i < (exercises?.length || 0) - 1 && { marginBottom: 6, paddingBottom: 6, borderBottomWidth: 1, borderBottomColor: theme.card.border },
+              ]}
+            >
+              <Text style={[styles.exerciseNameText, { color: theme.text.primary, flex: 1, marginRight: ex.youtube_url ? 0 : 8 }]} numberOfLines={1}>{ex.name.toUpperCase()}</Text>
+              {ex.youtube_url && onToggleVideo ? (
                 <TouchableOpacity
-                  onPress={() => onToggleVideo(youtubeUrl)}
-                  style={[styles.demoBtn, { backgroundColor: isVideoActive ? 'rgba(255,82,82,0.12)' : 'transparent', borderColor: theme.card.border }]}
+                  onPress={() => onToggleVideo(ex.id, ex.youtube_url!)}
+                  style={[styles.demoBtn, { backgroundColor: activeVideoExerciseId === ex.id ? 'rgba(255,82,82,0.12)' : 'transparent', borderColor: theme.card.border }]}
                 >
-                  <Text style={{ color: '#FF5252', fontSize: 9 }}>{isVideoActive ? '✕' : '▶'}</Text>
+                  <Text style={{ color: '#FF5252', fontSize: 9 }}>{activeVideoExerciseId === ex.id ? '✕' : '▶'}</Text>
                   <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                    {isVideoActive ? 'CLOSE' : 'WATCH'}
+                    {activeVideoExerciseId === ex.id ? 'CLOSE' : 'WATCH'}
                   </Text>
                 </TouchableOpacity>
               ) : null}
             </View>
-          ) : null}
+          ))}
           <View style={styles.sequenceBadge}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.sequenceLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>

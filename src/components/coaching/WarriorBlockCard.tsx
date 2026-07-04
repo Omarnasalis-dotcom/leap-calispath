@@ -343,10 +343,9 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       timerLabel={ladderTimerLabel}
                       countUp={ladderCountUp}
                       onFinalize={(summary) => onLadderFinalize?.(block.id, summary)}
-                      exerciseName={block.exercises[0]?.name}
-                      youtubeUrl={block.exercises[0]?.youtube_url}
-                      isVideoActive={!!block.exercises[0] && activeVideoExerciseId === block.exercises[0].id}
-                      onToggleVideo={(url) => block.exercises[0] && onToggleVideo(block.exercises[0].id, url)}
+                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url }))}
+                      activeVideoExerciseId={activeVideoExerciseId}
+                      onToggleVideo={onToggleVideo}
                     />
                   </View>
                 )}
