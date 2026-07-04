@@ -29,9 +29,9 @@ export const STATIC_MOVEMENTS: StaticMovement[] = [
 ];
 
 export const STATIC_LEVELS = {
-  1: { name: 'STONE', subtitle: 'The Foundation' },
-  2: { name: 'IRON', subtitle: 'The Control' },
-  3: { name: 'TITAN', subtitle: 'The Mastery' },
+  1: { name: 'STONE', subtitle: 'The Foundation', minPoints: 0 },
+  2: { name: 'IRON', subtitle: 'The Control', minPoints: 150 },
+  3: { name: 'TITAN', subtitle: 'The Mastery', minPoints: 400 },
 };
 
 export const STATIC_CATEGORIES = {
@@ -57,4 +57,10 @@ export function getCategoryMovements(category: string): StaticMovement[] {
 
 export function isStaticWorldUnlocked(strengthTier: number): boolean {
   return strengthTier >= 1;
+}
+
+export function getStaticLevel(totalPoints: number): 1 | 2 | 3 {
+  if (totalPoints >= STATIC_LEVELS[3].minPoints) return 3;
+  if (totalPoints >= STATIC_LEVELS[2].minPoints) return 2;
+  return 1;
 }

@@ -27,7 +27,9 @@ import { BottomTabBar } from '../components/profile/BottomTabBar';
 
 const { width } = Dimensions.get('window');
 
-export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
+const VALID_ONEMM_CATEGORIES = ['entry', 'main', 'advanced'];
+
+export function OneMinMaxScreen({ onBack, category }: { onBack: () => void; category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
@@ -39,7 +41,13 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'entry' | 'main' | 'advanced'>('overall');
-  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'entry' | 'main' | 'advanced'>('entry');
+  // Deep-linked from SuggestedTestCard with the exact category the
+  // suggested movement lives in (e.g. "main" for Dips) — without this, a
+  // suggestion outside the default "entry" tab would look like it doesn't
+  // exist until the user manually switches tabs.
+  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'entry' | 'main' | 'advanced'>(
+    VALID_ONEMM_CATEGORIES.includes(category || '') ? (category as 'entry' | 'main' | 'advanced') : 'entry'
+  );
   const [leaderboardData, setLeaderboardData] = useState<OneMMRanking[]>([]);
   const [modalLeaderboardData, setModalLeaderboardData] = useState<OneMMRanking[]>([]);
   const [showMovementLeaderboard, setShowMovementLeaderboard] = useState(false);
