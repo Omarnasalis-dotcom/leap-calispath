@@ -9,6 +9,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { ScoreBar } from './ScoreBar';
+import { SuggestedTestCard } from './SuggestedTestCard';
+import { QuickStatsRow } from './QuickStatsRow';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 
 interface ProfileHeaderProps {
@@ -24,6 +26,10 @@ interface ProfileHeaderProps {
   gloryPts: number;
   WRA_MAX: number;
   GLORY_MAX: number;
+  staticPbs: Record<string, number>;
+  powerPbs: Record<string, number>;
+  oneMMPbs: Record<string, number>;
+  weeklyStats: { streakDays: number; pointsThisWeek: number; workoutsCompleted: number };
   onShowWarriorModal: () => void;
   onShowCoachPrompt: () => void;
   onOpenAdmin: () => void;
@@ -31,6 +37,9 @@ interface ProfileHeaderProps {
   onFetchGloryLeaderboard: () => void;
   onOpenCoachingCenter?: () => void;
   onOpenWarriorProgram?: () => void;
+  onOpenStaticWorld: () => void;
+  onOpenPowerAssessment: () => void;
+  onOpenOneMinMax: (category?: 'entry' | 'main' | 'advanced') => void;
 }
 
 export function ProfileHeader({
@@ -46,6 +55,10 @@ export function ProfileHeader({
   gloryPts,
   WRA_MAX,
   GLORY_MAX,
+  staticPbs,
+  powerPbs,
+  oneMMPbs,
+  weeklyStats,
   onShowWarriorModal,
   onShowCoachPrompt,
   onOpenAdmin,
@@ -53,6 +66,9 @@ export function ProfileHeader({
   onFetchGloryLeaderboard,
   onOpenCoachingCenter,
   onOpenWarriorProgram,
+  onOpenStaticWorld,
+  onOpenPowerAssessment,
+  onOpenOneMinMax,
 }: ProfileHeaderProps) {
   return (
     <>
@@ -105,7 +121,7 @@ export function ProfileHeader({
       <View style={styles.header}>
         <View style={styles.avatarSection}>
           {/* Display Name */}
-          <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 10 }}>
+          <View style={{ width: '100%', alignItems: 'center', position: 'relative', marginBottom: 2 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
               <Text style={[styles.profileNameHeader, { color: theme.accent, marginBottom: 0 }]} numberOfLines={1}>
                 {profile.first_name || profile.last_name
@@ -113,9 +129,6 @@ export function ProfileHeader({
                   : 'WARRIOR'}
               </Text>
             </View>
-            <Text style={{ color: theme.text.tertiary, fontSize: 13, marginTop: 4, fontFamily: 'PlusJakartaSans-Bold', letterSpacing: 1 }}>
-              @{profile.display_name?.toLowerCase() || 'warrior'}
-            </Text>
           </View>
 
           {/* Concentric Rings Avatar */}
@@ -170,17 +183,11 @@ export function ProfileHeader({
             {activeCurrentTier >= 9 ? 'Maximum rank — Eternity' : `Tier ${activeCurrentTier} of 9`}
           </Text>
 
-          {/* Score Bars */}
-          <View style={[
-            styles.rightStatsColumn,
-            {
-              width: '92%',
-              marginTop: 10,
-              backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.01)',
-              borderColor: mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.05)',
-              alignSelf: 'center'
-            }
-          ]}>
+          {/* Score Bars — negative margin cancels out the inherited padding from
+              `header` (24) + `avatarSection` (10) so this card lines up edge-to-edge
+              with the other 16px-inset cards/buttons below it (SuggestedTestCard,
+              QuickStatsRow, the CTA buttons), instead of sitting narrower/indented. */}
+          <View style={{ width: '100%', marginTop: 24, marginHorizontal: -18, position: 'relative' }}>
             <ScoreBar
               title="⚔️ Well-Rounded Athlete"
               subtitle="Static · Power · 1MM"
@@ -193,18 +200,61 @@ export function ProfileHeader({
               mode={mode}
               cardBackground={theme.card.background}
               chips={[
-                { label: 'Static', value: staticPts, color: '#9FC5E8' },
-                { label: 'Power', value: powerPts, color: '#FF5722' },
-                { label: '1MM', value: mmPts, color: '#4CAF50' },
+                { label: 'Static', value: staticPts, color: '#7E57C2' },
+                { label: 'Power', value: powerPts, color: '#FF5252' },
+                { label: '1MM', value: mmPts, color: '#FF7043' },
               ]}
+            />
+            {/* Highlight frame — a soft outline standing proud of the card's
+                own boundary to make it read as the hero stat on the screen,
+                without competing with the card's own border. Absolute +
+                pointerEvents:'none' so it draws around the card without
+                altering its size or blocking its onPress. Bottom is -10, not
+                -18 like the other 3 sides, because ScoreBar's own card has
+                an 8px marginBottom baked in (its TouchableOpacity style) —
+                that margin is included in this wrapper's height, so without
+                the offset the frame would sit 8px further from the card's
+                true bottom edge than from its top/left/right, reading as
+                off-center. */}
+            <View
+              pointerEvents="none"
+              style={{
+                position: 'absolute',
+                top: -18, left: -18, right: -18, bottom: -10,
+                borderWidth: 1.6,
+                borderColor: `${theme.accent}55`,
+                borderRadius: 22,
+              }}
             />
           </View>
         </View>
       </View>
 
+      <SuggestedTestCard
+        userId={profile?.id}
+        staticPts={staticPts}
+        powerPts={powerPts}
+        mmPts={mmPts}
+        strengthTier={profile?.strength_tier || 0}
+        staticPbs={staticPbs}
+        powerPbs={powerPbs}
+        oneMMPbs={oneMMPbs}
+        onOpenStatic={onOpenStaticWorld}
+        onOpenPower={onOpenPowerAssessment}
+        onOpenOneMinMax={onOpenOneMinMax}
+        theme={theme}
+      />
+
+      <QuickStatsRow
+        streakDays={weeklyStats.streakDays}
+        pointsThisWeek={weeklyStats.pointsThisWeek}
+        workoutsCompleted={weeklyStats.workoutsCompleted}
+        theme={theme}
+      />
+
       {/* Coaching / Warrior Program Button */}
       {mode !== undefined && (
-        <View style={{ width: '92%', alignSelf: 'center', marginTop: 16, marginBottom: 8 }}>
+        <View style={{ width: '92%', alignSelf: 'center', marginTop: 4, marginBottom: 8 }}>
           {(profile?.is_coach || profile?.is_admin) ? (
             onOpenCoachingCenter && (
               <LinearGradient
@@ -219,7 +269,7 @@ export function ProfileHeader({
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    paddingVertical: 12,
+                    paddingVertical: 14,
                     borderRadius: 7,
                     gap: 8
                   }}
@@ -246,7 +296,7 @@ export function ProfileHeader({
                     flexDirection: 'row',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    paddingVertical: 12,
+                    paddingVertical: 14,
                     borderRadius: 7,
                     gap: 8
                   }}
@@ -268,15 +318,21 @@ export function ProfileHeader({
 
 const styles = StyleSheet.create({
   header: {
-    padding: 24,
-    paddingTop: 36,
+    paddingHorizontal: 30,
+    paddingTop: 40,
+    // Shifted the WRA card down 8px (see the ScoreBar wrapper's marginTop
+    // above) by taking that same 8px out of here, so the block below
+    // (SuggestedTestCard etc.) doesn't move — only the card moves within
+    // the space between them. Still enough clearance for the highlight
+    // frame's 22px bottom extension.
+    paddingBottom: 26,
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 0,
   },
   avatarSection: {
     alignItems: 'center',
-    padding: 10,
-    marginBottom: 20,
+    paddingHorizontal: 10,
+    marginBottom: 0,
     width: '100%',
   },
   avatarWrapper: {
@@ -335,13 +391,5 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     marginTop: 3,
     letterSpacing: 0.5,
-  },
-  rightStatsColumn: {
-    backgroundColor: 'rgba(255,255,255,0.03)',
-    padding: 10,
-    borderRadius: 16,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    alignSelf: 'center',
   },
 });

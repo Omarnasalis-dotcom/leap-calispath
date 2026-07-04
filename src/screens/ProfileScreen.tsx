@@ -28,6 +28,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { TierRankCard } from '../components/profile/TierRankCard';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
@@ -43,6 +44,8 @@ import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '.
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
+import { OneMMService } from '../services/OneMMService';
+import { ActivityStatsService, WeeklyActivityStats } from '../services/ActivityStatsService';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../constants/Progression';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
@@ -68,7 +71,8 @@ export function ProfileScreen({
   // Replaced navigation props with router calls
   const onOpenAssessment = () => router.push('/assessment');
   const onOpenStaticWorld = () => router.push('/static-world');
-  const onOpenOneMinMax = () => router.push('/one-min-max');
+  const onOpenOneMinMax = (category?: 'entry' | 'main' | 'advanced') =>
+    router.push(category ? { pathname: '/one-min-max', params: { category } } : '/one-min-max');
   const onStartTrial = (tier?: number) => {
     const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
     router.push({ pathname: '/trial', params: { tier, mode } });
@@ -98,8 +102,6 @@ export function ProfileScreen({
     initialActiveTab === 'strength' ? 'strength' : 'profile'
   );
   const [showSettings, setShowSettings] = useState(false);
-  const [isSwitchingWorld, setIsSwitchingWorld] = useState(false);
-  const [showLevelReveal, setShowLevelReveal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
@@ -136,6 +138,11 @@ export function ProfileScreen({
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
   const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
+
+  // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
+  const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
+  const [staticPbs, setStaticPbs] = useState<Record<string, number>>({});
+  const [oneMMPbs, setOneMMPbs] = useState<Record<string, number>>({});
 
   // Leaderboard Filtering
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
@@ -221,6 +228,17 @@ export function ProfileScreen({
         })
         .catch(() => {});
     }, [selectedTier, category, profile?.id])
+  );
+
+  // Weekly activity stats + per-movement PBs, refreshed on mount and whenever
+  // the Profile tab regains focus (e.g. after logging a new attempt elsewhere).
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      ActivityStatsService.getWeeklyStats(profile.id).then(setWeeklyStats).catch(() => {});
+      StaticService.getUserStats(profile.id).then(({ pbs }) => setStaticPbs(pbs)).catch(() => {});
+      OneMMService.getUserStats(profile.id).then(({ pbs }) => setOneMMPbs(pbs)).catch(() => {});
+    }, [profile?.id])
   );
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
@@ -385,6 +403,10 @@ export function ProfileScreen({
                 gloryPts={gloryPts}
                 WRA_MAX={WRA_MAX}
                 GLORY_MAX={GLORY_MAX}
+                staticPbs={staticPbs}
+                powerPbs={profile.power_pbs || {}}
+                oneMMPbs={oneMMPbs}
+                weeklyStats={weeklyStats}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onShowCoachPrompt={() => setShowCoachPrompt(true)}
                 onOpenAdmin={onOpenAdmin}
@@ -392,20 +414,34 @@ export function ProfileScreen({
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
                 onOpenWarriorProgram={onOpenWarriorProgram}
+                onOpenStaticWorld={onOpenStaticWorld}
+                onOpenPowerAssessment={onOpenPowerAssessment}
+                onOpenOneMinMax={onOpenOneMinMax}
               />
 
               <TouchableOpacity
-                style={[styles.weeklyChallengeButton, { borderColor: theme.accent }]}
+                style={[styles.weeklyChallengeButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
                 onPress={onOpenWeeklyChallenge}
               >
-                <MaterialCommunityIcons name="trophy-outline" size={16} color={theme.accent} />
-                <Text style={[styles.weeklyChallengeText, { color: theme.accent }]}>WEEKLY CHALLENGE</Text>
+                <MaterialCommunityIcons name="trophy-outline" size={16} color="#FFFFFF" />
+                <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
               </TouchableOpacity>
             </>
           )}
 
           {activeTab === 'strength' && (
             <>
+              <TierRankCard
+                profile={profile}
+                category={category}
+                selectedTier={selectedTier}
+                isLocked={isLocked}
+                tierName={tierName}
+                tierRankData={tierRankData}
+                theme={theme}
+                onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+              />
+
               <TierSelectorRow
                 category={category}
                 selectedTier={selectedTier}
@@ -509,46 +545,6 @@ export function ProfileScreen({
           onStartTrial={onStartTrial}
         />
 
-        {/* World Switching Overlay - Modern Design */}
-        {isSwitchingWorld && (
-          <View style={[styles.switchingOverlay, { backgroundColor: theme.background.primary }]}>
-            <View style={styles.worldTransition}>
-              {/* From World */}
-              <View style={[styles.worldBlock, { opacity: 0.3 }]}>
-                <Text style={styles.worldBlockIcon}>
-                  {category === 'strength' ? '⚔️' : '⚡'}
-                </Text>
-                <Text style={[styles.worldBlockName, { color: theme.text.tertiary }]}>
-                  {category === 'strength' ? 'STRENGTH' : 'POWER'}
-                </Text>
-              </View>
-
-              {/* To World */}
-              <View style={[styles.worldBlock, styles.worldBlockActive]}>
-                <View style={[styles.worldBlockGlow, { shadowColor: theme.accent }]} />
-                <Text style={styles.worldBlockIconLarge}>
-                  {category === 'strength' ? '⚡' : '⚔️'}
-                </Text>
-                <Text style={[styles.worldBlockNameLarge, { color: theme.accent }]}>
-                  {category === 'strength' ? 'POWER WORLD' : 'STRENGTH WORLD'}
-                </Text>
-                <Text style={[styles.worldBlockSubtitle, { color: theme.text.secondary }]}>
-                  Entering...
-                </Text>
-              </View>
-
-              {/* Progress Bar */}
-              <View style={styles.progressContainer}>
-                <View style={[styles.progressBar, { backgroundColor: theme.card.background }]}>
-                  <View style={[styles.progressFill, { backgroundColor: theme.accent, width: showLevelReveal ? '60%' : '90%' }]} />
-                </View>
-                <Text style={[styles.progressText, { color: theme.text.tertiary }]}>
-                  {showLevelReveal ? 'Preparing transition...' : 'Loading world data...'}
-                </Text>
-              </View>
-            </View>
-          </View>
-        )}
         <LeaderboardModals
           showWRALeaderboard={showWRALeaderboard}
           setShowWRALeaderboard={setShowWRALeaderboard}
@@ -1342,88 +1338,6 @@ const styles = StyleSheet.create({
   },
   lockedIndicatorText: {
     fontSize: 12,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  // World Switching Overlay - Modern Design
-  switchingOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 1000,
-  },
-  worldTransition: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 24,
-    paddingHorizontal: 32,
-  },
-  worldBlock: {
-    alignItems: 'center',
-    gap: 8,
-  },
-  worldBlockActive: {
-    transform: [{ scale: 1.1 }],
-  },
-  worldBlockGlow: {
-    position: 'absolute',
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-    elevation: 10,
-  },
-  worldBlockIcon: {
-    fontSize: 48,
-    opacity: 0.5,
-  },
-  worldBlockIconLarge: {
-    fontSize: 72,
-    marginBottom: 8,
-  },
-  worldBlockName: {
-    fontSize: 14,
-    fontWeight: '700',
-    letterSpacing: 2,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  worldBlockNameLarge: {
-    fontSize: 20,
-    fontWeight: '900',
-    letterSpacing: 3,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    marginBottom: 4,
-  },
-  worldBlockSubtitle: {
-    fontSize: 12,
-    letterSpacing: 1,
-    fontFamily: 'PlusJakartaSans-Regular',
-  },
-  progressContainer: {
-    width: '100%',
-    maxWidth: 280,
-    alignItems: 'center',
-    gap: 12,
-    marginTop: 16,
-  },
-  progressBar: {
-    width: '100%',
-    height: 4,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    borderRadius: 2,
-  },
-  progressText: {
-    fontSize: 11,
-    letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Regular',
   },
   // Tier Details Modal

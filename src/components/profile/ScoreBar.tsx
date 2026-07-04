@@ -36,7 +36,7 @@ export function ScoreBar({
         {
           backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.03)',
           borderColor: `${color}40`,
-          paddingVertical: 12,
+          paddingVertical: 17,
           marginBottom: 8,
         }
       ]}
@@ -44,7 +44,7 @@ export function ScoreBar({
       <View style={styles.scoreBarHeader}>
         <View style={{ flex: 1 }}>
           <Text style={[styles.scoreBarTitle, { color, fontWeight: '900', fontSize: 12 }]}>{title}</Text>
-          <Text style={[styles.scoreBarSubtitle, { color: 'rgba(0,0,0,0.3)', fontSize: 9, marginTop: 2 }]}>{subtitle}</Text>
+          <Text style={[styles.scoreBarSubtitle, { color: mode === 'dark' ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 9, marginTop: 2 }]}>{subtitle}</Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={[styles.scoreBarTotal, { color, fontSize: 24 }]}>{score.toFixed(2)}</Text>
@@ -69,7 +69,7 @@ export function ScoreBar({
           <View key={idx} style={styles.scoreChip}>
             <View style={[styles.scoreChipDot, { backgroundColor: c.color }]} />
             <Text style={[styles.scoreChipVal, { color: mode === 'dark' ? '#FFF' : '#000', fontSize: 10 }]}>{c.value.toFixed(2)}</Text>
-            <Text style={[styles.scoreChipLbl, { color: 'rgba(0,0,0,0.25)', fontSize: 9 }]}>{c.label}</Text>
+            <Text style={[styles.scoreChipLbl, { color: mode === 'dark' ? 'rgba(255,255,255,0.45)' : 'rgba(0,0,0,0.45)', fontSize: 9 }]}>{c.label}</Text>
           </View>
         ))}
       </View>
@@ -163,8 +163,8 @@ const styles = StyleSheet.create({
   },
   lbCircleIndicator: {
     position: 'absolute',
-    top: -10,
-    right: -12,
+    top: -14,
+    right: -14,
     width: 24,
     height: 24,
     borderRadius: 12,

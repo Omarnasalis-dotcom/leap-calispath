@@ -30,8 +30,22 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
 
   return (
     <>
+      {/* marginHorizontal:16 matches the inset every sibling card/button on
+          this screen already uses (WarriorCard, SuggestedTestCard,
+          QuickStatsRow) — this component previously relied on entryRow's own
+          internal padding for its horizontal gutter, which read edge-to-edge
+          and larger than everything around it. */}
+      <View style={{ marginHorizontal: 16 }}>
+      {/* Warriors Headline */}
+      <View style={[styles.warriorsHeadline, { borderBottomColor: theme.card.border }]}>
+        <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>LEADERBOARD</Text>
+        <Text style={[styles.headlineSubtitle, { color: theme.text.secondary }]}>
+          {filteredEntries.length} WARRIORS
+        </Text>
+      </View>
+
       {/* Gender Filters */}
-      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 8, gap: 12 }}>
+      <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12, marginTop: 2, gap: 10 }}>
         {['ALL', 'MALE', 'FEMALE'].map((filter) => (
           <TouchableOpacity
             key={filter}
@@ -54,14 +68,6 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
             </Text>
           </TouchableOpacity>
         ))}
-      </View>
-
-      {/* Warriors Headline */}
-      <View style={[styles.warriorsHeadline, { borderBottomColor: theme.card.border }]}>
-        <Text style={[styles.headlineTitleBig, { color: theme.accent }]}>LEADERBOARD</Text>
-        <Text style={[styles.headlineSubtitle, { color: theme.text.secondary }]}>
-          {filteredEntries.length} WARRIORS
-        </Text>
       </View>
 
       {/* Leaderboard List */}
@@ -96,9 +102,9 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
               <View key={entry.user_id}>
                 {isSeparatorRow && (
                   <View style={{ flexDirection: 'row', alignItems: 'center', marginVertical: 6, paddingHorizontal: 4 }}>
-                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(205,127,50,0.3)' }} />
-                    <Text style={{ color: 'rgba(205,127,50,0.5)', fontSize: 10, marginHorizontal: 8, letterSpacing: 1 }}>YOUR RANK</Text>
-                    <View style={{ flex: 1, height: 1, backgroundColor: 'rgba(205,127,50,0.3)' }} />
+                    <View style={{ flex: 1, height: 1, backgroundColor: `${theme.accent}4D` }} />
+                    <Text style={{ color: `${theme.accent}80`, fontSize: 10, marginHorizontal: 8, letterSpacing: 1 }}>YOUR RANK</Text>
+                    <View style={{ flex: 1, height: 1, backgroundColor: `${theme.accent}4D` }} />
                   </View>
                 )}
                 <View
@@ -139,7 +145,7 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
                   {/* Time Circles - Side by Side */}
                   <View style={styles.timeCirclesContainer}>
                     {/* Best Time Circle */}
-                    <View style={[styles.timeCircle, { backgroundColor: 'rgba(205, 127, 50, 0.1)', borderColor: theme.accent }]}>
+                    <View style={[styles.timeCircle, { backgroundColor: `${theme.accent}1A`, borderColor: theme.accent }]}>
                       <Text style={[styles.timeCircleValue, { color: theme.accent }]}>
                         {formatLeaderboardTime(entry.best_time_seconds).replace(':', "'") + '"'}
                       </Text>
@@ -148,9 +154,9 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
 
                     {/* Gap Circle (only for current user when not #1) */}
                     {showGap && gapValue && (
-                      <View style={[styles.gapCircle, { backgroundColor: 'rgba(255, 100, 100, 0.15)', borderColor: '#FF6464' }]}>
-                        <Text style={[styles.gapCircleValue, { color: '#FF6464' }]}>{gapValue}</Text>
-                        <Text style={[styles.gapCircleLabel, { color: '#FF6464' }]}>GAP</Text>
+                      <View style={[styles.gapCircle, { backgroundColor: `${theme.accent}26`, borderColor: theme.accent }]}>
+                        <Text style={[styles.gapCircleValue, { color: theme.accent }]}>{gapValue}</Text>
+                        <Text style={[styles.gapCircleLabel, { color: theme.accent }]}>GAP</Text>
                       </View>
                     )}
                   </View>
@@ -170,6 +176,7 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
           <Text style={[styles.seeMoreText, { color: theme.accent }]}>SEE MORE</Text>
         </TouchableOpacity>
       )}
+      </View>
 
       {/* Full Leaderboard Modal */}
       <Modal
@@ -245,18 +252,18 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
 const styles = StyleSheet.create({
   warriorsHeadline: {
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 8,
     borderBottomWidth: 1,
-    marginBottom: 12,
+    marginBottom: 6,
   },
   headlineTitleBig: {
-    fontSize: 28,
+    fontSize: 17,
     fontWeight: '900',
-    letterSpacing: 4,
+    letterSpacing: 2,
     fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   headlineSubtitle: {
-    fontSize: 12,
+    fontSize: 10,
     letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Regular',
   },
@@ -273,7 +280,7 @@ const styles = StyleSheet.create({
   },
   emptySubtext: {
     fontSize: 14,
-    color: '#CD7F32',
+    color: '#FF5252',
     marginTop: 8,
   },
   listPreview: {
@@ -283,51 +290,50 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 16,
+    padding: 7,
     borderRadius: 8,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.1)',
-    marginBottom: 8,
+    borderColor: 'rgba(255,82,82,0.1)',
+    marginBottom: 5,
   },
   entryRowCurrentUser: {
-    backgroundColor: 'rgba(205,127,50,0.15)',
-    borderColor: '#CD7F32',
+    backgroundColor: 'rgba(255,82,82,0.15)',
+    borderColor: '#FF5252',
   },
   entryRowTopThree: {
-    borderColor: 'rgba(205,127,50,0.4)',
+    borderColor: 'rgba(255,82,82,0.4)',
   },
   rankContainer: {
-    width: 40,
+    width: 24,
     alignItems: 'center',
   },
   medal: {
-    fontSize: 24,
+    fontSize: 15,
   },
   rankCircle: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 21,
+    height: 21,
+    borderRadius: 11,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
   rankNumber: {
-    fontSize: 18,
+    fontSize: 12,
     fontWeight: '700',
     color: 'rgba(255,255,255,0.5)',
   },
   entryInfo: {
     flex: 1,
-    marginLeft: 12,
+    marginLeft: 6,
   },
   entryName: {
     flexShrink: 1,
-    fontSize: 14,
-    color: '#FFA500',
+    fontSize: 11,
+    color: '#FF5252',
   },
   entryNameCurrentUser: {
-    color: '#32CD32',
     fontWeight: '700',
   },
   youBadge: {
@@ -347,53 +353,55 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   timeCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 50,
+    height: 50,
+    borderRadius: 26,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   timeCircleValue: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    letterSpacing: 0.5,
+    letterSpacing: 0.2,
+    textAlign: 'center',
   },
   timeCircleLabel: {
     fontSize: 7,
-    letterSpacing: 1,
+    letterSpacing: 0.5,
     fontFamily: 'PlusJakartaSans-Bold',
   },
   gapCircle: {
-    width: 58,
-    height: 58,
-    borderRadius: 29,
+    width: 50,
+    height: 50,
+    borderRadius: 25,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
   },
   gapCircleValue: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: '900',
     fontFamily: 'PlusJakartaSans-ExtraBold',
+    textAlign: 'center',
   },
   gapCircleLabel: {
-    fontSize: 7,
-    letterSpacing: 1,
+    fontSize: 8,
+    letterSpacing: 0.5,
     fontFamily: 'PlusJakartaSans-Bold',
   },
   seeMoreButton: {
     alignSelf: 'center',
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 20,
-    backgroundColor: 'rgba(205, 127, 50, 0.2)',
-    marginTop: 12,
-    marginBottom: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 23,
+    borderRadius: 18,
+    backgroundColor: 'rgba(255, 82, 82, 0.2)',
+    marginTop: 8,
+    marginBottom: 12,
   },
   seeMoreText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: '700',
     letterSpacing: 1,
     fontFamily: 'PlusJakartaSans-Bold',
@@ -435,9 +443,9 @@ const styles = StyleSheet.create({
   entryTime: {
     fontSize: 18,
     fontWeight: '900',
-    color: '#FFA500',
+    color: '#FF5252',
     fontVariant: ['tabular-nums'],
-    textShadowColor: 'rgba(255,165,0,0.5)',
+    textShadowColor: 'rgba(255,82,82,0.5)',
     textShadowOffset: { width: 0, height: 0 },
     textShadowRadius: 4,
   },
