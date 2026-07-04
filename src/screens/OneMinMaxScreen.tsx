@@ -29,7 +29,7 @@ const { width } = Dimensions.get('window');
 
 const VALID_ONEMM_CATEGORIES = ['entry', 'main', 'advanced'];
 
-export function OneMinMaxScreen({ onBack, category }: { onBack: () => void; category?: string }) {
+export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
@@ -236,12 +236,7 @@ export function OneMinMaxScreen({ onBack, category }: { onBack: () => void; cate
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity
-        onPress={onBack}
-        style={{ width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}
-      >
-        <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text.primary} />
-      </TouchableOpacity>
+      <View style={{ width: 40 }} />
 
       <TouchableOpacity
         onPress={() => setLeaderboardTab('overall')}
