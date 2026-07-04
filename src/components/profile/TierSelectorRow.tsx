@@ -25,6 +25,12 @@ export function TierSelectorRow({
   tierScrollRef,
   onSelectTier,
 }: TierSelectorRowProps) {
+  // Position the row at the user's current tier on first layout instead of
+  // starting at tier 0 and animating over — avoids a visible flash of tier 0
+  // before the (delayed, animated) scroll-to-current-tier effect fires.
+  const ITEM_WIDTH = 90 + 12; // tierItemContainer minWidth + tierList gap
+  const initialOffset = Math.max(0, activeCurrentTier * ITEM_WIDTH);
+
   return (
     <View style={styles.tierSelectorSection}>
       <View style={styles.sectionHeader}>
@@ -38,6 +44,7 @@ export function TierSelectorRow({
         horizontal
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.tierList}
+        contentOffset={{ x: initialOffset, y: 0 }}
       >
         {Object.entries(category === 'strength' ? TIER_NAMES : POWER_TIER_NAMES).map(([index, name]) => {
           const tierIndex = parseInt(index);

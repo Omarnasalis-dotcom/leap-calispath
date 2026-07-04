@@ -320,17 +320,16 @@ export function ProfileScreen({
   const tierScrollRef = useRef<ScrollView>(null);
 
   useEffect(() => {
-    // Auto-scroll to current tier on load
-    if (activeCurrentTier > 0) {
-      const timer = setTimeout(() => {
-        if (tierScrollRef.current) {
-          const itemWidth = 100;
-          const gap = 12;
-          const offset = activeCurrentTier * (itemWidth + gap);
-          tierScrollRef.current.scrollTo({ x: offset - 40, animated: true });
-        }
-      }, 800);
-      return () => clearTimeout(timer);
+    // TierSelectorRow's own contentOffset already positions it at the
+    // current tier on first layout (no more visible "tier 0 then jump"
+    // flash). This handles the case where activeCurrentTier changes after
+    // that first paint, e.g. a trial completes and the tier advances while
+    // the Strength tab is still open.
+    if (activeCurrentTier > 0 && tierScrollRef.current) {
+      const itemWidth = 90;
+      const gap = 12;
+      const offset = activeCurrentTier * (itemWidth + gap);
+      tierScrollRef.current.scrollTo({ x: offset, animated: true });
     }
   }, [activeCurrentTier]);
 
@@ -431,6 +430,27 @@ export function ProfileScreen({
 
           {activeTab === 'strength' && (
             <>
+              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingTop: 44, paddingBottom: 10, marginBottom: 12 }}>
+                <View
+                  style={{
+                    paddingHorizontal: 76,
+                    paddingVertical: 7,
+                    borderRadius: 25,
+                    borderWidth: 1,
+                    borderColor: '#FF5252',
+                    backgroundColor: '#f43a3a20',
+                  }}
+                >
+                  <Text style={{
+                    fontSize: 11,
+                    fontWeight: '900',
+                    letterSpacing: 2,
+                    fontFamily: 'PlusJakartaSans-ExtraBold',
+                    color: theme.text.primary,
+                  }}>STRENGTH WORLD</Text>
+                </View>
+              </View>
+
               <TierRankCard
                 profile={profile}
                 category={category}
