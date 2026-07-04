@@ -236,7 +236,12 @@ export function OneMinMaxScreen({ onBack, category }: { onBack: () => void; cate
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <View style={{ width: 40 }} />
+      <TouchableOpacity
+        onPress={onBack}
+        style={{ width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}
+      >
+        <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text.primary} />
+      </TouchableOpacity>
 
       <TouchableOpacity
         onPress={() => setLeaderboardTab('overall')}

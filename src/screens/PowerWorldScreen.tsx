@@ -259,12 +259,17 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <View style={{ width: 40 }} />
+      <TouchableOpacity
+        onPress={onBack}
+        style={{ width: 40, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}
+      >
+        <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text.primary} />
+      </TouchableOpacity>
 
       <View style={[
         styles.headerTitleContainer,
-        { 
-          borderColor: '#FF5252', 
+        {
+          borderColor: '#FF5252',
           borderWidth: 1,
           backgroundColor: '#FF525220'
         }
@@ -272,7 +277,7 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
         <MaterialCommunityIcons name="lightning-bolt" size={14} color="#FF5252" style={{ marginRight: 6 }} />
         <Text style={[styles.headerTitle, { color: theme.text.primary }]}>POWER WORLD</Text>
       </View>
-      
+
       <View style={{ width: 40 }} />
     </View>
   );
