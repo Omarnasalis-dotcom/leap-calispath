@@ -22,6 +22,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { BottomTabBar } from '../components/profile/BottomTabBar';
 
 
 const { width } = Dimensions.get('window');
@@ -273,11 +274,9 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   const renderLapHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={onClose} style={styles.backBtn}>
-        <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
-      </TouchableOpacity>
-      
-      <TouchableOpacity 
+      <View style={{ width: 40 }} />
+
+      <TouchableOpacity
         onPress={() => setShowGlobalMastery(true)}
         style={[
           styles.headerTitleContainer,
@@ -578,6 +577,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
           </View>
         </View>
       </ScrollView>
+
+      <BottomTabBar activeTab="static" strengthTier={profile?.strength_tier || 0} />
 
       <Modal visible={showGlobalMastery} transparent animationType="fade">
         <View style={styles.modalOverlay}>

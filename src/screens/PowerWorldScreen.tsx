@@ -23,6 +23,7 @@ import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { BottomTabBar } from '../components/profile/BottomTabBar';
 
 
 const { width } = Dimensions.get('window');
@@ -258,10 +259,8 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-        <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
-      </TouchableOpacity>
-      
+      <View style={{ width: 40 }} />
+
       <View style={[
         styles.headerTitleContainer,
         { 
@@ -543,6 +542,8 @@ export function PowerWorldScreen({ onBack }: { onBack: () => void }) {
       >
         {loading || !stats ? renderSkeleton() : renderDashboard()}
       </ScrollView>
+
+      <BottomTabBar activeTab="power" strengthTier={profile?.strength_tier || 0} />
 
       {/* LOG MODAL */}
       <Modal visible={showLogModal} transparent animationType="fade">

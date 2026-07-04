@@ -9,6 +9,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WarriorCard } from '../atoms/WarriorCard';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
+import { LeaderboardEntry } from '../../lib/leaderboard';
+import { TierLeaderboardList } from './TierLeaderboardList';
 
 interface TierRankData {
   rank: number | null;
@@ -30,11 +32,13 @@ interface StrengthWorldViewProps {
   theme: any;
   onStartTrial?: (tier?: number) => void;
   onOpenPowerAssessment?: () => void;
-  onViewLeaderboards?: (category: 'strength' | 'power', tier: number) => void;
   onSignOut: () => void;
   onSetMuted: (muted: boolean) => void;
   onShowTierModal: (tier: number) => void;
   toggleTheme?: () => void;
+  showSettingsFooter?: boolean;
+  leaderboardEntries: LeaderboardEntry[];
+  leaderboardLoading: boolean;
 }
 
 export function StrengthWorldView({
@@ -51,11 +55,13 @@ export function StrengthWorldView({
   theme,
   onStartTrial,
   onOpenPowerAssessment,
-  onViewLeaderboards,
   onSignOut,
   onSetMuted,
   onShowTierModal,
   toggleTheme,
+  showSettingsFooter = true,
+  leaderboardEntries,
+  leaderboardLoading,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
   return (
@@ -149,14 +155,16 @@ export function StrengthWorldView({
           </View>
         )}
 
-        <TouchableOpacity
-          style={styles.cardLeaderboardTrigger}
-          onPress={() => onViewLeaderboards?.(category, selectedTier)}
-        >
-          <MaterialCommunityIcons name="trophy-outline" size={14} color={theme.accent} />
-          <Text style={[styles.cardLeaderboardText, { color: theme.accent }]}>LEADERBOARD</Text>
-        </TouchableOpacity>
       </WarriorCard>
+
+      {category === 'strength' && (
+        <TierLeaderboardList
+          entries={leaderboardEntries}
+          currentUserId={profile?.id}
+          loading={leaderboardLoading}
+          theme={theme}
+        />
+      )}
 
       {/* Action Buttons */}
       <View style={{ marginBottom: 16 }}>
@@ -213,47 +221,49 @@ export function StrengthWorldView({
       </View>
 
       {/* Sound Toggle and Sign Out */}
-      <View style={{ paddingHorizontal: 16, gap: 12, marginBottom: 30 }}>
-        <TouchableOpacity
-          style={styles.signOutButtonSmall}
-          onPress={() => {
-            const next = !isMuted;
-            onSetMuted(next);
-            SoundService.setMuted(next);
-          }}
-        >
-          <MaterialCommunityIcons name={isMuted ? "volume-off" : "volume-high"} size={16} color={theme.text.tertiary} />
-          <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
-            ARENA SOUNDS: {isMuted ? 'MUTED' : 'ENABLED'}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.signOutButtonSmall} onPress={onSignOut}>
-          <MaterialCommunityIcons name="logout" size={16} color={theme.text.tertiary} />
-          <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
-            LEAVE THE ARENA
-          </Text>
-        </TouchableOpacity>
-
-        {/* Theme Toggle Row */}
-        <TouchableOpacity
-          style={[styles.signOutButtonSmall, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}
-          onPress={toggleTheme}
-        >
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <MaterialCommunityIcons name="theme-light-dark" size={16} color={theme.text.tertiary} />
+      {showSettingsFooter && (
+        <View style={{ paddingHorizontal: 16, gap: 12, marginBottom: 30 }}>
+          <TouchableOpacity
+            style={styles.signOutButtonSmall}
+            onPress={() => {
+              const next = !isMuted;
+              onSetMuted(next);
+              SoundService.setMuted(next);
+            }}
+          >
+            <MaterialCommunityIcons name={isMuted ? "volume-off" : "volume-high"} size={16} color={theme.text.tertiary} />
             <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
-              DARK MODE
+              ARENA SOUNDS: {isMuted ? 'MUTED' : 'ENABLED'}
             </Text>
-          </View>
-          <MaterialCommunityIcons
-            name={isDark ? "toggle-switch" : "toggle-switch-off"}
-            size={24}
-            color={isDark ? theme.accent : theme.text.tertiary}
-            style={{ marginTop: -2 }}
-          />
-        </TouchableOpacity>
-      </View>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.signOutButtonSmall} onPress={onSignOut}>
+            <MaterialCommunityIcons name="logout" size={16} color={theme.text.tertiary} />
+            <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
+              LEAVE THE ARENA
+            </Text>
+          </TouchableOpacity>
+
+          {/* Theme Toggle Row */}
+          <TouchableOpacity
+            style={[styles.signOutButtonSmall, { justifyContent: 'space-between', flexDirection: 'row', alignItems: 'center' }]}
+            onPress={toggleTheme}
+          >
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+              <MaterialCommunityIcons name="theme-light-dark" size={16} color={theme.text.tertiary} />
+              <Text style={[styles.signOutTextSmall, { color: theme.text.tertiary }]}>
+                DARK MODE
+              </Text>
+            </View>
+            <MaterialCommunityIcons
+              name={isDark ? "toggle-switch" : "toggle-switch-off"}
+              size={24}
+              color={isDark ? theme.accent : theme.text.tertiary}
+              style={{ marginTop: -2 }}
+            />
+          </TouchableOpacity>
+        </View>
+      )}
     </>
   );
 }

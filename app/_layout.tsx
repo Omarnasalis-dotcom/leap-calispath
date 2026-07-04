@@ -151,6 +151,10 @@ export default function RootLayout() {
             <AuthGuard>
               <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
                 <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+                <Stack.Screen name="profile" options={{ animation: 'none' }} />
+                <Stack.Screen name="power-world" options={{ animation: 'none' }} />
+                <Stack.Screen name="static-world" options={{ animation: 'none' }} />
+                <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
               </Stack>
             </AuthGuard>
             <StatusBar style="auto" />

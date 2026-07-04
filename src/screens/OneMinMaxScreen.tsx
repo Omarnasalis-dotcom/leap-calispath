@@ -22,6 +22,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { CelebrationBanner } from '../components/CelebrationBanner';
+import { BottomTabBar } from '../components/profile/BottomTabBar';
 
 
 const { width } = Dimensions.get('window');
@@ -227,9 +228,7 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
 
   const renderHeader = () => (
     <View style={styles.header}>
-      <TouchableOpacity onPress={onBack} style={styles.backBtn}>
-        <MaterialCommunityIcons name="chevron-left" size={32} color={theme.text.primary} />
-      </TouchableOpacity>
+      <View style={{ width: 40 }} />
 
       <TouchableOpacity
         onPress={() => setLeaderboardTab('overall')}
@@ -585,6 +584,8 @@ export function OneMinMaxScreen({ onBack }: { onBack: () => void }) {
       >
         {loading || !stats ? renderSkeleton() : renderDashboard()}
       </ScrollView>
+
+      <BottomTabBar activeTab="1mm" strengthTier={profile?.strength_tier || 0} />
 
       {/* 1MM TIMER MODAL */}
       {showLogModal && (

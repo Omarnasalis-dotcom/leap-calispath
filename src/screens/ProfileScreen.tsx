@@ -28,8 +28,8 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
-import { DeleteAccountModal } from '../components/profile/DeleteAccountModal';
-import { WorldSelectorGrid } from '../components/profile/WorldSelectorGrid';
+import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { SettingsSheet } from '../components/profile/SettingsSheet';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
 import { StrengthWorldView } from '../components/profile/StrengthWorldView';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
@@ -39,7 +39,7 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
-import { getTierLeaderboard, getPowerTierLeaderboard } from '../lib/leaderboard';
+import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
 import { isPowerWorldUnlocked, calculateTotalPowerScore } from '../lib/powerLogic';
 import { isStaticWorldUnlocked, STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { StaticService } from '../services/StaticService';
@@ -55,11 +55,13 @@ import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
+  activeTab?: 'profile' | 'strength';
 }
 
 export function ProfileScreen({
   initialCategory = 'strength',
-  initialTier = 0
+  initialTier = 0,
+  activeTab: initialActiveTab,
 }: ProfileScreenProps) {
   const syncedUserIds = useRef(new Set<string>());
   const router = useRouter();
@@ -71,7 +73,6 @@ export function ProfileScreen({
     const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
     router.push({ pathname: '/trial', params: { tier, mode } });
   };
-  const onViewLeaderboards = (category: 'strength' | 'power', tier: number) => router.push({ pathname: '/leaderboard', params: { category, tier } });
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
   const showV2Popup = () => {
@@ -93,6 +94,10 @@ export function ProfileScreen({
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
+  const [activeTab, setActiveTab] = useState<'profile' | 'strength'>(
+    initialActiveTab === 'strength' ? 'strength' : 'profile'
+  );
+  const [showSettings, setShowSettings] = useState(false);
   const [isSwitchingWorld, setIsSwitchingWorld] = useState(false);
   const [showLevelReveal, setShowLevelReveal] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
@@ -129,6 +134,8 @@ export function ProfileScreen({
     checkTutorialSeen();
   }, [profile?.id, profile?.assessed_at]);
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
+  const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
+  const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
 
   // Leaderboard Filtering
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
@@ -162,9 +169,11 @@ export function ProfileScreen({
   useEffect(() => {
     async function loadRank() {
       if (!profile?.id) return;
+      setTierLeaderboardLoading(true);
       try {
         const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
         const { entries } = await fetcher(selectedTier, profile.id);
+        setTierLeaderboardEntries(entries);
         const userIdx = entries.findIndex(e => e.user_id === profile.id);
         if (userIdx !== -1) {
           const rank = userIdx + 1;
@@ -187,6 +196,9 @@ export function ProfileScreen({
       } catch (e) {
         console.error('Error loading rank:', e);
         setTierRankData({ rank: null, total: 0, gap: null });
+        setTierLeaderboardEntries([]);
+      } finally {
+        setTierLeaderboardLoading(false);
       }
     }
     loadRank();
@@ -199,6 +211,7 @@ export function ProfileScreen({
       const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
       fetcher(selectedTier, profile.id)
         .then(({ entries }) => {
+          setTierLeaderboardEntries(entries);
           const userIdx = entries.findIndex((e: any) => e.user_id === profile.id);
           if (userIdx !== -1) {
             setTierRankData({ rank: userIdx + 1, total: entries.length, gap: null });
@@ -349,77 +362,92 @@ export function ProfileScreen({
   return (
     <GlobalErrorBoundary>
       <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        <ScrollView>
-          <ProfileHeader
-            profile={profile}
-            category={category}
-            activeCurrentTier={activeCurrentTier}
-            mode={mode}
-            theme={theme}
-            wraScore={wraScore}
-            staticPts={staticPts}
-            powerPts={powerPts}
-            mmPts={mmPts}
-            gloryPts={gloryPts}
-            WRA_MAX={WRA_MAX}
-            GLORY_MAX={GLORY_MAX}
-            onShowWarriorModal={() => setShowWarriorModal(true)}
-            onShowCoachPrompt={() => setShowCoachPrompt(true)}
-            onOpenAdmin={onOpenAdmin}
-            onFetchWRALeaderboard={fetchWRALeaderboard}
-            onFetchGloryLeaderboard={fetchGloryLeaderboard}
-            onOpenCoachingCenter={onOpenCoachingCenter}
-            onOpenWarriorProgram={onOpenWarriorProgram}
-          />
+        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+          {activeTab === 'profile' && (
+            <>
+              <TouchableOpacity
+                style={[styles.settingsGearButton, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
+                onPress={() => setShowSettings(true)}
+              >
+                <MaterialCommunityIcons name="cog-outline" size={18} color={theme.text.secondary} />
+              </TouchableOpacity>
 
-          {/* Mode Grid - 2 Column Layout */}
-          <WorldSelectorGrid
-            category={category}
-            strengthTier={profile?.strength_tier || 0}
-            mode={mode}
-            theme={theme}
-            onSwitchStrength={() => handleCategorySwitch('strength')}
-            onOpenPowerAssessment={onOpenPowerAssessment}
-            onOpenStaticWorld={onOpenStaticWorld}
-            onOpenOneMinMax={onOpenOneMinMax}
-            onOpenTournamentArena={onOpenTournamentArena}
-            onOpenClash={onOpenClash}
-            onOpenWeeklyChallenge={onOpenWeeklyChallenge}
-            onOpenChampionsArena={onOpenChampionsArena}
-          />
-          <TierSelectorRow
-            category={category}
-            selectedTier={selectedTier}
-            activeCurrentTier={activeCurrentTier}
-            theme={theme}
-            tierScrollRef={tierScrollRef}
-            onSelectTier={setSelectedTier}
-          />
+              <ProfileHeader
+                profile={profile}
+                category={category}
+                activeCurrentTier={activeCurrentTier}
+                mode={mode}
+                theme={theme}
+                wraScore={wraScore}
+                staticPts={staticPts}
+                powerPts={powerPts}
+                mmPts={mmPts}
+                gloryPts={gloryPts}
+                WRA_MAX={WRA_MAX}
+                GLORY_MAX={GLORY_MAX}
+                onShowWarriorModal={() => setShowWarriorModal(true)}
+                onShowCoachPrompt={() => setShowCoachPrompt(true)}
+                onOpenAdmin={onOpenAdmin}
+                onFetchWRALeaderboard={fetchWRALeaderboard}
+                onFetchGloryLeaderboard={fetchGloryLeaderboard}
+                onOpenCoachingCenter={onOpenCoachingCenter}
+                onOpenWarriorProgram={onOpenWarriorProgram}
+              />
 
-          <StrengthWorldView
-            profile={profile}
-            category={category}
-            selectedTier={selectedTier}
-            activeCurrentTier={activeCurrentTier}
-            isLocked={isLocked}
-            isLowerTier={isLowerTier}
-            tierName={tierName}
-            tierRankData={tierRankData}
-            isMuted={isMuted}
-            mode={mode}
-            theme={theme}
-            onStartTrial={onStartTrial}
-            onOpenPowerAssessment={onOpenPowerAssessment}
-            onViewLeaderboards={onViewLeaderboards}
-            onSignOut={handleSignOut}
-            onSetMuted={setIsMuted}
-            onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
-            toggleTheme={toggleTheme}
-          />
+              <TouchableOpacity
+                style={[styles.weeklyChallengeButton, { borderColor: theme.accent }]}
+                onPress={onOpenWeeklyChallenge}
+              >
+                <MaterialCommunityIcons name="trophy-outline" size={16} color={theme.accent} />
+                <Text style={[styles.weeklyChallengeText, { color: theme.accent }]}>WEEKLY CHALLENGE</Text>
+              </TouchableOpacity>
+            </>
+          )}
 
-          <DeleteAccountModal />
+          {activeTab === 'strength' && (
+            <>
+              <TierSelectorRow
+                category={category}
+                selectedTier={selectedTier}
+                activeCurrentTier={activeCurrentTier}
+                theme={theme}
+                tierScrollRef={tierScrollRef}
+                onSelectTier={setSelectedTier}
+              />
 
+              <StrengthWorldView
+                profile={profile}
+                category={category}
+                selectedTier={selectedTier}
+                activeCurrentTier={activeCurrentTier}
+                isLocked={isLocked}
+                isLowerTier={isLowerTier}
+                tierName={tierName}
+                tierRankData={tierRankData}
+                isMuted={isMuted}
+                mode={mode}
+                theme={theme}
+                onStartTrial={onStartTrial}
+                onOpenPowerAssessment={onOpenPowerAssessment}
+                leaderboardEntries={tierLeaderboardEntries}
+                leaderboardLoading={tierLeaderboardLoading}
+                onSignOut={handleSignOut}
+                onSetMuted={setIsMuted}
+                onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+                toggleTheme={toggleTheme}
+                showSettingsFooter={false}
+              />
+            </>
+          )}
         </ScrollView>
+
+        <BottomTabBar
+          activeTab={activeTab}
+          strengthTier={profile?.strength_tier || 0}
+          onSelectProfileTab={setActiveTab}
+        />
+
+        <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
 
         {/* Warrior Info Modal */}
         <Modal
@@ -611,6 +639,35 @@ export function ProfileScreen({
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  settingsGearButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    zIndex: 100,
+    width: 34,
+    height: 34,
+    borderRadius: 10,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  weeklyChallengeButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginHorizontal: 16,
+    marginBottom: 16,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1.5,
+  },
+  weeklyChallengeText: {
+    fontSize: 13,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   loadingText: {
     fontSize: 16,
