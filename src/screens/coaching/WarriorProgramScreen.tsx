@@ -142,13 +142,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   // Active Timer State (Extracted to Hook)
   const [activeTimerBlock, setActiveTimerBlock] = useState<ProgramBlock | null>(null);
 
-  // Defensive re-check in case a stale render lets a locked action through
-  // (see the isLocked prop passed to WarriorBlockCard for the primary gate).
+  // Blocks are no longer sequentially gated — a warrior can log any block in
+  // any order (see the isLocked prop passed to WarriorBlockCard, which is
+  // always false for the same reason). Kept as a function rather than
+  // deleting the six call sites below, so this remains the one place to
+  // re-enable a lock rule if that ever changes.
   const isBlockLocked = (blockId: string | number): boolean => {
-    const blocks = weeksData[activeWeek]?.[activeDayIndex]?.blocks || [];
-    const index = blocks.findIndex(b => b.id === blockId);
-    if (index <= 0) return false;
-    return blocks[index - 1].completedStatus === 'none';
+    return false;
   };
 
   const startTimerForBlock = (block: ProgramBlock) => {
@@ -212,17 +212,24 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     .reduce((sum, b) => sum + b.exercises.length, 0);
 
   const handleWorkoutDonePress = () => {
-    const unaddressedCount = blocksTotalCount - blocksAddressedCount;
+    const unaddressedBlocks = loggableBlocks.filter(b => b.completedStatus === 'none');
+    const unaddressedCount = unaddressedBlocks.length;
     if (unaddressedCount <= 0) {
       setShowSessionComplete(true);
       return;
     }
     Alert.alert(
       unaddressedCount === 1 ? '1 BLOCK NOT LOGGED YET' : `${unaddressedCount} BLOCKS NOT LOGGED YET`,
-      'Mark them as completed or missed so your coach has the full picture — or continue anyway.',
+      'Mark them as completed or missed so your coach has the full picture — or continue anyway and they\'ll be marked as missed automatically.',
       [
         { text: 'REVIEW', style: 'cancel' },
-        { text: 'CONTINUE ANYWAY', onPress: () => setShowSessionComplete(true) },
+        {
+          text: 'CONTINUE ANYWAY',
+          onPress: async () => {
+            await Promise.all(unaddressedBlocks.map(b => handleToggleBlockStatus(b.id, 'missed')));
+            setShowSessionComplete(true);
+          },
+        },
       ]
     );
   };
