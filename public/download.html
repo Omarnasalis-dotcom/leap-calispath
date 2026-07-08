@@ -132,7 +132,6 @@ header{position:relative;padding:96px 48px 120px;max-width:1280px;margin:0 auto;
 .store-btn{display:flex;align-items:center;gap:14px;padding:16px 28px;border-radius:16px;background:var(--text);color:#0A0A0B;transition:transform .18s ease;}
 .store-btn:hover{transform:translateY(-2px);}
 .store-btn .icon{display:flex;align-items:center;justify-content:center;width:30px;}
-.store-btn .icon.android{font-family:'Archivo Expanded',sans-serif;font-weight:900;font-size:28px;color:var(--accent);}
 .store-btn .store-label{display:block;font-size:12px;letter-spacing:.04em;opacity:.7;}
 .store-btn .store-name{display:block;font-family:'Archivo Expanded',sans-serif;font-weight:800;font-size:21px;line-height:1.1;}
 
@@ -197,7 +196,7 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
     <div>
       <div class="live-badge">
         <span class="live-dot"></span>
-        <span class="label">NOW LIVE ON iOS &amp; ANDROID</span>
+        <span class="label">NOW LIVE ON iOS</span>
       </div>
       <h1 class="heading hero-title">The new era of<br><span class="accent">calisthenics</span></h1>
       <p class="hero-sub">Every rep earns points. Every session climbs the ranks. Specialize in Power, Endurance or Static Strength and master real bodyweight skills — gamified from your first pull-up to your first planche.</p>
@@ -277,10 +276,6 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
         </span>
         <span><span class="store-label">Download on the</span><span class="store-name">App Store</span></span>
       </a>
-      <a class="store-btn android" href="https://drive.google.com/file/d/1l2louju_f4BaO3UAKsW5rYVi7u3hlcwc/view?usp=sharing" target="_blank" rel="noopener">
-        <span class="icon android">&#9660;</span>
-        <span><span class="store-label">Direct download</span><span class="store-name">Android (APK)</span></span>
-      </a>
     </div>
   </div>
 </section>
@@ -298,18 +293,6 @@ footer{border-top:1px solid rgba(255,255,255,.06);padding:40px 48px;}
     </div>
   </div>
 </footer>
-
-<script>
-const ua = navigator.userAgent.toLowerCase();
-const apple = document.querySelector(".store-btn.apple");
-const android = document.querySelector(".store-btn.android");
-if (ua.includes("android")) {
-  android.style.order = -1;
-}
-if (/iphone|ipad|ipod/.test(ua)) {
-  apple.style.order = -1;
-}
-</script>
 
 </body>
 </html>
