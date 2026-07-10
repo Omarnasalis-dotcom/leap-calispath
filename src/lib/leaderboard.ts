@@ -2,6 +2,7 @@
 // Rank by best time (fastest wins)
 
 import { supabase } from './supabase';
+import { LEAP_SYSTEM_PROFILE_ID } from '../constants/system';
 
 export interface LeaderboardEntry {
   user_id: string;
@@ -123,6 +124,7 @@ export async function getGloryLeaderboard(
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, glory_score, strength_tier, country, gender')
+    .neq('id', LEAP_SYSTEM_PROFILE_ID)
     .order('glory_score', { ascending: false })
     .limit(100);
 

@@ -92,6 +92,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
   const [activeTemplateId, setActiveTemplateId] = useState<string | undefined>(templateId);
   const [isCreatingNew, setIsCreatingNew] = useState(false);
   const [masterTemplates, setMasterTemplates] = useState<any[]>([]);
+  const [assignedTemplates, setAssignedTemplates] = useState<any[]>([]);
   const [catalogLoading, setCatalogLoading] = useState(false);
 
   const [templateName, setTemplateName] = useState('');
@@ -155,19 +156,28 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
     setActiveTemplateId(templateId);
     if (templateId) {
       loadExistingTemplate(templateId);
-    } else {
+    } else if (coachId) {
+      // Guarded on coachId, and coachId is now a dependency — on first
+      // mount coachId (derived from auth user) can still be resolving,
+      // which previously fired this with coachId=undefined and crashed
+      // the catalog query (Postgres 22P02: invalid uuid "undefined").
+      // Now it waits, then fires once coachId actually arrives.
       loadMasterTemplates();
     }
-  }, [templateId]);
+  }, [templateId, coachId]);
 
   async function loadMasterTemplates() {
+    if (!coachId) return;
     setCatalogLoading(true);
     try {
+      // is_library_template = false excludes anything living in the
+      // Templates Library (Coaching Center's LIBRARY tab) — those are
+      // managed there exclusively, never mixed into this Builder catalog.
       const { data, error } = await supabase
         .from('program_templates')
         .select('id, name, description')
         .eq('coach_id', coachId)
-        .not('name', 'ilike', '[CUSTOM]%')
+        .eq('is_library_template', false)
         .order('name', { ascending: true });
 
       if (error) throw error;
@@ -188,12 +198,30 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         blockCountMap[b.template_id] = (blockCountMap[b.template_id] || 0) + 1;
       });
 
+      // A template that's been assigned to a client is a clone
+      // (assign_program_template always creates a brand new
+      // program_templates row rather than pointing at the source) — so
+      // "does some warrior_programs row reference this id" reliably tells
+      // apart a reusable master template from a one-off assigned copy,
+      // regardless of what it's named.
+      const { data: assignmentsData, error: assignmentsError } = templateIds.length
+        ? await supabase
+            .from('warrior_programs')
+            .select('template_id')
+            .in('template_id', templateIds)
+        : { data: [], error: null };
+
+      if (assignmentsError) throw assignmentsError;
+
+      const assignedIds = new Set((assignmentsData || []).map((a: any) => a.template_id));
+
       const mapped = (data || []).map((t: any) => ({
         ...t,
         block_count: blockCountMap[t.id] || 0
       }));
 
-      setMasterTemplates(mapped);
+      setMasterTemplates(mapped.filter((t: any) => !assignedIds.has(t.id)));
+      setAssignedTemplates(mapped.filter((t: any) => assignedIds.has(t.id)));
     } catch (err: any) {
       console.error('Failed to load master templates:', err);
     } finally {
@@ -1134,6 +1162,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
       activeTemplateId, setActiveTemplateId,
       isCreatingNew, setIsCreatingNew,
       masterTemplates, setMasterTemplates,
+      assignedTemplates, setAssignedTemplates,
       catalogLoading, setCatalogLoading,
       templateName, setTemplateName,
       templateDesc, setTemplateDesc,

@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
+import { LEAP_SYSTEM_PROFILE_ID } from '../constants/system';
 
 export interface ClashSession {
   id: string;
@@ -74,6 +75,7 @@ export class ClashService {
       .from('profiles')
       .select('*')
       .neq('id', currentUserId)
+      .neq('id', LEAP_SYSTEM_PROFILE_ID)
       .ilike('display_name', `%${query}%`)
       .order('display_name', { ascending: true })
       .limit(10);

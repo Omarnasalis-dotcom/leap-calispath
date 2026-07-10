@@ -1,13 +1,16 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, Text, TouchableOpacity } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeapLogo } from './../../components/LeapLogo';
 import { styles } from '../../screens/coaching/ProgramBuilderScreen.styles';
 
+type CatalogFilter = 'master' | 'assigned';
+
 export function BuilderMasterSelector({
   errorMsg,
   catalogLoading,
   masterTemplates,
+  assignedTemplates,
   solidCardBg,
   bronzeGold,
   theme,
@@ -24,6 +27,9 @@ export function BuilderMasterSelector({
   exportingTemplateId,
   importingTemplate
 }: any) {
+  const [catalogFilter, setCatalogFilter] = useState<CatalogFilter>('master');
+  const list = catalogFilter === 'master' ? masterTemplates : (assignedTemplates || []);
+
   return (
 <View style={{ width: '100%', gap: 20 }}>
             {errorMsg && (
@@ -63,21 +69,46 @@ export function BuilderMasterSelector({
               </Text>
             </TouchableOpacity>
 
+            {/* CATALOG FILTER — separates reusable master templates from
+                one-off clones created by assigning a template to a client
+                (assign_program_template always clones into a NEW row), so
+                a coach's growing assignment history doesn't clutter the
+                reusable-template list. */}
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              {([
+                { key: 'master', label: `MASTER TEMPLATES (${masterTemplates.length})` },
+                { key: 'assigned', label: `ASSIGNED WORKOUTS (${(assignedTemplates || []).length})` },
+              ] as { key: CatalogFilter; label: string }[]).map(opt => {
+                const isActive = catalogFilter === opt.key;
+                return (
+                  <TouchableOpacity
+                    key={opt.key}
+                    style={[styles.chip, { borderColor: isActive ? bronzeGold : theme.card.border, backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : 'transparent' }]}
+                    onPress={() => setCatalogFilter(opt.key)}
+                  >
+                    <Text style={[styles.chipText, { color: isActive ? bronzeGold : theme.text.tertiary }]}>
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
             <View style={{ gap: 12, marginTop: 10 }}>
               <Text style={[styles.sectionTitleStyle, { color: theme.text.primary }]}>
-                SAVED MASTER TEMPLATES
+                {catalogFilter === 'master' ? 'SAVED MASTER TEMPLATES' : 'ASSIGNED CLIENT WORKOUTS'}
               </Text>
 
               {catalogLoading ? (
                 <LeapLogo size={40} animated />
-              ) : masterTemplates.length === 0 ? (
+              ) : list.length === 0 ? (
                 <View style={[styles.emptyBox, { borderColor: theme.card.border }]}>
                   <Text style={{ color: theme.text.secondary, fontSize: 13 }}>
-                    NO MASTER TEMPLATES SAVED YET.
+                    {catalogFilter === 'master' ? 'NO MASTER TEMPLATES SAVED YET.' : 'NO WORKOUTS ASSIGNED TO CLIENTS YET.'}
                   </Text>
                 </View>
               ) : (
-                masterTemplates.map((t: any) => (
+                list.map((t: any) => (
                   <LinearGradient
                     key={t.id}
                     colors={['#7E57C2', '#FF5252', '#FF7043']}
