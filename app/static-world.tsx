@@ -8,7 +8,7 @@ export default function Route() {
   const params = useLocalSearchParams();
   
   return (
-    <SpartanLayout>
+    <SpartanLayout noBottomInset>
       <StaticWorldScreen onClose={() => router.back()}
         {...params}
       />

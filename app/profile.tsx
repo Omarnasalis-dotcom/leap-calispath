@@ -8,8 +8,8 @@ export default function Route() {
   const params = useLocalSearchParams();
   
   return (
-    <SpartanLayout>
-      <ProfileScreen 
+    <SpartanLayout noBottomInset>
+      <ProfileScreen
         {...params}
       />
     </SpartanLayout>

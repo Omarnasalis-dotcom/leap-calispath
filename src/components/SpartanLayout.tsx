@@ -8,9 +8,16 @@ import { useTheme } from '../contexts/ThemeContext';
 interface SpartanLayoutProps {
   children: React.ReactNode;
   hideToggle?: boolean;
+  // Screens that end in a bottom tab bar (BottomTabBar) manage the bottom
+  // safe-area inset themselves, extending their own background through it
+  // so it reads as one continuous surface. Without this flag, SpartanLayout's
+  // own paddingBottom reserves that same space first — the tab bar then
+  // sits inside an already-inset box and can never reach the true edge,
+  // showing a gap of SpartanLayout's background instead.
+  noBottomInset?: boolean;
 }
 
-export function SpartanLayout({ children, hideToggle }: SpartanLayoutProps) {
+export function SpartanLayout({ children, hideToggle, noBottomInset }: SpartanLayoutProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [isOffline, setIsOffline] = useState(false);
@@ -42,7 +49,7 @@ export function SpartanLayout({ children, hideToggle }: SpartanLayoutProps) {
       )}
       <View style={[styles.content, {
         paddingTop: insets.top,
-        paddingBottom: insets.bottom
+        paddingBottom: noBottomInset ? 0 : insets.bottom
       }]}>
         {children}
       </View>

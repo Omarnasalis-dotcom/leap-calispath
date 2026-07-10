@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { router } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
@@ -37,6 +38,7 @@ interface BottomTabBarProps {
 
 export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: BottomTabBarProps) {
   const { theme } = useTheme();
+  const insets = useSafeAreaInsets();
 
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
@@ -62,7 +64,20 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   };
 
   return (
-    <View style={[styles.bar, { backgroundColor: theme.card.background, borderTopColor: theme.card.border }]}>
+    <View
+      style={[
+        styles.bar,
+        {
+          backgroundColor: theme.card.background,
+          borderTopColor: theme.card.border,
+          // Extends the bar's own background through the Home Indicator
+          // inset so it reads as one continuous surface flush with the
+          // bottom edge, instead of floating 8pt above a gap that shows
+          // whatever's behind it (the screen/root background).
+          paddingBottom: 8 + insets.bottom,
+        },
+      ]}
+    >
       {TABS.map((tab) => {
         const isActive = tab.id === activeTab;
         const isUnlocked = strengthTier >= tab.unlockTier;
@@ -108,7 +123,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     borderTopWidth: 1,
     paddingTop: 10,
-    paddingBottom: 8,
+    // paddingBottom is set inline (8 + insets.bottom) — see JSX below.
   },
   item: {
     flex: 1,
