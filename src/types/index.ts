@@ -36,6 +36,7 @@ export interface Profile {
   access_granted_at?: string | null;
   invite_code_used?: string | null;
   created_at?: string;
+  community_id?: string | null;
 }
 
 export type TierRank =

@@ -38,6 +38,9 @@ interface StrengthWorldViewProps {
   showSettingsFooter?: boolean;
   leaderboardEntries: LeaderboardEntry[];
   leaderboardLoading: boolean;
+  hasCommunity?: boolean;
+  leaderboardScope?: 'public' | 'community';
+  onLeaderboardScopeChange?: (scope: 'public' | 'community') => void;
 }
 
 export function StrengthWorldView({
@@ -61,6 +64,9 @@ export function StrengthWorldView({
   showSettingsFooter = true,
   leaderboardEntries,
   leaderboardLoading,
+  hasCommunity,
+  leaderboardScope,
+  onLeaderboardScopeChange,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
   return (
@@ -92,6 +98,9 @@ export function StrengthWorldView({
           currentUserId={profile?.id}
           loading={leaderboardLoading}
           theme={theme}
+          hasCommunity={hasCommunity}
+          leaderboardScope={leaderboardScope}
+          onLeaderboardScopeChange={onLeaderboardScopeChange}
         />
       )}
 

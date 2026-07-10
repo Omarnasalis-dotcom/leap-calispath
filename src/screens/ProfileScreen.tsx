@@ -28,6 +28,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { CommunitySection } from '../components/profile/CommunitySection';
 import { TierRankCard } from '../components/profile/TierRankCard';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
@@ -138,6 +139,20 @@ export function ProfileScreen({
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
   const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
+  // Community leaderboard filter — only meaningful once the user has
+  // joined a community (profile.community_id). Filtering happens
+  // server-side inside getTierLeaderboard/getPowerTierLeaderboard, not by
+  // re-filtering already-fetched entries (see community feature plan).
+  // Defaults to 'community' whenever the user has one — including the
+  // moment they just joined, not only on next app load — while still
+  // letting them manually switch back to 'public' within the session.
+  const [leaderboardScope, setLeaderboardScope] = useState<'public' | 'community'>(
+    profile?.community_id ? 'community' : 'public'
+  );
+  useEffect(() => {
+    if (profile?.community_id) setLeaderboardScope('community');
+    else setLeaderboardScope('public');
+  }, [profile?.community_id]);
 
   // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
@@ -146,6 +161,16 @@ export function ProfileScreen({
 
   // Leaderboard Filtering
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+  // WRA leaderboard's community scope — unlike gender, this must trigger a
+  // server-side refetch rather than a client-side filter (see community
+  // feature plan: the RPC caps at 100 rows before any filter is applied,
+  // so a client-side filter would silently drop small communities).
+  const [wraScope, setWraScope] = useState<'public' | 'community'>(
+    profile?.community_id ? 'community' : 'public'
+  );
+  useEffect(() => {
+    setWraScope(profile?.community_id ? 'community' : 'public');
+  }, [profile?.community_id]);
 
   const filteredWraLeaderboard = React.useMemo(() => {
     let list = wraLeaderboard;
@@ -179,7 +204,8 @@ export function ProfileScreen({
       setTierLeaderboardLoading(true);
       try {
         const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-        const { entries } = await fetcher(selectedTier, profile.id);
+        const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
+        const { entries } = await fetcher(selectedTier, profile.id, scopeCommunityId);
         setTierLeaderboardEntries(entries);
         const userIdx = entries.findIndex(e => e.user_id === profile.id);
         if (userIdx !== -1) {
@@ -209,14 +235,15 @@ export function ProfileScreen({
       }
     }
     loadRank();
-  }, [selectedTier, category, profile?.id]);
+  }, [selectedTier, category, profile?.id, leaderboardScope]);
 
   // Refresh rank when screen comes back into focus (e.g. after trial)
   useFocusEffect(
     useCallback(() => {
       if (!profile?.id) return;
       const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-      fetcher(selectedTier, profile.id)
+      const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
+      fetcher(selectedTier, profile.id, scopeCommunityId)
         .then(({ entries }) => {
           setTierLeaderboardEntries(entries);
           const userIdx = entries.findIndex((e: any) => e.user_id === profile.id);
@@ -227,7 +254,7 @@ export function ProfileScreen({
           }
         })
         .catch(() => {});
-    }, [selectedTier, category, profile?.id])
+    }, [selectedTier, category, profile?.id, leaderboardScope])
   );
 
   // Weekly activity stats + per-movement PBs, refreshed on mount and whenever
@@ -347,11 +374,13 @@ export function ProfileScreen({
   const WRA_MAX = 5000;
   const GLORY_MAX = 1000;
 
-  const fetchWRALeaderboard = async () => {
+  const fetchWRALeaderboard = async (scopeOverride?: 'public' | 'community') => {
     setLoadingLB(true);
     setShowWRALeaderboard(true);
     try {
-      const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id);
+      const scope = scopeOverride || wraScope;
+      const scopeCommunityId = scope === 'community' ? profile?.community_id : null;
+      const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id, scopeCommunityId);
       setWRALeaderboard(data);
     } catch (e) {
       console.error('Failed to fetch WRA leaderboard:', e);
@@ -359,6 +388,11 @@ export function ProfileScreen({
     } finally {
       setLoadingLB(false);
     }
+  };
+
+  const handleWraScopeChange = (scope: 'public' | 'community') => {
+    setWraScope(scope);
+    fetchWRALeaderboard(scope);
   };
 
   const fetchGloryLeaderboard = async () => {
@@ -425,6 +459,8 @@ export function ProfileScreen({
                 <MaterialCommunityIcons name="trophy-outline" size={16} color="#FFFFFF" />
                 <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
               </TouchableOpacity>
+
+              {profile?.id && <CommunitySection userId={profile.id} />}
             </>
           )}
 
@@ -492,6 +528,9 @@ export function ProfileScreen({
                 onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
                 toggleTheme={toggleTheme}
                 showSettingsFooter={false}
+                hasCommunity={!!profile?.community_id}
+                leaderboardScope={leaderboardScope}
+                onLeaderboardScopeChange={setLeaderboardScope}
               />
             </>
           )}
@@ -575,6 +614,9 @@ export function ProfileScreen({
           setGenderFilter={setGenderFilter}
           filteredWraLeaderboard={filteredWraLeaderboard}
           filteredGloryLeaderboard={filteredGloryLeaderboard}
+          hasCommunity={!!profile?.community_id}
+          wraScope={wraScope}
+          onWraScopeChange={handleWraScopeChange}
         />
 
         {/* AI COACH PROMPT MODAL */}

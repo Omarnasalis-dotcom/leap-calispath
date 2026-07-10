@@ -63,12 +63,13 @@ export class StaticService {
   /**
    * Fetches the leaderboard for a specific movement
    */
-  static async getMovementLeaderboard(movementId: string, currentUserId?: string): Promise<{
+  static async getMovementLeaderboard(movementId: string, currentUserId?: string, communityId?: string | null): Promise<{
     entries: StaticLeaderboardEntry[];
     personalBest: StaticLeaderboardEntry | null;
   }> {
     const { data, error } = await supabase.rpc('get_static_movement_leaderboard', {
-      m_id: movementId
+      m_id: movementId,
+      p_community_id: communityId || null
     });
 
     if (error) {
@@ -89,12 +90,13 @@ export class StaticService {
   /**
    * Fetches the leaderboard for a specific level (sum of all points in level)
    */
-  static async getLevelLeaderboard(level: 1 | 2 | 3, currentUserId?: string): Promise<StaticLevelLeaderboardEntry[]> {
+  static async getLevelLeaderboard(level: 1 | 2 | 3, currentUserId?: string, communityId?: string | null): Promise<StaticLevelLeaderboardEntry[]> {
     const movements = getLevelMovements(level).map(m => m.id);
-    
+
     const { data, error } = await supabase.rpc('get_static_level_leaderboard', {
       l_id: level,
-      m_ids: movements
+      m_ids: movements,
+      p_community_id: communityId || null
     });
 
     if (error) {
@@ -144,8 +146,8 @@ export class StaticService {
   /**
    * Fetches the "Well-Rounded Athlete" leaderboard (Peak Category Performance)
    */
-  static async getWellRoundedLeaderboard(currentUserId?: string): Promise<StaticWellRoundedEntry[]> {
-    const { data, error } = await supabase.rpc('get_static_well_rounded_leaderboard');
+  static async getWellRoundedLeaderboard(currentUserId?: string, communityId?: string | null): Promise<StaticWellRoundedEntry[]> {
+    const { data, error } = await supabase.rpc('get_static_well_rounded_leaderboard', { p_community_id: communityId || null });
     if (error) {
       console.error('RPC Error:', error);
       throw error;

@@ -28,11 +28,12 @@ export interface PersonalBest {
  */
 export async function getTierLeaderboard(
   tier: number,
-  currentUserId: string
+  currentUserId: string,
+  communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
   // Use RPC function that bypasses RLS
   const { data, error } = await supabase
-    .rpc('get_tier_leaderboard', { tier_num: tier });
+    .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
 
   if (error || !data) {
     console.error('Error fetching leaderboard:', error);
@@ -71,9 +72,10 @@ export async function getTierLeaderboard(
  */
 export async function getPowerTierLeaderboard(
   tier: number,
-  currentUserId: string
+  currentUserId: string,
+  communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('profiles')
     .select(`
       id,
@@ -82,7 +84,13 @@ export async function getPowerTierLeaderboard(
       country,
       gender
     `)
-    .eq('power_tier', tier)
+    .eq('power_tier', tier);
+
+  if (communityId) {
+    query = query.eq('community_id', communityId);
+  }
+
+  const { data, error } = await query
     .order('power_points', { ascending: false })
     .limit(100);
 

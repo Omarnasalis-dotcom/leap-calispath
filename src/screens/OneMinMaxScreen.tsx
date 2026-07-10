@@ -54,6 +54,15 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const [showOverallModal, setShowOverallModal] = useState(false);
   const [showLogModal, setShowLogModal] = useState(false);
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+  // Community scope — must trigger a server-side refetch (RPCs cap at 100
+  // rows before any filter), unlike genderFilter which filters client-side
+  // on the already-fetched, already-limited data.
+  const [onemmScope, setOnemmScope] = useState<'public' | 'community'>(
+    profile?.community_id ? 'community' : 'public'
+  );
+  useEffect(() => {
+    setOnemmScope(profile?.community_id ? 'community' : 'public');
+  }, [profile?.community_id]);
 
   const filteredModalLeaderboardData = React.useMemo(() => {
     let list = modalLeaderboardData;
@@ -86,18 +95,19 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   const fetchLeaderboard = useCallback(async () => {
     try {
+      const scopeCommunityId = onemmScope === 'community' ? profile?.community_id : null;
       let data;
       if (leaderboardTab === 'overall') {
-        data = await OneMMService.getLeaderboard('overall');
+        data = await OneMMService.getLeaderboard('overall', undefined, scopeCommunityId);
       } else {
-        data = await OneMMService.getCategoryLeaderboard(leaderboardTab);
+        data = await OneMMService.getCategoryLeaderboard(leaderboardTab, scopeCommunityId);
       }
       if (!isMounted.current) return;
       setLeaderboardData(data);
     } catch (error) {
       console.error('1MM Leaderboard error:', error);
     }
-  }, [leaderboardTab, isMounted]);
+  }, [leaderboardTab, isMounted, onemmScope, profile?.community_id]);
 
   const fetchMovementLeaderboard = async (moveId: string) => {
     try {
@@ -111,11 +121,13 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     }
   };
 
-  const fetchOverallLeaderboard = async () => {
+  const fetchOverallLeaderboard = async (scopeOverride?: 'public' | 'community') => {
     if (__DEV__) console.log('Fetching overall leaderboard...');
     setShowOverallModal(true); // Open modal immediately for better UX
     try {
-      const data = await OneMMService.getLeaderboard('overall');
+      const scope = scopeOverride || onemmScope;
+      const scopeCommunityId = scope === 'community' ? profile?.community_id : null;
+      const data = await OneMMService.getLeaderboard('overall', undefined, scopeCommunityId);
       if (!isMounted.current) return;
       setModalLeaderboardData(data);
     } catch (error) {
@@ -500,6 +512,32 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
             </Text>
             <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
           </View>
+          {!!profile?.community_id && (
+            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12, gap: 12 }}>
+              {(['public', 'community'] as const).map((scope) => (
+                <TouchableOpacity
+                  key={scope}
+                  style={{
+                    paddingVertical: 6,
+                    paddingHorizontal: 16,
+                    borderRadius: 20,
+                    backgroundColor: onemmScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                    borderWidth: 1,
+                    borderColor: onemmScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+                  }}
+                  onPress={() => setOnemmScope(scope)}
+                >
+                  <Text style={{
+                    fontSize: 12,
+                    fontWeight: '900',
+                    color: onemmScope === scope ? '#FFF' : theme.text.secondary
+                  }}>
+                    {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+          )}
           {leaderboardData.length === 0 && (
             <View style={{ alignItems: 'center', paddingVertical: 24 }}>
               <Text style={{ color: theme.text.tertiary, fontSize: 12, letterSpacing: 1 }}>
@@ -663,6 +701,33 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
             </View>
 
             <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL VOLUME RANKINGS</Text>
+
+            {!!profile?.community_id && (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16, gap: 12 }}>
+                {(['public', 'community'] as const).map((scope) => (
+                  <TouchableOpacity
+                    key={scope}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: onemmScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: onemmScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+                    }}
+                    onPress={() => { setOnemmScope(scope); fetchOverallLeaderboard(scope); }}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '900',
+                      color: onemmScope === scope ? '#FFF' : theme.text.secondary
+                    }}>
+                      {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
               {['ALL', 'MALE', 'FEMALE'].map((filter) => (

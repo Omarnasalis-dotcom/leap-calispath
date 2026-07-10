@@ -14,9 +14,9 @@ export interface GlobalWellRoundedEntry {
 }
 
 export class LeaderboardService {
-  static async getGlobalWellRoundedLeaderboard(currentUserId?: string): Promise<GlobalWellRoundedEntry[]> {
+  static async getGlobalWellRoundedLeaderboard(currentUserId?: string, communityId?: string | null): Promise<GlobalWellRoundedEntry[]> {
     try {
-      const { data, error } = await supabase.rpc('get_global_well_rounded_leaderboard');
+      const { data, error } = await supabase.rpc('get_global_well_rounded_leaderboard', { p_community_id: communityId || null });
       if (error) {
         console.error('Error fetching global WRA leaderboard:', error);
         return [];

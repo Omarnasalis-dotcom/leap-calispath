@@ -10,9 +10,20 @@ interface TierLeaderboardListProps {
   currentUserId?: string;
   loading: boolean;
   theme: any;
+  hasCommunity?: boolean;
+  leaderboardScope?: 'public' | 'community';
+  onLeaderboardScopeChange?: (scope: 'public' | 'community') => void;
 }
 
-export function TierLeaderboardList({ entries, currentUserId, loading, theme }: TierLeaderboardListProps) {
+export function TierLeaderboardList({
+  entries,
+  currentUserId,
+  loading,
+  theme,
+  hasCommunity,
+  leaderboardScope = 'public',
+  onLeaderboardScopeChange,
+}: TierLeaderboardListProps) {
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
 
@@ -43,6 +54,35 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
           {filteredEntries.length} WARRIORS
         </Text>
       </View>
+
+      {/* Community Scope — directly above the gender filter, same row
+          rhythm, so the two filters read as one group. */}
+      {hasCommunity && (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 10, marginTop: 2, gap: 10 }}>
+          {(['public', 'community'] as const).map((scope) => (
+            <TouchableOpacity
+              key={scope}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 16,
+                borderRadius: 20,
+                backgroundColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                borderWidth: 1,
+                borderColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+              }}
+              onPress={() => onLeaderboardScopeChange && onLeaderboardScopeChange(scope)}
+            >
+              <Text style={{
+                fontSize: 12,
+                fontWeight: '900',
+                color: leaderboardScope === scope ? '#FFF' : theme.text.secondary
+              }}>
+                {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Gender Filters */}
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12, marginTop: 2, gap: 10 }}>
