@@ -374,7 +374,10 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
     }
   };
 
-  // Upload/Parse CSV File Trigger (Web & Native Paste Fallback)
+  // Upload/Parse CSV File Trigger (Web file picker; native uses
+  // expo-document-picker + expo-file-system, same pattern already used for
+  // JSON import elsewhere in the app — the "OR paste raw CSV" box below is
+  // a fallback, not the primary path).
   const triggerFileSelect = async () => {
     setImportError(null);
     if (Platform.OS === 'web') {
@@ -402,8 +405,27 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
       };
       input.click();
     } else {
-      // Native: show paste UI (file picker requires native build)
-      setImportStep(1);
+      try {
+        const DocumentPicker = require('expo-document-picker');
+        // '*/*' rather than a CSV MIME/UTI filter — a strict type filter
+        // silently hides files that don't exactly match on iOS (see the
+        // JSON import fix elsewhere in this app); parseCSV's own row
+        // validation is the real gate here.
+        const result = await DocumentPicker.getDocumentAsync({ type: '*/*' });
+        if (result.canceled || !result.assets?.[0]) return;
+
+        const asset = result.assets[0];
+        const text = await require('expo-file-system/legacy').readAsStringAsync(asset.uri, { encoding: 'utf8' });
+        const parsed = parseCSV(text);
+        if (parsed.length === 0) {
+          setImportError('NO VALID EXERCISE ROWS FOUND IN CSV.');
+        } else {
+          setPreviewRows(parsed);
+          setImportStep(2);
+        }
+      } catch (err: any) {
+        setImportError(err.message?.toUpperCase() || 'FAILED TO READ CSV FILE.');
+      }
     }
   };
 
