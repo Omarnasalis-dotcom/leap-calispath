@@ -16,6 +16,7 @@ import { supabase } from '../../lib/supabase';
 import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
 import { applyTemplateToExistingClient, ClientProgramWriteMode } from '../../lib/ClientProgramWriter';
+import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
 
 
 interface WarriorProfile {
@@ -30,6 +31,7 @@ interface ProgramTemplate {
   description?: string;
   coach_id: string;
   block_count: number;
+  is_assigned: boolean;
 }
 
 interface WarriorProgramAssignment {
@@ -63,6 +65,21 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
   const [warriors, setWarriors] = useState<WarriorProfile[]>([]);
   const [templates, setTemplates] = useState<ProgramTemplate[]>([]);
   const [assignments, setAssignments] = useState<WarriorProgramAssignment[]>([]);
+
+  // Admin-only assignment filters — admin sees every coach's clients plus
+  // every self-service library selection in one list, so it needs a way to
+  // slice by origin (a real coach assigned it vs. a warrior self-selected a
+  // library template, which lands in this same table under the fixed "Leap"
+  // system coach_id) and by coach.
+  const [originFilter, setOriginFilter] = useState<'all' | 'coach' | 'library'>('all');
+  const [coachFilterId, setCoachFilterId] = useState<string | null>(null);
+  const [coachesList, setCoachesList] = useState<{ id: string; display_name: string }[]>([]);
+
+  // MASTER (reusable, never assigned) vs ASSIGNED (a previous client's own
+  // clone) split for the "select program template" picker below — without
+  // this, every past client's private clone shows up mixed in with real
+  // reusable master templates every time a coach assigns a new client.
+  const [templateFilter, setTemplateFilter] = useState<'master' | 'assigned'>('master');
   
   const [searchWarrior, setSearchWarrior] = useState('');
   const [selectedWarrior, setSelectedWarrior] = useState<WarriorProfile | null>(null);
@@ -99,6 +116,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
         .select('id, display_name, strength_tier')
+        .neq('id', LEAP_SYSTEM_PROFILE_ID)
         .order('display_name', { ascending: true });
 
       if (profilesError) throw profilesError;
@@ -107,6 +125,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       let templatesQuery = supabase
         .from('program_templates')
         .select('id, name, description, coach_id')
+        .eq('is_library_template', false)
         .not('name', 'ilike', '[CUSTOM]%');
 
       if (!isAdmin) {
@@ -118,30 +137,71 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
 
       if (templatesError) throw templatesError;
 
-      // 3. Fetch block counts for templates
-      const { data: blocksData, error: blocksError } = await supabase
-        .from('program_blocks')
-        .select('id, template_id');
-
-      if (blocksError) throw blocksError;
-
+      // 3. Fetch block counts, scoped to just the templates fetched above —
+      // an unfiltered fetch here pulls every block row in the entire app
+      // (every coach's templates, every self-service library clone) just to
+      // count blocks for this coach's own list, and gets slower for
+      // everyone as the total row count grows.
+      const templateIds = (templatesData || []).map((t: any) => t.id);
       const blockCountMap: Record<string, number> = {};
-      (blocksData || []).forEach((b: any) => {
-        blockCountMap[b.template_id] = (blockCountMap[b.template_id] || 0) + 1;
-      });
+
+      if (templateIds.length > 0) {
+        const { data: blocksData, error: blocksError } = await supabase
+          .from('program_blocks')
+          .select('id, template_id')
+          .in('template_id', templateIds);
+
+        if (blocksError) throw blocksError;
+
+        (blocksData || []).forEach((b: any) => {
+          blockCountMap[b.template_id] = (blockCountMap[b.template_id] || 0) + 1;
+        });
+      }
+
+      // Which of these templates are actually a previous client's own clone
+      // (created by assign_program_template/select_library_template) rather
+      // than a genuine reusable master — same "is it referenced by any
+      // warrior_programs row" signal used to split master/assigned in the
+      // Program Builder's template selector.
+      const assignedTemplateIds = new Set<string>();
+      if (templateIds.length > 0) {
+        const { data: refData, error: refError } = await supabase
+          .from('warrior_programs')
+          .select('template_id')
+          .in('template_id', templateIds);
+
+        if (refError) throw refError;
+        (refData || []).forEach((r: any) => assignedTemplateIds.add(r.template_id));
+      }
 
       const mappedTemplates: ProgramTemplate[] = (templatesData || []).map((t: any) => ({
         id: t.id,
         name: t.name,
         description: t.description || '',
         coach_id: t.coach_id,
-        block_count: blockCountMap[t.id] || 0
+        block_count: blockCountMap[t.id] || 0,
+        is_assigned: assignedTemplateIds.has(t.id)
       }));
 
       setTemplates(mappedTemplates);
 
       // 4. Fetch assignments
       await fetchAssignmentsList();
+
+      // 5. Admin view mixes every coach's clients plus every self-service
+      // library selection in one unfiltered list — fetch the coach roster
+      // so the UI can offer a coach filter alongside the origin filter.
+      if (isAdmin) {
+        const { data: coachesData, error: coachesError } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .eq('is_coach', true)
+          .neq('id', LEAP_SYSTEM_PROFILE_ID)
+          .order('display_name', { ascending: true });
+
+        if (coachesError) throw coachesError;
+        setCoachesList(coachesData || []);
+      }
     } catch (err: any) {
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD ASSIGNMENT DATA.');
     } finally {
@@ -358,6 +418,24 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
     );
   }, [warriors, searchWarrior]);
 
+  // Admin-only slice of the assignments list — regular coaches never see
+  // other coaches' clients or self-service picks in the first place
+  // (fetchAssignmentsList already scopes by coach_id for them).
+  const visibleAssignments = useMemo(() => {
+    if (!isAdmin) return assignments;
+    return assignments.filter(a => {
+      const isLibrarySelection = a.coach_id === LEAP_SYSTEM_PROFILE_ID;
+      if (originFilter === 'coach' && isLibrarySelection) return false;
+      if (originFilter === 'library' && !isLibrarySelection) return false;
+      if (coachFilterId && a.coach_id !== coachFilterId) return false;
+      return true;
+    });
+  }, [assignments, isAdmin, originFilter, coachFilterId]);
+
+  const visibleTemplates = useMemo(() => {
+    return templates.filter(t => templateFilter === 'assigned' ? t.is_assigned : !t.is_assigned);
+  }, [templates, templateFilter]);
+
   return (
     <KeyboardAvoidingView
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -520,13 +598,41 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                     </TouchableOpacity>
                   </View>
                 ) : (
-                  <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.templateListScroll}>
-                    {templates.length === 0 ? (
+                  <>
+                    <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+                      {([
+                        { key: 'master', label: 'MASTER TEMPLATES' },
+                        { key: 'assigned', label: 'ASSIGNED TEMPLATES' },
+                      ] as const).map(opt => (
+                        <TouchableOpacity
+                          key={opt.key}
+                          style={[
+                            styles.statusOptCard,
+                            { borderColor: theme.card.border, paddingHorizontal: 12, paddingVertical: 8 },
+                            templateFilter === opt.key && { borderColor: bronzeGold, backgroundColor: 'rgba(200, 160, 64, 0.05)' }
+                          ]}
+                          onPress={() => setTemplateFilter(opt.key)}
+                        >
+                          <Text style={[
+                            styles.statusOptText,
+                            { color: theme.text.secondary },
+                            templateFilter === opt.key && { color: bronzeGold, fontWeight: 'bold' }
+                          ]}>
+                            {opt.label}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+
+                    <ScrollView horizontal={true} showsHorizontalScrollIndicator={false} style={styles.templateListScroll}>
+                    {visibleTemplates.length === 0 ? (
                       <View style={[styles.emptyBox, { borderColor: theme.card.border }]}>
-                        <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>NO TEMPLATES AVAILABLE</Text>
+                        <Text style={{ color: theme.text.tertiary, fontSize: 12 }}>
+                          {templateFilter === 'assigned' ? 'NO PREVIOUSLY ASSIGNED TEMPLATES' : 'NO MASTER TEMPLATES AVAILABLE'}
+                        </Text>
                       </View>
                     ) : (
-                      templates.map((t: ProgramTemplate) => (
+                      visibleTemplates.map((t: ProgramTemplate) => (
                         <TouchableOpacity
                           key={t.id}
                           style={[styles.templateSelectCard, { backgroundColor: 'rgba(255,255,255,0.01)', borderColor: theme.card.border }]}
@@ -541,7 +647,8 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                         </TouchableOpacity>
                       ))
                     )}
-                  </ScrollView>
+                    </ScrollView>
+                  </>
                 )}
               </View>
 
@@ -578,14 +685,89 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                 {isAdmin ? 'ALL ACTIVE ASSIGNMENTS' : 'YOUR ACTIVE ASSIGNMENTS'}
               </Text>
 
-              {assignments.length === 0 ? (
+              {isAdmin && (
+                <>
+                  <View style={[styles.statusOptionsContainer, { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }]}>
+                    {([
+                      { key: 'all', label: 'ALL' },
+                      { key: 'coach', label: 'COACH-ASSIGNED' },
+                      { key: 'library', label: 'SELF-SELECTED (LIBRARY)' },
+                    ] as const).map(opt => (
+                      <TouchableOpacity
+                        key={opt.key}
+                        style={[
+                          styles.statusOptCard,
+                          { borderColor: theme.card.border, paddingHorizontal: 12, paddingVertical: 8 },
+                          originFilter === opt.key && { borderColor: bronzeGold, backgroundColor: 'rgba(200, 160, 64, 0.05)' }
+                        ]}
+                        onPress={() => {
+                          setOriginFilter(opt.key);
+                          if (opt.key === 'library') setCoachFilterId(null);
+                        }}
+                      >
+                        <Text style={[
+                          styles.statusOptText,
+                          { color: theme.text.secondary },
+                          originFilter === opt.key && { color: bronzeGold, fontWeight: 'bold' }
+                        ]}>
+                          {opt.label}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+
+                  {originFilter !== 'library' && coachesList.length > 0 && (
+                    <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 4 }}>
+                      <View style={{ flexDirection: 'row', gap: 8 }}>
+                        <TouchableOpacity
+                          style={[
+                            styles.statusOptCard,
+                            { borderColor: theme.card.border, paddingHorizontal: 12, paddingVertical: 8 },
+                            !coachFilterId && { borderColor: bronzeGold, backgroundColor: 'rgba(200, 160, 64, 0.05)' }
+                          ]}
+                          onPress={() => setCoachFilterId(null)}
+                        >
+                          <Text style={[
+                            styles.statusOptText,
+                            { color: theme.text.secondary },
+                            !coachFilterId && { color: bronzeGold, fontWeight: 'bold' }
+                          ]}>
+                            ALL COACHES
+                          </Text>
+                        </TouchableOpacity>
+                        {coachesList.map(c => (
+                          <TouchableOpacity
+                            key={c.id}
+                            style={[
+                              styles.statusOptCard,
+                              { borderColor: theme.card.border, paddingHorizontal: 12, paddingVertical: 8 },
+                              coachFilterId === c.id && { borderColor: bronzeGold, backgroundColor: 'rgba(200, 160, 64, 0.05)' }
+                            ]}
+                            onPress={() => setCoachFilterId(c.id)}
+                          >
+                            <Text style={[
+                              styles.statusOptText,
+                              { color: theme.text.secondary },
+                              coachFilterId === c.id && { color: bronzeGold, fontWeight: 'bold' }
+                            ]}>
+                              {c.display_name?.toUpperCase()}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </ScrollView>
+                  )}
+                </>
+              )}
+
+              {visibleAssignments.length === 0 ? (
                 <View style={[styles.emptyStateCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
                   <Text style={[styles.emptyStateText, { color: theme.text.secondary }]}>
                     NO PROGRAMS CURRENTLY ASSIGNED.
                   </Text>
                 </View>
               ) : (
-                assignments.map((assignment: WarriorProgramAssignment) => (
+                visibleAssignments.map((assignment: WarriorProgramAssignment) => (
                   <View
                     key={assignment.id}
                     style={[styles.assignmentCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}

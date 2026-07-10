@@ -1,5 +1,5 @@
-import { useRouter, useLocalSearchParams, router } from 'expo-router';
-import React, { useEffect, useState, useRef } from 'react';
+import { useRouter, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
+import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -29,7 +29,7 @@ import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
-import { ProgramHeaderCard, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
+import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -239,6 +239,16 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     checkBodyweightCheckIn();
   }, [warriorId]);
 
+  // Re-fetch whenever this screen regains focus (e.g. after selecting a
+  // template from the recommendations screen and navigating back) — without
+  // this, the screen keeps showing its stale "no program assigned" state
+  // since expo-router reuses the existing screen instance on router.back().
+  useFocusEffect(
+    useCallback(() => {
+      loadWarriorProgram();
+    }, [warriorId])
+  );
+
   async function checkBodyweightCheckIn() {
     if (!warriorId) return;
     const startOfWeek = getStartOfIsoWeek(new Date());
@@ -348,6 +358,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           id,
           template_id,
           coach_id,
+          current_week,
           profiles:coach_id (
             display_name
           ),
@@ -554,13 +565,21 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       }
       
       setWeeksData(newWeeksMap);
-      
+
+      // current_week is the source of truth for which week the athlete
+      // should land on (set by the RPCs that create/advance this assignment
+      // — see 20260710100000_add_warrior_programs_current_week.sql). Map it
+      // through the same raw->display renumbering as the blocks above, and
+      // fall back to the highest displayed week if that raw week got
+      // archived out from under it.
       const maxWeek = Math.max(...Object.keys(newWeeksMap).map(k => parseInt(k, 10)));
-      setActiveWeek(maxWeek); // Default to the highest week for the athlete
+      const rawCurrentWeek = actualAssignment.current_week || 1;
+      const targetWeek = rawToDisplayWeek.get(rawCurrentWeek) ?? maxWeek;
+      setActiveWeek(targetWeek);
       setActiveDayIndex(0);
-      
-      if (newWeeksMap[maxWeek] && newWeeksMap[maxWeek].length > 0) {
-        generateRecsForDay(newWeeksMap[maxWeek][0], profilePoints?.strength_tier || 0, profilePoints?.one_mm_points || 0, profilePoints?.power_points || 0, profilePoints?.statics_tier || 0);
+
+      if (newWeeksMap[targetWeek] && newWeeksMap[targetWeek].length > 0) {
+        generateRecsForDay(newWeeksMap[targetWeek][0], profilePoints?.strength_tier || 0, profilePoints?.one_mm_points || 0, profilePoints?.power_points || 0, profilePoints?.statics_tier || 0);
       }
     } catch (err: any) {
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD ACTIVE PROGRAM.');
@@ -1136,8 +1155,16 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
               <View style={[styles.emptyContainer, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
                 <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO PROGRAM ASSIGNED YET</Text>
                 <Text style={[styles.emptySubtitle, { color: theme.text.secondary }]}>
-                  ASK YOUR COACH TO ASSIGN A CUSTOM PROGRAM TO GET STARTED.
+                  ASK YOUR COACH TO ASSIGN A CUSTOM PROGRAM, OR START ONE FROM OUR TEMPLATE LIBRARY.
                 </Text>
+                <TouchableOpacity
+                  style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
+                  onPress={() => router.push('/template-recommendations')}
+                >
+                  <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
+                    BROWSE WORKOUT PROGRAMS
+                  </Text>
+                </TouchableOpacity>
               </View>
             ) : (
               <View style={{ gap: 20 }}>
@@ -1147,6 +1174,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   coachName={coachName}
                   theme={theme}
                   solidCardBg={solidCardBg}
+                />
+                <SwitchWorkoutButton
+                  theme={theme}
+                  onPress={() => router.push('/template-recommendations')}
                 />
 
                 {/* CIRCLES DASHBOARD */}
