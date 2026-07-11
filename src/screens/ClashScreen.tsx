@@ -7,8 +7,7 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import { ClashService, ClashSession } from '../services/ClashService';
-import { Profile } from '../types';
+import { ClashService, ClashSession, WarriorSummary } from '../services/ClashService';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { getGloryLeaderboard } from '../lib/leaderboard';
 import { supabase } from '../lib/supabase';
@@ -36,7 +35,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
   const { theme } = useTheme();
   const { user } = useAuth();
   const [searchQuery, setSearchQuery] = useState('');
-  const [availableWarriors, setAvailableWarriors] = useState<Profile[]>([]);
+  const [availableWarriors, setAvailableWarriors] = useState<WarriorSummary[]>([]);
   const [loading, setLoading] = useState(false);
   const [activeClashes, setActiveClashes] = useState<ClashSession[]>([]);
   const [topWarriors, setTopWarriors] = useState<any[]>([]);
@@ -175,7 +174,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
     if (activeBattle) onStartBattle(activeBattle.id);
   }, [activeClashes]);
 
-  async function handleAskToJoin(targetWarrior: Profile) {
+  async function handleAskToJoin(targetWarrior: WarriorSummary) {
     await safeMutate(async () => {
       await ClashService.sendChallenge(targetWarrior.display_name || '');
       return { data: null, error: null };

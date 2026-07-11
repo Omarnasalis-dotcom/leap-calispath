@@ -2,6 +2,18 @@ import { supabase } from '../lib/supabase';
 import { Profile } from '../types';
 import { LEAP_SYSTEM_PROFILE_ID } from '../constants/system';
 
+// Public subset of Profile safe to expose cross-user (clash lobby / search).
+// Deliberately excludes email, push_token, first_name, last_name, timezone.
+export interface WarriorSummary {
+  id: string;
+  display_name: string | null;
+  strength_tier: number;
+  power_tier: number | null;
+  glory_score: number;
+  last_active: string;
+  is_searching_clash?: boolean;
+}
+
 export interface ClashSession {
   id: string;
   sender_id: string;
@@ -42,10 +54,10 @@ export class ClashService {
   /**
    * Get all warriors currently in the lobby
    */
-  static async getAvailableWarriors(currentUserId: string): Promise<Profile[]> {
+  static async getAvailableWarriors(currentUserId: string): Promise<WarriorSummary[]> {
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, display_name, strength_tier, power_tier, glory_score, last_active, is_searching_clash')
       .eq('is_searching_clash', true)
       .neq('id', currentUserId)
       .gte('last_active', new Date(Date.now() - 5 * 60 * 1000).toISOString()) // 5 minutes ago
@@ -66,14 +78,14 @@ export class ClashService {
   /**
    * Search for warriors by display name (Optional legacy support)
    */
-  static async searchWarriors(query: string, currentUserId: string): Promise<Profile[]> {
+  static async searchWarriors(query: string, currentUserId: string): Promise<WarriorSummary[]> {
     if (query.length < 2) return [];
 
     if (__DEV__) console.log('SEARCHING_WARRIOR:', { query, currentUserId });
 
     const { data, error } = await supabase
       .from('profiles')
-      .select('*')
+      .select('id, display_name, strength_tier, power_tier, glory_score, last_active')
       .neq('id', currentUserId)
       .neq('id', LEAP_SYSTEM_PROFILE_ID)
       .ilike('display_name', `%${query}%`)
