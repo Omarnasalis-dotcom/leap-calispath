@@ -211,23 +211,4 @@ export class ClashService {
       )
       .subscribe();
   }
-
-  static async updateWinStreak(userId: string, isWin: boolean): Promise<number> {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('clash_win_streak')
-      .eq('id', userId)
-      .single();
-
-    const currentStreak = profile?.clash_win_streak || 0;
-    const newStreak = isWin ? currentStreak + 1 : 0;
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ clash_win_streak: newStreak })
-      .eq('id', userId);
-    if (error) throw error;
-
-    return newStreak;
-  }
 }
