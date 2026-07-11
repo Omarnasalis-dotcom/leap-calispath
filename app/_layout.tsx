@@ -11,11 +11,15 @@ import { StatusBar } from 'expo-status-bar';
 // it surface as an uncaught promise rejection.
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
-// Global guard: Strip all console logs in production to prevent data leaks
+// Global guard: Strip all console logs in production to prevent data leaks.
+// Includes console.error — Supabase error objects logged at call sites
+// throughout the app can carry query/schema details, so this needs the
+// same treatment as log/warn/info, not just the "noisy" methods.
 if (!__DEV__) {
   console.log = () => { };
   console.warn = () => { };
   console.info = () => { };
+  console.error = () => { };
 }
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
