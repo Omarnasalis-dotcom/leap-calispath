@@ -15,11 +15,13 @@ import { supabase } from '../../lib/supabase';
 import { LeapLogo } from '../../components/LeapLogo';
 import { fetchWeekExportPayload, shareWeekExportPayload } from '../../lib/ProgramExportBuilder';
 import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload } from '../../lib/ProgramImportParser';
+import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
 
 
 interface WarriorProgress {
   warriorId?: string;
   warriorProgramId: string;
+  coachId: string;
   displayName: string;
   strengthTier: number;
   programName: string;
@@ -76,6 +78,14 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [warriorList, setWarriorList] = useState<WarriorProgress[]>([]);
+
+  // Admin-only filters — mirrors the same split added to MyClientsScreen:
+  // admin sees every coach's clients plus every self-service library
+  // selection in one list (coach_id here is the fixed Leap system id for
+  // those), so it needs the same origin/coach slicing.
+  const [originFilter, setOriginFilter] = useState<'all' | 'coach' | 'library'>('all');
+  const [coachFilterId, setCoachFilterId] = useState<string | null>(null);
+  const [coachesList, setCoachesList] = useState<{ id: string; display_name: string }[]>([]);
 
   // Detailed Warrior Log Modal State
   const [historyModalVisible, setHistoryModalVisible] = useState(false);
@@ -207,6 +217,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
         return {
           warriorId,
           warriorProgramId: a.id,
+          coachId: a.coach_id,
           displayName,
           strengthTier,
           programName,
@@ -218,6 +229,20 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
       });
 
       setWarriorList(mappedProgress);
+
+      // Admin view mixes every coach's clients plus every self-service
+      // library selection — fetch the coach roster for the coach filter.
+      if (isAdmin) {
+        const { data: coachesData, error: coachesError } = await supabase
+          .from('profiles')
+          .select('id, display_name')
+          .eq('is_coach', true)
+          .neq('id', LEAP_SYSTEM_PROFILE_ID)
+          .order('display_name', { ascending: true });
+
+        if (coachesError) throw coachesError;
+        setCoachesList(coachesData || []);
+      }
     } catch (err: any) {
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD WARRIOR PROGRESS.');
     } finally {
@@ -456,6 +481,16 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
     ? historyLogs
     : historyLogs.filter(l => (l.weekNumber || 1) === selectedWeek);
 
+  const visibleWarriorList = isAdmin
+    ? warriorList.filter(w => {
+        const isLibrarySelection = w.coachId === LEAP_SYSTEM_PROFILE_ID;
+        if (originFilter === 'coach' && isLibrarySelection) return false;
+        if (originFilter === 'library' && !isLibrarySelection) return false;
+        if (coachFilterId && w.coachId !== coachFilterId) return false;
+        return true;
+      })
+    : warriorList;
+
   return (
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <ScrollView contentContainerStyle={styles.scrollContainer}>
@@ -515,8 +550,92 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
               </View>
             )}
 
+            {isAdmin && (
+              <View style={{ gap: 8 }}>
+                <View style={styles.weekToggleRow}>
+                  {([
+                    { key: 'all', label: 'ALL' },
+                    { key: 'coach', label: 'COACH-ASSIGNED' },
+                    { key: 'library', label: 'SELF-SELECTED (LIBRARY)' },
+                  ] as const).map(opt => (
+                    <TouchableOpacity
+                      key={opt.key}
+                      onPress={() => {
+                        setOriginFilter(opt.key);
+                        if (opt.key === 'library') setCoachFilterId(null);
+                      }}
+                      style={[
+                        styles.weekPill,
+                        {
+                          borderColor: originFilter === opt.key ? bronzeGold : theme.card.border,
+                          backgroundColor: originFilter === opt.key ? 'rgba(200,160,64,0.12)' : 'transparent',
+                        },
+                      ]}
+                    >
+                      <Text style={{
+                        fontFamily: 'BarlowCondensed-Bold',
+                        fontSize: 12,
+                        letterSpacing: 0.5,
+                        color: originFilter === opt.key ? bronzeGold : theme.text.secondary,
+                      }}>
+                        {opt.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                {originFilter !== 'library' && coachesList.length > 0 && (
+                  <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+                    <View style={{ flexDirection: 'row', gap: 8 }}>
+                      <TouchableOpacity
+                        onPress={() => setCoachFilterId(null)}
+                        style={[
+                          styles.weekPill,
+                          {
+                            borderColor: !coachFilterId ? bronzeGold : theme.card.border,
+                            backgroundColor: !coachFilterId ? 'rgba(200,160,64,0.12)' : 'transparent',
+                          },
+                        ]}
+                      >
+                        <Text style={{
+                          fontFamily: 'BarlowCondensed-Bold',
+                          fontSize: 12,
+                          letterSpacing: 0.5,
+                          color: !coachFilterId ? bronzeGold : theme.text.secondary,
+                        }}>
+                          ALL COACHES
+                        </Text>
+                      </TouchableOpacity>
+                      {coachesList.map(c => (
+                        <TouchableOpacity
+                          key={c.id}
+                          onPress={() => setCoachFilterId(c.id)}
+                          style={[
+                            styles.weekPill,
+                            {
+                              borderColor: coachFilterId === c.id ? bronzeGold : theme.card.border,
+                              backgroundColor: coachFilterId === c.id ? 'rgba(200,160,64,0.12)' : 'transparent',
+                            },
+                          ]}
+                        >
+                          <Text style={{
+                            fontFamily: 'BarlowCondensed-Bold',
+                            fontSize: 12,
+                            letterSpacing: 0.5,
+                            color: coachFilterId === c.id ? bronzeGold : theme.text.secondary,
+                          }}>
+                            {c.display_name?.toUpperCase()}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  </ScrollView>
+                )}
+              </View>
+            )}
+
             <View style={{ gap: 16 }}>
-              {warriorList.length === 0 ? (
+              {visibleWarriorList.length === 0 ? (
                 <View style={[styles.emptyContainer, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
                   <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO ASSIGNED WARRIORS</Text>
                   <Text style={[styles.emptySubtitle, { color: theme.text.secondary }]}>
@@ -524,7 +643,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
                   </Text>
                 </View>
               ) : (
-                warriorList.map((warrior: WarriorProgress) => (
+                visibleWarriorList.map((warrior: WarriorProgress) => (
                   <TouchableOpacity
                     key={warrior.warriorId}
                     style={[styles.progressCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}

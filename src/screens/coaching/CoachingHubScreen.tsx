@@ -15,8 +15,9 @@ import { ExerciseLibraryScreen } from './ExerciseLibraryScreen';
 import { ProgramBuilderScreen } from './ProgramBuilderScreen';
 import { MyClientsScreen } from './MyClientsScreen';
 import { ProgressTrackingScreen } from './ProgressTrackingScreen';
+import { TemplateLibraryScreen } from './TemplateLibraryScreen';
 
-type Tab = 'library' | 'builder' | 'assign' | 'progress';
+type Tab = 'library' | 'builder' | 'assign' | 'progress' | 'templates';
 
 interface Tab_Config {
   key: Tab;
@@ -25,10 +26,11 @@ interface Tab_Config {
 }
 
 const TABS: Tab_Config[] = [
-  { key: 'library',  label: 'EXERCISES',  icon: 'dumbbell' },
-  { key: 'builder',  label: 'BUILDER',    icon: 'hammer-wrench' },
-  { key: 'assign',   label: 'MY CLIENTS', icon: 'account-arrow-right' },
-  { key: 'progress', label: 'PROGRESS',   icon: 'chart-line' },
+  { key: 'library',   label: 'EXERCISES',  icon: 'dumbbell' },
+  { key: 'builder',   label: 'BUILDER',    icon: 'hammer-wrench' },
+  { key: 'templates', label: 'LIBRARY',    icon: 'book-open-page-variant' },
+  { key: 'assign',    label: 'CLIENTS',    icon: 'account-arrow-right' },
+  { key: 'progress',  label: 'PROGRESS',   icon: 'chart-line' },
 ];
 
 interface CoachingHubScreenProps {
@@ -80,6 +82,13 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
             onClose={() => handleTabChange('library')}
           />
         );
+      case 'templates':
+        return (
+          <TemplateLibraryScreen
+            coachId={coachId}
+            isAdmin={isAdmin}
+          />
+        );
       case 'assign':
         return (
           <MyClientsScreen
@@ -124,7 +133,12 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
       </View>
 
       {/* ─── TAB BAR ─── */}
-      <View style={[styles.tabBar, { backgroundColor: isDark ? '#0D0D0D' : '#F5F5F5', borderBottomColor: 'rgba(255,255,255,0.04)' }]}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        style={[styles.tabBar, { backgroundColor: isDark ? '#0D0D0D' : '#F5F5F5', borderBottomColor: 'rgba(255,255,255,0.04)' }]}
+        contentContainerStyle={styles.tabBarContent}
+      >
         {TABS.map((tab) => {
           const isActive = activeTab === tab.key;
           return (
@@ -142,18 +156,18 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
                   style={styles.tabActiveGrad}
                 >
                   <MaterialCommunityIcons name={tab.icon as any} size={14} color="#FFF" />
-                  <Text style={styles.tabLabelActive}>{tab.label}</Text>
+                  <Text style={styles.tabLabelActive} numberOfLines={1}>{tab.label}</Text>
                 </LinearGradient>
               ) : (
                 <View style={styles.tabInactive}>
                   <MaterialCommunityIcons name={tab.icon as any} size={14} color={theme.text.tertiary} />
-                  <Text style={[styles.tabLabelInactive, { color: theme.text.tertiary }]}>{tab.label}</Text>
+                  <Text style={[styles.tabLabelInactive, { color: theme.text.tertiary }]} numberOfLines={1}>{tab.label}</Text>
                 </View>
               )}
             </TouchableOpacity>
           );
         })}
-      </View>
+      </ScrollView>
 
       {/* ─── CONTENT ─── */}
       <View style={styles.content}>
@@ -197,15 +211,17 @@ const styles = StyleSheet.create({
     borderRadius: 1,
   },
   tabBar: {
+    flexGrow: 0,
+    borderBottomWidth: 1,
+  },
+  tabBarContent: {
     flexDirection: 'row',
     paddingHorizontal: 12,
     paddingVertical: 10,
     gap: 8,
-    borderBottomWidth: 1,
+    alignItems: 'center',
   },
-  tabBtn: {
-    flex: 1,
-  },
+  tabBtn: {},
   tabActiveGrad: {
     flexDirection: 'row',
     alignItems: 'center',

@@ -4,14 +4,22 @@ import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
 
-// Keep the native splash screen visible while we fetch resources
-SplashScreen.preventAutoHideAsync();
+// Keep the native splash screen visible while we fetch resources. Runs at
+// module scope, so a dev Fast Refresh re-executes it against a view
+// controller that's already had its splash hidden/unregistered — swallow
+// that rejection the same way hideAsync() below does, instead of letting
+// it surface as an uncaught promise rejection.
+SplashScreen.preventAutoHideAsync().catch(() => { });
 
-// Global guard: Strip all console logs in production to prevent data leaks
+// Global guard: Strip all console logs in production to prevent data leaks.
+// Includes console.error — Supabase error objects logged at call sites
+// throughout the app can carry query/schema details, so this needs the
+// same treatment as log/warn/info, not just the "noisy" methods.
 if (!__DEV__) {
   console.log = () => { };
   console.warn = () => { };
   console.info = () => { };
+  console.error = () => { };
 }
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';

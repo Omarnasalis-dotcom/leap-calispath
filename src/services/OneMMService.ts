@@ -149,11 +149,12 @@ export const OneMMService = {
    */
   async getLeaderboard(
     type: 'overall' | string, // overall or movement_id
-    categoryId?: string
+    categoryId?: string,
+    communityId?: string | null
   ): Promise<OneMMRanking[]> {
     try {
       if (type === 'overall') {
-        const { data, error } = await supabase.rpc('get_onemm_well_rounded_leaderboard');
+        const { data, error } = await supabase.rpc('get_onemm_well_rounded_leaderboard', { p_community_id: communityId || null });
 
         if (error) {
           console.error('1MM Overall RPC Error:', error);
@@ -229,10 +230,11 @@ export const OneMMService = {
   /**
    * Fetches leaderboard for a specific category (Sum of points in that category)
    */
-  async getCategoryLeaderboard(categoryId: string): Promise<OneMMRanking[]> {
+  async getCategoryLeaderboard(categoryId: string, communityId?: string | null): Promise<OneMMRanking[]> {
     try {
       const { data, error } = await supabase.rpc('get_onemm_category_leaderboard', {
-        p_category_id: categoryId
+        p_category_id: categoryId,
+        p_community_id: communityId || null
       });
 
       if (error) throw error;

@@ -37,6 +37,36 @@ export function ProgramHeaderCard({ programName, coachName, theme, solidCardBg }
   );
 }
 
+// ─── Switch Workout Button ──────────────────────────────────────────────────
+// Deliberately high-contrast and full-width, not a small pill — this is the
+// only way back to the template library once a program is already assigned,
+// so it needs to be recognizable at a glance, not discovered by hunting.
+interface SwitchWorkoutButtonProps {
+  onPress: () => void;
+  theme: any;
+}
+export function SwitchWorkoutButton({ onPress, theme }: SwitchWorkoutButtonProps) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={{
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 8,
+        backgroundColor: bronzeGold,
+        borderRadius: 10,
+        paddingVertical: 13,
+      }}
+    >
+      <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.5, color: '#000' }}>
+        ⇄ SWITCH WORKOUT
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
 // ─── Points Dashboard ───────────────────────────────────────────────────────
 interface PointsDashboardProps {
   staticPoints: number;

@@ -22,6 +22,9 @@ interface LeaderboardModalsProps {
   setGenderFilter: (val: any) => void;
   filteredWraLeaderboard: any[];
   filteredGloryLeaderboard: any[];
+  hasCommunity?: boolean;
+  wraScope?: 'public' | 'community';
+  onWraScopeChange?: (scope: 'public' | 'community') => void;
 }
 
 export function LeaderboardModals({
@@ -34,6 +37,9 @@ export function LeaderboardModals({
   setGenderFilter,
   filteredWraLeaderboard,
   filteredGloryLeaderboard,
+  hasCommunity,
+  wraScope = 'public',
+  onWraScopeChange,
 }: LeaderboardModalsProps) {
   const { theme, mode } = useTheme();
 
@@ -64,6 +70,32 @@ export function LeaderboardModals({
               </View>
             ) : (
               <ScrollView contentContainerStyle={{ paddingBottom: 40 }}>
+                {hasCommunity && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16, gap: 12 }}>
+                    {(['public', 'community'] as const).map((scope) => (
+                      <TouchableOpacity
+                        key={scope}
+                        style={{
+                          paddingVertical: 6,
+                          paddingHorizontal: 16,
+                          borderRadius: 20,
+                          backgroundColor: wraScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                          borderWidth: 1,
+                          borderColor: wraScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+                        }}
+                        onPress={() => onWraScopeChange && onWraScopeChange(scope)}
+                      >
+                        <Text style={{
+                          fontSize: 12,
+                          fontWeight: '900',
+                          color: wraScope === scope ? '#FFF' : theme.text.secondary
+                        }}>
+                          {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
                 <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
                   {['ALL', 'MALE', 'FEMALE'].map((filter) => (
                     <TouchableOpacity

@@ -53,6 +53,19 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [wellRoundedEntries, setWellRoundedEntries] = useState<any[]>([]);
   const [personalBest, setPersonalBest] = useState<StaticLeaderboardEntry | null>(null);
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+  // Community scope — must trigger a server-side refetch (RPCs cap at 100
+  // rows before any filter), unlike genderFilter which filters client-side
+  // on the already-fetched, already-limited data. Derived fresh each render
+  // from profile.community_id rather than mirrored into its own useState
+  // via a syncing useEffect — that version fetched once at mount with the
+  // stale 'public' default (profile hadn't loaded yet) and again once the
+  // sync effect corrected it, and whichever in-flight request resolved
+  // last won, regardless of which was actually current. A derived value is
+  // correct on the very first render that has real profile data, so the
+  // fetch effects below only fire once for that transition.
+  const [manualStaticScope, setManualStaticScope] = useState<'public' | 'community' | null>(null);
+  const staticScope: 'public' | 'community' = manualStaticScope ?? (profile?.community_id ? 'community' : 'public');
+  const setStaticScope = setManualStaticScope;
 
   const filteredWellRoundedEntries = React.useMemo(() => {
     let list = wellRoundedEntries;
@@ -77,19 +90,19 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   useEffect(() => {
     fetchLeaderboard();
-  }, [leaderboardTab, selectedLevel]);
+  }, [leaderboardTab, selectedLevel, staticScope]);
 
   useEffect(() => {
     if (selectedLevel) {
       loadLevelData();
     }
-  }, [selectedLevel]);
+  }, [selectedLevel, staticScope]);
 
   useEffect(() => {
     if (selectedMovement && showLogModal) {
       loadMovementData();
     }
-  }, [selectedMovement, showLogModal]);
+  }, [selectedMovement, showLogModal, staticScope]);
 
   async function loadAllData() {
     if (!user) return;
@@ -101,7 +114,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       if (!isMounted.current) return;
       setUserHolds(holdMap);
 
-      const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
+      const elite = await StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId);
       if (!isMounted.current) return;
       setWellRoundedEntries(elite);
     } catch (error) {
@@ -115,7 +129,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     if (!user) return;
     try {
       if (leaderboardTab === 'overall') {
-        const elite = await StaticService.getWellRoundedLeaderboard(user.id);
+        const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
+        const elite = await StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId);
         if (!isMounted.current) return;
         setWellRoundedEntries(elite);
       }
@@ -127,7 +142,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   async function loadMovementData() {
     if (!selectedMovement || !user) return;
     try {
-      const { entries: e, personalBest: pb } = await StaticService.getMovementLeaderboard(selectedMovement.id, user.id);
+      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
+      const { entries: e, personalBest: pb } = await StaticService.getMovementLeaderboard(selectedMovement.id, user.id, scopeCommunityId);
       if (!isMounted.current) return;
       setEntries(e);
       setPersonalBest(pb);
@@ -140,7 +156,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     if (!selectedLevel || !user) return;
     setLoading(true);
     try {
-      const e = await StaticService.getLevelLeaderboard(selectedLevel, user.id);
+      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
+      const e = await StaticService.getLevelLeaderboard(selectedLevel, user.id, scopeCommunityId);
       if (!isMounted.current) return;
       setLevelEntries(e);
     } finally {
@@ -184,10 +201,11 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         else Alert.alert('Success', 'Hold logged successfully');
       }
 
+      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
       await Promise.all([
         loadMovementData(),
         refreshUserHolds(),
-        StaticService.getWellRoundedLeaderboard(user.id)
+        StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId)
           .then(elite => { if (isMounted.current) setWellRoundedEntries(elite); })
           .catch(e => console.error('Error refreshing elite leaderboard:', e)),
         selectedLevel ? loadLevelData() : Promise.resolve(),
@@ -519,6 +537,33 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
               </View>
             )}
 
+            {!!selectedLevel && !!profile?.community_id && (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 12 }}>
+                {(['public', 'community'] as const).map((scope) => (
+                  <TouchableOpacity
+                    key={scope}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: staticScope === scope ? '#7E57C2' : 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: staticScope === scope ? '#7E57C2' : 'rgba(255,255,255,0.1)'
+                    }}
+                    onPress={() => setStaticScope(scope)}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '900',
+                      color: staticScope === scope ? '#FFF' : theme.text.secondary
+                    }}>
+                      {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {!selectedLevel ? null : (
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 8, gap: 12 }}>
                 {['ALL', 'MALE', 'FEMALE'].map((filter) => (
@@ -534,10 +579,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                     }}
                     onPress={() => setGenderFilter(filter as any)}
                   >
-                    <Text style={{ 
-                      fontSize: 12, 
-                      fontWeight: '900', 
-                      color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '900',
+                      color: genderFilter === filter ? '#FFF' : theme.text.secondary
                     }}>
                       {filter}
                     </Text>
@@ -596,6 +641,33 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
              </View>
              
              <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL STATIC RANKINGS</Text>
+
+             {!!profile?.community_id && (
+               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16, gap: 12 }}>
+                 {(['public', 'community'] as const).map((scope) => (
+                   <TouchableOpacity
+                     key={scope}
+                     style={{
+                       paddingVertical: 6,
+                       paddingHorizontal: 16,
+                       borderRadius: 20,
+                       backgroundColor: staticScope === scope ? '#7E57C2' : 'rgba(255,255,255,0.05)',
+                       borderWidth: 1,
+                       borderColor: staticScope === scope ? '#7E57C2' : 'rgba(255,255,255,0.1)'
+                     }}
+                     onPress={() => setStaticScope(scope)}
+                   >
+                     <Text style={{
+                       fontSize: 12,
+                       fontWeight: '900',
+                       color: staticScope === scope ? '#FFF' : theme.text.secondary
+                     }}>
+                       {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                     </Text>
+                   </TouchableOpacity>
+                 ))}
+               </View>
+             )}
 
              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
                {['ALL', 'MALE', 'FEMALE'].map((filter) => (

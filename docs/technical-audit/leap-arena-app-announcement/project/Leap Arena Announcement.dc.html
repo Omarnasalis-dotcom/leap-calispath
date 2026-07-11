@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:ital,wght@0,400;0,500;0,600;0,700;0,800;0,900&amp;family=Archivo+Expanded:wght@600;700;800;900&amp;display=swap" rel="stylesheet">
+<style>
+  @keyframes leapPulse { 0%,100% { opacity: .55; } 50% { opacity: 1; } }
+</style>
+</helmet>
+<div style="width:1080px; height:1350px; position:relative; overflow:hidden; background:#08080A; font-family:'Archivo',sans-serif; color:#F4F2F0;">
+
+  <!-- brand ring glow, echoing the app's tier rings -->
+  <div style="position:absolute; top:-340px; left:50%; transform:translateX(-50%); width:1180px; height:1180px; border-radius:50%; background:repeating-radial-gradient(circle, rgba(255,86,71,0.16) 0 2px, transparent 2px 64px); -webkit-mask-image:radial-gradient(circle, #000 0%, #000 38%, transparent 68%); mask-image:radial-gradient(circle, #000 0%, #000 38%, transparent 68%); pointer-events:none;"></div>
+  <div style="position:absolute; top:-120px; left:50%; transform:translateX(-50%); width:560px; height:560px; border-radius:50%; background:radial-gradient(circle, rgba(255,86,71,0.30) 0%, rgba(255,86,71,0) 70%); filter:blur(8px); pointer-events:none;"></div>
+  <div style="position:absolute; bottom:-260px; left:-180px; width:620px; height:620px; border-radius:50%; background:radial-gradient(circle, rgba(255,86,71,0.16) 0%, rgba(255,86,71,0) 70%); pointer-events:none;"></div>
+
+  <!-- content -->
+  <div style="position:absolute; inset:0; display:flex; flex-direction:column; justify-content:space-between; padding:74px 74px 70px;">
+
+    <!-- header -->
+    <div style="display:flex; align-items:center; justify-content:space-between;">
+      <div style="display:flex; align-items:center; gap:18px;">
+        <img src="assets/leap-logo.png" alt="LEAP" style="height:48px; width:auto; display:block; mix-blend-mode:screen;">
+        <span style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:21px; letter-spacing:0.5em; color:#F4F2F0; padding-left:6px;">ARENA</span>
+      </div>
+      <div style="display:flex; align-items:center; gap:11px; padding:11px 20px 11px 16px; border:1px solid rgba(255,86,71,0.5); border-radius:100px; background:rgba(255,86,71,0.08);">
+        <span style="width:10px; height:10px; border-radius:50%; background:#FF5647; box-shadow:0 0 12px 2px rgba(255,86,71,0.9); animation:leapPulse 1.8s ease-in-out infinite;"></span>
+        <span style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:15px; letter-spacing:0.22em; color:#FF7A6E;">NOW LIVE</span>
+      </div>
+    </div>
+
+    <!-- headline -->
+    <div style="margin-top:8px;">
+      <div style="font-family:'Archivo Expanded',sans-serif; font-weight:600; font-size:18px; letter-spacing:0.42em; color:#7E7E84; margin-bottom:24px;">THE NEW ERA OF</div>
+      <h1 style="margin:0; font-family:'Archivo Expanded',sans-serif; font-weight:900; font-size:104px; line-height:0.94; letter-spacing:-0.01em; text-transform:uppercase;">
+        Calisthenics<br><span style="color:#FF5647;">has arrived</span>
+      </h1>
+    </div>
+
+    <!-- hero: phone + features -->
+    <div style="display:flex; align-items:flex-end; gap:44px;">
+
+      <!-- feature list -->
+      <div style="flex:1; display:flex; flex-direction:column; gap:0; padding-bottom:14px;">
+        <div style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:14px; letter-spacing:0.28em; color:#7E7E84; margin-bottom:24px;">CHOOSE YOUR PATH</div>
+
+        <div style="display:flex; align-items:center; gap:16px; padding:18px 0; border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="width:8px; height:8px; border-radius:50%; background:#FF5647; box-shadow:0 0 10px rgba(255,86,71,0.8);"></span>
+          <span style="font-weight:700; font-size:27px; letter-spacing:0.02em;">Power</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:16px; padding:18px 0; border-top:1px solid rgba(255,255,255,0.08);">
+          <span style="width:8px; height:8px; border-radius:50%; background:#FF5647; box-shadow:0 0 10px rgba(255,86,71,0.8);"></span>
+          <span style="font-weight:700; font-size:27px; letter-spacing:0.02em;">Endurance</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:16px; padding:18px 0; border-top:1px solid rgba(255,255,255,0.08); border-bottom:1px solid rgba(255,255,255,0.08);">
+          <span style="width:8px; height:8px; border-radius:50%; background:#FF5647; box-shadow:0 0 10px rgba(255,86,71,0.8);"></span>
+          <span style="font-weight:700; font-size:27px; letter-spacing:0.02em;">Static</span>
+        </div>
+
+        <p style="margin:26px 0 0; font-size:18px; line-height:1.5; color:#9A9AA0; max-width:300px;">Earn points, climb the ranks, top the leaderboards and master real bodyweight skills.</p>
+      </div>
+
+      <!-- phone -->
+      <div style="position:relative; width:328px; flex-shrink:0;">
+        <div style="position:absolute; inset:-30px -16px -30px -16px; border-radius:60px; background:radial-gradient(ellipse at center, rgba(255,86,71,0.28) 0%, rgba(255,86,71,0) 70%); pointer-events:none;"></div>
+        <div style="position:relative; border-radius:48px; padding:10px; background:linear-gradient(160deg,#2A2A2E,#0E0E10); box-shadow:0 40px 80px -20px rgba(0,0,0,0.8), inset 0 0 0 1px rgba(255,255,255,0.06);">
+          <div style="border-radius:40px; overflow:hidden; background:#0A0A0B; aspect-ratio:1284/1560;">
+            <img src="assets/app-screen.jpeg" alt="LEAP Arena app" style="width:100%; display:block; object-fit:cover; object-position:top;">
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CTA -->
+    <div style="display:flex; align-items:center; gap:20px; padding:26px 30px; border-radius:20px; background:#FF5647; box-shadow:0 24px 60px -16px rgba(255,86,71,0.6);">
+      <span style="font-family:'Archivo Expanded',sans-serif; font-weight:900; font-size:30px; letter-spacing:0.02em; color:#0A0A0B; text-transform:uppercase;">Download Free</span>
+      <span style="flex:1;"></span>
+      <span style="font-family:'Archivo Expanded',sans-serif; font-weight:700; font-size:20px; letter-spacing:0.18em; color:#0A0A0B; text-transform:uppercase; opacity:0.82;">Link in Bio →</span>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1080,&quot;height&quot;:1350}}"></script>
+</body>
+</html>

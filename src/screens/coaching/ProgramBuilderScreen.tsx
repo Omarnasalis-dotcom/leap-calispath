@@ -51,6 +51,7 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
     activeTemplateId, setActiveTemplateId,
     isCreatingNew, setIsCreatingNew,
     masterTemplates, setMasterTemplates,
+    assignedTemplates, setAssignedTemplates,
     catalogLoading, setCatalogLoading,
     templateName, setTemplateName,
     templateDesc, setTemplateDesc,
@@ -232,6 +233,7 @@ export function ProgramBuilderScreen({ coachId: propCoachId, templateId, weekNum
               errorMsg={errorMsg}
               catalogLoading={catalogLoading}
               masterTemplates={masterTemplates}
+              assignedTemplates={assignedTemplates}
               solidCardBg={solidCardBg}
               bronzeGold={bronzeGold}
               theme={theme}

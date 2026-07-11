@@ -2,6 +2,7 @@
 // Rank by best time (fastest wins)
 
 import { supabase } from './supabase';
+import { LEAP_SYSTEM_PROFILE_ID } from '../constants/system';
 
 export interface LeaderboardEntry {
   user_id: string;
@@ -27,11 +28,12 @@ export interface PersonalBest {
  */
 export async function getTierLeaderboard(
   tier: number,
-  currentUserId: string
+  currentUserId: string,
+  communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
   // Use RPC function that bypasses RLS
   const { data, error } = await supabase
-    .rpc('get_tier_leaderboard', { tier_num: tier });
+    .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
 
   if (error || !data) {
     console.error('Error fetching leaderboard:', error);
@@ -70,9 +72,10 @@ export async function getTierLeaderboard(
  */
 export async function getPowerTierLeaderboard(
   tier: number,
-  currentUserId: string
+  currentUserId: string,
+  communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
-  const { data, error } = await supabase
+  let query = supabase
     .from('profiles')
     .select(`
       id,
@@ -81,7 +84,13 @@ export async function getPowerTierLeaderboard(
       country,
       gender
     `)
-    .eq('power_tier', tier)
+    .eq('power_tier', tier);
+
+  if (communityId) {
+    query = query.eq('community_id', communityId);
+  }
+
+  const { data, error } = await query
     .order('power_points', { ascending: false })
     .limit(100);
 
@@ -123,6 +132,7 @@ export async function getGloryLeaderboard(
   const { data, error } = await supabase
     .from('profiles')
     .select('id, display_name, glory_score, strength_tier, country, gender')
+    .neq('id', LEAP_SYSTEM_PROFILE_ID)
     .order('glory_score', { ascending: false })
     .limit(100);
 

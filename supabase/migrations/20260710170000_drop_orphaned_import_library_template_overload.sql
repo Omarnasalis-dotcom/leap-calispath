@@ -1,0 +1,12 @@
+-- 20260709170000_add_import_library_template_criteria_passthrough.sql
+-- changed import_library_template's parameter list (3 args -> 5 args) via
+-- CREATE OR REPLACE, which only replaces a function with the exact same
+-- signature — a changed arg list creates a second overload instead of
+-- replacing the original. The old 3-arg version has sat orphaned in
+-- production since that migration shipped. Not an active bug (the only
+-- caller, TemplateLibraryImport.ts, always passes all 5 named args, so it
+-- resolves unambiguously), but it's dead surface area and exactly the
+-- pattern that DID actively break get_global_well_rounded_leaderboard's
+-- zero-arg CoachScreen caller (see 20260710160000) before that was caught
+-- and fixed with the same kind of explicit DROP.
+DROP FUNCTION IF EXISTS public.import_library_template(text, text, jsonb);

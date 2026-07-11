@@ -164,9 +164,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setProfileLoading(true);
     try {
       const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
+        .rpc('get_my_profile')
         .single();
 
       if (error) {
@@ -176,7 +174,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setProfile(data);
+      setProfile(data as Profile);
       registerPushToken(userId);
     } finally {
       setProfileLoading(false);

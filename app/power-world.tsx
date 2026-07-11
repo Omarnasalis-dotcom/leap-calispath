@@ -7,7 +7,7 @@ export default function Route() {
   const params = useLocalSearchParams();
   
   return (
-    <SpartanLayout>
+    <SpartanLayout noBottomInset>
       <PowerWorldScreen
         {...params}
       />

@@ -7,14 +7,34 @@ import { LeaderboardSkeleton } from '../LeaderboardSkeleton';
 
 interface TierLeaderboardListProps {
   entries: LeaderboardEntry[];
+  // Strength entries carry a hold time in best_time_seconds (lower ranks
+  // first — get_tier_leaderboard sorts ASC); Power reuses the same field
+  // for power_points (higher ranks first — getPowerTierLeaderboard sorts
+  // DESC). Formatting and the "gap to next rank" sign both depend on which.
+  category?: 'strength' | 'power';
   currentUserId?: string;
   loading: boolean;
   theme: any;
+  hasCommunity?: boolean;
+  leaderboardScope?: 'public' | 'community';
+  onLeaderboardScopeChange?: (scope: 'public' | 'community') => void;
 }
 
-export function TierLeaderboardList({ entries, currentUserId, loading, theme }: TierLeaderboardListProps) {
+export function TierLeaderboardList({
+  entries,
+  category = 'strength',
+  currentUserId,
+  loading,
+  theme,
+  hasCommunity,
+  leaderboardScope = 'public',
+  onLeaderboardScopeChange,
+}: TierLeaderboardListProps) {
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+
+  const formatValue = (v: number) => category === 'power' ? `${Math.round(v)}` : formatLeaderboardTime(v).replace(':', "'") + '"';
+  const valueLabel = category === 'power' ? 'PTS' : 'TIME';
 
   const isCU = (entry: LeaderboardEntry) => entry.is_current_user || (!!currentUserId && entry.user_id === currentUserId);
 
@@ -43,6 +63,35 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
           {filteredEntries.length} WARRIORS
         </Text>
       </View>
+
+      {/* Community Scope — directly above the gender filter, same row
+          rhythm, so the two filters read as one group. */}
+      {hasCommunity && (
+        <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 10, marginTop: 2, gap: 10 }}>
+          {(['public', 'community'] as const).map((scope) => (
+            <TouchableOpacity
+              key={scope}
+              style={{
+                paddingVertical: 6,
+                paddingHorizontal: 16,
+                borderRadius: 20,
+                backgroundColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                borderWidth: 1,
+                borderColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+              }}
+              onPress={() => onLeaderboardScopeChange && onLeaderboardScopeChange(scope)}
+            >
+              <Text style={{
+                fontSize: 12,
+                fontWeight: '900',
+                color: leaderboardScope === scope ? '#FFF' : theme.text.secondary
+              }}>
+                {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
 
       {/* Gender Filters */}
       <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12, marginTop: 2, gap: 10 }}>
@@ -77,7 +126,9 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
         <View style={styles.emptyState}>
           <MaterialCommunityIcons name="shield-outline" size={64} color={theme.accent} style={{ marginBottom: 16, opacity: 0.5 }} />
           <Text style={[styles.emptyText, { color: theme.text.primary }]}>No warriors have attempted this tier yet.</Text>
-          <Text style={[styles.emptySubtext, { color: theme.text.tertiary }]}>Be the first to claim a time and become the King of this tier!</Text>
+          <Text style={[styles.emptySubtext, { color: theme.text.tertiary }]}>
+            {category === 'power' ? 'Be the first to claim a score and become the King of this tier!' : 'Be the first to claim a time and become the King of this tier!'}
+          </Text>
         </View>
       ) : (
         <View style={styles.listPreview}>
@@ -94,8 +145,14 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
             const isSeparatorRow = entryIsCU && !currentUserInTop3 && index === 3;
             const showGap = entryIsCU && currentUserEntry && currentUserEntry.rank && currentUserEntry.rank > 1;
             const nextEntry = showGap ? filteredEntries.find(e => e.rank === currentUserEntry!.rank! - 1) : null;
+            // Strength ranks ascending (lower time wins) so the entry ahead
+            // of you has a smaller value — gap is current minus next.
+            // Power ranks descending (higher points wins), so it's the
+            // other way around: the entry ahead of you has a bigger value.
             const gapValue = showGap && nextEntry
-              ? `-${formatLeaderboardTime((currentUserEntry!.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
+              ? category === 'power'
+                ? `-${formatValue((nextEntry.best_time_seconds || 0) - (currentUserEntry!.best_time_seconds || 0))}`
+                : `-${formatLeaderboardTime((currentUserEntry!.best_time_seconds || 0) - (nextEntry.best_time_seconds || 0))}`
               : null;
 
             return (
@@ -142,14 +199,14 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
                     {entryIsCU && <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}>YOU</Text>}
                   </View>
 
-                  {/* Time Circles - Side by Side */}
+                  {/* Time/Points Circles - Side by Side */}
                   <View style={styles.timeCirclesContainer}>
-                    {/* Best Time Circle */}
+                    {/* Best Time/Points Circle */}
                     <View style={[styles.timeCircle, { backgroundColor: `${theme.accent}1A`, borderColor: theme.accent }]}>
                       <Text style={[styles.timeCircleValue, { color: theme.accent }]}>
-                        {formatLeaderboardTime(entry.best_time_seconds).replace(':', "'") + '"'}
+                        {formatValue(entry.best_time_seconds)}
                       </Text>
-                      <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>TIME</Text>
+                      <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>{valueLabel}</Text>
                     </View>
 
                     {/* Gap Circle (only for current user when not #1) */}
@@ -236,8 +293,11 @@ export function TierLeaderboardList({ entries, currentUserId, loading, theme }: 
                   </View>
                   <View style={styles.timeContainer}>
                     <Text style={[styles.entryTime, { color: theme.accent }]}>
-                      {formatLeaderboardTime(entry.best_time_seconds)}
+                      {formatValue(entry.best_time_seconds)}
                     </Text>
+                    {category === 'power' && (
+                      <Text style={{ fontSize: 9, letterSpacing: 0.5, color: theme.accent, fontFamily: 'PlusJakartaSans-Bold' }}>PTS</Text>
+                    )}
                   </View>
                 </View>
               )}

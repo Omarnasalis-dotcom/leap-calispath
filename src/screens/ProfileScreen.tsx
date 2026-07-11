@@ -138,6 +138,27 @@ export function ProfileScreen({
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
   const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
+  // Community leaderboard filter — only meaningful once the user has
+  // joined a community (profile.community_id). Filtering happens
+  // server-side inside getTierLeaderboard/getPowerTierLeaderboard, not by
+  // re-filtering already-fetched entries (see community feature plan).
+  //
+  // Defaults to 'community' whenever the user has one, but stores ONLY the
+  // manual override — the effective scope is derived fresh every render
+  // from profile.community_id, never a separate piece of state that a
+  // useEffect has to "catch up" to a tick later. That two-step version
+  // (useState defaulted at mount + a useEffect syncing it once profile
+  // loads) caused a real race: the fetch effect below fires once with the
+  // stale mount-time default (profile isn't loaded yet, so 'public'), then
+  // fires again once the sync effect corrects it to 'community' — and
+  // whichever of those two in-flight requests resolves LAST wins,
+  // regardless of which was actually current. Deriving the scope
+  // synchronously means profile.community_id and the scope it implies are
+  // always consistent on the very first render that has real profile data,
+  // so the fetch effect only fires once for that transition.
+  const [manualLeaderboardScope, setManualLeaderboardScope] = useState<'public' | 'community' | null>(null);
+  const leaderboardScope: 'public' | 'community' = manualLeaderboardScope ?? (profile?.community_id ? 'community' : 'public');
+  const setLeaderboardScope = setManualLeaderboardScope;
 
   // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
@@ -146,6 +167,15 @@ export function ProfileScreen({
 
   // Leaderboard Filtering
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+  // WRA leaderboard's community scope — unlike gender, this must trigger a
+  // server-side refetch rather than a client-side filter (see community
+  // feature plan: the RPC caps at 100 rows before any filter is applied,
+  // so a client-side filter would silently drop small communities). Derived
+  // the same way as leaderboardScope above — see that comment for why a
+  // separate useState-plus-syncing-useEffect caused stale/racy defaults.
+  const [manualWraScope, setManualWraScope] = useState<'public' | 'community' | null>(null);
+  const wraScope: 'public' | 'community' = manualWraScope ?? (profile?.community_id ? 'community' : 'public');
+  const setWraScope = setManualWraScope;
 
   const filteredWraLeaderboard = React.useMemo(() => {
     let list = wraLeaderboard;
@@ -179,7 +209,8 @@ export function ProfileScreen({
       setTierLeaderboardLoading(true);
       try {
         const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-        const { entries } = await fetcher(selectedTier, profile.id);
+        const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
+        const { entries } = await fetcher(selectedTier, profile.id, scopeCommunityId);
         setTierLeaderboardEntries(entries);
         const userIdx = entries.findIndex(e => e.user_id === profile.id);
         if (userIdx !== -1) {
@@ -209,14 +240,15 @@ export function ProfileScreen({
       }
     }
     loadRank();
-  }, [selectedTier, category, profile?.id]);
+  }, [selectedTier, category, profile?.id, leaderboardScope]);
 
   // Refresh rank when screen comes back into focus (e.g. after trial)
   useFocusEffect(
     useCallback(() => {
       if (!profile?.id) return;
       const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-      fetcher(selectedTier, profile.id)
+      const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
+      fetcher(selectedTier, profile.id, scopeCommunityId)
         .then(({ entries }) => {
           setTierLeaderboardEntries(entries);
           const userIdx = entries.findIndex((e: any) => e.user_id === profile.id);
@@ -227,7 +259,7 @@ export function ProfileScreen({
           }
         })
         .catch(() => {});
-    }, [selectedTier, category, profile?.id])
+    }, [selectedTier, category, profile?.id, leaderboardScope])
   );
 
   // Weekly activity stats + per-movement PBs, refreshed on mount and whenever
@@ -347,11 +379,16 @@ export function ProfileScreen({
   const WRA_MAX = 5000;
   const GLORY_MAX = 1000;
 
-  const fetchWRALeaderboard = async () => {
+  const fetchWRALeaderboard = async (scopeOverride?: 'public' | 'community') => {
     setLoadingLB(true);
     setShowWRALeaderboard(true);
     try {
-      const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id);
+      // Guard against callers wiring this up directly as an onPress handler
+      // — RN invokes onPress with a GestureResponderEvent, which is truthy
+      // and would otherwise silently override the derived wraScope.
+      const scope = (scopeOverride === 'public' || scopeOverride === 'community') ? scopeOverride : wraScope;
+      const scopeCommunityId = scope === 'community' ? profile?.community_id : null;
+      const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id, scopeCommunityId);
       setWRALeaderboard(data);
     } catch (e) {
       console.error('Failed to fetch WRA leaderboard:', e);
@@ -359,6 +396,11 @@ export function ProfileScreen({
     } finally {
       setLoadingLB(false);
     }
+  };
+
+  const handleWraScopeChange = (scope: 'public' | 'community') => {
+    setWraScope(scope);
+    fetchWRALeaderboard(scope);
   };
 
   const fetchGloryLeaderboard = async () => {
@@ -409,7 +451,7 @@ export function ProfileScreen({
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onShowCoachPrompt={() => setShowCoachPrompt(true)}
                 onOpenAdmin={onOpenAdmin}
-                onFetchWRALeaderboard={fetchWRALeaderboard}
+                onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
                 onOpenWarriorProgram={onOpenWarriorProgram}
@@ -492,6 +534,9 @@ export function ProfileScreen({
                 onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
                 toggleTheme={toggleTheme}
                 showSettingsFooter={false}
+                hasCommunity={!!profile?.community_id}
+                leaderboardScope={leaderboardScope}
+                onLeaderboardScopeChange={setLeaderboardScope}
               />
             </>
           )}
@@ -575,6 +620,9 @@ export function ProfileScreen({
           setGenderFilter={setGenderFilter}
           filteredWraLeaderboard={filteredWraLeaderboard}
           filteredGloryLeaderboard={filteredGloryLeaderboard}
+          hasCommunity={!!profile?.community_id}
+          wraScope={wraScope}
+          onWraScopeChange={handleWraScopeChange}
         />
 
         {/* AI COACH PROMPT MODAL */}
