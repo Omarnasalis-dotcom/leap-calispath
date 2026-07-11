@@ -23,6 +23,13 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { COUNTRIES } from '../constants/countries';
 
+// Flip to true to require an invite code at signup again. The
+// reserve/redeem/release RPC flow further down is untouched either
+// way — this only controls whether providing a code is mandatory
+// before submitting. A code is still honored (grants its trial/
+// membership window) whenever one is entered, required or not.
+const INVITE_CODE_REQUIRED = false;
+
 export function AuthScreen() {
   const { width } = useWindowDimensions();
   const isDesktop = width > 768;
@@ -99,8 +106,8 @@ export function AuthScreen() {
   }
 
   async function handleSubmit() {
-    if (!email || !password || (isSignUp && (!firstName || !lastName || !displayName || !inviteCode || !gender || !country))) {
-      Alert.alert('Missing Fields', 'Please fill in all fields (including Username, Gender, Country, and Invite Code) to continue.');
+    if (!email || !password || (isSignUp && (!firstName || !lastName || !displayName || !gender || !country || (INVITE_CODE_REQUIRED && !inviteCode)))) {
+      Alert.alert('Missing Fields', `Please fill in all fields (including Username, Gender, and Country${INVITE_CODE_REQUIRED ? ', and Invite Code' : ''}) to continue.`);
       return;
     }
 
@@ -111,22 +118,28 @@ export function AuthScreen() {
 
     setLoading(true);
     let inviteCodeReserved = false;
+    const trimmedCode = inviteCode.trim();
     try {
       if (isSignUp) {
-        // 1. Atomically reserve the invite code to prevent race conditions
-        const { data: reserveData, error: reserveError } = await supabase.rpc('reserve_invite_code', {
-          p_code: inviteCode.trim()
-        });
-        
-        if (reserveError) {
-          console.error('Reserve RPC Error:', reserveError);
-          throw new Error(`Database Error: ${reserveError.message}`);
+        // 1. Atomically reserve the invite code (if one was provided) to
+        // prevent race conditions — codes are optional (INVITE_CODE_REQUIRED),
+        // but still honored, and still grant their trial/membership window,
+        // whenever someone enters one.
+        if (trimmedCode) {
+          const { data: reserveData, error: reserveError } = await supabase.rpc('reserve_invite_code', {
+            p_code: trimmedCode
+          });
+
+          if (reserveError) {
+            console.error('Reserve RPC Error:', reserveError);
+            throw new Error(`Database Error: ${reserveError.message}`);
+          }
+
+          if (!reserveData || reserveData.success === false) {
+            throw new Error(`Reservation Failed: ${reserveData?.error || 'Unknown error'}`);
+          }
+          inviteCodeReserved = true;
         }
-        
-        if (!reserveData || reserveData.success === false) {
-          throw new Error(`Reservation Failed: ${reserveData?.error || 'Unknown error'}`);
-        }
-        inviteCodeReserved = true;
 
         // 2. Check if username is already taken
         const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
@@ -142,29 +155,31 @@ export function AuthScreen() {
         // 3. Create the User
         await signUp(email, password, { firstName, lastName, gender: gender!, country, displayName });
 
-        // 4. Redeem and finalize the reserved code
-        const { data: authData } = await supabase.auth.getUser();
-        if (authData?.user?.id) {
-          const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
-            p_code: inviteCode.trim(),
-            p_user_id: authData.user.id
-          });
+        // 4. Redeem and finalize the reserved code, if one was provided
+        if (trimmedCode) {
+          const { data: authData } = await supabase.auth.getUser();
+          if (authData?.user?.id) {
+            const { data: redeemData, error: redeemError } = await supabase.rpc('redeem_invite_code', {
+              p_code: trimmedCode,
+              p_user_id: authData.user.id
+            });
 
-          if (redeemError || !redeemData || redeemData.success === false) {
-            console.error('Redeem Error:', redeemError || redeemData.error);
-            const msg = 'Failed to finalize invite code redemption. Please contact support.';
-            if (Platform.OS === 'web') window.alert(msg);
-            else Alert.alert('Arena Error', msg);
-            setLoading(false);
-            return;
+            if (redeemError || !redeemData || redeemData.success === false) {
+              console.error('Redeem Error:', redeemError || redeemData.error);
+              const msg = 'Failed to finalize invite code redemption. Please contact support.';
+              if (Platform.OS === 'web') window.alert(msg);
+              else Alert.alert('Arena Error', msg);
+              setLoading(false);
+              return;
+            }
+
+            inviteCodeReserved = false; // Successfully redeemed, no need to release
           }
-          
-          inviteCodeReserved = false; // Successfully redeemed, no need to release
-          
-          const msg = 'Welcome to the Arena! You can now sign in.';
-          if (Platform.OS === 'web') window.alert(msg);
-          else Alert.alert('Warrior Registered', msg);
         }
+
+        const msg = 'Welcome to the Arena! You can now sign in.';
+        if (Platform.OS === 'web') window.alert(msg);
+        else Alert.alert('Warrior Registered', msg);
         setIsSignUp(false);
       } else {
         await signIn(email, password);
@@ -172,10 +187,10 @@ export function AuthScreen() {
     } catch (error: any) {
       if (isSignUp) {
         setDisplayName(''); // Clear the display name on failure to prevent auth state leaks
-        
+
         // If signup failed but we reserved a code, release it back to the pool
         if (inviteCodeReserved) {
-          await supabase.rpc('release_invite_code', { p_code: inviteCode.trim() });
+          await supabase.rpc('release_invite_code', { p_code: trimmedCode });
         }
       }
       const message = error.message || 'An unexpected error occurred.';
@@ -367,26 +382,32 @@ export function AuthScreen() {
               
               {isSignUp && (
                 <View style={{ marginBottom: 16 }}>
-                  <Input 
-                    label="Invite Code" 
-                    placeholder="LEAP-XXXXXXXX" 
-                    value={inviteCode} 
+                  <Input
+                    label={INVITE_CODE_REQUIRED ? 'Invite Code' : 'Invite Code (Optional)'}
+                    placeholder="LEAP-XXXXXXXX"
+                    value={inviteCode}
                     onChangeText={setInviteCode}
                     autoCapitalize="characters"
                   />
-                  <TouchableOpacity 
-                    onPress={() => Linking.openURL('https://leap-arena.com/request')}
-                    style={{ marginTop: 6, alignSelf: 'flex-start' }}
-                  >
-                    <Text style={{
-                      color: theme.accent, 
-                      fontSize: 12, 
-                      fontWeight: '600',
-                      textDecorationLine: 'underline'
-                    }}>
-                      Don't have an invite code? Request one here
+                  {INVITE_CODE_REQUIRED ? (
+                    <TouchableOpacity
+                      onPress={() => Linking.openURL('https://leap-arena.com/request')}
+                      style={{ marginTop: 6, alignSelf: 'flex-start' }}
+                    >
+                      <Text style={{
+                        color: theme.accent,
+                        fontSize: 12,
+                        fontWeight: '600',
+                        textDecorationLine: 'underline'
+                      }}>
+                        Don't have an invite code? Request one here
+                      </Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={{ color: theme.text.tertiary, fontSize: 12, marginTop: 6 }}>
+                      Have one? Add it for trial/membership perks. Not required to join.
                     </Text>
-                  </TouchableOpacity>
+                  )}
                 </View>
               )}
 
