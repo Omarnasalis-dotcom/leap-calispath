@@ -337,13 +337,50 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     setLoading(true);
     setErrorMsg(null);
     try {
-      // 0. Fetch warrior points stats
-      const { data: profilePoints } = await supabase
-        .from('profiles')
-        .select('statics_tier, power_points, one_mm_points, strength_tier')
-        .eq('id', warriorId)
-        .maybeSingle();
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
 
+      // Batch A: none of these three depend on each other's results, so fire
+      // them together instead of one-at-a-time. This was previously a fully
+      // sequential 6-query waterfall (profiles -> warrior_programs ->
+      // program_week_archive -> program_blocks -> workout_logs ->
+      // block_exercises) — on a mobile connection with ~200-300ms per round
+      // trip that's 1.5-2s of pure network latency before any data shows up.
+      // Only program_week_archive/program_blocks (need activeTemplateId) and
+      // block_exercises (needs the resulting block ids) have a real
+      // dependency chain — see batches B and C below.
+      const [profileRes, assignmentRes, loggedTodayRes] = await Promise.all([
+        supabase
+          .from('profiles')
+          .select('statics_tier, power_points, one_mm_points, strength_tier')
+          .eq('id', warriorId)
+          .maybeSingle(),
+        supabase
+          .from('warrior_programs')
+          .select(`
+            id,
+            template_id,
+            coach_id,
+            current_week,
+            profiles:coach_id (
+              display_name
+            ),
+            program_templates:template_id (
+              name,
+              description
+            )
+          `)
+          .eq('warrior_id', warriorId)
+          .eq('status', 'active')
+          .maybeSingle(),
+        supabase
+          .from('workout_logs')
+          .select('block_id, notes, feel, rpe, missed_reason, missed_detail')
+          .eq('warrior_id', warriorId)
+          .gte('completed_at', startOfToday.toISOString()),
+      ]);
+
+      const { data: profilePoints } = profileRes;
       if (profilePoints) {
         setStaticPoints(profilePoints.statics_tier || 0);
         setPowerPoints(profilePoints.power_points || 0);
@@ -351,26 +388,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         setStrengthTier(profilePoints.strength_tier || 0);
       }
 
-      // 1. Fetch active warrior program
-      const { data: assignment, error: assignmentError } = await supabase
-        .from('warrior_programs')
-        .select(`
-          id,
-          template_id,
-          coach_id,
-          current_week,
-          profiles:coach_id (
-            display_name
-          ),
-          program_templates:template_id (
-            name,
-            description
-          )
-        `)
-        .eq('warrior_id', warriorId)
-        .eq('status', 'active')
-        .maybeSingle();
-
+      const { data: assignment, error: assignmentError } = assignmentRes;
       if (assignmentError) throw assignmentError;
 
       const actualAssignment = Array.isArray(assignment) ? assignment[0] : assignment;
@@ -398,44 +416,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setTemplateId(activeTemplateId);
       setWarriorProgramId(actualAssignment.id);
 
-      // 2. Fetch program blocks — excluding any week the coach has archived
-      // (program_week_archive), which stays fully visible to the coach but
-      // drops out of the warrior's own program view here.
-      const { data: archivedWeeksData, error: archivedWeeksError } = await supabase
-        .from('program_week_archive')
-        .select('week_number')
-        .eq('template_id', activeTemplateId);
-
-      if (archivedWeeksError) throw archivedWeeksError;
-      const archivedWeeks = new Set((archivedWeeksData || []).map(w => w.week_number));
-
-      const { data: rawBlocksData, error: blocksError } = await supabase
-        .from('program_blocks')
-        .select('id, name, notes, order_index, week_number')
-        .eq('template_id', activeTemplateId)
-        .order('order_index', { ascending: true });
-
-      if (blocksError) throw blocksError;
-      const blocksData = (rawBlocksData || []).filter(b => !archivedWeeks.has(b.week_number || 1));
-
-      // Renumber remaining weeks sequentially for display only — the raw
-      // week_number values aren't touched (coach-side views and the export
-      // builder still use them as-is), but if e.g. week 1 got archived and
-      // weeks 2-3 remain, the warrior should see "Week 1, Week 2", not a
-      // confusing "Week 2, Week 3" gap.
-      const remainingRawWeeks = Array.from(new Set((blocksData || []).map(b => b.week_number || 1))).sort((a, b) => a - b);
-      const rawToDisplayWeek = new Map<number, number>(remainingRawWeeks.map((raw, idx) => [raw, idx + 1]));
-
-      // 3. Fetch completion status today
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
-      const { data: loggedToday, error: loggedError } = await supabase
-        .from('workout_logs')
-        .select('block_id, notes, feel, rpe, missed_reason, missed_detail')
-        .eq('warrior_id', warriorId)
-        .gte('completed_at', startOfToday.toISOString());
-
+      const { data: loggedToday, error: loggedError } = loggedTodayRes;
       if (loggedError) throw loggedError;
 
       const loggedBlockMap = new Map((loggedToday || []).map((l: any) => [l.block_id, l.notes || '']));
@@ -449,10 +430,45 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         }])
       ));
 
-      // 4. FIX N+1: Batch Fetch all block exercises for all blocks
+      // Batch B: program_week_archive and program_blocks both only depend on
+      // activeTemplateId (just resolved above), not on each other — run
+      // together. program_week_archive excludes any week the coach has
+      // archived, which stays fully visible to the coach but drops out of
+      // the warrior's own program view here.
+      const [archivedRes, blocksRes] = await Promise.all([
+        supabase
+          .from('program_week_archive')
+          .select('week_number')
+          .eq('template_id', activeTemplateId),
+        supabase
+          .from('program_blocks')
+          .select('id, name, notes, order_index, week_number')
+          .eq('template_id', activeTemplateId)
+          .order('order_index', { ascending: true }),
+      ]);
+
+      const { data: archivedWeeksData, error: archivedWeeksError } = archivedRes;
+      if (archivedWeeksError) throw archivedWeeksError;
+      const archivedWeeks = new Set((archivedWeeksData || []).map(w => w.week_number));
+
+      const { data: rawBlocksData, error: blocksError } = blocksRes;
+      if (blocksError) throw blocksError;
+      const blocksData = (rawBlocksData || []).filter(b => !archivedWeeks.has(b.week_number || 1));
+
+      // Renumber remaining weeks sequentially for display only — the raw
+      // week_number values aren't touched (coach-side views and the export
+      // builder still use them as-is), but if e.g. week 1 got archived and
+      // weeks 2-3 remain, the warrior should see "Week 1, Week 2", not a
+      // confusing "Week 2, Week 3" gap.
+      const remainingRawWeeks = Array.from(new Set((blocksData || []).map(b => b.week_number || 1))).sort((a, b) => a - b);
+      const rawToDisplayWeek = new Map<number, number>(remainingRawWeeks.map((raw, idx) => [raw, idx + 1]));
+
+      // Batch C: block_exercises needs the block ids from batch B, so it has
+      // to wait — but it's still one batched IN(...) query for every block
+      // rather than one query per block (fixed N+1, kept as-is here).
       const blockIds = (blocksData || []).map(b => b.id);
       let allExercisesData: any[] = [];
-      
+
       if (blockIds.length > 0) {
         const { data: exercisesBatchData, error: batchError } = await supabase
           .from('block_exercises')
@@ -478,7 +494,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         if (batchError) throw batchError;
         allExercisesData = exercisesBatchData || [];
       }
-      
+
       const exercisesByBlock: Record<string, any[]> = {};
       allExercisesData.forEach(ex => {
         if (!exercisesByBlock[ex.block_id]) exercisesByBlock[ex.block_id] = [];
