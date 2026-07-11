@@ -11,6 +11,7 @@ import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { ScoreBar } from './ScoreBar';
 import { SuggestedTestCard } from './SuggestedTestCard';
 import { QuickStatsRow } from './QuickStatsRow';
+import { CommunitySection } from './CommunitySection';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 
 interface ProfileHeaderProps {
@@ -230,26 +231,38 @@ export function ProfileHeader({
         </View>
       </View>
 
-      <SuggestedTestCard
-        userId={profile?.id}
-        staticPts={staticPts}
-        powerPts={powerPts}
-        mmPts={mmPts}
-        strengthTier={profile?.strength_tier || 0}
-        staticPbs={staticPbs}
-        powerPbs={powerPbs}
-        oneMMPbs={oneMMPbs}
-        onOpenStatic={onOpenStaticWorld}
-        onOpenPower={onOpenPowerAssessment}
-        onOpenOneMinMax={onOpenOneMinMax}
-        theme={theme}
-      />
+      {/* Takes the full-size SuggestedTestCard's old spot — that card is
+          now a compact tile inside QuickStatsRow below instead (see
+          firstTile), freeing this space for Create/Join Community, which
+          needs to be visible without scrolling. */}
+      {profile?.id && (
+        <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
+          <CommunitySection userId={profile.id} />
+        </View>
+      )}
 
       <QuickStatsRow
         streakDays={weeklyStats.streakDays}
         pointsThisWeek={weeklyStats.pointsThisWeek}
         workoutsCompleted={weeklyStats.workoutsCompleted}
         theme={theme}
+        firstTile={
+          <SuggestedTestCard
+            compact
+            userId={profile?.id}
+            staticPts={staticPts}
+            powerPts={powerPts}
+            mmPts={mmPts}
+            strengthTier={profile?.strength_tier || 0}
+            staticPbs={staticPbs}
+            powerPbs={powerPbs}
+            oneMMPbs={oneMMPbs}
+            onOpenStatic={onOpenStaticWorld}
+            onOpenPower={onOpenPowerAssessment}
+            onOpenOneMinMax={onOpenOneMinMax}
+            theme={theme}
+          />
+        }
       />
 
       {/* Coaching / Warrior Program Button */}

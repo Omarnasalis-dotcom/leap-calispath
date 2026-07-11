@@ -3,7 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STATIC_MOVEMENTS, STATIC_CATEGORIES } from '../../lib/staticLogic';
-import { POWER_MOVEMENTS } from '../../lib/powerLogic';
+import { POWER_MOVEMENTS, isPowerWorldUnlocked } from '../../lib/powerLogic';
 import { ONEMM_MOVEMENTS, ONEMM_CATEGORIES } from '../../lib/oneMMLogic';
 
 type WorldId = 'static' | 'power' | '1mm';
@@ -21,12 +21,17 @@ interface SuggestedTestCardProps {
   onOpenPower: () => void;
   onOpenOneMinMax: (category?: 'entry' | 'main' | 'advanced') => void;
   theme: any;
+  // Renders as a single QuickStatsRow-sized tile (icon + short label,
+  // matching that row's 3-line rhythm) instead of the full card with its
+  // progress bar and 2 movement pills — same suggestion logic underneath,
+  // just a smaller footprint for use inside that row.
+  compact?: boolean;
 }
 
-const DISCIPLINES: Record<WorldId, { label: string; color: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = {
-  static: { label: 'STATIC', color: '#7E57C2', icon: 'snowflake' },
-  power: { label: 'POWER', color: '#FF5252', icon: 'lightning-bolt' },
-  '1mm': { label: '1-MINUTE MAX', color: '#FF7043', icon: 'timer-outline' },
+const DISCIPLINES: Record<WorldId, { label: string; shortLabel: string; color: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = {
+  static: { label: 'STATIC', shortLabel: 'STATIC', color: '#7E57C2', icon: 'snowflake' },
+  power: { label: 'POWER', shortLabel: 'POWER', color: '#FF5252', icon: 'lightning-bolt' },
+  '1mm': { label: '1-MINUTE MAX', shortLabel: '1MM', color: '#FF7043', icon: 'timer-outline' },
 };
 
 const ONEMM_PATTERN_LABELS: Record<string, string> = {
@@ -160,13 +165,18 @@ function computeSuggestion(
   powerPbs: Record<string, number>,
   oneMMPbs: Record<string, number>,
 ): { world: WorldId; unit: SuggestionUnit; rotation: RotationState } {
-  const worlds: WorldId[] = ['static', 'power', '1mm'];
+  // Power World is gated behind strength tier 6 (isPowerWorldUnlocked) —
+  // never rank it as a candidate for a user who can't actually open it, or
+  // the "lowest points" heuristic always picks it (a locked world's points
+  // are permanently 0).
+  const worlds: WorldId[] = isPowerWorldUnlocked(strengthTier) ? ['static', 'power', '1mm'] : ['static', '1mm'];
 
   // A version mismatch means the picking algorithm changed since this was
   // saved — treat it as no history at all rather than trusting stale
   // fields (or worse, replaying a suggestion the current algorithm would
-  // never have produced).
-  if (rotation && rotation.version !== ROTATION_SCHEMA_VERSION) {
+  // never have produced). Same for a saved suggestion pointing at Power
+  // from before it was unlocked (or from before this gate existed).
+  if (rotation && (rotation.version !== ROTATION_SCHEMA_VERSION || (rotation.lastWorld === 'power' && !isPowerWorldUnlocked(strengthTier)))) {
     rotation = null;
   }
 
@@ -205,7 +215,7 @@ export function SuggestedTestCard({
   userId, staticPts, powerPts, mmPts, strengthTier,
   staticPbs, powerPbs, oneMMPbs,
   onOpenStatic, onOpenPower, onOpenOneMinMax,
-  theme,
+  theme, compact,
 }: SuggestedTestCardProps) {
   const storageKey = `suggested_test_rotation_${userId}`;
   const [rotation, setRotation] = useState<RotationState | null>(null);
@@ -260,6 +270,21 @@ export function SuggestedTestCard({
     else onOpenPower();
   };
 
+  if (compact) {
+    const bestPill = result.unit.pills[0];
+    return (
+      <TouchableOpacity
+        style={[styles.compactTile, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
+        onPress={() => bestPill ? handlePillPress(bestPill) : (result.world === '1mm' ? onOpenOneMinMax() : result.world === 'static' ? onOpenStatic() : onOpenPower())}
+        activeOpacity={0.75}
+      >
+        <MaterialCommunityIcons name={meta.icon} size={16} color={meta.color} style={styles.compactIcon} />
+        <Text style={[styles.compactValue, { color: theme.text.primary }]} numberOfLines={1}>{meta.shortLabel}</Text>
+        <Text style={[styles.compactLabel, { color: theme.text.secondary }]} numberOfLines={1}>SUGGESTED</Text>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <View style={[styles.card, { borderColor: `${meta.color}40`, backgroundColor: `${meta.color}0D` }]}>
       <View style={styles.headerRow}>
@@ -295,6 +320,30 @@ export function SuggestedTestCard({
 }
 
 const styles = StyleSheet.create({
+  // Matches QuickStatsRow's tile styling exactly (flex:1, same padding/
+  // radius/border) so this sits seamlessly alongside its other 2 tiles.
+  compactTile: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 12,
+  },
+  compactIcon: {
+    marginBottom: 4,
+  },
+  compactValue: {
+    fontSize: 12,
+    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+  },
+  compactLabel: {
+    fontSize: 8,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+    marginTop: 2,
+    fontFamily: 'PlusJakartaSans-Bold',
+  },
   card: {
     borderWidth: 1,
     borderRadius: 14,

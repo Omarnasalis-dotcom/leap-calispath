@@ -56,13 +56,17 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   // Community scope — must trigger a server-side refetch (RPCs cap at 100
   // rows before any filter), unlike genderFilter which filters client-side
-  // on the already-fetched, already-limited data.
-  const [onemmScope, setOnemmScope] = useState<'public' | 'community'>(
-    profile?.community_id ? 'community' : 'public'
-  );
-  useEffect(() => {
-    setOnemmScope(profile?.community_id ? 'community' : 'public');
-  }, [profile?.community_id]);
+  // on the already-fetched, already-limited data. Derived fresh each render
+  // from profile.community_id rather than mirrored into its own useState
+  // via a syncing useEffect — that version fetched once at mount with the
+  // stale 'public' default (profile hadn't loaded yet) and again once the
+  // sync effect corrected it, and whichever in-flight request resolved
+  // last won, regardless of which was actually current. A derived value is
+  // correct on the very first render that has real profile data, so the
+  // fetch effect below only fires once for that transition.
+  const [manualOnemmScope, setManualOnemmScope] = useState<'public' | 'community' | null>(null);
+  const onemmScope: 'public' | 'community' = manualOnemmScope ?? (profile?.community_id ? 'community' : 'public');
+  const setOnemmScope = setManualOnemmScope;
 
   const filteredModalLeaderboardData = React.useMemo(() => {
     let list = modalLeaderboardData;

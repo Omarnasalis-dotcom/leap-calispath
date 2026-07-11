@@ -92,17 +92,16 @@ export function StrengthWorldView({
         </View>
       )}
 
-      {category === 'strength' && (
-        <TierLeaderboardList
-          entries={leaderboardEntries}
-          currentUserId={profile?.id}
-          loading={leaderboardLoading}
-          theme={theme}
-          hasCommunity={hasCommunity}
-          leaderboardScope={leaderboardScope}
-          onLeaderboardScopeChange={onLeaderboardScopeChange}
-        />
-      )}
+      <TierLeaderboardList
+        entries={leaderboardEntries}
+        category={category}
+        currentUserId={profile?.id}
+        loading={leaderboardLoading}
+        theme={theme}
+        hasCommunity={hasCommunity}
+        leaderboardScope={leaderboardScope}
+        onLeaderboardScopeChange={onLeaderboardScopeChange}
+      />
 
       {/* Action Buttons */}
       <View style={{ marginBottom: 16 }}>

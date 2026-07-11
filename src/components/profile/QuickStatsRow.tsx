@@ -7,17 +7,27 @@ interface QuickStatsRowProps {
   pointsThisWeek: number;
   workoutsCompleted: number;
   theme: any;
+  // Replaces the Day Streak tile with arbitrary content (same flex:1 slot)
+  // — used to fit SuggestedTestCard's compact tile into this row instead.
+  // Falls back to the normal Day Streak tile when omitted.
+  firstTile?: React.ReactNode;
 }
 
-export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, theme }: QuickStatsRowProps) {
+export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, theme, firstTile }: QuickStatsRowProps) {
   const stats: { icon: keyof typeof MaterialCommunityIcons.glyphMap; value: string; label: string }[] = [
-    { icon: 'fire', value: `${streakDays}`, label: 'DAY STREAK' },
     { icon: 'trending-up', value: `${pointsThisWeek >= 0 ? '+' : ''}${pointsThisWeek}`, label: 'PTS THIS WEEK' },
     { icon: 'target', value: `${workoutsCompleted}`, label: 'WORKOUTS' },
   ];
 
   return (
     <View style={styles.row}>
+      {firstTile ?? (
+        <View style={[styles.tile, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+          <MaterialCommunityIcons name="fire" size={16} color={theme.accent} style={styles.icon} />
+          <Text style={[styles.value, { color: theme.text.primary }]}>{streakDays}</Text>
+          <Text style={[styles.label, { color: theme.text.secondary }]}>DAY STREAK</Text>
+        </View>
+      )}
       {stats.map((s) => (
         <View key={s.label} style={[styles.tile, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
           <MaterialCommunityIcons name={s.icon} size={16} color={theme.accent} style={styles.icon} />

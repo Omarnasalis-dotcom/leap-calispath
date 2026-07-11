@@ -28,7 +28,6 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
-import { CommunitySection } from '../components/profile/CommunitySection';
 import { TierRankCard } from '../components/profile/TierRankCard';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
@@ -143,16 +142,23 @@ export function ProfileScreen({
   // joined a community (profile.community_id). Filtering happens
   // server-side inside getTierLeaderboard/getPowerTierLeaderboard, not by
   // re-filtering already-fetched entries (see community feature plan).
-  // Defaults to 'community' whenever the user has one — including the
-  // moment they just joined, not only on next app load — while still
-  // letting them manually switch back to 'public' within the session.
-  const [leaderboardScope, setLeaderboardScope] = useState<'public' | 'community'>(
-    profile?.community_id ? 'community' : 'public'
-  );
-  useEffect(() => {
-    if (profile?.community_id) setLeaderboardScope('community');
-    else setLeaderboardScope('public');
-  }, [profile?.community_id]);
+  //
+  // Defaults to 'community' whenever the user has one, but stores ONLY the
+  // manual override — the effective scope is derived fresh every render
+  // from profile.community_id, never a separate piece of state that a
+  // useEffect has to "catch up" to a tick later. That two-step version
+  // (useState defaulted at mount + a useEffect syncing it once profile
+  // loads) caused a real race: the fetch effect below fires once with the
+  // stale mount-time default (profile isn't loaded yet, so 'public'), then
+  // fires again once the sync effect corrects it to 'community' — and
+  // whichever of those two in-flight requests resolves LAST wins,
+  // regardless of which was actually current. Deriving the scope
+  // synchronously means profile.community_id and the scope it implies are
+  // always consistent on the very first render that has real profile data,
+  // so the fetch effect only fires once for that transition.
+  const [manualLeaderboardScope, setManualLeaderboardScope] = useState<'public' | 'community' | null>(null);
+  const leaderboardScope: 'public' | 'community' = manualLeaderboardScope ?? (profile?.community_id ? 'community' : 'public');
+  const setLeaderboardScope = setManualLeaderboardScope;
 
   // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
@@ -164,13 +170,12 @@ export function ProfileScreen({
   // WRA leaderboard's community scope — unlike gender, this must trigger a
   // server-side refetch rather than a client-side filter (see community
   // feature plan: the RPC caps at 100 rows before any filter is applied,
-  // so a client-side filter would silently drop small communities).
-  const [wraScope, setWraScope] = useState<'public' | 'community'>(
-    profile?.community_id ? 'community' : 'public'
-  );
-  useEffect(() => {
-    setWraScope(profile?.community_id ? 'community' : 'public');
-  }, [profile?.community_id]);
+  // so a client-side filter would silently drop small communities). Derived
+  // the same way as leaderboardScope above — see that comment for why a
+  // separate useState-plus-syncing-useEffect caused stale/racy defaults.
+  const [manualWraScope, setManualWraScope] = useState<'public' | 'community' | null>(null);
+  const wraScope: 'public' | 'community' = manualWraScope ?? (profile?.community_id ? 'community' : 'public');
+  const setWraScope = setManualWraScope;
 
   const filteredWraLeaderboard = React.useMemo(() => {
     let list = wraLeaderboard;
@@ -378,7 +383,10 @@ export function ProfileScreen({
     setLoadingLB(true);
     setShowWRALeaderboard(true);
     try {
-      const scope = scopeOverride || wraScope;
+      // Guard against callers wiring this up directly as an onPress handler
+      // — RN invokes onPress with a GestureResponderEvent, which is truthy
+      // and would otherwise silently override the derived wraScope.
+      const scope = (scopeOverride === 'public' || scopeOverride === 'community') ? scopeOverride : wraScope;
       const scopeCommunityId = scope === 'community' ? profile?.community_id : null;
       const data = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id, scopeCommunityId);
       setWRALeaderboard(data);
@@ -443,7 +451,7 @@ export function ProfileScreen({
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onShowCoachPrompt={() => setShowCoachPrompt(true)}
                 onOpenAdmin={onOpenAdmin}
-                onFetchWRALeaderboard={fetchWRALeaderboard}
+                onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
                 onOpenWarriorProgram={onOpenWarriorProgram}
@@ -459,8 +467,6 @@ export function ProfileScreen({
                 <MaterialCommunityIcons name="trophy-outline" size={16} color="#FFFFFF" />
                 <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
               </TouchableOpacity>
-
-              {profile?.id && <CommunitySection userId={profile.id} />}
             </>
           )}
 

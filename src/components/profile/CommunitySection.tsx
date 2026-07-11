@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Modal, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -59,6 +59,10 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
         await Promise.all([refresh(), refreshProfile?.()]);
       },
       onError: (err) => setFormError(err.message),
+      // NAME_TAKEN/CODE_TAKEN are expected, already-handled validation
+      // outcomes (shown inline via formError), not bugs — skip the
+      // console.error that otherwise triggers a dev-mode redbox on-device.
+      skipConsoleError: true,
     });
   };
 
@@ -79,6 +83,11 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
         await Promise.all([refresh(), refreshProfile?.()]);
       },
       onError: (err) => setFormError(err.message),
+      // CODE_NOT_FOUND is an expected, already-handled validation outcome
+      // (shown inline via formError) — not a bug. A mistyped code is the
+      // most common way through this path, so it shouldn't look like a
+      // crash on-device.
+      skipConsoleError: true,
     });
   };
 
@@ -94,6 +103,18 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
     });
   };
 
+  const confirmLeave = () => {
+    const warning = `You'll lose access to ${community?.name || 'this community'}'s leaderboards until you rejoin with a code.`;
+    if (Platform.OS === 'web') {
+      if (window.confirm(warning)) handleLeave();
+    } else {
+      Alert.alert('LEAVE COMMUNITY?', warning, [
+        { text: 'CANCEL', style: 'cancel' },
+        { text: 'LEAVE', style: 'destructive', onPress: handleLeave },
+      ]);
+    }
+  };
+
   if (loading) return null;
 
   return (
@@ -106,7 +127,7 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
               {community.name.toUpperCase()}
             </Text>
           </View>
-          <TouchableOpacity onPress={handleLeave} disabled={isMutating} style={styles.leaveBtn}>
+          <TouchableOpacity onPress={confirmLeave} disabled={isMutating} style={styles.leaveBtn}>
             {isMutating ? <LeapLogo size={18} animated /> : (
               <Text style={{ color: '#FF6B6B', fontWeight: '900', fontSize: 11, letterSpacing: 1 }}>LEAVE</Text>
             )}
