@@ -26,6 +26,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
+import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
 // This screen is a deliberate fixed-dark "glass card" exception to the
@@ -266,7 +267,7 @@ export function AuthScreen() {
       setResetSent(true);
       startResendCooldown();
     } catch (error: any) {
-      const message = error.message || 'An unexpected error occurred.';
+      const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
       else Alert.alert('Arena Error', message);
     } finally {
@@ -345,7 +346,7 @@ export function AuthScreen() {
       if (isSignUp && inviteCodeReserved) {
         await supabase.rpc('release_invite_code', { p_code: trimmedCode });
       }
-      const message = error.message || 'An unexpected error occurred.';
+      const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') {
         window.alert(message);
       } else {
@@ -362,7 +363,7 @@ export function AuthScreen() {
     try {
       await signInWithGoogle();
     } catch (error: any) {
-      const message = error.message || 'An unexpected error occurred.';
+      const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
       else Alert.alert('Arena Error', message);
     } finally {
@@ -376,7 +377,7 @@ export function AuthScreen() {
     try {
       await signInWithApple();
     } catch (error: any) {
-      const message = error.message || 'An unexpected error occurred.';
+      const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
       else Alert.alert('Arena Error', message);
     } finally {
