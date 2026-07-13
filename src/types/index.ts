@@ -78,7 +78,7 @@ export interface AuthContextType {
   loading: boolean;
   profileLoading: boolean;
   needsPasswordReset: boolean;
-  signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) => Promise<void>;
+  signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithApple: () => Promise<void>;

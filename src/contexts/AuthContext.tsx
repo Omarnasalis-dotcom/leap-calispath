@@ -198,21 +198,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signUp(email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) {
+  async function signUp(email: string, password: string) {
     const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-        
+
+    // Name/username/gender/country are deliberately not collected here —
+    // every signup method (email included) now creates a bare profile row
+    // and CompleteProfileScreen is the single place that fills the rest in,
+    // the same path Google/Apple sign-in already used.
     const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
-        data: { 
-          timezone,
-          first_name: metadata?.firstName,
-          last_name: metadata?.lastName,
-          gender: metadata?.gender,
-          country: metadata?.country,
-          display_name: metadata?.displayName
-        },
+        data: { timezone },
       },
     });
 
