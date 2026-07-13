@@ -71,9 +71,11 @@ const styles = StyleSheet.create({
   container: {
     width: '100%',
     aspectRatio: 16 / 9,
+    maxHeight: 160,
+    alignSelf: 'center',
     borderRadius: 16,
     overflow: 'hidden',
-    marginBottom: 24,
+    marginBottom: 16,
     backgroundColor: '#000',
   },
   media: {

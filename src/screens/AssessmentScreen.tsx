@@ -28,6 +28,7 @@ import {
 } from '../lib/spartanLogic';
 import { preloadExerciseMedia } from '../data/exerciseMedia';
 import { Button } from '../components/Button';
+import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -219,7 +220,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       onComplete();
     } catch (error: any) {
       console.error('Assessment error:', error);
-      Alert.alert('Error', error.message || 'Failed to save assessment');
+      Alert.alert('Error', getFriendlyErrorMessage(error));
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;
@@ -260,8 +261,8 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
             ))}
           </View>
         </View>
-        <View style={{ alignItems: 'center', marginTop: 16 }}>
-          <LeapLogo size={100} animated={true} />
+        <View style={{ alignItems: 'center', marginTop: 4 }}>
+          <LeapLogo size={64} animated={true} />
         </View>
 
         <View style={styles.agentContainer}>
@@ -301,18 +302,16 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
                 How many {currentOption.label}s can you do?
               </Text>
               
-              <TouchableOpacity activeOpacity={1} onPress={() => inputRef.current?.focus()} style={{ width: '100%' }}>
-                <TextInput
-                  ref={inputRef}
-                  style={[styles.repInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-                  value={customReps}
-                  onChangeText={setCustomReps}
-                  keyboardType="number-pad"
-                  placeholder="0"
-                  placeholderTextColor={theme.text.tertiary}
-                  onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150)}
-                />
-              </TouchableOpacity>
+              <TextInput
+                ref={inputRef}
+                style={[styles.repInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                value={customReps}
+                onChangeText={setCustomReps}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={theme.text.tertiary}
+                onFocus={() => setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 150)}
+              />
 
               <View style={styles.quickRepsGrid}>
                 {QUICK_REPS.map((reps) => (
@@ -355,8 +354,12 @@ const styles = StyleSheet.create({
   content: {
     flexGrow: 1,
     paddingHorizontal: 24,
-    paddingTop: 60,
-    paddingBottom: 80,
+    // SpartanLayout (the wrapper rendering this screen) already applies the
+    // safe-area top inset — adding another fixed paddingTop here stacked on
+    // top of it, pushing everything down and leaving the reps/quick-rep grid
+    // below the fold on most devices.
+    paddingTop: 8,
+    paddingBottom: 24,
   },
   header: {
     flexDirection: 'row',
@@ -385,13 +388,13 @@ const styles = StyleSheet.create({
   agentContainer: {
     flex: 1,
     justifyContent: 'flex-start',
-    marginTop: 16,
+    marginTop: 8,
   },
   movementTitle: {
     fontSize: 20,
     fontFamily: 'PlusJakartaSans-ExtraBold',
     letterSpacing: 3,
-    marginBottom: 32,
+    marginBottom: 12,
     textAlign: 'center',
   },
   questionCard: {
@@ -408,7 +411,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontFamily: 'PlusJakartaSans-Regular',
     textAlign: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
     lineHeight: 22,
     paddingHorizontal: 20,
   },
@@ -430,19 +433,19 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   repInput: {
-    fontSize: 64,
+    fontSize: 56,
     fontFamily: 'PlusJakartaSans-ExtraBold',
     textAlign: 'center',
     width: '100%',
-    paddingVertical: 20,
-    marginBottom: 32,
+    paddingVertical: 8,
+    marginBottom: 16,
   },
   quickRepsGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 12,
     justifyContent: 'center',
-    marginBottom: 40,
+    marginBottom: 20,
   },
   quickRepBtn: {
     paddingVertical: 12,
