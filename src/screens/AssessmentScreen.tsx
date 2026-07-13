@@ -12,12 +12,12 @@ import {
   Platform,
   UIManager,
   KeyboardAvoidingView,
-  Image,
 } from 'react-native';
 import { LeapLogo } from '../components/LeapLogo';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { ExerciseDemo } from '../components/ExerciseDemo';
 import { supabase } from '../lib/supabase';
 import {
   calculateSpartanRank,
@@ -26,6 +26,7 @@ import {
   MovementAssessment,
   StrengthAssessment,
 } from '../lib/spartanLogic';
+import { preloadExerciseMedia } from '../data/exerciseMedia';
 import { Button } from '../components/Button';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
@@ -62,6 +63,19 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
   const step = STEPS[currentStep];
   const options = MOVEMENT_OPTIONS[step];
   const currentOption = options[currentVariantIndex];
+
+  useEffect(() => {
+    let nextId: string | undefined;
+    if (currentVariantIndex < options.length - 1) {
+      nextId = options[currentVariantIndex + 1].value;
+    } else {
+      const nextStepIndex = currentStep + 1;
+      if (nextStepIndex < STEPS.length) {
+        nextId = MOVEMENT_OPTIONS[STEPS[nextStepIndex]][0].value;
+      }
+    }
+    if (nextId) preloadExerciseMedia(nextId);
+  }, [currentStep, currentVariantIndex]);
 
   function calculateHolisticTierPreview(asses: Record<Step, MovementAssessment>): number {
     const p = asses.pullups;
@@ -254,6 +268,8 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
           <Text style={[styles.movementTitle, { color: theme.text.primary }]}>
             {getMovementTitle(step)}
           </Text>
+
+          <ExerciseDemo movementId={currentOption.value} label={currentOption.label} />
 
           {!askingReps ? (
             <View style={styles.questionCard}>
