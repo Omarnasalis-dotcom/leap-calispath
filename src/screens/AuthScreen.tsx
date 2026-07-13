@@ -52,7 +52,9 @@ export function AuthScreen() {
   const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [isCountryModalVisible, setIsCountryModalVisible] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
-  const { signUp, signIn } = useAuth();
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [appleLoading, setAppleLoading] = useState(false);
+  const { signUp, signIn, signInWithGoogle, signInWithApple } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
 
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
@@ -201,6 +203,32 @@ export function AuthScreen() {
       }
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function handleGoogleSignIn() {
+    setGoogleLoading(true);
+    try {
+      await signInWithGoogle();
+    } catch (error: any) {
+      const message = error.message || 'An unexpected error occurred.';
+      if (Platform.OS === 'web') window.alert(message);
+      else Alert.alert('Arena Error', message);
+    } finally {
+      setGoogleLoading(false);
+    }
+  }
+
+  async function handleAppleSignIn() {
+    setAppleLoading(true);
+    try {
+      await signInWithApple();
+    } catch (error: any) {
+      const message = error.message || 'An unexpected error occurred.';
+      if (Platform.OS === 'web') window.alert(message);
+      else Alert.alert('Arena Error', message);
+    } finally {
+      setAppleLoading(false);
     }
   }
 
@@ -417,11 +445,35 @@ export function AuthScreen() {
                 </TouchableOpacity>
               )}
 
-              <Button 
-                title={isSignUp ? 'CLAIM YOUR DESTINY' : 'ENTER THE ARENA'} 
-                onPress={handleSubmit} 
+              <Button
+                title={isSignUp ? 'CLAIM YOUR DESTINY' : 'ENTER THE ARENA'}
+                onPress={handleSubmit}
                 loading={loading}
               />
+
+              <View style={styles.dividerRow}>
+                <View style={[styles.dividerLine, { backgroundColor: theme.card.border }]} />
+                <Text style={[styles.dividerText, { color: theme.text.tertiary }]}>OR</Text>
+                <View style={[styles.dividerLine, { backgroundColor: theme.card.border }]} />
+              </View>
+
+              <Button
+                title="CONTINUE WITH GOOGLE"
+                variant="secondary"
+                onPress={handleGoogleSignIn}
+                loading={googleLoading}
+                disabled={appleLoading}
+              />
+
+              {Platform.OS === 'ios' && (
+                <Button
+                  title="CONTINUE WITH APPLE"
+                  variant="secondary"
+                  onPress={handleAppleSignIn}
+                  loading={appleLoading}
+                  disabled={googleLoading}
+                />
+              )}
 
               {isSignUp && (
                 <TouchableOpacity onPress={() => Linking.openURL('https://leap-arena.com/privacy')}>
@@ -845,6 +897,21 @@ const styles = StyleSheet.create({
     alignSelf: 'flex-end',
     marginTop: -8,
     marginBottom: 16,
+  },
+  dividerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginVertical: 12,
+  },
+  dividerLine: {
+    flex: 1,
+    height: 1,
+  },
+  dividerText: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    marginHorizontal: 12,
   },
   resetSentIcon: {
     width: 56,

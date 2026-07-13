@@ -19,7 +19,10 @@
       "bundleIdentifier": "com.leap.calispath",
       "buildNumber": "1",
       "entitlements": {
-        "aps-environment": "production"
+        "aps-environment": "production",
+        "com.apple.developer.applesignin": [
+          "Default"
+        ]
       },
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
@@ -62,6 +65,13 @@
     "plugins": [
       "expo-secure-store",
       "expo-notifications",
+      "expo-apple-authentication",
+      [
+        "@react-native-google-signin/google-signin",
+        {
+          "iosUrlScheme": "com.googleusercontent.apps.752787345607-2sjec1b1lt3qjm5qvdgnrddjgeh4muok"
+        }
+      ],
       [
         "expo-font",
         {
@@ -72,7 +82,9 @@
           ]
         }
       ],
-      "expo-router"
+      "expo-router",
+      "expo-video",
+      "./plugins/withPodfileModularHeaders.js"
     ],
     "extra": {
       "router": {},

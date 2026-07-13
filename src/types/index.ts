@@ -80,6 +80,8 @@ export interface AuthContextType {
   needsPasswordReset: boolean;
   signUp: (email: string, password: string, metadata?: { firstName: string, lastName: string, gender: string, country: string, displayName: string }) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
+  signInWithGoogle: () => Promise<void>;
+  signInWithApple: () => Promise<void>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   clearPasswordReset: () => Promise<void>;

@@ -7,6 +7,23 @@ import { User } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 import * as Linking from 'expo-linking';
+import * as AppleAuthentication from 'expo-apple-authentication';
+import {
+  GoogleSignin,
+  isSuccessResponse,
+  isErrorWithCode,
+  statusCodes,
+} from '@react-native-google-signin/google-signin';
+
+let googleSigninConfigured = false;
+function ensureGoogleSigninConfigured() {
+  if (googleSigninConfigured) return;
+  GoogleSignin.configure({
+    webClientId: process.env.EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID,
+    iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+  });
+  googleSigninConfigured = true;
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -211,6 +228,102 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
+  function mapSocialAuthError(err: any): Error {
+    // Supabase's typed auth error codes for the "this identity/email is
+    // already tied to a different sign-in method" family of failures.
+    if (err?.code === 'identity_already_exists') {
+      return new Error('This account is already linked to another Leap Arena profile.');
+    }
+    if (['email_exists', 'user_already_exists', 'manual_linking_disabled'].includes(err?.code)) {
+      return new Error('An account already exists with this email using a different sign-in method. Try signing in with your email and password instead.');
+    }
+    if (err instanceof TypeError || /network/i.test(err?.message ?? '')) {
+      return new Error('Network error. Please check your connection and try again.');
+    }
+    return err instanceof Error ? err : new Error('Sign-in failed. Please try again.');
+  }
+
+  async function signInWithGoogle() {
+    if (Platform.OS === 'web') {
+      throw new Error('Google sign-in is not yet available on web.');
+    }
+
+    ensureGoogleSigninConfigured();
+
+    try {
+      await GoogleSignin.hasPlayServices();
+      const response = await GoogleSignin.signIn();
+
+      if (!isSuccessResponse(response)) {
+        return; // user cancelled — not an error, nothing to surface
+      }
+
+      const idToken = response.data.idToken;
+      if (!idToken) {
+        throw new Error('Google did not return an ID token. Please try again.');
+      }
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'google',
+        token: idToken,
+      });
+      if (error) throw error;
+    } catch (err: any) {
+      if (isErrorWithCode(err)) {
+        if (err.code === statusCodes.SIGN_IN_CANCELLED || err.code === statusCodes.IN_PROGRESS) {
+          return;
+        }
+        if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
+          throw new Error('Google Play Services is not available or out of date on this device.');
+        }
+      }
+      throw mapSocialAuthError(err);
+    }
+  }
+
+  async function signInWithApple() {
+    if (Platform.OS !== 'ios') {
+      throw new Error('Sign in with Apple is only available on iOS.');
+    }
+
+    try {
+      const credential = await AppleAuthentication.signInAsync({
+        requestedScopes: [
+          AppleAuthentication.AppleAuthenticationScope.FULL_NAME,
+          AppleAuthentication.AppleAuthenticationScope.EMAIL,
+        ],
+      });
+
+      if (!credential.identityToken) {
+        throw new Error('Apple did not return an identity token. Please try again.');
+      }
+
+      const { error } = await supabase.auth.signInWithIdToken({
+        provider: 'apple',
+        token: credential.identityToken,
+      });
+      if (error) throw error;
+
+      // Apple only ever returns the user's name on the very first authorization
+      // for this app — capture it now into the profile row the DB trigger just
+      // created, since it can never be retrieved again on later sign-ins.
+      const firstName = credential.fullName?.givenName ?? undefined;
+      const lastName = credential.fullName?.familyName ?? undefined;
+      if (firstName || lastName) {
+        const { data: authData } = await supabase.auth.getUser();
+        if (authData?.user?.id) {
+          await supabase
+            .from('profiles')
+            .update({ first_name: firstName, last_name: lastName })
+            .eq('id', authData.user.id);
+        }
+      }
+    } catch (err: any) {
+      if (err?.code === 'ERR_REQUEST_CANCELED') return;
+      throw mapSocialAuthError(err);
+    }
+  }
+
   async function signOut() {
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
@@ -249,6 +362,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     needsPasswordReset,
     signUp,
     signIn,
+    signInWithGoogle,
+    signInWithApple,
     signOut,
     refreshProfile,
     clearPasswordReset,

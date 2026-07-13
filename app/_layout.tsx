@@ -79,6 +79,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
   const inOnboarding = segments[0] === 'onboarding';
   const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
+  const inCompleteProfile = segments[0] === 'complete-profile';
   const isResetPassword = segments[0] === 'reset-password';
 
   // 2. Prevent rendering children and redirect when a password reset is required
@@ -94,13 +95,22 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       return <Redirect href="/auth" />;
     }
   } else {
-    // 4. Prevent rendering children and redirect unassessed users to assessment
-    if (!profile?.assessed_at) {
+    // 4. Force first-time social sign-ins to pick a username before anything else.
+    // Email/password signup always sets display_name during signUp(), so this
+    // only ever fires for a Google/Apple sign-in that just created its profile row.
+    if (!profile?.display_name) {
+      if (!inCompleteProfile) {
+        return <Redirect href="/complete-profile" />;
+      }
+    } else if (inCompleteProfile) {
+      return <Redirect href="/" />;
+    } else if (!profile?.assessed_at) {
+      // 5. Prevent rendering children and redirect unassessed users to assessment
       if (!inAssessmentGroup) {
         return <Redirect href="/assessment" />;
       }
     } else {
-      // 5. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes.
+      // 6. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes.
       // reset-password is deliberately excluded: it must stay reachable regardless of
       // whatever session happens to already exist (a stale cached session, or the
       // transient USER_UPDATED event fired mid-flow by updateUser() during the reset
@@ -111,7 +121,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 6. Enforce strength tier gates for locked worlds (Static, Clash, Power, Champions)
+  // 7. Enforce strength tier gates for locked worlds (Static, Clash, Power, Champions)
   const strengthTier = profile?.strength_tier || 0;
   const tierLocks: Record<string, number> = {
     'static-world': 1,
@@ -124,7 +134,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
-  // 7. Block coaching/admin routes from non-admin, non-coach users
+  // 8. Block coaching/admin routes from non-admin, non-coach users
   const coachingRoutes = [
     'coaching-hub',
     'my-clients',
