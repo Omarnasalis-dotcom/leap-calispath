@@ -17,6 +17,7 @@ const bronzeGold = '#C8A040';
 function getCardImage(rec: LibraryTemplateRecommendation, index: number) {
   if (rec.tier_range.min === 4 && rec.tier_range.max === 5) return require('../../assets/backpose.png');
   if (rec.tier_range.min === 5 && rec.tier_range.max === 6) return require('../../assets/backmuscle.png');
+  if (rec.tier_range.min === 2 && rec.tier_range.max === 3) return require('../../assets/parallet.png');
   if (rec.tier_range.min === 3 && rec.tier_range.max === 4) return require('../../assets/pushup.png');
   if (rec.tier_range.min === 7 && rec.tier_range.max === 9) return require('../../assets/Fronttouch.png');
   if (rec.tier_range.min === 6 && rec.tier_range.max === 7) return require('../../assets/Frontpose.png');
