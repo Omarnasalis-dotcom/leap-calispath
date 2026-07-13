@@ -240,7 +240,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return err instanceof Error ? err : new Error('Sign-in failed. Please try again.');
   }
 
-  async function signInWithGoogle() {
+  // Returns whether the flow actually completed (vs. the user cancelling the
+  // native prompt) — callers that only care about "is the user signed in"
+  // (e.g. AuthScreen) can ignore this, but DeleteAccountModal uses it as its
+  // re-authentication check for accounts with no password to verify instead.
+  async function signInWithGoogle(): Promise<boolean> {
     if (Platform.OS === 'web') {
       throw new Error('Google sign-in is not yet available on web.');
     }
@@ -252,7 +256,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const response = await GoogleSignin.signIn();
 
       if (!isSuccessResponse(response)) {
-        return; // user cancelled — not an error, nothing to surface
+        return false; // user cancelled — not an error, nothing to surface
       }
 
       const idToken = response.data.idToken;
@@ -265,10 +269,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         token: idToken,
       });
       if (error) throw error;
+      return true;
     } catch (err: any) {
       if (isErrorWithCode(err)) {
         if (err.code === statusCodes.SIGN_IN_CANCELLED || err.code === statusCodes.IN_PROGRESS) {
-          return;
+          return false;
         }
         if (err.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
           throw new Error('Google Play Services is not available or out of date on this device.');
@@ -278,7 +283,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function signInWithApple() {
+  async function signInWithApple(): Promise<boolean> {
     if (Platform.OS !== 'ios') {
       throw new Error('Sign in with Apple is only available on iOS.');
     }
@@ -315,8 +320,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .eq('id', authData.user.id);
         }
       }
+      return true;
     } catch (err: any) {
-      if (err?.code === 'ERR_REQUEST_CANCELED') return;
+      if (err?.code === 'ERR_REQUEST_CANCELED') return false;
       throw mapSocialAuthError(err);
     }
   }

@@ -4,14 +4,22 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 
 export function DeleteAccountModal() {
-  const { user } = useAuth();
+  const { user, signInWithGoogle, signInWithApple } = useAuth();
+  // "The first provider that the user used to sign up with" (Supabase's own
+  // doc comment on app_metadata.provider). Google/Apple accounts never set a
+  // password, so signInWithPassword below would always fail for them with
+  // "invalid credentials" — re-auth has to happen through whichever method
+  // actually created the account instead.
+  const provider = user?.app_metadata?.provider;
+  const isSocialAccount = provider === 'google' || provider === 'apple';
+
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
 
   const handleDeleteAccount = async () => {
-    if (!deletePassword.trim()) {
+    if (!isSocialAccount && !deletePassword.trim()) {
       setDeleteError('Please enter your password.');
       return;
     }
@@ -19,20 +27,37 @@ export function DeleteAccountModal() {
     setDeleteError('');
 
     try {
-      // Step 1: Re-authenticate to verify password
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: user!.email!,
-        password: deletePassword,
-      });
-
-      if (signInError) {
-        if (signInError.status === 400 || signInError.message.toLowerCase().includes('invalid')) {
-          setDeleteError('Incorrect password. Please try again.');
-        } else {
-          setDeleteError(signInError.message || 'Authentication failed. Please try again.');
+      if (isSocialAccount) {
+        // Re-running the same OAuth flow the account was created with is the
+        // re-authentication check here — there's no password to verify, so
+        // if the user can complete it again, that proves it's them. A silent
+        // cancel (signInWithGoogle/signInWithApple return false, not a
+        // thrown error) must NOT fall through to deletion — the user was
+        // already signed in before opening this modal, so skipping this
+        // check would let anyone with the phone unlocked delete the account
+        // with no verification at all.
+        const verified = provider === 'google' ? await signInWithGoogle() : await signInWithApple();
+        if (!verified) {
+          setDeleteError(`Verification with ${provider === 'google' ? 'Google' : 'Apple'} was cancelled.`);
+          setDeleteLoading(false);
+          return;
         }
-        setDeleteLoading(false);
-        return;
+      } else {
+        // Re-authenticate to verify password
+        const { error: signInError } = await supabase.auth.signInWithPassword({
+          email: user!.email!,
+          password: deletePassword,
+        });
+
+        if (signInError) {
+          if (signInError.status === 400 || signInError.message.toLowerCase().includes('invalid')) {
+            setDeleteError('Incorrect password. Please try again.');
+          } else {
+            setDeleteError(signInError.message || 'Authentication failed. Please try again.');
+          }
+          setDeleteLoading(false);
+          return;
+        }
       }
 
       // Step 2: Get fresh session token
@@ -156,29 +181,34 @@ export function DeleteAccountModal() {
               letterSpacing: 1.5,
               textTransform: 'uppercase',
               marginBottom: 8,
+              textAlign: isSocialAccount ? 'center' : 'left',
             }}>
-              Confirm your password to continue
+              {isSocialAccount
+                ? `Verify with ${provider === 'google' ? 'Google' : 'Apple'} to continue`
+                : 'Confirm your password to continue'}
             </Text>
-            <TextInput
-              value={deletePassword}
-              onChangeText={(text) => {
-                setDeletePassword(text);
-                setDeleteError('');
-              }}
-              placeholder="Enter your password"
-              placeholderTextColor="#555"
-              secureTextEntry
-              style={{
-                backgroundColor: '#111',
-                borderWidth: 1,
-                borderColor: deleteError ? '#e24b4a' : '#333',
-                borderRadius: 8,
-                padding: 14,
-                color: '#fff',
-                fontSize: 14,
-                marginBottom: 8,
-              }}
-            />
+            {!isSocialAccount && (
+              <TextInput
+                value={deletePassword}
+                onChangeText={(text) => {
+                  setDeletePassword(text);
+                  setDeleteError('');
+                }}
+                placeholder="Enter your password"
+                placeholderTextColor="#555"
+                secureTextEntry
+                style={{
+                  backgroundColor: '#111',
+                  borderWidth: 1,
+                  borderColor: deleteError ? '#e24b4a' : '#333',
+                  borderRadius: 8,
+                  padding: 14,
+                  color: '#fff',
+                  fontSize: 14,
+                  marginBottom: 8,
+                }}
+              />
+            )}
 
             {deleteError ? (
               <Text style={{
@@ -211,7 +241,7 @@ export function DeleteAccountModal() {
                 letterSpacing: 1.5,
                 textTransform: 'uppercase',
               }}>
-                {deleteLoading ? 'Deleting...' : 'Permanently Delete'}
+                {deleteLoading ? 'Deleting...' : isSocialAccount ? `Verify & Delete` : 'Permanently Delete'}
               </Text>
             </TouchableOpacity>
 
