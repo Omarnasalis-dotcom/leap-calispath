@@ -18,10 +18,10 @@ export const EXERCISE_MEDIA: Record<string, ExerciseMediaEntry> = {
     video: require('../../assets/exercises/Dips.mov'),
   },
   standard_pushup: {
-    video: require('../../assets/exercises/Push ups .mov'),
+    video: require('../../assets/exercises/PushUps.mov'),
   },
   knee_pushup: {
-    video: require('../../assets/exercises/Push ups .mov'),
+    video: require('../../assets/exercises/PushUps.mov'),
   },
   strict_mu: {
     video: require('../../assets/exercises/Muscleup.mov'),
