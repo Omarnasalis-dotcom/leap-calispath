@@ -394,9 +394,11 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       const actualAssignment = Array.isArray(assignment) ? assignment[0] : assignment;
 
       if (!actualAssignment) {
-        setProgramName('');
-        setWeeksData({ 1: [] });
-        setLoading(false);
+        // No program assigned — skip the "NO PROGRAM ASSIGNED YET" empty
+        // state entirely and go straight to picking one. Replace (not push)
+        // so backing out of the recommendations screen returns to Profile
+        // rather than bouncing back into this now-skipped screen.
+        router.replace('/template-recommendations');
         return;
       }
 
