@@ -774,9 +774,24 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   const [isPreparing, setIsPreparing] = useState(false);
   const [preCountdown, setPreCountdown] = useState(0);
   const [saving, setSaving] = useState(false);
+  // Lets a user skip the live timer entirely (manualMode) and type a known
+  // hold time directly, or adjust the captured value after stopping the
+  // timer before it's logged — both feed the same enteredSeconds field
+  // that actually gets saved, rather than the raw timer reading.
+  const [manualMode, setManualMode] = useState(false);
+  const [enteredSeconds, setEnteredSeconds] = useState('');
   const isMounted = useMountedRef();
   const prepStartTimeRef = useRef<number | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Pre-fill the review field with the captured time the moment the timer
+  // stops, so the user can adjust it before logging rather than only ever
+  // seeing a read-only number.
+  useEffect(() => {
+    if (!timerRunning && timerSeconds > 0 && !manualMode) {
+      setEnteredSeconds(String(timerSeconds));
+    }
+  }, [timerRunning, timerSeconds, manualMode]);
 
   useEffect(() => {
     if (prepTimerRef.current) clearInterval(prepTimerRef.current);
@@ -838,6 +853,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
     prepStartTimeRef.current = Date.now();
     setIsPreparing(true);
     resetTimer();
+    setEnteredSeconds('');
   };
 
   const cancelPreparation = () => {
@@ -849,6 +865,22 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
       prepTimerRef.current = null;
     }
     resetTimer();
+  };
+
+  const handleReset = () => {
+    resetTimer();
+    setEnteredSeconds('');
+  };
+
+  const handleEnterManually = () => {
+    setManualMode(true);
+    setEnteredSeconds('');
+  };
+
+  const handleUseTimerInstead = () => {
+    setManualMode(false);
+    resetTimer();
+    setEnteredSeconds('');
   };
 
   const handleClose = () => {
@@ -868,6 +900,8 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
               prepTimerRef.current = null;
             }
             resetTimer();
+            setEnteredSeconds('');
+            setManualMode(false);
             onClose();
           }}
         ]
@@ -878,9 +912,14 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   };
 
   const handleSave = async () => {
+    const seconds = parseInt(enteredSeconds, 10);
+    if (isNaN(seconds) || seconds <= 0) {
+      Alert.alert('Invalid', 'Please enter a valid hold time in seconds.');
+      return;
+    }
     setSaving(true);
     try {
-      await onSaveHold(timerSeconds);
+      await onSaveHold(seconds);
     } finally {
       if (isMounted.current) setSaving(false);
     }
@@ -911,30 +950,79 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
            </View>
 
            <View style={styles.timerContainer}>
-              <Text style={[
-                styles.timerText, 
-                { color: isPreparing ? '#7E57C2' : theme.text.primary }
-              ]}>
-                {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
-              </Text>
-              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
-              </Text>
+              {manualMode ? (
+                <>
+                  <View style={styles.timerInputRow}>
+                    <TextInput
+                      style={[styles.timerText, styles.timerInput, { color: theme.text.primary, borderColor: '#7E57C2' }]}
+                      keyboardType="numeric"
+                      value={enteredSeconds}
+                      onChangeText={setEnteredSeconds}
+                      placeholder="0"
+                      placeholderTextColor={theme.text.tertiary}
+                      autoFocus
+                    />
+                    <Text style={[styles.timerText, { color: theme.text.primary }]}>s</Text>
+                  </View>
+                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ENTER HOLD TIME MANUALLY</Text>
+                </>
+              ) : !isPreparing && !timerRunning && timerSeconds > 0 ? (
+                <>
+                  <View style={styles.timerInputRow}>
+                    <TextInput
+                      style={[styles.timerText, styles.timerInput, { color: theme.text.primary, borderColor: '#7E57C2' }]}
+                      keyboardType="numeric"
+                      value={enteredSeconds}
+                      onChangeText={setEnteredSeconds}
+                    />
+                    <Text style={[styles.timerText, { color: theme.text.primary }]}>s</Text>
+                  </View>
+                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ADJUST IF NEEDED, THEN LOG</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[
+                    styles.timerText,
+                    { color: isPreparing ? '#7E57C2' : theme.text.primary }
+                  ]}>
+                    {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
+                  </Text>
+                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                    {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
+                  </Text>
+                </>
+              )}
            </View>
 
            {isPreparing ? (
-              <TouchableOpacity 
-                style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} 
+              <TouchableOpacity
+                style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
                 onPress={cancelPreparation}
               >
                 <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
               </TouchableOpacity>
+           ) : manualMode ? (
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
+                  onPress={handleUseTimerInstead}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>USE TIMER INSTEAD</Text>
+                </TouchableOpacity>
+              </View>
            ) : (
               <View style={{ gap: 10 }}>
                 {!timerRunning ? (
                   <>
-                    <TouchableOpacity 
-                      style={[styles.startBtn, { backgroundColor: "#7E57C2" }]} 
+                    <TouchableOpacity
+                      style={[styles.startBtn, { backgroundColor: "#7E57C2" }]}
                       onPress={handleStartWithLeadIn}
                     >
                       <Text style={styles.startBtnText}>{timerSeconds > 0 ? "RESTART TEST" : "START TIMER"}</Text>
@@ -942,37 +1030,43 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
 
                     {timerSeconds > 0 && (
                       <>
-                        <TouchableOpacity 
-                          style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]} 
+                        <TouchableOpacity
+                          style={[styles.saveBtn, { backgroundColor: '#7E57C2' }]}
                           onPress={handleSave}
                           disabled={saving}
                         >
                           {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
                         </TouchableOpacity>
 
-                        <TouchableOpacity 
+                        <TouchableOpacity
                           style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                          onPress={resetTimer}
+                          onPress={handleReset}
                         >
                           <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RESET / DISCARD</Text>
                         </TouchableOpacity>
                       </>
                     )}
+
+                    {timerSeconds === 0 && (
+                      <TouchableOpacity style={styles.manualEntryLink} onPress={handleEnterManually}>
+                        <Text style={[styles.manualEntryLinkText, { color: theme.text.tertiary }]}>ENTER TIME MANUALLY INSTEAD</Text>
+                      </TouchableOpacity>
+                    )}
                   </>
                 ) : (
                   <>
-                    <TouchableOpacity 
-                      style={[styles.startBtn, { backgroundColor: "#FF5252" }]} 
+                    <TouchableOpacity
+                      style={[styles.startBtn, { backgroundColor: "#FF5252" }]}
                       onPress={stopTimer}
                     >
                       <Text style={styles.startBtnText}>STOP & LOG</Text>
                     </TouchableOpacity>
 
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.cancelBtn, { borderColor: "#FF5252" }]}
                       onPress={() => {
                         stopTimer();
-                        resetTimer();
+                        handleReset();
                       }}
                     >
                       <Text style={[styles.cancelBtnText, { color: "#FF5252" }]}>CANCEL TEST</Text>
@@ -1103,6 +1197,10 @@ const styles = StyleSheet.create({
   timerContainer: { alignItems: 'center', marginVertical: 40 },
   timerText: { fontSize: 80, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
   timerSub: { fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 },
+  timerInputRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6 },
+  timerInput: { minWidth: 110, textAlign: 'center', borderBottomWidth: 2, paddingVertical: 0 },
+  manualEntryLink: { paddingVertical: 10, alignItems: 'center' },
+  manualEntryLinkText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textDecorationLine: 'underline' },
   startBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
   startBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
   saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
