@@ -24,6 +24,7 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 
 
 const { width } = Dimensions.get('window');
@@ -55,6 +56,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [levelEntries, setLevelEntries] = useState<StaticLevelLeaderboardEntry[]>([]);
   const [wellRoundedEntries, setWellRoundedEntries] = useState<any[]>([]);
   const [personalBest, setPersonalBest] = useState<StaticLeaderboardEntry | null>(null);
+  const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   // Community scope — must trigger a server-side refetch (RPCs cap at 100
   // rows before any filter), unlike genderFilter which filters client-side
@@ -180,14 +182,21 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
   // Preparation intervals and control handlers moved to StaticWorkoutLogModal
 
-  async function handleSaveHold(seconds: number) {
+  async function handleSaveHold(seconds: number, force: boolean = false) {
     if (!selectedMovement || !user || seconds <= 0) return;
+
+    // Below the current best — ask before silently discarding it (or, if
+    // force is true, this IS the user's confirmed choice to overwrite).
+    if (!force && personalBest && seconds <= personalBest.best_time_seconds) {
+      setPendingOverwrite(seconds);
+      return;
+    }
 
     let shouldCelebrate = false;
 
     setLoading(true);
     runSafeSave(async () => {
-      const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds);
+      const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds, force);
 
       if (isPB) {
         if (isMounted.current) {
@@ -217,6 +226,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     }, {
       onSuccess: () => {
         setLoading(false);
+        setPendingOverwrite(null);
         if (isMounted.current) setShowLogModal(false);
 
         // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
@@ -230,6 +240,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       },
       onError: (error: any) => {
         setLoading(false);
+        setPendingOverwrite(null);
         // P1001-P1004 are submit_static_hold's own anti-cheat validation
         // (negative time / invalid movement / ceiling exceeded / cooldown
         // active) - expected outcomes, not bugs, so skip the console noise
@@ -729,10 +740,27 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
           user={user}
           theme={theme}
           onSaveHold={handleSaveHold}
+          overwriteOverlay={
+            <PBOverwriteConfirmModal
+              visible={pendingOverwrite !== null}
+              theme={theme}
+              accentColor="#7E57C2"
+              movementName={selectedMovement?.name || ''}
+              unitLabel="s"
+              currentBest={personalBest?.best_time_seconds ?? 0}
+              attemptValue={pendingOverwrite ?? 0}
+              saving={loading}
+              onKeepBest={() => setPendingOverwrite(null)}
+              onSaveAnyway={() => {
+                const seconds = pendingOverwrite;
+                if (seconds !== null) handleSaveHold(seconds, true);
+              }}
+            />
+          }
         />
       )}
 
-      <CelebrationBanner 
+      <CelebrationBanner
         visible={showCelebration}
         title={celebrationData.movement?.toUpperCase()}
         subtitle="NEW PR"
@@ -758,6 +786,10 @@ interface StaticWorkoutLogModalProps {
   user: any;
   theme: any;
   onSaveHold: (seconds: number) => Promise<void>;
+  // Rendered as the last child inside this modal's own content — NOT a
+  // second <Modal>, since two simultaneously-open native Modals on iOS can
+  // freeze the app (see PBOverwriteConfirmModal's own comment).
+  overwriteOverlay?: React.ReactNode;
 }
 
 const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
@@ -768,7 +800,8 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   entries,
   user,
   theme,
-  onSaveHold
+  onSaveHold,
+  overwriteOverlay
 }) => {
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
   const [isPreparing, setIsPreparing] = useState(false);
@@ -1100,6 +1133,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
                  )}
               </ScrollView>
            </View>
+           {overwriteOverlay}
         </View>
       </View>
     </Modal>

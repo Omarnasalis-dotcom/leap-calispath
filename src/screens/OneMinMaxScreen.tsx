@@ -25,6 +25,7 @@ import { CelebrationBanner } from '../components/CelebrationBanner';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
+import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 
 
 const { width } = Dimensions.get('window');
@@ -81,6 +82,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     return list.map((e, i) => ({ ...e, rank: i + 1 }));
   }, [modalLeaderboardData, genderFilter]);
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
+  const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!user) return;
@@ -161,12 +163,24 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     fetchLeaderboard();
   };
 
-  const handleSaveResult = async (reps: number) => {
+  const handleSaveResult = async (reps: number, force: boolean = false) => {
     if (!user || !selectedMovement) return;
+
+    // Below the current best — ask before silently discarding it (or, if
+    // force is true, this IS the user's confirmed choice to overwrite).
+    // Strictly less-than (not <=): submit_onemm_log treats a tied rep count
+    // as a genuine PB (p_reps >= v_current_max), so a tie should proceed
+    // normally rather than prompting.
+    const currentBest = stats?.pbs[selectedMovement] ?? 0;
+    if (!force && currentBest > 0 && reps < currentBest) {
+      setPendingOverwrite(reps);
+      return;
+    }
+
     let shouldCelebrate = false;
 
     runSafeSave(async () => {
-      const { isNewPB } = await OneMMService.saveLog(user.id, selectedMovement, reps);
+      const { isNewPB } = await OneMMService.saveLog(user.id, selectedMovement, reps, force);
 
       if (isNewPB) {
         if (isMounted.current) {
@@ -183,6 +197,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
       }
     }, {
       onSuccess: () => {
+        setPendingOverwrite(null);
         setShowLogModal(false);
         fetchData();
         fetchLeaderboard();
@@ -198,6 +213,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         }
       },
       onError: (error: any) => {
+        setPendingOverwrite(null);
         const isExpectedRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code);
         if (!isExpectedRejection) {
           console.error('Error saving 1MM result:', error);
@@ -657,6 +673,22 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           user={user}
           theme={theme}
           onSaveResult={handleSaveResult}
+          overwriteOverlay={
+            <PBOverwriteConfirmModal
+              visible={pendingOverwrite !== null}
+              theme={theme}
+              accentColor="#FF7043"
+              movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
+              unitLabel=" REPS"
+              currentBest={selectedMovement ? (stats?.pbs[selectedMovement] ?? 0) : 0}
+              attemptValue={pendingOverwrite ?? 0}
+              onKeepBest={() => setPendingOverwrite(null)}
+              onSaveAnyway={() => {
+                const reps = pendingOverwrite;
+                if (reps !== null) handleSaveResult(reps, true);
+              }}
+            />
+          }
         />
       )}
 
@@ -813,6 +845,10 @@ interface OneMinMaxTimerModalProps {
   user: any;
   theme: any;
   onSaveResult: (reps: number) => Promise<void>;
+  // Rendered inside this modal's own content — NOT a second <Modal>, since two
+  // simultaneously-open native Modals on iOS can freeze the app (see
+  // PBOverwriteConfirmModal's own comment).
+  overwriteOverlay?: React.ReactNode;
 }
 
 const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
@@ -821,7 +857,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   movementName,
   user,
   theme,
-  onSaveResult
+  onSaveResult,
+  overwriteOverlay
 }) => {
   const isMounted = useMountedRef();
   const { ref: startSprintRef, onLayout: onStartSprintLayout } = useTutorialTarget('onemm.startSprintButton');
@@ -974,8 +1011,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={cancelTimer}>
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView 
-          style={styles.modalOverlay} 
+        <KeyboardAvoidingView
+          style={styles.modalOverlay}
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         >
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
@@ -1065,6 +1102,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
               parent here) is also the actual full-screen, zero-offset root,
               which measureInWindow's screen-absolute coordinates need. */}
           <TutorialModalOverlay targetIds={['onemm.startSprintButton', 'onemm.timerCloseButton']} />
+          {overwriteOverlay}
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </Modal>

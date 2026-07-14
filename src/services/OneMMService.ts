@@ -36,7 +36,8 @@ export const OneMMService = {
       const { data: logs, error } = await supabase
         .from('one_min_max_logs')
         .select('id, user_id, movement_id, reps, points')
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .eq('excluded_from_pb', false);
 
       if (error) throw error;
 
@@ -73,6 +74,7 @@ export const OneMMService = {
             .from('one_min_max_logs')
             .select('*', { count: 'exact', head: true })
             .eq('movement_id', m.id)
+            .eq('excluded_from_pb', false)
             .gt('reps', userMax);
           ranks[m.id] = (count || 0) + 1;
         } else {
@@ -118,12 +120,13 @@ export const OneMMService = {
   /**
    * Saves a new 1MM log and updates the aggregated profile points
    */
-  async saveLog(userId: string, movementId: string, reps: number): Promise<{ isNewPB: boolean }> {
+  async saveLog(userId: string, movementId: string, reps: number, force: boolean = false): Promise<{ isNewPB: boolean }> {
     try {
       await supabase.auth.refreshSession();
       const { data, error } = await supabase.rpc('submit_onemm_log', {
         p_movement_id: movementId,
-        p_reps: reps
+        p_reps: reps,
+        p_force: force
       });
 
       if (error) throw error;
@@ -199,6 +202,7 @@ export const OneMMService = {
           )
         `)
         .eq('movement_id', type)
+        .eq('excluded_from_pb', false)
         .order('reps', { ascending: false })
         .limit(100); // Get more to handle deduplication in JS if necessary, or use a better SQL view
 

@@ -193,7 +193,7 @@ export const PowerService = {
   /**
    * Saves a new PB and checks for promotion/PR
    */
-  async savePB(userId: string, movementId: string, kg: number): Promise<{ isNewPB: boolean; isPromotion: boolean }> {
+  async savePB(userId: string, movementId: string, kg: number, force: boolean = false): Promise<{ isNewPB: boolean; isPromotion: boolean }> {
     try {
       const { data: current } = await supabase
         .from('power_assessments')
@@ -209,7 +209,7 @@ export const PowerService = {
       const oldVal = current?.[cleanField] || 0;
       const isNewPB = kg > oldVal;
 
-      if (isNewPB) {
+      if (isNewPB || force) {
         const newPBs = {
           pullup_1rm: movementId === 'pull_up' ? kg : current?.pullup_1rm || 0,
           dip_1rm: movementId === 'dip' ? kg : current?.dip_1rm || 0,
@@ -221,7 +221,8 @@ export const PowerService = {
           p_pullup: newPBs.pullup_1rm,
           p_dip: newPBs.dip_1rm,
           p_squat: newPBs.squat_1rm,
-          p_muscleup: newPBs.muscleup_1rm
+          p_muscleup: newPBs.muscleup_1rm,
+          p_force: force
         });
 
         if (rpcErr) throw rpcErr;

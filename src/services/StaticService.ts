@@ -43,12 +43,13 @@ export class StaticService {
   /**
    * Logs a static hold for a user
    */
-  static async saveHold(userId: string, movementId: string, seconds: number): Promise<boolean> {
+  static async saveHold(userId: string, movementId: string, seconds: number, force: boolean = false): Promise<boolean> {
     if (seconds <= 0) return false;
 
     const { data, error } = await supabase.rpc('submit_static_hold', {
       p_movement_id: movementId,
-      p_hold_seconds: seconds
+      p_hold_seconds: seconds,
+      p_force: force
     });
 
     if (error) {

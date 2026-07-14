@@ -25,6 +25,7 @@ import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 
 
 const { width } = Dimensions.get('window');
@@ -62,6 +63,7 @@ export function PowerWorldScreen() {
   const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
   const [manualInput, setManualInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
 
   // Celebration State
   const [showCelebration, setShowCelebration] = useState(false);
@@ -149,7 +151,7 @@ export function PowerWorldScreen() {
     fetchLeaderboard();
   };
 
-  const handleSaveWeight = async () => {
+  const handleSaveWeight = async (force: boolean = false) => {
     if (!user || !selectedMovement || !manualInput || saving) return;
     const kg = parseFloat(manualInput);
     if (isNaN(kg) || kg <= 0 || kg > 500) {
@@ -157,11 +159,19 @@ export function PowerWorldScreen() {
       return;
     }
 
+    // Below the current best — ask before silently discarding it (or, if
+    // force is true, this IS the user's confirmed choice to overwrite).
+    const currentBest = stats?.pbs[selectedMovement] ?? 0;
+    if (!force && currentBest > 0 && kg <= currentBest) {
+      setPendingOverwrite(kg);
+      return;
+    }
+
     let shouldShowCelebration = false;
 
     setSaving(true);
     runSafeSave(async () => {
-      const { isNewPB, isPromotion } = await PowerService.savePB(user.id, selectedMovement, kg);
+      const { isNewPB, isPromotion } = await PowerService.savePB(user.id, selectedMovement, kg, force);
       
       if (isNewPB) {
         const movement = POWER_MOVEMENTS.find(m => m.id === selectedMovement);
@@ -191,10 +201,11 @@ export function PowerWorldScreen() {
     }, {
       onSuccess: () => {
         setSaving(false);
+        setPendingOverwrite(null);
         setShowLogModal(false);
         setManualInput('');
-        
-        // Defer the celebration modal to prevent iOS multiple overlapping modals bug 
+
+        // Defer the celebration modal to prevent iOS multiple overlapping modals bug
         // which causes the screen to freeze and become unresponsive
         if (shouldShowCelebration && isMounted.current) {
           setTimeout(() => {
@@ -206,6 +217,7 @@ export function PowerWorldScreen() {
       },
       onError: (error: any) => {
         setSaving(false);
+        setPendingOverwrite(null);
         console.error('Save error:', error);
         Alert.alert('Error', 'Failed to save PR.');
       }
@@ -575,9 +587,9 @@ export function PowerWorldScreen() {
               onChangeText={setManualInput}
             />
 
-            <TouchableOpacity 
-              style={[styles.modalSaveBtn, { backgroundColor: '#FF5252' }]} 
-              onPress={handleSaveWeight}
+            <TouchableOpacity
+              style={[styles.modalSaveBtn, { backgroundColor: '#FF5252' }]}
+              onPress={() => handleSaveWeight()}
               disabled={saving}
             >
               {saving ? <LeapLogo size={40} animated /> : <Text style={styles.modalSaveText}>SAVE NEW PR</Text>}
@@ -593,6 +605,19 @@ export function PowerWorldScreen() {
                  </View>
                ))}
             </View>
+
+            <PBOverwriteConfirmModal
+              visible={pendingOverwrite !== null}
+              theme={theme}
+              accentColor="#FF5252"
+              movementName={POWER_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
+              unitLabel=" KG"
+              currentBest={selectedMovement ? (stats?.pbs[selectedMovement] ?? 0) : 0}
+              attemptValue={pendingOverwrite ?? 0}
+              saving={saving}
+              onKeepBest={() => setPendingOverwrite(null)}
+              onSaveAnyway={() => handleSaveWeight(true)}
+            />
           </View>
         </View>
       </Modal>
@@ -662,7 +687,7 @@ export function PowerWorldScreen() {
         </View>
       </Modal>
 
-      <CelebrationBanner 
+      <CelebrationBanner
         visible={showCelebration}
         {...celebrationProps}
         onDismiss={() => setShowCelebration(false)}
