@@ -121,18 +121,26 @@ export class AssessmentEngine {
     };
 
     // 1. Pick the best ONE exercise for each world based on what's unlocked and missing
+    // validOneMm/validPower/validStatic preserve getTestsForTag's id-list order,
+    // which is hand-authored hardest-to-easiest. Searching from the front with
+    // .find() picked the hardest unlocked-but-untouched movement (e.g. Muscle-ups
+    // over Inverted Row, since both unlock at the same tier) as the "establish
+    // your baseline" suggestion — searching in reverse instead prefers the
+    // easiest untouched one, which is what a baseline-establishing test should
+    // be. The all-touched fallback (index 0) intentionally keeps wanting the
+    // hardest, unchanged.
     // ENDURANCE
-    let targetOneMm = validOneMm.find(m => (pbsOneMm[m.id] || 0) === 0);
+    let targetOneMm = [...validOneMm].reverse().find(m => (pbsOneMm[m.id] || 0) === 0);
     const oneMmUntouched = !!targetOneMm;
     if (!targetOneMm) targetOneMm = validOneMm[0]; // default to highest tier unlocked
 
     // POWER
-    let targetPower = validPower.find(m => (pbsPower[m.id] || 0) === 0);
+    let targetPower = [...validPower].reverse().find(m => (pbsPower[m.id] || 0) === 0);
     const powerUntouched = !!targetPower;
     if (!targetPower) targetPower = validPower[0];
 
     // STATIC
-    let targetStatic = validStatic.find(m => (pbsStatic[m.id] || 0) === 0);
+    let targetStatic = [...validStatic].reverse().find(m => (pbsStatic[m.id] || 0) === 0);
     const staticUntouched = !!targetStatic;
     if (!targetStatic) targetStatic = validStatic[0];
 
