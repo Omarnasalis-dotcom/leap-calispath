@@ -56,7 +56,7 @@ export function TrialScreen({
   const [showVictory, setShowVictory] = useState(false);
   const [showDishonor, setShowDishonor] = useState(false);
   const [feedbackCard, setFeedbackCard] = useState<{
-    kind: 'first_completion' | 'new_best';
+    kind: 'first_completion' | 'new_best' | 'attempt';
     tier: number;
     timeSeconds: number;
     previousTimeSeconds?: number | null;
@@ -301,7 +301,15 @@ export function TrialScreen({
             previousTimeSeconds: result.previous_best_time_seconds ?? null,
           });
         } else {
-          onBack ? onBack() : null;
+          // Completed successfully but didn't beat the standing best time —
+          // still show the comparison instead of silently closing, so the
+          // user can see how this attempt stacks up against their record.
+          setFeedbackCard({
+            kind: 'attempt',
+            tier: trial.tier,
+            timeSeconds,
+            previousTimeSeconds: result?.previous_best_time_seconds ?? null,
+          });
         }
       },
       onError: (error: any) => {
@@ -662,7 +670,7 @@ function TrialFeedbackModal({
   onDismiss,
 }: {
   visible: boolean;
-  kind: 'first_completion' | 'new_best';
+  kind: 'first_completion' | 'new_best' | 'attempt';
   tier: number;
   timeSeconds: number;
   previousTimeSeconds?: number | null;
@@ -684,10 +692,11 @@ function TrialFeedbackModal({
   }, [visible]);
 
   const tierName = TIER_NAMES[tier];
-  const label = kind === 'first_completion' ? 'MILESTONE' : 'PERSONAL RECORD';
-  const title = kind === 'first_completion' ? 'TIER COMPLETE' : 'NEW BEST TIME';
-  const icon = kind === 'first_completion' ? 'shield-star' : 'trophy-award';
-  const showComparison = kind === 'new_best' && previousTimeSeconds != null;
+  const label = kind === 'first_completion' ? 'MILESTONE' : kind === 'new_best' ? 'PERSONAL RECORD' : 'RESULT';
+  const title = kind === 'first_completion' ? 'TIER COMPLETE' : kind === 'new_best' ? 'NEW BEST TIME' : 'TRIAL COMPLETE';
+  const icon = kind === 'first_completion' ? 'shield-star' : kind === 'new_best' ? 'trophy-award' : 'timer-outline';
+  const showImprovementComparison = kind === 'new_best' && previousTimeSeconds != null;
+  const showBestComparison = kind === 'attempt' && previousTimeSeconds != null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
@@ -700,11 +709,22 @@ function TrialFeedbackModal({
           <Text style={styles.feedbackTitle}>{title}</Text>
           <Text style={styles.feedbackSubtitle}>{tierName?.toUpperCase()} · TIER {tier}</Text>
 
-          {showComparison ? (
+          {showImprovementComparison ? (
             <View style={styles.feedbackTimeRow}>
               <Text style={styles.feedbackOldTime}>{formatTime(previousTimeSeconds!)}</Text>
               <MaterialCommunityIcons name="arrow-right" size={16} color="rgba(255,255,255,0.35)" style={{ marginHorizontal: 10 }} />
               <Text style={[styles.feedbackNewTime, styles.feedbackNewTimeInRow]}>{formatTime(timeSeconds)}</Text>
+            </View>
+          ) : showBestComparison ? (
+            <View style={styles.feedbackCompareRow}>
+              <View style={styles.feedbackCompareBox}>
+                <Text style={styles.feedbackCompareLabel}>YOUR BEST</Text>
+                <Text style={styles.feedbackCompareValue}>{formatTime(previousTimeSeconds!)}</Text>
+              </View>
+              <View style={[styles.feedbackCompareBox, styles.feedbackCompareBoxAttempt]}>
+                <Text style={[styles.feedbackCompareLabel, styles.feedbackCompareLabelAttempt]}>THIS ATTEMPT</Text>
+                <Text style={styles.feedbackCompareValue}>{formatTime(timeSeconds)}</Text>
+              </View>
             </View>
           ) : (
             <Text style={styles.feedbackNewTime}>{formatTime(timeSeconds)}</Text>
@@ -1196,6 +1216,39 @@ const styles = StyleSheet.create({
   },
   feedbackNewTimeInRow: {
     marginTop: 0,
+  },
+  feedbackCompareRow: {
+    flexDirection: 'row',
+    gap: 10,
+    width: '100%',
+    marginTop: 24,
+  },
+  feedbackCompareBox: {
+    flex: 1,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.12)',
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  feedbackCompareBoxAttempt: {
+    borderColor: 'rgba(205,127,50,0.5)',
+    backgroundColor: 'rgba(205,127,50,0.08)',
+  },
+  feedbackCompareLabel: {
+    fontSize: 9,
+    fontWeight: '900',
+    letterSpacing: 1.5,
+    color: 'rgba(255,255,255,0.45)',
+    marginBottom: 6,
+  },
+  feedbackCompareLabelAttempt: {
+    color: '#CD7F32',
+  },
+  feedbackCompareValue: {
+    fontSize: 18,
+    fontWeight: '900',
+    color: '#FFFFFF',
   },
   feedbackButton: {
     marginTop: 32,
