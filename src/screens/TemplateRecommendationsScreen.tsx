@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, Animated, ImageBackground, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, Animated, ImageBackground, StyleSheet, Alert, Modal } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,7 +7,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { LeapLogo } from '../components/LeapLogo';
 import { supabase } from '../lib/supabase';
-import { getRecommendations, selectLibraryTemplate, LibraryTemplateRecommendation } from '../lib/templateLibrary';
+import { getRecommendations, getTemplateDetails, selectLibraryTemplate, LibraryTemplateRecommendation, TemplateDetailBlock } from '../lib/templateLibrary';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 const bronzeGold = '#C8A040';
@@ -41,6 +41,14 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [selectingId, setSelectingId] = useState<string | null>(null);
   const [currentProgramName, setCurrentProgramName] = useState<string | null>(null);
+
+  // Preview/confirm modal — shown when a card is tapped, before anything is
+  // actually started. previewRec is the program awaiting confirmation;
+  // previewWeek1 is its first-week structure, fetched lazily per tap rather
+  // than upfront for every card.
+  const [previewRec, setPreviewRec] = useState<LibraryTemplateRecommendation | null>(null);
+  const [previewWeek1, setPreviewWeek1] = useState<TemplateDetailBlock[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
 
   useEffect(() => {
     loadRecommendations();
@@ -77,34 +85,44 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
     setCurrentProgramName(name || (data ? 'YOUR CURRENT PROGRAM' : null));
   }
 
-  const handleSelect = (rec: LibraryTemplateRecommendation) => {
-    const proceed = async () => {
-      setSelectingId(rec.id);
-      try {
-        await selectLibraryTemplate(rec.id);
-        Alert.alert('PROGRAM STARTED', `"${rec.template_name}" is now your active program.`);
-        if (onClose) onClose();
-        else router.back();
-      } catch (err: any) {
-        Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
-      } finally {
-        setSelectingId(null);
-      }
-    };
-
-    if (!currentProgramName) {
-      proceed();
-      return;
+  // Tapping a card opens the preview/confirm modal instead of starting
+  // anything immediately — the actual selectLibraryTemplate call only runs
+  // from handleConfirmStart, once the user explicitly confirms.
+  const openPreview = async (rec: LibraryTemplateRecommendation) => {
+    setPreviewRec(rec);
+    setPreviewWeek1([]);
+    setPreviewLoading(true);
+    try {
+      const weeks = await getTemplateDetails(rec.id);
+      const week1 = weeks.find(w => w.weekNumber === 1);
+      setPreviewWeek1(week1?.blocks || []);
+    } finally {
+      setPreviewLoading(false);
     }
+  };
 
-    const warning = `Switching will mark "${currentProgramName}" as completed and start "${rec.template_name}" instead. Your logged workout history is kept.`;
-    if (Platform.OS === 'web') {
-      if (window.confirm(warning)) proceed();
-    } else {
-      Alert.alert('SWITCH PROGRAM?', warning, [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'SWITCH', style: 'destructive', onPress: proceed },
-      ]);
+  const closePreview = () => {
+    if (selectingId) return; // don't let a dismiss race an in-flight start
+    setPreviewRec(null);
+    setPreviewWeek1([]);
+  };
+
+  const handleConfirmStart = async () => {
+    if (!previewRec) return;
+    const rec = previewRec;
+    setSelectingId(rec.id);
+    try {
+      await selectLibraryTemplate(rec.id);
+      setPreviewRec(null);
+      setPreviewWeek1([]);
+      // Straight into the workout — not back to wherever this screen was
+      // opened from (usually Profile). replace (not push) so the back
+      // stack doesn't leave this recommendations screen sitting behind it.
+      router.replace('/warrior-program');
+    } catch (err: any) {
+      Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
+    } finally {
+      setSelectingId(null);
     }
   };
 
@@ -183,13 +201,264 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
             imageSource={getCardImage(rec, index)}
             isSelecting={selectingId === rec.id}
             disabled={selectingId !== null}
-            onSelect={() => handleSelect(rec)}
+            onSelect={() => openPreview(rec)}
           />
         ))}
       </ScrollView>
+
+      <ProgramPreviewModal
+        visible={previewRec !== null}
+        theme={theme}
+        templateName={previewRec?.template_name || ''}
+        weekCount={previewRec?.week_count || 1}
+        week1={previewWeek1}
+        loading={previewLoading}
+        starting={!!previewRec && selectingId === previewRec.id}
+        switchWarning={
+          currentProgramName
+            ? `Switching will mark "${currentProgramName}" as completed. Your logged workout history is kept.`
+            : null
+        }
+        onCancel={closePreview}
+        onConfirm={handleConfirmStart}
+      />
     </View>
   );
 }
+
+// Library template days are authored as "{FOCUS} DAY {N} | {Section}" (e.g.
+// "PUSH DAY 1 | Strength - 1", "FULL BODY DAY 3 | Warm-Up") — getTemplateDetails
+// already splits off the "| Section" part into blockName, so block.day here is
+// "PUSH DAY 1" etc. This pulls the day number and focus back out of that so the
+// preview can show just "DAY 1 — PUSH" once per day, not once per section.
+function parseDayLabel(day: string): { dayNumber: number; focus: string } | null {
+  const match = day.match(/^(.*?)\s*DAY\s*(\d+)\s*$/i);
+  if (!match) return null;
+  return { focus: match[1].trim(), dayNumber: parseInt(match[2], 10) };
+}
+
+function summarizeWeek1Days(week1: TemplateDetailBlock[]): { key: string; label: string; sortOrder: number }[] {
+  const seen = new Map<string, { label: string; sortOrder: number }>();
+  week1.forEach((block, i) => {
+    if (seen.has(block.day)) return;
+    const parsed = parseDayLabel(block.day);
+    const label = parsed ? `DAY ${parsed.dayNumber} — ${parsed.focus.toUpperCase()}` : block.day.toUpperCase();
+    seen.set(block.day, { label, sortOrder: parsed?.dayNumber ?? i });
+  });
+  return Array.from(seen.entries())
+    .map(([key, v]) => ({ key, ...v }))
+    .sort((a, b) => a.sortOrder - b.sortOrder);
+}
+
+function ProgramPreviewModal({
+  visible,
+  theme,
+  templateName,
+  weekCount,
+  week1,
+  loading,
+  starting,
+  switchWarning,
+  onCancel,
+  onConfirm,
+}: {
+  visible: boolean;
+  theme: any;
+  templateName: string;
+  weekCount: number;
+  week1: TemplateDetailBlock[];
+  loading: boolean;
+  starting: boolean;
+  switchWarning: string | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  const days = summarizeWeek1Days(week1);
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={previewStyles.overlay}>
+        <View style={[previewStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+          <View style={previewStyles.header}>
+            <Text style={[previewStyles.title, { color: theme.text.primary }]} numberOfLines={2}>
+              {templateName.toUpperCase()}
+            </Text>
+            <Text style={previewStyles.subtitle}>
+              WEEK 1 OF {weekCount} — WHAT YOU'LL START WITH
+            </Text>
+          </View>
+
+          {switchWarning && (
+            <View style={previewStyles.warningBanner}>
+              <MaterialCommunityIcons name="alert-outline" size={14} color={bronzeGold} />
+              <Text style={previewStyles.warningText}>{switchWarning}</Text>
+            </View>
+          )}
+
+          <ScrollView style={previewStyles.body} contentContainerStyle={{ paddingBottom: 8 }}>
+            {loading ? (
+              <View style={previewStyles.loadingBox}>
+                <LeapLogo size={32} animated />
+                <Text style={[previewStyles.loadingText, { color: theme.text.tertiary }]}>LOADING PREVIEW...</Text>
+              </View>
+            ) : days.length === 0 ? (
+              <Text style={[previewStyles.emptyText, { color: theme.text.tertiary }]}>
+                PREVIEW UNAVAILABLE — YOU CAN STILL START THE PROGRAM.
+              </Text>
+            ) : (
+              days.map(d => (
+                <View key={d.key} style={[previewStyles.dayRow, { borderColor: theme.card.border }]}>
+                  <Text style={[previewStyles.dayRowText, { color: theme.text.primary }]} numberOfLines={1}>
+                    {d.label}
+                  </Text>
+                </View>
+              ))
+            )}
+          </ScrollView>
+
+          <View style={previewStyles.actions}>
+            <TouchableOpacity
+              style={[previewStyles.cancelBtn, { borderColor: theme.card.border }]}
+              onPress={onCancel}
+              disabled={starting}
+            >
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[previewStyles.startBtn, { opacity: starting ? 0.7 : 1 }]}
+              onPress={onConfirm}
+              disabled={starting}
+            >
+              {starting ? (
+                <LeapLogo size={22} animated />
+              ) : (
+                <>
+                  <Text style={previewStyles.startBtnText}>START NOW</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const previewStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.75)',
+    justifyContent: 'center',
+    padding: 20,
+  },
+  card: {
+    borderRadius: 20,
+    borderWidth: 1,
+    maxHeight: '82%',
+    padding: 20,
+  },
+  header: {
+    marginBottom: 12,
+  },
+  title: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 22,
+    letterSpacing: 1,
+  },
+  subtitle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    color: bronzeGold,
+    marginTop: 4,
+  },
+  warningBanner: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    backgroundColor: 'rgba(200,160,64,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,64,0.35)',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 12,
+  },
+  warningText: {
+    flex: 1,
+    color: bronzeGold,
+    fontFamily: 'Barlow-Regular',
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  body: {
+    marginBottom: 16,
+  },
+  loadingBox: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 40,
+    gap: 12,
+  },
+  loadingText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 1,
+  },
+  emptyText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 0.5,
+    textAlign: 'center',
+    paddingVertical: 24,
+  },
+  dayRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 14,
+    paddingHorizontal: 14,
+    marginBottom: 8,
+  },
+  dayRowText: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 15,
+    letterSpacing: 1,
+  },
+  actions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  cancelBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 10,
+    paddingVertical: 15,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  cancelBtnText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    letterSpacing: 1,
+  },
+  startBtn: {
+    flex: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: bronzeGold,
+    borderRadius: 10,
+    paddingVertical: 15,
+    gap: 8,
+  },
+  startBtnText: {
+    color: '#000',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 1,
+  },
+});
 
 function ProgramCard({
   rec,
