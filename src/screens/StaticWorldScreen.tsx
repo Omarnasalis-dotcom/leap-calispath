@@ -2,7 +2,7 @@ import { useRouter } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
-  Dimensions, Vibration, AppState } from 'react-native';
+  Dimensions, Vibration, AppState, Keyboard } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCountryFlag } from '../constants/countries';
@@ -191,6 +191,12 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
     // "not a new PB" but also not worse — a tie should just no-op silently
     // like before, not surface a misleading "below your best" prompt.
     if (!force && personalBest && seconds < personalBest.best_time_seconds) {
+      // Manual-entry mode leaves the keyboard open when this fires — the
+      // overwrite overlay renders inside this same modal, but the native
+      // keyboard sits above everything regardless of RN zIndex, so without
+      // an explicit dismiss it can cover the overlay's buttons with no way
+      // to close it (no input on the overlay itself to blur).
+      Keyboard.dismiss();
       setPendingOverwrite(seconds);
       return;
     }

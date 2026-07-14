@@ -2,7 +2,7 @@ import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
-  Dimensions, RefreshControl, Image } from 'react-native';
+  Dimensions, RefreshControl, Image, Keyboard } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
@@ -166,6 +166,12 @@ export function PowerWorldScreen() {
     // silently like before, not surface a misleading "below your best" prompt.
     const currentBest = stats?.pbs[selectedMovement] ?? 0;
     if (!force && currentBest > 0 && kg < currentBest) {
+      // The weight TextInput leaves the keyboard open when this fires — the
+      // overwrite overlay renders inside this same modal, but the native
+      // keyboard sits above everything regardless of RN zIndex, so without
+      // an explicit dismiss it can cover the overlay's buttons with no way
+      // to close it (no input on the overlay itself to blur).
+      Keyboard.dismiss();
       setPendingOverwrite(kg);
       return;
     }

@@ -173,6 +173,11 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     // normally rather than prompting.
     const currentBest = stats?.pbs[selectedMovement] ?? 0;
     if (!force && currentBest > 0 && reps < currentBest) {
+      // Same fix as Static/Power: dismiss explicitly rather than relying on
+      // this modal's tap-outside-to-dismiss, since the overlay's own buttons
+      // sit inside that same tappable area and shouldn't require a second
+      // tap elsewhere first just to reveal the keyboard-covered controls.
+      Keyboard.dismiss();
       setPendingOverwrite(reps);
       return;
     }
