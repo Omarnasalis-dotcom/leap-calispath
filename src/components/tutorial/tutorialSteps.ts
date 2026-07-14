@@ -1,0 +1,25 @@
+import { TutorialStep } from '../../types/tutorial';
+
+export const TUTORIAL_STEPS: TutorialStep[] = [
+  { id: 0, targetId: 'profile.levelCircle', mode: 'decoy', tag: 'STEP 1 OF 21', caption: 'YOUR PROFILE SHOWS YOUR CURRENT LEVEL' },
+  { id: 1, targetId: 'bottomTab.strength', mode: 'real', tag: 'STEP 2 OF 21', caption: 'TAP STRENGTH TO ENTER STRENGTH WORLD' },
+  { id: 2, targetId: 'strength.tierChips', mode: 'real', tag: 'STEP 3 OF 21', caption: 'BROWSE TIERS — TAP ONE TO SELECT IT' },
+  { id: 3, targetId: 'strength.trialButton', mode: 'decoy', tag: 'STEP 4 OF 21', caption: 'START A TRIAL TO RANK UP THIS TIER' },
+  { id: 4, targetId: 'strength.leaderboardFirstRow', mode: 'decoy', tag: 'STEP 5 OF 21', caption: 'SEE HOW YOU RANK AGAINST OTHER WARRIORS' },
+  { id: 5, targetId: 'bottomTab.profile', mode: 'real', tag: 'STEP 6 OF 21', caption: 'TAP PROFILE TO HEAD BACK' },
+  { id: 6, targetId: 'profile.workoutProgramButton', mode: 'real', tag: 'STEP 7 OF 21', caption: 'GET A FULL WORKOUT PROGRAM BUILT FOR YOU' },
+  { id: 7, targetId: 'templates.startProgram', mode: 'decoy', tag: 'STEP 8 OF 21', caption: 'START A PROGRAM TO FOLLOW IT WEEK BY WEEK' },
+  { id: 8, targetId: 'templates.backButton', mode: 'real', tag: 'STEP 9 OF 21', caption: 'TAP BACK TO RETURN TO YOUR PROFILE' },
+  { id: 9, targetId: 'community.createButton', mode: 'decoy', tag: 'STEP 10 OF 21', caption: 'START YOUR OWN COMMUNITY OF WARRIORS' },
+  { id: 10, targetId: 'community.joinButton', mode: 'decoy', tag: 'STEP 11 OF 21', caption: 'OR JOIN ONE WITH AN INVITE CODE' },
+  { id: 11, targetId: 'profile.wraScoreBar', mode: 'real', tag: 'STEP 12 OF 21', caption: 'TAP TO SEE THE WELL-ROUNDED LEADERBOARD' },
+  { id: 12, targetId: 'wra.topEntries', mode: 'decoy', tag: 'STEP 13 OF 21', caption: 'THE TOP WARRIORS ACROSS ALL THREE WORLDS' },
+  { id: 13, targetId: 'wra.closeButton', mode: 'real', tag: 'STEP 14 OF 21', caption: 'TAP TO CLOSE THE LEADERBOARD' },
+  { id: 14, targetId: 'bottomTab.1mm', mode: 'real', tag: 'STEP 15 OF 21', caption: 'TAP 1MM TO ENTER 1-MINUTE MAX' },
+  { id: 15, targetId: 'onemm.timerBadge', mode: 'real', tag: 'STEP 16 OF 21', caption: 'TAP A MOVEMENT TO START A TIMED TEST' },
+  { id: 16, targetId: 'onemm.startSprintButton', mode: 'decoy', tag: 'STEP 17 OF 21', caption: 'START SPRINT BEGINS YOUR 60-SECOND TEST' },
+  { id: 17, targetId: 'onemm.timerCloseButton', mode: 'real', tag: 'STEP 18 OF 21', caption: 'TAP TO CLOSE THIS TEST' },
+  { id: 18, targetId: 'bottomTab.static', mode: 'decoy', tag: 'STEP 19 OF 21', caption: 'COLLECT POINTS FROM HOLDS IN STATIC WORLD — UNLOCKS AT TIER 1' },
+  { id: 19, targetId: 'bottomTab.power', mode: 'decoy', tag: 'STEP 20 OF 21', caption: 'COLLECT POINTS FROM POWER WORLD — UNLOCKS AT TIER 6' },
+  { id: 20, targetId: 'bottomTab.profile', mode: 'real', tag: 'STEP 21 OF 21', caption: 'TAP PROFILE TO FINISH THE TOUR' },
+];

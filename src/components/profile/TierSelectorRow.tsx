@@ -7,8 +7,10 @@ import {
   StyleSheet,
 } from 'react-native';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 
 interface TierSelectorRowProps {
+  scrollRef?: React.RefObject<ScrollView | null>;
   category: 'strength' | 'power';
   selectedTier: number;
   activeCurrentTier: number;
@@ -18,6 +20,7 @@ interface TierSelectorRowProps {
 }
 
 export function TierSelectorRow({
+  scrollRef,
   category,
   selectedTier,
   activeCurrentTier,
@@ -30,9 +33,10 @@ export function TierSelectorRow({
   // before the (delayed, animated) scroll-to-current-tier effect fires.
   const ITEM_WIDTH = 90 + 12; // tierItemContainer minWidth + tierList gap
   const initialOffset = Math.max(0, activeCurrentTier * ITEM_WIDTH);
+  const { ref, onLayout, reportInteraction } = useTutorialTarget('strength.tierChips', scrollRef);
 
   return (
-    <View style={styles.tierSelectorSection}>
+    <View style={styles.tierSelectorSection} ref={ref} onLayout={onLayout}>
       <View style={styles.sectionHeader}>
         <View style={[styles.sectionDot, { backgroundColor: theme.accent }]} />
         <Text style={[styles.sectionTitle, { color: theme.text.primary }]}>
@@ -54,7 +58,10 @@ export function TierSelectorRow({
           return (
             <TouchableOpacity
               key={index}
-              onPress={() => onSelectTier(tierIndex)}
+              onPress={() => {
+                onSelectTier(tierIndex);
+                reportInteraction();
+              }}
               style={[
                 styles.tierItemContainer,
                 isSelected && !isCurrent && { borderColor: theme.accent, borderWidth: 2 }

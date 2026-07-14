@@ -51,6 +51,7 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 import { useRouter, router, useFocusEffect } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
+import { useTutorial } from '../contexts/TutorialContext';
 
 // Module-level cache to track users who have already synced their points during the app session
 
@@ -95,6 +96,7 @@ export function ProfileScreen({
   const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
   const hasSyncedOnMount = useRef(false);
+  const mainScrollRef = useRef<ScrollView>(null);
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
@@ -105,6 +107,23 @@ export function ProfileScreen({
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
+  const homeTutorial = useTutorial();
+  const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
+
+  // The spotlight tour closes the onboarding modal to run (it needs the
+  // real screen underneath interactive) and navigates through several other
+  // routes along the way, unmounting/remounting this screen — so tracking
+  // "just finished" locally here doesn't survive to the end of the tour.
+  // pendingObjective lives in TutorialContext instead, set once the tour
+  // actually completes, and read here regardless of which mount of this
+  // screen happens to be around when that happens.
+  useEffect(() => {
+    if (homeTutorial.pendingObjective) {
+      homeTutorial.clearPendingObjective();
+      setOnboardingInitialStep(3);
+      setShowOnboarding(true);
+    }
+  }, [homeTutorial.pendingObjective]);
 
   // Leaderboard Modal State
   const [showWRALeaderboard, setShowWRALeaderboard] = useState(false);
@@ -421,7 +440,7 @@ export function ProfileScreen({
   return (
     <GlobalErrorBoundary>
       <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
-        <ScrollView contentContainerStyle={{ paddingBottom: 24 }}>
+        <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
             <>
               <TouchableOpacity
@@ -432,6 +451,7 @@ export function ProfileScreen({
               </TouchableOpacity>
 
               <ProfileHeader
+                scrollRef={mainScrollRef}
                 profile={profile}
                 category={category}
                 activeCurrentTier={activeCurrentTier}
@@ -505,6 +525,7 @@ export function ProfileScreen({
               />
 
               <TierSelectorRow
+                scrollRef={mainScrollRef}
                 category={category}
                 selectedTier={selectedTier}
                 activeCurrentTier={activeCurrentTier}
@@ -514,6 +535,7 @@ export function ProfileScreen({
               />
 
               <StrengthWorldView
+                scrollRef={mainScrollRef}
                 profile={profile}
                 category={category}
                 selectedTier={selectedTier}
@@ -672,6 +694,7 @@ export function ProfileScreen({
       </View>
       <OnboardingTutorialScreen
         visible={showOnboarding}
+        initialStep={onboardingInitialStep}
         strengthTier={profile?.strength_tier ?? 0}
         onBeginTrial={async () => {
           setShowOnboarding(false);
@@ -694,6 +717,17 @@ export function ProfileScreen({
               console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
             }
           }
+        }}
+        onTakeTour={async () => {
+          setShowOnboarding(false);
+          if (profile?.id) {
+            try {
+              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
+            } catch (e) {
+              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
+            }
+          }
+          homeTutorial.start({ showObjectiveAfter: true });
         }}
       />
     </GlobalErrorBoundary>

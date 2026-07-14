@@ -23,6 +23,7 @@ import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 
 const { width } = Dimensions.get('window');
@@ -45,6 +46,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
+  const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('static.scoreCircle');
+  const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('static.movementRow');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(null);
   const [selectedLevel, setSelectedLevel] = useState<1 | 2 | 3 | null>(null);
@@ -367,7 +370,9 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
                 bottomText="OF WORLD"
                 showCrown={personalEntry?.rank === 1}
              />
-             <TouchableOpacity 
+             <TouchableOpacity
+                ref={scoreCircleRef}
+                onLayout={onScoreCircleLayout}
                 onPress={() => setShowGlobalMastery(true)}
                 activeOpacity={0.8}
              >
@@ -461,7 +466,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             })}
           </View>
 
-          <View style={styles.peakGrid}>
+          <View style={styles.peakGrid} ref={movementRowRef} onLayout={onMovementRowLayout}>
             {STATIC_MOVEMENTS.filter(m => m.category === selectedExerciseCategory).map(m => {
               const pb = userHolds[m.id] || 0;
               return (

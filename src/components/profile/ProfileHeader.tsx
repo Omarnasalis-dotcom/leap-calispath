@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -13,8 +14,10 @@ import { SuggestedTestCard } from './SuggestedTestCard';
 import { QuickStatsRow } from './QuickStatsRow';
 import { CommunitySection } from './CommunitySection';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 
 interface ProfileHeaderProps {
+  scrollRef?: React.RefObject<ScrollView | null>;
   profile: any;
   category: 'strength' | 'power';
   activeCurrentTier: number;
@@ -44,6 +47,7 @@ interface ProfileHeaderProps {
 }
 
 export function ProfileHeader({
+  scrollRef,
   profile,
   category,
   activeCurrentTier,
@@ -71,6 +75,10 @@ export function ProfileHeader({
   onOpenPowerAssessment,
   onOpenOneMinMax,
 }: ProfileHeaderProps) {
+  const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef);
+  const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef);
+  const { ref: workoutProgramButtonRef, onLayout: onWorkoutProgramButtonLayout, reportInteraction: reportWorkoutProgramButton } = useTutorialTarget('profile.workoutProgramButton', scrollRef);
+
   return (
     <>
       {/* Coach + Admin Buttons - Grouped Top Left */}
@@ -134,6 +142,8 @@ export function ProfileHeader({
 
           {/* Concentric Rings Avatar */}
           <TouchableOpacity
+            ref={levelCircleRef}
+            onLayout={onLevelCircleLayout}
             style={styles.avatarWrapper}
             activeOpacity={0.7}
             onPress={onShowWarriorModal}
@@ -188,7 +198,11 @@ export function ProfileHeader({
               `header` (24) + `avatarSection` (10) so this card lines up edge-to-edge
               with the other 16px-inset cards/buttons below it (SuggestedTestCard,
               QuickStatsRow, the CTA buttons), instead of sitting narrower/indented. */}
-          <View style={{ width: '100%', marginTop: 24, marginHorizontal: -18, position: 'relative' }}>
+          <View
+            ref={wraScoreBarRef}
+            onLayout={onWraScoreBarLayout}
+            style={{ width: '100%', marginTop: 24, marginHorizontal: -18, position: 'relative' }}
+          >
             <ScoreBar
               title="⚔️ Well-Rounded Athlete"
               subtitle="Static · Power · 1MM"
@@ -196,7 +210,10 @@ export function ProfileHeader({
               rank="Leaderboard →"
               max={WRA_MAX}
               color={theme.accent}
-              onPress={onFetchWRALeaderboard}
+              onPress={() => {
+                onFetchWRALeaderboard();
+                reportWraScoreBar();
+              }}
               showCrown={wraScore > 0}
               mode={mode}
               cardBackground={theme.card.background}
@@ -237,7 +254,7 @@ export function ProfileHeader({
           needs to be visible without scrolling. */}
       {profile?.id && (
         <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
-          <CommunitySection userId={profile.id} />
+          <CommunitySection userId={profile.id} scrollRef={scrollRef} />
         </View>
       )}
 
@@ -304,6 +321,8 @@ export function ProfileHeader({
                 style={{ padding: 1.2, borderRadius: 8 }}
               >
                 <TouchableOpacity
+                  ref={workoutProgramButtonRef}
+                  onLayout={onWorkoutProgramButtonLayout}
                   style={{
                     backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF',
                     flexDirection: 'row',
@@ -313,7 +332,10 @@ export function ProfileHeader({
                     borderRadius: 7,
                     gap: 8
                   }}
-                  onPress={onOpenWarriorProgram}
+                  onPress={() => {
+                    onOpenWarriorProgram();
+                    reportWorkoutProgramButton();
+                  }}
                 >
                   <MaterialCommunityIcons name="clipboard-text-outline" size={16} color="#FF7043" />
                   <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13, letterSpacing: 1.5, color: mode === 'dark' ? '#FFFFFF' : '#000000' }}>

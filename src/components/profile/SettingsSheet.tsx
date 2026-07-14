@@ -3,6 +3,7 @@ import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { DeleteAccountModal } from './DeleteAccountModal';
 
@@ -14,8 +15,14 @@ interface SettingsSheetProps {
 export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { theme, mode, toggleTheme } = useTheme();
   const { signOut } = useAuth();
+  const { start: startTutorial } = useTutorial();
   const isDark = mode === 'dark';
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
+
+  const handleReplayTutorial = () => {
+    onClose();
+    startTutorial();
+  };
 
   const handleSignOut = async () => {
     try {
@@ -62,6 +69,13 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
               size={26}
               color={isDark ? theme.accent : theme.text.tertiary}
             />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleReplayTutorial}>
+            <View style={styles.rowLeft}>
+              <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={theme.text.secondary} />
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>Replay Tutorial</Text>
+            </View>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleSignOut}>

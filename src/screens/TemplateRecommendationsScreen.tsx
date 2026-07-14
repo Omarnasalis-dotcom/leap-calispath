@@ -8,6 +8,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { LeapLogo } from '../components/LeapLogo';
 import { supabase } from '../lib/supabase';
 import { getRecommendations, selectLibraryTemplate, LibraryTemplateRecommendation } from '../lib/templateLibrary';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 const bronzeGold = '#C8A040';
 
@@ -107,6 +108,8 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
     }
   };
 
+  const { ref: backButtonRef, onLayout: onBackButtonLayout, reportInteraction: reportBackButton } = useTutorialTarget('templates.backButton');
+
   const handleClose = () => {
     if (onClose) onClose();
     else router.back();
@@ -114,7 +117,15 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
 
   const headerBar = (
     <View style={styles.headerBar}>
-      <TouchableOpacity onPress={handleClose} style={styles.backBtn}>
+      <TouchableOpacity
+        ref={backButtonRef}
+        onLayout={onBackButtonLayout}
+        onPress={() => {
+          handleClose();
+          reportBackButton();
+        }}
+        style={styles.backBtn}
+      >
         <MaterialCommunityIcons name="chevron-left" size={30} color={bronzeGold} />
       </TouchableOpacity>
       <View style={{ flex: 1, alignItems: 'center' }}>
@@ -198,6 +209,7 @@ function ProgramCard({
   onSelect: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
+  const { ref: startProgramRef, onLayout: onStartProgramLayout } = useTutorialTarget('templates.startProgram');
 
   const onPressIn = () => {
     Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40, bounciness: 0 }).start();
@@ -294,7 +306,11 @@ function ProgramCard({
                   <Text style={styles.currentBtnText}>CURRENTLY ACTIVE</Text>
                 </View>
               ) : (
-                <View style={[styles.selectBtn, { opacity: isSelecting ? 0.6 : 1 }]}>
+                <View
+                  ref={isFirst ? startProgramRef : undefined}
+                  onLayout={isFirst ? onStartProgramLayout : undefined}
+                  style={[styles.selectBtn, { opacity: isSelecting ? 0.6 : 1 }]}
+                >
                   <Text style={styles.selectBtnText}>{isSelecting ? 'STARTING...' : 'START PROGRAM'}</Text>
                   <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
                 </View>

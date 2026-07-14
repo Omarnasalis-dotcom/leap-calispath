@@ -24,9 +24,11 @@ if (!__DEV__) {
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
 import { ThemeProvider } from '../src/contexts/ThemeContext';
+import { TutorialProvider } from '../src/contexts/TutorialContext';
 import { useStealthFonts } from '../hooks/useFonts';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 import { LeapLogo } from '../src/components/LeapLogo';
+import { TutorialOverlay } from '../src/components/tutorial/TutorialOverlay';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 
@@ -166,15 +168,20 @@ export default function RootLayout() {
       <GlobalErrorBoundary>
         <ThemeProvider>
           <AuthProvider>
-            <AuthGuard>
-              <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
-                <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
-                <Stack.Screen name="profile" options={{ animation: 'none' }} />
-                <Stack.Screen name="power-world" options={{ animation: 'none' }} />
-                <Stack.Screen name="static-world" options={{ animation: 'none' }} />
-                <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
-              </Stack>
-            </AuthGuard>
+            <TutorialProvider>
+              <View style={{ flex: 1 }}>
+                <AuthGuard>
+                  <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+                    <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+                    <Stack.Screen name="profile" options={{ animation: 'none' }} />
+                    <Stack.Screen name="power-world" options={{ animation: 'none' }} />
+                    <Stack.Screen name="static-world" options={{ animation: 'none' }} />
+                    <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
+                  </Stack>
+                </AuthGuard>
+                <TutorialOverlay />
+              </View>
+            </TutorialProvider>
             <StatusBar style="auto" />
           </AuthProvider>
         </ThemeProvider>

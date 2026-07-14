@@ -1,11 +1,13 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, FlatList, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, FlatList, ScrollView, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LeaderboardEntry, formatLeaderboardTime } from '../../lib/leaderboard';
 import { getCountryFlag } from '../../constants/countries';
 import { LeaderboardSkeleton } from '../LeaderboardSkeleton';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 
 interface TierLeaderboardListProps {
+  scrollRef?: React.RefObject<ScrollView | null>;
   entries: LeaderboardEntry[];
   // Strength entries carry a hold time in best_time_seconds (lower ranks
   // first — get_tier_leaderboard sorts ASC); Power reuses the same field
@@ -21,6 +23,7 @@ interface TierLeaderboardListProps {
 }
 
 export function TierLeaderboardList({
+  scrollRef,
   entries,
   category = 'strength',
   currentUserId,
@@ -32,6 +35,7 @@ export function TierLeaderboardList({
 }: TierLeaderboardListProps) {
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
+  const { ref: firstRowRef, onLayout: onFirstRowLayout } = useTutorialTarget('strength.leaderboardFirstRow', scrollRef);
 
   const formatValue = (v: number) => category === 'power' ? `${Math.round(v)}` : formatLeaderboardTime(v).replace(':', "'") + '"';
   const valueLabel = category === 'power' ? 'PTS' : 'TIME';
@@ -165,6 +169,8 @@ export function TierLeaderboardList({
                   </View>
                 )}
                 <View
+                  ref={index === 0 ? firstRowRef : undefined}
+                  onLayout={index === 0 ? onFirstRowLayout : undefined}
                   style={[
                     styles.entryRow,
                     entryIsCU && styles.entryRowCurrentUser,

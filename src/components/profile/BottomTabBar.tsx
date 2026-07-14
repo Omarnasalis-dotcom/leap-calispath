@@ -5,8 +5,18 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { TargetId } from '../../types/tutorial';
 
 export type ProfileTab = 'profile' | 'strength' | 'power' | 'static' | '1mm';
+
+const TAB_TARGET_IDS: Partial<Record<ProfileTab, TargetId>> = {
+  profile: 'bottomTab.profile',
+  strength: 'bottomTab.strength',
+  power: 'bottomTab.power',
+  static: 'bottomTab.static',
+  '1mm': 'bottomTab.1mm',
+};
 
 interface TabDef {
   id: ProfileTab;
@@ -39,6 +49,7 @@ interface BottomTabBarProps {
 export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: BottomTabBarProps) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
+  const { ref: barRef, onLayout: onBarLayout } = useTutorialTarget('bottomTab.bar');
 
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
@@ -65,6 +76,8 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
 
   return (
     <View
+      ref={barRef}
+      onLayout={onBarLayout}
       style={[
         styles.bar,
         {
@@ -82,39 +95,65 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
         const isActive = tab.id === activeTab;
         const isUnlocked = strengthTier >= tab.unlockTier;
         return (
-          <TouchableOpacity
+          <TabButton
             key={tab.id}
+            tab={tab}
+            isActive={isActive}
+            isUnlocked={isUnlocked}
             onPress={() => handlePress(tab)}
-            style={styles.item}
-            activeOpacity={0.7}
-          >
-            {isActive && <View style={[styles.activeIndicator, { backgroundColor: tab.accentColor }]} />}
-            <View style={styles.iconWrap}>
-              <MaterialCommunityIcons
-                name={tab.icon}
-                size={18}
-                color={isActive ? tab.accentColor : theme.text.secondary}
-                style={{ opacity: isUnlocked ? 1 : 0.3 }}
-              />
-              {!isUnlocked && (
-                <View style={[styles.lockBadge, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-                  <MaterialCommunityIcons name="lock" size={9} color={theme.text.secondary} />
-                </View>
-              )}
-            </View>
-            <Text
-              style={[
-                styles.label,
-                { color: isActive ? tab.accentColor : theme.text.secondary, opacity: isUnlocked ? 1 : 0.5 },
-              ]}
-              numberOfLines={1}
-            >
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
+          />
         );
       })}
     </View>
+  );
+}
+
+interface TabButtonProps {
+  tab: TabDef;
+  isActive: boolean;
+  isUnlocked: boolean;
+  onPress: () => void;
+}
+
+function TabButton({ tab, isActive, isUnlocked, onPress }: TabButtonProps) {
+  const { theme } = useTheme();
+  const { ref, onLayout, reportInteraction } = useTutorialTarget(TAB_TARGET_IDS[tab.id]);
+
+  return (
+    <TouchableOpacity
+      ref={ref}
+      onLayout={onLayout}
+      onPress={() => {
+        onPress();
+        reportInteraction();
+      }}
+      style={styles.item}
+      activeOpacity={0.7}
+    >
+      {isActive && <View style={[styles.activeIndicator, { backgroundColor: tab.accentColor }]} />}
+      <View style={styles.iconWrap}>
+        <MaterialCommunityIcons
+          name={tab.icon}
+          size={18}
+          color={isActive ? tab.accentColor : theme.text.secondary}
+          style={{ opacity: isUnlocked ? 1 : 0.3 }}
+        />
+        {!isUnlocked && (
+          <View style={[styles.lockBadge, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+            <MaterialCommunityIcons name="lock" size={9} color={theme.text.secondary} />
+          </View>
+        )}
+      </View>
+      <Text
+        style={[
+          styles.label,
+          { color: isActive ? tab.accentColor : theme.text.secondary, opacity: isUnlocked ? 1 : 0.5 },
+        ]}
+        numberOfLines={1}
+      >
+        {tab.label}
+      </Text>
+    </TouchableOpacity>
   );
 }
 

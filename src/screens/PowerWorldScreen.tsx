@@ -24,6 +24,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 
 const { width } = Dimensions.get('window');
@@ -33,7 +34,9 @@ export function PowerWorldScreen() {
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
-  
+  const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('power.scoreCircle');
+  const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('power.movementRow');
+
   const [stats, setStats] = useState<PowerUserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -352,6 +355,8 @@ export function PowerWorldScreen() {
            />
 
             <TouchableOpacity
+            ref={scoreCircleRef}
+            onLayout={onScoreCircleLayout}
             onPress={() => setShowOverallModal(true)}
             activeOpacity={0.8}
            >
@@ -410,7 +415,7 @@ export function PowerWorldScreen() {
         </ScrollView>
 
         {/* PEAK GRID - 4 IN ONE ROW */}
-        <View style={styles.peakGrid}>
+        <View style={styles.peakGrid} ref={movementRowRef} onLayout={onMovementRowLayout}>
           {POWER_MOVEMENTS.map(m => {
             const pb = stats.pbs[m.id] || 0;
             const rank = stats.ranks[m.id] || '--';

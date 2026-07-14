@@ -23,6 +23,8 @@ import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 
 
 const { width } = Dimensions.get('window');
@@ -34,6 +36,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
+  const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
+  const { ref: movementGridRef, onLayout: onMovementGridLayout } = useTutorialTarget('onemm.movementGrid');
+  const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge');
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
@@ -381,6 +386,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
             showCrown={userRank === 1}
           />
           <TouchableOpacity
+            ref={scoreCircleRef}
+            onLayout={onScoreCircleLayout}
             onPress={() => {
               if (__DEV__) console.log('1MM Score button pressed');
               fetchOverallLeaderboard();
@@ -462,11 +469,12 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           })}
         </ScrollView>
 
-        <View style={styles.peakGrid}>
-          {ONEMM_MOVEMENTS.filter(m => m.categoryId === selectedExerciseCategory).map(m => {
+        <View style={styles.peakGrid} ref={movementGridRef} onLayout={onMovementGridLayout}>
+          {ONEMM_MOVEMENTS.filter(m => m.categoryId === selectedExerciseCategory).map((m, index) => {
             const pb = stats.pbs[m.id] || 0;
             const rank = stats.ranks[m.id] || '--';
             const isLocked = m.minTier > (profile?.strength_tier ?? 0);
+            const isFirst = index === 0;
 
             return (
               <TouchableOpacity
@@ -490,12 +498,15 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
                     rankMode
                   />
                   <TouchableOpacity
+                    ref={isFirst ? timerBadgeRef : undefined}
+                    onLayout={isFirst ? onTimerBadgeLayout : undefined}
                     style={[styles.peakAddIcon, { backgroundColor: '#FF7043' }]}
                     onPress={(e) => {
                       e.stopPropagation();
                       if (isLocked) return;
                       setSelectedMovement(m.id);
                       setShowLogModal(true);
+                      if (isFirst) reportTimerBadge();
                     }}
                   >
                     <MaterialCommunityIcons name="timer-outline" size={10} color="#000" />
@@ -813,6 +824,8 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   onSaveResult
 }) => {
   const isMounted = useMountedRef();
+  const { ref: startSprintRef, onLayout: onStartSprintLayout } = useTutorialTarget('onemm.startSprintButton');
+  const { ref: timerCloseRef, onLayout: onTimerCloseLayout, reportInteraction: reportTimerClose } = useTutorialTarget('onemm.timerCloseButton');
   const [timeLeft, setTimeLeft] = useState(60);
   const [preCountdown, setPreCountdown] = useState(0);
   const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
@@ -970,7 +983,14 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
               <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
                 {movementName.toUpperCase()}
               </Text>
-              <TouchableOpacity onPress={cancelTimer}>
+              <TouchableOpacity
+                ref={timerCloseRef}
+                onLayout={onTimerCloseLayout}
+                onPress={() => {
+                  cancelTimer();
+                  reportTimerClose();
+                }}
+              >
                 <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
               </TouchableOpacity>
             </View>
@@ -988,7 +1008,12 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
             </View>
 
             {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
-              <TouchableOpacity style={[styles.startBtn, { backgroundColor: theme.accent }]} onPress={startTimer}>
+              <TouchableOpacity
+                ref={startSprintRef}
+                onLayout={onStartSprintLayout}
+                style={[styles.startBtn, { backgroundColor: theme.accent }]}
+                onPress={startTimer}
+              >
                 <Text style={styles.startBtnText}>START SPRINT</Text>
               </TouchableOpacity>
             )}
@@ -1032,6 +1057,14 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
               <Text style={[styles.workText, { color: theme.accent }]}>GO! GO! GO!</Text>
             )}
           </View>
+          {/* Sibling of modalContent, not a child, and rendered AFTER it so
+              it paints on top — modalContent holds the real START SPRINT
+              button; if this overlay renders behind it, taps reach the real
+              button first and actually start the sprint instead of being
+              caught by the decoy layer. modalOverlay (this component's
+              parent here) is also the actual full-screen, zero-offset root,
+              which measureInWindow's screen-absolute coordinates need. */}
+          <TutorialModalOverlay targetIds={['onemm.startSprintButton', 'onemm.timerCloseButton']} />
         </KeyboardAvoidingView>
       </TouchableWithoutFeedback>
     </Modal>

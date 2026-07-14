@@ -10,6 +10,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getCountryFlag } from '../../constants/countries';
 import { LeapLogo } from '../LeapLogo';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { TutorialModalOverlay } from '../tutorial/TutorialOverlay';
 
 
 interface LeaderboardModalsProps {
@@ -42,6 +44,8 @@ export function LeaderboardModals({
   onWraScopeChange,
 }: LeaderboardModalsProps) {
   const { theme, mode } = useTheme();
+  const { ref: topEntriesRef, onLayout: onTopEntriesLayout } = useTutorialTarget('wra.topEntries');
+  const { ref: closeButtonRef, onLayout: onCloseButtonLayout, reportInteraction: reportCloseButton } = useTutorialTarget('wra.closeButton');
 
   return (
     <>
@@ -55,7 +59,15 @@ export function LeaderboardModals({
         <View style={[StyleSheet.absoluteFill, { backgroundColor: mode === 'dark' ? 'rgba(0,0,0,0.9)' : 'rgba(255,255,255,0.95)' }]}>
           <SafeAreaView style={[styles.modalContainer, { backgroundColor: theme.background.primary }]}>
             <View style={styles.lbModalHeader}>
-              <TouchableOpacity onPress={() => setShowWRALeaderboard(false)} style={styles.modalCloseBtn}>
+              <TouchableOpacity
+                ref={closeButtonRef}
+                onLayout={onCloseButtonLayout}
+                onPress={() => {
+                  setShowWRALeaderboard(false);
+                  reportCloseButton();
+                }}
+                style={styles.modalCloseBtn}
+              >
                 <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
               </TouchableOpacity>
               <View style={styles.modalHeaderTitle}>
@@ -120,56 +132,75 @@ export function LeaderboardModals({
                     </TouchableOpacity>
                   ))}
                 </View>
-                {filteredWraLeaderboard.map((entry) => (
-                  <View
-                    key={entry.user_id}
-                    style={[
-                      styles.lbRow,
-                      {
-                        backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
-                        borderColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)',
-                      },
-                      entry.is_current_user && {
-                        backgroundColor: mode === 'dark' ? `${theme.accent}20` : `${theme.accent}15`,
-                        borderColor: theme.accent
-                      }
-                    ]}
-                  >
-                    <View style={styles.lbRankBox}>
-                      <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? theme.accent : theme.text.tertiary }]}>
-                        #{entry.rank}
-                      </Text>
-                    </View>
+                {(() => {
+                  const renderEntry = (entry: any) => (
+                    <View
+                      key={entry.user_id}
+                      style={[
+                        styles.lbRow,
+                        {
+                          backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)',
+                          borderColor: mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.06)',
+                        },
+                        entry.is_current_user && {
+                          backgroundColor: mode === 'dark' ? `${theme.accent}20` : `${theme.accent}15`,
+                          borderColor: theme.accent
+                        }
+                      ]}
+                    >
+                      <View style={styles.lbRankBox}>
+                        <Text style={[styles.lbRankText, { color: entry.rank <= 3 ? theme.accent : theme.text.tertiary }]}>
+                          #{entry.rank}
+                        </Text>
+                      </View>
 
-                    <View style={{ flex: 1 }}>
-                      <Text style={[styles.lbName, { color: theme.text.primary }]}>
-                        {getCountryFlag(entry.country)} {entry.display_name?.toUpperCase()}
-                      </Text>
-                      <View style={styles.lbBreakdown}>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.static_pts || 0).toFixed(2)}S</Text>
-                        </View>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.power_pts || 0).toFixed(2)}P</Text>
-                        </View>
-                        <View style={styles.lbBreakdownItem}>
-                          <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
-                          <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.endurance_pts || 0).toFixed(2)}E</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={[styles.lbName, { color: theme.text.primary }]}>
+                          {getCountryFlag(entry.country)} {entry.display_name?.toUpperCase()}
+                        </Text>
+                        <View style={styles.lbBreakdown}>
+                          <View style={styles.lbBreakdownItem}>
+                            <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.static_pts || 0).toFixed(2)}S</Text>
+                          </View>
+                          <View style={styles.lbBreakdownItem}>
+                            <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.power_pts || 0).toFixed(2)}P</Text>
+                          </View>
+                          <View style={styles.lbBreakdownItem}>
+                            <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.endurance_pts || 0).toFixed(2)}E</Text>
+                          </View>
                         </View>
                       </View>
-                    </View>
 
-                    <View style={styles.lbScoreBox}>
-                      <Text style={[styles.lbScoreText, { color: theme.accent }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
-                      <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>PTS</Text>
+                      <View style={styles.lbScoreBox}>
+                        <Text style={[styles.lbScoreText, { color: theme.accent }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
+                        <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>PTS</Text>
+                      </View>
                     </View>
-                  </View>
-                ))}
+                  );
+                  return (
+                    <>
+                      {/* Wrapped separately (not sliced out of the real list) so the
+                          tutorial can highlight just the top 5 without affecting how
+                          many entries actually render for real. */}
+                      <View ref={topEntriesRef} onLayout={onTopEntriesLayout}>
+                        {filteredWraLeaderboard.slice(0, 5).map(renderEntry)}
+                      </View>
+                      {filteredWraLeaderboard.slice(5).map(renderEntry)}
+                    </>
+                  );
+                })()}
               </ScrollView>
             )}
           </SafeAreaView>
+          {/* Sibling of SafeAreaView, not a child of it — modalContainer has its
+              own margin/marginTop offset, which would shift this overlay's
+              coordinate origin away from the screen-absolute coordinates
+              measureInWindow reports for the targets inside it. This outer
+              View is the actual full-screen, zero-offset root. */}
+          <TutorialModalOverlay targetIds={['wra.topEntries', 'wra.closeButton']} />
         </View>
       </Modal>
 

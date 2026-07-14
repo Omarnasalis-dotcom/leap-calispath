@@ -16,6 +16,11 @@ interface OnboardingTutorialProps {
   strengthTier: number;
   onBeginTrial: () => void;
   onSkip: () => void;
+  onTakeTour?: () => void;
+  // Lets the caller reopen this modal directly at the "first objective"
+  // step (e.g. right after the spotlight tour finishes) instead of always
+  // starting from the beginning.
+  initialStep?: number;
 }
 
 function getUnlockMessage(tier: number): string {
@@ -37,9 +42,9 @@ const WORLDS = [
   { icon: '⚡', name: 'Power World', short: 'POWER', unlock: 'Unlocked at Tier 6', desc: 'Lift heavy. Prove your strength through weighted calisthenics and maximum output.', unlockedAt: 6 },
 ];
 
-export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, onSkip }: OnboardingTutorialProps) {
+export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, onSkip, onTakeTour, initialStep = 0 }: OnboardingTutorialProps) {
   const { theme } = useTheme();
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(initialStep);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.92)).current;
   const glowAnim = useRef(new Animated.Value(0.4)).current;
@@ -49,6 +54,14 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
   const nextTier = Math.min(strengthTier + 1, 9);
 
   const insets = useSafeAreaInsets();
+
+  // This component stays mounted across show/hide (visible toggles), so the
+  // initial useState(initialStep) only applies once — reset explicitly
+  // whenever it's reopened, so a caller can reopen it directly at a later
+  // step (e.g. the "first objective" step right after the tour finishes).
+  useEffect(() => {
+    if (visible) setStep(initialStep);
+  }, [visible, initialStep]);
 
   useEffect(() => {
     if (!visible) return;
@@ -71,7 +84,7 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
   }, [visible, step]);
 
   useEffect(() => {
-    if (!visible || step !== 2) return;
+    if (!visible || step !== 3) return;
     const loop = Animated.loop(Animated.sequence([
       Animated.timing(pulseAnim, { toValue: 1.04, duration: 700, useNativeDriver: true }),
       Animated.timing(pulseAnim, { toValue: 1, duration: 700, useNativeDriver: true }),
@@ -80,7 +93,7 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
     return () => loop.stop();
   }, [visible, step]);
 
-  function goNext() { if (step < 2) setStep(step + 1); }
+  function goNext() { if (step < 3) setStep(step + 1); }
   function goBack() { if (step > 0) setStep(step - 1); }
 
   const renderStep0 = () => (
@@ -129,7 +142,28 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
     </Animated.View>
   );
 
-  const renderStep2 = () => {
+  const renderStep2 = () => (
+    <Animated.View style={[styles.stepContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+      <Text style={[styles.stepTitle, { color: theme.text.primary }]}>SEE HOW IT WORKS</Text>
+      <Text style={[styles.stepSubtitle, { color: theme.text.secondary }]}>
+        A quick, hands-on walkthrough of your profile, tiers, workout program, leaderboards, and every world — about a minute, and you can skip it anytime.
+      </Text>
+      {onTakeTour && (
+        <TouchableOpacity
+          style={[styles.ctaButton, { backgroundColor: accentColor, marginTop: 12 }]}
+          onPress={onTakeTour}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.ctaButtonText}>TAKE THE TOUR</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity style={styles.skipButton} onPress={goNext}>
+        <Text style={[styles.skipButtonText, { color: theme.text.tertiary }]}>Skip — Continue</Text>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+
+  const renderStep3 = () => {
     const isMaxTier = strengthTier === 9;
     return (
       <Animated.View style={[styles.stepContainer, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
@@ -173,7 +207,7 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
 
   const renderDots = () => (
     <View style={styles.dotsRow}>
-      {[0, 1, 2].map((i) => (
+      {[0, 1, 2, 3].map((i) => (
         <View key={i} style={[styles.dot, { backgroundColor: i === step ? accentColor : theme.card.border, width: i === step ? 20 : 6 }]} />
       ))}
     </View>
@@ -194,6 +228,7 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
               {step === 0 && renderStep0()}
               {step === 1 && renderStep1()}
               {step === 2 && renderStep2()}
+              {step === 3 && renderStep3()}
             </ScrollView>
             {step < 2 && (
               <View style={styles.navRow}>
@@ -202,7 +237,7 @@ export function OnboardingTutorialScreen({ visible, strengthTier, onBeginTrial, 
                   : <View style={{ flex: 1 }} />
                 }
                 <TouchableOpacity style={[styles.nextBtn, { backgroundColor: accentColor }]} onPress={goNext}>
-                  <Text style={styles.nextBtnText}>{step === 0 ? 'Explore the Worlds' : 'Your Objective'}</Text>
+                  <Text style={styles.nextBtnText}>{step === 0 ? 'Explore the Worlds' : 'Continue'}</Text>
                 </TouchableOpacity>
               </View>
             )}

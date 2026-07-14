@@ -3,6 +3,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -10,6 +11,7 @@ import { TIER_NAMES } from '../../types';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { LeaderboardEntry } from '../../lib/leaderboard';
 import { TierLeaderboardList } from './TierLeaderboardList';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 
 interface TierRankData {
   rank: number | null;
@@ -18,6 +20,7 @@ interface TierRankData {
 }
 
 interface StrengthWorldViewProps {
+  scrollRef?: React.RefObject<ScrollView | null>;
   profile: any;
   category: 'strength' | 'power';
   selectedTier: number;
@@ -44,6 +47,7 @@ interface StrengthWorldViewProps {
 }
 
 export function StrengthWorldView({
+  scrollRef,
   profile,
   category,
   selectedTier,
@@ -69,6 +73,7 @@ export function StrengthWorldView({
   onLeaderboardScopeChange,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
+  const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef);
   return (
     <>
 
@@ -80,6 +85,8 @@ export function StrengthWorldView({
             {isLowerTier ? 'PRACTICE MODE' : 'NEXT CHALLENGE'}
           </Text>
           <TouchableOpacity
+            ref={trialButtonRef}
+            onLayout={onTrialButtonLayout}
             style={[styles.primaryActionButton, { backgroundColor: isLowerTier ? 'transparent' : theme.accent, borderWidth: isLowerTier ? 1 : 0, borderColor: theme.accent }]}
             onPress={() => onStartTrial && onStartTrial(isLowerTier ? selectedTier : undefined)}
           >
@@ -93,6 +100,7 @@ export function StrengthWorldView({
       )}
 
       <TierLeaderboardList
+        scrollRef={scrollRef}
         entries={leaderboardEntries}
         category={category}
         currentUserId={profile?.id}

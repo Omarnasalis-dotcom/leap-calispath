@@ -1,17 +1,20 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, TextInput, Modal, StyleSheet, Alert, Platform } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, Modal, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeMutation } from '../../hooks/useSafeMutation';
 import { LeapLogo } from '../LeapLogo';
 import { getMyCommunity, createCommunity, joinCommunity, leaveCommunity, formatCommunityError, MyCommunity } from '../../lib/community';
+import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { useTutorial } from '../../contexts/TutorialContext';
 
 interface CommunitySectionProps {
   userId: string;
+  scrollRef?: React.RefObject<ScrollView | null>;
 }
 
-export function CommunitySection({ userId }: CommunitySectionProps) {
+export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
   const { theme } = useTheme();
   // profile.community_id (AuthContext) is what every leaderboard's PUBLIC/
   // MY COMMUNITY toggle actually reads — refreshing only this component's
@@ -29,6 +32,9 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
   const [joinCode, setJoinCode] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const { safeMutate, isMutating } = useSafeMutation();
+  const { ref: createButtonRef, onLayout: onCreateButtonLayout } = useTutorialTarget('community.createButton', scrollRef);
+  const { ref: joinButtonRef, onLayout: onJoinButtonLayout } = useTutorialTarget('community.joinButton', scrollRef);
+  const { requestRemeasure } = useTutorial();
 
   const refresh = async () => {
     setLoading(true);
@@ -36,6 +42,15 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
     setCommunity(c);
     setLoading(false);
   };
+
+  // This section renders nothing until its own fetch resolves (see the
+  // `if (loading) return null` below) — that pop-in shifts whatever's
+  // beneath it (e.g. the MY WORKOUT PROGRAM button), which a tutorial
+  // target measured before this finished would miss entirely. Nudge a
+  // re-measure once this actually settles instead of guessing a delay.
+  useEffect(() => {
+    if (!loading) requestAnimationFrame(requestRemeasure);
+  }, [loading, requestRemeasure]);
 
   useEffect(() => {
     if (userId) refresh();
@@ -136,6 +151,8 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
       ) : (
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <TouchableOpacity
+            ref={createButtonRef}
+            onLayout={onCreateButtonLayout}
             style={[styles.actionBtn, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}
             onPress={() => { setFormError(null); setShowCreateModal(true); }}
           >
@@ -143,6 +160,8 @@ export function CommunitySection({ userId }: CommunitySectionProps) {
             <Text style={[styles.actionBtnText, { color: theme.text.primary }]}>CREATE COMMUNITY</Text>
           </TouchableOpacity>
           <TouchableOpacity
+            ref={joinButtonRef}
+            onLayout={onJoinButtonLayout}
             style={[styles.actionBtn, { borderColor: theme.accent, backgroundColor: theme.accent + '15' }]}
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
           >
