@@ -187,7 +187,10 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
     // Below the current best — ask before silently discarding it (or, if
     // force is true, this IS the user's confirmed choice to overwrite).
-    if (!force && personalBest && seconds <= personalBest.best_time_seconds) {
+    // Strictly less-than (not <=): submit_static_hold treats a tied time as
+    // "not a new PB" but also not worse — a tie should just no-op silently
+    // like before, not surface a misleading "below your best" prompt.
+    if (!force && personalBest && seconds < personalBest.best_time_seconds) {
       setPendingOverwrite(seconds);
       return;
     }

@@ -161,8 +161,11 @@ export function PowerWorldScreen() {
 
     // Below the current best — ask before silently discarding it (or, if
     // force is true, this IS the user's confirmed choice to overwrite).
+    // Strictly less-than (not <=): submit_power_assessment treats a tied
+    // weight as "not a new PB" but also not worse — a tie should just no-op
+    // silently like before, not surface a misleading "below your best" prompt.
     const currentBest = stats?.pbs[selectedMovement] ?? 0;
-    if (!force && currentBest > 0 && kg <= currentBest) {
+    if (!force && currentBest > 0 && kg < currentBest) {
       setPendingOverwrite(kg);
       return;
     }

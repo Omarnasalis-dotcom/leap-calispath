@@ -36,7 +36,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
-  const { runAsync: runSafeSave } = useSafeAsync();
+  const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
   const { ref: movementGridRef, onLayout: onMovementGridLayout } = useTutorialTarget('onemm.movementGrid');
   const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge');
@@ -682,6 +682,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
               unitLabel=" REPS"
               currentBest={selectedMovement ? (stats?.pbs[selectedMovement] ?? 0) : 0}
               attemptValue={pendingOverwrite ?? 0}
+              saving={saving}
               onKeepBest={() => setPendingOverwrite(null)}
               onSaveAnyway={() => {
                 const reps = pendingOverwrite;
