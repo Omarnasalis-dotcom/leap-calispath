@@ -1,7 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { BlurView } from 'expo-blur';
-import { LinearGradient } from 'expo-linear-gradient';
+import { Animated, StyleSheet, Text } from 'react-native';
 
 const ACCENT = '#FF5252';
 
@@ -11,6 +9,13 @@ interface TutorialCaptionProps {
   caption: string;
 }
 
+// Renders just the text content — the opaque card behind it (and behind
+// TutorialDots/the nav row) lives one level up, wrapping all three as a
+// single panel. See TutorialOverlay's bottomChromeCard for why: this step's
+// target can sit high up on a content-dense scrollable page (e.g. Profile),
+// where "placed below the target" still lands on real page content further
+// down, not empty margin — a per-piece card left the dots/button with no
+// backing at all, so that content showed through around them.
 export function TutorialCaption({ stepIndex, tag, caption }: TutorialCaptionProps) {
   const fade = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
@@ -25,32 +30,14 @@ export function TutorialCaption({ stepIndex, tag, caption }: TutorialCaptionProp
   }, [stepIndex, fade, translateY]);
 
   return (
-    <Animated.View style={[styles.card, { opacity: fade, transform: [{ translateY }] }]}>
-      <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
-      <LinearGradient
-        colors={['rgba(20,10,10,0.9)', 'rgba(10,6,6,0.9)']}
-        style={StyleSheet.absoluteFill}
-      />
-      <View style={styles.content}>
-        <Text style={styles.tag}>{tag}</Text>
-        <Text style={styles.caption}>{caption}</Text>
-      </View>
+    <Animated.View style={{ opacity: fade, transform: [{ translateY }] }}>
+      <Text style={styles.tag}>{tag}</Text>
+      <Text style={styles.caption}>{caption}</Text>
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,82,82,0.28)',
-    overflow: 'hidden',
-  },
-  content: {
-    paddingVertical: 18,
-    paddingHorizontal: 22,
-    alignItems: 'center',
-  },
   tag: {
     color: ACCENT,
     fontSize: 11,

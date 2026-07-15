@@ -32,8 +32,9 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
   const [joinCode, setJoinCode] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
   const { safeMutate, isMutating } = useSafeMutation();
-  const { ref: createButtonRef, onLayout: onCreateButtonLayout } = useTutorialTarget('community.createButton', scrollRef);
-  const { ref: joinButtonRef, onLayout: onJoinButtonLayout } = useTutorialTarget('community.joinButton', scrollRef);
+  // useScreenMeasure=true: see useTutorialTarget's own comment.
+  const { ref: createButtonRef, onLayout: onCreateButtonLayout } = useTutorialTarget('community.createButton', scrollRef, true);
+  const { ref: joinButtonRef, onLayout: onJoinButtonLayout } = useTutorialTarget('community.joinButton', scrollRef, true);
   const { requestRemeasure } = useTutorial();
 
   const refresh = async () => {

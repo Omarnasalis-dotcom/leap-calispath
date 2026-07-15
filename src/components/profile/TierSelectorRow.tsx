@@ -33,7 +33,8 @@ export function TierSelectorRow({
   // before the (delayed, animated) scroll-to-current-tier effect fires.
   const ITEM_WIDTH = 90 + 12; // tierItemContainer minWidth + tierList gap
   const initialOffset = Math.max(0, activeCurrentTier * ITEM_WIDTH);
-  const { ref, onLayout, reportInteraction } = useTutorialTarget('strength.tierChips', scrollRef);
+  // useScreenMeasure=true: see useTutorialTarget's own comment.
+  const { ref, onLayout, reportInteraction } = useTutorialTarget('strength.tierChips', scrollRef, true);
 
   return (
     <View style={styles.tierSelectorSection} ref={ref} onLayout={onLayout}>

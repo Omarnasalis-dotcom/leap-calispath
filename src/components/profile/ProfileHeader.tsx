@@ -75,9 +75,13 @@ export function ProfileHeader({
   onOpenPowerAssessment,
   onOpenOneMinMax,
 }: ProfileHeaderProps) {
-  const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef);
-  const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef);
-  const { ref: workoutProgramButtonRef, onLayout: onWorkoutProgramButtonLayout, reportInteraction: reportWorkoutProgramButton } = useTutorialTarget('profile.workoutProgramButton', scrollRef);
+  // useScreenMeasure=true: see useTutorialTarget's own comment — Android's
+  // measureInWindow() under-reports these targets' y once scrollIntoView
+  // has actually had to scroll the page (not a no-op at y=0), so pageX/pageY
+  // is used instead for a position that's correct regardless of scroll state.
+  const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef, true);
+  const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef, true);
+  const { ref: workoutProgramButtonRef, onLayout: onWorkoutProgramButtonLayout, reportInteraction: reportWorkoutProgramButton } = useTutorialTarget('profile.workoutProgramButton', scrollRef, true);
 
   return (
     <>

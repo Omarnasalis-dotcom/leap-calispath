@@ -126,7 +126,10 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
     }
   };
 
-  const { ref: backButtonRef, onLayout: onBackButtonLayout, reportInteraction: reportBackButton } = useTutorialTarget('templates.backButton');
+  // useScreenMeasure=true: this button sits in the header, outside the
+  // screen's ScrollView — see useTutorialTarget's own comment for why that
+  // needs the pageX/pageY measurement path on Android.
+  const { ref: backButtonRef, onLayout: onBackButtonLayout, reportInteraction: reportBackButton } = useTutorialTarget('templates.backButton', undefined, true);
 
   const handleClose = () => {
     if (onClose) onClose();
@@ -478,7 +481,8 @@ function ProgramCard({
   onSelect: () => void;
 }) {
   const scale = useRef(new Animated.Value(1)).current;
-  const { ref: startProgramRef, onLayout: onStartProgramLayout } = useTutorialTarget('templates.startProgram');
+  // useScreenMeasure=true: see useTutorialTarget's own comment.
+  const { ref: startProgramRef, onLayout: onStartProgramLayout } = useTutorialTarget('templates.startProgram', undefined, true);
 
   const onPressIn = () => {
     Animated.spring(scale, { toValue: 0.97, useNativeDriver: true, speed: 40, bounciness: 0 }).start();

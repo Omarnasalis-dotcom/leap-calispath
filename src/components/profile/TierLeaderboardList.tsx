@@ -35,7 +35,8 @@ export function TierLeaderboardList({
 }: TierLeaderboardListProps) {
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
   const [showLeaderboardModal, setShowLeaderboardModal] = useState(false);
-  const { ref: firstRowRef, onLayout: onFirstRowLayout } = useTutorialTarget('strength.leaderboardFirstRow', scrollRef);
+  // useScreenMeasure=true: see useTutorialTarget's own comment.
+  const { ref: firstRowRef, onLayout: onFirstRowLayout } = useTutorialTarget('strength.leaderboardFirstRow', scrollRef, true);
 
   const formatValue = (v: number) => category === 'power' ? `${Math.round(v)}` : formatLeaderboardTime(v).replace(':', "'") + '"';
   const valueLabel = category === 'power' ? 'PTS' : 'TIME';

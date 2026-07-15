@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef } from 'react';
-import { ScrollView, View } from 'react-native';
+import { Platform, ScrollView, View } from 'react-native';
 import { useTutorial } from '../contexts/TutorialContext';
 import { TargetId } from '../types/tutorial';
 
@@ -17,7 +17,16 @@ const SETTLE_REMEASURE_DELAYS_MS = [300, 900];
 
 export function useTutorialTarget(
   targetId: TargetId | undefined,
-  scrollRef?: React.RefObject<ScrollView | null>
+  scrollRef?: React.RefObject<ScrollView | null>,
+  // Android-only quirk: measureInWindow() under-reports y by exactly
+  // insets.top (status bar height) for elements outside any ScrollView,
+  // like the bottom tab bar — verified by comparing against measure()'s
+  // pageX/pageY, which reports the true screen-relative position for those
+  // same elements. Elements inside a ScrollView (scrollRef passed above)
+  // measure correctly with measureInWindow as-is, so this only opts in
+  // fixed, non-scrolling targets like the tab bar into the pageX/pageY path
+  // rather than risk changing behavior for everything.
+  useScreenMeasure?: boolean
 ) {
   const { isTargetNeeded, registerTarget, reportInteraction, remeasureNonce } = useTutorial();
   const ref = useRef<View>(null);
@@ -27,11 +36,18 @@ export function useTutorialTarget(
     if (!targetId || !isTargetNeeded(targetId)) return;
     const node = ref.current;
     if (!node) return;
+    if (useScreenMeasure && Platform.OS === 'android') {
+      (node as any).measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
+        if (width <= 0 || height <= 0) return;
+        registerTarget(targetId, { x: pageX, y: pageY, width, height });
+      });
+      return;
+    }
     node.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
       registerTarget(targetId, { x, y, width, height });
     });
-  }, [isTargetNeeded, registerTarget, targetId]);
+  }, [isTargetNeeded, registerTarget, targetId, useScreenMeasure]);
 
   const onLayout = useCallback(() => {
     measure();

@@ -39,7 +39,10 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
   const { ref: movementGridRef, onLayout: onMovementGridLayout } = useTutorialTarget('onemm.movementGrid');
-  const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge');
+  // useScreenMeasure=true: this badge sits in the movement grid, outside the
+  // screen's ScrollView — see useTutorialTarget's own comment for why that
+  // needs the pageX/pageY measurement path on Android.
+  const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge', undefined, true);
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 

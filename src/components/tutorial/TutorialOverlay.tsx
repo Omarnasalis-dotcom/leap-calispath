@@ -1,6 +1,8 @@
 import React from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Mask, Rect } from 'react-native-svg';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { TUTORIAL_STEPS } from './tutorialSteps';
@@ -154,8 +156,21 @@ function TutorialStepOverlayContent() {
 
       {/* Chrome (caption/dots) renders immediately every step regardless of
           measurement state, so slower-loading screens never leave the user
-          staring at a bare dimmed screen with no feedback. */}
-      <View style={[styles.bottomChrome, chromeStyle]} pointerEvents="box-none">
+          staring at a bare dimmed screen with no feedback.
+
+          Wrapped in one opaque card (rather than each piece carrying its
+          own, or none) because "below the target" can still land on real
+          page content further down a dense scrollable screen (e.g. a step
+          targeting something near the top of Profile) — the global dim
+          mask alone doesn't fully hide bright text/numbers under it, so
+          without a solid backing that content visibly bled through the
+          gaps around the dots and button. */}
+      <View style={[styles.bottomChrome, chromeStyle]}>
+        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+        <LinearGradient
+          colors={['rgba(20,10,10,0.94)', 'rgba(10,6,6,0.94)']}
+          style={StyleSheet.absoluteFill}
+        />
         <TutorialCaption stepIndex={stepIndex} tag={step.tag} caption={step.caption} />
         <TutorialDots total={totalSteps} activeIndex={stepIndex} />
         {isDecoy && (
@@ -192,6 +207,13 @@ const styles = StyleSheet.create({
     position: 'absolute',
     left: 20,
     right: 20,
+    alignItems: 'center',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,82,82,0.28)',
+    paddingVertical: 18,
+    paddingHorizontal: 22,
+    overflow: 'hidden',
   },
   navRow: {
     flexDirection: 'row',

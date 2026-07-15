@@ -117,7 +117,10 @@ interface TabButtonProps {
 
 function TabButton({ tab, isActive, isUnlocked, onPress }: TabButtonProps) {
   const { theme } = useTheme();
-  const { ref, onLayout, reportInteraction } = useTutorialTarget(TAB_TARGET_IDS[tab.id]);
+  // useScreenMeasure=true: this button sits outside any ScrollView, in the
+  // fixed bottom tab bar — see useTutorialTarget's own comment for why that
+  // needs the pageX/pageY measurement path on Android.
+  const { ref, onLayout, reportInteraction } = useTutorialTarget(TAB_TARGET_IDS[tab.id], undefined, true);
 
   return (
     <TouchableOpacity

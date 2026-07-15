@@ -73,7 +73,8 @@ export function StrengthWorldView({
   onLeaderboardScopeChange,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
-  const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef);
+  // useScreenMeasure=true: see useTutorialTarget's own comment.
+  const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef, true);
   return (
     <>
 
