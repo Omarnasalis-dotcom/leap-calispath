@@ -25,6 +25,7 @@ import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { FloatingLadderButton } from '../components/FloatingLadderButton';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -569,6 +570,8 @@ export function ProfileScreen({
           strengthTier={profile?.strength_tier || 0}
           onSelectProfileTab={setActiveTab}
         />
+
+        <FloatingLadderButton />
 
         <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
 

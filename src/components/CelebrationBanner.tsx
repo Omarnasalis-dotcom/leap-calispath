@@ -33,6 +33,13 @@ interface CelebrationProps {
   headerText?: string;
   showLeapLogo?: boolean;
   accentColor?: string;
+  // Gates the vibration + boxing bell — routine results (e.g. an ordinary
+  // Beat The Plank run) still get the card/share/save, just without the
+  // victory fanfare that's meant for actual wins.
+  celebratory?: boolean;
+  // Overrides the POWER_QUOTES/STATIC_QUOTES/ENDURANCE_QUOTES auto-pick for
+  // callers whose theme doesn't match any of those three worlds.
+  quotes?: string[];
 }
 
 const POWER_QUOTES = [
@@ -73,6 +80,8 @@ export function CelebrationBanner({
   headerText,
   showLeapLogo,
   accentColor,
+  celebratory = true,
+  quotes,
 }: CelebrationProps) {
   const { theme, mode } = useTheme();
   const cardAccent = accentColor || theme.accent;
@@ -92,15 +101,20 @@ export function CelebrationBanner({
 
   useEffect(() => {
     if (visible) {
-      Vibration.vibrate([0, 50, 100, 50]);
-      SoundService.playBoxingBell();
+      if (celebratory) {
+        Vibration.vibrate([0, 50, 100, 50]);
+        SoundService.playBoxingBell();
+      }
 
-      // Pick a random quote based on the header text or fallback
-      let quotePool = POWER_QUOTES;
-      if (headerText === 'STATIC WORLD' || title?.includes('STATIC')) {
-        quotePool = STATIC_QUOTES;
-      } else if (headerText === 'ENDURANCE WORLD' || title?.includes('ENDURANCE')) {
-        quotePool = ENDURANCE_QUOTES;
+      // Pick a random quote: an explicit pool wins, otherwise fall back to
+      // the header-text-based auto-pick.
+      let quotePool = quotes && quotes.length > 0 ? quotes : POWER_QUOTES;
+      if (!quotes || quotes.length === 0) {
+        if (headerText === 'STATIC WORLD' || title?.includes('STATIC')) {
+          quotePool = STATIC_QUOTES;
+        } else if (headerText === 'ENDURANCE WORLD' || title?.includes('ENDURANCE')) {
+          quotePool = ENDURANCE_QUOTES;
+        }
       }
       const randomQuote = quotePool[Math.floor(Math.random() * quotePool.length)];
       setQuote(randomQuote);
