@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
+import { WORLD_THEMES } from '../../../constants/worldThemes';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TargetId } from '../../types/tutorial';
 
@@ -31,11 +32,11 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'profile', label: 'PROFILE', icon: 'account', unlockTier: 0, route: '/profile', accentColor: '#FF5252' },
-  { id: 'strength', label: 'STRENGTH', icon: 'sword-cross', unlockTier: 0, route: '/profile', accentColor: '#FF5252' },
-  { id: 'power', label: 'POWER', icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: '#FF5252' },
-  { id: 'static', label: 'STATIC', icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: '#7E57C2' },
-  { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: '#FF7043' },
+  { id: 'profile', label: 'PROFILE', icon: 'account', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'strength', label: 'STRENGTH', icon: 'sword-cross', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'power', label: 'POWER', icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
+  { id: 'static', label: 'STATIC', icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
+  { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
 ];
 
 interface BottomTabBarProps {
