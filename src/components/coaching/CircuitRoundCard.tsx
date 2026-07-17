@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
@@ -43,10 +43,14 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const intervalRef = useRef<any>(null);
+  const lastTickRef = useRef<number | null>(null);
+  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     if (restActive && restTimeLeft > 0) {
+      lastTickRef.current = Date.now();
       intervalRef.current = setInterval(() => {
+        lastTickRef.current = Date.now();
         setRestTimeLeft(prev => {
           if (prev <= 1) {
             clearInterval(intervalRef.current);
@@ -59,6 +63,37 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
       }, 1000);
     }
     return () => clearInterval(intervalRef.current);
+  }, [restActive]);
+
+  // Correct for time lost while backgrounded — JS timers pause while the app
+  // isn't foregrounded, so the interval above alone would silently undercount
+  // (same fix already proven in src/hooks/useWarriorTimer.ts for Tabata).
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        if (restActive && lastTickRef.current) {
+          const now = Date.now();
+          const deltaSecs = Math.floor((now - lastTickRef.current) / 1000);
+          if (deltaSecs > 0) {
+            setRestTimeLeft(prev => {
+              const next = prev - deltaSecs;
+              if (next <= 0) {
+                clearInterval(intervalRef.current);
+                setRestActive(false);
+                SoundServiceInstance.playDigitalBuzzer(2);
+                return 0;
+              }
+              return next;
+            });
+          }
+          lastTickRef.current = now;
+        }
+      } else if (nextAppState.match(/inactive|background/)) {
+        lastTickRef.current = Date.now();
+      }
+      appState.current = nextAppState;
+    });
+    return () => subscription.remove();
   }, [restActive]);
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

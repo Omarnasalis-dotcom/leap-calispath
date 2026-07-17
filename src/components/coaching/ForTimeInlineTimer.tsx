@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
@@ -43,11 +43,15 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   // submit, since a capped result means "how far did you get," not a finish time.
   const [capped, setCapped] = useState(false);
   const intervalRef = useRef<any>(null);
+  const lastTickRef = useRef<number | null>(null);
+  const appState = useRef(AppState.currentState);
   const hasRounds = totalRounds > 1;
 
   useEffect(() => {
     if (timerRunning) {
+      lastTickRef.current = Date.now();
       intervalRef.current = setInterval(() => {
+        lastTickRef.current = Date.now();
         setElapsedTime(prev => {
           const next = prev + 1;
           if (timeCapSeconds > 0 && next >= timeCapSeconds) {
@@ -63,6 +67,38 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     }
     return () => clearInterval(intervalRef.current);
   }, [timerRunning]);
+
+  // Correct for time lost while backgrounded — elapsed time is the logged
+  // score for a For Time block, so this matters more here than anywhere else
+  // (same fix already proven in src/hooks/useWarriorTimer.ts for Tabata).
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', nextAppState => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        if (timerRunning && lastTickRef.current) {
+          const now = Date.now();
+          const deltaSecs = Math.floor((now - lastTickRef.current) / 1000);
+          if (deltaSecs > 0) {
+            setElapsedTime(prev => {
+              const next = prev + deltaSecs;
+              if (timeCapSeconds > 0 && next >= timeCapSeconds) {
+                clearInterval(intervalRef.current);
+                setTimerRunning(false);
+                setCapped(true);
+                SoundServiceInstance.playDigitalBuzzer(4);
+                return timeCapSeconds;
+              }
+              return next;
+            });
+          }
+          lastTickRef.current = now;
+        }
+      } else if (nextAppState.match(/inactive|background/)) {
+        lastTickRef.current = Date.now();
+      }
+      appState.current = nextAppState;
+    });
+    return () => subscription.remove();
+  }, [timerRunning, timeCapSeconds]);
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
