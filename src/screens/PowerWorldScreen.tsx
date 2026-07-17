@@ -4,7 +4,6 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
   Dimensions, RefreshControl, Image, Keyboard } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import { 
@@ -26,9 +25,25 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-
+import { WORLD_THEMES, WORLD_NEUTRALS } from '../../constants/worldThemes';
+import { WorldBackground } from '../components/worlds/WorldBackground';
+import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
+import { StatCircle } from '../components/worlds/StatCircle';
+import { ScoreRingHero } from '../components/worlds/ScoreRingHero';
+import { ExerciseCircle } from '../components/worlds/ExerciseCircle';
+import { PillTabRow } from '../components/worlds/PillTabRow';
+import { MilestoneCard } from '../components/worlds/MilestoneCard';
+import { powerLevelProgress, powerMovementProgress } from '../lib/worldProgress';
 
 const { width } = Dimensions.get('window');
+
+const W = WORLD_THEMES.power;
+
+// 3-circle header sizing: 150px center ring, side circles capped at 96px and
+// shrunk on narrow screens so the row never wraps (402px reference width).
+const HERO_CENTER_SIZE = 150;
+const HERO_SIDE_SIZE = Math.min(96, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
+const PEAK_CIRCLE_SIZE = Math.min(80, Math.floor((width - 40 - 30) / 4));
 
 export function PowerWorldScreen() {
   const { theme, toggleTheme, mode } = useTheme();
@@ -196,7 +211,7 @@ export function PowerWorldScreen() {
             rank: isPromotion ? `LEVEL ${getPowerLevel(stats?.totalPoints || 0).id}` : undefined,
             headerText: 'POWER WORLD',
             showLeapLogo: true,
-            accentColor: '#FF5252',
+            accentColor: W.accent,
           });
           shouldShowCelebration = true;
         }
@@ -233,72 +248,8 @@ export function PowerWorldScreen() {
     });
   };
 
-  const MasteryRings = ({ size = 180, centerText, topText, bottomText, subText, showCrown = false, active = false, rankMode = false }: any) => {
-    return (
-      <View style={[styles.ringsContainer, { width: size, height: size }]}>
-        <View
-          style={[
-            styles.masteryRing,
-            {
-              width: size,
-              height: size,
-              borderRadius: size / 2,
-              borderWidth: active ? 2 : 1,
-              borderColor: '#FF5252',
-              backgroundColor: active ? '#FF525210' : 'transparent',
-              opacity: active ? 1 : 0.4
-            }
-          ]}
-        />
-        <View style={styles.ringsCenter}>
-          {!rankMode && topText && (
-            <Text style={[styles.heroTopText, { color: '#FF5252', fontSize: size * 0.06 }]}>
-              {topText?.toUpperCase()}
-            </Text>
-          )}
-          
-          <View style={{ alignItems: 'center', gap: 2 }}>
-            {showCrown && (
-               <MaterialCommunityIcons name="crown" size={size * 0.12} color="#FF5252" style={{ marginBottom: -2 }} />
-            )}
-            
-            <Text style={[styles.ringsValue, { color: theme.text.primary, fontSize: size * 0.25 }]}>{centerText}</Text>
-            
-            {rankMode && subText && (
-              <Text style={{ color: '#FF5252', fontSize: size * 0.12, fontWeight: '900', marginTop: -2 }}>
-                {subText}
-              </Text>
-            )}
-          </View>
-
-          {!rankMode && bottomText && (
-            <Text style={[styles.heroBottomText, { color: '#FF5252', fontSize: size * 0.06 }]}>
-              {bottomText?.toUpperCase()}
-            </Text>
-          )}
-        </View>
-      </View>
-    );
-  };
-
   const renderHeader = () => (
-    <View style={styles.header}>
-      <View style={{ width: 40 }} />
-
-      <View style={[
-        styles.headerTitleContainer,
-        {
-          borderColor: '#FF5252',
-          borderWidth: 1,
-          backgroundColor: '#FF525220'
-        }
-      ]}>
-        <MaterialCommunityIcons name="lightning-bolt" size={14} color="#FF5252" style={{ marginRight: 6 }} />
-        <Text style={[styles.headerTitle, { color: theme.text.primary }]}>POWER WORLD</Text>
-      </View>
-
-      <View style={{ width: 40 }} />
-    </View>
+    <WorldHeaderPill world={W} title="POWER WORLD" icon="lightning-bolt" style={styles.headerPill} />
   );
 
   const renderSkeleton = () => {
@@ -308,10 +259,10 @@ export function PowerWorldScreen() {
           <Skeleton width={100} height={12} borderRadius={4} />
         </View>
 
-        <View style={[styles.heroRow, { justifyContent: 'space-around', alignItems: 'center', marginBottom: 20 }]}>
-          <Skeleton width={90} height={90} borderRadius={45} />
-          <Skeleton width={110} height={110} borderRadius={55} />
-          <Skeleton width={90} height={90} borderRadius={45} />
+        <View style={[styles.heroRow, { marginBottom: 20 }]}>
+          <Skeleton width={HERO_SIDE_SIZE} height={HERO_SIDE_SIZE} borderRadius={HERO_SIDE_SIZE / 2} />
+          <Skeleton width={HERO_CENTER_SIZE} height={HERO_CENTER_SIZE} borderRadius={HERO_CENTER_SIZE / 2} />
+          <Skeleton width={HERO_SIDE_SIZE} height={HERO_SIDE_SIZE} borderRadius={HERO_SIDE_SIZE / 2} />
         </View>
 
         <View style={{ paddingHorizontal: 16, marginBottom: 16 }}>
@@ -324,11 +275,11 @@ export function PowerWorldScreen() {
           <Skeleton width={70} height={32} borderRadius={16} />
         </View>
 
-        <View style={[styles.peakGrid, { paddingHorizontal: 16 }]}>
+        <View style={styles.peakGrid}>
           {Array.from({ length: 4 }).map((_, idx) => (
-            <View key={idx} style={[styles.peakItem, { alignItems: 'center', marginVertical: 10 }]}>
-              <Skeleton width={60} height={60} borderRadius={30} style={{ marginBottom: 8 }} />
-              <Skeleton width={75} height={12} borderRadius={4} />
+            <View key={idx} style={{ alignItems: 'center', marginVertical: 10, gap: 8 }}>
+              <Skeleton width={PEAK_CIRCLE_SIZE} height={PEAK_CIRCLE_SIZE} borderRadius={PEAK_CIRCLE_SIZE / 2} />
+              <Skeleton width={70} height={12} borderRadius={4} />
             </View>
           ))}
         </View>
@@ -337,9 +288,9 @@ export function PowerWorldScreen() {
           marginTop: 20,
           padding: 24,
           borderRadius: 24,
-          backgroundColor: 'rgba(255, 82, 82, 0.05)',
+          backgroundColor: W.cardFill,
           borderWidth: 1,
-          borderColor: 'rgba(255, 82, 82, 0.1)',
+          borderColor: W.cardBorder,
           marginHorizontal: 16,
           gap: 12
         }}>
@@ -360,111 +311,81 @@ export function PowerWorldScreen() {
     if (!stats) return null;
     const lbTitle = leaderboardTab === 'glory' ? 'POWER GLOBAL ELITE' : `${POWER_LEVELS[parseInt(leaderboardTab.split('_')[1])].name.toUpperCase()} MASTERY`;
 
+    const levelProgress = powerLevelProgress(stats.totalPoints);
+
     return (
       <View style={styles.dashboard}>
-        <View style={{ alignItems: 'center', marginBottom: -10 }}>
-          <Text style={{ fontSize: 9, fontWeight: '900', color: '#FF5252', letterSpacing: 3 }}>OVERALL POWER</Text>
-        </View>
-
-        {/* HERO SECTION - COMPACT TRI-CIRCLE DASHBOARD */}
+        {/* HERO SECTION - 3-CIRCLE ROW */}
         <View style={styles.heroRow}>
-           <MasteryRings 
-              size={90} 
-              topText="GLOBAL RANK"
-              centerText={`#${stats.ranks.glory || '--'}`} 
-              bottomText="OF WORLD" 
-           />
+          <StatCircle
+            size={HERO_SIDE_SIZE}
+            label="GLOBAL RANK"
+            value={`#${stats.ranks.glory || 0}`}
+            caption="OF WORLD"
+            unranked={!stats.ranks.glory || stats.totalPoints <= 0}
+          />
 
-            <TouchableOpacity
+          <ScoreRingHero
             ref={scoreCircleRef}
             onLayout={onScoreCircleLayout}
+            world={W}
+            size={HERO_CENTER_SIZE}
+            progress={levelProgress.progress}
+            label="POWER SCORE"
+            value={typeof stats.totalPoints === 'number' ? stats.totalPoints.toFixed(2) : String(stats.totalPoints)}
+            caption="TOTAL"
+            showCrown={stats.ranks.glory === 1}
             onPress={() => setShowOverallModal(true)}
-            activeOpacity={0.8}
-           >
-            <View style={{ position: 'relative' }}>
-              <MasteryRings 
-                  size={110} 
-                  active
-                  topText="POWER SCORE"
-                  centerText={typeof stats.totalPoints === 'number' ? stats.totalPoints.toFixed(2) : stats.totalPoints} 
-                  bottomText="TOTAL"
-                  showCrown={stats.ranks.glory === 1}
-              />
-              <View style={[styles.heroAddIcon, { backgroundColor: '#FF5252' }]}>
-                <MaterialCommunityIcons name="chart-bar" size={14} color="#000" />
-              </View>
-            </View>
-           </TouchableOpacity>
+            badgeIcon="chart-bar"
+            onBadgePress={() => setShowOverallModal(true)}
+          />
 
-           <MasteryRings 
-              size={90} 
-              topText="LEVEL GAP"
-              centerText={stats.level.id < 3 ? Number(POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints).toFixed(2) : 'MAX'} 
-              bottomText={stats.level.id < 3 ? `PTS TO ${POWER_LEVELS[stats.level.id + 1].name}` : "MAX TIER"} 
-           />
+          <StatCircle
+            size={HERO_SIDE_SIZE}
+            label="LEVEL GAP"
+            value={levelProgress.nextLevel ? levelProgress.gap.toFixed(2) : 'MAX'}
+            caption={levelProgress.nextLevel ? `PTS TO ${levelProgress.nextLevel.name}` : 'MAX LEVEL'}
+          />
         </View>
 
-        <Text style={[styles.sectionHeader, { color: '#FF5252' }]}>YOUR PEAK PERFORMANCE</Text>
+        <Text style={styles.sectionHeader}>YOUR PEAK PERFORMANCE</Text>
 
-        {/* MASTERY TABS MOVED ABOVE PEAKS */}
-        <ScrollView 
-          horizontal 
-          showsHorizontalScrollIndicator={false}
-          style={styles.masteryTabsScroll}
-          contentContainerStyle={styles.masteryTabsContent}
-        >
-          {['glory', 'level_1', 'level_2', 'level_3'].map(lvl => {
-            const isActive = leaderboardTab === lvl;
-            const levelNum = lvl.startsWith('level') ? parseInt(lvl.split('_')[1]) : 0;
-            
-            return (
-              <TouchableOpacity 
-                key={lvl}
-                onPress={() => setLeaderboardTab(lvl as any)}
-                style={[
-                  styles.tabBtnModern, 
-                  isActive && { backgroundColor: '#FF525220', borderColor: '#FF5252' }
-                ]}
-              >
-                <Text style={[styles.tabTextModern, { color: isActive ? '#FF5252' : theme.text.tertiary }]}>
-                  {lvl === 'glory' ? 'OVERALL POWER' : POWER_LEVELS[levelNum].name.toUpperCase()}
-                </Text>
-                {lvl === 'glory' && <MaterialCommunityIcons name="crown" size={10} color={isActive ? '#FF5252' : theme.text.tertiary} />}
-              </TouchableOpacity>
-            );
-          })}
-        </ScrollView>
+        <PillTabRow
+          world={W}
+          style={styles.levelTabs}
+          activeKey={leaderboardTab === 'glory' || leaderboardTab.startsWith('level') ? leaderboardTab : 'glory'}
+          onSelect={(key) => setLeaderboardTab(key as any)}
+          items={[
+            { key: 'glory', label: 'OVERALL POWER', emoji: '👑' },
+            { key: 'level_1', label: POWER_LEVELS[1].name },
+            { key: 'level_2', label: POWER_LEVELS[2].name },
+            { key: 'level_3', label: POWER_LEVELS[3].name },
+          ]}
+        />
 
-        {/* PEAK GRID - 4 IN ONE ROW */}
+        {/* PEAK GRID - 4 IN ONE ROW, whole circle tappable */}
         <View style={styles.peakGrid} ref={movementRowRef} onLayout={onMovementRowLayout}>
           {POWER_MOVEMENTS.map(m => {
             const pb = stats.pbs[m.id] || 0;
-            const rank = stats.ranks[m.id] || '--';
+            const points = calculatePowerPoints(m.id, pb);
             return (
-              <TouchableOpacity 
-                key={m.id} 
-                style={styles.peakItem}
+              <ExerciseCircle
+                key={m.id}
+                world={W}
+                size={PEAK_CIRCLE_SIZE}
+                progress={powerMovementProgress(points, stats.totalPoints)}
+                icon={m.id}
+                name={m.name.split(' ').pop()?.toUpperCase() ?? m.id.toUpperCase()}
+                value={pb > 0 ? String(pb) : undefined}
+                caption={pb > 0 ? `${pb} KG` : 'TAP TO LOG'}
+                hasLogged={pb > 0}
+                badge="plus"
                 onPress={() => {
                   setSelectedMovement(m.id);
                   fetchModalLeaderboard(m.id);
                   setShowLogModal(true);
                 }}
-              >
-                <View style={styles.peakCircleWrapper}>
-                  <MasteryRings 
-                    size={width * 0.15}
-                    centerText={pb || '-'}
-                    subText={`#${rank}`}
-                    rankMode
-                  />
-                  <View style={[styles.peakAddIcon, { backgroundColor: '#FF5252' }]}>
-                    <MaterialCommunityIcons name="plus" size={12} color="#000" />
-                  </View>
-                </View>
-                <Text style={[styles.peakNameText, { color: theme.text.primary }]}>
-                  {m.name.split(' ').pop()?.toUpperCase()}
-                </Text>
-              </TouchableOpacity>
+              />
             );
           })}
         </View>
@@ -472,7 +393,7 @@ export function PowerWorldScreen() {
         {/* DYNAMIC LEADERBOARD (LEVELS ONLY) */}
         {leaderboardTab !== 'glory' && (
           <View style={styles.lbSection}>
-            <Text style={[styles.lbTitle, { color: '#FF5252' }]}>{lbTitle}</Text>
+            <Text style={[styles.lbTitle, { color: W.accent }]}>{lbTitle}</Text>
             <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>
               THE HIGHEST TIER WARRIOR
             </Text>
@@ -480,13 +401,13 @@ export function PowerWorldScreen() {
             <View style={styles.lbList}>
               {filteredLeaderboardData.slice(0, 10).map((item, i) => (
                 <View key={i} style={[styles.lbRow, { backgroundColor: theme.card.background }]}>
-                  <View style={[styles.lbRankCircle, { borderColor: i === 0 ? '#FF5252' : theme.card.border }]}>
-                    <Text style={{ color: i === 0 ? '#FF5252' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
+                  <View style={[styles.lbRankCircle, { borderColor: i === 0 ? W.accent : theme.card.border }]}>
+                    <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                   </View>
                   <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>
                     {item.display_name.toUpperCase()}
                   </Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
+                  <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
                     <Text style={[styles.lbPointsText, { color: '#000' }]}>
                       {Number(item.value || 0).toFixed(2)}
                     </Text>
@@ -499,51 +420,32 @@ export function PowerWorldScreen() {
 
         {/* MILESTONE TRACKER (Only on Glory Tab) */}
         {leaderboardTab === 'glory' && (
-          <View style={{
-            marginTop: 40,
-            padding: 24,
-            borderRadius: 24,
-            backgroundColor: 'rgba(255, 82, 82, 0.05)',
-            borderWidth: 1,
-            borderColor: 'rgba(255, 82, 82, 0.2)',
-          }}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-              <MaterialCommunityIcons name={stats.level.id < 3 ? "shield-star" : "crown"} size={28} color="#FF5252" />
-              <View style={{ marginLeft: 12, flex: 1 }}>
-                <Text style={{ color: mode === 'dark' ? '#FFF' : '#FF5252', fontSize: 18, fontWeight: '800' }}>
-                  {stats.level.id < 3 
-                    ? `${Number(POWER_LEVELS[stats.level.id + 1].minPoints - stats.totalPoints).toFixed(2)} Points to ${POWER_LEVELS[stats.level.id + 1].name}`
-                    : 'MAXIMUM MASTERY ACHIEVED'}
-                </Text>
-                <Text style={{ color: theme.text.secondary, fontSize: 12, marginTop: 2, fontWeight: '600' }}>
-                  {stats.level.id < 3 ? 'YOUR NEXT MAJOR MILESTONE' : 'YOU ARE AT THE PEAK'}
-                </Text>
-              </View>
-            </View>
-            <View style={{ height: 8, backgroundColor: 'rgba(255,255,255,0.1)', borderRadius: 4, overflow: 'hidden' }}>
-              <View style={{ 
-                height: '100%', 
-                backgroundColor: '#FF5252', 
-                width: stats.level.id < 3 
-                  ? `${Math.min(100, Math.max(0, (stats.totalPoints / POWER_LEVELS[stats.level.id + 1].minPoints) * 100))}%` 
-                  : '100%'
-              }} />
-            </View>
-            {stats.level.id < 3 && (
-              <Text style={{ color: '#FF5252', fontSize: 12, marginTop: 8, textAlign: 'right', fontWeight: '800', letterSpacing: 1 }}>
-                {Number(stats.totalPoints).toFixed(2)} / {POWER_LEVELS[stats.level.id + 1].minPoints} PTS
-              </Text>
-            )}
-          </View>
+          <MilestoneCard
+            world={W}
+            style={{ marginTop: 8 }}
+            icon={levelProgress.nextLevel ? 'shield-star' : 'crown'}
+            headline={
+              levelProgress.nextLevel
+                ? `${levelProgress.gap.toFixed(2)} Points to ${levelProgress.nextLevel.name}`
+                : 'MAXIMUM MASTERY ACHIEVED'
+            }
+            caption={levelProgress.nextLevel ? 'YOUR NEXT MAJOR MILESTONE' : 'YOU ARE AT THE PEAK'}
+            progress={levelProgress.progress}
+            footerRight={
+              levelProgress.nextLevel
+                ? `${Number(stats.totalPoints).toFixed(2)} / ${levelProgress.nextLevel.minPoints} PTS`
+                : `${Number(stats.totalPoints).toFixed(2)} PTS`
+            }
+          />
         )}
 
         {/* Ambient Quote */}
         {leaderboardTab === 'glory' && (
-          <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
-            <Text style={{ 
-              color: theme.text.tertiary, 
-              fontSize: 10, 
-              fontFamily: 'PlusJakartaSans-SemiBold',
+          <View style={{ alignItems: 'center', marginTop: 16, marginBottom: 24 }}>
+            <Text style={{
+              color: theme.text.tertiary,
+              fontSize: 11,
+              fontFamily: 'BarlowCondensed-SemiBold',
               letterSpacing: 3,
               textTransform: 'uppercase'
             }}>
@@ -557,13 +459,11 @@ export function PowerWorldScreen() {
 
   return (
     <GlobalErrorBoundary>
-      <LinearGradient 
-        colors={[theme.background.primary, theme.background.secondary || '#000']} 
-        style={[styles.container]}
-      >
+      <WorldBackground world={W}>
+      <View style={styles.container}>
       {renderHeader()}
-      <ScrollView 
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.accent} />}
+      <ScrollView
+        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={W.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
       >
         {loading || !stats ? renderSkeleton() : renderDashboard()}
@@ -597,7 +497,7 @@ export function PowerWorldScreen() {
             />
 
             <TouchableOpacity
-              style={[styles.modalSaveBtn, { backgroundColor: '#FF5252' }]}
+              style={[styles.modalSaveBtn, { backgroundColor: W.accent }]}
               onPress={() => handleSaveWeight()}
               disabled={saving}
             >
@@ -618,7 +518,7 @@ export function PowerWorldScreen() {
             <PBOverwriteConfirmModal
               visible={pendingOverwrite !== null}
               theme={theme}
-              accentColor="#FF5252"
+              accentColor={W.accent}
               movementName={POWER_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
               unitLabel=" KG"
               currentBest={selectedMovement ? (stats?.pbs[selectedMovement] ?? 0) : 0}
@@ -637,7 +537,7 @@ export function PowerWorldScreen() {
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '85%' }]}>
             <View style={styles.modalHeader}>
               <View style={styles.modalTitleBox}>
-                <MaterialCommunityIcons name="crown" size={24} color="#FF5252" />
+                <MaterialCommunityIcons name="crown" size={24} color={W.accent} />
                 <Text style={[styles.modalTitle, { color: theme.text.primary, marginLeft: 8 }]}>
                   POWER MASTERY
                 </Text>
@@ -658,9 +558,9 @@ export function PowerWorldScreen() {
                       paddingVertical: 6,
                       paddingHorizontal: 16,
                       borderRadius: 20,
-                      backgroundColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.05)',
+                      backgroundColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.05)',
                       borderWidth: 1,
-                      borderColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.1)'
+                      borderColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.1)'
                     }}
                     onPress={() => setGenderFilter(filter as any)}
                   >
@@ -678,15 +578,15 @@ export function PowerWorldScreen() {
 
             <ScrollView style={{ marginTop: 20 }}>
               {filteredLeaderboardData.map((item, i) => (
-                <View key={i} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: '#FF525220', borderColor: '#FF5252', borderWidth: 1 }]}>
-                  <View style={[styles.lbRankCircle, { backgroundColor: i < 3 ? '#FF525230' : 'transparent' }]}>
-                    <Text style={{ color: i === 0 ? '#FF5252' : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
+                <View key={i} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `20`, borderColor: W.accent, borderWidth: 1 }]}>
+                  <View style={[styles.lbRankCircle, { backgroundColor: i < 3 ? `30` : 'transparent' }]}>
+                    <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                   </View>
                   <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>
                     {leaderboardTab === 'glory' && <Text style={{ fontSize: 16 }}>{getCountryFlag(item.country)} </Text>}
                     {item.display_name.toUpperCase()}
                   </Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: '#FF5252' }]}>
+                  <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
                     <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.value || 0).toFixed(2)} PTS</Text>
                   </View>
                 </View>
@@ -701,107 +601,39 @@ export function PowerWorldScreen() {
         {...celebrationProps}
         onDismiss={() => setShowCelebration(false)}
       />
-    </LinearGradient>
+      </View>
+      </WorldBackground>
     </GlobalErrorBoundary>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 40 },
-  header: { 
-    flexDirection: 'row', 
-    alignItems: 'center', 
-    paddingHorizontal: 16, 
-    paddingTop: 10,
-    paddingBottom: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(0,0,0,0.05)',
-  },
-  backBtn: { padding: 4 },
-  headerTitleContainer: { 
-    flex: 1,
-    flexDirection: 'row',
-    paddingHorizontal: 12, 
-    paddingVertical: 6, 
-    borderRadius: 25, 
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 10
-  },
-  headerTitle: { fontSize: 10, fontWeight: '900', letterSpacing: 2, fontFamily: 'PlusJakartaSans-ExtraBold' },
-  
-  dashboard: { paddingHorizontal: 16, paddingTop: 20, gap: 24 },
-  heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-evenly', width: '100%' },
-  
-  masteryTabsScroll: {
-    marginVertical: 12,
-  },
-  masteryTabsContent: {
-    paddingHorizontal: 16,
-    flexDirection: 'row',
-    gap: 8,
-  },
-  tabBtnModern: { 
-    paddingHorizontal: 16, 
-    paddingVertical: 10, 
-    borderRadius: 14, 
-    borderWidth: 1.5, 
-    borderColor: 'rgba(255,112,67,0.4)',
-    backgroundColor: 'rgba(255,255,255,0.02)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4
-  },
-  tabTextModern: { fontSize: 9, fontWeight: '900', letterSpacing: 1 },
-  secondaryHero: { alignItems: 'center', flex: 1, gap: 4 },
-  heroStatLabel: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, opacity: 0.6 },
-  heroStatValue: { fontSize: 24, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
+  headerPill: { marginTop: 10 },
 
-  ringsContainer: { alignItems: 'center', justifyContent: 'center', position: 'relative' },
-  masteryRing: { position: 'absolute' },
-  ringsCenter: { alignItems: 'center', justifyContent: 'center', zIndex: 10, paddingBottom: 4 },
-  ringsValue: { fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold', letterSpacing: -0.5 },
-  heroTopText: { fontSize: 7, fontWeight: '900', letterSpacing: 0.5, marginBottom: 2 },
-  heroBottomText: { fontSize: 7, fontWeight: '800', letterSpacing: 0.5, marginTop: 2 },
+  dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 26 },
+  heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },
 
-  sectionHeader: { fontSize: 13, fontWeight: '900', letterSpacing: 2, textAlign: 'center', marginVertical: 20 },
-  peakGrid: { flexDirection: 'row', justifyContent: 'space-around', paddingHorizontal: 10 },
-  peakItem: { alignItems: 'center', gap: 10 },
-  peakCircleWrapper: { position: 'relative' },
-  peakNameText: { fontSize: 8, fontWeight: '900', letterSpacing: 0.5, marginTop: 4 },
-  peakAddIcon: { 
-    position: 'absolute', 
-    bottom: 0, 
-    right: 0, 
-    width: 20, 
-    height: 20, 
-    borderRadius: 10, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    borderWidth: 1.5,
-    borderColor: '#FFF',
-    elevation: 4,
+  sectionHeader: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 20,
+    letterSpacing: 1.5,
+    textAlign: 'center',
+    color: '#FFFFFF',
+    marginTop: 10,
+    marginBottom: -6,
   },
-  heroAddIcon: { 
-    position: 'absolute', 
-    bottom: -2, 
-    right: -2, 
-    width: 30, 
-    height: 30, 
-    borderRadius: 15, 
-    alignItems: 'center', 
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: '#FFF',
-    elevation: 8,
-    zIndex: 20,
-  },
+  // PillTabRow carries its own 20px side padding — cancel the dashboard's so
+  // the fade hint sits flush with the screen edge.
+  levelTabs: { marginHorizontal: -20 },
+  peakGrid: { flexDirection: 'row', justifyContent: 'space-between' },
+
   modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
   modalSubOverall: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
 
   lbSection: { gap: 12 },
-  lbTitle: { fontSize: 18, fontWeight: '900', letterSpacing: 2, textAlign: 'center' },
-  lbSub: { fontSize: 9, fontWeight: '800', textAlign: 'center', marginTop: -8 },
+  lbTitle: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 2, textAlign: 'center' },
+  lbSub: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 10, letterSpacing: 1, textAlign: 'center', marginTop: -8 },
   lbList: { gap: 10 },
   lbRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, gap: 12 },
   lbRankCircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
