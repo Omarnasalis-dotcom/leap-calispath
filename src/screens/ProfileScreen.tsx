@@ -32,6 +32,7 @@ import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { TierRankCard } from '../components/profile/TierRankCard';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { WORLD_THEMES } from '../../constants/worldThemes';
+import { WorldBackground } from '../components/worlds/WorldBackground';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
@@ -442,15 +443,16 @@ export function ProfileScreen({
 
   return (
     <GlobalErrorBoundary>
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      <WorldBackground world={WORLD_THEMES.strength}>
+      <View style={styles.container}>
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
             <>
               <TouchableOpacity
-                style={[styles.settingsGearButton, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
+                style={styles.settingsGearButton}
                 onPress={() => setShowSettings(true)}
               >
-                <MaterialCommunityIcons name="cog-outline" size={18} color={theme.text.secondary} />
+                <MaterialCommunityIcons name="cog-outline" size={18} color="rgba(255,255,255,0.6)" />
               </TouchableOpacity>
 
               <ProfileHeader
@@ -484,11 +486,12 @@ export function ProfileScreen({
               />
 
               <TouchableOpacity
-                style={[styles.weeklyChallengeButton, { backgroundColor: theme.accent, borderColor: theme.accent }]}
+                style={[styles.weeklyChallengeButton, { backgroundColor: WORLD_THEMES.strength.accent }]}
                 onPress={onOpenWeeklyChallenge}
+                activeOpacity={0.85}
               >
-                <MaterialCommunityIcons name="trophy-outline" size={16} color="#FFFFFF" />
-                <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
+                <MaterialCommunityIcons name="trophy-outline" size={18} color={WORLD_THEMES.strength.ctaText} />
+                <Text style={[styles.weeklyChallengeText, { color: WORLD_THEMES.strength.ctaText }]}>WEEKLY CHALLENGE</Text>
               </TouchableOpacity>
             </>
           )}
@@ -684,6 +687,7 @@ export function ProfileScreen({
         <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
 
       </View>
+      </WorldBackground>
       <OnboardingTutorialScreen
         visible={showOnboarding}
         initialStep={onboardingInitialStep}
@@ -730,15 +734,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  // 40px rounded-12 tile, faint white fill (design handoff) — kept outside
+  // the centered identity column so the name/tier text stays truly centered.
   settingsGearButton: {
     position: 'absolute',
     top: 12,
     right: 12,
     zIndex: 100,
-    width: 34,
-    height: 34,
-    borderRadius: 10,
-    borderWidth: 1,
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.06)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -747,17 +753,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
-    marginHorizontal: 16,
+    marginHorizontal: 20,
+    marginTop: 6,
     marginBottom: 16,
-    paddingVertical: 14,
-    borderRadius: 14,
-    borderWidth: 1.5,
+    height: 56,
+    borderRadius: 15,
   },
   weeklyChallengeText: {
-    fontSize: 13,
-    fontWeight: '900',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 15,
     letterSpacing: 1.5,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
   loadingText: {
     fontSize: 16,

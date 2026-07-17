@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STATIC_MOVEMENTS, STATIC_CATEGORIES } from '../../lib/staticLogic';
+import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
 import { POWER_MOVEMENTS, isPowerWorldUnlocked } from '../../lib/powerLogic';
 import { ONEMM_MOVEMENTS, ONEMM_CATEGORIES } from '../../lib/oneMMLogic';
 
@@ -29,9 +30,9 @@ interface SuggestedTestCardProps {
 }
 
 const DISCIPLINES: Record<WorldId, { label: string; shortLabel: string; color: string; icon: keyof typeof MaterialCommunityIcons.glyphMap }> = {
-  static: { label: 'STATIC', shortLabel: 'STATIC', color: '#7E57C2', icon: 'snowflake' },
-  power: { label: 'POWER', shortLabel: 'POWER', color: '#FF5252', icon: 'lightning-bolt' },
-  '1mm': { label: '1-MINUTE MAX', shortLabel: '1MM', color: '#FF7043', icon: 'timer-outline' },
+  static: { label: 'STATIC', shortLabel: 'STATIC', color: WORLD_THEMES.static.accent, icon: 'snowflake' },
+  power: { label: 'POWER', shortLabel: 'POWER', color: WORLD_THEMES.power.accent, icon: 'lightning-bolt' },
+  '1mm': { label: '1-MINUTE MAX', shortLabel: '1MM', color: WORLD_THEMES.onemm.accent, icon: 'timer-outline' },
 };
 
 const ONEMM_PATTERN_LABELS: Record<string, string> = {
@@ -274,13 +275,14 @@ export function SuggestedTestCard({
     const bestPill = result.unit.pills[0];
     return (
       <TouchableOpacity
-        style={[styles.compactTile, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}
+        style={[styles.compactTile, { backgroundColor: worldRgba(meta.color, 0.06), borderColor: worldRgba(meta.color, 0.3) }]}
         onPress={() => bestPill ? handlePillPress(bestPill) : (result.world === '1mm' ? onOpenOneMinMax() : result.world === 'static' ? onOpenStatic() : onOpenPower())}
         activeOpacity={0.75}
       >
         <MaterialCommunityIcons name={meta.icon} size={16} color={meta.color} style={styles.compactIcon} />
-        <Text style={[styles.compactValue, { color: theme.text.primary }]} numberOfLines={1}>{meta.shortLabel}</Text>
-        <Text style={[styles.compactLabel, { color: theme.text.secondary }]} numberOfLines={1}>SUGGESTED</Text>
+        <Text style={styles.compactValue} numberOfLines={1}>{meta.shortLabel}</Text>
+        {/* Caption states this is a recommendation, not a stat (handoff) */}
+        <Text style={styles.compactLabel} numberOfLines={1}>SUGGESTED NEXT</Text>
       </TouchableOpacity>
     );
   }
@@ -325,24 +327,25 @@ const styles = StyleSheet.create({
   compactTile: {
     flex: 1,
     alignItems: 'center',
-    borderWidth: 1,
-    borderRadius: 12,
-    paddingVertical: 12,
+    borderWidth: 1.5,
+    borderRadius: 13,
+    paddingVertical: 11,
+    paddingHorizontal: 7,
   },
   compactIcon: {
     marginBottom: 4,
   },
   compactValue: {
-    fontSize: 12,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    color: WORLD_NEUTRALS.textPrimary,
   },
   compactLabel: {
-    fontSize: 8,
-    fontWeight: '700',
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 8.5,
     letterSpacing: 0.5,
     marginTop: 2,
-    fontFamily: 'PlusJakartaSans-Bold',
+    color: 'rgba(255,255,255,0.4)',
   },
   card: {
     borderWidth: 1,
