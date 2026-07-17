@@ -5,6 +5,38 @@ import { LeaderboardEntry, formatLeaderboardTime } from '../../lib/leaderboard';
 import { getCountryFlag } from '../../constants/countries';
 import { LeaderboardSkeleton } from '../LeaderboardSkeleton';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { WORLD_THEMES, worldRgba } from '../../../constants/worldThemes';
+
+const W = WORLD_THEMES.strength;
+
+// Design handoff: tinted numeric rank badges instead of medal emoji, so all
+// ranks read consistently. Gold / silver / bronze tints for the podium,
+// accent tint for everyone else.
+const RANK_BADGE_TINTS: Record<number, string> = {
+  1: 'rgba(255,200,60,0.25)',
+  2: 'rgba(200,205,215,0.22)',
+  3: 'rgba(205,127,50,0.25)',
+};
+const RANK_BADGE_COLORS: Record<number, string> = {
+  1: '#FFC83C',
+  2: '#C8CDD7',
+  3: '#CD7F32',
+};
+
+function RankBadge({ rank, theme }: { rank: number; theme: any }) {
+  return (
+    <View
+      style={[
+        styles.rankBadge,
+        { backgroundColor: RANK_BADGE_TINTS[rank] ?? worldRgba(W.accent, 0.14) },
+      ]}
+    >
+      <Text style={[styles.rankBadgeNumber, { color: RANK_BADGE_COLORS[rank] ?? theme.text.secondary }]}>
+        {rank}
+      </Text>
+    </View>
+  );
+}
 
 interface TierLeaderboardListProps {
   scrollRef?: React.RefObject<ScrollView | null>;
@@ -178,17 +210,8 @@ export function TierLeaderboardList({
                     (entry.rank ?? 0) <= 3 && styles.entryRowTopThree,
                   ]}
                 >
-                  {/* Rank - Medal or Number */}
-                  <View style={styles.rankContainer}>
-                    {entry.rank === 1 && <Text style={styles.medal}>🥇</Text>}
-                    {entry.rank === 2 && <Text style={styles.medal}>🥈</Text>}
-                    {entry.rank === 3 && <Text style={styles.medal}>🥉</Text>}
-                    {(entry.rank ?? 0) > 3 && (
-                      <View style={[styles.rankCircle, { borderColor: entryIsCU ? theme.accent : theme.card.border }]}>
-                        <Text style={[styles.rankNumber, { color: entryIsCU ? theme.accent : theme.text.tertiary }]}>{entry.rank}</Text>
-                      </View>
-                    )}
-                  </View>
+                  {/* Rank badge — a plain tinted number, never emoji */}
+                  <RankBadge rank={entry.rank ?? 0} theme={theme} />
 
                   {/* Name */}
                   <View style={[styles.entryInfo, { flexDirection: 'row', alignItems: 'center' }]}>
@@ -196,31 +219,26 @@ export function TierLeaderboardList({
                     <Text
                       style={[
                         styles.entryName,
-                        { color: entryIsCU ? theme.accent : theme.text.secondary },
+                        { color: entryIsCU ? W.accent : theme.text.secondary },
                         entryIsCU && styles.entryNameCurrentUser,
                       ]}
                       numberOfLines={1}
                     >
                       @{entry.display_name}
                     </Text>
-                    {entryIsCU && <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}>YOU</Text>}
+                    {entryIsCU && <Text style={[styles.youBadge, { backgroundColor: W.accent }]}>YOU</Text>}
                   </View>
 
-                  {/* Time/Points Circles - Side by Side */}
+                  {/* Value pill (+ gap pill for the current user when not #1) */}
                   <View style={styles.timeCirclesContainer}>
-                    {/* Best Time/Points Circle */}
-                    <View style={[styles.timeCircle, { backgroundColor: `${theme.accent}1A`, borderColor: theme.accent }]}>
-                      <Text style={[styles.timeCircleValue, { color: theme.accent }]}>
+                    <View style={[styles.valuePill, { backgroundColor: worldRgba(W.accent, 0.14) }]}>
+                      <Text style={[styles.valuePillText, { color: W.accent }]}>
                         {formatValue(entry.best_time_seconds)}
                       </Text>
-                      <Text style={[styles.timeCircleLabel, { color: theme.accent }]}>{valueLabel}</Text>
                     </View>
-
-                    {/* Gap Circle (only for current user when not #1) */}
                     {showGap && gapValue && (
-                      <View style={[styles.gapCircle, { backgroundColor: `${theme.accent}26`, borderColor: theme.accent }]}>
-                        <Text style={[styles.gapCircleValue, { color: theme.accent }]}>{gapValue}</Text>
-                        <Text style={[styles.gapCircleLabel, { color: theme.accent }]}>GAP</Text>
+                      <View style={[styles.valuePill, { backgroundColor: worldRgba(W.accent, 0.24) }]}>
+                        <Text style={[styles.valuePillText, { color: W.accent }]}>{gapValue} GAP</Text>
                       </View>
                     )}
                   </View>
@@ -272,21 +290,12 @@ export function TierLeaderboardList({
                     index < 3 && styles.entryRowTopThree,
                   ]}
                 >
-                  <View style={styles.rankContainer}>
-                    {index === 0 && <Text style={styles.medal}>🥇</Text>}
-                    {index === 1 && <Text style={styles.medal}>🥈</Text>}
-                    {index === 2 && <Text style={styles.medal}>🥉</Text>}
-                    {index > 2 && (
-                      <View style={[styles.rankCircle, { borderColor: isCU(entry) ? theme.accent : theme.card.border }]}>
-                        <Text style={[styles.rankNumber, { color: isCU(entry) ? theme.accent : theme.text.tertiary }]}>{entry.rank}</Text>
-                      </View>
-                    )}
-                  </View>
+                  <RankBadge rank={index + 1} theme={theme} />
                   <View style={styles.entryInfo}>
                     <Text
                       style={[
                         styles.entryName,
-                        { color: isCU(entry) ? theme.accent : theme.text.secondary },
+                        { color: isCU(entry) ? W.accent : theme.text.secondary },
                         isCU(entry) && styles.entryNameCurrentUser,
                       ]}
                       numberOfLines={1}
@@ -295,16 +304,13 @@ export function TierLeaderboardList({
                       @{entry.display_name}
                     </Text>
                     {isCU(entry) && (
-                      <Text style={[styles.youBadge, { backgroundColor: theme.accent }]}>YOU</Text>
+                      <Text style={[styles.youBadge, { backgroundColor: W.accent }]}>YOU</Text>
                     )}
                   </View>
-                  <View style={styles.timeContainer}>
-                    <Text style={[styles.entryTime, { color: theme.accent }]}>
-                      {formatValue(entry.best_time_seconds)}
+                  <View style={[styles.valuePill, { backgroundColor: worldRgba(W.accent, 0.14) }]}>
+                    <Text style={[styles.valuePillText, { color: W.accent }]}>
+                      {formatValue(entry.best_time_seconds)}{category === 'power' ? ' PTS' : ''}
                     </Text>
-                    {category === 'power' && (
-                      <Text style={{ fontSize: 9, letterSpacing: 0.5, color: theme.accent, fontFamily: 'PlusJakartaSans-Bold' }}>PTS</Text>
-                    )}
                   </View>
                 </View>
               )}
@@ -357,39 +363,45 @@ const styles = StyleSheet.create({
   entryRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 7,
-    borderRadius: 8,
+    minHeight: 60,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 18,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,82,82,0.1)',
-    marginBottom: 5,
+    borderColor: 'rgba(255,75,62,0.1)',
+    marginBottom: 6,
+    gap: 4,
   },
   entryRowCurrentUser: {
-    backgroundColor: 'rgba(255,82,82,0.15)',
-    borderColor: '#FF5252',
+    backgroundColor: 'rgba(255,75,62,0.15)',
+    borderColor: '#FF4B3E',
   },
   entryRowTopThree: {
-    borderColor: 'rgba(255,82,82,0.4)',
+    borderColor: 'rgba(255,75,62,0.4)',
   },
-  rankContainer: {
-    width: 24,
-    alignItems: 'center',
-  },
-  medal: {
-    fontSize: 15,
-  },
-  rankCircle: {
-    width: 21,
-    height: 21,
-    borderRadius: 11,
-    borderWidth: 1,
+  rankBadge: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  rankNumber: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.5)',
+  rankBadgeNumber: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 13,
+  },
+  valuePill: {
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  valuePillText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
+    fontVariant: ['tabular-nums'],
   },
   entryInfo: {
     flex: 1,
@@ -418,45 +430,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-  },
-  timeCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 26,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  timeCircleValue: {
-    fontSize: 10,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    letterSpacing: 0.2,
-    textAlign: 'center',
-  },
-  timeCircleLabel: {
-    fontSize: 7,
-    letterSpacing: 0.5,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  gapCircle: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  gapCircleValue: {
-    fontSize: 9,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    textAlign: 'center',
-  },
-  gapCircleLabel: {
-    fontSize: 8,
-    letterSpacing: 0.5,
-    fontFamily: 'PlusJakartaSans-Bold',
   },
   seeMoreButton: {
     alignSelf: 'center',
@@ -503,18 +476,6 @@ const styles = StyleSheet.create({
   },
   fullLeaderboardList: {
     maxHeight: 400,
-  },
-  timeContainer: {
-    alignItems: 'flex-end',
-  },
-  entryTime: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#FF5252',
-    fontVariant: ['tabular-nums'],
-    textShadowColor: 'rgba(255,82,82,0.5)',
-    textShadowOffset: { width: 0, height: 0 },
-    textShadowRadius: 4,
   },
   closeButtonText: {
     fontSize: 18,

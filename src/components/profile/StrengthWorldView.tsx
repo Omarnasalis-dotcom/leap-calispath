@@ -12,6 +12,7 @@ import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { LeaderboardEntry } from '../../lib/leaderboard';
 import { TierLeaderboardList } from './TierLeaderboardList';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { WORLD_THEMES, WORLD_NEUTRALS } from '../../../constants/worldThemes';
 
 interface TierRankData {
   rank: number | null;
@@ -73,25 +74,39 @@ export function StrengthWorldView({
   onLeaderboardScopeChange,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
+  const W = WORLD_THEMES.strength;
   // useScreenMeasure=true: see useTutorialTarget's own comment.
   const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef, true);
   return (
     <>
 
 
-      {/* Primary Action Button */}
+      {/* Next Challenge card (design handoff): caption + a headline stating
+          the actual target + a 52px solid-accent CTA with dark text. */}
       {category === 'strength' && !isLocked && (
-        <View style={{ paddingHorizontal: 16, marginBottom: 12 }}>
-          <Text style={{ color: '#888', fontSize: 10, fontWeight: '700', letterSpacing: 2, textAlign: 'center', marginBottom: 8 }}>
+        <View style={[styles.challengeCard, { backgroundColor: W.cardFill, borderColor: W.cardBorder }]}>
+          <Text style={styles.challengeCaption}>
             {isLowerTier ? 'PRACTICE MODE' : 'NEXT CHALLENGE'}
+          </Text>
+          <Text style={styles.challengeHeadline}>
+            {isLowerTier
+              ? `Sharpen your ${TIER_NAMES[selectedTier]} time`
+              : (profile?.strength_tier ?? 0) < 9
+                ? `Complete the ${TIER_NAMES[profile?.strength_tier ?? 0]} trial to reach ${TIER_NAMES[(profile?.strength_tier ?? 0) + 1]}`
+                : 'Defend your place in Eternity'}
           </Text>
           <TouchableOpacity
             ref={trialButtonRef}
             onLayout={onTrialButtonLayout}
-            style={[styles.primaryActionButton, { backgroundColor: isLowerTier ? 'transparent' : theme.accent, borderWidth: isLowerTier ? 1 : 0, borderColor: theme.accent }]}
+            style={[
+              styles.challengeCta,
+              isLowerTier
+                ? { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: W.accent }
+                : { backgroundColor: W.accent },
+            ]}
             onPress={() => onStartTrial && onStartTrial(isLowerTier ? selectedTier : undefined)}
           >
-            <Text style={[styles.primaryActionButtonText, { color: isLowerTier ? theme.accent : '#000' }]}>
+            <Text style={[styles.challengeCtaText, { color: isLowerTier ? W.accent : W.ctaText }]}>
               {isLowerTier
                 ? `PRACTICE ${TIER_NAMES[selectedTier]?.toUpperCase()}`
                 : `START ${TIER_NAMES[profile?.strength_tier ?? 0]?.toUpperCase()} TRIAL`}
@@ -266,6 +281,37 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingVertical: 14,
     alignItems: 'center',
+  },
+  challengeCard: {
+    marginHorizontal: 20,
+    marginBottom: 16,
+    borderRadius: 24,
+    borderWidth: 1.5,
+    padding: 20,
+    gap: 6,
+  },
+  challengeCaption: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    letterSpacing: 2,
+    color: WORLD_NEUTRALS.textCaption,
+  },
+  challengeHeadline: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 19,
+    color: WORLD_NEUTRALS.textPrimary,
+  },
+  challengeCta: {
+    height: 52,
+    borderRadius: 14,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  challengeCtaText: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 16,
+    letterSpacing: 1.5,
   },
   primaryActionButtonText: {
     fontSize: 13,

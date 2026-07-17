@@ -1,6 +1,9 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
-import { WarriorCard } from '../atoms/WarriorCard';
+import { View, Text, StyleSheet, Dimensions } from 'react-native';
+import { StatCircle } from '../worlds/StatCircle';
+import { ScoreRingHero } from '../worlds/ScoreRingHero';
+import { WORLD_THEMES, WORLD_NEUTRALS } from '../../../constants/worldThemes';
+import { clamp01 } from '../../lib/worldProgress';
 
 interface TierRankData {
   rank: number | null;
@@ -19,6 +22,15 @@ interface TierRankCardProps {
   onShowTierModal: (tier: number) => void;
 }
 
+const MAX_STRENGTH_TIER = 9;
+const MAX_POWER_TIER = 3;
+
+/**
+ * 3-circle strength/power header (design handoff): RANK / tier ring / GAP,
+ * with an honest labeled progress bar underneath. Rank and gap always agree —
+ * the old version showed "#-" + "NO TIME SET YET" beside an already-filled
+ * tier circle, contradicting itself.
+ */
 export function TierRankCard({
   profile,
   category,
@@ -29,133 +41,107 @@ export function TierRankCard({
   theme,
   onShowTierModal,
 }: TierRankCardProps) {
+  const W = WORLD_THEMES.strength;
+  const currentTier = category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0);
+  const maxTier = category === 'strength' ? MAX_STRENGTH_TIER : MAX_POWER_TIER;
+  const tierProgress = clamp01(currentTier / maxTier);
+  const pct = Math.round(tierProgress * 100);
+  const hasEntry = tierRankData.rank !== null;
+
   return (
-    <WarriorCard
-      style={styles.modernTierCard}
-      variant={isLocked ? 'default' : 'accent'}
-      padding={16}
-    >
-      <View style={styles.tierCirclesRow}>
-        {/* Left Circle: Rank */}
-        <View style={[styles.tierCircleSmall, { borderColor: isLocked ? theme.card.border : theme.accent + '30' }]}>
-          <Text style={[styles.tierCircleLabel, { color: theme.text.tertiary }]}>RANK</Text>
-          <Text style={[styles.tierCircleValue, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-            #{tierRankData.rank || '-'}
-          </Text>
-          <Text style={[styles.tierCircleSubValue, { color: theme.text.tertiary }]}>
-            OF {tierRankData.total}
-          </Text>
-          {tierRankData.total === 0 && (
-            <Text style={{ color: theme.text.tertiary, fontSize: 9, textAlign: 'center', marginTop: 2 }}>
-              NO ENTRIES YET
-            </Text>
-          )}
-          {tierRankData.total > 0 && tierRankData.rank === null && (
-            <Text style={{ color: theme.text.tertiary, fontSize: 9, textAlign: 'center', marginTop: 2 }}>
-              NO TIME SET YET
-            </Text>
-          )}
-        </View>
+    <View style={styles.card}>
+      <View style={styles.circlesRow}>
+        <StatCircle
+          size={HERO_SIDE_SIZE}
+          label="RANK"
+          value={`#${tierRankData.rank ?? 0}`}
+          caption={tierRankData.total > 0 ? `OF ${tierRankData.total}` : 'NO ENTRIES YET'}
+          unranked={!hasEntry}
+        />
 
-        {/* Center Circle: Main Tier */}
-        <TouchableOpacity
-          activeOpacity={0.7}
+        <ScoreRingHero
+          world={W}
+          size={HERO_CENTER_SIZE}
+          progress={isLocked ? 0 : tierProgress}
+          label={`TIER ${currentTier}`}
+          value={tierName.toUpperCase()}
+          caption={currentTier < maxTier ? `${pct}% TO TIER ${currentTier + 1}` : 'MAX TIER'}
           onPress={() => onShowTierModal(selectedTier)}
-          style={[styles.tierCircleLarge, { borderColor: isLocked ? theme.card.border : theme.accent }]}
-        >
-          <Text style={[styles.tierLargeName, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-            {tierName.toUpperCase()}
-          </Text>
-        </TouchableOpacity>
+        />
 
-        {/* Right Circle: Gap */}
-        <View style={[styles.tierCircleSmall, { borderColor: isLocked ? theme.card.border : theme.accent + '30' }]}>
-          <Text style={[styles.tierCircleLabel, { color: theme.text.tertiary }]}>GAP</Text>
-          <Text style={[styles.tierCircleValue, { color: isLocked ? theme.text.tertiary : theme.accent }]}>
-            {tierRankData.rank === 1 ? 'KING' : (tierRankData.gap || '-')}
-          </Text>
-          {tierRankData.rank !== 1 && (
-            <Text style={[styles.tierCircleSubValue, { color: theme.text.tertiary }]}>
-              {category === 'strength' ? 'TO #1' : 'PTS'}
-            </Text>
-          )}
-        </View>
+        <StatCircle
+          size={HERO_SIDE_SIZE}
+          label="GAP"
+          value={tierRankData.rank === 1 ? 'KING' : tierRankData.gap ?? ''}
+          caption={
+            tierRankData.rank === 1
+              ? 'AT THE TOP'
+              : category === 'strength' ? 'TO #1 SPOT' : 'PTS TO #1'
+          }
+          unranked={!hasEntry || (tierRankData.rank !== 1 && !tierRankData.gap)}
+        />
       </View>
 
-      {/* Progress Bar */}
+      {/* Honest labeled tier progress bar */}
       {category === 'strength' && (
-        <View style={{ paddingHorizontal: 24, marginTop: 12, marginBottom: 12 }}>
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 4 }}>
-            <Text style={{ fontSize: 11, color: theme.text.secondary }}>
-              Tier {profile?.strength_tier ?? 0} of 9
-            </Text>
-            <Text style={{ fontSize: 11, color: theme.text.secondary }}>
-              {Math.round(((profile?.strength_tier ?? 0) / 9) * 100)}% Complete
-            </Text>
+        <View style={styles.barSection}>
+          <View style={styles.barLabels}>
+            <Text style={styles.barLabelLeft}>TIER {currentTier} OF {MAX_STRENGTH_TIER}</Text>
+            <Text style={[styles.barLabelRight, { color: W.accent }]}>{pct}% COMPLETE</Text>
           </View>
-          <View style={{ height: 3, borderRadius: 2, backgroundColor: 'rgba(205,127,50,0.2)', overflow: 'hidden' }}>
-            <View style={{
-              height: '100%',
-              backgroundColor: theme.accent,
-              width: `${((profile?.strength_tier ?? 0) / 9) * 100}%`
-            }} />
+          <View style={[styles.track, { backgroundColor: W.trackRgba }]}>
+            <View style={[styles.fill, { backgroundColor: W.accent, width: `${pct}%` }]} />
           </View>
         </View>
       )}
-    </WarriorCard>
+    </View>
   );
 }
 
+const { width } = Dimensions.get('window');
+const HERO_CENTER_SIZE = 150;
+const HERO_SIDE_SIZE = Math.min(96, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
+
 const styles = StyleSheet.create({
-  modernTierCard: {
-    marginHorizontal: 16,
+  card: {
+    marginHorizontal: 20,
     marginTop: 20,
     marginBottom: 16,
   },
-  tierCirclesRow: {
+  circlesRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+    flexWrap: 'wrap',
+  },
+  barSection: {
+    marginTop: 18,
+    paddingHorizontal: 4,
+  },
+  barLabels: {
+    flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 8,
+    marginBottom: 6,
   },
-  tierCircleSmall: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    borderWidth: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierCircleLarge: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  tierCircleLabel: {
-    fontSize: 8,
+  barLabelLeft: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
     letterSpacing: 1,
-    fontFamily: 'PlusJakartaSans-Bold',
-    marginBottom: 2,
+    color: WORLD_NEUTRALS.textSecondary,
   },
-  tierCircleValue: {
-    fontSize: 16,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-  },
-  tierCircleSubValue: {
-    fontSize: 8,
-    letterSpacing: 0.5,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  tierLargeName: {
-    fontSize: 13,
-    fontWeight: '900',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
+  barLabelRight: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
     letterSpacing: 1,
-    textAlign: 'center',
-    paddingHorizontal: 8,
+  },
+  track: {
+    height: 8,
+    borderRadius: 999,
+    overflow: 'hidden',
+  },
+  fill: {
+    height: '100%',
+    borderRadius: 999,
   },
 });

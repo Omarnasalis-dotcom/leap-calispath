@@ -30,6 +30,8 @@ import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { TierRankCard } from '../components/profile/TierRankCard';
+import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
+import { WORLD_THEMES } from '../../constants/worldThemes';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
@@ -493,25 +495,12 @@ export function ProfileScreen({
 
           {activeTab === 'strength' && (
             <>
-              <View style={{ flexDirection: 'row', justifyContent: 'center', paddingTop: 44, paddingBottom: 10, marginBottom: 12 }}>
-                <View
-                  style={{
-                    paddingHorizontal: 76,
-                    paddingVertical: 7,
-                    borderRadius: 25,
-                    borderWidth: 1,
-                    borderColor: '#FF5252',
-                    backgroundColor: '#f43a3a20',
-                  }}
-                >
-                  <Text style={{
-                    fontSize: 11,
-                    fontWeight: '900',
-                    letterSpacing: 2,
-                    fontFamily: 'PlusJakartaSans-ExtraBold',
-                    color: theme.text.primary,
-                  }}>STRENGTH WORLD</Text>
-                </View>
+              <View style={{ paddingTop: 44, marginBottom: 12 }}>
+                <WorldHeaderPill
+                  world={WORLD_THEMES.strength}
+                  title="STRENGTH WORLD"
+                  icon="sword-cross"
+                />
               </View>
 
               <TierRankCard
