@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0b0b0d;}
+  * { box-sizing: border-box; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:center; gap:48px; padding:56px 32px; background:#0b0b0d;">
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; display:flex; flex-direction:column; background:radial-gradient(120% 60% at 50% 0%, rgba(255,74,62,0.10), transparent 60%), #050302; color:#fff;">
+
+      <div style="flex:1; overflow-y:auto; padding-top:74px; padding-bottom:16px;">
+
+        <div onClick="{{ openPowerWorld }}" style="margin:0 20px; height:50px; border-radius:999px; border:1.5px solid rgba(255,74,62,0.55); background:rgba(255,60,50,0.07); display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;" style-hover="background:rgba(255,60,50,0.12);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="{{ accent }}"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"></path></svg>
+          <span style="font-size:15px; font-weight:700; letter-spacing:3px; color: {{ accent }};">POWER WORLD</span>
+        </div>
+
+        <div style="text-align:center; font-size:13px; font-weight:700; letter-spacing:4px; color: {{ accent }}; margin-top:26px;">OVERALL POWER</div>
+
+        <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-top:16px; padding:0 20px;">
+
+          <div style="width:96px; height:96px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; text-align:center; padding:0 6px;">
+            <div style="font-size:8.5px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.45);">GLOBAL RANK</div>
+            <div style="font-size:24px; font-weight:800; color:#fff;">#5</div>
+            <div style="font-size:8px; font-weight:600; letter-spacing:1px; color:rgba(255,255,255,0.35);">OF WORLD</div>
+          </div>
+
+          <div style="position:relative; width:150px; height:150px; flex-shrink:0;">
+            <svg width="150" height="150" style="position:absolute; inset:0; transform:rotate(-90deg);">
+              <circle cx="75" cy="75" r="68" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="6"></circle>
+              <circle cx="75" cy="75" r="68" fill="none" stroke="{{ accent }}" stroke-width="6" stroke-linecap="round" stroke-dasharray="{{ mainCirc }}" style="stroke-dashoffset: {{ mainOffset }}px; transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1);"></circle>
+            </svg>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;">
+              <div style="font-size:10px; font-weight:700; letter-spacing:2px; color: {{ accent }};">POWER SCORE</div>
+              <div style="font-size:33px; font-weight:800; color:#fff; line-height:1;">{{ totalPtsStr }}</div>
+              <div style="font-size:9.5px; font-weight:600; letter-spacing:1.5px; color:rgba(255,255,255,0.4);">TOTAL</div>
+            </div>
+            <div title="View stats" onClick="{{ openStats }}" style="position:absolute; bottom:-6px; right:-6px; width:44px; height:44px; border-radius:999px; background: {{ accent }}; border:3px solid #050302; display:flex; align-items:center; justify-content:center; cursor:pointer;" style-hover="filter:brightness(1.1);" style-active="transform:scale(0.9);">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 20V10M12 20V4M19 20v-7" stroke="#fff" stroke-width="2.2" stroke-linecap="round"></path></svg>
+            </div>
+          </div>
+
+          <div style="width:96px; height:96px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; text-align:center; padding:0 6px;">
+            <div style="font-size:8.5px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.45);">LEVEL GAP</div>
+            <div style="font-size:20px; font-weight:800; color:#fff;">{{ levelGapStr }}</div>
+            <div style="font-size:7.5px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35);">PTS TO AMPERE</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:10px; padding:0 30px; line-height:1.4;">Fixed — rank &amp; level gap are static info rings now, not a misleading "full" progress circle at zero.</div>
+        </sc-if>
+
+        <div style="text-align:center; font-size:20px; font-weight:800; letter-spacing:1.5px; color:#fff; margin-top:36px;">YOUR PEAK PERFORMANCE</div>
+
+        <div style="position:relative; margin-top:20px;">
+          <div style="display:flex; gap:10px; overflow-x:auto; padding:0 20px 6px;">
+            <div style="flex-shrink:0; height:40px; padding:0 18px; border-radius:999px; border:1.5px solid {{ accent }}; background:rgba(255,74,62,0.14); display:flex; align-items:center; gap:6px; cursor:pointer;">
+              <span style="font-size:13px; font-weight:700; letter-spacing:1px; color: {{ accent }};">OVERALL POWER</span>
+              <span style="font-size:13px;">👑</span>
+            </div>
+            <div style="flex-shrink:0; height:40px; padding:0 18px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.16); display:flex; align-items:center; cursor:pointer;">
+              <span style="font-size:13px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.55);">VOLTAIC</span>
+            </div>
+            <div style="flex-shrink:0; height:40px; padding:0 18px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.16); display:flex; align-items:center; cursor:pointer;">
+              <span style="font-size:13px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.55);">AMPERE</span>
+            </div>
+            <div style="flex-shrink:0; height:40px; padding:0 18px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.16); display:flex; align-items:center; cursor:pointer;">
+              <span style="font-size:13px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.55);">STATIC</span>
+            </div>
+          </div>
+          <div style="position:absolute; top:0; right:0; bottom:6px; width:36px; background:linear-gradient(to right, transparent, #050302); pointer-events:none;"></div>
+          <div style="position:absolute; top:10px; right:8px; font-size:13px; color: {{ accent }}; opacity:0.65; pointer-events:none;">›</div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:8px; padding:0 30px; line-height:1.4;">Fixed — edge fade + peek arrow hint that more tabs scroll into view.</div>
+        </sc-if>
+
+        <div style="display:flex; justify-content:space-between; margin-top:26px; padding:0 20px;">
+
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div onClick="{{ logPullup }}" style="position:relative; width:80px; height:80px; cursor:pointer; transform: {{ puScale }}; transition: transform 0.25s ease;" style-hover="filter:brightness(1.15);">
+              <svg width="80" height="80" style="position:absolute; inset:0; transform:rotate(-90deg);">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="5"></circle>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="{{ accent }}" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ exCirc }}" style="stroke-dashoffset: {{ puOffset }}px; transition: stroke-dashoffset 0.5s ease;"></circle>
+              </svg>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color: {{ accent }};">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 6h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 6v4l-2 8M16 6v4l2 8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <sc-if value="{{ puHasLog }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:14px; font-weight:800; color:#fff;">{{ puCount }}</span>
+                </sc-if>
+              </div>
+              <div style="position:absolute; bottom:-2px; right:-2px; width:34px; height:34px; border-radius:999px; background: {{ accent }}; border:3px solid #050302; display:flex; align-items:center; justify-content:center;" style-active="transform:scale(0.85);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></svg>
+              </div>
+            </div>
+            <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; color:#fff; margin-top:10px;">PULL-UP</div>
+            <sc-if value="{{ puHasLog }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.5px; color: {{ accent }}; margin-top:2px;">{{ puCount }} LOGGED</div>
+            </sc-if>
+            <sc-if value="{{ puHasLogInverse }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:9px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35); margin-top:2px;">TAP TO LOG</div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div onClick="{{ logDip }}" style="position:relative; width:80px; height:80px; cursor:pointer; transform: {{ dipScale }}; transition: transform 0.25s ease;" style-hover="filter:brightness(1.15);">
+              <svg width="80" height="80" style="position:absolute; inset:0; transform:rotate(-90deg);">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="5"></circle>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="{{ accent }}" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ exCirc }}" style="stroke-dashoffset: {{ dipOffset }}px; transition: stroke-dashoffset 0.5s ease;"></circle>
+              </svg>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color: {{ accent }};">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 3v18M18 3v18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M6 9c4 3 8 3 12 0" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <sc-if value="{{ dipHasLog }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:14px; font-weight:800; color:#fff;">{{ dipCount }}</span>
+                </sc-if>
+              </div>
+              <div style="position:absolute; bottom:-2px; right:-2px; width:34px; height:34px; border-radius:999px; background: {{ accent }}; border:3px solid #050302; display:flex; align-items:center; justify-content:center;" style-active="transform:scale(0.85);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></svg>
+              </div>
+            </div>
+            <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; color:#fff; margin-top:10px;">DIP</div>
+            <sc-if value="{{ dipHasLog }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.5px; color: {{ accent }}; margin-top:2px;">{{ dipCount }} LOGGED</div>
+            </sc-if>
+            <sc-if value="{{ dipHasLogInverse }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:9px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35); margin-top:2px;">TAP TO LOG</div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div onClick="{{ logSquat }}" style="position:relative; width:80px; height:80px; cursor:pointer; transform: {{ sqScale }}; transition: transform 0.25s ease;" style-hover="filter:brightness(1.15);">
+              <svg width="80" height="80" style="position:absolute; inset:0; transform:rotate(-90deg);">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="5"></circle>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="{{ accent }}" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ exCirc }}" style="stroke-dashoffset: {{ sqOffset }}px; transition: stroke-dashoffset 0.5s ease;"></circle>
+              </svg>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color: {{ accent }};">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M5 8l7 6 7-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><path d="M5 15l7 6 7-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"></path></svg>
+                <sc-if value="{{ sqHasLog }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:14px; font-weight:800; color:#fff;">{{ sqCount }}</span>
+                </sc-if>
+              </div>
+              <div style="position:absolute; bottom:-2px; right:-2px; width:34px; height:34px; border-radius:999px; background: {{ accent }}; border:3px solid #050302; display:flex; align-items:center; justify-content:center;" style-active="transform:scale(0.85);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></svg>
+              </div>
+            </div>
+            <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; color:#fff; margin-top:10px;">SQUAT</div>
+            <sc-if value="{{ sqHasLog }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.5px; color: {{ accent }}; margin-top:2px;">{{ sqCount }} LOGGED</div>
+            </sc-if>
+            <sc-if value="{{ sqHasLogInverse }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:9px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35); margin-top:2px;">TAP TO LOG</div>
+            </sc-if>
+          </div>
+
+          <div style="display:flex; flex-direction:column; align-items:center;">
+            <div onClick="{{ logMuscleup }}" style="position:relative; width:80px; height:80px; cursor:pointer; transform: {{ muScale }}; transition: transform 0.25s ease;" style-hover="filter:brightness(1.15);">
+              <svg width="80" height="80" style="position:absolute; inset:0; transform:rotate(-90deg);">
+                <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="5"></circle>
+                <circle cx="40" cy="40" r="34" fill="none" stroke="{{ accent }}" stroke-width="5" stroke-linecap="round" stroke-dasharray="{{ exCirc }}" style="stroke-dashoffset: {{ muOffset }}px; transition: stroke-dashoffset 0.5s ease;"></circle>
+              </svg>
+              <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; color: {{ accent }};">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M3 14h18" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M8 14V9a4 4 0 0 1 8 0v5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path></svg>
+                <sc-if value="{{ muHasLog }}" hint-placeholder-val="{{ false }}">
+                  <span style="font-size:14px; font-weight:800; color:#fff;">{{ muCount }}</span>
+                </sc-if>
+              </div>
+              <div style="position:absolute; bottom:-2px; right:-2px; width:34px; height:34px; border-radius:999px; background: {{ accent }}; border:3px solid #050302; display:flex; align-items:center; justify-content:center;" style-active="transform:scale(0.85);">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M12 4v16M4 12h16" stroke="#fff" stroke-width="3" stroke-linecap="round"></path></svg>
+              </div>
+            </div>
+            <div style="font-size:11px; font-weight:700; letter-spacing:0.5px; color:#fff; margin-top:10px;">MUSCLE-UP</div>
+            <sc-if value="{{ muHasLog }}" hint-placeholder-val="{{ false }}">
+              <div style="font-size:9px; font-weight:700; letter-spacing:0.5px; color: {{ accent }}; margin-top:2px;">{{ muCount }} LOGGED</div>
+            </sc-if>
+            <sc-if value="{{ muHasLogInverse }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:9px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35); margin-top:2px;">TAP TO LOG</div>
+            </sc-if>
+          </div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:12px; padding:0 26px; line-height:1.4;">Fixed — the whole circle is the tap target now (try one), not just the small + badge. Try tapping a circle below.</div>
+        </sc-if>
+
+        <div style="margin:32px 20px 0; border-radius:24px; border:1.5px solid rgba(255,74,62,0.32); background:rgba(255,74,62,0.06); padding:20px;">
+          <div style="display:flex; align-items:center; gap:14px;">
+            <div style="width:44px; height:44px; border-radius:12px; background:rgba(255,74,62,0.16); display:flex; align-items:center; justify-content:center; flex-shrink:0; color: {{ accent }};">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2 4 5v6c0 5 3.5 8.5 8 11 4.5-2.5 8-6 8-11V5l-8-3Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"></path></svg>
+            </div>
+            <div style="flex:1;">
+              <div style="font-size:19px; font-weight:700; color:#fff;">{{ totalPtsStr }} Points to AMPERE</div>
+              <div style="font-size:11px; font-weight:600; letter-spacing:1px; color:rgba(255,255,255,0.45); margin-top:2px;">YOUR NEXT MAJOR MILESTONE</div>
+            </div>
+          </div>
+          <div style="height:8px; border-radius:999px; background:rgba(255,74,62,0.15); margin-top:16px; overflow:hidden;">
+            <div style="height:100%; border-radius:999px; background: {{ accent }}; width: {{ milestonePctStr }}; transition: width 0.5s ease;"></div>
+          </div>
+          <div style="display:flex; justify-content:space-between; margin-top:10px;">
+            <span style="font-size:10px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.4);">PROGRESS</span>
+            <span style="font-size:13px; font-weight:700; color: {{ accent }};">{{ totalPtsStr }} / 100 PTS</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:12px; padding:0 26px; line-height:1.4;">Fixed — progress track is always visible, even at 0%, so it never looks broken.</div>
+        </sc-if>
+
+      </div>
+
+      <div style="flex-shrink:0; display:flex; justify-content:space-around; align-items:center; padding:12px 8px; border-top:1px solid rgba(255,255,255,0.08); background:#000;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="2"></circle><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">PROFILE</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M4 4l16 16M20 4 4 20" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">STRENGTH</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color: {{ accent }};">
+          <div style="width:20px; height:3px; border-radius:999px; background: {{ accent }};"></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">POWER</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M4 7l16 10M20 7 4 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">STATIC</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="2"></circle><path d="M12 13V9M9 2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">1MM</span>
+        </div>
+      </div>
+
+    </div>
+  </x-import>
+
+  <div style="width:340px; color:#fff; padding-top:8px;">
+    <div style="font-size:12px; font-weight:700; letter-spacing:3px; color: {{ accent }}; text-transform:uppercase;">UX fixes applied</div>
+    <div style="font-size:30px; font-weight:800; margin-top:8px; line-height:1.1;">Power screen — redesign</div>
+    <div style="font-size:15px; color:rgba(255,255,255,0.6); margin-top:10px; line-height:1.5;">Tap any exercise circle in the phone — it now logs a rep live, the ring fills, and the number updates.</div>
+
+    <div style="margin-top:26px; display:flex; flex-direction:column; gap:18px;">
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">1</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Whole circle is tappable</b> — not just the tiny + badge, so the hit target is ~80px instead of ~28px.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">2</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Real empty state</b> — "TAP TO LOG" replaces the confusing "#--" placeholder text.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">3</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Rings mean progress</b> — rank &amp; level-gap cards use a static info ring; only true progress (power score, milestone) fills as an arc.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">4</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Icons per exercise</b> for faster scanning instead of four identical text-only circles.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">5</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Scroll hint</b> — fade edge + peek arrow on the tab row instead of an abrupt crop.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#000; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">6</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Visible progress track</b> at the bottom milestone card, even at 0%.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:950},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#FF4B3E&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;annotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  state = { logs: { pullup: 0, dip: 0, squat: 0, muscleup: 0 }, pulse: null };
+
+  log(key) {
+    this.setState(s => ({ logs: { ...s.logs, [key]: s.logs[key] + 1 }, pulse: key }));
+    clearTimeout(this._t);
+    this._t = setTimeout(() => this.setState({ pulse: null }), 260);
+  }
+
+  renderVals() {
+    const accent = this.props.accentColor || '#FF4B3E';
+    const annotate = this.props.annotate !== false;
+    const logs = this.state.logs;
+
+    const totalPts = Math.min(100, (logs.pullup + logs.dip + logs.squat + logs.muscleup) * 5);
+    const levelGap = Math.max(0, 100 - totalPts);
+    const mainR = 68, mainCirc = 2 * Math.PI * mainR;
+    const mainOffset = mainCirc - mainCirc * (totalPts / 100);
+    const exR = 34, exCirc = 2 * Math.PI * exR;
+
+    const mk = (key) => {
+      const count = logs[key];
+      const pct = Math.min(1, count / 5);
+      return {
+        count,
+        offset: exCirc - exCirc * pct,
+        scale: this.state.pulse === key ? 'scale(1.1)' : 'scale(1)',
+        hasLog: count > 0,
+      };
+    };
+    const pu = mk('pullup'), dip = mk('dip'), sq = mk('squat'), mu = mk('muscleup');
+
+    return {
+      accent, annotate,
+      logPullup: () => this.log('pullup'),
+      logDip: () => this.log('dip'),
+      logSquat: () => this.log('squat'),
+      logMuscleup: () => this.log('muscleup'),
+      openStats: () => {},
+      openPowerWorld: () => {},
+      totalPtsStr: totalPts.toFixed(2),
+      levelGapStr: levelGap.toFixed(2),
+      mainCirc, mainOffset, exCirc,
+      milestonePctStr: (totalPts) + '%',
+      puCount: pu.count, puOffset: pu.offset, puScale: pu.scale, puHasLog: pu.hasLog, puHasLogInverse: !pu.hasLog,
+      dipCount: dip.count, dipOffset: dip.offset, dipScale: dip.scale, dipHasLog: dip.hasLog, dipHasLogInverse: !dip.hasLog,
+      sqCount: sq.count, sqOffset: sq.offset, sqScale: sq.scale, sqHasLog: sq.hasLog, sqHasLogInverse: !sq.hasLog,
+      muCount: mu.count, muOffset: mu.offset, muScale: mu.scale, muHasLog: mu.hasLog, muHasLogInverse: !mu.hasLog,
+    };
+  }
+}
+</script>
+</body>
+</html>

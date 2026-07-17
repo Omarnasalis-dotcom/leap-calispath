@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  body{margin:0;background:#0b0b0d;}
+  * { box-sizing: border-box; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+  ::-webkit-scrollbar { display: none; }
+</style>
+</helmet>
+
+<div style="min-height:100vh; display:flex; flex-wrap:wrap; align-items:flex-start; justify-content:center; gap:48px; padding:56px 32px; background:#0b0b0d;">
+
+  <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402px,874px">
+    <div style="height:100%; display:flex; flex-direction:column; background:radial-gradient(120% 60% at 50% 0%, rgba(255,74,62,0.10), transparent 60%), #050302; color:#fff;">
+
+      <div style="flex:1; overflow-y:auto; padding-top:74px; padding-bottom:16px;">
+
+        <div style="margin:0 20px; height:50px; border-radius:999px; border:1.5px solid rgba(255,74,62,0.55); background:rgba(255,60,50,0.07); display:flex; align-items:center; justify-content:center; gap:8px; cursor:pointer;" style-hover="background:rgba(255,60,50,0.12);">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="{{ accent }}" stroke-width="2.2" stroke-linecap="round"><path d="M12 3v18M6 7l12 10M18 7 6 17"></path></svg>
+          <span style="font-size:15px; font-weight:700; letter-spacing:3px; color: {{ accent }};">STRENGTH WORLD</span>
+        </div>
+
+        <div style="display:flex; align-items:center; justify-content:center; gap:10px; margin-top:26px; padding:0 20px;">
+
+          <div style="width:96px; height:96px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; text-align:center; padding:0 6px;">
+            <div style="font-size:8.5px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.45);">RANK</div>
+            <div style="font-size:24px; font-weight:800; color:#fff;">#4</div>
+            <div style="font-size:8px; font-weight:600; letter-spacing:1px; color:rgba(255,255,255,0.35);">OF 6 WARRIORS</div>
+          </div>
+
+          <div style="position:relative; width:150px; height:150px; flex-shrink:0;">
+            <svg width="150" height="150" style="position:absolute; inset:0; transform:rotate(-90deg);">
+              <circle cx="75" cy="75" r="68" fill="none" stroke="rgba(255,74,62,0.15)" stroke-width="6"></circle>
+              <circle cx="75" cy="75" r="68" fill="none" stroke="{{ accent }}" stroke-width="6" stroke-linecap="round" stroke-dasharray="{{ tierCirc }}" style="stroke-dashoffset: {{ tierOffset }}px; transition: stroke-dashoffset 0.6s cubic-bezier(.4,0,.2,1);"></circle>
+            </svg>
+            <div style="position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px;">
+              <div style="font-size:10px; font-weight:700; letter-spacing:2px; color: {{ accent }};">TIER 7</div>
+              <div style="font-size:26px; font-weight:800; color:#fff; line-height:1;">OLYMPIAN</div>
+              <div style="font-size:9.5px; font-weight:600; letter-spacing:1.5px; color:rgba(255,255,255,0.4);">{{ progressStr }}% TO TIER 8</div>
+            </div>
+          </div>
+
+          <div style="width:96px; height:96px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); flex-shrink:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; text-align:center; padding:0 6px;">
+            <div style="font-size:8.5px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.45);">GAP</div>
+            <div style="font-size:19px; font-weight:800; color:#fff;">2'15"</div>
+            <div style="font-size:7.5px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.35);">TO #1 SPOT</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:10px; padding:0 26px; line-height:1.4;">Fixed — "RANK #- / NO TIME SET YET" contradicted the 78%-complete tier below it. Both side cards now show real, consistent values.</div>
+        </sc-if>
+
+        <div style="margin:28px 20px 0; height:8px; border-radius:999px; background:rgba(255,74,62,0.15); overflow:hidden;">
+          <div style="height:100%; border-radius:999px; background: {{ accent }}; width: {{ progressStr }}%; transition: width 0.5s ease;"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; margin:8px 20px 0;">
+          <span style="font-size:11px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.45);">TIER 7 OF 9</span>
+          <span style="font-size:13px; font-weight:700; color: {{ accent }};">{{ progressStr }}% COMPLETE</span>
+        </div>
+
+        <div style="text-align:center; font-size:12px; font-weight:700; letter-spacing:3px; color:rgba(255,255,255,0.5); margin-top:30px;">STRENGTH TIERS</div>
+
+        <div style="position:relative; margin-top:14px;">
+          <div style="display:flex; gap:10px; overflow-x:auto; padding:0 20px 6px;">
+
+            <div style="flex-shrink:0; width:92px; padding:12px 8px; border-radius:16px; border:1.5px solid rgba(80,220,140,0.4); background:rgba(80,220,140,0.08); display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#4ADE80" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l5 5L20 6"></path></svg>
+              <span style="font-size:12px; font-weight:700; color:#fff;">STRATEGOS</span>
+              <span style="font-size:9px; font-weight:700; letter-spacing:1px; color:#4ADE80;">COMPLETE</span>
+            </div>
+
+            <div style="flex-shrink:0; width:92px; padding:12px 8px; border-radius:16px; border:1.5px solid {{ accent }}; background:rgba(255,74,62,0.16); box-shadow: 0 0 16px rgba(255,74,62,0.35); display:flex; flex-direction:column; align-items:center; gap:6px;">
+              <span style="font-size:9px; font-weight:700; letter-spacing:1px; color: {{ accent }};">CURRENT</span>
+              <span style="font-size:13px; font-weight:800; color:#fff;">OLYMPIAN</span>
+              <span style="font-size:9px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.5);">TIER 7</span>
+            </div>
+
+            <div style="flex-shrink:0; width:92px; padding:12px 8px; border-radius:16px; border:1.5px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:6px; opacity:0.55;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              <span style="font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);">DEMIGOD</span>
+              <span style="font-size:8.5px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.4);">AT TIER 8</span>
+            </div>
+
+            <div style="flex-shrink:0; width:92px; padding:12px 8px; border-radius:16px; border:1.5px solid rgba(255,255,255,0.1); background:rgba(255,255,255,0.03); display:flex; flex-direction:column; align-items:center; gap:6px; opacity:0.55;">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.6)" stroke-width="2"><rect x="5" y="11" width="14" height="9" rx="2"></rect><path d="M8 11V7a4 4 0 0 1 8 0v4"></path></svg>
+              <span style="font-size:12px; font-weight:700; color:rgba(255,255,255,0.7);">ETERNITY</span>
+              <span style="font-size:8.5px; font-weight:600; letter-spacing:0.5px; color:rgba(255,255,255,0.4);">AT TIER 9</span>
+            </div>
+          </div>
+          <div style="position:absolute; top:0; right:0; bottom:6px; width:36px; background:linear-gradient(to right, transparent, #050302); pointer-events:none;"></div>
+          <div style="position:absolute; top:36px; right:8px; font-size:13px; color: {{ accent }}; opacity:0.65; pointer-events:none;">›</div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:10px; padding:0 26px; line-height:1.4;">Fixed — tiers now read as three distinct states (done / current / locked-with-unlock-condition) instead of only "filled vs. padlock."</div>
+        </sc-if>
+
+        <div style="margin:30px 20px 0; border-radius:24px; border:1.5px solid rgba(255,74,62,0.32); background:rgba(255,74,62,0.06); padding:20px;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:2px; color:rgba(255,255,255,0.45);">NEXT CHALLENGE</div>
+          <div style="font-size:19px; font-weight:700; color:#fff; margin-top:6px;">Beat 9:45 to reach Demigod</div>
+          <div onClick="{{ runTrial }}" style="margin-top:16px; height:52px; border-radius:14px; background: {{ accent }}; display:flex; align-items:center; justify-content:center; cursor:pointer; transform: {{ trialScale }}; transition: transform 0.2s ease;" style-hover="filter:brightness(1.08);">
+            <span style="font-size:16px; font-weight:800; letter-spacing:1.5px; color:#1a0605;">START OLYMPIAN TRIAL</span>
+          </div>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:10px; padding:0 26px; line-height:1.4;">Fixed — CTA now states the actual target ("beat 9:45"), not just a generic button. Tap it — it logs an attempt and nudges the tier ring above.</div>
+        </sc-if>
+
+        <div style="display:flex; align-items:center; justify-content:space-between; margin:32px 20px 0;">
+          <div>
+            <div style="font-size:20px; font-weight:800; letter-spacing:1px; color:#fff;">LEADERBOARD</div>
+            <div style="font-size:10.5px; font-weight:600; letter-spacing:1px; color:rgba(255,255,255,0.4); margin-top:2px;">6 WARRIORS</div>
+          </div>
+        </div>
+
+        <div style="display:flex; gap:8px; margin:14px 20px 0;">
+          <div style="flex:1; height:38px; border-radius:999px; background: {{ accent }}; display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            <span style="font-size:12px; font-weight:800; letter-spacing:1px; color:#1a0605;">ALL</span>
+          </div>
+          <div style="flex:1; height:38px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            <span style="font-size:12px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.55);">MALE</span>
+          </div>
+          <div style="flex:1; height:38px; border-radius:999px; border:1.5px solid rgba(255,255,255,0.14); display:flex; align-items:center; justify-content:center; cursor:pointer;">
+            <span style="font-size:12px; font-weight:700; letter-spacing:1px; color:rgba(255,255,255,0.55);">FEMALE</span>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; margin:14px 20px 0; border-radius:18px; overflow:hidden; border:1px solid rgba(255,255,255,0.08);">
+          <sc-for list="{{ leaders }}" as="row" hint-placeholder-count="6">
+            <div style="display:flex; align-items:center; gap:12px; padding:10px 14px; min-height:60px; background: {{ row.bg }}; border-bottom:1px solid rgba(255,255,255,0.06); cursor:pointer;" style-hover="background:rgba(255,255,255,0.04);">
+              <div style="width:28px; height:28px; border-radius:999px; background: {{ row.medalBg }}; color: {{ row.medalColor }}; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:800; flex-shrink:0;">{{ row.place }}</div>
+              <span style="font-size:16px; flex-shrink:0;">{{ row.flag }}</span>
+              <div style="flex:1; font-size:15px; font-weight:700; color:#fff; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">{{ row.name }}</div>
+              <div style="padding:6px 12px; border-radius:999px; background:rgba(255,74,62,0.14); font-size:13px; font-weight:800; color: {{ accent }}; flex-shrink:0;">{{ row.time }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ annotate }}" hint-placeholder-val="{{ true }}">
+          <div style="text-align:center; font-size:10.5px; font-style:italic; color:rgba(255,255,255,0.4); margin-top:12px; padding:0 26px; line-height:1.4;">Fixed — rows are full-width 60px tap targets (not just the small time badge); rank uses a plain number badge instead of an emoji trophy so all 6 places read consistently.</div>
+        </sc-if>
+
+      </div>
+
+      <div style="flex-shrink:0; display:flex; justify-content:space-around; align-items:center; padding:12px 8px; border-top:1px solid rgba(255,255,255,0.08); background:#000;">
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="8" r="3.5" stroke="currentColor" stroke-width="2"></circle><path d="M4 20c1.5-4 4.5-6 8-6s6.5 2 8 6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">PROFILE</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color: {{ accent }};">
+          <div style="width:20px; height:3px; border-radius:999px; background: {{ accent }};"></div>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 3v18M6 7l12 10M18 7 6 17"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">STRENGTH</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4 14h6l-1 8 9-12h-6l1-8Z"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">POWER</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 3v18M4 7l16 10M20 7 4 17" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">STATIC</span>
+        </div>
+        <div style="display:flex; flex-direction:column; align-items:center; gap:4px; cursor:pointer; color:rgba(255,255,255,0.4);">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="13" r="8" stroke="currentColor" stroke-width="2"></circle><path d="M12 13V9M9 2h6" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>
+          <span style="font-size:9px; font-weight:700; letter-spacing:0.5px;">1MM</span>
+        </div>
+      </div>
+
+    </div>
+  </x-import>
+
+  <div style="width:340px; color:#fff; padding-top:8px;">
+    <div style="font-size:12px; font-weight:700; letter-spacing:3px; color: {{ accent }}; text-transform:uppercase;">UX fixes applied</div>
+    <div style="font-size:30px; font-weight:800; margin-top:8px; line-height:1.1;">Strength screen — redesign</div>
+    <div style="font-size:15px; color:rgba(255,255,255,0.6); margin-top:10px; line-height:1.5;">Tap "START OLYMPIAN TRIAL" — it logs an attempt and nudges the tier ring live.</div>
+
+    <div style="margin-top:26px; display:flex; flex-direction:column; gap:18px;">
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#1a0605; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">1</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Removed the contradiction</b> — rank card said "no time set yet" right next to a 78%-complete tier ring. Both cards now show real numbers.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#1a0605; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">2</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Three tier states</b>, not two — complete (check + green), current (glow), locked (padlock + the tier that unlocks it), so users know exactly where they stand.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#1a0605; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">3</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">CTA states the goal</b> — "Beat 9:45 to reach Demigod" instead of a generic "start trial" button with no context.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#1a0605; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">4</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Full-row leaderboard taps</b> (60px) replace the tiny time badge as the only interactive-looking element; rank badge is a plain number, consistent across all 6 places.</div>
+      </div>
+      <div style="display:flex; gap:12px;">
+        <div style="width:22px; height:22px; border-radius:999px; background: {{ accent }}; color:#1a0605; font-size:12px; font-weight:800; display:flex; align-items:center; justify-content:center; flex-shrink:0;">5</div>
+        <div style="font-size:14.5px; color:rgba(255,255,255,0.75); line-height:1.5;"><b style="color:#fff;">Scroll hint</b> on the tiers row — fade + peek arrow, matching the fix already made on the Power screen's tab row.</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1100,&quot;height&quot;:950},&quot;accentColor&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#FF4B3E&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Theme&quot;},&quot;annotate&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Theme&quot;}}">
+class Component extends DCLogic {
+  state = { progress: 78 };
+
+  runTrial() {
+    this.setState(s => ({ progress: Math.min(100, s.progress + 6) }));
+    clearTimeout(this._t);
+    this._t = setTimeout(() => {}, 200);
+  }
+
+  renderVals() {
+    const accent = this.props.accentColor || '#FF4B3E';
+    const annotate = this.props.annotate !== false;
+    const progress = this.state.progress;
+    const r = 68, circ = 2 * Math.PI * r;
+    const offset = circ - circ * (progress / 100);
+
+    const leaders = [
+      { place: 1, name: '@momokhtar', flag: '🇬🇧', time: "10'15\"", medalBg: 'rgba(255,214,10,0.18)', medalColor: '#FFD60A', bg: 'rgba(255,74,62,0.05)' },
+      { place: 2, name: '@mtelbaz', flag: '🇹🇳', time: "11'00\"", medalBg: 'rgba(255,255,255,0.1)', medalColor: 'rgba(255,255,255,0.75)', bg: 'transparent' },
+      { place: 3, name: '@karim.h', flag: '🇪🇬', time: "11'42\"", medalBg: 'rgba(205,127,50,0.2)', medalColor: '#CD7F32', bg: 'transparent' },
+      { place: 4, name: '@you', flag: '🇲🇦', time: "12'05\"", medalBg: 'rgba(255,74,62,0.16)', medalColor: accent, bg: 'rgba(255,74,62,0.08)' },
+      { place: 5, name: '@nadia_k', flag: '🇩🇿', time: "12'40\"", medalBg: 'rgba(255,255,255,0.1)', medalColor: 'rgba(255,255,255,0.5)', bg: 'transparent' },
+      { place: 6, name: '@yassine.b', flag: '🇱🇧', time: "13'10\"", medalBg: 'rgba(255,255,255,0.1)', medalColor: 'rgba(255,255,255,0.5)', bg: 'transparent' },
+    ];
+
+    return {
+      accent, annotate,
+      tierCirc: circ, tierOffset: offset,
+      progressStr: String(progress),
+      runTrial: () => this.runTrial(),
+      trialScale: 'scale(1)',
+      leaders,
+    };
+  }
+}
+</script>
+</body>
+</html>
