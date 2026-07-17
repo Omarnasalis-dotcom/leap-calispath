@@ -27,6 +27,8 @@ interface ExerciseCircleProps {
   size?: number;
   locked?: boolean;
   onPress: () => void;
+  /** Secondary action (e.g. open this movement's leaderboard). */
+  onLongPress?: () => void;
   style?: ViewStyle;
   /** Forwarded for tutorial highlight targets. */
   onLayout?: (e: LayoutChangeEvent) => void;
@@ -38,7 +40,7 @@ interface ExerciseCircleProps {
  * corner badge and a friendly empty-state caption.
  */
 export const ExerciseCircle = forwardRef<View, ExerciseCircleProps>(function ExerciseCircle(
-  { world, progress, icon, name, value, caption, hasLogged, badge = 'plus', size = 80, locked = false, onPress, style, onLayout },
+  { world, progress, icon, name, value, caption, hasLogged, badge = 'plus', size = 80, locked = false, onPress, onLongPress, style, onLayout },
   ref
 ) {
   const scale = useRef(new Animated.Value(1)).current;
@@ -61,7 +63,7 @@ export const ExerciseCircle = forwardRef<View, ExerciseCircleProps>(function Exe
 
   return (
     <View ref={ref} onLayout={onLayout} style={[styles.wrap, style, locked && styles.locked]}>
-      <TouchableOpacity activeOpacity={0.8} onPress={onPress} hitSlop={4}>
+      <TouchableOpacity activeOpacity={0.8} onPress={onPress} onLongPress={onLongPress} hitSlop={4}>
         <Animated.View style={{ transform: [{ scale }] }}>
           <WorldRing size={size} strokeWidth={5} progress={progress} accent={world.accent} trackColor={world.trackRgba}>
             <View style={styles.center}>
