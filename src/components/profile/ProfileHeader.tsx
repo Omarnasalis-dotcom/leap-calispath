@@ -184,9 +184,6 @@ export function ProfileHeader({
           line column. The settings gear sits outside this block, absolutely
           positioned by ProfileScreen, so the column stays truly centered. */}
       <View style={styles.identityHeader}>
-        <View style={[styles.avatar, { borderColor: worldRgba(W.accent, 0.5) }]}>
-          <MaterialCommunityIcons name="account" size={30} color={WORLD_NEUTRALS.textMuted} />
-        </View>
         <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
         <Text style={[styles.tierLine, { color: W.accent }]}>
           {tierName} · TIER {activeCurrentTier} OF 9
@@ -316,21 +313,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     marginBottom: 4,
   },
-  avatar: {
-    width: 62,
-    height: 62,
-    borderRadius: 31,
-    borderWidth: 2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
   name: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 23,
     letterSpacing: 0.5,
     color: WORLD_NEUTRALS.textPrimary,
-    marginTop: 10,
     textAlign: 'center',
   },
   tierLine: {
