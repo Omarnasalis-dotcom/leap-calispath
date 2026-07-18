@@ -187,7 +187,7 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
             style={styles.createBtn}
             onPress={openCreateModal}
           >
-            <MaterialCommunityIcons name="account-group-outline" size={15} color="rgba(255,255,255,0.7)" />
+            <MaterialCommunityIcons name="account-group-outline" size={15} color="#FFFFFF" />
             <Text style={styles.createBtnText}>CREATE COMMUNITY</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -196,7 +196,7 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
             style={[styles.joinBtn, { backgroundColor: W.accent }]}
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
           >
-            <MaterialCommunityIcons name="login" size={15} color={W.ctaText} />
+            <MaterialCommunityIcons name="login" size={15} color="#FFFFFF" />
             <Text style={[styles.joinBtnText, { color: W.ctaText }]}>JOIN COMMUNITY</Text>
           </TouchableOpacity>
         </View>
