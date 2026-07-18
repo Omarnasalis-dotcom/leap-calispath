@@ -7,6 +7,7 @@ import {
   StyleSheet,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { SuggestedTestCard } from './SuggestedTestCard';
 import { QuickStatsRow } from './QuickStatsRow';
@@ -159,27 +160,6 @@ export function ProfileHeader({
         )}
       </View>
 
-      {/* Access Status - Upper Center */}
-      <View style={{ position: 'absolute', top: 16, left: 0, right: 0, zIndex: 100, alignItems: 'center', pointerEvents: 'none' }}>
-        <Text style={{
-          color: theme.text.tertiary,
-          fontSize: 8,
-          fontWeight: '700',
-          letterSpacing: 0.5,
-          opacity: 0.6
-        }}>
-          {!profile.access_expires_at
-            ? 'GUEST ACCESS'
-            : new Date(profile.access_expires_at).getFullYear() > 2100
-              ? 'LIFETIME MEMBERSHIP'
-              : (() => {
-                  const days = Math.ceil((new Date(profile.access_expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
-                  return `${days > 0 ? days : 0} DAYS REMAINING • ${new Date(profile.access_expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' }).toUpperCase()}`;
-                })()
-          }
-        </Text>
-      </View>
-
       {/* Identity header (design handoff): centered avatar / name / tier
           line column. The settings gear sits outside this block, absolutely
           positioned by ProfileScreen, so the column stays truly centered. */}
@@ -269,35 +249,48 @@ export function ProfileHeader({
         }
       />
 
-      {/* My Workout Program / Coaching Center — single consistent accent
-          border (the handoff explicitly rules out the old multi-color
-          gradient border here). */}
+      {/* My Workout Program / Coaching Center — same tri-color gradient
+          border used on the Warrior Program screen itself. */}
       {mode !== undefined && (
         <View style={{ marginHorizontal: 20, marginTop: 16, marginBottom: 8 }}>
           {(profile?.is_coach || profile?.is_admin) ? (
             onOpenCoachingCenter && (
-              <TouchableOpacity
-                style={[styles.programButton, { borderColor: worldRgba(W.accent, 0.4), backgroundColor: worldRgba(W.accent, 0.06) }]}
-                onPress={onOpenCoachingCenter}
+              <LinearGradient
+                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.programGradient}
               >
-                <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
-                <Text style={styles.programButtonText}>COACHING CENTER</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF', borderWidth: 0 }]}
+                  onPress={onOpenCoachingCenter}
+                >
+                  <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
+                  <Text style={styles.programButtonText}>COACHING CENTER</Text>
+                </TouchableOpacity>
+              </LinearGradient>
             )
           ) : (
             onOpenWarriorProgram && (
-              <TouchableOpacity
-                ref={workoutProgramButtonRef}
-                onLayout={onWorkoutProgramButtonLayout}
-                style={[styles.programButton, { borderColor: worldRgba(W.accent, 0.4), backgroundColor: worldRgba(W.accent, 0.06) }]}
-                onPress={() => {
-                  onOpenWarriorProgram();
-                  reportWorkoutProgramButton();
-                }}
+              <LinearGradient
+                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.programGradient}
               >
-                <MaterialCommunityIcons name="calendar-check-outline" size={16} color={W.accent} />
-                <Text style={styles.programButtonText}>MY WORKOUT PROGRAM</Text>
-              </TouchableOpacity>
+                <TouchableOpacity
+                  ref={workoutProgramButtonRef}
+                  onLayout={onWorkoutProgramButtonLayout}
+                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF', borderWidth: 0 }]}
+                  onPress={() => {
+                    onOpenWarriorProgram();
+                    reportWorkoutProgramButton();
+                  }}
+                >
+                  <MaterialCommunityIcons name="calendar-check-outline" size={16} color={W.accent} />
+                  <Text style={styles.programButtonText}>MY WORKOUT PROGRAM</Text>
+                </TouchableOpacity>
+              </LinearGradient>
             )
           )}
         </View>
@@ -309,7 +302,7 @@ export function ProfileHeader({
 const styles = StyleSheet.create({
   identityHeader: {
     alignItems: 'center',
-    paddingTop: 40,
+    paddingTop: 22,
     paddingHorizontal: 20,
     marginBottom: 4,
   },
@@ -402,10 +395,13 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: WORLD_NEUTRALS.textSecondary,
   },
+  programGradient: {
+    padding: 1.2,
+    borderRadius: 15,
+  },
   programButton: {
     height: 52,
-    borderRadius: 15,
-    borderWidth: 1.5,
+    borderRadius: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
