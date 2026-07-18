@@ -695,19 +695,21 @@ const styles = StyleSheet.create({
   cardImageInner: {
     borderRadius: 22.5,
   },
+  // Percentages (not the old fixed 150/280px) so the fade zones scale with
+  // the card's own height instead of swallowing a short 16:9 card whole.
   topFade: {
     position: 'absolute',
     top: 0,
     left: 0,
     right: 0,
-    height: 150,
+    height: '33%',
   },
   bottomFade: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
-    height: 280,
+    height: '55%',
   },
   cardTop: {
     padding: 18,
