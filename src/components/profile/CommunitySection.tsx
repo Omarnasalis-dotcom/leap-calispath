@@ -197,7 +197,7 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
           >
             <MaterialCommunityIcons name="login" size={15} color="#FFFFFF" />
-            <Text style={[styles.joinBtnText, { color: W.ctaText }]}>JOIN COMMUNITY</Text>
+            <Text style={[styles.joinBtnText, { color: '#FFFFFF' }]}>JOIN COMMUNITY</Text>
           </TouchableOpacity>
         </View>
       )}
