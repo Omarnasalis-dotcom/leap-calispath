@@ -99,8 +99,8 @@ export function TierRankCard({
 }
 
 const { width } = Dimensions.get('window');
-const HERO_CENTER_SIZE = 150;
-const HERO_SIDE_SIZE = Math.min(96, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
+const HERO_CENTER_SIZE = 134;
+const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
 
 const styles = StyleSheet.create({
   card: {

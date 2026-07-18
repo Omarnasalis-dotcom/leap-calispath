@@ -41,8 +41,8 @@ const W = WORLD_THEMES.power;
 
 // 3-circle header sizing: 150px center ring, side circles capped at 96px and
 // shrunk on narrow screens so the row never wraps (402px reference width).
-const HERO_CENTER_SIZE = 150;
-const HERO_SIDE_SIZE = Math.min(96, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
+const HERO_CENTER_SIZE = 134;
+const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
 const PEAK_CIRCLE_SIZE = Math.min(80, Math.floor((width - 40 - 30) / 4));
 
 export function PowerWorldScreen() {
@@ -635,11 +635,11 @@ const styles = StyleSheet.create({
   lbTitle: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 2, textAlign: 'center' },
   lbSub: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 10, letterSpacing: 1, textAlign: 'center', marginTop: -8 },
   lbList: { gap: 10 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', padding: 16, borderRadius: 16, gap: 12 },
-  lbRankCircle: { width: 28, height: 28, borderRadius: 14, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  lbRow: { flexDirection: 'row', alignItems: 'center', padding: 14, borderRadius: 15, gap: 11 },
+  lbRankCircle: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  lbPointsFrame: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, minWidth: 60, alignItems: 'center' },
-  lbPointsText: { fontSize: 14, fontWeight: '900' },
+  lbPointsFrame: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 8, minWidth: 56, alignItems: 'center' },
+  lbPointsText: { fontSize: 13, fontWeight: '900' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', justifyContent: 'center', padding: 24 },
   modalContent: { padding: 32, borderRadius: 32, gap: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)' },

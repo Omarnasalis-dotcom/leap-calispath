@@ -39,8 +39,8 @@ const { width } = Dimensions.get('window');
 
 const W = WORLD_THEMES.onemm;
 
-const HERO_CENTER_SIZE = 150;
-const HERO_SIDE_SIZE = Math.min(96, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
+const HERO_CENTER_SIZE = 134;
+const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
 // 3-column grid (handoff: 6 movements in 3×2), 88px circles, 8px column gap.
 const GRID_COLUMN_WIDTH = Math.floor((width - 40 - 16) / 3);
 const GRID_CIRCLE_SIZE = Math.min(88, GRID_COLUMN_WIDTH - 4);
@@ -1047,10 +1047,10 @@ const styles = StyleSheet.create({
   gridItem: { width: GRID_COLUMN_WIDTH },
 
   leaderboardSection: { marginTop: 20 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 16, borderRadius: 12, marginBottom: 8, gap: 12 },
-  lbRank: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
+  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 11, marginBottom: 7, gap: 11 },
+  lbRank: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
   lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  lbPointsFrame: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: 4 },
+  lbPointsFrame: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
   lbPointsText: { fontSize: 13, fontWeight: '900' },
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
