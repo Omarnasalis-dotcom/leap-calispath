@@ -608,8 +608,8 @@ export function PowerWorldScreen() {
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, paddingTop: 40 },
-  headerPill: { marginTop: 10 },
+  container: { flex: 1, paddingTop: 22 },
+  headerPill: { marginTop: 0 },
 
   dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 26 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },

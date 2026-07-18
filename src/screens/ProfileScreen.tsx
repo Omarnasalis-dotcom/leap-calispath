@@ -498,7 +498,7 @@ export function ProfileScreen({
 
           {activeTab === 'strength' && (
             <>
-              <View style={{ paddingTop: 44, marginBottom: 12 }}>
+              <View style={{ paddingTop: 22, marginBottom: 12 }}>
                 <WorldHeaderPill
                   world={WORLD_THEMES.strength}
                   title="STRENGTH WORLD"

@@ -40,8 +40,7 @@ export function WorldHeaderPill({ world, title, icon, onPress, style }: WorldHea
 const styles = StyleSheet.create({
   pill: {
     height: 50,
-    alignSelf: 'center',
-    paddingHorizontal: 28,
+    marginHorizontal: 20,
     borderRadius: 999,
     borderWidth: 1.5,
     flexDirection: 'row',
