@@ -1,8 +1,6 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
-import { AssessmentRecommendation } from '../../lib/AssessmentEngine';
 
 const bronzeGold = '#C8A040';
 
@@ -47,22 +45,24 @@ interface SwitchWorkoutButtonProps {
 }
 export function SwitchWorkoutButton({ onPress, theme }: SwitchWorkoutButtonProps) {
   return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      style={{
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        backgroundColor: bronzeGold,
-        borderRadius: 10,
-        paddingVertical: 13,
-      }}
-    >
-      <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.5, color: '#000' }}>
-        ⇄ SWITCH WORKOUT
-      </Text>
+    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
+      <LinearGradient
+        colors={['#7E57C2', '#FF5252', '#FF7043']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          borderRadius: 10,
+          paddingVertical: 13,
+        }}
+      >
+        <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.5, color: '#FFFFFF' }}>
+          ⇄ SWITCH WORKOUT
+        </Text>
+      </LinearGradient>
     </TouchableOpacity>
   );
 }
@@ -203,57 +203,6 @@ export function DayCarousel({ days, activeDayIndex, onPrev, onNext, theme, solid
         </TouchableOpacity>
       </View>
     </LinearGradient>
-  );
-}
-
-// ─── Assessment Banner ──────────────────────────────────────────────────────
-interface AssessmentBannerProps {
-  recommendations: AssessmentRecommendation[];
-  solidCardBg: string;
-  theme: any;
-}
-export function AssessmentBanner({ recommendations, solidCardBg, theme }: AssessmentBannerProps) {
-  if (recommendations.length === 0) return null;
-  return (
-    <View style={{ marginBottom: 24 }}>
-      <LinearGradient
-        colors={['rgba(200,160,64,0.15)', 'rgba(200,160,64,0.05)']}
-        style={{ padding: 16, borderRadius: 12, borderWidth: 1, borderColor: bronzeGold }}
-      >
-        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 12 }}>
-          <Text style={{ fontSize: 18, marginRight: 8 }}>🧠</Text>
-          <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16, color: bronzeGold, letterSpacing: 1 }}>
-            ASSESSMENT ENGINE: {recommendations[0].world} PRIORITY
-          </Text>
-        </View>
-        <Text style={{ color: theme.text.primary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', marginBottom: 12 }}>
-          {recommendations[0].priorityReason}
-        </Text>
-        <View style={{ gap: 8 }}>
-          {recommendations.slice(0, 2).map(rec => (
-            <TouchableOpacity
-              key={rec.movementId}
-              style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: solidCardBg, padding: 12, borderRadius: 8, borderWidth: rec.isPriority ? 1 : 0, borderColor: bronzeGold }}
-              onPress={() => {
-                if (rec.world === 'ENDURANCE') router.push('/one-min-max');
-                else if (rec.world === 'POWER') router.push('/power-world');
-                else router.push('/static-world');
-              }}
-            >
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                {rec.isPriority && <Text style={{ fontSize: 12 }}>⭐</Text>}
-                <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 }}>
-                  {rec.movementName.toUpperCase()}
-                </Text>
-              </View>
-              <Text style={{ color: theme.text.tertiary, fontSize: 11, fontFamily: 'BarlowCondensed-Medium', letterSpacing: 1 }}>
-                TEST NOW ▶
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </LinearGradient>
-    </View>
   );
 }
 

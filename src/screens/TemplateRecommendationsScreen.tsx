@@ -689,7 +689,7 @@ const styles = StyleSheet.create({
   },
   cardImage: {
     width: '100%',
-    minHeight: 460,
+    aspectRatio: 16 / 9,
     justifyContent: 'space-between',
   },
   cardImageInner: {

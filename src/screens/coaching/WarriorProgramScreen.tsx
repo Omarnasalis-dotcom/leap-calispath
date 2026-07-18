@@ -20,16 +20,12 @@ import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
 import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
-import { AssessmentEngine, AssessmentRecommendation } from '../../lib/AssessmentEngine';
-import { OneMMService } from '../../services/OneMMService';
-import { PowerService } from '../../services/PowerService';
-import { StaticService } from '../../services/StaticService';
 import { WarriorExerciseRow } from '../../components/coaching/WarriorExerciseRow';
 import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
-import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel, AssessmentBanner } from '../../components/coaching/WarriorProgramSections';
+import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel } from '../../components/coaching/WarriorProgramSections';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -169,7 +165,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [strengthTier, setStrengthTier] = useState<number>(0);
 
   // Recommendations State
-  const [recommendations, setRecommendations] = useState<AssessmentRecommendation[]>([]);
 
   // Weekly bodyweight check-in — optional (skippable), and once entered for
   // the week it can be reopened and changed rather than being locked in;
@@ -596,53 +591,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setActiveWeek(targetWeek);
       setActiveDayIndex(0);
 
-      if (newWeeksMap[targetWeek] && newWeeksMap[targetWeek].length > 0) {
-        generateRecsForDay(newWeeksMap[targetWeek][0], profilePoints?.strength_tier || 0, profilePoints?.one_mm_points || 0, profilePoints?.power_points || 0, profilePoints?.statics_tier || 0);
-      }
     } catch (err: any) {
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD ACTIVE PROGRAM.');
     } finally {
       setLoading(false);
-    }
-  }
-
-  async function generateRecsForDay(day: ProgramDay, tier: number, oneMmPts: number, powerPts: number, staticPts: number) {
-    if (!day) return;
-    
-    // Day's focus tag is stored on the blocks metadata (since program_days is virtual)
-    let focusTag = 'NONE';
-    for (const block of day.blocks) {
-      if (block.metadata?.focus_tag) {
-        focusTag = block.metadata.focus_tag;
-        break;
-      }
-    }
-
-    if (focusTag === 'NONE') {
-      setRecommendations([]);
-      return;
-    }
-
-    try {
-      const [oneMmStats, powerStats, staticStats] = await Promise.all([
-        OneMMService.getUserStats(warriorId as string),
-        PowerService.getUserStats(warriorId as string),
-        StaticService.getUserStats(warriorId as string)
-      ]);
-
-      const recs = AssessmentEngine.generateRecommendations(
-        focusTag as any,
-        tier,
-        oneMmPts,
-        powerPts,
-        staticPts,
-        oneMmStats.pbs,
-        powerStats.pbs,
-        staticStats.pbs
-      );
-      setRecommendations(recs);
-    } catch (e) {
-      console.error('Failed to generate recommendations:', e);
     }
   }
 
@@ -1211,7 +1163,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   onSelectWeek={(wNum) => {
                     setActiveWeek(wNum);
                     setActiveDayIndex(0);
-                    if (weeksData[wNum]?.[0]) generateRecsForDay(weeksData[wNum][0], strengthTier, oneMmPoints, powerPoints, staticPoints);
                   }}
                   theme={theme}
                 />
@@ -1258,22 +1209,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   onPrev={() => {
                     const newIdx = activeDayIndex - 1;
                     setActiveDayIndex(newIdx);
-                    generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
                   }}
                   onNext={() => {
                     const newIdx = activeDayIndex + 1;
                     setActiveDayIndex(newIdx);
-                    generateRecsForDay(days[newIdx], strengthTier, oneMmPoints, powerPoints, staticPoints);
                   }}
                   theme={theme}
                   solidCardBg={solidCardBg}
                   mode={mode}
-                />
-                {/* SMART RECOMMENDATION BANNER */}
-                <AssessmentBanner
-                  recommendations={recommendations}
-                  solidCardBg={solidCardBg}
-                  theme={theme}
                 />
                 {/* BLOCKS / WORKOUTS LIST */}
                 <View style={{ gap: 16, paddingBottom: 100 }}>
