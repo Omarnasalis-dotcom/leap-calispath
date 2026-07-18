@@ -490,8 +490,8 @@ export function ProfileScreen({
                 onPress={onOpenWeeklyChallenge}
                 activeOpacity={0.85}
               >
-                <MaterialCommunityIcons name="trophy-outline" size={18} color={WORLD_THEMES.strength.ctaText} />
-                <Text style={[styles.weeklyChallengeText, { color: WORLD_THEMES.strength.ctaText }]}>WEEKLY CHALLENGE</Text>
+                <MaterialCommunityIcons name="trophy-outline" size={18} color="#FFFFFF" />
+                <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
               </TouchableOpacity>
             </>
           )}

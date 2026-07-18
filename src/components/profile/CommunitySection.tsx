@@ -347,7 +347,7 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 13,
     letterSpacing: 0.5,
-    color: 'rgba(255,255,255,0.8)',
+    color: '#FFFFFF',
   },
   joinBtn: {
     flex: 1,
