@@ -4,6 +4,7 @@ import { StatCircle } from '../worlds/StatCircle';
 import { ScoreRingHero } from '../worlds/ScoreRingHero';
 import { WORLD_THEMES, WORLD_NEUTRALS } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
+import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 
 interface TierRankData {
   rank: number | null;
@@ -15,8 +16,6 @@ interface TierRankCardProps {
   profile: any;
   category: 'strength' | 'power';
   selectedTier: number;
-  isLocked: boolean;
-  tierName: string;
   tierRankData: TierRankData;
   theme: any;
   onShowTierModal: (tier: number) => void;
@@ -35,8 +34,6 @@ export function TierRankCard({
   profile,
   category,
   selectedTier,
-  isLocked,
-  tierName,
   tierRankData,
   theme,
   onShowTierModal,
@@ -44,9 +41,26 @@ export function TierRankCard({
   const W = WORLD_THEMES.strength;
   const currentTier = category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0);
   const maxTier = category === 'strength' ? MAX_STRENGTH_TIER : MAX_POWER_TIER;
-  const tierProgress = clamp01(currentTier / maxTier);
-  const pct = Math.round(tierProgress * 100);
   const hasEntry = tierRankData.rank !== null;
+
+  // Real overall-ladder progress — drives the labeled bar below, which is
+  // never affected by which tier chip is being browsed.
+  const overallProgress = clamp01(currentTier / maxTier);
+  const overallPct = Math.round(overallProgress * 100);
+
+  // The ring itself follows whichever tier is being browsed (selectedTier),
+  // name/number/progress together: already-passed tiers show complete,
+  // the real current tier shows overall progress toward the next one, and
+  // tiers ahead of it show locked/empty.
+  const selectedTierName = (category === 'strength' ? TIER_NAMES[selectedTier] : POWER_TIER_NAMES[selectedTier]) || 'UNKNOWN';
+  const isFutureLocked = selectedTier > currentTier;
+  const isPastTier = selectedTier < currentTier;
+  const ringProgress = isFutureLocked ? 0 : isPastTier ? 1 : overallProgress;
+  const ringCaption = isFutureLocked
+    ? 'LOCKED'
+    : isPastTier
+      ? 'TIER COMPLETE'
+      : currentTier < maxTier ? `${overallPct}% TO TIER ${currentTier + 1}` : 'MAX TIER';
 
   return (
     <View style={styles.card}>
@@ -62,10 +76,10 @@ export function TierRankCard({
         <ScoreRingHero
           world={W}
           size={HERO_CENTER_SIZE}
-          progress={isLocked ? 0 : tierProgress}
-          label={`TIER ${currentTier}`}
-          value={tierName.toUpperCase()}
-          caption={currentTier < maxTier ? `${pct}% TO TIER ${currentTier + 1}` : 'MAX TIER'}
+          progress={ringProgress}
+          label={`TIER ${selectedTier}`}
+          value={selectedTierName.toUpperCase()}
+          caption={ringCaption}
           onPress={() => onShowTierModal(selectedTier)}
         />
 
@@ -82,15 +96,16 @@ export function TierRankCard({
         />
       </View>
 
-      {/* Honest labeled tier progress bar */}
+      {/* Honest labeled tier progress bar — always the real, overall ladder
+          progress, independent of whichever tier is being browsed above. */}
       {category === 'strength' && (
         <View style={styles.barSection}>
           <View style={styles.barLabels}>
             <Text style={styles.barLabelLeft}>TIER {currentTier} OF {MAX_STRENGTH_TIER}</Text>
-            <Text style={[styles.barLabelRight, { color: W.accent }]}>{pct}% COMPLETE</Text>
+            <Text style={[styles.barLabelRight, { color: W.accent }]}>{overallPct}% COMPLETE</Text>
           </View>
           <View style={[styles.track, { backgroundColor: W.trackRgba }]}>
-            <View style={[styles.fill, { backgroundColor: W.accent, width: `${pct}%` }]} />
+            <View style={[styles.fill, { backgroundColor: W.accent, width: `${overallPct}%` }]} />
           </View>
         </View>
       )}

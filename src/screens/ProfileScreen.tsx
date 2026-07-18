@@ -66,6 +66,35 @@ interface ProfileScreenProps {
   activeTab?: 'profile' | 'strength';
 }
 
+// Shared by the initial-load effect and the on-focus refresh effect below —
+// they used to duplicate this, and the on-focus one had drifted to always
+// pass gap: null, silently blanking the GAP circle every time the Profile
+// screen regained focus (e.g. returning from a trial).
+function computeTierRankData(
+  entries: LeaderboardEntry[],
+  userId: string,
+  category: 'strength' | 'power'
+): { rank: number | null; total: number; gap: string | null } {
+  const userIdx = entries.findIndex(e => e.user_id === userId);
+  if (userIdx === -1) {
+    return { rank: null, total: entries.length, gap: null };
+  }
+  const rank = userIdx + 1;
+  let gap: string | null = null;
+  if (rank > 1) {
+    const prev = entries[userIdx - 1];
+    const current = entries[userIdx];
+    if (category === 'strength') {
+      const diff = current.best_time_seconds - prev.best_time_seconds;
+      gap = `${diff.toFixed(1)}s`;
+    } else {
+      const diff = prev.best_time_seconds - current.best_time_seconds;
+      gap = `${diff}pts`;
+    }
+  }
+  return { rank, total: entries.length, gap };
+}
+
 export function ProfileScreen({
   initialCategory = 'strength',
   initialTier = 0,
@@ -235,25 +264,7 @@ export function ProfileScreen({
         const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
         const { entries } = await fetcher(selectedTier, profile.id, scopeCommunityId);
         setTierLeaderboardEntries(entries);
-        const userIdx = entries.findIndex(e => e.user_id === profile.id);
-        if (userIdx !== -1) {
-          const rank = userIdx + 1;
-          let gapStr = null;
-          if (rank > 1) {
-            const prev = entries[userIdx - 1];
-            const current = entries[userIdx];
-            if (category === 'strength') {
-              const diff = current.best_time_seconds - prev.best_time_seconds;
-              gapStr = `${diff.toFixed(1)}s`;
-            } else {
-              const diff = prev.best_time_seconds - current.best_time_seconds;
-              gapStr = `${diff}pts`;
-            }
-          }
-          setTierRankData({ rank, total: entries.length, gap: gapStr });
-        } else {
-          setTierRankData({ rank: null, total: entries.length, gap: null });
-        }
+        setTierRankData(computeTierRankData(entries, profile.id, category));
       } catch (e) {
         console.error('Error loading rank:', e);
         setTierRankData({ rank: null, total: 0, gap: null });
@@ -274,12 +285,7 @@ export function ProfileScreen({
       fetcher(selectedTier, profile.id, scopeCommunityId)
         .then(({ entries }) => {
           setTierLeaderboardEntries(entries);
-          const userIdx = entries.findIndex((e: any) => e.user_id === profile.id);
-          if (userIdx !== -1) {
-            setTierRankData({ rank: userIdx + 1, total: entries.length, gap: null });
-          } else {
-            setTierRankData({ rank: null, total: entries.length, gap: null });
-          }
+          setTierRankData(computeTierRankData(entries, profile.id, category));
         })
         .catch(() => {});
     }, [selectedTier, category, profile?.id, leaderboardScope])
@@ -510,8 +516,6 @@ export function ProfileScreen({
                 profile={profile}
                 category={category}
                 selectedTier={selectedTier}
-                isLocked={isLocked}
-                tierName={tierName}
                 tierRankData={tierRankData}
                 theme={theme}
                 onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}

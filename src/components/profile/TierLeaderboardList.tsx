@@ -369,16 +369,16 @@ const styles = StyleSheet.create({
     borderRadius: 15,
     backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
-    borderColor: 'rgba(255,75,62,0.1)',
+    borderColor: worldRgba(W.accent, 0.1),
     marginBottom: 5,
     gap: 4,
   },
   entryRowCurrentUser: {
-    backgroundColor: 'rgba(255,75,62,0.15)',
-    borderColor: '#FF4B3E',
+    backgroundColor: worldRgba(W.accent, 0.15),
+    borderColor: W.accent,
   },
   entryRowTopThree: {
-    borderColor: 'rgba(255,75,62,0.4)',
+    borderColor: worldRgba(W.accent, 0.4),
   },
   rankBadge: {
     width: 26,

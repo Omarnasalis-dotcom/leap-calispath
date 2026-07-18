@@ -44,7 +44,7 @@ const makeWorldTheme = (accent: string, pageBg: string, ctaText: string): WorldT
 
 export const WORLD_THEMES: Record<WorldKey, WorldTheme> = {
   power: makeWorldTheme('#FF4B3E', '#050302', '#1a0605'),
-  strength: makeWorldTheme('#FF4B3E', '#050302', '#1a0605'),
+  strength: makeWorldTheme('#FF5252', '#050302', '#1a0605'),
   static: makeWorldTheme('#8B5CF6', '#050308', '#1a0f2e'),
   onemm: makeWorldTheme('#FF6B35', '#050301', '#1a0603'),
 };
