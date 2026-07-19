@@ -25,7 +25,7 @@ import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
-import { FloatingLadderButton } from '../components/FloatingLadderButton';
+import { FloatingGamesButton } from '../components/FloatingGamesButton';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
@@ -567,7 +567,7 @@ export function ProfileScreen({
           onSelectProfileTab={setActiveTab}
         />
 
-        <FloatingLadderButton />
+        <FloatingGamesButton />
 
         <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
 
