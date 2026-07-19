@@ -131,13 +131,20 @@ export function LeaderboardsPage() {
                 ))}
               {!isLoading &&
                 data?.map((row, i) => {
-                  const name = val(row, ['display_name', 'name']) as string | null;
+                  // Column names vary per RPC: tier board uses display_name/
+                  // best_time, WRA uses display_name/total_score, static+1MM
+                  // use abbreviated d_name/t_score/u_id (see 20260710180000).
+                  const name = val(row, ['display_name', 'd_name', 'name']) as
+                    | string
+                    | null;
                   const score =
                     board === 'strength'
                       ? fmtTime(val(row, ['best_time', 'time_seconds']))
                       : Math.round(
                           Number(
                             val(row, [
+                              'total_score',
+                              't_score',
                               'total_points',
                               'power_points',
                               'glory_score',
@@ -153,7 +160,7 @@ export function LeaderboardsPage() {
                         ? tierName(val(row, ['strength_tier']) as number | null)
                         : ((val(row, ['country', 'gender']) as string | null) ?? '');
                   return (
-                    <tr key={(val(row, ['user_id', 'id']) as string) ?? i}>
+                    <tr key={(val(row, ['user_id', 'u_id', 'id']) as string) ?? i}>
                       <td className="num dim">{i + 1}</td>
                       <td style={{ fontWeight: 600 }}>{name || '—'}</td>
                       <td className="num" style={{ textAlign: 'right' }}>
