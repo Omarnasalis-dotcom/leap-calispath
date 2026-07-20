@@ -74,6 +74,7 @@ describe('beatTheLadder', () => {
         'Planche Push-up',            // prefix match, lower difficulty
         'Planche Press to Handstand', // prefix match, higher difficulty
         'Straddle Planche',           // substring match, ascending difficulty from here
+        'Pelican Planche',            // 1700, between Straddle (980) and One Arm (1850)
         'One Arm Planche',
         'Reverse Planche',
       ]);
