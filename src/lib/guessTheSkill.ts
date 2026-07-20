@@ -1,23 +1,16 @@
 import { normalize } from './beatTheLadder';
 
-export type MovementType = 'Static' | 'Dynamic';
-// Anything that isn't cleanly one of Push/Pull (compound, balance, support…)
-// is tagged Mixed rather than enumerating sub-patterns.
-export type PatternTag = 'Push' | 'Pull' | 'Mixed';
-export type EquipmentTag = 'Floor' | 'Pull-up Bar' | 'Rings' | 'Parallel Bars' | 'Pole';
-export type SkillDifficulty = 'Beginner' | 'Intermediate' | 'Advanced' | 'Elite' | 'Legendary';
+export type MovementType = 'Static' | 'Dynamic' | 'Static / Dynamic';
 
 export interface GuessSkillExercise {
   id: string;
   name: string;
   aliases: string[];
   movementType: MovementType;
-  primaryPattern: PatternTag;
-  equipment: EquipmentTag[];
-  difficulty: SkillDifficulty;
-  // One short characteristic ("Body completely vertical"), not a sentence —
-  // it's the final hint, meant to click instantly.
-  signatureHint: string;
+  spatialOrientation: string;
+  movementPattern: string;
+  equipment: string;
+  primaryMuscles: string;
 }
 
 export const START_SCORE = 1000;
@@ -31,10 +24,10 @@ export const ROUND_HINT_CAPS = [5, 4, 3, 2] as const;
 
 export const HINT_LABELS = [
   'Movement Type',
-  'Signature',
-  'Primary Pattern',
+  'Spatial Orientation',
+  'Movement Pattern',
   'Equipment',
-  'Difficulty',
+  'Primary Muscles',
 ] as const;
 
 // Alias rule (enforced by tests): no normalized name/alias may be shared by
@@ -45,200 +38,210 @@ export const GUESS_SKILL_CATALOG: GuessSkillExercise[] = [
     name: 'L-Sit',
     aliases: ['L Hold'],
     movementType: 'Static',
-    primaryPattern: 'Mixed',
-    equipment: ['Floor', 'Parallel Bars'],
-    difficulty: 'Beginner',
-    signatureHint: 'Hips flexed',
+    spatialOrientation: 'Upright vertical',
+    movementPattern: 'Compression hold',
+    equipment: 'Floor / Parallettes',
+    primaryMuscles: 'Core & Hip Flexors',
   },
   {
     id: 'handstand',
     name: 'Handstand',
     aliases: ['HS'],
     movementType: 'Static',
-    primaryPattern: 'Mixed',
-    equipment: ['Floor'],
-    difficulty: 'Intermediate',
-    signatureHint: 'Body completely vertical',
+    spatialOrientation: 'Inverted vertical',
+    movementPattern: 'Straight-arm balance',
+    equipment: 'Floor / Parallettes',
+    primaryMuscles: 'Shoulders & Core',
   },
   {
     id: 'back-lever',
     name: 'Back Lever',
     aliases: ['BL'],
     movementType: 'Static',
-    primaryPattern: 'Mixed',
-    equipment: ['Pull-up Bar', 'Rings'],
-    difficulty: 'Intermediate',
-    signatureHint: 'Horizontal, facing the ground',
+    spatialOrientation: 'Horizontal prone (facing ground)',
+    movementPattern: 'Straight-arm pull hold',
+    equipment: 'High Bar / Rings',
+    primaryMuscles: 'Lower Back, Core, & Biceps',
   },
   {
     id: 'human-flag',
     name: 'Human Flag',
     aliases: ['Flag', 'Side Flag'],
     movementType: 'Static',
-    primaryPattern: 'Mixed',
-    equipment: ['Pole'],
-    difficulty: 'Advanced',
-    signatureHint: 'Sideways from a vertical pole',
+    spatialOrientation: 'Lateral horizontal',
+    movementPattern: 'Push-pull leverage hold',
+    equipment: 'Vertical Pole / Stall Bars',
+    primaryMuscles: 'Obliques, Lats, & Shoulders',
   },
   {
     id: 'front-lever',
     name: 'Front Lever',
     aliases: ['FL'],
     movementType: 'Static',
-    primaryPattern: 'Pull',
-    equipment: ['Pull-up Bar', 'Rings'],
-    difficulty: 'Advanced',
-    signatureHint: 'Horizontal, facing upward',
-  },
-  {
-    id: 'planche',
-    name: 'Planche',
-    aliases: ['Full Planche'],
-    movementType: 'Static',
-    primaryPattern: 'Push',
-    equipment: ['Floor', 'Parallel Bars'],
-    difficulty: 'Elite',
-    signatureHint: 'Horizontal, feet never touch the floor',
-  },
-  {
-    id: 'maltese',
-    name: 'Maltese',
-    aliases: ['Maltese Hold'],
-    movementType: 'Static',
-    primaryPattern: 'Push',
-    equipment: ['Rings'],
-    difficulty: 'Elite',
-    signatureHint: 'Arms far outside the body',
-  },
-  {
-    id: 'iron-cross',
-    name: 'Iron Cross',
-    aliases: ['Cross', 'Crucifix'],
-    movementType: 'Static',
-    primaryPattern: 'Push',
-    equipment: ['Rings'],
-    difficulty: 'Elite',
-    signatureHint: 'Arms straight',
-  },
-  {
-    id: 'victorian-cross',
-    name: 'Victorian Cross',
-    aliases: ['Victorian', 'Vic Cross'],
-    movementType: 'Static',
-    primaryPattern: 'Pull',
-    equipment: ['Rings'],
-    difficulty: 'Legendary',
-    signatureHint: 'Body below ring height',
-  },
-  {
-    id: 'reverse-planche',
-    name: 'Reverse Planche',
-    aliases: ['Rev Planche'],
-    movementType: 'Static',
-    primaryPattern: 'Pull',
-    equipment: ['Rings'],
-    difficulty: 'Legendary',
-    signatureHint: 'Shoulders behind the hands',
-  },
-  {
-    id: 'pullover',
-    name: 'Pullover',
-    aliases: ['Bar Pullover'],
-    movementType: 'Dynamic',
-    primaryPattern: 'Pull',
-    equipment: ['Pull-up Bar'],
-    difficulty: 'Beginner',
-    signatureHint: 'Body rotates over the bar',
-  },
-  {
-    id: 'pistol-squat',
-    name: 'Pistol Squat',
-    aliases: ['Pistol'],
-    movementType: 'Dynamic',
-    primaryPattern: 'Mixed',
-    equipment: ['Floor'],
-    difficulty: 'Intermediate',
-    signatureHint: 'Squat on one leg',
-  },
-  {
-    id: 'handstand-push-up',
-    name: 'Handstand Push-up',
-    aliases: ['HSPU'],
-    movementType: 'Dynamic',
-    primaryPattern: 'Push',
-    equipment: ['Floor'],
-    difficulty: 'Advanced',
-    signatureHint: 'Pressing while fully inverted',
-  },
-  {
-    id: 'high-pull-up',
-    name: 'High Pull-up',
-    aliases: ['C2B', 'Chest to Bar'],
-    movementType: 'Dynamic',
-    primaryPattern: 'Pull',
-    equipment: ['Pull-up Bar'],
-    difficulty: 'Advanced',
-    signatureHint: 'Chest reaches the bar',
+    spatialOrientation: 'Horizontal supine (facing sky)',
+    movementPattern: 'Straight-arm pull hold',
+    equipment: 'High Bar / Rings',
+    primaryMuscles: 'Lats & Core',
   },
   {
     id: 'muscle-up',
-    name: 'Muscle-up',
+    name: 'Muscle-Up',
     aliases: ['MU'],
     movementType: 'Dynamic',
-    primaryPattern: 'Mixed',
-    equipment: ['Pull-up Bar', 'Rings'],
-    difficulty: 'Advanced',
-    signatureHint: 'Hang to support in one move',
-  },
-  {
-    id: 'front-lever-pull-up',
-    name: 'Front Lever Pull-up',
-    aliases: ['FL Pull-up'],
-    movementType: 'Dynamic',
-    primaryPattern: 'Pull',
-    equipment: ['Pull-up Bar', 'Rings'],
-    difficulty: 'Elite',
-    signatureHint: 'Pull-ups while horizontal',
+    spatialOrientation: 'Vertical transition',
+    movementPattern: 'Pull to push transition',
+    equipment: 'High Bar / Rings',
+    primaryMuscles: 'Lats, Chest, & Triceps',
   },
   {
     id: 'planche-push-up',
-    name: 'Planche Push-up',
+    name: 'Planche Push-Up',
     aliases: [],
     movementType: 'Dynamic',
-    primaryPattern: 'Push',
-    equipment: ['Floor'],
-    difficulty: 'Elite',
-    signatureHint: 'Push-ups with feet off the floor',
+    spatialOrientation: 'Horizontal prone',
+    movementPattern: 'Straight-body press',
+    equipment: 'Floor / Parallettes',
+    primaryMuscles: 'Anterior Deltoids & Chest',
   },
   {
-    id: 'press-to-handstand-90',
-    name: '90° Press to Handstand',
-    aliases: ['90 Press', 'Press to Handstand'],
+    id: 'handstand-push-up',
+    name: 'Handstand Push-Up',
+    aliases: ['HSPU'],
     movementType: 'Dynamic',
-    primaryPattern: 'Push',
-    equipment: ['Parallel Bars'],
-    difficulty: 'Elite',
-    signatureHint: 'Press to vertical through 90° elbows',
+    spatialOrientation: 'Inverted vertical',
+    movementPattern: 'Vertical press',
+    equipment: 'Floor / Wall / Parallettes',
+    primaryMuscles: 'Shoulders & Triceps',
+  },
+  {
+    id: 'dragon-flag',
+    name: 'Dragon Flag',
+    aliases: [],
+    movementType: 'Static / Dynamic',
+    spatialOrientation: 'Angled supine',
+    movementPattern: 'Core leverage extension',
+    equipment: 'Flat Bench / Floor',
+    primaryMuscles: 'Core & Lats',
   },
   {
     id: 'hefesto',
     name: 'Hefesto',
     aliases: [],
     movementType: 'Dynamic',
-    primaryPattern: 'Pull',
-    equipment: ['Rings'],
-    difficulty: 'Legendary',
-    signatureHint: 'Pulling from behind the back',
+    spatialOrientation: 'Inverted / Back-facing vertical',
+    movementPattern: 'Backward curl to support transition',
+    equipment: 'Low Bar / High Bar',
+    primaryMuscles: 'Biceps, Rear Deltoids, & Forearms',
+  },
+  {
+    id: 'iron-cross',
+    name: 'Iron Cross',
+    aliases: ['Cross', 'Crucifix'],
+    movementType: 'Static',
+    spatialOrientation: 'Upright vertical',
+    movementPattern: 'Straight-arm lateral adduction',
+    equipment: 'Gymnastic Rings',
+    primaryMuscles: 'Chest & Lats',
+  },
+  {
+    id: 'victorian-cross',
+    name: 'Victorian Cross',
+    aliases: ['Victorian', 'Vic Cross'],
+    movementType: 'Static',
+    spatialOrientation: 'Horizontal',
+    movementPattern: 'Straight-arm extension hold',
+    equipment: 'Gymnastic Rings / Parallettes',
+    primaryMuscles: 'Lats & Rear Deltoids',
+  },
+  {
+    id: 'maltese',
+    name: 'Maltese',
+    aliases: ['Maltese Hold'],
+    movementType: 'Static',
+    spatialOrientation: 'Horizontal prone',
+    movementPattern: 'Wide arms',
+    equipment: 'Gymnastic Rings / Floor',
+    primaryMuscles: 'Shoulders & Biceps',
+  },
+  {
+    id: 'planche',
+    name: 'Planche',
+    aliases: ['Full Planche'],
+    movementType: 'Static',
+    spatialOrientation: 'Horizontal forward lean',
+    movementPattern: 'Push',
+    equipment: 'Floor / Parallettes',
+    primaryMuscles: 'Anterior Deltoids & Lower Back',
+  },
+  {
+    id: 'front-lever-pull-up',
+    name: 'Front Lever Pull-Up',
+    aliases: ['FL Pull-up'],
+    movementType: 'Dynamic',
+    spatialOrientation: 'Horizontal, face upward',
+    movementPattern: 'Pull',
+    equipment: 'Bar',
+    primaryMuscles: 'Lats & Core',
+  },
+  {
+    id: 'sat',
+    name: 'Straight Arm Touch',
+    aliases: ['SAT'],
+    movementType: 'Static',
+    spatialOrientation: 'Horizontal, wide grip',
+    movementPattern: 'Pull',
+    equipment: 'Bar',
+    primaryMuscles: 'Lats, Core, & Rear Deltoids',
+  },
+  {
+    id: 'planche-press',
+    name: 'Planche Press',
+    aliases: [],
+    movementType: 'Dynamic',
+    spatialOrientation: 'Straight-arm press',
+    movementPattern: 'Push',
+    equipment: 'Floor / Parallettes',
+    primaryMuscles: 'Anterior Deltoids & Core',
+  },
+  {
+    id: 'front-lever-press',
+    name: 'Front Lever Press',
+    aliases: ['FL Press'],
+    movementType: 'Dynamic',
+    spatialOrientation: 'Straight-arm pull-up press',
+    movementPattern: 'Pull',
+    equipment: 'High Bar / Rings',
+    primaryMuscles: 'Lats, Rear Deltoids, & Core',
+  },
+  {
+    id: 'reverse-planche',
+    name: 'Reverse Planche',
+    aliases: ['Rev Planche'],
+    movementType: 'Static',
+    spatialOrientation: 'Horizontal inverted / face upward',
+    movementPattern: 'Pull',
+    equipment: 'Floor / Parallel Bars',
+    primaryMuscles: 'Rear Deltoids & Lower Back',
+  },
+  {
+    id: 'van-gelder',
+    name: 'Van Gelder',
+    aliases: ['Van Gelder Pull-up'],
+    movementType: 'Dynamic',
+    spatialOrientation: 'Horizontal transition, top to bottom back to ring height',
+    movementPattern: 'Push dominant',
+    equipment: 'Gymnastic Rings',
+    primaryMuscles: 'Shoulders, Lats, & Core',
   },
   {
     id: 'zanetti',
     name: 'Zanetti',
     aliases: ['Zanetti Press'],
     movementType: 'Dynamic',
-    primaryPattern: 'Push',
-    equipment: ['Rings'],
-    difficulty: 'Legendary',
-    signatureHint: 'Pressing through a horizontal cross',
+    spatialOrientation: 'Bottom-to-top leverage transition',
+    movementPattern: 'Push dominant',
+    equipment: 'Gymnastic Rings',
+    primaryMuscles: 'Biceps, Deltoids, & Core',
   },
 ];
 
@@ -255,13 +258,13 @@ export function getHintText(exercise: GuessSkillExercise, hintIndex: number): st
     case 0:
       return exercise.movementType;
     case 1:
-      return exercise.signatureHint;
+      return exercise.spatialOrientation;
     case 2:
-      return exercise.primaryPattern;
+      return exercise.movementPattern;
     case 3:
-      return exercise.equipment.join(' / ');
+      return exercise.equipment;
     case 4:
-      return exercise.difficulty;
+      return exercise.primaryMuscles;
     default:
       return '';
   }
