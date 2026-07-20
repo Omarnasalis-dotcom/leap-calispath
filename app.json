@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leap Arena",
     "slug": "leap-calispath",
-    "version": "1.1.5",
+    "version": "1.1.6",
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
