@@ -38,6 +38,23 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// This function has verify_jwt=true (see supabase/config.toml), so the
+// platform gateway has already validated the token's signature and expiry
+// before invoking us — decoding the payload here to read the user id is safe
+// and avoids a second network round trip to the auth server on every
+// submission (previously done via `supabase.auth.getUser()`).
+function decodeJwtSubject(token: string): string | null {
+  try {
+    const payload = token.split(".")[1];
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+    const claims = JSON.parse(atob(padded));
+    return typeof claims?.sub === "string" ? claims.sub : null;
+  } catch {
+    return null;
+  }
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -55,6 +72,14 @@ Deno.serve(async (req) => {
   // Get JWT from Authorization header
   const authHeader = req.headers.get("Authorization");
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return new Response(JSON.stringify({ error: "Unauthorized" }), {
+      status: 401,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
+  const userId = decodeJwtSubject(authHeader.slice(7));
+  if (!userId) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
       status: 401,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -117,20 +142,11 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  // Get authenticated user
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-  if (authError || !user) {
-    return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
-  }
-
   // Rate limit check — when was the last submission?
   const { data: lastSubmission } = await supabase
     .from("trial_history")
     .select("attempted_at")
-    .eq("user_id", user.id)
+    .eq("user_id", userId)
     .order("attempted_at", { ascending: false })
     .limit(1)
     .maybeSingle();
