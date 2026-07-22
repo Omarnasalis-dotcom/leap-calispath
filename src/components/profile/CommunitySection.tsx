@@ -5,7 +5,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeMutation } from '../../hooks/useSafeMutation';
 import { LeapLogo } from '../LeapLogo';
-import { getMyCommunity, createCommunity, joinCommunity, leaveCommunity, formatCommunityError, MyCommunity } from '../../lib/community';
+import { getMyCommunity, getCommunityById, createCommunity, joinCommunity, leaveCommunity, formatCommunityError, MyCommunity } from '../../lib/community';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
@@ -28,10 +28,16 @@ function generateJoinCode(name: string): string {
 
 interface CommunitySectionProps {
   userId: string;
+  // profile.community_id, passed down from AuthContext — already known by
+  // the time this mounts, so the initial fetch can skip straight to the
+  // community-name lookup instead of re-deriving community_id itself. null
+  // means "no fetch needed at all", so this renders immediately with the
+  // rest of the profile screen instead of popping in after it.
+  communityId: string | null | undefined;
   scrollRef?: React.RefObject<ScrollView | null>;
 }
 
-export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
+export function CommunitySection({ userId, communityId, scrollRef }: CommunitySectionProps) {
   const { theme } = useTheme();
   // profile.community_id (AuthContext) is what every leaderboard's PUBLIC/
   // MY COMMUNITY toggle actually reads — refreshing only this component's
@@ -41,7 +47,10 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
   // that reads useAuth() in one shot.
   const { refreshProfile } = useAuth();
   const [community, setCommunity] = useState<MyCommunity | null>(null);
-  const [loading, setLoading] = useState(true);
+  // Only true when there's actually something to fetch (the user already
+  // has a community_id) — with no community yet, there's nothing async to
+  // wait on, so this starts (and stays) false.
+  const [loading, setLoading] = useState(!!communityId);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -72,9 +81,26 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
     if (!loading) requestAnimationFrame(requestRemeasure);
   }, [loading, requestRemeasure]);
 
+  // Initial load uses the communityId already handed down from
+  // AuthContext — skips getMyCommunity's redundant profiles.community_id
+  // lookup entirely when there's no community (the common case), and goes
+  // straight to the single communities-table query when there is one.
   useEffect(() => {
-    if (userId) refresh();
-  }, [userId]);
+    if (!communityId) {
+      setCommunity(null);
+      setLoading(false);
+      return;
+    }
+    setLoading(true);
+    let cancelled = false;
+    getCommunityById(communityId).then((c) => {
+      if (!cancelled) {
+        setCommunity(c);
+        setLoading(false);
+      }
+    });
+    return () => { cancelled = true; };
+  }, [communityId]);
 
   const openCreateModal = () => {
     setFormError(null);
@@ -161,7 +187,23 @@ export function CommunitySection({ userId, scrollRef }: CommunitySectionProps) {
     }
   };
 
-  if (loading) return null;
+  // loading is only ever true when communityId is already known to exist
+  // (see the mount effect above), so the statusCard shape — not the
+  // create/join buttons — is the correct skeleton: it reserves the same
+  // height the real card will occupy, instead of the section popping in
+  // and shifting everything below it once the name arrives.
+  if (loading) {
+    return (
+      <View style={{ marginTop: 18 }}>
+        <View style={[styles.statusCard, { opacity: 0.5 }]}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statusLabel}>MY COMMUNITY</Text>
+          </View>
+          <LeapLogo size={18} animated />
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={{ marginTop: 18 }}>

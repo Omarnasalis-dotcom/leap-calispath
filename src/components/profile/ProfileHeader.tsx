@@ -221,7 +221,7 @@ export function ProfileHeader({
       {/* Create / Join community actions */}
       {profile?.id && (
         <View style={{ marginHorizontal: 20 }}>
-          <CommunitySection userId={profile.id} scrollRef={scrollRef} />
+          <CommunitySection userId={profile.id} communityId={profile.community_id} scrollRef={scrollRef} />
         </View>
       )}
 

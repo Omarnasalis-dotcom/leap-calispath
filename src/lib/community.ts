@@ -27,13 +27,25 @@ export async function getMyCommunity(userId: string): Promise<MyCommunity | null
     return null;
   }
 
-  const { data: community, error: communityError } = await supabase
+  return getCommunityById(profile.community_id);
+}
+
+// Skips the profiles.community_id lookup getMyCommunity does — for the
+// initial profile-screen load, profile.community_id is already known (it's
+// on the AuthContext profile object fetched moments earlier), so this saves
+// a redundant round trip and lets CommunitySection render immediately
+// instead of popping in after the rest of the screen. Mutation paths
+// (create/join/leave) still use getMyCommunity: they need the freshly
+// re-queried community_id, since AuthContext's copy won't reflect the
+// change until refreshProfile()'s own round trip lands.
+export async function getCommunityById(communityId: string): Promise<MyCommunity | null> {
+  const { data: community, error } = await supabase
     .from('communities')
     .select('id, name')
-    .eq('id', profile.community_id)
+    .eq('id', communityId)
     .maybeSingle();
 
-  if (communityError || !community) {
+  if (error || !community) {
     return null;
   }
 
