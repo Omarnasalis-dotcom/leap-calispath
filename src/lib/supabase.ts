@@ -43,78 +43,97 @@ const WebStorageAdapter = {
 // Native storage using SecureStore with chunking to bypass the 2048-byte limit per key
 const CHUNK_SIZE = 2000;
 
+// setItem clears a key's chunks before rewriting them, which briefly leaves
+// that key empty in SecureStore. auth-js refreshes the session on a background
+// timer independent of any request, so a getItem() for the same key (e.g. from
+// supabase.auth.getSession() during a trial/power/static submit) can land in
+// that gap and read back "no session" even though a valid one is mid-write.
+// Serializing get/set/remove per key means a read always waits for an
+// in-flight write to fully land instead of observing it half-done.
+const keyLocks = new Map<string, Promise<unknown>>();
+function withKeyLock<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  const prior = keyLocks.get(key) ?? Promise.resolve();
+  const run = prior.then(fn, fn);
+  keyLocks.set(key, run.then(() => undefined, () => undefined));
+  return run;
+}
+
 const NativeStorageAdapter = {
-  getItem: async (key: string): Promise<string | null> => {
-    try {
-      const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
-      if (chunksCountStr) {
-        const count = parseInt(chunksCountStr, 10);
-        if (!isNaN(count)) {
-          const promises = [];
-          for (let i = 0; i < count; i++) {
-            promises.push(SecureStore.getItemAsync(`${key}_chunk_${i}`));
+  getItem: (key: string): Promise<string | null> =>
+    withKeyLock(key, async () => {
+      try {
+        const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
+        if (chunksCountStr) {
+          const count = parseInt(chunksCountStr, 10);
+          if (!isNaN(count)) {
+            const promises = [];
+            for (let i = 0; i < count; i++) {
+              promises.push(SecureStore.getItemAsync(`${key}_chunk_${i}`));
+            }
+            const chunks = await Promise.all(promises);
+            if (chunks.some(chunk => chunk === null)) {
+              return null;
+            }
+            return chunks.join('');
           }
-          const chunks = await Promise.all(promises);
-          if (chunks.some(chunk => chunk === null)) {
-            return null;
+        }
+        return await SecureStore.getItemAsync(key);
+      } catch (e) {
+        console.warn('[Supabase Storage] Error reading from SecureStore:', e);
+        return null;
+      }
+    }),
+  setItem: (key: string, value: string): Promise<void> =>
+    withKeyLock(key, async () => {
+      try {
+        // Always clean up existing keys and chunk indexes first to prevent stale state
+        await removeItemUnlocked(key);
+
+        if (value.length <= CHUNK_SIZE) {
+          await SecureStore.setItemAsync(key, value);
+        } else {
+          const chunks: string[] = [];
+          for (let i = 0; i < value.length; i += CHUNK_SIZE) {
+            chunks.push(value.substring(i, i + CHUNK_SIZE));
           }
-          return chunks.join('');
-        }
-      }
-      return await SecureStore.getItemAsync(key);
-    } catch (e) {
-      console.warn('[Supabase Storage] Error reading from SecureStore:', e);
-      return null;
-    }
-  },
-  setItem: async (key: string, value: string): Promise<void> => {
-    try {
-      // Always clean up existing keys and chunk indexes first to prevent stale state
-      await NativeStorageAdapter.removeItem(key);
 
-      if (value.length <= CHUNK_SIZE) {
-        await SecureStore.setItemAsync(key, value);
-      } else {
-        const chunks: string[] = [];
-        for (let i = 0; i < value.length; i += CHUNK_SIZE) {
-          chunks.push(value.substring(i, i + CHUNK_SIZE));
-        }
+          // Save chunks in parallel first
+          await Promise.all(
+            chunks.map((chunk, index) =>
+              SecureStore.setItemAsync(`${key}_chunk_${index}`, chunk)
+            )
+          );
 
-        // Save chunks in parallel first
-        await Promise.all(
-          chunks.map((chunk, index) =>
-            SecureStore.setItemAsync(`${key}_chunk_${index}`, chunk)
-          )
-        );
-
-        // Save count last — this is the commit signal
-        await SecureStore.setItemAsync(`${key}_chunks`, chunks.length.toString());
-      }
-    } catch (e) {
-      console.error('[Supabase Storage] Error writing to SecureStore:', e);
-      throw e;
-    }
-  },
-  removeItem: async (key: string): Promise<void> => {
-    try {
-      const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
-      if (chunksCountStr) {
-        const count = parseInt(chunksCountStr, 10);
-        if (!isNaN(count)) {
-          const promises = [];
-          for (let i = 0; i < count; i++) {
-            promises.push(SecureStore.deleteItemAsync(`${key}_chunk_${i}`));
-          }
-          promises.push(SecureStore.deleteItemAsync(`${key}_chunks`));
-          await Promise.all(promises);
+          // Save count last — this is the commit signal
+          await SecureStore.setItemAsync(`${key}_chunks`, chunks.length.toString());
         }
+      } catch (e) {
+        console.error('[Supabase Storage] Error writing to SecureStore:', e);
+        throw e;
       }
-      await SecureStore.deleteItemAsync(key);
-    } catch (e) {
-      console.warn('[Supabase Storage] Error deleting from SecureStore:', e);
-    }
-  },
+    }),
+  removeItem: (key: string): Promise<void> => withKeyLock(key, () => removeItemUnlocked(key)),
 };
+
+async function removeItemUnlocked(key: string): Promise<void> {
+  try {
+    const chunksCountStr = await SecureStore.getItemAsync(`${key}_chunks`);
+    if (chunksCountStr) {
+      const count = parseInt(chunksCountStr, 10);
+      if (!isNaN(count)) {
+        const promises = [];
+        for (let i = 0; i < count; i++) {
+          promises.push(SecureStore.deleteItemAsync(`${key}_chunk_${i}`));
+        }
+        promises.push(SecureStore.deleteItemAsync(`${key}_chunks`));
+        await Promise.all(promises);
+      }
+    }
+    await SecureStore.deleteItemAsync(key);
+  } catch (e) {
+    console.warn('[Supabase Storage] Error deleting from SecureStore:', e);
+  }
+}
 
 // Use web storage on web, native storage on iOS/Android
 const isWeb = Platform.OS === 'web';
