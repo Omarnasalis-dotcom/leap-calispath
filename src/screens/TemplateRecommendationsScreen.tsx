@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, Pressable, Animated, ImageBackground, StyleSheet, Alert, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, Pressable, Animated, ImageBackground, StyleSheet, Alert, Modal, Dimensions } from 'react-native';
 import { useRouter } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,6 +11,12 @@ import { getRecommendations, getTemplateDetails, selectLibraryTemplate, LibraryT
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 const bronzeGold = '#C8A040';
+
+// Matches the card's old fixed 16:9 aspectRatio at its actual rendered width
+// (scrollContainer's padding: 20 on each side) — used as a floor, not a
+// lock, so the card can still grow taller for a long description instead of
+// clipping it. See cardImage below.
+const CARD_MIN_HEIGHT = (Dimensions.get('window').width - 40) * (9 / 16);
 
 // Cover photos for the program cards. Real athlete photography keyed by
 // tier range; anything without a dedicated shot cycles through the generic
@@ -689,7 +695,7 @@ const styles = StyleSheet.create({
   },
   cardImage: {
     width: '100%',
-    aspectRatio: 16 / 9,
+    minHeight: CARD_MIN_HEIGHT,
     justifyContent: 'space-between',
   },
   cardImageInner: {
