@@ -1,9 +1,10 @@
 import { supabase } from '../lib/supabase';
-import { 
-  StaticMovement, 
-  calculatePoints, 
-  getLevelMovements 
+import {
+  StaticMovement,
+  calculatePoints,
+  getLevelMovements
 } from '../lib/staticLogic';
+import { withNetworkRetry } from '../lib/submitErrors';
 
 export interface StaticLeaderboardEntry {
   rank: number;
@@ -46,10 +47,20 @@ export class StaticService {
   static async saveHold(userId: string, movementId: string, seconds: number, force: boolean = false): Promise<boolean> {
     if (seconds <= 0) return false;
 
-    const { data, error } = await supabase.rpc('submit_static_hold', {
-      p_movement_id: movementId,
-      p_hold_seconds: seconds,
-      p_force: force
+    const { data, error } = await withNetworkRetry(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      try {
+        return await supabase
+          .rpc('submit_static_hold', {
+            p_movement_id: movementId,
+            p_hold_seconds: seconds,
+            p_force: force
+          })
+          .abortSignal(controller.signal);
+      } finally {
+        clearTimeout(timeoutId);
+      }
     });
 
     if (error) {

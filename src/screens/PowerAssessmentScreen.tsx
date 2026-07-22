@@ -14,6 +14,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { calculateTotalPowerScore, getPowerLevel } from '../lib/powerLogic';
+import { describeSubmitError, withNetworkRetry } from '../lib/submitErrors';
+import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { Button } from '../components/Button';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
@@ -42,6 +44,7 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
   });
   
   const [loading, setLoading] = useState(false);
+  const isSlow = useSlowSubmitNotice(loading);
 
   // Compute numeric values for calculations
   const numericPBs = {
@@ -58,45 +61,62 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
     if (!user || !profile) return;
     
     setLoading(true);
-    
+
     try {
       // Only update tier if new tier is higher than current
       const currentPowerTier = profile?.power_tier ?? 0;
       const finalTier = Math.max(newTier, currentPowerTier);
-      
-      // 1. Save raw PBs to power_assessments table
-      const { error: upsertErr } = await supabase
-        .from('power_assessments')
-        .upsert({
-          user_id: user.id,
-          pullup_1rm: numericPBs.pull_up,
-          dip_1rm: numericPBs.dip,
-          squat_1rm: numericPBs.squat,
-          muscleup_1rm: numericPBs.muscle_up,
-          assessed_at: new Date().toISOString(),
-        }, { onConflict: 'user_id' });
 
-      if (upsertErr) throw upsertErr;
+      // Wrapped as a whole: each step is idempotent (upsert, RPC recompute,
+      // profile update), so retrying from the top after a raw transport
+      // failure (no response ever received) is safe. A fresh AbortController
+      // per attempt gives a retry its own full 10s budget.
+      await withNetworkRetry(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-      // 2. Sync power points server-side via RPC (this securely updates power_points and power_tier)
-      const { error: rpcErr } = await supabase.rpc('sync_power_points', { p_user_id: user.id });
-      if (rpcErr) throw rpcErr;
+        try {
+          // 1. Save raw PBs to power_assessments table
+          const { error: upsertErr } = await supabase
+            .from('power_assessments')
+            .upsert({
+              user_id: user.id,
+              pullup_1rm: numericPBs.pull_up,
+              dip_1rm: numericPBs.dip,
+              squat_1rm: numericPBs.squat,
+              muscleup_1rm: numericPBs.muscle_up,
+              assessed_at: new Date().toISOString(),
+            }, { onConflict: 'user_id' })
+            .abortSignal(controller.signal);
 
-      // 3. Update only non-restricted profile columns
-      const { error: profileErr } = await supabase
-        .from('profiles')
-        .update({
-          power_pbs: numericPBs,
-          power_assessed_at: new Date().toISOString(),
-          updated_at: new Date().toISOString(),
-        })
-        .eq('id', user.id);
+          if (upsertErr) throw upsertErr;
 
-      if (profileErr) throw profileErr;
-      
+          // 2. Sync power points server-side via RPC (this securely updates power_points and power_tier)
+          const { error: rpcErr } = await supabase
+            .rpc('sync_power_points', { p_user_id: user.id })
+            .abortSignal(controller.signal);
+          if (rpcErr) throw rpcErr;
+
+          // 3. Update only non-restricted profile columns
+          const { error: profileErr } = await supabase
+            .from('profiles')
+            .update({
+              power_pbs: numericPBs,
+              power_assessed_at: new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            })
+            .eq('id', user.id)
+            .abortSignal(controller.signal);
+
+          if (profileErr) throw profileErr;
+        } finally {
+          clearTimeout(timeoutId);
+        }
+      });
+
       // Refresh local profile
       await refreshProfile();
-      
+
       onComplete(finalTier);
     } catch (error: any) {
       // P1001 = bounds exceeded, P1002 = cooldown active — expected outcomes,
@@ -105,7 +125,13 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
       if (!isExpectedRejection) {
         console.error('Error saving power assessment:', error);
       }
-      Alert.alert('Error', error?.message || 'Failed to save your power assessment. Please try again.');
+      // Inputs are still in component state, so a retry re-sends the same PBs
+      // instead of forcing the user to re-enter everything just because the
+      // network blipped.
+      Alert.alert('Error', describeSubmitError(error, 'Failed to save your power assessment. Please try again.'), [
+        { text: 'Cancel', style: 'cancel' },
+        { text: 'Try Again', onPress: handleSubmit },
+      ]);
     } finally {
       setLoading(false);
     }
@@ -242,6 +268,11 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
             onPress={handleSubmit}
             loading={loading}
           />
+          {isSlow && (
+            <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
+              Still submitting — hang tight...
+            </Text>
+          )}
         </View>
       </ScrollView>
     </GlobalErrorBoundary>
@@ -249,6 +280,11 @@ export function PowerAssessmentScreen({ onComplete, onAbandon }: PowerAssessment
 }
 
 const styles = StyleSheet.create({
+  slowNotice: {
+    textAlign: 'center',
+    fontSize: 13,
+    marginTop: 4,
+  },
   container: {
     flex: 1,
   },

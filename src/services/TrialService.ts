@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
+import { withNetworkRetry } from '../lib/submitErrors';
 
 export interface TrialResult {
   userId: string;
@@ -43,53 +44,68 @@ export class TrialService {
       throw new Error('DISHONOR: Time defies human limits for this tier.');
     }
 
-    // Get current session token
-    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-    if (sessionError || !session) {
+    // Get current session token. A background token refresh can transiently
+    // race with this read, so retry once before treating it as a real
+    // logged-out state — nothing has been sent to the server yet at this point.
+    let session = (await supabase.auth.getSession()).data.session;
+    if (!session) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      session = (await supabase.auth.getSession()).data.session;
+    }
+    if (!session) {
       throw new Error('Not authenticated. Please sign in again.');
     }
 
-    // Call the Edge Function — server is the authority
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+    // Call the Edge Function — server is the authority. A fresh AbortController
+    // per attempt so a retry below gets its own full 10s budget rather than
+    // sharing one that a prior attempt already spent.
+    const data = await withNetworkRetry(async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
 
-    let response;
-    try {
-      response = await fetch(EDGE_FUNCTION_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({
-          tier,
-          time_seconds: timeSeconds,
-          mode: isProgression ? 'progression' : 'practice',
-        }),
-        signal: controller.signal,
-      });
-    } catch (err: any) {
-      if (err.name === 'AbortError' || err.message?.toLowerCase().includes('network')) {
-        throw new Error('Network request timed out. Please check your connection and try again.');
+      let response;
+      try {
+        response = await fetch(EDGE_FUNCTION_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`,
+          },
+          body: JSON.stringify({
+            tier,
+            time_seconds: timeSeconds,
+            mode: isProgression ? 'progression' : 'practice',
+          }),
+          signal: controller.signal,
+        });
+      } catch (err: any) {
+        if (err.name === 'AbortError') {
+          throw new Error('Network request timed out. Please check your connection and try again.');
+        }
+        // Genuine transport-level failure (no response received at all) —
+        // let withNetworkRetry decide whether to retry before this becomes
+        // a user-facing error.
+        throw err;
+      } finally {
+        clearTimeout(timeoutId);
       }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
-    }
 
-    const data = await response.json();
+      const json = await response.json();
 
-    if (!response.ok) {
-      if (data.error === 'DISHONOR') {
-        throw new Error('DISHONOR: Time defies human limits for this tier.');
+      if (!response.ok) {
+        if (json.error === 'DISHONOR') {
+          throw new Error('DISHONOR: Time defies human limits for this tier.');
+        }
+        if (json.error === 'TOO_FAST') {
+          throw new Error(json.message || 'Please wait before submitting again.');
+        }
+        throw new Error(json.error || 'Failed to save trial result. Please try again.');
       }
-      if (data.error === 'TOO_FAST') {
-        throw new Error(data.message || 'Please wait before submitting again.');
-      }
-      throw new Error(data.error || 'Failed to save trial result. Please try again.');
-    }
 
-    return data as TrialResultResponse;
+      return json as TrialResultResponse;
+    });
+
+    return data;
   }
 
   /**

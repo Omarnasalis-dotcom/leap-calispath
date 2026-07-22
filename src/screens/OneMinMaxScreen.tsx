@@ -12,6 +12,8 @@ import {
   calculateOneMMPoints
 } from '../lib/oneMMLogic';
 import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMService';
+import { describeSubmitError } from '../lib/submitErrors';
+import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
 
@@ -241,7 +243,13 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         if (!isExpectedRejection) {
           console.error('Error saving 1MM result:', error);
         }
-        Alert.alert('Error', error.message || 'Failed to save result.');
+        // reps/force are still the enclosing call's exact args, so a retry
+        // resubmits the same result instead of forcing the set to be redone
+        // just because the network blipped.
+        Alert.alert('Error', describeSubmitError(error, 'Failed to save result.'), [
+          { text: 'Cancel', style: 'cancel' },
+          { text: 'Try Again', onPress: () => handleSaveResult(reps, force) },
+        ]);
       }
     });
   };
@@ -778,6 +786,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   const [timerFinished, setTimerFinished] = useState(false);
   const [repsInput, setRepsInput] = useState('');
   const [saving, setSaving] = useState(false);
+  const isSlowSave = useSlowSubmitNotice(saving);
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -988,6 +997,11 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
                 >
                   {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
                 </TouchableOpacity>
+                {isSlowSave && (
+                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
+                    Still submitting — hang tight...
+                  </Text>
+                )}
 
                 <TouchableOpacity
                   style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
@@ -1018,6 +1032,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
   container: { flex: 1, paddingTop: 22 },
   headerPill: { marginTop: 0 },
 

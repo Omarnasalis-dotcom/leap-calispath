@@ -13,6 +13,8 @@ import {
   getCategoryMovements, getLevelMovements, StaticMovement
 } from '../lib/staticLogic';
 import { StaticService, StaticLeaderboardEntry, StaticLevelLeaderboardEntry } from '../services/StaticService';
+import { describeSubmitError } from '../lib/submitErrors';
+import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { WarriorButton } from '../components/atoms/WarriorButton';
 import { WarriorCard } from '../components/atoms/WarriorCard';
@@ -279,9 +281,18 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
         if (!isAntiCheatRejection) {
           console.error('Error saving hold:', error);
         }
-        const msg = error.message || 'Failed to save hold';
-        if (Platform.OS === 'web') alert(msg);
-        else Alert.alert('Error', msg);
+        // seconds/force are still the enclosing call's exact args, so a retry
+        // resubmits the same hold instead of forcing it to be redone just
+        // because the network blipped.
+        const msg = describeSubmitError(error, 'Failed to save hold');
+        if (Platform.OS === 'web') {
+          if (window.confirm(`${msg}\n\nTry again?`)) handleSaveHold(seconds, force);
+        } else {
+          Alert.alert('Error', msg, [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Try Again', onPress: () => handleSaveHold(seconds, force) },
+          ]);
+        }
       }
     });
   }
@@ -720,6 +731,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   const [isPreparing, setIsPreparing] = useState(false);
   const [preCountdown, setPreCountdown] = useState(0);
   const [saving, setSaving] = useState(false);
+  const isSlowSave = useSlowSubmitNotice(saving);
   // Lets a user skip the live timer entirely (manualMode) and type a known
   // hold time directly, or adjust the captured value after stopping the
   // timer before it's logged — both feed the same enteredSeconds field
@@ -956,6 +968,11 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
                 >
                   {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
                 </TouchableOpacity>
+                {isSlowSave && (
+                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
+                    Still submitting — hang tight...
+                  </Text>
+                )}
                 <TouchableOpacity
                   style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
                   onPress={handleUseTimerInstead}
@@ -1054,6 +1071,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
   container: { flex: 1, paddingTop: 22 },
   headerPill: { marginTop: 0 },
   dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 24 },

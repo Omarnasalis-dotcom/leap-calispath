@@ -26,6 +26,8 @@ import { TIER_HARD_FLOORS } from '../constants/Progression';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 import { TrialService } from '../services/TrialService';
+import { describeSubmitError } from '../lib/submitErrors';
+import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 
@@ -66,6 +68,7 @@ export function TrialScreen({
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   const { runAsync: runSafeSubmit, isExecuting: isSubmitting } = useSafeAsync();
+  const isSlowSubmit = useSlowSubmitNotice(isSubmitting);
 
   // Cache route params on mount to prevent background wipe out (Bug 4)
   const [initialMode] = useState<TrialMode>(mode);
@@ -316,7 +319,13 @@ export function TrialScreen({
         if (error.message?.includes('DISHONOR')) {
           setShowDishonor(true);
         } else {
-          Alert.alert('Error', error.message || 'Failed to save time');
+          // Timer's already stopped and timeSeconds is already captured, so a
+          // retry re-sends the same result rather than forcing the trial to
+          // be redone just because the network blipped after the work was done.
+          Alert.alert('Error', describeSubmitError(error, 'Failed to save time'), [
+            { text: 'Cancel', style: 'cancel' },
+            { text: 'Try Again', onPress: handleClaimRank },
+          ]);
         }
       }
     });
@@ -638,6 +647,11 @@ export function TrialScreen({
                 </Text>
               )}
             </TouchableOpacity>
+            {isSlowSubmit && currentStepIdx === trial.movements.length - 1 && (
+              <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
+                Still submitting — hang tight...
+              </Text>
+            )}
 
             <TouchableOpacity style={styles.abandonBottomButton} onPress={handleAbandon}>
               <Text style={[styles.abandonBottomText, { color: theme.text.tertiary }]}>ABANDON TRIAL</Text>
@@ -802,6 +816,11 @@ function VictoryScreen({
 }
 
 const styles = StyleSheet.create({
+  slowNotice: {
+    textAlign: 'center',
+    fontSize: 13,
+    marginTop: 8,
+  },
   container: {
     flex: 1,
   },

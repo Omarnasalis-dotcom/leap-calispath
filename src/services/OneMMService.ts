@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { calculateOneMMPoints, ONEMM_MOVEMENTS, ONEMM_CATEGORIES } from '../lib/oneMMLogic';
+import { withNetworkRetry } from '../lib/submitErrors';
 
 // Module-level cache — persists for the app session
 let cachedOneMMStats: { userId: string; stats: OneMMUserStats; timestamp: number } | null = null;
@@ -122,11 +123,20 @@ export const OneMMService = {
    */
   async saveLog(userId: string, movementId: string, reps: number, force: boolean = false): Promise<{ isNewPB: boolean }> {
     try {
-      await supabase.auth.refreshSession();
-      const { data, error } = await supabase.rpc('submit_onemm_log', {
-        p_movement_id: movementId,
-        p_reps: reps,
-        p_force: force
+      const { data, error } = await withNetworkRetry(async () => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        try {
+          return await supabase
+            .rpc('submit_onemm_log', {
+              p_movement_id: movementId,
+              p_reps: reps,
+              p_force: force
+            })
+            .abortSignal(controller.signal);
+        } finally {
+          clearTimeout(timeoutId);
+        }
       });
 
       if (error) throw error;
