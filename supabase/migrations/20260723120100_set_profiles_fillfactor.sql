@@ -1,0 +1,23 @@
+-- profiles is a wide (~36-column, two-JSONB: best_times / power_pbs) table that
+-- takes several point/streak UPDATEs per session: sync_static_points /
+-- sync_power_points / sync_onemm_points on profile open, plus
+-- get_weekly_activity_stats' streak write on focus. At the default
+-- fillfactor = 100 there is no free space in a page for a HOT update, so each
+-- update writes the new row version to a different page and bloats the table on
+-- the free-tier Nano instance. Leaving ~15% free space per page lets these
+-- updates stay HOT (same page, cheaply pruned by the next access) — none of the
+-- updated columns (statics_tier / power_points / power_tier / one_mm_points /
+-- streak) are indexed, so HOT is actually achievable here.
+--
+-- This ALTER is instant and transaction-safe. It only affects FUTURE row
+-- rewrites — it does not rewrite the table or change any behavior.
+--
+-- Reclaiming the bloat that ALREADY exists needs a one-time VACUUM FULL, which
+-- is deliberately NOT run here: VACUUM FULL cannot run inside a transaction
+-- block (so it can't be a migration) and takes an ACCESS EXCLUSIVE lock that
+-- would take profiles offline for the duration. Run it manually in a
+-- low-traffic window (ideally once the project is on Pro and a backup exists):
+--
+--   VACUUM FULL public.profiles;
+--
+ALTER TABLE public.profiles SET (fillfactor = 85);
