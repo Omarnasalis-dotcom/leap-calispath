@@ -1,6 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
 import { withNetworkRetry } from '../lib/submitErrors';
+import { invalidateStrengthLeaderboardCache } from '../lib/leaderboard';
 
 export interface TrialResult {
   userId: string;
@@ -104,6 +105,10 @@ export class TrialService {
 
       return json as TrialResultResponse;
     });
+
+    // A completed trial can change this user's best time / attempt count on the
+    // Strength tier board — drop the shared cache so their next open is fresh.
+    invalidateStrengthLeaderboardCache();
 
     return data;
   }

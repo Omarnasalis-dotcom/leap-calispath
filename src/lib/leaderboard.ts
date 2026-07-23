@@ -22,6 +22,36 @@ export interface PersonalBest {
   total_attempts: number;
 }
 
+// Short-lived module cache for the *shared* tier leaderboard payloads (the raw
+// DB rows), keyed by tier + scope. Mirrors the { data, timestamp } module-cache
+// pattern in OneMMService / PowerService / ActivityStatsService, but with a
+// short 30s TTL: the board is shared across users, so a fresh result from anyone
+// should surface quickly. The per-user fields (is_current_user / personalBest)
+// are re-derived from the cached shared rows on every call, so they are never
+// stale for the caller. Invalidated on the local user's own relevant submission
+// (see invalidate*LeaderboardCache) so they never see a board that hides the
+// result they just logged. Each fetch here is a ~100-row MAX/SUM scan, so this
+// also cuts the most-repeated payload + the biggest recurring read CPU cost.
+const LEADERBOARD_CACHE_TTL = 30 * 1000; // 30 seconds
+
+type CachedBoard = { data: any[]; timestamp: number };
+const strengthBoardCache = new Map<string, CachedBoard>();
+const powerBoardCache = new Map<string, CachedBoard>();
+
+function boardCacheKey(tier: number, communityId?: string | null): string {
+  return `${tier}:${communityId || 'global'}`;
+}
+
+/** Clear cached Strength tier boards. Call after the local user logs a trial. */
+export function invalidateStrengthLeaderboardCache(): void {
+  strengthBoardCache.clear();
+}
+
+/** Clear cached Power tier boards. Call after the local user logs a power PB. */
+export function invalidatePowerLeaderboardCache(): void {
+  powerBoardCache.clear();
+}
+
 /**
  * Get leaderboard for a specific tier
  * Returns ranked list of all users with best times for that tier
@@ -31,17 +61,27 @@ export async function getTierLeaderboard(
   currentUserId: string,
   communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
-  // Use RPC function that bypasses RLS
-  const { data, error } = await supabase
-    .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
+  const key = boardCacheKey(tier, communityId);
+  const cached = strengthBoardCache.get(key);
 
-  if (error || !data) {
-    console.error('Error fetching leaderboard:', error);
-    return { entries: [], personalBest: null };
+  let data: any[];
+  if (cached && Date.now() - cached.timestamp < LEADERBOARD_CACHE_TTL) {
+    data = cached.data;
+  } else {
+    // Use RPC function that bypasses RLS
+    const { data: fetched, error } = await supabase
+      .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
+
+    if (error || !fetched) {
+      console.error('Error fetching leaderboard:', error);
+      return { entries: [], personalBest: null };
+    }
+    data = Array.isArray(fetched) ? fetched : [];
+    strengthBoardCache.set(key, { data, timestamp: Date.now() });
   }
 
   // Convert to entries with ranking
-  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
     user_id: record.user_id,
     display_name: record.display_name || 'Unknown Warrior',
     tier,
@@ -75,31 +115,41 @@ export async function getPowerTierLeaderboard(
   currentUserId: string,
   communityId?: string | null
 ): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
-  let query = supabase
-    .from('profiles')
-    .select(`
-      id,
-      display_name,
-      power_points,
-      country,
-      gender
-    `)
-    .eq('power_tier', tier);
+  const key = boardCacheKey(tier, communityId);
+  const cached = powerBoardCache.get(key);
 
-  if (communityId) {
-    query = query.eq('community_id', communityId);
+  let data: any[];
+  if (cached && Date.now() - cached.timestamp < LEADERBOARD_CACHE_TTL) {
+    data = cached.data;
+  } else {
+    let query = supabase
+      .from('profiles')
+      .select(`
+        id,
+        display_name,
+        power_points,
+        country,
+        gender
+      `)
+      .eq('power_tier', tier);
+
+    if (communityId) {
+      query = query.eq('community_id', communityId);
+    }
+
+    const { data: fetched, error } = await query
+      .order('power_points', { ascending: false })
+      .limit(100);
+
+    if (error || !fetched) {
+      console.error('Error fetching power leaderboard:', error);
+      return { entries: [], personalBest: null };
+    }
+    data = Array.isArray(fetched) ? fetched : [];
+    powerBoardCache.set(key, { data, timestamp: Date.now() });
   }
 
-  const { data, error } = await query
-    .order('power_points', { ascending: false })
-    .limit(100);
-
-  if (error || !data) {
-    console.error('Error fetching power leaderboard:', error);
-    return { entries: [], personalBest: null };
-  }
-
-  const entries: LeaderboardEntry[] = (Array.isArray(data) ? data : []).map((record: any, index: number) => ({
+  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
     user_id: record.id,
     display_name: record.display_name || 'Unknown Warrior',
     tier,
