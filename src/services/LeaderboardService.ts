@@ -21,7 +21,10 @@ export class LeaderboardService {
         console.error('Error fetching global WRA leaderboard:', error);
         return [];
       }
-      let entries = (Array.isArray(data) ? data : []).map((e: any) => ({
+      // gender now comes straight off the RPC row (added to
+      // get_global_well_rounded_leaderboard in migration 20260723120000), so the
+      // second `profiles.select('id, gender').in(...)` round trip is gone.
+      return (Array.isArray(data) ? data : []).map((e: any) => ({
         rank: Number(e.rank),
         user_id: e.user_id,
         display_name: e.display_name || 'Warrior',
@@ -33,20 +36,6 @@ export class LeaderboardService {
         country: e.country,
         gender: e.gender
       }));
-
-      // Fetch gender mapping manually since RPC lacks it
-      const userIds = entries.map((e: any) => e.user_id).filter(Boolean);
-      if (userIds.length > 0) {
-        const { data: profiles } = await supabase.from('profiles').select('id, gender').in('id', userIds);
-        if (profiles) {
-          const genderMap = new Map(profiles.map(p => [p.id, p.gender]));
-          entries = entries.map((e: any) => ({
-            ...e,
-            gender: e.gender || genderMap.get(e.user_id)
-          }));
-        }
-      }
-      return entries;
     } catch (err) {
       console.error('Exception fetching global WRA leaderboard:', err);
       return [];
