@@ -62,6 +62,11 @@ export function PowerWorldScreen() {
   const [leaderboardData, setLeaderboardData] = useState<any[]>([]);
   const [modalLeaderboardData, setModalLeaderboardData] = useState<any[]>([]);
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
+  // Community scope for the Power rankings — mirrors ProfileScreen's PUBLIC /
+  // MY COMMUNITY toggle. Defaults to 'public' so the board stays global unless
+  // the user (who must be in a community) opts in. Server-side filter, so it
+  // drives a refetch rather than a client-side slice.
+  const [communityScope, setCommunityScope] = useState<'public' | 'community'>('public');
 
   const filteredLeaderboardData = React.useMemo(() => {
     let list = leaderboardData;
@@ -105,7 +110,8 @@ export function PowerWorldScreen() {
   const fetchLeaderboard = useCallback(async () => {
     setLeaderboardData([]);
     try {
-      const data = await PowerService.getLeaderboard(leaderboardTab as any);
+      const scopedCommunityId = communityScope === 'community' ? (profile?.community_id ?? null) : null;
+      const data = await PowerService.getLeaderboard(leaderboardTab as any, scopedCommunityId);
       if (!isMounted.current) return;
       setLeaderboardData(data);
     } catch (error) {
@@ -113,13 +119,15 @@ export function PowerWorldScreen() {
       if (!isMounted.current) return;
       Alert.alert('Error', 'Failed to load leaderboard data.');
     }
-  }, [leaderboardTab, isMounted]);
+  }, [leaderboardTab, communityScope, profile?.community_id, isMounted]);
 
   // Derive the user's glory rank from the leaderboard list already fetched above instead
   // of a separate count query. Only falls back to a direct query if they're outside the
   // top 50 the list returns.
   useEffect(() => {
-    if (leaderboardTab !== 'glory' || !user || !stats || leaderboardData.length === 0) return;
+    // Only derive the GLOBAL glory rank from a global board — a community-scoped
+    // list would otherwise report the user's within-community rank as global.
+    if (leaderboardTab !== 'glory' || communityScope !== 'public' || !user || !stats || leaderboardData.length === 0) return;
     if (stats.ranks.glory) return;
 
     const userIdx = leaderboardData.findIndex((e: any) => e.user_id === user.id);
@@ -131,7 +139,7 @@ export function PowerWorldScreen() {
         setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: rank } } : prev);
       });
     }
-  }, [leaderboardData, leaderboardTab, user, stats, isMounted]);
+  }, [leaderboardData, leaderboardTab, communityScope, user, stats, isMounted]);
 
   const fetchModalLeaderboard = useCallback(async (moveId: string) => {
     setModalLeaderboardData([]);
@@ -547,7 +555,38 @@ export function PowerWorldScreen() {
               </TouchableOpacity>
             </View>
 
-            <Text style={[styles.modalSubOverall, { color: theme.text.tertiary }]}>GLOBAL POWER RANKINGS</Text>
+            <Text style={[styles.modalSubOverall, { color: theme.text.tertiary }]}>
+              {communityScope === 'community' ? 'MY COMMUNITY RANKINGS' : 'GLOBAL POWER RANKINGS'}
+            </Text>
+
+            {/* Community scope — shown only to members of a community; mirrors
+                ProfileScreen's PUBLIC / MY COMMUNITY toggle. */}
+            {leaderboardTab === 'glory' && !!profile?.community_id && (
+              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 0, marginTop: 16, gap: 12 }}>
+                {(['public', 'community'] as const).map((scope) => (
+                  <TouchableOpacity
+                    key={scope}
+                    style={{
+                      paddingVertical: 6,
+                      paddingHorizontal: 16,
+                      borderRadius: 20,
+                      backgroundColor: communityScope === scope ? W.accent : 'rgba(255,255,255,0.05)',
+                      borderWidth: 1,
+                      borderColor: communityScope === scope ? W.accent : 'rgba(255,255,255,0.1)'
+                    }}
+                    onPress={() => setCommunityScope(scope)}
+                  >
+                    <Text style={{
+                      fontSize: 12,
+                      fontWeight: '900',
+                      color: communityScope === scope ? '#FFF' : theme.text.secondary
+                    }}>
+                      {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
 
             {leaderboardTab === 'glory' && (
               <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>

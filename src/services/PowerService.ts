@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { calculateTotalPowerScore, getPowerLevel, POWER_LEVELS } from '../lib/powerLogic';
+import { invalidatePowerLeaderboardCache } from '../lib/leaderboard';
 
 // Module-level cache — persists for the app session
 let cachedPowerStats: { userId: string; stats: PowerUserStats; timestamp: number } | null = null;
@@ -111,16 +112,19 @@ export const PowerService = {
   /**
    * Fetches leaderboard for a specific movement, glory, or mastery level
    */
-  async getLeaderboard(type: 'glory' | 'level_1' | 'level_2' | 'level_3' | 'pull_up' | 'dip' | 'squat' | 'muscle_up'): Promise<PowerMovementRanking[]> {
+  async getLeaderboard(type: 'glory' | 'level_1' | 'level_2' | 'level_3' | 'pull_up' | 'dip' | 'squat' | 'muscle_up', communityId?: string | null): Promise<PowerMovementRanking[]> {
     try {
       if (type === 'glory') {
-        const { data, error } = await supabase
+        let query = supabase
           .from('profiles')
           .select('id, display_name, power_points, country, gender')
-          .gt('power_points', 0)
+          .gt('power_points', 0);
+        // Community scope: narrow the global board to one community when asked.
+        if (communityId) query = query.eq('community_id', communityId);
+        const { data, error } = await query
           .order('power_points', { ascending: false })
           .limit(50);
-        
+
         if (error) throw error;
         return (Array.isArray(data) ? data : []).map((d, i) => ({
           user_id: d.id,
@@ -135,13 +139,15 @@ export const PowerService = {
 
       if (type.startsWith('level_')) {
         const levelId = parseInt(type.split('_')[1]);
-        const { data, error } = await supabase
+        let query = supabase
           .from('profiles')
           .select('id, display_name, power_points, gender')
-          .eq('power_tier', levelId)
+          .eq('power_tier', levelId);
+        if (communityId) query = query.eq('community_id', communityId);
+        const { data, error } = await query
           .order('power_points', { ascending: false })
           .limit(50);
-        
+
         if (error) throw error;
         return (Array.isArray(data) ? data : []).map((d, i) => ({
           user_id: d.id,
@@ -228,6 +234,9 @@ export const PowerService = {
         if (rpcErr) throw rpcErr;
 
         PowerService.invalidateCache();
+        // A new power PB changes this user's standing on the Power tier board —
+        // drop the shared cache so their next open isn't a stale board.
+        invalidatePowerLeaderboardCache();
 
         const isNewPBResult = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_new_pb : false;
         const isPromotion = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_promotion : false;
