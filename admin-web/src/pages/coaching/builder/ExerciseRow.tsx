@@ -161,6 +161,14 @@ export function ExerciseRow({
           onChange={(v) => onChange({ reps: v })}
         />
       )}
+      <input
+        className="field"
+        style={{ fontSize: 12 }}
+        placeholder="Execution notes, tempo, weights, or details…"
+        value={exercise.notes}
+        onChange={(e) => onChange({ notes: e.target.value })}
+        aria-label="Exercise notes"
+      />
     </div>
   );
 }
