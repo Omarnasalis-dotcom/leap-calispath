@@ -110,6 +110,13 @@ export async function deleteExercise(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+export async function bulkCreateExercises(
+  rows: Array<{ name: string; youtube_url: string | null; category: string | null; difficulty: string | null; created_by: string }>,
+): Promise<void> {
+  const { error } = await supabase.from('exercise_library').insert(rows);
+  if (error) throw new Error(error.message);
+}
+
 // ---------- program templates ----------
 
 /** Template ids referenced by any warrior_programs row — assign_program_template

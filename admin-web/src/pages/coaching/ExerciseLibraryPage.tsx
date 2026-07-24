@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  bulkCreateExercises,
   deleteExercise,
   fetchExercises,
   saveExercise,
   type Exercise,
 } from '@/api/coaching';
+import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 
@@ -13,6 +15,238 @@ import { ConfirmButton, ErrorNote } from '@/components/bits';
 // — the two apps read/write the same comma-joined exercise_library.category column.
 const CATEGORY_OPTIONS = ['push', 'pull', 'legs', 'core'] as const;
 const CONCEPT_OPTIONS = ['skill', 'flexibility', 'strength', 'mobility'] as const;
+
+const BULK_IMPORT_ROW_LIMIT = 200;
+
+const TEMPLATE_CSV =
+  'name,youtube_url,category,concept,difficulty\n' +
+  'Muscle Up,https://youtube.com/watch?v=1234567,,skill,intermediate\n' +
+  'Pancake Stretch,https://youtube.com/watch?v=2345678,,flexibility,beginner\n' +
+  'Weighted Pullup,https://youtube.com/watch?v=3456789,,strength,advanced\n' +
+  'Scapular Rotations,https://youtube.com/watch?v=4567890,,mobility,beginner\n' +
+  'Handstand Pushup,https://youtube.com/watch?v=5678901,push,,advanced\n' +
+  'Pullup,https://youtube.com/watch?v=6789012,pull,,intermediate\n' +
+  'Pistol Squat,https://youtube.com/watch?v=7890123,legs,,beginner\n' +
+  'Hanging Knee Raise,https://youtube.com/watch?v=8901234,core,,beginner\n';
+
+// Mirrors ExerciseLibraryScreen.tsx's isValidYouTubeUrl exactly.
+function isValidYouTubeUrl(url: string): boolean {
+  const trimmed = url.trim();
+  const withProtocol = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+  const match = withProtocol.match(/^https?:\/\/([^/?#]+)/i);
+  if (!match) return false;
+  const host = match[1].toLowerCase().replace(/^(www\.|m\.)/, '');
+  return host === 'youtube.com' || host === 'youtu.be';
+}
+
+// Mirrors ExerciseLibraryScreen.tsx's parseCSV exactly — a minimal quoted-field
+// parser, not a full RFC4180 implementation (matches the mobile behavior
+// this is round-tripping with, including its same edge-case gaps).
+function parseExerciseCSV(text: string): Array<Record<string, string>> {
+  const lines = text.split(/\r?\n/);
+  if (lines.length === 0) return [];
+
+  const headers = lines[0].split(',').map((h) => h.trim().toLowerCase());
+  const rows: Array<Record<string, string>> = [];
+
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
+
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    for (let j = 0; j < line.length; j++) {
+      const char = line[j];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+
+    const row: Record<string, string> = {};
+    headers.forEach((header, index) => {
+      let val = values[index] || '';
+      if (val.startsWith('"') && val.endsWith('"')) val = val.slice(1, -1);
+      row[header] = val;
+    });
+
+    if (row.name && (row.category || row.concept) && row.difficulty) {
+      rows.push(row);
+    }
+  }
+  return rows;
+}
+
+function downloadTemplateCsv(): void {
+  const blob = new Blob([TEMPLATE_CSV], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', 'exercise_template.csv');
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function BulkImportModal() {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [csvText, setCsvText] = useState('');
+  const [previewRows, setPreviewRows] = useState<Array<Record<string, string>>>([]);
+  const [parseError, setParseError] = useState<string | null>(null);
+
+  function reset() {
+    setStep(1);
+    setCsvText('');
+    setPreviewRows([]);
+    setParseError(null);
+    importMutation.reset();
+  }
+
+  function tryParse(text: string) {
+    setParseError(null);
+    const rows = parseExerciseCSV(text);
+    if (rows.length === 0) {
+      setParseError('No valid exercise rows found. Each row needs a name, a category or concept, and a difficulty.');
+      return;
+    }
+    setPreviewRows(rows);
+    setStep(2);
+  }
+
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      if (previewRows.length > BULK_IMPORT_ROW_LIMIT) {
+        throw new Error(`Maximum ${BULK_IMPORT_ROW_LIMIT} exercises per import — split your CSV into smaller batches.`);
+      }
+      const rows = previewRows.map((row) => {
+        const parts = [row.category?.trim().toLowerCase(), row.concept?.trim().toLowerCase()].filter(Boolean);
+        return {
+          name: row.name.trim(),
+          youtube_url: row.youtube_url && isValidYouTubeUrl(row.youtube_url) ? row.youtube_url.trim() : null,
+          category: parts.length ? parts.join(',') : 'push',
+          difficulty: (row.difficulty || 'beginner').toLowerCase().trim(),
+          created_by: profile!.id,
+        };
+      });
+      await bulkCreateExercises(rows);
+    },
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['exercises'] });
+      dialogRef.current?.close();
+      reset();
+    },
+  });
+
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => dialogRef.current?.showModal()}>
+        Bulk import
+      </button>
+      <dialog className="confirm" style={{ maxWidth: 640 }} ref={dialogRef} onClose={reset}>
+        <h2 style={{ marginBottom: 8 }}>Bulk import exercises</h2>
+
+        {step === 1 ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
+            <div className="dim" style={{ fontSize: 13 }}>
+              CSV columns: <code>name, youtube_url, category, concept, difficulty</code>. Each row needs a name, a
+              category or concept, and a difficulty.
+            </div>
+            {parseError && <ErrorNote error={new Error(parseError)} />}
+            <div className="row">
+              <button type="button" className="btn small" onClick={() => fileInputRef.current?.click()}>
+                Choose CSV file…
+              </button>
+              <button type="button" className="btn small" onClick={downloadTemplateCsv}>
+                Download template CSV
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".csv,text/csv"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  file.text().then(tryParse);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+            <textarea
+              className="field"
+              rows={6}
+              placeholder="…or paste CSV content here"
+              value={csvText}
+              onChange={(e) => setCsvText(e.target.value)}
+              aria-label="Paste CSV content"
+            />
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn small" onClick={() => dialogRef.current?.close()}>
+                Cancel
+              </button>
+              <button type="button" className="btn small primary" onClick={() => tryParse(csvText)}>
+                Preview
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
+            {importMutation.error && <ErrorNote error={importMutation.error} />}
+            <div className="dim" style={{ fontSize: 13 }}>
+              {previewRows.length} exercise{previewRows.length === 1 ? '' : 's'} parsed. Review before importing.
+            </div>
+            <div className="table-wrap" style={{ maxHeight: 320, overflowY: 'auto' }}>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Category</th>
+                    <th>Concept</th>
+                    <th>Difficulty</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((row, i) => (
+                    <tr key={i}>
+                      <td>{row.name}</td>
+                      <td className="dim">{row.category || '—'}</td>
+                      <td className="dim">{row.concept || '—'}</td>
+                      <td className="dim">{row.difficulty || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn small" disabled={importMutation.isPending} onClick={() => setStep(1)}>
+                Back
+              </button>
+              <button
+                type="button"
+                className="btn small primary"
+                disabled={importMutation.isPending || !profile}
+                onClick={() => importMutation.mutate()}
+              >
+                {importMutation.isPending ? 'Importing…' : `Import ${previewRows.length}`}
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
+    </>
+  );
+}
 
 interface Draft {
   id?: string;
@@ -160,6 +394,7 @@ export function ExerciseLibraryPage() {
             onChange={(e) => setFilter(e.target.value)}
             aria-label="Filter exercises"
           />
+          <BulkImportModal />
           <button className="btn primary" onClick={() => setDraft({ ...EMPTY })}>
             + New exercise
           </button>
