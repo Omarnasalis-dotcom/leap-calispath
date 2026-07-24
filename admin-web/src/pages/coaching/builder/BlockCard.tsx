@@ -61,7 +61,7 @@ export function BlockCard({
     id: block.id,
   });
   const clipboard = useBuilderClipboard();
-  const [expanded, setExpanded] = useState(true);
+  const [expanded, setExpanded] = useState(false);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -157,54 +157,56 @@ export function BlockCard({
             block.metadata,
             block.exercises.map((e) => e.exercise_name || '?'),
           )}{' '}
-          {expanded ? '▲' : '▼ edit'}
+          {expanded ? '▲ collapse' : '▼ expand'}
         </button>
 
         {expanded && (
-          <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
-            <ConceptWizard
-              metadata={block.metadata}
-              onChange={(m) => onChange({ metadata: m })}
-              exerciseCount={block.exercises.length}
-            />
-          </div>
-        )}
-
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onExerciseDragEnd}>
-          <SortableContext items={block.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-              {block.exercises.map((ex) => (
-                <ExerciseRow
-                  key={ex.id}
-                  exercise={ex}
-                  exerciseOptions={exerciseOptions}
-                  blockMetadata={block.metadata}
-                  onChange={(patch) =>
-                    onChange({
-                      exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),
-                    })
-                  }
-                  onRemove={() => onChange({ exercises: block.exercises.filter((x) => x.id !== ex.id) })}
-                />
-              ))}
+          <>
+            <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
+              <ConceptWizard
+                metadata={block.metadata}
+                onChange={(m) => onChange({ metadata: m })}
+                exerciseCount={block.exercises.length}
+              />
             </div>
-          </SortableContext>
-        </DndContext>
 
-        <button
-          className="btn small"
-          style={{ alignSelf: 'flex-start' }}
-          onClick={() =>
-            onChange({
-              exercises: [
-                ...block.exercises,
-                { id: clientKey(), exercise_id: '', sets: 3, reps: null, rest_seconds: null, hold_seconds: null, notes: '' },
-              ],
-            })
-          }
-        >
-          + Exercise
-        </button>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onExerciseDragEnd}>
+              <SortableContext items={block.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {block.exercises.map((ex) => (
+                    <ExerciseRow
+                      key={ex.id}
+                      exercise={ex}
+                      exerciseOptions={exerciseOptions}
+                      blockMetadata={block.metadata}
+                      onChange={(patch) =>
+                        onChange({
+                          exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),
+                        })
+                      }
+                      onRemove={() => onChange({ exercises: block.exercises.filter((x) => x.id !== ex.id) })}
+                    />
+                  ))}
+                </div>
+              </SortableContext>
+            </DndContext>
+
+            <button
+              className="btn small"
+              style={{ alignSelf: 'flex-start' }}
+              onClick={() =>
+                onChange({
+                  exercises: [
+                    ...block.exercises,
+                    { id: clientKey(), exercise_id: '', sets: 3, reps: null, rest_seconds: null, hold_seconds: null, notes: '' },
+                  ],
+                })
+              }
+            >
+              + Exercise
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
