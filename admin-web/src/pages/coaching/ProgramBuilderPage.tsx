@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  createTemplateFromImportedBlocks,
   deleteProgramTemplate,
   fetchAssignedTemplateIds,
   fetchExercises,
@@ -8,13 +9,109 @@ import {
 } from '@/api/coaching';
 import { formatDate } from '@/shared/constants';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
+import {
+  downloadMasterTemplateExportPayload,
+  fetchMasterTemplateExportPayload,
+  buildMasterTemplateBlocksPayload,
+} from '@/shared/MasterTemplateTransfer';
+import { resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
 import { loadTemplateWeeks, saveTemplateWeeks } from './builder/builderIO';
 import { LibraryTab } from './builder/LibraryTab';
 import { WeekGrid } from './builder/WeekGrid';
 import type { BuilderWeeks } from './builder/types';
 
 type ListTab = 'master' | 'assigned' | 'library';
+
+/** Creates a brand-new master template from a week-export-shaped JSON file
+ * (this page's own ExportTemplateButton output, a client-week export, or a
+ * hand-edited variant) — mirrors mobile's handleImportMasterTemplate
+ * (useProgramBuilder.ts). Always creates new; never overwrites. */
+function ImportTemplateButton({ onImported }: { onImported: () => void }) {
+  const { profile } = useAuth();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setError(null);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error('That file is not valid JSON.');
+      }
+      const validation = validateWeekImportPayload(parsed);
+      if (!validation.valid) throw new Error(validation.error ?? 'The file is not in the expected shape.');
+
+      const data = parsed as { blocks: unknown[]; template_name?: string; description?: string };
+      const templateName = (data.template_name || 'Imported template').toString();
+      const description = (data.description || '').toString();
+
+      const resolved = await resolveImportedExercises(data.blocks, profile!.id);
+      const blocks = buildMasterTemplateBlocksPayload(data, resolved);
+      await createTemplateFromImportedBlocks(templateName, description, blocks);
+      onImported();
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Import failed.'));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  return (
+    <span className="row" style={{ gap: 8, alignItems: 'center' }}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFile(file);
+        }}
+      />
+      <button type="button" className="btn small" disabled={busy || !profile} onClick={() => inputRef.current?.click()}>
+        {busy ? 'Importing…' : 'Import from JSON'}
+      </button>
+      {error && <ErrorNote error={error} />}
+    </span>
+  );
+}
+
+/** Downloads one master template (every week, no logs) as JSON — mirrors
+ * mobile's handleExportMasterTemplate, round-trips through ImportTemplateButton. */
+function ExportTemplateButton({ templateId, name, description }: { templateId: string; name: string; description: string | null }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  async function handleExport() {
+    setBusy(true);
+    setError(null);
+    try {
+      const payload = await fetchMasterTemplateExportPayload(templateId, name, description ?? '');
+      downloadMasterTemplateExportPayload(payload, name);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Export failed.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <>
+      <button className="btn small" disabled={busy} onClick={() => void handleExport()}>
+        {busy ? 'Exporting…' : 'Export'}
+      </button>
+      {error && <ErrorNote error={error} />}
+    </>
+  );
+}
 
 export function ProgramBuilderPage() {
   const queryClient = useQueryClient();
@@ -156,9 +253,17 @@ export function ProgramBuilderPage() {
             <h1>Program builder</h1>
             <div className="sub">Master templates and client copies, every coach.</div>
           </div>
-          <button className="btn primary" onClick={() => setSelectedId('new')}>
-            + New template
-          </button>
+          <div className="row" style={{ gap: 8 }}>
+            <ImportTemplateButton
+              onImported={() => {
+                void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
+                void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
+              }}
+            />
+            <button className="btn primary" onClick={() => setSelectedId('new')}>
+              + New template
+            </button>
+          </div>
         </div>
         {templatesQ.error && <ErrorNote error={templatesQ.error} />}
         {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}
@@ -208,14 +313,17 @@ export function ProgramBuilderPage() {
                       </td>
                       <td className="dim">{formatDate(t.created_at)}</td>
                       <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                        <ConfirmButton
-                          label="Delete"
-                          danger
-                          title={`Delete template "${t.name}"?`}
-                          body="Blocks with logged workouts will refuse to delete — client copies are separate rows and stay intact."
-                          confirmLabel="Delete"
-                          onConfirm={() => deleteMutation.mutateAsync(t.id)}
-                        />
+                        <span className="row" style={{ justifyContent: 'flex-end', gap: 6, flexWrap: 'nowrap' }}>
+                          <ExportTemplateButton templateId={t.id} name={t.name} description={t.description} />
+                          <ConfirmButton
+                            label="Delete"
+                            danger
+                            title={`Delete template "${t.name}"?`}
+                            body="Blocks with logged workouts will refuse to delete — client copies are separate rows and stay intact."
+                            confirmLabel="Delete"
+                            onConfirm={() => deleteMutation.mutateAsync(t.id)}
+                          />
+                        </span>
                       </td>
                     </tr>
                   ))}

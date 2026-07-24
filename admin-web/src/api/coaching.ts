@@ -239,6 +239,43 @@ export async function saveProgramTemplate(params: {
   return result.template_id!;
 }
 
+interface ImportedMasterBlock {
+  db_id: null;
+  name: string;
+  notes: string;
+  order_index: number;
+  week_number: number;
+  exercises: Array<{
+    exercise_id: string | undefined;
+    sets: number | null;
+    reps: number | null;
+    rest_seconds: number | null;
+    hold_seconds: number | null;
+    notes: string;
+  }>;
+}
+
+/** Creates a brand-new master template from a JSON-imported payload (see
+ * MasterTemplateTransfer.ts's buildMasterTemplateBlocksPayload) — always
+ * p_template_id: null, mirroring mobile's handleImportMasterTemplate,
+ * which never overwrites an existing template. */
+export async function createTemplateFromImportedBlocks(
+  name: string,
+  description: string,
+  blocks: ImportedMasterBlock[],
+): Promise<string> {
+  const { data, error } = await supabase.rpc('save_program_template', {
+    p_template_id: null,
+    p_name: name,
+    p_description: description || null,
+    p_blocks: blocks,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as { success: boolean; template_id?: string; error?: string };
+  if (!result?.success) throw new Error('Failed to save imported template.');
+  return result.template_id!;
+}
+
 export async function deleteProgramTemplate(templateId: string): Promise<void> {
   // Ordered manual cascade under the "Admin manages all" policies. A
   // workout_logs FK on a block surfaces as an error rather than a partial
