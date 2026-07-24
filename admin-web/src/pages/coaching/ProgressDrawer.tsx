@@ -15,21 +15,23 @@ import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
 import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/ProgramExportBuilder';
 import { buildImportBlocksPayload, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
-import { WEEKDAY_NAMES } from './builder/types';
-
-const WEEKDAY_SET: ReadonlySet<string> = new Set(WEEKDAY_NAMES);
+import { loadTemplateWeeks } from './builder/builderIO';
 
 /** program_blocks.name is stored as "<Day> | <Block>" (see builderIO.ts /
  * useProgramBuilder.ts) — this is the same string get_warrior_progress
  * returns as block_name, so it's split back apart here to lay logs out into
- * the same day columns the builder itself uses. */
+ * day columns. The day half is returned verbatim (not matched against a
+ * fixed weekday list) — a real program can name a day anything ("DAY 1",
+ * "Push"), and forcing it through a weekday-only filter was silently
+ * dropping every day that didn't match, which looked like blocks with no
+ * exercises since the whole day never rendered. */
 function splitBlockName(blockName: string | null): { day: string | null; label: string } {
   if (!blockName) return { day: null, label: 'Workout' };
   const sep = blockName.indexOf(' | ');
   if (sep === -1) return { day: null, label: blockName };
-  const day = blockName.slice(0, sep).trim().toUpperCase();
+  const day = blockName.slice(0, sep).trim();
   const label = blockName.slice(sep + 3).trim() || 'Workout';
-  return { day: WEEKDAY_SET.has(day) ? day : null, label };
+  return { day: day || null, label };
 }
 
 // Mirrors ProgressTrackingScreen.tsx's FEEL_LABELS/MISSED_LABELS.
@@ -324,25 +326,41 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
     return data.logs.filter((l) => (l.week_number ?? 1) === selectedWeek);
   }, [data, selectedWeek]);
 
-  // Same "<Day> | <Block>" grouping the program builder's WeekGrid lays
-  // columns out by (see splitBlockName above) — logs whose block doesn't
-  // resolve to a known weekday (block deleted since, or pre-dates the
-  // day-prefix convention) fall into "unscheduled" instead of a column.
+  // The real day columns for this week come from the assignment's own
+  // template structure (same source WeekGrid reads), not a fixed weekday
+  // list — a program can have any day names/count. Shares the
+  // ['template-weeks', templateId] cache key with the builder/client grid,
+  // so edits made there are already reflected here.
+  const templateWeeksQ = useQuery({
+    queryKey: ['template-weeks', assignment.template_id],
+    queryFn: () => loadTemplateWeeks(assignment.template_id),
+  });
+
+  const dayColumns = useMemo(() => {
+    if (selectedWeek === null) return [];
+    return (templateWeeksQ.data?.weeks[selectedWeek] ?? []).map((d) => d.name);
+  }, [templateWeeksQ.data, selectedWeek]);
+
+  // Logs whose block's day doesn't match any current column (the day was
+  // deleted from the template after being logged, or the block has no
+  // day prefix at all) fall into "unscheduled" instead of being dropped.
   const { byDay, unscheduled } = useMemo(() => {
     const byDay = new Map<string, Array<{ log: WarriorProgressLog; label: string }>>();
     const unscheduled: Array<{ log: WarriorProgressLog; label: string }> = [];
+    const canonicalByKey = new Map(dayColumns.map((d) => [d.trim().toUpperCase(), d]));
     for (const log of visibleLogs) {
       const { day, label } = splitBlockName(log.block_name);
-      if (day) {
-        const list = byDay.get(day) ?? [];
+      const canonical = day ? canonicalByKey.get(day.trim().toUpperCase()) : undefined;
+      if (canonical) {
+        const list = byDay.get(canonical) ?? [];
         list.push({ log, label });
-        byDay.set(day, list);
+        byDay.set(canonical, list);
       } else {
-        unscheduled.push({ log, label });
+        unscheduled.push({ log, label: day ? `${day} — ${label}` : label });
       }
     }
     return { byDay, unscheduled };
-  }, [visibleLogs]);
+  }, [visibleLogs, dayColumns]);
 
   return (
     <div className="panel-body">
@@ -389,55 +407,70 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
                 {data.logs.length === 0 ? 'No workout logs recorded yet' : 'Nothing logged this week yet'}
               </span>
             </div>
-          ) : (
-            <div
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(7, minmax(150px, 1fr))',
-                gap: 10,
-                overflowX: 'auto',
-              }}
-            >
-              {WEEKDAY_NAMES.map((wd) => {
-                const entries = byDay.get(wd) ?? [];
-                return (
-                  <div key={wd} className="panel" style={{ background: 'var(--surface-2)' }}>
-                    <div className="panel-head" style={{ padding: '8px 10px' }}>
-                      <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '0.02em' }}>{wd}</span>
-                    </div>
-                    <div
-                      className="panel-body"
-                      style={{
-                        padding: '6px 10px 10px',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        maxHeight: 320,
-                        overflowY: 'auto',
-                      }}
-                    >
-                      {entries.length === 0 ? (
-                        <span className="dim" style={{ fontSize: 12 }}>
-                          No log
-                        </span>
-                      ) : (
-                        entries.map(({ log, label }) => <LogRow key={log.id} log={log} label={label} />)
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-
-          {unscheduled.length > 0 && (
-            <div style={{ marginTop: 14 }}>
-              <div className="label" style={{ marginBottom: 6 }}>
-                Other logs
-              </div>
-              {unscheduled.map(({ log, label }) => (
-                <LogRow key={log.id} log={log} label={label} />
+          ) : dayColumns.length === 0 ? (
+            // Template structure for this week couldn't be resolved (deleted
+            // template, or the week was removed since) — fall back to a flat
+            // list instead of an empty-looking grid with nothing to show.
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+              {templateWeeksQ.isLoading && <div className="skeleton" style={{ height: 80 }} />}
+              {visibleLogs.map((log) => (
+                <LogRow key={log.id} log={log} label={splitBlockName(log.block_name).label} />
               ))}
             </div>
+          ) : (
+            <>
+              <div
+                style={{
+                  display: 'grid',
+                  gridAutoFlow: 'column',
+                  gridAutoColumns: 'minmax(150px, 1fr)',
+                  gap: 10,
+                  overflowX: 'auto',
+                }}
+              >
+                {dayColumns.map((dayName) => {
+                  const entries = byDay.get(dayName) ?? [];
+                  return (
+                    <div key={dayName} className="panel" style={{ background: 'var(--surface-2)' }}>
+                      <div className="panel-head" style={{ padding: '8px 10px' }}>
+                        <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '0.02em' }}>
+                          {dayName.toUpperCase()}
+                        </span>
+                      </div>
+                      <div
+                        className="panel-body"
+                        style={{
+                          padding: '6px 10px 10px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          maxHeight: 320,
+                          overflowY: 'auto',
+                        }}
+                      >
+                        {entries.length === 0 ? (
+                          <span className="dim" style={{ fontSize: 12 }}>
+                            No log
+                          </span>
+                        ) : (
+                          entries.map(({ log, label }) => <LogRow key={log.id} log={log} label={label} />)
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {unscheduled.length > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div className="label" style={{ marginBottom: 6 }}>
+                    Other logs
+                  </div>
+                  {unscheduled.map(({ log, label }) => (
+                    <LogRow key={log.id} log={log} label={label} />
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}

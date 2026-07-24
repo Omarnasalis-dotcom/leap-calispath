@@ -36,16 +36,6 @@ export interface BuilderDay {
 
 export type BuilderWeeks = Record<number, BuilderDay[]>;
 
-export const WEEKDAY_NAMES = [
-  'SATURDAY',
-  'SUNDAY',
-  'MONDAY',
-  'TUESDAY',
-  'WEDNESDAY',
-  'THURSDAY',
-  'FRIDAY',
-] as const;
-
 export function defaultBlockMetadata(): ConceptMetadata {
   return { timing_system: 'straight_set', structure: 'single', rounds: '4', rest_after_round: '90' };
 }

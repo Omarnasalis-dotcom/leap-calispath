@@ -60,19 +60,17 @@ function fromClipboardDay(data: ClipboardDay): BuilderDay {
 }
 
 export function DayColumn({
-  weekday,
   day,
   exerciseOptions,
   onChange,
-  onRemove,
+  onDelete,
+  onInsertAfter,
 }: {
-  /** Fixed grid-position identity (e.g. "MONDAY") used for day-swap drag-and-drop —
-   * never `day.id`, since dragging swaps a slot's content, not the slot itself. */
-  weekday: string;
   day: BuilderDay;
   exerciseOptions: Array<{ id: string; name: string }>;
   onChange: (patch: Partial<BuilderDay>) => void;
-  onRemove: () => void;
+  onDelete: () => void;
+  onInsertAfter: (day: BuilderDay) => void;
 }) {
   const clipboard = useBuilderClipboard();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
@@ -83,7 +81,7 @@ export function DayColumn({
     transform: dayTransform,
     transition: dayTransition,
     isDragging: isDayDragging,
-  } = useSortable({ id: weekday });
+  } = useSortable({ id: day.id });
 
   function patchBlock(blockId: string, patch: Partial<BuilderBlock>) {
     onChange({ blocks: day.blocks.map((b) => (b.id === blockId ? { ...b, ...patch } : b)) });
@@ -132,39 +130,44 @@ export function DayColumn({
             type="button"
             className="btn small"
             style={{ cursor: 'grab', padding: '4px 8px', flex: 'none' }}
-            aria-label="Drag to swap this day with another"
+            aria-label="Drag to reorder this day"
             {...dayAttributes}
             {...dayListeners}
           >
             ⠿
           </button>
-          {/* Plain text, not a disabled <input> — .field has no :disabled override, so disabled text rendered near-invisible on the dark background. */}
-          <span data-testid="day-name" style={{ fontWeight: 800, fontSize: 13, letterSpacing: '0.02em' }}>
-            {day.name}
-          </span>
+          <input
+            className="field"
+            style={{ flex: 1, fontWeight: 800, fontSize: 13 }}
+            value={day.name}
+            onChange={(e) => onChange({ name: e.target.value })}
+            aria-label="Day name"
+          />
         </div>
         <div className="row" style={{ gap: 4 }}>
           <button className="btn small" onClick={() => clipboard.copyDay(toClipboardDay(day))}>
             Copy
           </button>
-          <button className="btn small" onClick={() => clipboard.cutDay(toClipboardDay(day), onRemove)}>
+          <button className="btn small" onClick={() => clipboard.cutDay(toClipboardDay(day), onDelete)}>
             Cut
           </button>
           <button
             className="btn small"
             disabled={!canPasteDay}
-            title={canPasteDay ? "Paste into this day (replaces its blocks)" : 'Clipboard is empty'}
+            title={canPasteDay ? 'Insert a copy of the clipboard day after this one' : 'Clipboard is empty'}
             onClick={() => {
               if (clipboard.clipboard?.type === 'day') {
-                const pasted = fromClipboardDay(clipboard.clipboard.data);
-                onChange({ blocks: pasted.blocks, focus_tag: pasted.focus_tag });
+                onInsertAfter(fromClipboardDay(clipboard.clipboard.data));
               }
             }}
           >
             Paste
           </button>
-          <button className="btn small danger" onClick={onRemove} aria-label="Clear day">
+          <button className="btn small danger" onClick={() => onChange({ blocks: [] })} aria-label="Clear day">
             Clear
+          </button>
+          <button className="btn small danger" onClick={onDelete} aria-label="Delete day">
+            Delete
           </button>
         </div>
       </div>

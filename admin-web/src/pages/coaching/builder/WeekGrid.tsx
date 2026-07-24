@@ -1,4 +1,3 @@
-import { useMemo } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -7,18 +6,16 @@ import {
   useSensors,
   type DragEndEvent,
 } from '@dnd-kit/core';
-import { SortableContext, rectSwappingStrategy } from '@dnd-kit/sortable';
+import { SortableContext, rectSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { DayColumn } from './DayColumn';
-import { WEEKDAY_NAMES, newDay, type BuilderDay } from './types';
+import { newDay, type BuilderDay } from './types';
 
-/** Ensures exactly one day per weekday name for a fixed 7-column grid —
- * synthesizes an empty column for any weekday the program doesn't already
- * have a day for. */
-function toSevenColumns(days: BuilderDay[]): BuilderDay[] {
-  const byName = new Map(days.map((d) => [d.name.trim().toUpperCase(), d]));
-  return WEEKDAY_NAMES.map((wd) => byName.get(wd) ?? { ...newDay(wd), blocks: [] });
-}
-
+/** One column per real day this week actually has — no fixed weekday
+ * enumeration. Real programs (including ones authored on mobile, which
+ * still allows any day name/count) can have any number of days named
+ * anything; forcing them into 7 fixed weekday-named slots was silently
+ * dropping days that didn't match, which looked like "blocks with no
+ * exercises" since the whole day never rendered at all. */
 export function WeekGrid({
   days,
   exerciseOptions,
@@ -26,62 +23,59 @@ export function WeekGrid({
 }: {
   days: BuilderDay[];
   exerciseOptions: Array<{ id: string; name: string }>;
-  /** Receives the full 7-column array on every edit, unfiltered — dropping
-   * untouched placeholder days is a save-time concern (see builderIO.ts's
-   * saveTemplateWeeks), not a live-editing one. Filtering here would erase
-   * a block the instant it's added, before its exercises can be filled in. */
   onCommit: (days: BuilderDay[]) => void;
 }) {
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
-  const columns = useMemo(() => toSevenColumns(days), [days]);
 
   function onDayDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const oldIndex = WEEKDAY_NAMES.indexOf(active.id as (typeof WEEKDAY_NAMES)[number]);
-    const newIndex = WEEKDAY_NAMES.indexOf(over.id as (typeof WEEKDAY_NAMES)[number]);
+    const oldIndex = days.findIndex((d) => d.id === active.id);
+    const newIndex = days.findIndex((d) => d.id === over.id);
     if (oldIndex === -1 || newIndex === -1) return;
-    // Swap only content between the two fixed slots — weekday identity
-    // (name/position) stays pinned to grid position, never moves.
-    const next = [...columns];
-    const a = next[oldIndex];
-    const b = next[newIndex];
-    next[oldIndex] = { ...a, blocks: b.blocks, focus_tag: b.focus_tag };
-    next[newIndex] = { ...b, blocks: a.blocks, focus_tag: a.focus_tag };
-    onCommit(next);
+    onCommit(arrayMove(days, oldIndex, newIndex));
   }
 
   return (
-    <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDayDragEnd}>
-      <SortableContext items={[...WEEKDAY_NAMES]} strategy={rectSwappingStrategy}>
-        <div
-          style={{
-            display: 'grid',
-            gridTemplateColumns: 'repeat(7, minmax(240px, 1fr))',
-            gap: 10,
-            overflowX: 'auto',
-          }}
-        >
-          {columns.map((day, i) => (
-            <DayColumn
-              key={WEEKDAY_NAMES[i]}
-              weekday={WEEKDAY_NAMES[i]}
-              day={day}
-              exerciseOptions={exerciseOptions}
-              onChange={(patch) => {
-                const next = [...columns];
-                next[i] = { ...next[i], ...patch };
-                onCommit(next);
-              }}
-              onRemove={() => {
-                const next = [...columns];
-                next[i] = { ...next[i], blocks: [] };
-                onCommit(next);
-              }}
-            />
-          ))}
-        </div>
-      </SortableContext>
-    </DndContext>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+      <div className="row">
+        <button className="btn small" onClick={() => onCommit([...days, newDay(`Day ${days.length + 1}`)])}>
+          + Day
+        </button>
+      </div>
+
+      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDayDragEnd}>
+        <SortableContext items={days.map((d) => d.id)} strategy={rectSortingStrategy}>
+          <div
+            style={{
+              display: 'grid',
+              gridAutoFlow: 'column',
+              gridAutoColumns: 'minmax(240px, 1fr)',
+              gap: 10,
+              overflowX: 'auto',
+            }}
+          >
+            {days.map((day, i) => (
+              <DayColumn
+                key={day.id}
+                day={day}
+                exerciseOptions={exerciseOptions}
+                onChange={(patch) => {
+                  const next = [...days];
+                  next[i] = { ...next[i], ...patch };
+                  onCommit(next);
+                }}
+                onDelete={() => onCommit(days.filter((_, idx) => idx !== i))}
+                onInsertAfter={(inserted) => {
+                  const next = [...days];
+                  next.splice(i + 1, 0, inserted);
+                  onCommit(next);
+                }}
+              />
+            ))}
+          </div>
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 }
