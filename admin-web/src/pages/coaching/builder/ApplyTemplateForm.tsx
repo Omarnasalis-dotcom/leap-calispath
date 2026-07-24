@@ -19,13 +19,17 @@ const MODE_LABELS: Record<ClientProgramWriteMode, string> = {
  * into an existing assignment without wiping it via full reassignment. */
 export function ApplyTemplateForm({
   warriorProgramId,
+  initialTemplateId,
   onApplied,
 }: {
   warriorProgramId: string;
+  /** Pre-fills the source template — e.g. the Assign form already had one
+   * selected before discovering the warrior has an active program. */
+  initialTemplateId?: string;
   onApplied: () => void;
 }) {
   const queryClient = useQueryClient();
-  const [sourceTemplateId, setSourceTemplateId] = useState('');
+  const [sourceTemplateId, setSourceTemplateId] = useState(initialTemplateId ?? '');
   const [mode, setMode] = useState<ClientProgramWriteMode>('append');
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });

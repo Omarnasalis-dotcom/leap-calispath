@@ -15,6 +15,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { ApplyTemplateForm } from './builder/ApplyTemplateForm';
 import { ProgressDrawer } from './ProgressDrawer';
 
 function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined {
@@ -43,6 +44,15 @@ function AssignForm({ onDone }: { onDone: () => void }) {
       searchUsers({ query: warriorQuery, sort: 'display_name', desc: false, page: 0, pageSize: 20 }),
     enabled: warriorQuery.trim().length >= 2,
   });
+  // Shares the ['assignments'] cache with the client table below — used
+  // here only to check whether the selected warrior already has an active
+  // program, so a re-assign doesn't silently clone-and-orphan their
+  // existing weeks/history (assign_program_template auto-completes any
+  // prior active assignment the instant a new one is created).
+  const assignmentsQ = useQuery({ queryKey: ['assignments'], queryFn: fetchAssignments });
+  const existingActiveAssignment = assignmentsQ.data?.find(
+    (a) => a.warrior_id === warriorId && a.status === 'active',
+  );
 
   const assignMutation = useMutation({
     mutationFn: () => {
@@ -141,12 +151,27 @@ function AssignForm({ onDone }: { onDone: () => void }) {
           />
           <button
             className="btn primary"
-            disabled={!warriorId || !templateId || !coachId || assignMutation.isPending}
+            disabled={!warriorId || !templateId || !coachId || assignMutation.isPending || !!existingActiveAssignment}
             onClick={() => assignMutation.mutate()}
           >
             {assignMutation.isPending ? 'Assigning…' : 'Assign'}
           </button>
         </div>
+
+        {existingActiveAssignment && templateId && (
+          <>
+            <div className="notice">
+              {warriorQuery || 'This warrior'} already has an active program. Assigning here would clone a fresh
+              copy and auto-complete their current one, orphaning its weeks and history — choose how to combine
+              it instead.
+            </div>
+            <ApplyTemplateForm
+              warriorProgramId={existingActiveAssignment.id}
+              initialTemplateId={templateId}
+              onApplied={onDone}
+            />
+          </>
+        )}
       </div>
     </section>
   );
