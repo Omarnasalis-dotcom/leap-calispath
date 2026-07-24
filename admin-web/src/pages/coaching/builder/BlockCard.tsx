@@ -211,6 +211,16 @@ export function BlockCard({
               />
             </div>
 
+            <textarea
+              className="field"
+              rows={2}
+              style={{ fontSize: 12 }}
+              placeholder="Warm up instructions, block objectives, or performance notes…"
+              value={block.notes}
+              onChange={(e) => onChange({ notes: e.target.value })}
+              aria-label="Block notes"
+            />
+
             <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onExerciseDragEnd}>
               <SortableContext items={block.exercises.map((e) => e.id)} strategy={verticalListSortingStrategy}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
