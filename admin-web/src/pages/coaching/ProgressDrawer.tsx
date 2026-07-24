@@ -1,15 +1,36 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  appendWeekToClientProgram,
   fetchCoachWeekNote,
   fetchWarriorProgress,
   saveCoachWeekNote,
   type AssignmentRow,
+  type ClientProgramBlockPayload,
+  type WarriorProgressBodyweight,
   type WarriorProgressLog,
 } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { downloadWeekExportPayload, fetchWeekExportPayload } from '@/shared/ProgramExportBuilder';
+import { buildImportBlocksPayload, resolveImportedExercises, validateWeekImportPayload } from '@/shared/ProgramImportParser';
+import { WEEKDAY_NAMES } from './builder/types';
+
+const WEEKDAY_SET: ReadonlySet<string> = new Set(WEEKDAY_NAMES);
+
+/** program_blocks.name is stored as "<Day> | <Block>" (see builderIO.ts /
+ * useProgramBuilder.ts) — this is the same string get_warrior_progress
+ * returns as block_name, so it's split back apart here to lay logs out into
+ * the same day columns the builder itself uses. */
+function splitBlockName(blockName: string | null): { day: string | null; label: string } {
+  if (!blockName) return { day: null, label: 'Workout' };
+  const sep = blockName.indexOf(' | ');
+  if (sep === -1) return { day: null, label: blockName };
+  const day = blockName.slice(0, sep).trim().toUpperCase();
+  const label = blockName.slice(sep + 3).trim() || 'Workout';
+  return { day: WEEKDAY_SET.has(day) ? day : null, label };
+}
 
 // Mirrors ProgressTrackingScreen.tsx's FEEL_LABELS/MISSED_LABELS.
 const FEEL_LABELS: Record<string, string> = { hard: 'Hard', ok: 'OK', good: 'Good', strong: 'Strong', beast: 'Beast' };
@@ -73,22 +94,30 @@ function WeekNote({ warriorProgramId, weekNumber }: { warriorProgramId: string; 
   );
 }
 
-function LogRow({ log }: { log: WarriorProgressLog }) {
+/** `label` is the block name with its "<Day> | " prefix already stripped —
+ * the day is implied by the column this card sits in, so repeating it here
+ * would be noise. Falls back to the raw block_name for logs whose block
+ * doesn't parse into a known weekday (see the "Other logs" section below). */
+function LogRow({ log, label }: { log: WarriorProgressLog; label: string }) {
   const [expanded, setExpanded] = useState(false);
   const isMissed = log.status === 'missed';
   const hasSets = log.sets.length > 0;
 
   return (
     <div
-      style={{ padding: '8px 0', borderBottom: '1px solid var(--hairline)', cursor: hasSets ? 'pointer' : 'default' }}
+      style={{
+        padding: '8px 0',
+        borderBottom: '1px solid var(--hairline)',
+        cursor: hasSets ? 'pointer' : 'default',
+      }}
       onClick={() => hasSets && setExpanded((v) => !v)}
     >
-      <div className="row" style={{ justifyContent: 'space-between' }}>
-        <span style={{ fontWeight: 700 }}>{log.block_name ?? 'Workout'}</span>
+      <div className="row" style={{ justifyContent: 'space-between', gap: 8, flexWrap: 'nowrap' }}>
+        <span style={{ fontWeight: 700, fontSize: 13 }}>{label}</span>
         <Badge tone={isMissed ? undefined : 'ok'}>{isMissed ? 'Missed' : 'Done'}</Badge>
       </div>
-      <div className="dim" style={{ fontSize: 12 }}>
-        Week {log.week_number ?? 1} · {formatDate(log.completed_at)}
+      <div className="dim" style={{ fontSize: 11, marginTop: 2 }}>
+        {formatDate(log.completed_at)}
       </div>
       {isMissed ? (
         <div className="dim" style={{ fontSize: 12, marginTop: 4 }}>
@@ -113,11 +142,9 @@ function LogRow({ log }: { log: WarriorProgressLog }) {
           }}
         >
           {log.sets.map((s, i) => (
-            <div key={i} className="row" style={{ fontSize: 12, gap: 8, flexWrap: 'nowrap' }}>
-              <span className="dim" style={{ width: 52 }}>
-                Set {s.set_index ?? i + 1}
-              </span>
-              <span style={{ flex: 1 }}>{s.exercise_name ?? 'Exercise'}</span>
+            <div key={i} style={{ fontSize: 12, display: 'flex', flexDirection: 'column', gap: 1 }}>
+              <span className="dim">Set {s.set_index ?? i + 1}</span>
+              <span>{s.exercise_name ?? 'Exercise'}</span>
               <span>
                 {s.reps_completed !== null ? `${s.reps_completed} reps` : ''}
                 {s.weight_used !== null ? ` @ ${s.weight_used}kg` : ''}
@@ -133,6 +160,143 @@ function LogRow({ log }: { log: WarriorProgressLog }) {
         </div>
       )}
     </div>
+  );
+}
+
+/** Downloads the selected week's prescribed structure + the warrior's actual
+ * results as one JSON file — mirrors mobile's handleExportWeek
+ * (ProgressTrackingScreen.tsx), round-trips through ImportWeekButton below. */
+function ExportWeekButton({
+  assignment,
+  selectedWeek,
+  visibleLogs,
+  bodyweightTrend,
+}: {
+  assignment: AssignmentRow;
+  selectedWeek: number | null;
+  visibleLogs: WarriorProgressLog[];
+  bodyweightTrend: WarriorProgressBodyweight[];
+}) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+
+  async function handleExport() {
+    if (selectedWeek === null) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const note = await fetchCoachWeekNote(assignment.id, selectedWeek);
+      const payload = await fetchWeekExportPayload({
+        templateId: assignment.template_id,
+        templateName: assignment.template_name ?? 'Program',
+        weekNumber: selectedWeek,
+        warriorId: assignment.warrior_id,
+        warriorDisplayName: assignment.warrior_name ?? 'Warrior',
+        warriorStrengthTier: assignment.warrior_strength_tier ?? 0,
+        logs: visibleLogs
+          .filter((l) => !!l.block_id)
+          .map((l) => ({
+            blockId: l.block_id!,
+            status: l.status,
+            feel: l.feel,
+            rpe: l.rpe,
+            missedReason: l.missed_reason,
+            missedDetail: l.missed_detail,
+            sessionSeconds: l.session_seconds,
+            notes: l.notes ?? '',
+            sets: l.sets,
+          })),
+        bodyweightTrend,
+        coachWeekNote: note?.note ?? '',
+      });
+      downloadWeekExportPayload(payload, `${assignment.warrior_name ?? 'warrior'}_week${selectedWeek}`);
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Export failed.'));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <span className="row" style={{ gap: 8, alignItems: 'center' }}>
+      <button className="btn small" disabled={busy || selectedWeek === null} onClick={() => void handleExport()}>
+        {busy ? 'Exporting…' : `Export week${selectedWeek !== null ? ` ${selectedWeek}` : ''}`}
+      </button>
+      {error && <ErrorNote error={error} />}
+    </span>
+  );
+}
+
+/** Picks a week-export JSON file (this one's own output, or a hand-edited
+ * variant) and appends it onto the client's program as a brand-new week.
+ * Always append-only, same guarantee as mobile's handleImportWeek — an
+ * import never overwrites or archives existing weeks. */
+function ImportWeekButton({ assignment }: { assignment: AssignmentRow }) {
+  const { profile } = useAuth();
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<Error | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+
+  async function handleFile(file: File) {
+    setBusy(true);
+    setError(null);
+    setSuccess(null);
+    try {
+      const text = await file.text();
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(text);
+      } catch {
+        throw new Error('That file is not valid JSON.');
+      }
+      const validation = validateWeekImportPayload(parsed);
+      if (!validation.valid) throw new Error(validation.error ?? 'The file is not in the expected shape.');
+
+      const data = parsed as { blocks: unknown[] };
+      const resolved = await resolveImportedExercises(data.blocks, profile!.id);
+      const blocks = buildImportBlocksPayload(data, resolved) as ClientProgramBlockPayload[];
+      await appendWeekToClientProgram(assignment.id, blocks);
+
+      setSuccess(`Added ${validation.blockCount} block(s) as a new week.`);
+      void queryClient.invalidateQueries({ queryKey: ['template-weeks'] });
+      void queryClient.invalidateQueries({ queryKey: ['archived-weeks'] });
+    } catch (err) {
+      setError(err instanceof Error ? err : new Error('Import failed.'));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.value = '';
+    }
+  }
+
+  return (
+    <span className="row" style={{ gap: 8, alignItems: 'center' }}>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="application/json"
+        style={{ display: 'none' }}
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) void handleFile(file);
+        }}
+      />
+      <button
+        type="button"
+        className="btn small"
+        disabled={busy || !profile}
+        onClick={() => inputRef.current?.click()}
+      >
+        {busy ? 'Importing…' : 'Import week'}
+      </button>
+      {success && (
+        <span className="dim" style={{ fontSize: 12 }}>
+          {success}
+        </span>
+      )}
+      {error && <ErrorNote error={error} />}
+    </span>
   );
 }
 
@@ -160,25 +324,55 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
     return data.logs.filter((l) => (l.week_number ?? 1) === selectedWeek);
   }, [data, selectedWeek]);
 
+  // Same "<Day> | <Block>" grouping the program builder's WeekGrid lays
+  // columns out by (see splitBlockName above) — logs whose block doesn't
+  // resolve to a known weekday (block deleted since, or pre-dates the
+  // day-prefix convention) fall into "unscheduled" instead of a column.
+  const { byDay, unscheduled } = useMemo(() => {
+    const byDay = new Map<string, Array<{ log: WarriorProgressLog; label: string }>>();
+    const unscheduled: Array<{ log: WarriorProgressLog; label: string }> = [];
+    for (const log of visibleLogs) {
+      const { day, label } = splitBlockName(log.block_name);
+      if (day) {
+        const list = byDay.get(day) ?? [];
+        list.push({ log, label });
+        byDay.set(day, list);
+      } else {
+        unscheduled.push({ log, label });
+      }
+    }
+    return { byDay, unscheduled };
+  }, [visibleLogs]);
+
   return (
     <div className="panel-body">
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 120 }} />}
       {data && (
         <>
-          {availableWeeks.length > 1 && (
-            <div className="row" style={{ marginBottom: 10 }}>
-              {availableWeeks.map((w) => (
-                <button
-                  key={w}
-                  className={`btn small${w === selectedWeek ? ' primary' : ''}`}
-                  onClick={() => setSelectedWeek(w)}
-                >
-                  Week {w}
-                </button>
-              ))}
+          <div className="row" style={{ justifyContent: 'space-between', marginBottom: 10, flexWrap: 'wrap', gap: 10 }}>
+            <div className="row" style={{ gap: 6 }}>
+              {availableWeeks.length > 1 &&
+                availableWeeks.map((w) => (
+                  <button
+                    key={w}
+                    className={`btn small${w === selectedWeek ? ' primary' : ''}`}
+                    onClick={() => setSelectedWeek(w)}
+                  >
+                    Week {w}
+                  </button>
+                ))}
             </div>
-          )}
+            <div className="row" style={{ gap: 8 }}>
+              <ExportWeekButton
+                assignment={assignment}
+                selectedWeek={selectedWeek}
+                visibleLogs={visibleLogs}
+                bodyweightTrend={data.bodyweight_trend}
+              />
+              <ImportWeekButton assignment={assignment} />
+            </div>
+          </div>
 
           {selectedWeek !== null && <WeekNote warriorProgramId={assignment.id} weekNumber={selectedWeek} />}
 
@@ -189,17 +383,62 @@ export function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
             </div>
           )}
 
-          <div style={{ maxHeight: 360, overflowY: 'auto' }}>
-            {visibleLogs.length === 0 ? (
-              <div className="empty">
-                <span className="label">
-                  {data.logs.length === 0 ? 'No workout logs recorded yet' : 'Nothing logged this week yet'}
-                </span>
+          {visibleLogs.length === 0 ? (
+            <div className="empty">
+              <span className="label">
+                {data.logs.length === 0 ? 'No workout logs recorded yet' : 'Nothing logged this week yet'}
+              </span>
+            </div>
+          ) : (
+            <div
+              style={{
+                display: 'grid',
+                gridTemplateColumns: 'repeat(7, minmax(150px, 1fr))',
+                gap: 10,
+                overflowX: 'auto',
+              }}
+            >
+              {WEEKDAY_NAMES.map((wd) => {
+                const entries = byDay.get(wd) ?? [];
+                return (
+                  <div key={wd} className="panel" style={{ background: 'var(--surface-2)' }}>
+                    <div className="panel-head" style={{ padding: '8px 10px' }}>
+                      <span style={{ fontWeight: 800, fontSize: 11, letterSpacing: '0.02em' }}>{wd}</span>
+                    </div>
+                    <div
+                      className="panel-body"
+                      style={{
+                        padding: '6px 10px 10px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        maxHeight: 320,
+                        overflowY: 'auto',
+                      }}
+                    >
+                      {entries.length === 0 ? (
+                        <span className="dim" style={{ fontSize: 12 }}>
+                          No log
+                        </span>
+                      ) : (
+                        entries.map(({ log, label }) => <LogRow key={log.id} log={log} label={label} />)
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {unscheduled.length > 0 && (
+            <div style={{ marginTop: 14 }}>
+              <div className="label" style={{ marginBottom: 6 }}>
+                Other logs
               </div>
-            ) : (
-              visibleLogs.map((log) => <LogRow key={log.id} log={log} />)
-            )}
-          </div>
+              {unscheduled.map(({ log, label }) => (
+                <LogRow key={log.id} log={log} label={label} />
+              ))}
+            </div>
+          )}
         </>
       )}
     </div>

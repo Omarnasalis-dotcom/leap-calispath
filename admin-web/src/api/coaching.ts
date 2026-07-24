@@ -60,6 +60,7 @@ export interface AssignmentRow {
   current_week: number | null;
   assigned_at: string;
   warrior_name?: string | null;
+  warrior_strength_tier?: number | null;
   coach_name?: string | null;
   template_name?: string | null;
 }
@@ -351,11 +352,13 @@ export async function fetchAssignment(assignmentId: string): Promise<AssignmentR
   if (error) throw new Error(error.message);
   const row = data as AssignmentRow;
   const [{ data: warrior }, { data: coach }, { data: template }] = await Promise.all([
-    supabase.from('profiles').select('display_name').eq('id', row.warrior_id).maybeSingle(),
+    supabase.from('profiles').select('display_name, strength_tier').eq('id', row.warrior_id).maybeSingle(),
     supabase.from('profiles').select('display_name').eq('id', row.coach_id).maybeSingle(),
     supabase.from('program_templates').select('name').eq('id', row.template_id).maybeSingle(),
   ]);
-  row.warrior_name = (warrior as { display_name: string | null } | null)?.display_name ?? null;
+  const warriorRow = warrior as { display_name: string | null; strength_tier: number | null } | null;
+  row.warrior_name = warriorRow?.display_name ?? null;
+  row.warrior_strength_tier = warriorRow?.strength_tier ?? null;
   row.coach_name = (coach as { display_name: string | null } | null)?.display_name ?? null;
   row.template_name = (template as { name: string } | null)?.name ?? null;
   return row;
@@ -439,7 +442,7 @@ export async function deleteClientData(assignmentId: string): Promise<void> {
 
 export type ClientProgramWriteMode = 'append' | 'archive' | 'overwrite';
 
-interface ClientProgramBlockPayload {
+export interface ClientProgramBlockPayload {
   name: string;
   notes: string;
   order_index: number;
@@ -523,6 +526,20 @@ export async function applyTemplateToExistingClient(
         : 'overwrite_client_program';
 
   const { error } = await supabase.rpc(rpcName, {
+    p_warrior_program_id: warriorProgramId,
+    p_blocks: blocks,
+  });
+  if (error) throw new Error(error.message);
+}
+
+/** Adds a JSON-imported week onto a client's program. Always append-only —
+ * mirrors mobile's handleImportWeek (ProgressTrackingScreen.tsx), which
+ * never lets an import overwrite or archive anything on its own. */
+export async function appendWeekToClientProgram(
+  warriorProgramId: string,
+  blocks: ClientProgramBlockPayload[],
+): Promise<void> {
+  const { error } = await supabase.rpc('append_weeks_to_client_program', {
     p_warrior_program_id: warriorProgramId,
     p_blocks: blocks,
   });

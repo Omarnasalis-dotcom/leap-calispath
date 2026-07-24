@@ -29,7 +29,7 @@ export function ClientProgressPage() {
   const a = assignmentQ.data;
 
   return (
-    <div className="page">
+    <div className="page wide">
       <div className="page-head">
         <div>
           <div className="label" style={{ marginBottom: 4 }}>
