@@ -1,6 +1,8 @@
 import { useQuery } from '@tanstack/react-query';
-import { fetchCoachingAnalytics } from '@/api/coaching';
-import { ErrorNote } from '@/components/bits';
+import { useNavigate } from 'react-router-dom';
+import { fetchClientAdherence, fetchCoachingAnalytics, type ClientAdherenceRow } from '@/api/coaching';
+import { formatDate } from '@/shared/constants';
+import { Badge, ErrorNote } from '@/components/bits';
 
 function KvList({ entries }: { entries: Array<[string, number]> }) {
   return (
@@ -15,10 +17,22 @@ function KvList({ entries }: { entries: Array<[string, number]> }) {
   );
 }
 
+function CompletionBadge({ row }: { row: ClientAdherenceRow }) {
+  if (row.total_logs === 0) return <Badge>No logs yet</Badge>;
+  const pct = Math.round((row.completed_logs / row.total_logs) * 100);
+  const tone = pct >= 80 ? 'ok' : pct >= 50 ? 'warn' : undefined;
+  return <Badge tone={tone}>{pct}%</Badge>;
+}
+
 export function CoachingAnalyticsPage() {
+  const navigate = useNavigate();
   const { data, isLoading, error } = useQuery({
     queryKey: ['coaching-analytics'],
     queryFn: fetchCoachingAnalytics,
+  });
+  const adherenceQ = useQuery({
+    queryKey: ['client-adherence'],
+    queryFn: fetchClientAdherence,
   });
 
   return (
@@ -114,6 +128,68 @@ export function CoachingAnalyticsPage() {
                 <div className="empty">
                   <span className="label">No coaches</span>
                   Grant coach access from a user's profile page.
+                </div>
+              )}
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Client adherence</h2>
+              <span className="label">by most recently logged</span>
+            </div>
+            {adherenceQ.error && <ErrorNote error={adherenceQ.error} />}
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Warrior</th>
+                    <th>Coach</th>
+                    <th>Program</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: 'right' }}>Week</th>
+                    <th style={{ textAlign: 'right' }}>Completion</th>
+                    <th style={{ textAlign: 'right' }}>Missed</th>
+                    <th>Last workout</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {adherenceQ.isLoading &&
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={8}>
+                          <div className="skeleton" style={{ height: 14 }} />
+                        </td>
+                      </tr>
+                    ))}
+                  {adherenceQ.data?.map((row) => (
+                    <tr
+                      key={row.assignment_id}
+                      className="clickable"
+                      onClick={() => navigate(`/coaching/clients/${row.assignment_id}/progress`)}
+                    >
+                      <td style={{ fontWeight: 600 }}>{row.warrior_name ?? row.warrior_id.slice(0, 8)}</td>
+                      <td className="dim">{row.coach_name ?? '—'}</td>
+                      <td className="dim">{row.template_name}</td>
+                      <td>
+                        <Badge tone={row.status === 'active' ? 'ok' : row.status === 'paused' ? 'warn' : undefined}>
+                          {row.status ?? '—'}
+                        </Badge>
+                      </td>
+                      <td className="num" style={{ textAlign: 'right' }}>{row.current_week}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        <CompletionBadge row={row} />
+                      </td>
+                      <td className="num" style={{ textAlign: 'right' }}>{row.missed_logs}</td>
+                      <td className="dim">{row.last_logged_at ? formatDate(row.last_logged_at) : '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {!adherenceQ.isLoading && adherenceQ.data?.length === 0 && (
+                <div className="empty">
+                  <span className="label">No client assignments</span>
+                  Assign a program to a warrior to start a coaching relationship.
                 </div>
               )}
             </div>

@@ -20,6 +20,7 @@ import { ClientsPage } from '@/pages/coaching/ClientsPage';
 import { ProgramBuilderPage } from '@/pages/coaching/ProgramBuilderPage';
 import { CoachingAnalyticsPage } from '@/pages/coaching/CoachingAnalyticsPage';
 import { ClientProgramGrid } from '@/pages/coaching/builder/ClientProgramGrid';
+import { ClientProgressPage } from '@/pages/coaching/ClientProgressPage';
 import { BuilderClipboardProvider } from '@/contexts/BuilderClipboardContext';
 
 function Gate() {
@@ -68,6 +69,7 @@ export function App() {
                     the clipboard the same way a per-route provider would. */}
                 <Route index element={<ClientsPage />} />
                 <Route path="clients/:assignmentId" element={<ClientProgramGrid />} />
+                <Route path="clients/:assignmentId/progress" element={<ClientProgressPage />} />
                 <Route path="builder" element={<ProgramBuilderPage />} />
                 <Route path="exercises" element={<ExerciseLibraryPage />} />
                 <Route path="analytics" element={<CoachingAnalyticsPage />} />

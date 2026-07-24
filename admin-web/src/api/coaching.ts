@@ -630,3 +630,25 @@ export async function fetchCoachingAnalytics(): Promise<CoachingAnalytics> {
   if (error) throw new Error(error.message);
   return data as CoachingAnalytics;
 }
+
+export interface ClientAdherenceRow {
+  assignment_id: string;
+  warrior_id: string;
+  warrior_name: string | null;
+  coach_id: string | null;
+  coach_name: string | null;
+  template_name: string;
+  status: string | null;
+  current_week: number;
+  assigned_at: string;
+  total_logs: number;
+  completed_logs: number;
+  missed_logs: number;
+  last_logged_at: string | null;
+}
+
+export async function fetchClientAdherence(): Promise<ClientAdherenceRow[]> {
+  const { data, error } = await supabase.rpc('admin_get_client_adherence');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as ClientAdherenceRow[];
+}
