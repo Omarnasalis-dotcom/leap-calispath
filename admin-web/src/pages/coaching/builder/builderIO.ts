@@ -174,6 +174,7 @@ export async function saveTemplateWeeks(params: {
             reps: ex.reps,
             rest_seconds: ex.rest_seconds,
             hold_seconds: ex.hold_seconds,
+            is_weighted: !!block.metadata.is_weighted,
             notes: ex.notes.trim(),
             order_index: exIdx,
           })),
