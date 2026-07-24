@@ -1,6 +1,12 @@
 // Mirrored from the mobile app (src/lib/trials.ts tier names, weekly
 // challenge groups in src/lib/weeklyChallenge.ts) — keep in sync manually.
 
+// Fixed profile id for the "Leap" house account — the content owner for
+// self-service Workout Templates Library clones where no real coach is
+// involved (src/constants/system.ts). A real profiles row, but must never
+// appear in user-facing rosters, searches, or leaderboards.
+export const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+
 export const TIER_NAMES = [
   'Helot',
   'Neos',

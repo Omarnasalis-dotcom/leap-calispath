@@ -12,7 +12,7 @@ import {
 } from '@/api/coaching';
 import { searchUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
-import { formatDate } from '@/shared/constants';
+import { formatDate, LEAP_SYSTEM_PROFILE_ID } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { ApplyTemplateForm } from './builder/ApplyTemplateForm';
@@ -182,10 +182,24 @@ export function ClientsPage() {
   const navigate = useNavigate();
   const [showAssign, setShowAssign] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Admin-only slice: a coach-assigned program vs. a warrior who
+  // self-selected a library template (tracked under the fixed Leap system
+  // coach id) — mirrors MyClientsScreen.tsx's admin filters.
+  const [originFilter, setOriginFilter] = useState<'all' | 'coach' | 'library'>('all');
+  const [coachFilterId, setCoachFilterId] = useState<string>('');
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['assignments'],
     queryFn: fetchAssignments,
+  });
+  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches });
+
+  const filteredData = data?.filter((a) => {
+    const isLibrarySelection = a.coach_id === LEAP_SYSTEM_PROFILE_ID;
+    if (originFilter === 'coach' && isLibrarySelection) return false;
+    if (originFilter === 'library' && !isLibrarySelection) return false;
+    if (coachFilterId && a.coach_id !== coachFilterId) return false;
+    return true;
   });
 
   const statusMutation = useMutation({
@@ -303,10 +317,38 @@ export function ClientsPage() {
         />
       )}
 
+      <div className="row" style={{ gap: 6 }}>
+        {(['all', 'coach', 'library'] as const).map((o) => (
+          <button
+            key={o}
+            className={`btn small${originFilter === o ? ' primary' : ''}`}
+            onClick={() => setOriginFilter(o)}
+          >
+            {o === 'all' ? 'All' : o === 'coach' ? 'Coach-assigned' : 'Self-selected (library)'}
+          </button>
+        ))}
+        {originFilter !== 'library' && (
+          <select
+            className="field"
+            style={{ minWidth: 160 }}
+            value={coachFilterId}
+            onChange={(e) => setCoachFilterId(e.target.value)}
+            aria-label="Filter by coach"
+          >
+            <option value="">All coaches</option>
+            {coachesQ.data?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.display_name || c.id.slice(0, 8)}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
       <div className="panel">
         <DataTable
           columns={columns}
-          rows={data}
+          rows={filteredData}
           rowKey={(a) => a.id}
           loading={isLoading}
           emptyLabel="No client programs"
