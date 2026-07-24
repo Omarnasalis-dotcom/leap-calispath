@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   assignTemplate,
@@ -6,7 +7,6 @@ import {
   fetchAssignments,
   fetchCoaches,
   fetchProgramTemplates,
-  fetchWarriorProgress,
   setAssignmentStatus,
   type AssignmentRow,
 } from '@/api/coaching';
@@ -15,6 +15,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { formatDate } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { ProgressDrawer } from './ProgressDrawer';
 
 function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined {
   if (status === 'active') return 'ok';
@@ -151,29 +152,9 @@ function AssignForm({ onDone }: { onDone: () => void }) {
   );
 }
 
-function ProgressDrawer({ assignment }: { assignment: AssignmentRow }) {
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['warrior-progress', assignment.id],
-    queryFn: () => fetchWarriorProgress(assignment.id),
-  });
-  return (
-    <div className="panel-body">
-      {error && <ErrorNote error={error} />}
-      {isLoading && <div className="skeleton" style={{ height: 60 }} />}
-      {data != null && (
-        <pre
-          className="copy-code"
-          style={{ display: 'block', padding: 12, whiteSpace: 'pre-wrap', maxHeight: 320, overflowY: 'auto' }}
-        >
-          {JSON.stringify(data, null, 2)}
-        </pre>
-      )}
-    </div>
-  );
-}
-
 export function ClientsPage() {
   const queryClient = useQueryClient();
+  const navigate = useNavigate();
   const [showAssign, setShowAssign] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
 
@@ -256,6 +237,9 @@ export function ClientsPage() {
           >
             Complete
           </button>
+          <button className="btn small" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
+            Progress
+          </button>
           <ConfirmButton
             label="Delete"
             danger
@@ -302,7 +286,7 @@ export function ClientsPage() {
           loading={isLoading}
           emptyLabel="No client programs"
           emptyHint="Assign a template to a warrior to start a coaching relationship."
-          onRowClick={(a) => setExpanded(expanded === a.id ? null : a.id)}
+          onRowClick={(a) => navigate(`/coaching/clients/${a.id}`)}
         />
       </div>
 
