@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { useNavigate } from 'react-router-dom';
-import { fetchClientAdherence, fetchCoachingAnalytics, type ClientAdherenceRow } from '@/api/coaching';
+import { fetchAssignment, fetchClientAdherence, fetchCoachingAnalytics, type ClientAdherenceRow } from '@/api/coaching';
 import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
+import { ProgressDrawer } from './ProgressDrawer';
 
 function KvList({ entries }: { entries: Array<[string, number]> }) {
   return (
@@ -24,8 +25,34 @@ function CompletionBadge({ row }: { row: ClientAdherenceRow }) {
   return <Badge tone={tone}>{pct}%</Badge>;
 }
 
+/** Expands inline under the adherence table instead of navigating away —
+ * ClientAdherenceRow is a summary projection (no template_id), so unlike
+ * ClientsPage's inline expand (which already has a full AssignmentRow in
+ * hand from fetchAssignments), this fetches the complete assignment
+ * ProgressDrawer needs before rendering it. */
+function InlineClientProgress({ assignmentId, warriorName, onClose }: { assignmentId: string; warriorName: string; onClose: () => void }) {
+  const assignmentQ = useQuery({
+    queryKey: ['assignment', assignmentId],
+    queryFn: () => fetchAssignment(assignmentId),
+  });
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Progress — {warriorName}</h2>
+        <button className="btn small" onClick={onClose}>
+          Close
+        </button>
+      </div>
+      {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
+      {assignmentQ.isLoading && <div className="skeleton" style={{ height: 120 }} />}
+      {assignmentQ.data && <ProgressDrawer assignment={assignmentQ.data} />}
+    </section>
+  );
+}
+
 export function CoachingAnalyticsPage() {
-  const navigate = useNavigate();
+  const [expandedId, setExpandedId] = useState<string | null>(null);
   const { data, isLoading, error } = useQuery({
     queryKey: ['coaching-analytics'],
     queryFn: fetchCoachingAnalytics,
@@ -166,7 +193,7 @@ export function CoachingAnalyticsPage() {
                     <tr
                       key={row.assignment_id}
                       className="clickable"
-                      onClick={() => navigate(`/coaching/clients/${row.assignment_id}/progress`)}
+                      onClick={() => setExpandedId((id) => (id === row.assignment_id ? null : row.assignment_id))}
                     >
                       <td style={{ fontWeight: 600 }}>{row.warrior_name ?? row.warrior_id.slice(0, 8)}</td>
                       <td className="dim">{row.coach_name ?? '—'}</td>
@@ -194,6 +221,16 @@ export function CoachingAnalyticsPage() {
               )}
             </div>
           </section>
+
+          {expandedId && (
+            <InlineClientProgress
+              assignmentId={expandedId}
+              warriorName={
+                adherenceQ.data?.find((r) => r.assignment_id === expandedId)?.warrior_name ?? 'warrior'
+              }
+              onClose={() => setExpandedId(null)}
+            />
+          )}
         </>
       )}
     </div>
