@@ -1,4 +1,4 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient } from '@/lib/queryClient';
 import { AuthProvider, useAuth } from '@/auth/AuthProvider';
@@ -19,6 +19,8 @@ import { ExerciseLibraryPage } from '@/pages/coaching/ExerciseLibraryPage';
 import { ClientsPage } from '@/pages/coaching/ClientsPage';
 import { ProgramBuilderPage } from '@/pages/coaching/ProgramBuilderPage';
 import { CoachingAnalyticsPage } from '@/pages/coaching/CoachingAnalyticsPage';
+import { ClientProgramGrid } from '@/pages/coaching/builder/ClientProgramGrid';
+import { BuilderClipboardProvider } from '@/contexts/BuilderClipboardContext';
 
 function Gate() {
   const { session, loading, denied } = useAuth();
@@ -50,10 +52,26 @@ export function App() {
               <Route path="challenges" element={<ChallengeWeekPage />} />
               <Route path="challenges/templates" element={<TemplatesPage />} />
               <Route path="challenges/analytics" element={<ChallengeAnalyticsPage />} />
-              <Route path="coaching" element={<ClientsPage />} />
-              <Route path="coaching/builder" element={<ProgramBuilderPage />} />
-              <Route path="coaching/exercises" element={<ExerciseLibraryPage />} />
-              <Route path="coaching/analytics" element={<CoachingAnalyticsPage />} />
+              <Route
+                path="coaching"
+                element={
+                  <BuilderClipboardProvider>
+                    <Outlet />
+                  </BuilderClipboardProvider>
+                }
+              >
+                {/* Shared provider across the whole coaching section — a coach's
+                    real path from copying a block to pasting it is builder ->
+                    clients list -> a specific client's grid, and the clients
+                    list itself sits between builder and clients/:id, so the
+                    provider has to wrap it too or navigating through it drops
+                    the clipboard the same way a per-route provider would. */}
+                <Route index element={<ClientsPage />} />
+                <Route path="clients/:assignmentId" element={<ClientProgramGrid />} />
+                <Route path="builder" element={<ProgramBuilderPage />} />
+                <Route path="exercises" element={<ExerciseLibraryPage />} />
+                <Route path="analytics" element={<CoachingAnalyticsPage />} />
+              </Route>
               <Route path="leaderboards" element={<LeaderboardsPage />} />
               <Route path="waitlist" element={<WaitlistPage />} />
               <Route path="tournaments" element={<TournamentsPage />} />

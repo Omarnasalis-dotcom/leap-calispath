@@ -209,6 +209,13 @@ a {
   gap: 24px;
 }
 
+/* The 7-day program grid needs real estate the standard reading-width cap
+   works against — its whole point is showing a full week without scrolling
+   on a normal monitor. Scoped to the builder/client-grid pages only. */
+.page.wide {
+  max-width: 1800px;
+}
+
 .page-head {
   display: flex;
   align-items: flex-end;

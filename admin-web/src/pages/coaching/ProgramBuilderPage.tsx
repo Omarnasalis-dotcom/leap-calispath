@@ -2,205 +2,159 @@ import { useEffect, useMemo, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deleteProgramTemplate,
+  fetchAssignedTemplateIds,
   fetchExercises,
   fetchProgramTemplates,
-  fetchTemplateBlocks,
-  saveProgramTemplate,
-  type BlockExercise,
-  type ProgramBlock,
 } from '@/api/coaching';
 import { formatDate } from '@/shared/constants';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
+import { loadTemplateWeeks, saveTemplateWeeks } from './builder/builderIO';
+import { LibraryTab } from './builder/LibraryTab';
+import { WeekGrid } from './builder/WeekGrid';
+import type { BuilderWeeks } from './builder/types';
 
-let localKey = 0;
-const nextKey = () => `local-${++localKey}`;
-
-function ExerciseRow({
-  ex,
-  onChange,
-  onRemove,
-  exerciseOptions,
-}: {
-  ex: BlockExercise;
-  onChange: (patch: Partial<BlockExercise>) => void;
-  onRemove: () => void;
-  exerciseOptions: Array<{ id: string; name: string }>;
-}) {
-  return (
-    <div className="row" style={{ flexWrap: 'nowrap', gap: 6 }}>
-      <select
-        className="field"
-        style={{ flex: 2, minWidth: 140 }}
-        value={ex.exercise_id}
-        onChange={(e) => onChange({ exercise_id: e.target.value })}
-        aria-label="Exercise"
-      >
-        <option value="">Exercise…</option>
-        {exerciseOptions.map((o) => (
-          <option key={o.id} value={o.id}>
-            {o.name}
-          </option>
-        ))}
-      </select>
-      <input
-        className="field num"
-        style={{ width: 58 }}
-        type="number"
-        min={0}
-        placeholder="Sets"
-        title="Sets"
-        value={ex.sets ?? ''}
-        onChange={(e) => onChange({ sets: e.target.value === '' ? null : Number(e.target.value) })}
-        aria-label="Sets"
-      />
-      <input
-        className="field num"
-        style={{ width: 58 }}
-        type="number"
-        min={0}
-        placeholder="Reps"
-        title="Reps"
-        value={ex.reps ?? ''}
-        onChange={(e) => onChange({ reps: e.target.value === '' ? null : Number(e.target.value) })}
-        aria-label="Reps"
-      />
-      <input
-        className="field num"
-        style={{ width: 66 }}
-        type="number"
-        min={0}
-        placeholder="Rest s"
-        title="Rest seconds"
-        value={ex.rest_seconds ?? ''}
-        onChange={(e) =>
-          onChange({ rest_seconds: e.target.value === '' ? null : Number(e.target.value) })
-        }
-        aria-label="Rest seconds"
-      />
-      <input
-        className="field num"
-        style={{ width: 66 }}
-        type="number"
-        min={0}
-        placeholder="Hold s"
-        title="Hold seconds"
-        value={ex.hold_seconds ?? ''}
-        onChange={(e) =>
-          onChange({ hold_seconds: e.target.value === '' ? null : Number(e.target.value) })
-        }
-        aria-label="Hold seconds"
-      />
-      <button className="btn small" onClick={onRemove} aria-label="Remove exercise">
-        ✕
-      </button>
-    </div>
-  );
-}
+type ListTab = 'master' | 'assigned' | 'library';
 
 export function ProgramBuilderPage() {
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
+  const [tab, setTab] = useState<ListTab>('master');
+
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
-  const [blocks, setBlocks] = useState<ProgramBlock[]>([]);
+  const [weeks, setWeeks] = useState<BuilderWeeks>({ 1: [] });
+  const [activeWeek, setActiveWeek] = useState(1);
   const [dirty, setDirty] = useState(false);
+  const [saveError, setSaveError] = useState<Error | null>(null);
+  const [flash, setFlash] = useState<string | null>(null);
 
-  const templatesQ = useQuery({
-    queryKey: ['program-templates'],
-    queryFn: fetchProgramTemplates,
-  });
+  const clipboard = useBuilderClipboard();
+
+  const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
+  const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
   const exercisesQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
-  const blocksQ = useQuery({
-    queryKey: ['template-blocks', selectedId],
-    queryFn: () => fetchTemplateBlocks(selectedId as string),
+  const exerciseOptions = useMemo(
+    () => (exercisesQ.data ?? []).map((e) => ({ id: e.id, name: e.name })),
+    [exercisesQ.data],
+  );
+
+  const loadQ = useQuery({
+    queryKey: ['template-weeks', selectedId],
+    queryFn: () => loadTemplateWeeks(selectedId as string),
     enabled: !!selectedId && selectedId !== 'new',
   });
 
-  const selected = templatesQ.data?.find((t) => t.id === selectedId);
-
-  // seed editor when a template is opened
   useEffect(() => {
     if (selectedId === 'new') {
       setName('');
       setDescription('');
-      setBlocks([]);
+      setWeeks({ 1: [] });
+      setActiveWeek(1);
       setDirty(false);
-    } else if (selected && blocksQ.data) {
-      setName(selected.name);
-      setDescription(selected.description ?? '');
-      setBlocks(blocksQ.data);
+      setSaveError(null);
+    } else if (loadQ.data) {
+      setName(loadQ.data.name);
+      setDescription(loadQ.data.description);
+      setWeeks(loadQ.data.weeks);
+      setActiveWeek(Math.min(...Object.keys(loadQ.data.weeks).map(Number)));
       setDirty(false);
+      setSaveError(null);
     }
-  }, [selectedId, selected, blocksQ.data]);
+  }, [selectedId, loadQ.data]);
 
-  const weeks = useMemo(() => {
-    const nums = [...new Set(blocks.map((b) => b.week_number))].sort((a, b) => a - b);
-    return nums.length > 0 ? nums : [];
-  }, [blocks]);
+  const weekNums = useMemo(
+    () => Object.keys(weeks).map(Number).sort((a, b) => a - b),
+    [weeks],
+  );
+  const days = weeks[activeWeek] ?? [];
 
-  const saveMutation = useMutation({
-    mutationFn: () =>
-      saveProgramTemplate({
-        templateId: selectedId === 'new' ? null : (selectedId as string),
-        name: name.trim(),
-        description: description.trim() || null,
-        blocks: blocks.map((b) => ({
-          ...b,
-          exercises: b.exercises.filter((e) => e.exercise_id),
-        })),
-      }),
-    onSuccess: (templateId) => {
-      setDirty(false);
-      setSelectedId(templateId);
-      void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
-      void queryClient.invalidateQueries({ queryKey: ['template-blocks', templateId] });
-    },
-  });
+  function setDays(next: typeof days) {
+    setWeeks((w) => ({ ...w, [activeWeek]: next }));
+    setDirty(true);
+  }
+
+  function duplicateWeek() {
+    const nextNum = Math.max(...weekNums, 0) + 1;
+    const cloned = days.map((d) => ({
+      ...d,
+      id: `${d.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
+      blocks: d.blocks.map((b) => ({
+        ...b,
+        id: `${b.id}-w${nextNum}-${Math.random().toString(36).slice(2, 7)}`,
+        db_id: null,
+        exercises: b.exercises.map((e) => ({ ...e, id: `${e.id}-${Math.random().toString(36).slice(2, 7)}` })),
+      })),
+    }));
+    setWeeks((w) => ({ ...w, [nextNum]: cloned }));
+    setActiveWeek(nextNum);
+    setDirty(true);
+  }
+
+  function deleteWeek() {
+    setWeeks((w) => {
+      const remaining = Object.keys(w).map(Number).filter((n) => n !== activeWeek).sort((a, b) => a - b);
+      const next: BuilderWeeks = {};
+      remaining.forEach((n, i) => {
+        next[i + 1] = w[n];
+      });
+      if (Object.keys(next).length === 0) next[1] = [];
+      return next;
+    });
+    setActiveWeek((w) => Math.max(1, w - 1));
+    setDirty(true);
+  }
 
   const deleteMutation = useMutation({
     mutationFn: deleteProgramTemplate,
     onSuccess: () => {
       setSelectedId(null);
       void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
+      void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
     },
   });
 
-  function patchBlock(id: string, patch: Partial<ProgramBlock>) {
-    setBlocks((bs) => bs.map((b) => (b.id === id ? { ...b, ...patch } : b)));
-    setDirty(true);
-  }
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      saveTemplateWeeks({
+        templateId: selectedId === 'new' ? null : (selectedId as string),
+        name,
+        description,
+        weeks,
+      }),
+    onSuccess: (result) => {
+      setSaveError(null);
+      setDirty(false);
+      setSelectedId(result.templateId);
+      setFlash(
+        result.undeletableCount > 0
+          ? `Saved — ${result.undeletableCount} removed block(s) kept (already logged by a warrior)`
+          : 'Saved',
+      );
+      window.setTimeout(() => setFlash(null), 3000);
+      void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
+      void queryClient.invalidateQueries({ queryKey: ['template-weeks', result.templateId] });
+    },
+    onError: (err: Error) => setSaveError(err),
+  });
 
-  function addBlock(week: number) {
-    setBlocks((bs) => [
-      ...bs,
-      {
-        id: nextKey(),
-        db_id: null,
-        name: `Day ${bs.filter((b) => b.week_number === week).length + 1}`,
-        notes: null,
-        week_number: week,
-        order_index: bs.length,
-        exercises: [],
-      },
-    ]);
-    setDirty(true);
-  }
-
-  function addWeek() {
-    const next = weeks.length > 0 ? Math.max(...weeks) + 1 : 1;
-    addBlock(next);
-  }
-
-  const exerciseOptions = (exercisesQ.data ?? []).map((e) => ({ id: e.id, name: e.name }));
-
-  // ---------- template list view ----------
+  // ---------- list view ----------
   if (!selectedId) {
+    const master = (templatesQ.data ?? []).filter(
+      (t) => !t.is_library_template && !assignedIdsQ.data?.has(t.id),
+    );
+    const assigned = (templatesQ.data ?? []).filter(
+      (t) => !t.is_library_template && assignedIdsQ.data?.has(t.id),
+    );
+    const library = (templatesQ.data ?? []).filter((t) => t.is_library_template);
+    const rows = tab === 'master' ? master : tab === 'assigned' ? assigned : [];
+
     return (
       <div className="page">
         <div className="page-head">
           <div>
             <h1>Program builder</h1>
-            <div className="sub">Every coach's templates, plus the shared library.</div>
+            <div className="sub">Master templates and client copies, every coach.</div>
           </div>
           <button className="btn primary" onClick={() => setSelectedId('new')}>
             + New template
@@ -208,81 +162,85 @@ export function ProgramBuilderPage() {
         </div>
         {templatesQ.error && <ErrorNote error={templatesQ.error} />}
         {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}
-        <div className="panel">
-          <div className="table-wrap">
-            <table className="data">
-              <thead>
-                <tr>
-                  <th>Template</th>
-                  <th>Coach</th>
-                  <th>Status</th>
-                  <th>Created</th>
-                  <th></th>
-                </tr>
-              </thead>
-              <tbody>
-                {templatesQ.isLoading &&
-                  Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i}>
-                      <td colSpan={5}>
-                        <div className="skeleton" style={{ height: 14 }} />
+
+        <div className="row">
+          <button className={`btn small${tab === 'master' ? ' primary' : ''}`} onClick={() => setTab('master')}>
+            Master templates ({master.length})
+          </button>
+          <button className={`btn small${tab === 'assigned' ? ' primary' : ''}`} onClick={() => setTab('assigned')}>
+            Assigned copies ({assigned.length})
+          </button>
+          <button className={`btn small${tab === 'library' ? ' primary' : ''}`} onClick={() => setTab('library')}>
+            Library ({library.length})
+          </button>
+        </div>
+
+        {tab === 'library' ? (
+          <LibraryTab onSelectTemplate={setSelectedId} />
+        ) : (
+          <div className="panel">
+            <div className="table-wrap">
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Template</th>
+                    <th>Coach</th>
+                    <th>Status</th>
+                    <th>Created</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {templatesQ.isLoading &&
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <tr key={i}>
+                        <td colSpan={5}>
+                          <div className="skeleton" style={{ height: 14 }} />
+                        </td>
+                      </tr>
+                    ))}
+                  {rows.map((t) => (
+                    <tr key={t.id} className="clickable" onClick={() => setSelectedId(t.id)}>
+                      <td style={{ fontWeight: 700 }}>{t.name}</td>
+                      <td className="dim">{t.coach_name ?? '—'}</td>
+                      <td>
+                        <Badge tone={t.status === 'published' ? 'ok' : undefined}>{t.status ?? 'draft'}</Badge>
+                      </td>
+                      <td className="dim">{formatDate(t.created_at)}</td>
+                      <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
+                        <ConfirmButton
+                          label="Delete"
+                          danger
+                          title={`Delete template "${t.name}"?`}
+                          body="Blocks with logged workouts will refuse to delete — client copies are separate rows and stay intact."
+                          confirmLabel="Delete"
+                          onConfirm={() => deleteMutation.mutateAsync(t.id)}
+                        />
                       </td>
                     </tr>
                   ))}
-                {templatesQ.data?.map((t) => (
-                  <tr key={t.id} className="clickable" onClick={() => setSelectedId(t.id)}>
-                    <td style={{ fontWeight: 700 }}>
-                      {t.name}{' '}
-                      {t.is_library_template && <Badge tone="accent">library</Badge>}
-                    </td>
-                    <td className="dim">{t.coach_name ?? '—'}</td>
-                    <td>
-                      <Badge tone={t.status === 'published' ? 'ok' : undefined}>
-                        {t.status ?? 'draft'}
-                      </Badge>
-                    </td>
-                    <td className="dim">{formatDate(t.created_at)}</td>
-                    <td style={{ textAlign: 'right' }} onClick={(e) => e.stopPropagation()}>
-                      <ConfirmButton
-                        label="Delete"
-                        danger
-                        title={`Delete template “${t.name}”?`}
-                        body="Blocks with logged workouts will refuse to delete — assigned client programs are separate copies and stay intact."
-                        confirmLabel="Delete"
-                        onConfirm={() => deleteMutation.mutateAsync(t.id)}
-                      />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-            {templatesQ.data && templatesQ.data.length === 0 && (
-              <div className="empty">
-                <span className="label">No templates</span>
-                Create the first program template.
-              </div>
-            )}
+                </tbody>
+              </table>
+              {!templatesQ.isLoading && rows.length === 0 && (
+                <div className="empty">
+                  <span className="label">Nothing here</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
+        )}
       </div>
     );
   }
 
   // ---------- editor view ----------
   return (
-    <div className="page">
+    <div className="page wide">
       <div className="page-head">
         <div style={{ flex: 1, minWidth: 280 }}>
-          <div className="label" style={{ marginBottom: 4 }}>
-            <button
-              className="btn small"
-              onClick={() => setSelectedId(null)}
-              style={{ marginRight: 8 }}
-            >
-              ← Templates
-            </button>
-            {selected?.is_library_template && <Badge tone="accent">library</Badge>}
-          </div>
+          <button className="btn small" style={{ marginBottom: 8 }} onClick={() => setSelectedId(null)}>
+            ← Templates
+          </button>
           <input
             className="field"
             style={{ width: '100%', fontSize: 16, fontWeight: 700 }}
@@ -308,7 +266,11 @@ export function ProgramBuilderPage() {
           />
         </div>
         <div className="row">
-          {dirty && <Badge tone="warn">unsaved</Badge>}
+          {flash && <Badge tone="ok">{flash}</Badge>}
+          {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
+          {clipboard.clipboard && (
+            <Badge tone="accent">clipboard: {clipboard.clipboard.type}</Badge>
+          )}
           <button
             className="btn primary"
             disabled={!name.trim() || saveMutation.isPending}
@@ -319,116 +281,36 @@ export function ProgramBuilderPage() {
         </div>
       </div>
 
-      {blocksQ.error && <ErrorNote error={blocksQ.error} />}
-      {saveMutation.error && <ErrorNote error={saveMutation.error} />}
-      {blocksQ.isLoading && selectedId !== 'new' && (
-        <div className="skeleton" style={{ height: 160 }} />
-      )}
+      {loadQ.error && <ErrorNote error={loadQ.error} />}
+      {saveError && <ErrorNote error={saveError} />}
+      {loadQ.isLoading && selectedId !== 'new' && <div className="skeleton" style={{ height: 160 }} />}
 
-      {weeks.map((week) => (
-        <section key={week} className="panel">
-          <div className="panel-head">
-            <h2>Week {week}</h2>
-            <button className="btn small" onClick={() => addBlock(week)}>
-              + Add day
-            </button>
-          </div>
-          <div
-            className="panel-body"
-            style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(340px, 1fr))',
-              gap: 12,
-            }}
+      <div className="row" style={{ borderBottom: '1px solid var(--hairline)', paddingBottom: 10 }}>
+        {weekNums.map((w) => (
+          <button
+            key={w}
+            className={`btn small${w === activeWeek ? ' primary' : ''}`}
+            onClick={() => setActiveWeek(w)}
           >
-            {blocks
-              .filter((b) => b.week_number === week)
-              .map((b) => (
-                <div
-                  key={b.id}
-                  style={{
-                    border: '1px solid var(--hairline)',
-                    borderRadius: 8,
-                    padding: 12,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 8,
-                    background: 'var(--bg-panel)',
-                  }}
-                >
-                  <div className="row" style={{ flexWrap: 'nowrap' }}>
-                    <input
-                      className="field"
-                      style={{ flex: 1 }}
-                      placeholder="Day name"
-                      value={b.name}
-                      onChange={(e) => patchBlock(b.id, { name: e.target.value })}
-                      aria-label="Block name"
-                    />
-                    <button
-                      className="btn small"
-                      onClick={() => {
-                        setBlocks((bs) => bs.filter((x) => x.id !== b.id));
-                        setDirty(true);
-                      }}
-                      aria-label="Remove day"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                  {b.exercises.map((ex) => (
-                    <ExerciseRow
-                      key={ex.id}
-                      ex={ex}
-                      exerciseOptions={exerciseOptions}
-                      onChange={(patch) =>
-                        patchBlock(b.id, {
-                          exercises: b.exercises.map((x) =>
-                            x.id === ex.id ? { ...x, ...patch } : x,
-                          ),
-                        })
-                      }
-                      onRemove={() =>
-                        patchBlock(b.id, {
-                          exercises: b.exercises.filter((x) => x.id !== ex.id),
-                        })
-                      }
-                    />
-                  ))}
-                  <button
-                    className="btn small"
-                    style={{ alignSelf: 'flex-start' }}
-                    onClick={() =>
-                      patchBlock(b.id, {
-                        exercises: [
-                          ...b.exercises,
-                          {
-                            id: nextKey(),
-                            exercise_id: '',
-                            sets: 3,
-                            reps: null,
-                            rest_seconds: null,
-                            hold_seconds: null,
-                            notes: null,
-                            order_index: b.exercises.length,
-                          },
-                        ],
-                      })
-                    }
-                  >
-                    + Exercise
-                  </button>
-                </div>
-              ))}
-          </div>
-        </section>
-      ))}
-
-      <div className="row">
-        <button className="btn" onClick={addWeek}>
-          + Add week
+            Week {w}
+          </button>
+        ))}
+        <button className="btn small" onClick={duplicateWeek}>
+          + Duplicate week
         </button>
+        {weekNums.length > 1 && (
+          <ConfirmButton
+            label="Delete week"
+            danger
+            title={`Delete week ${activeWeek}?`}
+            body="Removes every day and block in this week."
+            confirmLabel="Delete"
+            onConfirm={deleteWeek}
+          />
+        )}
       </div>
+
+      <WeekGrid days={days} exerciseOptions={exerciseOptions} onCommit={setDays} />
     </div>
   );
 }
