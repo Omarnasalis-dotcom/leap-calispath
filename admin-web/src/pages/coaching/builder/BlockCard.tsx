@@ -10,11 +10,36 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
-import { BlockConceptParser } from '@/shared/BlockConceptParser';
+import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
 import { useBuilderClipboard, type ClipboardBlock } from '@/contexts/BuilderClipboardContext';
+import { Badge } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
 import { ExerciseRow } from './ExerciseRow';
 import { clientKey, newBlock, type BuilderBlock } from './types';
+
+/** Same prefix BlockConceptParser.getSubtitle composes (structure badge +
+ * ladder sequence + weighted flag) — kept local rather than added to that
+ * file, which is a byte-for-byte mirror of mobile's copy. */
+function getBlockTypeLabel(metadata: ConceptMetadata): string {
+  const struct =
+    metadata.structure || (metadata.type && metadata.type !== 'amrap' && metadata.type !== 'fortime' ? metadata.type : 'single');
+  let label = BlockConceptParser.getStructureBadge(metadata);
+
+  if (struct === 'ladder' && metadata.rounds && metadata.ladder_start) {
+    const r = parseInt(String(metadata.rounds), 10);
+    const start = parseInt(String(metadata.ladder_start), 10);
+    const sub = parseInt(String(metadata.ladder_sub || 0), 10);
+    const isUp = metadata.ladder_direction === 'up';
+    const sequence: number[] = [];
+    for (let i = 0; i < r; i++) {
+      sequence.push(isUp ? start + sub * i : Math.max(0, start - sub * i));
+    }
+    label += ` • ${r} rounds: ${sequence.join(', ')} reps`;
+  }
+
+  if (metadata.is_weighted) label += ' • Weighted';
+  return label;
+}
 
 function toClipboardBlock(block: BuilderBlock): ClipboardBlock {
   return {
@@ -149,15 +174,31 @@ export function BlockCard({
       <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
         <button
           type="button"
-          className="label"
-          style={{ textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
+          style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 6,
+            textAlign: 'left',
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            padding: 0,
+            width: '100%',
+          }}
           onClick={() => setExpanded((v) => !v)}
         >
-          {BlockConceptParser.getSubtitle(
-            block.metadata,
-            block.exercises.map((e) => e.exercise_name || '?'),
-          )}{' '}
-          {expanded ? '▲ collapse' : '▼ expand'}
+          <Badge tone="accent">{getBlockTypeLabel(block.metadata)}</Badge>
+          {block.exercises.length === 0 ? (
+            <span className="dim" style={{ fontSize: 12 }}>
+              No exercises yet
+            </span>
+          ) : (
+            block.exercises.map((ex) => <Badge key={ex.id}>{ex.exercise_name || '?'}</Badge>)
+          )}
+          <span className="label" style={{ marginLeft: 'auto' }}>
+            {expanded ? '▲ collapse' : '▼ expand'}
+          </span>
         </button>
 
         {expanded && (
