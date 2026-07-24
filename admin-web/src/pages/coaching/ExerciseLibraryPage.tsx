@@ -9,15 +9,42 @@ import {
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 
+// Must match mobile's newCategory/newConcept enums exactly (src/screens/coaching/ExerciseLibraryScreen.tsx)
+// — the two apps read/write the same comma-joined exercise_library.category column.
+const CATEGORY_OPTIONS = ['push', 'pull', 'legs', 'core'] as const;
+const CONCEPT_OPTIONS = ['skill', 'flexibility', 'strength', 'mobility'] as const;
+
 interface Draft {
   id?: string;
   name: string;
   youtube_url: string;
   category: string;
+  concept: string;
   difficulty: string;
 }
 
-const EMPTY: Draft = { name: '', youtube_url: '', category: '', difficulty: '' };
+const EMPTY: Draft = {
+  name: '',
+  youtube_url: '',
+  category: CATEGORY_OPTIONS[0],
+  concept: CONCEPT_OPTIONS[0],
+  difficulty: '',
+};
+
+// Splits the raw "push,skill" column value into its two parts, matching each half
+// against its own enum independently (not positionally) since legacy rows may only
+// have one half set. Mirrors ExerciseLibraryScreen.tsx's parse.
+function parseCategoryConcept(raw: string | null | undefined): { category: string; concept: string } {
+  const parts = (raw ?? '').split(',').map((p) => p.trim().toLowerCase());
+  const category = parts.find((p) => (CATEGORY_OPTIONS as readonly string[]).includes(p)) ?? CATEGORY_OPTIONS[0];
+  const concept = parts.find((p) => (CONCEPT_OPTIONS as readonly string[]).includes(p)) ?? CONCEPT_OPTIONS[0];
+  return { category, concept };
+}
+
+function formatCategoryConcept(raw: string | null | undefined): string {
+  const parts = (raw ?? '').split(',').map((p) => p.trim()).filter(Boolean);
+  return parts.length ? parts.map((p) => p.toUpperCase()).join(' · ') : '—';
+}
 
 export function ExerciseLibraryPage() {
   const queryClient = useQueryClient();
@@ -35,7 +62,7 @@ export function ExerciseLibraryPage() {
         id: d.id,
         name: d.name.trim(),
         youtube_url: d.youtube_url.trim() || null,
-        category: d.category.trim() || null,
+        category: [d.category, d.concept].filter(Boolean).join(',') || null,
         difficulty: d.difficulty.trim() || null,
       }),
     onSuccess: () => {
@@ -65,7 +92,7 @@ export function ExerciseLibraryPage() {
     {
       key: 'category',
       header: 'Category',
-      render: (e) => <span className="dim">{e.category ?? '—'}</span>,
+      render: (e) => <span className="dim">{formatCategoryConcept(e.category)}</span>,
     },
     {
       key: 'difficulty',
@@ -98,7 +125,7 @@ export function ExerciseLibraryPage() {
                 id: e.id,
                 name: e.name,
                 youtube_url: e.youtube_url ?? '',
-                category: e.category ?? '',
+                ...parseCategoryConcept(e.category),
                 difficulty: e.difficulty ?? '',
               });
             }}
@@ -157,14 +184,32 @@ export function ExerciseLibraryPage() {
               onChange={(e) => setDraft({ ...draft, name: e.target.value })}
               aria-label="Exercise name"
             />
-            <input
+            <select
               className="field"
-              style={{ flex: 1, minWidth: 120 }}
-              placeholder="Category"
+              style={{ flex: 1, minWidth: 110 }}
               value={draft.category}
               onChange={(e) => setDraft({ ...draft, category: e.target.value })}
               aria-label="Exercise category"
-            />
+            >
+              {CATEGORY_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}
+                </option>
+              ))}
+            </select>
+            <select
+              className="field"
+              style={{ flex: 1, minWidth: 110 }}
+              value={draft.concept}
+              onChange={(e) => setDraft({ ...draft, concept: e.target.value })}
+              aria-label="Exercise concept"
+            >
+              {CONCEPT_OPTIONS.map((c) => (
+                <option key={c} value={c}>
+                  {c.toUpperCase()}
+                </option>
+              ))}
+            </select>
             <input
               className="field"
               style={{ flex: 1, minWidth: 120 }}
