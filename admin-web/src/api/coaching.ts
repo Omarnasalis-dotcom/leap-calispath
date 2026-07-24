@@ -1,4 +1,5 @@
 import { supabase } from '@/lib/supabase';
+import type { MatchingCriteria } from '@/shared/templateLibrary';
 
 // Coaching CRUD rides the existing enforcement verified in Phase 0:
 // "Admin manages all ..." FOR-ALL RLS policies on program tables and
@@ -109,6 +110,17 @@ export async function deleteExercise(id: string): Promise<void> {
 }
 
 // ---------- program templates ----------
+
+/** Template ids referenced by any warrior_programs row — assign_program_template
+ * always clones into a brand-new program_templates row, so "is this id
+ * referenced" reliably distinguishes a reusable master template from a
+ * one-off client copy, regardless of naming (mirrors useProgramBuilder.ts's
+ * loadMasterTemplates). */
+export async function fetchAssignedTemplateIds(): Promise<Set<string>> {
+  const { data, error } = await supabase.from('warrior_programs').select('template_id');
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.template_id as string));
+}
 
 export async function fetchProgramTemplates(): Promise<ProgramTemplateRow[]> {
   const { data, error } = await supabase
@@ -245,7 +257,126 @@ export async function deleteProgramTemplate(templateId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// ---------- template library ----------
+
+export interface LibraryTemplateRow {
+  id: string;
+  coach_id: string;
+  name: string;
+  description: string | null;
+  status: string | null;
+  matching_criteria: MatchingCriteria | null;
+  equipment_tags: string[];
+  block_count: number;
+  week_count: number;
+  coach_name?: string | null;
+}
+
+/** Mirrors TemplateLibraryScreen.tsx's loadTemplates() query shape — the
+ * "library" tab needs block/week counts and criteria that fetchProgramTemplates
+ * above doesn't select, so this is a separate query rather than a filter over
+ * that one's results. */
+export async function fetchLibraryTemplates(): Promise<LibraryTemplateRow[]> {
+  const { data, error } = await supabase
+    .from('program_templates')
+    .select('id, coach_id, name, description, status, matching_criteria, equipment_tags')
+    .eq('is_library_template', true)
+    .order('name', { ascending: true });
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as LibraryTemplateRow[];
+
+  const templateIds = rows.map((r) => r.id);
+  const blockCounts = new Map<string, number>();
+  const weekNumbers = new Map<string, Set<number>>();
+  if (templateIds.length > 0) {
+    const { data: blocks, error: blocksErr } = await supabase
+      .from('program_blocks')
+      .select('template_id, week_number')
+      .in('template_id', templateIds);
+    if (blocksErr) throw new Error(blocksErr.message);
+    for (const b of (blocks ?? []) as Array<{ template_id: string; week_number: number | null }>) {
+      blockCounts.set(b.template_id, (blockCounts.get(b.template_id) ?? 0) + 1);
+      const weeks = weekNumbers.get(b.template_id) ?? new Set<number>();
+      weeks.add(b.week_number ?? 1);
+      weekNumbers.set(b.template_id, weeks);
+    }
+  }
+
+  const coachIds = [...new Set(rows.map((r) => r.coach_id))];
+  const coachNames = new Map<string, string | null>();
+  if (coachIds.length > 0) {
+    const { data: coaches } = await supabase.from('profiles').select('id, display_name').in('id', coachIds);
+    for (const c of (coaches ?? []) as Array<{ id: string; display_name: string | null }>) {
+      coachNames.set(c.id, c.display_name);
+    }
+  }
+
+  return rows.map((r) => ({
+    ...r,
+    equipment_tags: Array.isArray(r.equipment_tags) ? r.equipment_tags : [],
+    block_count: blockCounts.get(r.id) ?? 0,
+    week_count: weekNumbers.get(r.id)?.size ?? 0,
+    coach_name: coachNames.get(r.coach_id) ?? null,
+  }));
+}
+
+export async function saveLibraryCriteria(
+  templateId: string,
+  criteria: MatchingCriteria,
+  equipmentTags: string[],
+): Promise<void> {
+  const { error } = await supabase
+    .from('program_templates')
+    .update({ matching_criteria: criteria, equipment_tags: equipmentTags })
+    .eq('id', templateId);
+  if (error) throw new Error(error.message);
+}
+
+export async function archiveLibraryTemplate(templateId: string): Promise<void> {
+  const { error } = await supabase
+    .from('program_templates')
+    .update({ status: 'archived' })
+    .eq('id', templateId);
+  if (error) throw new Error(error.message);
+}
+
 // ---------- client assignments ----------
+
+export async function fetchAssignment(assignmentId: string): Promise<AssignmentRow> {
+  const { data, error } = await supabase
+    .from('warrior_programs')
+    .select('id, template_id, warrior_id, coach_id, status, current_week, assigned_at')
+    .eq('id', assignmentId)
+    .single();
+  if (error) throw new Error(error.message);
+  const row = data as AssignmentRow;
+  const [{ data: warrior }, { data: coach }, { data: template }] = await Promise.all([
+    supabase.from('profiles').select('display_name').eq('id', row.warrior_id).maybeSingle(),
+    supabase.from('profiles').select('display_name').eq('id', row.coach_id).maybeSingle(),
+    supabase.from('program_templates').select('name').eq('id', row.template_id).maybeSingle(),
+  ]);
+  row.warrior_name = (warrior as { display_name: string | null } | null)?.display_name ?? null;
+  row.coach_name = (coach as { display_name: string | null } | null)?.display_name ?? null;
+  row.template_name = (template as { name: string } | null)?.name ?? null;
+  return row;
+}
+
+export async function fetchArchivedWeeks(templateId: string): Promise<Set<number>> {
+  const { data, error } = await supabase
+    .from('program_week_archive')
+    .select('week_number')
+    .eq('template_id', templateId);
+  if (error) throw new Error(error.message);
+  return new Set((data ?? []).map((r) => r.week_number as number));
+}
+
+export async function deleteCoachWeekData(templateId: string, weekNumber: number): Promise<void> {
+  const { error } = await supabase.rpc('delete_coach_week_data', {
+    p_template_id: templateId,
+    p_week_number: weekNumber,
+  });
+  if (error) throw new Error(error.message);
+}
 
 export async function fetchAssignments(): Promise<AssignmentRow[]> {
   const { data, error } = await supabase
@@ -306,12 +437,180 @@ export async function deleteClientData(assignmentId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-export async function fetchWarriorProgress(assignmentId: string): Promise<unknown> {
+export type ClientProgramWriteMode = 'append' | 'archive' | 'overwrite';
+
+interface ClientProgramBlockPayload {
+  name: string;
+  notes: string;
+  order_index: number;
+  week_number: number;
+  exercises: Array<{
+    exercise_id: string;
+    sets: number | null;
+    reps: number | null;
+    rest_seconds: number | null;
+    hold_seconds: number | null;
+    is_weighted: boolean;
+    notes: string;
+  }>;
+}
+
+/** Every block (all weeks) of a template in the jsonb shape
+ * append_weeks_to_client_program / overwrite_client_program /
+ * archive_and_append_client_program all expect for p_blocks. Deliberately
+ * not `fetchTemplateBlocks` above — that query omits `is_weighted`, and the
+ * write RPCs COALESCE a missing value to false, silently zeroing the flag
+ * on transfer. Mirrors mobile's fetchTemplateBlocksPayload
+ * (src/lib/ClientProgramWriter.ts) exactly. */
+export async function fetchTemplateBlocksPayload(templateId: string): Promise<ClientProgramBlockPayload[]> {
+  const { data: blocks, error } = await supabase
+    .from('program_blocks')
+    .select('id, name, notes, order_index, week_number')
+    .eq('template_id', templateId)
+    .order('order_index', { ascending: true });
+  if (error) throw new Error(error.message);
+
+  const blockIds = (blocks ?? []).map((b) => b.id);
+  const exByBlock = new Map<string, ClientProgramBlockPayload['exercises']>();
+  if (blockIds.length > 0) {
+    const { data: exs, error: exErr } = await supabase
+      .from('block_exercises')
+      .select('block_id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index')
+      .in('block_id', blockIds)
+      .order('order_index', { ascending: true });
+    if (exErr) throw new Error(exErr.message);
+    for (const ex of (exs ?? []) as Array<Record<string, unknown>>) {
+      const blockId = ex.block_id as string;
+      const list = exByBlock.get(blockId) ?? [];
+      list.push({
+        exercise_id: ex.exercise_id as string,
+        sets: ex.sets as number | null,
+        reps: ex.reps as number | null,
+        rest_seconds: ex.rest_seconds as number | null,
+        hold_seconds: ex.hold_seconds as number | null,
+        is_weighted: Boolean(ex.is_weighted),
+        notes: (ex.notes as string | null) ?? '',
+      });
+      exByBlock.set(blockId, list);
+    }
+  }
+
+  return (blocks ?? []).map((b) => ({
+    name: b.name ?? '',
+    notes: b.notes ?? '',
+    order_index: b.order_index ?? 0,
+    week_number: b.week_number ?? 1,
+    exercises: exByBlock.get(b.id) ?? [],
+  }));
+}
+
+/** Copies a master template's blocks onto an existing client assignment,
+ * using whichever of the three write RPCs matches the coach's chosen mode.
+ * The master template itself is never touched — all three RPCs derive their
+ * target template_id from the warrior_programs row, which always points at
+ * the client's own clone. */
+export async function applyTemplateToExistingClient(
+  mode: ClientProgramWriteMode,
+  warriorProgramId: string,
+  sourceTemplateId: string,
+): Promise<void> {
+  const blocks = await fetchTemplateBlocksPayload(sourceTemplateId);
+  const rpcName =
+    mode === 'append'
+      ? 'append_weeks_to_client_program'
+      : mode === 'archive'
+        ? 'archive_and_append_client_program'
+        : 'overwrite_client_program';
+
+  const { error } = await supabase.rpc(rpcName, {
+    p_warrior_program_id: warriorProgramId,
+    p_blocks: blocks,
+  });
+  if (error) throw new Error(error.message);
+}
+
+export interface WarriorProgressSet {
+  set_index: number | null;
+  reps_completed: number | null;
+  weight_used: number | null;
+  hold_seconds: number | null;
+  exercise_name: string | null;
+}
+
+export interface WarriorProgressLog {
+  id: string;
+  block_id: string | null;
+  block_name: string | null;
+  week_number: number | null;
+  completed_at: string;
+  notes: string | null;
+  rating: number | null;
+  feel: string | null;
+  rpe: number | null;
+  missed_reason: string | null;
+  missed_detail: string | null;
+  session_seconds: number | null;
+  status: 'completed' | 'missed';
+  sets: WarriorProgressSet[];
+}
+
+export interface WarriorProgressWeek {
+  week_start: string;
+  total: number;
+  completed: number;
+  completion_pct: number;
+}
+
+export interface WarriorProgressBodyweight {
+  logged_at: string;
+  weight_kg: number;
+}
+
+export interface WarriorProgressResult {
+  logs: WarriorProgressLog[];
+  weekly_completion: WarriorProgressWeek[];
+  bodyweight_trend: WarriorProgressBodyweight[];
+}
+
+export async function fetchWarriorProgress(assignmentId: string): Promise<WarriorProgressResult> {
   const { data, error } = await supabase.rpc('get_warrior_progress', {
     p_warrior_program_id: assignmentId,
   });
   if (error) throw new Error(error.message);
+  return data as WarriorProgressResult;
+}
+
+export async function fetchCoachWeekNote(
+  warriorProgramId: string,
+  weekNumber: number,
+): Promise<{ id: string; note: string } | null> {
+  const { data, error } = await supabase
+    .from('coach_week_notes')
+    .select('id, note')
+    .eq('warrior_program_id', warriorProgramId)
+    .eq('week_number', weekNumber)
+    .maybeSingle();
+  if (error) throw new Error(error.message);
   return data;
+}
+
+export async function saveCoachWeekNote(params: {
+  warriorProgramId: string;
+  weekNumber: number;
+  coachId: string;
+  note: string;
+}): Promise<void> {
+  const { error } = await supabase.from('coach_week_notes').upsert(
+    {
+      warrior_program_id: params.warriorProgramId,
+      week_number: params.weekNumber,
+      coach_id: params.coachId,
+      note: params.note,
+      updated_at: new Date().toISOString(),
+    },
+    { onConflict: 'warrior_program_id,week_number' },
+  );
+  if (error) throw new Error(error.message);
 }
 
 export async function fetchCoaches(): Promise<Array<{ id: string; display_name: string | null }>> {
