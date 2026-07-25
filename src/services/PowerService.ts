@@ -104,7 +104,7 @@ export const PowerService = {
   async getGloryRank(totalPoints: number): Promise<number> {
     const { count: gloryCount } = await supabase
       .from('profiles')
-      .select('*', { count: 'exact', head: true })
+      .select('id', { count: 'exact', head: true })
       .gt('power_points', totalPoints);
     return (gloryCount || 0) + 1;
   },

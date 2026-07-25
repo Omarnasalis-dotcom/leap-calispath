@@ -104,7 +104,7 @@ export const OneMMService = {
       try {
         const { count } = await supabase
           .from('profiles')
-          .select('*', { count: 'exact', head: true })
+          .select('id', { count: 'exact', head: true })
           .gt('one_mm_points', totalPoints);
         return (count || 0) + 1;
       } catch (err) {
