@@ -120,7 +120,7 @@ export function DashboardPage() {
         <StatCard
           label="Workouts this week"
           value={data?.workouts_this_week}
-          hint="warriors who logged one"
+          hint="logged since Saturday"
         />
       </div>
 
