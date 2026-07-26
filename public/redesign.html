@@ -43,7 +43,10 @@ button{font-family:inherit;}
 @keyframes heroGlow{0%,100%{opacity:.5;transform:scale(1);}50%{opacity:.85;transform:scale(1.04);}}
 @keyframes floatSlow{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
 @keyframes spinRing{to{transform:rotate(360deg);}}
-@keyframes dialogIn{from{opacity:0;transform:scale(.96) translateY(8px);}to{opacity:1;transform:scale(1) translateY(0);}}
+@keyframes dialogIn{
+  from{opacity:0;transform:translate(-50%,-50%) scale(.96) translateY(8px);}
+  to{opacity:1;transform:translate(-50%,-50%) scale(1) translateY(0);}
+}
 
 /* Motion is opt-in: everything above renders in a static, still-correct default state.
    Only attach loops/entrances for visitors who haven't asked for reduced motion. */
@@ -145,7 +148,7 @@ section.content{
 
 h1{
   font-size:clamp(32px,5.2vw,68px);font-weight:800;line-height:1.05;letter-spacing:-0.5px;
-  margin:20px 0 0;text-transform:uppercase;max-width:560px;text-wrap:balance;
+  margin:20px 0 0;text-transform:uppercase;max-width:760px;text-wrap:balance;
 }
 h1 .accent{color:var(--accent);}
 
@@ -201,7 +204,11 @@ h1 .accent{color:var(--accent);}
   pointer-events:none;
 }
 .stat-chip{
-  position:absolute;top:8%;left:0;transform:translateX(-108%);z-index:3;
+  /* Positioned via `right`, not `left`+transform: the float animation below already owns
+     `transform` (translateY), and a CSS animation replaces the full transform value each
+     frame rather than composing with a static one -- a static translateX here would get
+     silently dropped the moment the float loop starts. */
+  position:absolute;top:8%;right:calc(100% + 14px);z-index:3;
   background:var(--card-glass);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);
   border:1.5px solid rgba(255,82,82,0.45);border-radius:16px;padding:11px 15px;
   display:flex;flex-direction:column;gap:2px;
@@ -211,15 +218,33 @@ h1 .accent{color:var(--accent);}
 .stat-chip .chip-label{font-size:9px;font-weight:700;letter-spacing:1.5px;color:var(--text-tertiary);}
 .stat-chip .chip-value{font-size:18px;font-weight:800;color:var(--accent);}
 
+/* Below ~760px the .grid row wraps to a single stacked column (.copy's 440px basis +
+   .mockup's 260px basis + gap no longer fit side by side). Two things only make sense
+   in the two-column layout and need an explicit swap once stacked: */
+@media (max-width:760px){
+  /* Phone before text, matching the existing download.html mobile convention
+     (.phone-wrap{order:-1}) -- the visual hook leads on a narrow, thumb-scrolled screen. */
+  .mockup{order:-1;}
+  /* The chip was floating in empty space to the *left* of the phone column, which only
+     exists in the two-column layout. Stacked, there's nothing there but the viewport
+     edge, so it'd be clipped by overflow-x:hidden. Overlap the phone's corner instead. */
+  .stat-chip{right:auto;left:-8px;top:-14px;}
+}
+
 :is(.nav-cta, .store-badge, .privacy-link, a):focus-visible,
 button:focus-visible{
   outline:2px solid var(--accent);outline-offset:3px;border-radius:4px;
 }
 
 /* ---- Play Store tester dialog ---- */
+/* Centered explicitly via fixed+translate rather than the UA default (dialog:modal's
+   margin:auto), because the page's own `* { margin:0 }` reset outranks that UA default
+   regardless of specificity and would otherwise silently pin the dialog to one edge. */
 dialog{
+  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
   border:none;border-radius:20px;padding:0;background:#0d0d0f;color:var(--text-primary);
   width:min(420px, calc(100vw - 48px));
+  max-height:calc(100vh - 48px);overflow-y:auto;
   box-shadow:0 30px 70px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.07);
 }
 dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);}
