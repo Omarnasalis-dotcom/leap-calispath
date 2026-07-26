@@ -34,7 +34,7 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/download.html"
+      "destination": "/redesign.html"
     }
   ],
   "headers": [
