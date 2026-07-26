@@ -8,7 +8,7 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "build": "expo export --platform web --output-dir dist",
-    "build:vercel": "expo export --platform web --output-dir dist && cp dist/index.html dist/app.html && cp -r public/* dist/ && cp dist/redesign.html dist/index.html",
+    "build:vercel": "expo export --platform web --output-dir dist && cp dist/index.html dist/app.html && cp -r public/* dist/ && cp dist/download.html dist/index.html",
     "serve": "cd dist && python3 -m http.server 8080",
     "test": "jest"
   },
