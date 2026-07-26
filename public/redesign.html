@@ -7,7 +7,7 @@
 <meta name="description" content="Track every rep, climb tier ladders across Power, Static and Endurance, and turn your calisthenics training into a game. Free on iOS now, Android closed testing open.">
 <meta property="og:title" content="Leap Arena">
 <meta property="og:description" content="Turn your calisthenics workout into a game.">
-<meta property="og:image" content="/assets/app-screen.jpeg">
+<meta property="og:image" content="/assets/profile-mockup.png">
 <link rel="icon" type="image/png" href="/favicon.png">
 <link rel="icon" href="/favicon.ico" sizes="any">
 
@@ -219,12 +219,10 @@ h1 .accent{color:var(--accent);}
 .stat-chip .chip-value{font-size:18px;font-weight:800;color:var(--accent);}
 
 /* Below ~760px the .grid row wraps to a single stacked column (.copy's 440px basis +
-   .mockup's 260px basis + gap no longer fit side by side). Two things only make sense
-   in the two-column layout and need an explicit swap once stacked: */
+   .mockup's 260px basis + gap no longer fit side by side). Stacked order is deliberately
+   text-then-phone (source order, no override) -- headline/copy/download CTA lead on
+   mobile, app screenshot follows. One thing still needs an explicit fix once stacked: */
 @media (max-width:760px){
-  /* Phone before text, matching the existing download.html mobile convention
-     (.phone-wrap{order:-1}) -- the visual hook leads on a narrow, thumb-scrolled screen. */
-  .mockup{order:-1;}
   /* The chip was floating in empty space to the *left* of the phone column, which only
      exists in the two-column layout. Stacked, there's nothing there but the viewport
      edge, so it'd be clipped by overflow-x:hidden. Overlap the phone's corner instead. */
@@ -361,12 +359,12 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
         <div class="glow"></div>
         <div class="shadow-ellipse"></div>
         <div class="phone" id="phone">
-          <img src="/assets/app-screen.jpeg" alt="Leap Arena strength-tier screen showing Demigod rank, tier 8 of 9, ranked #1 with a 195.50 combined score">
+          <img src="/assets/profile-mockup.png" alt="Leap Arena profile screen showing Olympian rank, tier 7 of 9, a Well-Rounded Athlete progress card, and this week's points">
           <div class="sheen"></div>
         </div>
         <div class="stat-chip">
-          <span class="chip-label">DEMIGOD &middot; TIER 8 OF 9</span>
-          <span class="chip-value">195.50 TOTAL PTS</span>
+          <span class="chip-label">OLYMPIAN &middot; TIER 7 OF 9</span>
+          <span class="chip-value">+110 PTS THIS WEEK</span>
         </div>
       </div>
     </div>
