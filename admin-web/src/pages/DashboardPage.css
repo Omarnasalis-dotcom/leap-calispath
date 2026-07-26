@@ -1,0 +1,369 @@
+/* Dashboard-only visual redesign, per assets/dashboard- handoff/. Everything
+   here is scoped under .dashboard-v2 (new token names, never overriding
+   App.css's globals) so every other admin-web page keeps its current look
+   untouched. Barlow Condensed is self-hosted (woff2, with the vendored TTF
+   kept as a fallback source) since the CSP has no font-src override and
+   would otherwise fall back to default-src 'self', blocking Google Fonts'
+   own <link> outright. */
+
+@font-face {
+  font-family: 'Barlow Condensed';
+  src:
+    url('/fonts/barlow-condensed/barlow-condensed-500.woff2') format('woff2'),
+    url('/fonts/barlow-condensed/barlow-condensed-500.ttf') format('truetype');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  src:
+    url('/fonts/barlow-condensed/barlow-condensed-600.woff2') format('woff2'),
+    url('/fonts/barlow-condensed/barlow-condensed-600.ttf') format('truetype');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  src:
+    url('/fonts/barlow-condensed/barlow-condensed-700.woff2') format('woff2'),
+    url('/fonts/barlow-condensed/barlow-condensed-700.ttf') format('truetype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Barlow Condensed';
+  src:
+    url('/fonts/barlow-condensed/barlow-condensed-800.woff2') format('woff2'),
+    url('/fonts/barlow-condensed/barlow-condensed-800.ttf') format('truetype');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+
+.dashboard-v2 {
+  --dv-bg: #0b0b0d;
+  --dv-accent: #ff4b3e;
+  --dv-warn: #f0a920;
+  --dv-strength: #ff4b3e;
+  --dv-power: #f0a920;
+  --dv-static: #8b5cf6;
+  --dv-onemm: #ff6b35;
+  --dv-positive: #3ddc84;
+  --dv-negative: #f0625a;
+  --dv-card-fill: rgba(255, 255, 255, 0.03);
+  --dv-card-border: rgba(255, 255, 255, 0.08);
+  --dv-font: 'Barlow Condensed', system-ui, sans-serif;
+
+  background: var(--dv-bg);
+  font-family: var(--dv-font);
+  font-weight: 500;
+  border-radius: 18px;
+}
+
+.dashboard-v2 h1,
+.dashboard-v2 h2,
+.dashboard-v2 .label {
+  font-family: var(--dv-font);
+  font-weight: 800;
+}
+
+.dashboard-v2 h1 {
+  font-size: 33px;
+  letter-spacing: 0;
+}
+
+.dashboard-v2 h2 {
+  font-size: 17.5px;
+}
+
+/* ---------- shared-class overrides (scoped here only; App.css untouched) ---------- */
+
+.dashboard-v2 .panel,
+.dashboard-v2 .stat-strip {
+  background: var(--dv-card-fill);
+  border-color: var(--dv-card-border);
+  border-radius: 18px;
+}
+
+.dashboard-v2 .panel-head {
+  border-bottom-color: var(--dv-card-border);
+}
+
+.dashboard-v2 .stat-cell + .stat-cell {
+  border-left-color: var(--dv-card-border);
+}
+@media (max-width: 900px) {
+  .dashboard-v2 .stat-cell + .stat-cell {
+    border-top-color: var(--dv-card-border);
+  }
+}
+
+.dashboard-v2 .stat-cell .value {
+  font-family: var(--dv-font);
+  font-weight: 800;
+  font-size: 32px;
+}
+
+.dashboard-v2 .badge.warn {
+  color: var(--dv-warn);
+  border-color: rgba(240, 169, 32, 0.4);
+  background: rgba(240, 169, 32, 0.1);
+}
+
+.dashboard-v2 .notice.dv-banner {
+  border-color: rgba(240, 169, 32, 0.35);
+  background: rgba(240, 169, 32, 0.08);
+}
+.dashboard-v2 .notice.dv-banner .label {
+  color: var(--dv-warn);
+}
+
+/* ---------- stat card delta + updated pill ---------- */
+
+.dv-stat-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.dv-delta {
+  font-size: 11px;
+  font-weight: 700;
+}
+.dv-delta-pos {
+  color: var(--dv-positive);
+}
+.dv-delta-neg {
+  color: var(--dv-negative);
+}
+
+.dv-updated-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+  padding: 9px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--dv-card-border);
+  white-space: nowrap;
+}
+
+/* ---------- chart layout + tooltips ---------- */
+
+.dv-chart-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.dv-chart-wrap {
+  position: relative;
+}
+
+.dv-week-label {
+  font-size: 10.5px;
+  color: rgba(255, 255, 255, 0.35);
+}
+
+.dv-tooltip {
+  position: absolute;
+  transform: translate(-50%, -120%);
+  background: #17171a;
+  border: 1px solid var(--dv-card-border);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 5;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}
+.dv-tooltip-title {
+  color: rgba(255, 255, 255, 0.5);
+  font-weight: 700;
+}
+.dv-tooltip-value {
+  color: #fff;
+  font-weight: 800;
+  font-size: 13px;
+}
+
+/* Discrete per-mark hover tooltip for the bar/progress charts — CSS-only,
+   no JS needed since each mark is a fixed DOM element, not a continuous
+   position to track (that's what .dv-tooltip above is for). */
+.dv-bar-tooltip {
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  transform: translate(-50%, -8px);
+  background: #17171a;
+  border: 1px solid var(--dv-card-border);
+  border-radius: 8px;
+  padding: 5px 9px;
+  font-size: 11.5px;
+  font-weight: 700;
+  color: #fff;
+  white-space: nowrap;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 120ms ease-out;
+  z-index: 5;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dv-bar-tooltip {
+    transition-duration: 0.01ms;
+  }
+}
+
+/* ---------- world participation (horizontal bars) ---------- */
+
+.dv-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.dv-bar-row {
+  position: relative;
+}
+.dv-bar-row:hover .dv-bar-tooltip {
+  opacity: 1;
+}
+
+.dv-bar-row-head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.dv-bar-label {
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.75);
+}
+
+.dv-bar-value {
+  font-weight: 800;
+  color: #fff;
+}
+
+.dv-bar-track {
+  height: 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.dv-bar-fill {
+  height: 100%;
+  border-radius: 999px;
+}
+
+/* ---------- weekly activity (vertical bars) ---------- */
+
+.dv-vbar-list {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  height: 140px;
+  margin-top: 4px;
+}
+
+.dv-vbar-col {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  height: 100%;
+}
+.dv-vbar-col:hover .dv-bar-tooltip {
+  opacity: 1;
+}
+
+.dv-vbar-value {
+  font-size: 12px;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+/* Fixed-pixel-height track: the fill's height:X% below resolves against
+   this 96px, not the column's flex-basis — see WeeklyActivityChart.tsx for
+   why that distinction matters. */
+.dv-vbar-track {
+  width: 100%;
+  height: 96px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.dv-vbar-fill {
+  width: 100%;
+  border-radius: 7px 7px 2px 2px;
+  background: rgba(255, 255, 255, 0.18);
+  min-height: 4px;
+}
+.dv-vbar-fill-current {
+  background: var(--dv-accent);
+}
+
+.dv-vbar-label {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.38);
+  margin-top: 7px;
+}
+
+/* ---------- coach engagement (progress bars) ---------- */
+
+.dv-progress-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.dv-progress-row {
+  position: relative;
+}
+.dv-progress-row:hover .dv-bar-tooltip {
+  opacity: 1;
+}
+
+.dv-progress-row-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 13.5px;
+  margin-bottom: 7px;
+}
+
+.dv-progress-name {
+  font-weight: 700;
+  color: #fff;
+}
+
+.dv-progress-meta {
+  color: rgba(255, 255, 255, 0.45);
+  font-size: 12px;
+}
+
+.dv-progress-track {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  overflow: hidden;
+}
+
+.dv-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--dv-accent);
+}

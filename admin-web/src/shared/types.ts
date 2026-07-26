@@ -11,22 +11,30 @@ export interface MyProfile {
 
 export interface DashboardOverview {
   total_users: number;
+  total_users_delta: number;
   assessed_users: number;
   coaches: number;
   admins: number;
   active_this_week: number;
+  active_this_week_delta: number;
+  workouts_this_week: number;
   world_participation: {
     strength: number;
     power: number;
     static: number;
     one_mm: number;
   };
-  pending_invite_requests: number;
   community_count: number;
   week_start: string;
   next_week_start: string;
   this_week_challenge_groups: number[];
   next_week_challenge_groups: number[];
+}
+
+export interface DashboardTrendWeek {
+  week_start: string;
+  cumulative_warriors: number;
+  active_warriors: number;
 }
 
 export interface AdminUserRow {

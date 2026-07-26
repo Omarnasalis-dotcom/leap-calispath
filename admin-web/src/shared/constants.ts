@@ -31,6 +31,16 @@ export const CHALLENGE_GROUPS = [
   { id: 3, name: 'Legends', tiers: 'Tiers 6–8' },
 ] as const;
 
+// Fixed display order for the four disciplines — never re-sort by value.
+// Colors live only as CSS custom properties (DashboardPage.css); components
+// reference cssVar so each hex value has exactly one source of truth.
+export const DISCIPLINE_SERIES = [
+  { key: 'strength', label: 'Strength', cssVar: '--dv-strength' },
+  { key: 'power', label: 'Power', cssVar: '--dv-power' },
+  { key: 'static', label: 'Static', cssVar: '--dv-static' },
+  { key: 'one_mm', label: '1-Min-Max', cssVar: '--dv-onemm' },
+] as const;
+
 /** Most recent Saturday (UTC), yyyy-mm-dd — mirrors ChallengeService.getCurrentWeekStart(). */
 export function currentWeekStart(): string {
   const now = new Date();
@@ -78,4 +88,18 @@ export function formatSeconds(total: number | null | undefined): string {
   const m = Math.floor(total / 60);
   const s = total % 60;
   return `${m}:${String(s).padStart(2, '0')}`;
+}
+
+/** "Updated Xs/m/h/d ago" for a timestamp in ms (e.g. React Query's dataUpdatedAt). */
+export function formatRelativeTime(ms: number | null | undefined): string {
+  if (!ms) return '—';
+  const diffSec = Math.round((Date.now() - ms) / 1000);
+  if (diffSec < 10) return 'just now';
+  if (diffSec < 60) return `${diffSec}s ago`;
+  const diffMin = Math.round(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHour = Math.round(diffMin / 60);
+  if (diffHour < 24) return `${diffHour}h ago`;
+  const diffDay = Math.round(diffHour / 24);
+  return `${diffDay}d ago`;
 }

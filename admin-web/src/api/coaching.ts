@@ -82,6 +82,7 @@ export interface CoachingAnalytics {
     coach_id: string;
     display_name: string | null;
     active_clients: number;
+    active_clients_this_week: number;
     templates: number;
     published_templates: number;
   }>;
