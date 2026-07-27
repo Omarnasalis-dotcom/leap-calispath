@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import './DashboardPage.css';
-import { fetchDashboardOverview, fetchDashboardTrends } from '@/api/dashboard';
+import { fetchDashboardOverview, fetchDashboardTrends, fetchRetentionCurve } from '@/api/dashboard';
 import { fetchCoachingAnalytics } from '@/api/coaching';
 import { CHALLENGE_GROUPS, DISCIPLINE_SERIES, formatDate, formatRelativeTime } from '@/shared/constants';
 import { ErrorNote, Badge } from '@/components/bits';
@@ -10,6 +10,7 @@ import { WarriorGrowthChart } from '@/components/dashboard/WarriorGrowthChart';
 import { WorldParticipationChart } from '@/components/dashboard/WorldParticipationChart';
 import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart';
 import { CoachEngagementChart } from '@/components/dashboard/CoachEngagementChart';
+import { RetentionCurveChart } from '@/components/dashboard/RetentionCurveChart';
 
 function WeekRow({
   title,
@@ -57,6 +58,10 @@ export function DashboardPage() {
   const { data: coaching } = useQuery({
     queryKey: ['coaching-analytics'],
     queryFn: fetchCoachingAnalytics,
+  });
+  const { data: retention } = useQuery({
+    queryKey: ['retention-curve', 8],
+    queryFn: () => fetchRetentionCurve(8),
   });
 
   const worlds = data?.world_participation;
@@ -183,6 +188,20 @@ export function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <section className="panel dv-chart-panel">
+        <div className="panel-head">
+          <h2>Retention</h2>
+          <span className="label">% still active by weeks since signup</span>
+        </div>
+        <div className="panel-body">
+          {retention ? (
+            <RetentionCurveChart points={retention} />
+          ) : (
+            <div className="skeleton" style={{ height: 180 }} />
+          )}
+        </div>
+      </section>
 
       <section className="panel">
         <div className="panel-head">

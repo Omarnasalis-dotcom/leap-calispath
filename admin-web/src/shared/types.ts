@@ -37,6 +37,13 @@ export interface DashboardTrendWeek {
   active_warriors: number;
 }
 
+export interface RetentionCurvePoint {
+  weeks_since_signup: number;
+  eligible_users: number;
+  active_users: number;
+  retention_pct: number;
+}
+
 export interface AdminUserRow {
   id: string;
   email: string | null;
