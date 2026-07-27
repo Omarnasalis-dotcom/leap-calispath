@@ -1,7 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import './DashboardPage.css';
-import { fetchDashboardOverview, fetchDashboardTrends, fetchRetentionCurve } from '@/api/dashboard';
+import {
+  fetchDashboardOverview,
+  fetchDashboardTrends,
+  fetchRetentionCurve,
+  fetchTierDistribution,
+} from '@/api/dashboard';
 import { fetchCoachingAnalytics } from '@/api/coaching';
 import { CHALLENGE_GROUPS, DISCIPLINE_SERIES, formatDate, formatRelativeTime } from '@/shared/constants';
 import { ErrorNote, Badge } from '@/components/bits';
@@ -11,6 +16,7 @@ import { WorldParticipationChart } from '@/components/dashboard/WorldParticipati
 import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart';
 import { CoachEngagementChart } from '@/components/dashboard/CoachEngagementChart';
 import { RetentionCurveChart } from '@/components/dashboard/RetentionCurveChart';
+import { TierDistributionChart } from '@/components/dashboard/TierDistributionChart';
 
 function WeekRow({
   title,
@@ -62,6 +68,10 @@ export function DashboardPage() {
   const { data: retention } = useQuery({
     queryKey: ['retention-curve', 8],
     queryFn: () => fetchRetentionCurve(8),
+  });
+  const { data: tierDistribution } = useQuery({
+    queryKey: ['tier-distribution'],
+    queryFn: fetchTierDistribution,
   });
 
   const worlds = data?.world_participation;
@@ -199,6 +209,20 @@ export function DashboardPage() {
             <RetentionCurveChart points={retention} />
           ) : (
             <div className="skeleton" style={{ height: 180 }} />
+          )}
+        </div>
+      </section>
+
+      <section className="panel dv-chart-panel">
+        <div className="panel-head">
+          <h2>Tier distribution</h2>
+          <span className="label">assessed warriors</span>
+        </div>
+        <div className="panel-body">
+          {tierDistribution ? (
+            <TierDistributionChart rows={tierDistribution} />
+          ) : (
+            <div className="skeleton" style={{ height: 140 }} />
           )}
         </div>
       </section>

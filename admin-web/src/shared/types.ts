@@ -44,6 +44,11 @@ export interface RetentionCurvePoint {
   retention_pct: number;
 }
 
+export interface TierDistributionRow {
+  tier: number;
+  warrior_count: number;
+}
+
 export interface AdminUserRow {
   id: string;
   email: string | null;
