@@ -319,6 +319,17 @@
   opacity: 1;
 }
 
+/* Few-category variant (Recent pulse: 3 bars) — cap column width and
+   center the group instead of stretching flex:1 columns to fill a
+   full-width panel. */
+.dv-vbar-list-sparse {
+  justify-content: center;
+  gap: 48px;
+}
+.dv-vbar-list-sparse .dv-vbar-col {
+  flex: 0 1 140px;
+}
+
 .dv-vbar-value {
   font-size: 12px;
   font-weight: 700;

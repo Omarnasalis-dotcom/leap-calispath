@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 import type {
   DashboardOverview,
   DashboardTrendWeek,
+  RecentPulse,
   RetentionCurvePoint,
   TierDistributionRow,
   WorldParticipation,
@@ -51,4 +52,12 @@ export async function fetchTierDistribution(): Promise<TierDistributionRow[]> {
   const { data, error } = await supabase.rpc('admin_get_tier_distribution');
   if (error) throw new Error(error.message);
   return (data ?? []) as TierDistributionRow[];
+}
+
+export async function fetchRecentPulse(hours = 24): Promise<RecentPulse> {
+  const { data, error } = await supabase.rpc('admin_get_recent_pulse', {
+    p_hours: hours,
+  });
+  if (error) throw new Error(error.message);
+  return data as RecentPulse;
 }

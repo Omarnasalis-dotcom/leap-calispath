@@ -5,6 +5,7 @@ import './DashboardPage.css';
 import {
   fetchDashboardOverview,
   fetchDashboardTrends,
+  fetchRecentPulse,
   fetchRetentionCurve,
   fetchTierDistribution,
   fetchWorldParticipation,
@@ -19,6 +20,7 @@ import { WeeklyActivityChart } from '@/components/dashboard/WeeklyActivityChart'
 import { CoachEngagementChart } from '@/components/dashboard/CoachEngagementChart';
 import { RetentionCurveChart } from '@/components/dashboard/RetentionCurveChart';
 import { TierDistributionChart } from '@/components/dashboard/TierDistributionChart';
+import { RecentPulseChart } from '@/components/dashboard/RecentPulseChart';
 
 function WeekRow({
   title,
@@ -62,6 +64,7 @@ export function DashboardPage() {
   // Tier distribution, Weekly challenges) are intentionally unaffected.
   const [weeksBack, setWeeksBack] = useState(8);
   const [groupId, setGroupId] = useState<number | null>(null);
+  const [pulseHours, setPulseHours] = useState(24);
 
   const { data, error, dataUpdatedAt } = useQuery({
     queryKey: ['dashboard-overview'],
@@ -86,6 +89,10 @@ export function DashboardPage() {
   const { data: worlds } = useQuery({
     queryKey: ['world-participation', groupId],
     queryFn: () => fetchWorldParticipation(groupId),
+  });
+  const { data: pulse } = useQuery({
+    queryKey: ['recent-pulse', pulseHours],
+    queryFn: () => fetchRecentPulse(pulseHours),
   });
 
   const worldBars = worlds
@@ -143,11 +150,6 @@ export function DashboardPage() {
           hint="logged anything since Saturday"
           delta={data?.active_this_week_delta}
         />
-        <StatCard
-          label="Active last 24h"
-          value={data?.active_last_24h}
-          hint="logged anything today"
-        />
         <StatCard label="Coaches" value={data?.coaches} />
         <StatCard label="Communities" value={data?.community_count} />
         <StatCard
@@ -156,6 +158,27 @@ export function DashboardPage() {
           hint="logged since Saturday"
         />
       </div>
+
+      <section className="panel dv-chart-panel">
+        <div className="panel-head">
+          <h2>Recent pulse</h2>
+          <select
+            className="field dv-select"
+            value={pulseHours}
+            onChange={(e) => setPulseHours(Number(e.target.value))}
+          >
+            <option value={24}>Last 24 hours</option>
+            <option value={48}>Last 48 hours</option>
+          </select>
+        </div>
+        <div className="panel-body">
+          {pulse ? (
+            <RecentPulseChart pulse={pulse} />
+          ) : (
+            <div className="skeleton" style={{ height: 140 }} />
+          )}
+        </div>
+      </section>
 
       <div className="dv-filter-bar">
         <label className="dv-filter">
