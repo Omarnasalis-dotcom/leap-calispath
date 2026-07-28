@@ -54,7 +54,7 @@ function WeekRow({
   );
 }
 
-const WEEK_RANGE_OPTIONS = [4, 8, 12, 26];
+const WEEK_RANGE_OPTIONS = [1, 4, 8, 12, 26];
 
 export function DashboardPage() {
   // Shared filters for Warrior growth / Weekly activity / Retention /
@@ -162,7 +162,7 @@ export function DashboardPage() {
           >
             {WEEK_RANGE_OPTIONS.map((w) => (
               <option key={w} value={w}>
-                Last {w} weeks
+                Last {w} week{w === 1 ? '' : 's'}
               </option>
             ))}
           </select>
@@ -188,7 +188,9 @@ export function DashboardPage() {
         <section className="panel dv-chart-panel" style={{ flex: '2 1 480px' }}>
           <div className="panel-head">
             <h2>Warrior growth</h2>
-            <span className="label">last {weeksBack} weeks</span>
+            <span className="label">
+              last {weeksBack} week{weeksBack === 1 ? '' : 's'}
+            </span>
           </div>
           <div className="panel-body">
             {trends ? (
