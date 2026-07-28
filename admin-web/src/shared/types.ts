@@ -18,17 +18,18 @@ export interface DashboardOverview {
   active_this_week: number;
   active_this_week_delta: number;
   workouts_this_week: number;
-  world_participation: {
-    strength: number;
-    power: number;
-    static: number;
-    one_mm: number;
-  };
   community_count: number;
   week_start: string;
   next_week_start: string;
   this_week_challenge_groups: number[];
   next_week_challenge_groups: number[];
+}
+
+export interface WorldParticipation {
+  strength: number;
+  power: number;
+  static: number;
+  one_mm: number;
 }
 
 export interface DashboardTrendWeek {

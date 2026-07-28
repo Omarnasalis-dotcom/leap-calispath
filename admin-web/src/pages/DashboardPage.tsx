@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import './DashboardPage.css';
@@ -6,6 +7,7 @@ import {
   fetchDashboardTrends,
   fetchRetentionCurve,
   fetchTierDistribution,
+  fetchWorldParticipation,
 } from '@/api/dashboard';
 import { fetchCoachingAnalytics } from '@/api/coaching';
 import { CHALLENGE_GROUPS, DISCIPLINE_SERIES, formatDate, formatRelativeTime } from '@/shared/constants';
@@ -52,29 +54,40 @@ function WeekRow({
   );
 }
 
+const WEEK_RANGE_OPTIONS = [4, 8, 12, 26];
+
 export function DashboardPage() {
+  // Shared filters for Warrior growth / Weekly activity / Retention /
+  // World participation — the other panels (stat strip, Coach engagement,
+  // Tier distribution, Weekly challenges) are intentionally unaffected.
+  const [weeksBack, setWeeksBack] = useState(8);
+  const [groupId, setGroupId] = useState<number | null>(null);
+
   const { data, error, dataUpdatedAt } = useQuery({
     queryKey: ['dashboard-overview'],
     queryFn: fetchDashboardOverview,
   });
   const { data: trends } = useQuery({
-    queryKey: ['dashboard-trends', 8],
-    queryFn: () => fetchDashboardTrends(8),
+    queryKey: ['dashboard-trends', weeksBack, groupId],
+    queryFn: () => fetchDashboardTrends(weeksBack, groupId),
   });
   const { data: coaching } = useQuery({
     queryKey: ['coaching-analytics'],
     queryFn: fetchCoachingAnalytics,
   });
   const { data: retention } = useQuery({
-    queryKey: ['retention-curve', 8],
-    queryFn: () => fetchRetentionCurve(8),
+    queryKey: ['retention-curve', weeksBack, groupId],
+    queryFn: () => fetchRetentionCurve(weeksBack, groupId),
   });
   const { data: tierDistribution } = useQuery({
     queryKey: ['tier-distribution'],
     queryFn: fetchTierDistribution,
   });
+  const { data: worlds } = useQuery({
+    queryKey: ['world-participation', groupId],
+    queryFn: () => fetchWorldParticipation(groupId),
+  });
 
-  const worlds = data?.world_participation;
   const worldBars = worlds
     ? DISCIPLINE_SERIES.map((d) => ({
         key: d.key,
@@ -139,11 +152,43 @@ export function DashboardPage() {
         />
       </div>
 
+      <div className="dv-filter-bar">
+        <label className="dv-filter">
+          <span className="label">Range</span>
+          <select
+            className="field dv-select"
+            value={weeksBack}
+            onChange={(e) => setWeeksBack(Number(e.target.value))}
+          >
+            {WEEK_RANGE_OPTIONS.map((w) => (
+              <option key={w} value={w}>
+                Last {w} weeks
+              </option>
+            ))}
+          </select>
+        </label>
+        <label className="dv-filter">
+          <span className="label">Group</span>
+          <select
+            className="field dv-select"
+            value={groupId ?? ''}
+            onChange={(e) => setGroupId(e.target.value === '' ? null : Number(e.target.value))}
+          >
+            <option value="">All warriors</option>
+            {CHALLENGE_GROUPS.map((g) => (
+              <option key={g.id} value={g.id}>
+                {g.name} ({g.tiers})
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+
       <div className="dv-chart-row">
         <section className="panel dv-chart-panel" style={{ flex: '2 1 480px' }}>
           <div className="panel-head">
             <h2>Warrior growth</h2>
-            <span className="label">last 8 weeks</span>
+            <span className="label">last {weeksBack} weeks</span>
           </div>
           <div className="panel-body">
             {trends ? (

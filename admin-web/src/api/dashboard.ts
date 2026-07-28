@@ -4,6 +4,7 @@ import type {
   DashboardTrendWeek,
   RetentionCurvePoint,
   TierDistributionRow,
+  WorldParticipation,
 } from '@/shared/types';
 
 export async function fetchDashboardOverview(): Promise<DashboardOverview> {
@@ -12,20 +13,38 @@ export async function fetchDashboardOverview(): Promise<DashboardOverview> {
   return data as DashboardOverview;
 }
 
-export async function fetchDashboardTrends(weeksBack = 8): Promise<DashboardTrendWeek[]> {
+export async function fetchDashboardTrends(
+  weeksBack = 8,
+  groupId: number | null = null,
+): Promise<DashboardTrendWeek[]> {
   const { data, error } = await supabase.rpc('admin_get_dashboard_trends', {
     p_weeks_back: weeksBack,
+    p_group_id: groupId,
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as DashboardTrendWeek[];
 }
 
-export async function fetchRetentionCurve(weeksBack = 8): Promise<RetentionCurvePoint[]> {
+export async function fetchRetentionCurve(
+  weeksBack = 8,
+  groupId: number | null = null,
+): Promise<RetentionCurvePoint[]> {
   const { data, error } = await supabase.rpc('admin_get_retention_curve', {
     p_weeks: weeksBack,
+    p_group_id: groupId,
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as RetentionCurvePoint[];
+}
+
+export async function fetchWorldParticipation(
+  groupId: number | null = null,
+): Promise<WorldParticipation> {
+  const { data, error } = await supabase.rpc('admin_get_world_participation', {
+    p_group_id: groupId,
+  });
+  if (error) throw new Error(error.message);
+  return data as WorldParticipation;
 }
 
 export async function fetchTierDistribution(): Promise<TierDistributionRow[]> {

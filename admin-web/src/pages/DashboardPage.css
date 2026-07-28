@@ -121,6 +121,36 @@
   color: var(--dv-warn);
 }
 
+/* ---------- filter bar (range + tier-group) ---------- */
+/* Scopes Warrior growth, Weekly activity, Retention, World participation —
+   Coach engagement, Tier distribution, and the stat strip are deliberately
+   unaffected by these two controls. */
+
+.dv-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+}
+
+.dv-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-v2 select.dv-select {
+  background: var(--dv-card-fill);
+  border-color: var(--dv-card-border);
+  color: #fff;
+  font-family: var(--dv-font);
+  font-weight: 600;
+  font-size: 12.5px;
+  padding: 6px 10px;
+}
+.dashboard-v2 select.dv-select:focus-visible {
+  outline-color: var(--dv-accent);
+}
+
 /* ---------- stat card delta + updated pill ---------- */
 
 .dv-stat-head {
