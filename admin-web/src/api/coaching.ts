@@ -687,8 +687,15 @@ export async function fetchCoaches(): Promise<Array<{ id: string; display_name: 
 
 // ---------- analytics ----------
 
-export async function fetchCoachingAnalytics(): Promise<CoachingAnalytics> {
-  const { data, error } = await supabase.rpc('admin_get_coaching_analytics');
+/** 'coach' = a real coach_id; 'self' = the Leap system profile
+ * (LEAP_SYSTEM_PROFILE_ID) that owns self-service library selections;
+ * null = both. */
+export type CoachSource = 'coach' | 'self' | null;
+
+export async function fetchCoachingAnalytics(source: CoachSource = null): Promise<CoachingAnalytics> {
+  const { data, error } = await supabase.rpc('admin_get_coaching_analytics', {
+    p_source: source,
+  });
   if (error) throw new Error(error.message);
   return data as CoachingAnalytics;
 }
@@ -709,8 +716,10 @@ export interface ClientAdherenceRow {
   last_logged_at: string | null;
 }
 
-export async function fetchClientAdherence(): Promise<ClientAdherenceRow[]> {
-  const { data, error } = await supabase.rpc('admin_get_client_adherence');
+export async function fetchClientAdherence(source: CoachSource = null): Promise<ClientAdherenceRow[]> {
+  const { data, error } = await supabase.rpc('admin_get_client_adherence', {
+    p_source: source,
+  });
   if (error) throw new Error(error.message);
   return (data ?? []) as ClientAdherenceRow[];
 }

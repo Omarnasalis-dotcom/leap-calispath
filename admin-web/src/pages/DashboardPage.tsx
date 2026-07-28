@@ -76,7 +76,7 @@ export function DashboardPage() {
   });
   const { data: coaching } = useQuery({
     queryKey: ['coaching-analytics'],
-    queryFn: fetchCoachingAnalytics,
+    queryFn: () => fetchCoachingAnalytics(),
   });
   const { data: retention } = useQuery({
     queryKey: ['retention-curve', weeksBack, groupId],

@@ -1,6 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchAssignment, fetchClientAdherence, fetchCoachingAnalytics, type ClientAdherenceRow } from '@/api/coaching';
+import {
+  fetchAssignment,
+  fetchClientAdherence,
+  fetchCoachingAnalytics,
+  type ClientAdherenceRow,
+  type CoachSource,
+} from '@/api/coaching';
 import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
 import { ProgressDrawer } from './ProgressDrawer';
@@ -51,15 +57,22 @@ function InlineClientProgress({ assignmentId, warriorName, onClose }: { assignme
   );
 }
 
+const SOURCE_OPTIONS: Array<{ value: string; label: string }> = [
+  { value: '', label: 'All sources' },
+  { value: 'coach', label: 'Coach assigned' },
+  { value: 'self', label: 'Self selected' },
+];
+
 export function CoachingAnalyticsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [source, setSource] = useState<CoachSource>(null);
   const { data, isLoading, error } = useQuery({
-    queryKey: ['coaching-analytics'],
-    queryFn: fetchCoachingAnalytics,
+    queryKey: ['coaching-analytics', source],
+    queryFn: () => fetchCoachingAnalytics(source),
   });
   const adherenceQ = useQuery({
-    queryKey: ['client-adherence'],
-    queryFn: fetchClientAdherence,
+    queryKey: ['client-adherence', source],
+    queryFn: () => fetchClientAdherence(source),
   });
 
   return (
@@ -69,6 +82,20 @@ export function CoachingAnalyticsPage() {
           <h1>Coaching analytics</h1>
           <div className="sub">Templates, assignments and adherence across every coach.</div>
         </div>
+        <label className="row" style={{ gap: 8 }}>
+          <span className="label">Source</span>
+          <select
+            className="field"
+            value={source ?? ''}
+            onChange={(e) => setSource((e.target.value || null) as CoachSource)}
+          >
+            {SOURCE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </label>
       </div>
 
       {error && <ErrorNote error={error} />}
