@@ -17,6 +17,7 @@ export interface DashboardOverview {
   admins: number;
   active_this_week: number;
   active_this_week_delta: number;
+  active_last_24h: number;
   workouts_this_week: number;
   community_count: number;
   week_start: string;

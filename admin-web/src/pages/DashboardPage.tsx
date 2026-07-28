@@ -143,6 +143,11 @@ export function DashboardPage() {
           hint="logged anything since Saturday"
           delta={data?.active_this_week_delta}
         />
+        <StatCard
+          label="Active last 24h"
+          value={data?.active_last_24h}
+          hint="logged anything today"
+        />
         <StatCard label="Coaches" value={data?.coaches} />
         <StatCard label="Communities" value={data?.community_count} />
         <StatCard
