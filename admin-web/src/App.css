@@ -23,6 +23,14 @@
   --violet: #9575cd;
   --orange: #ff8a65;
 
+  /* Neutral hover/overlay tints — white-on-dark here, flipped to
+     black-on-light in the light theme below. Centralized so every hover
+     state adapts automatically instead of each rule hardcoding rgba(255,255,255,…). */
+  --tint-03: rgba(255, 255, 255, 0.03);
+  --tint-04: rgba(255, 255, 255, 0.04);
+  --tint-05: rgba(255, 255, 255, 0.05);
+  --tint-08: rgba(255, 255, 255, 0.08);
+
   --radius: 8px;
   --radius-lg: 12px;
 
@@ -36,6 +44,48 @@
   --z-backdrop: 40;
   --z-modal: 50;
   --z-toast: 60;
+
+  color-scheme: dark;
+}
+
+/* Light theme — same token set, re-tuned for a white/near-white base.
+ * Semantic accents (accent/danger/ok/warn/violet/orange) are deliberately
+ * NOT the same hex as the dark theme scaled down uniformly: the dark
+ * palette picks bright, saturated colors because they need to read against
+ * near-black; those same hexes fail 4.5:1 body-text contrast against a
+ * light background, so each one is darkened independently until it clears
+ * WCAG AA against white. Applied via [data-theme="light"] on <html>,
+ * set by public/theme-init.js before first paint (a blocking external
+ * script, not inline — this app's CSP has no 'unsafe-inline' in script-src). */
+:root[data-theme='light'] {
+  --bg: #f2f2f4;
+  --bg-panel: #eaeaed;
+  --surface: #ffffff;
+  --surface-2: #f6f6f8;
+  --hairline: rgba(0, 0, 0, 0.08);
+  --hairline-strong: rgba(0, 0, 0, 0.16);
+
+  --ink: rgba(0, 0, 0, 0.87);
+  --ink-2: rgba(0, 0, 0, 0.58);
+  --ink-3: rgba(0, 0, 0, 0.32);
+
+  /* Deliberately more separated than the dark theme's accent/danger pair
+     (which read as near-identical reds) — darkening both independently
+     rather than by the same factor gave a free opportunity to fix that. */
+  --accent: #d1373a;
+  --accent-dim: rgba(209, 55, 58, 0.08);
+  --danger: #b3261e;
+  --ok: #3b835e;
+  --warn: #90712f;
+  --violet: #8568b6;
+  --orange: #b05f46;
+
+  --tint-03: rgba(0, 0, 0, 0.03);
+  --tint-04: rgba(0, 0, 0, 0.04);
+  --tint-05: rgba(0, 0, 0, 0.05);
+  --tint-08: rgba(0, 0, 0, 0.08);
+
+  color-scheme: light;
 }
 
 * {
@@ -149,7 +199,7 @@ a {
 
 .nav-item:hover {
   color: var(--ink);
-  background: rgba(255, 255, 255, 0.04);
+  background: var(--tint-04);
 }
 
 .nav-item.active {
@@ -351,7 +401,7 @@ table.data tr.clickable {
 }
 
 table.data tbody tr.clickable:hover td {
-  background: rgba(255, 255, 255, 0.03);
+  background: var(--tint-03);
 }
 
 table.data tr:last-child td {
@@ -379,7 +429,7 @@ table.data tr:last-child td {
 }
 
 .btn:hover {
-  background: rgba(255, 255, 255, 0.05);
+  background: var(--tint-05);
 }
 
 .btn:disabled {
@@ -406,9 +456,57 @@ table.data tr:last-child td {
   background: rgba(226, 75, 74, 0.1);
 }
 
+/* Light theme's --accent (#d1373a) is darkened for AA text contrast, which
+   also drops black-on-accent below 4.5:1 (4.32) — white clears it (4.86).
+   Hover darkens instead of lightens for the same reason: going lighter
+   would erode contrast against white text, the opposite of dark theme's
+   hover (which lightens because its text is black). */
+:root[data-theme='light'] .btn.primary {
+  color: #fff;
+}
+
+:root[data-theme='light'] .btn.primary:hover {
+  background: #b82f32;
+}
+
+:root[data-theme='light'] .btn.danger:hover {
+  background: rgba(179, 38, 30, 0.08);
+}
+
 .btn.small {
   font-size: 12px;
   padding: 4px 10px;
+}
+
+/* Chrome-less variant for affordances that aren't really "actions" in their
+   own right (drag handles) — a bordered box on every draggable row multiplies
+   fast in dense nested lists (day > block > exercise) and reads as more
+   controls than are actually there. */
+.btn.ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-2);
+}
+
+.btn.ghost:hover {
+  background: var(--tint-05);
+  color: var(--ink);
+}
+
+/* Fixed-width square variant for icon-only actions (copy/cut/paste/clear/
+   delete row) — same height as .btn.small, but width doesn't vary with
+   label length, so a row of these lines up into a clean, compact strip
+   instead of a row of differently-sized text pills. */
+.btn.icon {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  flex: none;
+}
+
+.btn.icon svg {
+  width: 14px;
+  height: 14px;
 }
 
 input.field,
@@ -472,6 +570,20 @@ th.sortable:focus-visible {
   background: rgba(232, 182, 76, 0.08);
 }
 
+:root[data-theme='light'] .badge.accent {
+  border-color: rgba(209, 55, 58, 0.35);
+}
+
+:root[data-theme='light'] .badge.ok {
+  border-color: rgba(59, 131, 94, 0.35);
+  background: rgba(59, 131, 94, 0.08);
+}
+
+:root[data-theme='light'] .badge.warn {
+  border-color: rgba(144, 113, 47, 0.35);
+  background: rgba(144, 113, 47, 0.08);
+}
+
 /* ---------- notices ---------- */
 
 .notice {
@@ -500,6 +612,16 @@ th.sortable:focus-visible {
   font-size: 13px;
 }
 
+:root[data-theme='light'] .notice {
+  border-color: rgba(144, 113, 47, 0.3);
+  background: rgba(144, 113, 47, 0.06);
+}
+
+:root[data-theme='light'] .error-note {
+  border-color: rgba(179, 38, 30, 0.35);
+  background: rgba(179, 38, 30, 0.06);
+}
+
 .empty {
   padding: 36px 16px;
   text-align: center;
@@ -518,9 +640,9 @@ th.sortable:focus-visible {
   border-radius: var(--radius);
   background: linear-gradient(
     100deg,
-    rgba(255, 255, 255, 0.04) 40%,
-    rgba(255, 255, 255, 0.08) 50%,
-    rgba(255, 255, 255, 0.04) 60%
+    var(--tint-04) 40%,
+    var(--tint-08) 50%,
+    var(--tint-04) 60%
   );
   background-size: 200% 100%;
   animation: shimmer 1.4s ease-out infinite;
@@ -535,7 +657,7 @@ th.sortable:focus-visible {
 @media (prefers-reduced-motion: reduce) {
   .skeleton {
     animation: none;
-    background: rgba(255, 255, 255, 0.05);
+    background: var(--tint-05);
   }
   * {
     transition-duration: 0.01ms !important;
@@ -583,6 +705,56 @@ dialog.confirm {
 
 dialog.confirm::backdrop {
   background: rgba(0, 0, 0, 0.6);
+}
+
+/* Same dialog chrome as .confirm, just sized for a 16:9 video instead of a
+   couple of lines of confirmation copy. */
+dialog.confirm.video-modal {
+  max-width: 720px;
+}
+
+.video-modal-frame {
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+
+.video-modal-frame iframe {
+  width: 100%;
+  height: 100%;
+  border: 0;
+}
+
+/* ---------- day column resize ---------- */
+
+.day-resize-handle {
+  position: absolute;
+  top: 0;
+  right: -5px;
+  bottom: 0;
+  width: 10px;
+  cursor: col-resize;
+  touch-action: none;
+  z-index: 1;
+}
+
+.day-resize-handle::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 2px;
+  border-radius: 1px;
+  background: transparent;
+  transition: background-color 150ms ease-out;
+}
+
+.day-resize-handle:hover::after,
+.day-resize-handle:active::after {
+  background: var(--accent);
 }
 
 /* ---------- misc ---------- */

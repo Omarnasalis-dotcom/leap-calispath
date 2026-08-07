@@ -82,7 +82,7 @@ export function WarriorGrowthChart({ weeks }: { weeks: DashboardTrendWeek[] }) {
             y1={PAD}
             x2={hovered.x}
             y2={H - PAD}
-            stroke="rgba(255,255,255,0.25)"
+            stroke="var(--dv-crosshair)"
             strokeWidth={1}
           />
         )}

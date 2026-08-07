@@ -55,12 +55,40 @@
   --dv-negative: #f0625a;
   --dv-card-fill: rgba(255, 255, 255, 0.03);
   --dv-card-border: rgba(255, 255, 255, 0.08);
+  --dv-fill: rgba(255, 255, 255, 0.18);
+  --dv-tooltip-bg: #17171a;
+  --dv-grid: rgba(255, 255, 255, 0.08);
+  --dv-crosshair: rgba(255, 255, 255, 0.25);
   --dv-font: 'Barlow Condensed', system-ui, sans-serif;
 
   background: var(--dv-bg);
   font-family: var(--dv-font);
   font-weight: 500;
   border-radius: 18px;
+}
+
+/* Light theme — series/status colors independently darkened for 4.5:1
+   against a white card (same reasoning as App.css's semantic colors: the
+   dark theme's bright hexes are picked to read against near-black, and
+   fail AA text contrast against white unchanged). Card surfaces flip to
+   solid white (matching --surface in App.css) since a low-opacity white
+   overlay is nearly invisible against this app's light --bg. */
+:root[data-theme='light'] .dashboard-v2 {
+  --dv-bg: #f2f2f4;
+  --dv-accent: #d63f34;
+  --dv-warn: #9c6e15;
+  --dv-strength: #d63f34;
+  --dv-power: #9c6e15;
+  --dv-static: #8558ec;
+  --dv-onemm: #c45229;
+  --dv-positive: #258651;
+  --dv-negative: #c5504a;
+  --dv-card-fill: #ffffff;
+  --dv-card-border: rgba(0, 0, 0, 0.08);
+  --dv-fill: rgba(0, 0, 0, 0.14);
+  --dv-tooltip-bg: #ffffff;
+  --dv-grid: rgba(0, 0, 0, 0.08);
+  --dv-crosshair: rgba(0, 0, 0, 0.22);
 }
 
 .dashboard-v2 h1,
@@ -121,6 +149,22 @@
   color: var(--dv-warn);
 }
 
+/* These two tint backgrounds are hardcoded to the dark theme's --dv-warn
+   (f0a920 → rgb(240,169,32)) rather than deriving from the token, since a
+   translucent tint needs its own rgb() triplet, not the hex custom
+   property directly — so they need an explicit light-theme override using
+   light's --dv-warn (9c6e15 → rgb(156,110,21)) or they'd stay tied to the
+   dark hue's tint regardless of theme. */
+:root[data-theme='light'] .dashboard-v2 .badge.warn {
+  border-color: rgba(156, 110, 21, 0.4);
+  background: rgba(156, 110, 21, 0.12);
+}
+
+:root[data-theme='light'] .dashboard-v2 .notice.dv-banner {
+  border-color: rgba(156, 110, 21, 0.35);
+  background: rgba(156, 110, 21, 0.1);
+}
+
 /* ---------- filter bar (range + tier-group) ---------- */
 /* Scopes Warrior growth, Weekly activity, Retention, World participation —
    Coach engagement, Tier distribution, and the stat strip are deliberately
@@ -141,7 +185,7 @@
 .dashboard-v2 select.dv-select {
   background: var(--dv-card-fill);
   border-color: var(--dv-card-border);
-  color: #fff;
+  color: var(--ink);
   font-family: var(--dv-font);
   font-weight: 600;
   font-size: 12.5px;
@@ -177,7 +221,7 @@
   gap: 8px;
   font-size: 12.5px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-2);
   padding: 9px 14px;
   border-radius: 10px;
   border: 1px solid var(--dv-card-border);
@@ -198,13 +242,13 @@
 
 .dv-week-label {
   font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.35);
+  color: var(--ink-3);
 }
 
 .dv-tooltip {
   position: absolute;
   transform: translate(-50%, -120%);
-  background: #17171a;
+  background: var(--dv-tooltip-bg);
   border: 1px solid var(--dv-card-border);
   border-radius: 8px;
   padding: 6px 10px;
@@ -216,11 +260,11 @@
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 .dv-tooltip-title {
-  color: rgba(255, 255, 255, 0.5);
+  color: var(--ink-2);
   font-weight: 700;
 }
 .dv-tooltip-value {
-  color: #fff;
+  color: var(--ink);
   font-weight: 800;
   font-size: 13px;
 }
@@ -233,13 +277,13 @@
   left: 50%;
   bottom: 100%;
   transform: translate(-50%, -8px);
-  background: #17171a;
+  background: var(--dv-tooltip-bg);
   border: 1px solid var(--dv-card-border);
   border-radius: 8px;
   padding: 5px 9px;
   font-size: 11.5px;
   font-weight: 700;
-  color: #fff;
+  color: var(--ink);
   white-space: nowrap;
   pointer-events: none;
   opacity: 0;
@@ -277,18 +321,18 @@
 
 .dv-bar-label {
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.75);
+  color: var(--ink);
 }
 
 .dv-bar-value {
   font-weight: 800;
-  color: #fff;
+  color: var(--ink);
 }
 
 .dv-bar-track {
   height: 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--dv-card-border);
   overflow: hidden;
 }
 
@@ -334,7 +378,7 @@
   font-size: 12px;
   font-weight: 700;
   margin-bottom: 6px;
-  color: rgba(255, 255, 255, 0.85);
+  color: var(--ink);
 }
 
 /* Fixed-pixel-height track: the fill's height:X% below resolves against
@@ -350,7 +394,7 @@
 .dv-vbar-fill {
   width: 100%;
   border-radius: 7px 7px 2px 2px;
-  background: rgba(255, 255, 255, 0.18);
+  background: var(--dv-fill);
   min-height: 4px;
 }
 .dv-vbar-fill-current {
@@ -359,7 +403,7 @@
 
 .dv-vbar-label {
   font-size: 10px;
-  color: rgba(255, 255, 255, 0.38);
+  color: var(--ink-3);
   margin-top: 7px;
 }
 
@@ -388,18 +432,18 @@
 
 .dv-progress-name {
   font-weight: 700;
-  color: #fff;
+  color: var(--ink);
 }
 
 .dv-progress-meta {
-  color: rgba(255, 255, 255, 0.45);
+  color: var(--ink-2);
   font-size: 12px;
 }
 
 .dv-progress-track {
   height: 8px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.08);
+  background: var(--dv-card-border);
   overflow: hidden;
 }
 

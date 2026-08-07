@@ -70,7 +70,7 @@ export function RetentionCurveChart({ points }: { points: RetentionCurvePoint[] 
               y1={y}
               x2={W - PAD}
               y2={y}
-              stroke="rgba(255,255,255,0.08)"
+              stroke="var(--dv-grid)"
               strokeWidth={1}
             />
           );
@@ -89,7 +89,7 @@ export function RetentionCurveChart({ points }: { points: RetentionCurvePoint[] 
             y1={PAD}
             x2={hovered.x}
             y2={H - PAD}
-            stroke="rgba(255,255,255,0.25)"
+            stroke="var(--dv-crosshair)"
             strokeWidth={1}
           />
         )}
