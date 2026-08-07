@@ -14,7 +14,7 @@ import { QuickStatsRow } from './QuickStatsRow';
 import { CommunitySection } from './CommunitySection';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
-import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
+import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
 
 const W = WORLD_THEMES.strength;
@@ -135,6 +135,8 @@ export function ProfileHeader({
     ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
     : 'WARRIOR';
   const wraPct = clamp01(wraScore / WRA_MAX) * 100;
+  const neutrals = getWorldNeutrals(mode);
+  const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
 
   return (
     <>
@@ -164,7 +166,7 @@ export function ProfileHeader({
           line column. The settings gear sits outside this block, absolutely
           positioned by ProfileScreen, so the column stays truly centered. */}
       <View style={styles.identityHeader}>
-        <Text style={styles.name} numberOfLines={1}>{displayName}</Text>
+        <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>{displayName}</Text>
         <Text style={[styles.tierLine, { color: W.accent }]}>
           {tierName} · TIER {activeCurrentTier} OF 9
         </Text>
@@ -194,13 +196,13 @@ export function ProfileHeader({
       >
         <View style={styles.wraHeaderRow}>
           <MaterialCommunityIcons name="trophy-outline" size={16} color={W.accent} />
-          <Text style={styles.wraTitle}>Well-Rounded Athlete</Text>
+          <Text style={[styles.wraTitle, { color: neutrals.textPrimary }]}>Well-Rounded Athlete</Text>
           <Text style={[styles.wraTotal, { color: W.accent }]}>{wraScore.toFixed(2)}</Text>
         </View>
-        <Text style={styles.wraSubcaption}>Static · Power · 1MM</Text>
+        <Text style={[styles.wraSubcaption, { color: neutrals.textMuted }]}>Static · Power · 1MM</Text>
         {/* Honest bar: width always computed from the real total — never a
             hard-coded full bar at 0 (the original app's recurring bug). */}
-        <View style={styles.wraTrack}>
+        <View style={[styles.wraTrack, { backgroundColor: subtleOverlay }]}>
           <View style={[styles.wraFill, { backgroundColor: W.accent, width: `${wraPct}%` }]} />
         </View>
         <View style={styles.wraLegend}>
@@ -211,8 +213,8 @@ export function ProfileHeader({
           ].map((d) => (
             <View key={d.label} style={styles.wraLegendItem}>
               <View style={[styles.wraLegendDot, { backgroundColor: d.color }]} />
-              <Text style={styles.wraLegendValue}>{d.value.toFixed(2)}</Text>
-              <Text style={styles.wraLegendLabel}>{d.label}</Text>
+              <Text style={[styles.wraLegendValue, { color: neutrals.textPrimary }]}>{d.value.toFixed(2)}</Text>
+              <Text style={[styles.wraLegendLabel, { color: neutrals.textSecondary }]}>{d.label}</Text>
             </View>
           ))}
         </View>
@@ -266,7 +268,7 @@ export function ProfileHeader({
                   onPress={onOpenCoachingCenter}
                 >
                   <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
-                  <Text style={styles.programButtonText}>COACHING CENTER</Text>
+                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>COACHING CENTER</Text>
                 </TouchableOpacity>
               </LinearGradient>
             )
@@ -288,7 +290,7 @@ export function ProfileHeader({
                   }}
                 >
                   <MaterialCommunityIcons name="calendar-check-outline" size={16} color={W.accent} />
-                  <Text style={styles.programButtonText}>MY WORKOUT PROGRAM</Text>
+                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>MY WORKOUT PROGRAM</Text>
                 </TouchableOpacity>
               </LinearGradient>
             )
@@ -310,7 +312,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 23,
     letterSpacing: 0.5,
-    color: WORLD_NEUTRALS.textPrimary,
     textAlign: 'center',
   },
   tierLine: {
@@ -346,7 +347,6 @@ const styles = StyleSheet.create({
     flex: 1,
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 15.5,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   wraTotal: {
     fontFamily: 'BarlowCondensed-ExtraBold',
@@ -355,14 +355,12 @@ const styles = StyleSheet.create({
   wraSubcaption: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 10.5,
-    color: 'rgba(255,255,255,0.4)',
     marginLeft: 23,
     marginTop: 1,
   },
   wraTrack: {
     height: 7,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     overflow: 'hidden',
     marginTop: 13,
   },
@@ -388,12 +386,10 @@ const styles = StyleSheet.create({
   wraLegendValue: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   wraLegendLabel: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 11,
-    color: WORLD_NEUTRALS.textSecondary,
   },
   programGradient: {
     padding: 1.2,
@@ -411,6 +407,5 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 14,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textPrimary,
   },
 });
