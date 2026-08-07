@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { NotificationService } from '../services/NotificationService';
 
 export type ClientProgramWriteMode = 'append' | 'archive' | 'overwrite';
 
@@ -90,4 +91,8 @@ export async function applyTemplateToExistingClient(
     p_blocks: blocks,
   });
   if (error) throw error;
+
+  // 'overwrite' resets current_week back to 1 and replaces the content
+  // wholesale — closer to a fresh assignment than a routine week unlock.
+  NotificationService.notifyClientProgramUpdate(warriorProgramId, mode === 'overwrite' ? 'program_assigned' : 'week_unlocked');
 }

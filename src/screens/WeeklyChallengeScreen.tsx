@@ -19,6 +19,7 @@ import { LeapLogo } from '../components/LeapLogo';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { NotificationService } from '../services/NotificationService';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -201,7 +202,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
   if (!profile || !theme) {
     return (
-      <View style={[styles.container, { backgroundColor: '#121212', justifyContent: 'center', alignItems: 'center' }]}>
+      <View style={[styles.container, { backgroundColor: theme?.background?.primary ?? '#121212', justifyContent: 'center', alignItems: 'center' }]}>
         <LeapLogo size={40} animated />
       </View>
     );
@@ -773,6 +774,16 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
       onSuccess: async (improved) => {
         if (improved) {
           Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
+          const scoreLabel = challenge.scoring_type === 'time'
+            ? `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
+            : `${finalScore} reps`;
+          NotificationService.notify(
+            user.id,
+            'weekly_challenge_pb',
+            'New Weekly Challenge Best!',
+            `${challenge.title}: ${scoreLabel} — a new personal best this week.`,
+            { screen: 'weekly-challenge' }
+          );
         } else {
           Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
         }

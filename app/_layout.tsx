@@ -1,8 +1,20 @@
-import React, { useEffect, useRef } from 'react';
-import { View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Platform, View } from 'react-native';
 import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
+import * as Notifications from 'expo-notifications';
+
+// Foreground pushes still show a banner/sound instead of arriving silently —
+// the default handler suppresses them while the app is open.
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+  }),
+});
 
 // Keep the native splash screen visible while we fetch resources. Runs at
 // module scope, so a dev Fast Refresh re-executes it against a view
@@ -23,7 +35,7 @@ if (!__DEV__) {
 }
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
-import { ThemeProvider } from '../src/contexts/ThemeContext';
+import { ThemeProvider, useTheme } from '../src/contexts/ThemeContext';
 import { TutorialProvider } from '../src/contexts/TutorialContext';
 import { useStealthFonts } from '../hooks/useFonts';
 import { SpartanLayout } from '../src/components/SpartanLayout';
@@ -31,10 +43,13 @@ import { LeapLogo } from '../src/components/LeapLogo';
 import { TutorialOverlay } from '../src/components/tutorial/TutorialOverlay';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
+import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
+import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
 
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { user, profile, loading, profileLoading, needsPasswordReset } = useAuth();
+  const { theme } = useTheme();
   const segments = useSegments();
   const splashHiddenRef = useRef(false);
 
@@ -63,7 +78,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   if (loading || (profileLoading && !profile)) {
     // If the native splash screen hides early in dev, this ensures they see the logo
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000000' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background.primary }}>
         <LeapLogo size={120} animated />
       </View>
     );
@@ -72,7 +87,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // 1. Wait for profile to load in the background if logged in
   if (user && !profile) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#000' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background.primary }}>
         <LeapLogo size={120} animated />
       </View>
     );
@@ -127,7 +142,12 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const strengthTier = profile?.strength_tier || 0;
   const tierLocks: Record<string, number> = {
     'static-world': 1,
-    'power-world': 6
+    'power-world': 6,
+    // champions-arena is open to everyone as a spectator (leaderboard/phase
+    // preview) below tier 9 — ChampionsArenaScreen itself swaps the "START
+    // ARENA TRIAL" button for a locked pill when strength_tier < 9. Only the
+    // actual workout route stays hard-gated.
+    'arena-workout': 9
   };
   const currentRoute = segments[0];
   if (user && profile?.assessed_at && currentRoute && tierLocks[currentRoute] !== undefined) {
@@ -157,6 +177,52 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
 export default function RootLayout() {
   const fontsLoaded = useStealthFonts();
+  const router = useRouter();
+  const [forceUpdate, setForceUpdate] = useState<ForceUpdateStatus | null>(null);
+
+  useEffect(() => {
+    checkForceUpdate().then(setForceUpdate);
+  }, []);
+
+  useEffect(() => {
+    if (Platform.OS === 'web') return;
+
+    function handleNotificationResponse(response: Notifications.NotificationResponse) {
+      const data = response.notification.request.content.data as Record<string, unknown> | undefined;
+      const screen = data?.screen;
+      if (typeof screen !== 'string') return;
+
+      // Forward every other string field in the payload (warriorId, etc.) as
+      // a query param — the target route reads them via useLocalSearchParams,
+      // same as any other in-app navigation to that screen.
+      const query = new URLSearchParams();
+      for (const [key, value] of Object.entries(data ?? {})) {
+        if (key !== 'screen' && typeof value === 'string') {
+          query.set(key, value);
+        }
+      }
+      const queryString = query.toString();
+      router.push(`/${screen}${queryString ? `?${queryString}` : ''}` as never);
+    }
+
+    // Cold start: the app was launched by tapping a notification. The
+    // listener below only fires for taps that happen while it's already
+    // registered (foreground/backgrounded) — it never sees the tap that
+    // actually launched the app, so that case falls through to the normal
+    // index.tsx redirect (e.g. /profile) instead of the intended screen.
+    // getLastNotificationResponseAsync() is the documented way to recover
+    // that specific response; clear it after handling so a later, unrelated
+    // app open doesn't replay the same navigation.
+    Notifications.getLastNotificationResponseAsync().then((response) => {
+      if (response) {
+        handleNotificationResponse(response);
+        Notifications.clearLastNotificationResponseAsync();
+      }
+    });
+
+    const subscription = Notifications.addNotificationResponseReceivedListener(handleNotificationResponse);
+    return () => subscription.remove();
+  }, [router]);
 
   if (!fontsLoaded) {
     // Return null because the native splash screen is covering the view
@@ -167,23 +233,31 @@ export default function RootLayout() {
     <SafeAreaProvider>
       <GlobalErrorBoundary>
         <ThemeProvider>
-          <AuthProvider>
-            <TutorialProvider>
-              <View style={{ flex: 1 }}>
-                <AuthGuard>
-                  <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
-                    <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
-                    <Stack.Screen name="profile" options={{ animation: 'none' }} />
-                    <Stack.Screen name="power-world" options={{ animation: 'none' }} />
-                    <Stack.Screen name="static-world" options={{ animation: 'none' }} />
-                    <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
-                  </Stack>
-                </AuthGuard>
-                <TutorialOverlay />
-              </View>
-            </TutorialProvider>
-            <StatusBar style="auto" />
-          </AuthProvider>
+          {forceUpdate ? (
+            // ForceUpdateScreen renders LeapLogo, which calls useTheme() —
+            // it still needs ThemeProvider even though it deliberately skips
+            // AuthProvider/TutorialProvider (nothing below this screen ever
+            // needs auth or tutorial state; it's a full-screen block, not a
+            // normal app screen).
+            <ForceUpdateScreen message={forceUpdate.message} storeUrl={forceUpdate.storeUrl} />
+          ) : (
+            <AuthProvider>
+              <TutorialProvider>
+                <View style={{ flex: 1 }}>
+                  <AuthGuard>
+                    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+                      <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+                      <Stack.Screen name="profile" options={{ animation: 'none' }} />
+                      <Stack.Screen name="power-world" options={{ animation: 'none' }} />
+                      <Stack.Screen name="static-world" options={{ animation: 'none' }} />
+                      <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
+                    </Stack>
+                  </AuthGuard>
+                  <TutorialOverlay />
+                </View>
+              </TutorialProvider>
+            </AuthProvider>
+          )}
         </ThemeProvider>
       </GlobalErrorBoundary>
     </SafeAreaProvider>

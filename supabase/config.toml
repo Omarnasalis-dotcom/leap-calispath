@@ -9,3 +9,47 @@ entrypoint = "./functions/submit-trial-result/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/submit-trial-result/*.html" ]
+
+[functions.send-push-notification]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-push-notification/deno.json"
+entrypoint = "./functions/send-push-notification/index.ts"
+
+[functions.notify-coach-workout-logged]
+enabled = true
+verify_jwt = true
+import_map = "./functions/notify-coach-workout-logged/deno.json"
+entrypoint = "./functions/notify-coach-workout-logged/index.ts"
+
+[functions.notify-client-program-update]
+enabled = true
+verify_jwt = true
+import_map = "./functions/notify-client-program-update/deno.json"
+entrypoint = "./functions/notify-client-program-update/index.ts"
+
+# Cron-triggered, not user-triggered — no user JWT exists to verify. Each
+# function checks its own shared x-cron-secret header instead (see index.ts).
+[functions.send-daily-workout-reminders]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-daily-workout-reminders/deno.json"
+entrypoint = "./functions/send-daily-workout-reminders/index.ts"
+
+[functions.send-weekly-challenge-started]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-weekly-challenge-started/deno.json"
+entrypoint = "./functions/send-weekly-challenge-started/index.ts"
+
+[functions.send-weekly-challenge-ending-reminder]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-weekly-challenge-ending-reminder/deno.json"
+entrypoint = "./functions/send-weekly-challenge-ending-reminder/index.ts"
+
+[functions.send-overtake-notification-push]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-overtake-notification-push/deno.json"
+entrypoint = "./functions/send-overtake-notification-push/index.ts"

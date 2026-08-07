@@ -32,6 +32,7 @@ import { SessionCompleteScreen } from '../../components/coaching/SessionComplete
 import { WorkoutProgressButton } from '../../components/coaching/WorkoutProgressButton';
 import { SetLogEntry } from '../../components/coaching/SetRow';
 import { Feel } from '../../components/coaching/FeelRpePicker';
+import { NotificationService } from '../../services/NotificationService';
 import { MissedReason } from '../../components/coaching/MissedReasonPicker';
 import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
 
@@ -615,7 +616,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
     setTogglingBlockIds(prev => ({ ...prev, [blockId]: true }));
     try {
-      const { error } = await supabase.rpc('toggle_block_status', {
+      const { data: toggleResult, error } = await supabase.rpc('toggle_block_status', {
         p_warrior_id: warriorId,
         p_warrior_program_id: warriorProgramId,
         p_block_id: blockId,
@@ -624,6 +625,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       });
 
       if (error) throw error;
+
+      if ((nextStatus === 'completed' || nextStatus === 'missed') && toggleResult?.workout_log_id) {
+        NotificationService.notifyCoachWorkoutLogged(toggleResult.workout_log_id);
+      }
 
       // Optimistically update the UI state
       const updateBlockInDays = (dayList: ProgramDay[]) => {
@@ -886,7 +891,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
-      const { error } = await supabase.rpc('log_block_with_sets', {
+      const { data: logResult, error } = await supabase.rpc('log_block_with_sets', {
         p_warrior_id: warriorId,
         p_warrior_program_id: warriorProgramId,
         p_block_id: activeLogBlockId,
@@ -908,6 +913,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           throw new Error('Network request timed out. Please check your connection.');
         }
         throw error;
+      }
+
+      if ((logStatus === 'completed' || logStatus === 'missed') && logResult?.workout_log_id) {
+        NotificationService.notifyCoachWorkoutLogged(logResult.workout_log_id);
       }
 
       setLogModalVisible(false);
@@ -1018,7 +1027,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         timerId = setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000);
       });
 
-      const { error } = await Promise.race([
+      const { data: quickLogResult, error } = await Promise.race([
         supabase.rpc('log_block_with_sets', {
           p_warrior_id: warriorId,
           p_warrior_program_id: warriorProgramId,
@@ -1038,6 +1047,11 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
       if (timerId) clearTimeout(timerId);
       if (error) throw error;
+
+      if ((status === 'completed' || status === 'missed') && quickLogResult?.workout_log_id) {
+        NotificationService.notifyCoachWorkoutLogged(quickLogResult.workout_log_id);
+      }
+
       setSessionTotalReps(prev => prev + sumBlockReps(blockId));
       setBlockSetProgress(prev => {
         const next = { ...prev };

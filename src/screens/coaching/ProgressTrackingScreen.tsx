@@ -1,5 +1,5 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View,
   Text,
   StyleSheet,
@@ -14,6 +14,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
 import { LeapLogo } from '../../components/LeapLogo';
 import { fetchWeekExportPayload, shareWeekExportPayload } from '../../lib/ProgramExportBuilder';
+import { NotificationService } from '../../services/NotificationService';
 import { validateWeekImportPayload, resolveImportedExercises, buildImportBlocksPayload } from '../../lib/ProgramImportParser';
 import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
 
@@ -67,9 +68,13 @@ interface ProgressTrackingScreenProps {
   coachId?: string;
   isAdmin?: boolean;
   onClose?: () => void;
+  // Set when arriving from a "client logged a workout" push notification —
+  // auto-opens that warrior's history modal once the roster has loaded,
+  // instead of requiring the coach to find and tap the card themselves.
+  warriorId?: string;
 }
 
-export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: ProgressTrackingScreenProps) {
+export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warriorId }: ProgressTrackingScreenProps) {
   const { theme } = useTheme();
   const solidCardBg = theme.card.background === '#151515' || theme.card.background === '#1C1C1E' || theme.card.background === '#121212' || theme.card.background === '#000000' ? '#151515' : '#FFFFFF';
   const bronzeGold = '#C8A040';
@@ -304,6 +309,21 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
     }
   };
 
+  // Auto-open the history modal for a specific warrior once the roster has
+  // loaded — the deep-link arrival case from a "client logged a workout"
+  // push. Guarded by a ref so it only fires once per warriorId, not every
+  // time warriorList re-fetches (e.g. after closing the modal).
+  const autoOpenedWarriorIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!warriorId || warriorList.length === 0) return;
+    if (autoOpenedWarriorIdRef.current === warriorId) return;
+    const match = warriorList.find(w => w.warriorId === warriorId);
+    if (match) {
+      autoOpenedWarriorIdRef.current = warriorId;
+      handleOpenHistoryModal(match);
+    }
+  }, [warriorId, warriorList]);
+
   // Coach note for the selected week — one row per (warrior_program, week),
   // reloaded whenever the week toggle changes.
   useEffect(() => {
@@ -439,6 +459,8 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose }: Pr
         p_blocks: blocks,
       });
       if (error) throw error;
+
+      NotificationService.notifyClientProgramUpdate(selectedWarrior.warriorProgramId, 'week_unlocked');
 
       Alert.alert('IMPORTED', `Added ${validation.blockCount} block(s) as a new week.`);
       await handleOpenHistoryModal(selectedWarrior);

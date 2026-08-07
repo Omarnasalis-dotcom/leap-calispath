@@ -27,7 +27,8 @@ import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-import { WORLD_THEMES } from '../../constants/worldThemes';
+import { NotificationService } from '../services/NotificationService';
+import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { StatCircle } from '../components/worlds/StatCircle';
@@ -39,8 +40,6 @@ import { oneMMProgress, oneMMTarget, rankGapProgress } from '../lib/worldProgres
 
 const { width } = Dimensions.get('window');
 
-const W = WORLD_THEMES.onemm;
-
 const HERO_CENTER_SIZE = 134;
 const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
 // 3-column grid (handoff: 6 movements in 3×2), 88px circles, 8px column gap.
@@ -51,6 +50,7 @@ const VALID_ONEMM_CATEGORIES = ['entry', 'main', 'advanced'];
 
 export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
+  const W = getWorldTheme('onemm', mode);
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
@@ -205,15 +205,29 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     let shouldCelebrate = false;
 
     runSafeSave(async () => {
-      const { isNewPB } = await OneMMService.saveLog(user.id, selectedMovement, reps, force);
+      const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } = await OneMMService.saveLog(user.id, selectedMovement, reps, force);
 
       if (isNewPB) {
+        const movementName = ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || 'Movement';
         if (isMounted.current) {
           setCelebrationData({
             stat: `${reps} REPS`,
-            movement: ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || 'Movement'
+            movement: movementName
           });
           shouldCelebrate = true;
+        }
+        NotificationService.notify(
+          user.id,
+          'one_mm_pb',
+          'New 1MM PB!',
+          `${movementName}: ${reps} reps — a new personal record.`,
+          { screen: 'one-min-max' }
+        );
+        if (overtakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
+        }
+        if (wraOvertakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
         }
       }
 
@@ -390,7 +404,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           />
         </View>
 
-        <Text style={styles.sectionHeader}>YOUR PEAK ENDURANCE</Text>
+        <Text style={[styles.sectionHeader, { color: getWorldNeutrals(mode).textPrimary }]}>YOUR PEAK ENDURANCE</Text>
 
         <PillTabRow
           world={W}
@@ -1049,7 +1063,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 1.5,
     textAlign: 'center',
-    color: '#FFFFFF',
     marginTop: 10,
     marginBottom: -4,
   },

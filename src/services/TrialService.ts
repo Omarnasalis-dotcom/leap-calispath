@@ -16,6 +16,7 @@ export interface TrialResultResponse {
   is_new_best: boolean;
   tier_advanced: boolean;
   previous_best_time_seconds: number | null;
+  overtaken_notification_id: string | null;
 }
 
 // Use the same URL pattern as supabase.ts (graceful fallback — never crash at module level)

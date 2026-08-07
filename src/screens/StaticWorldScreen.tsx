@@ -27,7 +27,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-import { WORLD_THEMES } from '../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { StatCircle } from '../components/worlds/StatCircle';
@@ -36,6 +36,7 @@ import { ExerciseCircle } from '../components/worlds/ExerciseCircle';
 import { PillTabRow } from '../components/worlds/PillTabRow';
 import { MilestoneCard } from '../components/worlds/MilestoneCard';
 import { STATIC_MOVEMENT_ICONS } from '../components/worlds/ExerciseIcon';
+import { NotificationService } from '../services/NotificationService';
 import {
   staticHoldProgress,
   staticLevelProgress,
@@ -44,8 +45,6 @@ import {
 } from '../lib/worldProgress';
 
 const { width } = Dimensions.get('window');
-
-const W = WORLD_THEMES.static;
 
 const HERO_CENTER_SIZE = 134;
 const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
@@ -67,6 +66,7 @@ const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMa
 export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const { theme, mode } = useTheme();
   const isDark = mode === 'dark';
+  const W = getWorldTheme('static', mode);
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
@@ -228,7 +228,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
     setLoading(true);
     runSafeSave(async () => {
-      const isPB = await StaticService.saveHold(user.id, selectedMovement.id, seconds, force);
+      const { isNewPB: isPB, overtakenNotificationId, wraOvertakenNotificationId } = await StaticService.saveHold(user.id, selectedMovement.id, seconds, force);
 
       if (isPB) {
         if (isMounted.current) {
@@ -237,6 +237,19 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             movement: selectedMovement?.name || 'Movement'
           });
           shouldCelebrate = true;
+        }
+        NotificationService.notify(
+          user.id,
+          'static_pb',
+          'New Static PB!',
+          `${selectedMovement?.name || 'Hold'}: ${seconds}s — a new personal record.`,
+          { screen: 'static-world' }
+        );
+        if (overtakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
+        }
+        if (wraOvertakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
         }
       }
 
@@ -381,7 +394,7 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             />
           </View>
 
-          <Text style={styles.sectionHeader}>YOUR PEAK PERFORMANCE</Text>
+          <Text style={[styles.sectionHeader, { color: getWorldNeutrals(mode).textPrimary }]}>YOUR PEAK PERFORMANCE</Text>
 
           <PillTabRow
             world={W}
@@ -1040,7 +1053,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
            )}
 
            <View style={{ marginTop: 30, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
-              <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3 }]}>
+              <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3, color: getWorldNeutrals(mode).textPrimary }]}>
                 TOP PERFORMERS
               </Text>
               <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 200 }} contentContainerStyle={{ paddingBottom: 20 }}>
@@ -1086,7 +1099,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 1.5,
     textAlign: 'center',
-    color: '#FFFFFF',
     marginTop: 10,
     marginBottom: -4,
   },

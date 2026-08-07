@@ -17,6 +17,7 @@ import { Button } from '../../components/Button';
 import { LeapLogo } from '../../components/LeapLogo';
 import { applyTemplateToExistingClient, ClientProgramWriteMode } from '../../lib/ClientProgramWriter';
 import { LEAP_SYSTEM_PROFILE_ID } from '../../constants/system';
+import { NotificationService } from '../../services/NotificationService';
 
 
 interface WarriorProfile {
@@ -58,7 +59,6 @@ interface MyClientsScreenProps {
 export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenProps) {
   const { theme } = useTheme();
   const router = useRouter();
-  const solidCardBg = theme.card.background === '#151515' || theme.card.background === '#1C1C1E' || theme.card.background === '#121212' || theme.card.background === '#000000' ? '#151515' : '#FFFFFF';
   const bronzeGold = '#C8A040';
 
   // State Management
@@ -126,7 +126,14 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
         .from('program_templates')
         .select('id, name, description, coach_id')
         .eq('is_library_template', false)
-        .not('name', 'ilike', '[CUSTOM]%');
+        .not('name', 'ilike', '[CUSTOM]%')
+        // Self-service library picks (owned by the fixed Leap system
+        // profile) are a warrior's own clone, never a reusable master a
+        // coach should be assigning to someone else — exclude them here
+        // rather than relying on isAdmin's coach_id filter, since admin's
+        // view has no coach_id filter at all and would otherwise mix in
+        // every warrior's self-selected template.
+        .neq('coach_id', LEAP_SYSTEM_PROFILE_ID);
 
       if (!isAdmin) {
         templatesQuery = templatesQuery.eq('coach_id', coachId);
@@ -276,6 +283,19 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
       });
 
       if (rpcError) throw rpcError;
+
+      // assign_program_template only returns the cloned template's id, not
+      // the warrior_programs row it also creates — look it up by the (just
+      // freshly cloned, so unique) template_id rather than changing the
+      // RPC's return shape.
+      const { data: newProgram } = await supabase
+        .from('warrior_programs')
+        .select('id')
+        .eq('template_id', newTemplateId)
+        .maybeSingle();
+      if (newProgram?.id) {
+        NotificationService.notifyClientProgramUpdate(newProgram.id, 'program_assigned');
+      }
 
       setSelectedWarrior(null);
       setSelectedTemplate(null);

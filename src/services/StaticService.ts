@@ -44,8 +44,8 @@ export class StaticService {
   /**
    * Logs a static hold for a user
    */
-  static async saveHold(userId: string, movementId: string, seconds: number, force: boolean = false): Promise<boolean> {
-    if (seconds <= 0) return false;
+  static async saveHold(userId: string, movementId: string, seconds: number, force: boolean = false): Promise<{ isNewPB: boolean; overtakenNotificationId: string | null; wraOvertakenNotificationId: string | null }> {
+    if (seconds <= 0) return { isNewPB: false, overtakenNotificationId: null, wraOvertakenNotificationId: null };
 
     const { data, error } = await withNetworkRetry(async () => {
       const controller = new AbortController();
@@ -68,8 +68,12 @@ export class StaticService {
       throw error;
     }
 
-    const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
-    return isNewPB;
+    const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+    return {
+      isNewPB: !!row?.is_new_pb,
+      overtakenNotificationId: row?.overtaken_notification_id ?? null,
+      wraOvertakenNotificationId: row?.wra_overtaken_notification_id ?? null,
+    };
   }
 
   /**

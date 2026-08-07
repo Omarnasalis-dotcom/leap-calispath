@@ -25,7 +25,8 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-import { WORLD_THEMES, WORLD_NEUTRALS } from '../../constants/worldThemes';
+import { NotificationService } from '../services/NotificationService';
+import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { StatCircle } from '../components/worlds/StatCircle';
@@ -37,8 +38,6 @@ import { powerLevelProgress, powerMovementProgress } from '../lib/worldProgress'
 
 const { width } = Dimensions.get('window');
 
-const W = WORLD_THEMES.power;
-
 // 3-circle header sizing: 150px center ring, side circles capped at 96px and
 // shrunk on narrow screens so the row never wraps (402px reference width).
 const HERO_CENTER_SIZE = 134;
@@ -47,6 +46,7 @@ const PEAK_CIRCLE_SIZE = Math.min(80, Math.floor((width - 40 - 30) / 4));
 
 export function PowerWorldScreen() {
   const { theme, toggleTheme, mode } = useTheme();
+  const W = getWorldTheme('power', mode);
   const { user, profile, refreshProfile } = useAuth();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
@@ -203,7 +203,7 @@ export function PowerWorldScreen() {
 
     setSaving(true);
     runSafeSave(async () => {
-      const { isNewPB, isPromotion } = await PowerService.savePB(user.id, selectedMovement, kg, force);
+      const { isNewPB, isPromotion, overtakenNotificationId, wraOvertakenNotificationId } = await PowerService.savePB(user.id, selectedMovement, kg, force);
       
       if (isNewPB) {
         const movement = POWER_MOVEMENTS.find(m => m.id === selectedMovement);
@@ -222,6 +222,22 @@ export function PowerWorldScreen() {
             accentColor: W.accent,
           });
           shouldShowCelebration = true;
+        }
+
+        NotificationService.notify(
+          user.id,
+          'power_pb',
+          isPromotion ? 'Power Level Up!' : 'New Power PB!',
+          isPromotion
+            ? `${movement?.name ?? selectedMovement}: ${kg} KG — you've reached ${getPowerLevel(stats?.totalPoints || 0).name}.`
+            : `${movement?.name ?? selectedMovement}: ${kg} KG — a new personal record.`,
+          { screen: 'power-world' }
+        );
+        if (overtakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
+        }
+        if (wraOvertakenNotificationId) {
+          NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
         }
       }
 
@@ -356,7 +372,7 @@ export function PowerWorldScreen() {
           />
         </View>
 
-        <Text style={styles.sectionHeader}>YOUR PEAK PERFORMANCE</Text>
+        <Text style={[styles.sectionHeader, { color: getWorldNeutrals(mode).textPrimary }]}>YOUR PEAK PERFORMANCE</Text>
 
         <PillTabRow
           world={W}
@@ -658,7 +674,6 @@ const styles = StyleSheet.create({
     fontSize: 20,
     letterSpacing: 1.5,
     textAlign: 'center',
-    color: '#FFFFFF',
     marginTop: 10,
     marginBottom: -6,
   },

@@ -21,6 +21,7 @@ import { supabase } from '../lib/supabase';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { getTrialForTier, formatTime, Trial } from '../lib/trials';
+import { NotificationService } from '../services/NotificationService';
 import { TIER_NAMES } from '../types';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
@@ -294,6 +295,15 @@ export function TrialScreen({
       onSuccess: (result) => {
         if (result?.tier_advanced) {
           setShowVictory(true);
+          const newTier = trial.tier + 1;
+          const newTierName = TIER_NAMES[newTier] ?? `Tier ${newTier}`;
+          NotificationService.notify(
+            user.id,
+            'tier_promotion',
+            'Tier Up!',
+            `You've risen to ${newTierName} — Tier ${newTier}.`,
+            { screen: 'profile' }
+          );
         } else if (result?.is_first_completion) {
           setFeedbackCard({ kind: 'first_completion', tier: trial.tier, timeSeconds });
         } else if (result?.is_new_best) {
@@ -303,6 +313,16 @@ export function TrialScreen({
             timeSeconds,
             previousTimeSeconds: result.previous_best_time_seconds ?? null,
           });
+          NotificationService.notify(
+            user.id,
+            'new_best_time',
+            'New Best Time!',
+            `${TIER_NAMES[trial.tier] ?? `Tier ${trial.tier}`}: ${formatTime(timeSeconds)} — a new personal best.`,
+            { screen: 'profile' }
+          );
+          if (result.overtaken_notification_id) {
+            NotificationService.sendOvertakeNotificationPush(result.overtaken_notification_id);
+          }
         } else {
           // Completed successfully but didn't beat the standing best time —
           // still show the comparison instead of silently closing, so the
@@ -348,7 +368,7 @@ export function TrialScreen({
       <GlobalErrorBoundary>
       <Animated.View style={{
         flex: 1,
-        backgroundColor: '#0A0A0F',
+        backgroundColor: theme.background.primary,
         justifyContent: 'center',
         alignItems: 'center',
         padding: 32,
@@ -435,7 +455,7 @@ export function TrialScreen({
           {/* Message */}
           <Animated.Text style={{
             fontSize: 15,
-            color: 'rgba(255,255,255,0.65)',
+            color: theme.text.primary,
             textAlign: 'center',
             lineHeight: 32,
             marginBottom: 20,
@@ -450,7 +470,7 @@ export function TrialScreen({
 
           {/* Time Breakdown */}
           <Animated.View style={{ opacity: textOpacity, alignItems: 'center', marginBottom: 40 }}>
-            <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 13, letterSpacing: 1 }}>
+            <Text style={{ color: theme.text.secondary, fontSize: 13, letterSpacing: 1 }}>
               YOUR TIME: <Text style={{ color: '#FF4444', fontWeight: 'bold' }}>{formatTime(timeSeconds)}</Text>
             </Text>
           </Animated.View>

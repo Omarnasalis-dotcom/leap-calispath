@@ -199,7 +199,7 @@ export const PowerService = {
   /**
    * Saves a new PB and checks for promotion/PR
    */
-  async savePB(userId: string, movementId: string, kg: number, force: boolean = false): Promise<{ isNewPB: boolean; isPromotion: boolean }> {
+  async savePB(userId: string, movementId: string, kg: number, force: boolean = false): Promise<{ isNewPB: boolean; isPromotion: boolean; overtakenNotificationId: string | null; wraOvertakenNotificationId: string | null }> {
     try {
       const { data: current } = await supabase
         .from('power_assessments')
@@ -240,14 +240,16 @@ export const PowerService = {
 
         const isNewPBResult = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_new_pb : false;
         const isPromotion = Array.isArray(rpcData) && rpcData.length > 0 ? !!rpcData[0].is_promotion : false;
+        const overtakenNotificationId = Array.isArray(rpcData) && rpcData.length > 0 ? (rpcData[0].overtaken_notification_id ?? null) : null;
+        const wraOvertakenNotificationId = Array.isArray(rpcData) && rpcData.length > 0 ? (rpcData[0].wra_overtaken_notification_id ?? null) : null;
 
-        return { isNewPB: isNewPBResult, isPromotion };
+        return { isNewPB: isNewPBResult, isPromotion, overtakenNotificationId, wraOvertakenNotificationId };
       }
 
-      return { isNewPB: false, isPromotion: false };
+      return { isNewPB: false, isPromotion: false, overtakenNotificationId: null, wraOvertakenNotificationId: null };
     } catch (err) {
       console.error('Exception saving Power PB:', err);
-      return { isNewPB: false, isPromotion: false };
+      return { isNewPB: false, isPromotion: false, overtakenNotificationId: null, wraOvertakenNotificationId: null };
     }
   }
 };

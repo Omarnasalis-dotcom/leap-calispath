@@ -121,7 +121,7 @@ export const OneMMService = {
   /**
    * Saves a new 1MM log and updates the aggregated profile points
    */
-  async saveLog(userId: string, movementId: string, reps: number, force: boolean = false): Promise<{ isNewPB: boolean }> {
+  async saveLog(userId: string, movementId: string, reps: number, force: boolean = false): Promise<{ isNewPB: boolean; overtakenNotificationId: string | null; wraOvertakenNotificationId: string | null }> {
     try {
       const { data, error } = await withNetworkRetry(async () => {
         const controller = new AbortController();
@@ -143,8 +143,12 @@ export const OneMMService = {
 
       OneMMService.invalidateCache();
 
-      const isNewPB = Array.isArray(data) && data.length > 0 ? !!data[0].is_new_pb : false;
-      return { isNewPB };
+      const row = Array.isArray(data) && data.length > 0 ? data[0] : null;
+      return {
+        isNewPB: !!row?.is_new_pb,
+        overtakenNotificationId: row?.overtaken_notification_id ?? null,
+        wraOvertakenNotificationId: row?.wra_overtaken_notification_id ?? null,
+      };
     } catch (err) {
       // P1001-P1004 are submit_onemm_log's own validation codes (negative
       // reps / invalid movement / ceiling exceeded / cooldown active) —

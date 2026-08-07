@@ -14,6 +14,7 @@ import { View,
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
 import { supabase } from '../../lib/supabase';
+import { NotificationService } from '../../services/NotificationService';
 import { Input } from '../../components/Input';
 import { ExercisePickerModal } from '../../components/coaching/ExercisePickerModal';
 import { CopyBlockModal } from '../../components/coaching/CopyBlockModal';
@@ -1051,6 +1052,10 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         setIsCreatingNew(false);
         setActiveTemplateId(undefined);
         setLoading(false);
+
+        if (result?.week_increased && result?.warrior_program_id) {
+          NotificationService.notifyClientProgramUpdate(result.warrior_program_id, 'week_unlocked');
+        }
 
         const undeletableCount = result?.undeletable_block_ids?.length || 0;
         if (undeletableCount > 0) {
