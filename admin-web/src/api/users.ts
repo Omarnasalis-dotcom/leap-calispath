@@ -61,3 +61,16 @@ export async function grantRole(
     );
   }
 }
+
+export async function setCoachingPaused(
+  userId: string,
+  paused: boolean,
+  reason: string | null,
+): Promise<void> {
+  const { error } = await supabase.rpc('admin_set_coaching_paused', {
+    p_user_id: userId,
+    p_paused: paused,
+    p_reason: reason,
+  });
+  if (error) throw new Error(error.message);
+}

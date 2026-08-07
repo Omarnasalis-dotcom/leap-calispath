@@ -1,7 +1,9 @@
 // Community feature — create/join/leave and the current user's community
 // status. join_code is never fetched directly (it's not in the granted
 // column list — see 20260710140000_add_communities_table.sql); it only
-// ever gets passed to join_community, which resolves it server-side.
+// ever gets passed to join_community, which resolves it server-side. The
+// one exception is get_my_community_join_code below — a SECURITY DEFINER
+// RPC that lets a community's creator read their own code back.
 
 import { supabase } from './supabase';
 
@@ -14,6 +16,7 @@ export interface CommunityActionResult {
 export interface MyCommunity {
   id: string;
   name: string;
+  created_by: string;
 }
 
 export async function getMyCommunity(userId: string): Promise<MyCommunity | null> {
@@ -41,7 +44,7 @@ export async function getMyCommunity(userId: string): Promise<MyCommunity | null
 export async function getCommunityById(communityId: string): Promise<MyCommunity | null> {
   const { data: community, error } = await supabase
     .from('communities')
-    .select('id, name')
+    .select('id, name, created_by')
     .eq('id', communityId)
     .maybeSingle();
 
@@ -50,6 +53,21 @@ export async function getCommunityById(communityId: string): Promise<MyCommunity
   }
 
   return community;
+}
+
+// Only ever succeeds for the community's own creator — the RPC checks
+// created_by = auth.uid() server-side and returns null for anyone else, so
+// this is safe to call speculatively without a client-side ownership check
+// first.
+export async function getMyCommunityJoinCode(communityId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('get_my_community_join_code', {
+    p_community_id: communityId,
+  });
+
+  if (error || !data) {
+    return null;
+  }
+  return data as string;
 }
 
 export async function createCommunity(name: string, joinCode: string): Promise<CommunityActionResult> {

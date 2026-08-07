@@ -19,8 +19,21 @@ interface AuthState {
   profile: MyProfile | null;
   /** true until the initial session + profile check settles */
   loading: boolean;
-  /** signed in but profile.is_admin !== true */
+  /** signed in but has neither is_admin, is_coach, nor an assistant relationship — no role at all */
   denied: boolean;
+  isAdmin: boolean;
+  isCoach: boolean;
+  /** is_coach, has a coaching_paused_at set by an admin — read-only, all writes blocked server-side */
+  isCoachPaused: boolean;
+  /** has delegated access to at least one coach's roster, without being a coach themselves */
+  isAssistant: boolean;
+  /** coach ids this user is a registered assistant for (empty if none/not applicable) */
+  assistingCoachIds: string[];
+  /** subset of assistingCoachIds whose coaching access is currently paused —
+   * an assistant's OWN isCoachPaused is always false (that flag only exists
+   * on real coach accounts), so a page acting on a specific coach's data
+   * needs to check that coach's id against this set instead. */
+  pausedAssistingCoachIds: string[];
   signIn: (email: string, password: string) => Promise<string | null>;
   signOut: () => Promise<void>;
 }
@@ -30,6 +43,8 @@ const AuthContext = createContext<AuthState | null>(null);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [profile, setProfile] = useState<MyProfile | null>(null);
+  const [assistingCoachIds, setAssistingCoachIds] = useState<string[]>([]);
+  const [pausedAssistingCoachIds, setPausedAssistingCoachIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
   const lastActivity = useRef(Date.now());
 
@@ -40,15 +55,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (!s) {
         if (!cancelled) {
           setProfile(null);
+          setAssistingCoachIds([]);
+          setPausedAssistingCoachIds([]);
           setLoading(false);
         }
         return;
       }
       // Same own-profile read path as the mobile app; keeps working after
       // the profiles PII column re-lockdown.
-      const { data, error } = await supabase.rpc('get_my_profile').single();
+      const [{ data, error }, { data: assistantRows }] = await Promise.all([
+        supabase.rpc('get_my_profile').single(),
+        supabase.from('coach_assistants').select('coach_id').eq('assistant_id', s.user.id),
+      ]);
       if (cancelled) return;
       setProfile(error ? null : (data as MyProfile));
+      const coachIds = (assistantRows ?? []).map((r) => r.coach_id as string);
+      setAssistingCoachIds(coachIds);
+
+      if (coachIds.length > 0) {
+        const { data: pausedRows } = await supabase
+          .from('profiles')
+          .select('id')
+          .in('id', coachIds)
+          .not('coaching_paused_at', 'is', null);
+        if (cancelled) return;
+        setPausedAssistingCoachIds((pausedRows ?? []).map((r) => r.id as string));
+      } else {
+        setPausedAssistingCoachIds([]);
+      }
+
       setLoading(false);
     }
 
@@ -87,11 +122,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
   }, [session]);
 
+  const isAdmin = profile?.is_admin === true;
+  const isCoach = profile?.is_coach === true;
+  const isAssistant = assistingCoachIds.length > 0;
+
   const value: AuthState = {
     session,
     profile,
     loading,
-    denied: !!session && !loading && profile?.is_admin !== true,
+    denied: !!session && !loading && !isAdmin && !isCoach && !isAssistant,
+    isAdmin,
+    isCoach,
+    isCoachPaused: isCoach && !isAdmin && !!profile?.coaching_paused_at,
+    isAssistant,
+    assistingCoachIds,
+    pausedAssistingCoachIds,
     signIn: async (email, password) => {
       const { error } = await supabase.auth.signInWithPassword({ email, password });
       return error ? error.message : null;

@@ -3,13 +3,22 @@ import { fetchCommunities } from '@/api/communities';
 import type { CommunityRow } from '@/shared/types';
 import { formatDate } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
-import { CopyCode, ErrorNote } from '@/components/bits';
+import { Badge, CopyCode, ErrorNote } from '@/components/bits';
 
 const COLUMNS: Column<CommunityRow>[] = [
   {
     key: 'name',
     header: 'Community',
-    render: (c) => <span style={{ fontWeight: 700 }}>{c.name}</span>,
+    render: (c) => (
+      <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+        <span style={{ fontWeight: 700 }}>{c.name}</span>
+        {c.created_by_is_coach && (
+          <span title="Created by a coach — doubles as their client roster">
+            <Badge tone="accent">coach roster</Badge>
+          </span>
+        )}
+      </span>
+    ),
   },
   {
     key: 'member_count',

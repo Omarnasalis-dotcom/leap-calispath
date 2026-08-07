@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchUserProfile, fetchUserTrialHistory, grantRole } from '@/api/users';
+import { fetchUserProfile, fetchUserTrialHistory, grantRole, setCoachingPaused } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
 import {
   tierName,
@@ -48,6 +49,7 @@ export function UserDetailPage() {
   const { id = '' } = useParams();
   const { profile: me } = useAuth();
   const queryClient = useQueryClient();
+  const [pauseReason, setPauseReason] = useState('');
 
   const profileQ = useQuery({
     queryKey: ['user-profile', id],
@@ -66,6 +68,15 @@ export function UserDetailPage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
       void queryClient.invalidateQueries({ queryKey: ['users'] });
+    },
+  });
+
+  const pauseMutation = useMutation({
+    mutationFn: (vars: { paused: boolean; reason: string | null }) =>
+      setCoachingPaused(id, vars.paused, vars.reason),
+    onSuccess: () => {
+      setPauseReason('');
+      void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
   });
 
@@ -129,6 +140,57 @@ export function UserDetailPage() {
       {roleMutation.error && <ErrorNote error={roleMutation.error} />}
 
       {!u && !profileQ.error && <div className="skeleton" style={{ height: 220 }} />}
+
+      {u && u.is_coach && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Coaching access</h2>
+            <Badge tone={u.coaching_paused_at ? 'warn' : 'ok'}>
+              {u.coaching_paused_at ? 'paused' : 'active'}
+            </Badge>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {pauseMutation.error && <ErrorNote error={pauseMutation.error} />}
+            {u.coaching_paused_at ? (
+              <>
+                <div className="dim" style={{ fontSize: 13 }}>
+                  Paused {formatDateTime(u.coaching_paused_at)}
+                  {u.coaching_paused_reason ? ` — ${u.coaching_paused_reason}` : ''}. They can still see their
+                  own clients and templates, but can't assign, create, or edit anything until resumed.
+                </div>
+                <ConfirmButton
+                  label="Resume coaching access"
+                  title={`Resume coaching access for ${u.display_name || u.email}?`}
+                  body="They'll immediately be able to assign programs and create/edit templates and exercises again."
+                  confirmLabel="Resume"
+                  onConfirm={() => pauseMutation.mutateAsync({ paused: false, reason: null })}
+                />
+              </>
+            ) : (
+              <div className="row" style={{ alignItems: 'flex-end' }}>
+                <input
+                  className="field"
+                  style={{ flex: 1, minWidth: 220 }}
+                  placeholder="Reason (optional, for your own reference)"
+                  value={pauseReason}
+                  onChange={(e) => setPauseReason(e.target.value)}
+                  aria-label="Pause reason"
+                />
+                <ConfirmButton
+                  label="Pause coaching access"
+                  danger
+                  title={`Pause coaching access for ${u.display_name || u.email}?`}
+                  body="They keep read access to their existing clients and templates, but can't assign, create, or edit anything until resumed. Nothing is deleted."
+                  confirmLabel="Pause"
+                  onConfirm={() =>
+                    pauseMutation.mutateAsync({ paused: true, reason: pauseReason.trim() || null })
+                  }
+                />
+              </div>
+            )}
+          </div>
+        </section>
+      )}
 
       {u && (
         <div className="grid-2">

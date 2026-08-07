@@ -2,20 +2,17 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
-  assignTemplate,
   deleteClientData,
   fetchAssignments,
   fetchCoaches,
-  fetchProgramTemplates,
   setAssignmentStatus,
   type AssignmentRow,
 } from '@/api/coaching';
-import { searchUsers } from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
 import { formatDate, LEAP_SYSTEM_PROFILE_ID } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
-import { ApplyTemplateForm } from './builder/ApplyTemplateForm';
+import { AssignForm } from './AssignForm';
 import { ProgressDrawer } from './ProgressDrawer';
 
 function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined {
@@ -25,166 +22,19 @@ function statusTone(status: string | null): 'ok' | 'warn' | 'accent' | undefined
   return undefined;
 }
 
-function AssignForm({ onDone }: { onDone: () => void }) {
-  const { profile: me } = useAuth();
-  const [warriorQuery, setWarriorQuery] = useState('');
-  const [warriorId, setWarriorId] = useState('');
-  const [templateId, setTemplateId] = useState('');
-  const [coachId, setCoachId] = useState(me?.id ?? '');
-  const [customName, setCustomName] = useState('');
-
-  const templatesQ = useQuery({
-    queryKey: ['program-templates'],
-    queryFn: fetchProgramTemplates,
-  });
-  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches });
-  const warriorsQ = useQuery({
-    queryKey: ['warrior-search', warriorQuery],
-    queryFn: () =>
-      searchUsers({ query: warriorQuery, sort: 'display_name', desc: false, page: 0, pageSize: 20 }),
-    enabled: warriorQuery.trim().length >= 2,
-  });
-  // Shares the ['assignments'] cache with the client table below — used
-  // here only to check whether the selected warrior already has an active
-  // program, so a re-assign doesn't silently clone-and-orphan their
-  // existing weeks/history (assign_program_template auto-completes any
-  // prior active assignment the instant a new one is created).
-  const assignmentsQ = useQuery({ queryKey: ['assignments'], queryFn: fetchAssignments });
-  const existingActiveAssignment = assignmentsQ.data?.find(
-    (a) => a.warrior_id === warriorId && a.status === 'active',
-  );
-
-  const assignMutation = useMutation({
-    mutationFn: () => {
-      // assign_program_template clones the template under this name — the
-      // column is NOT NULL, so mirror the mobile app's default naming.
-      const templateName =
-        templatesQ.data?.find((t) => t.id === templateId)?.name ?? 'Program';
-      const warriorName =
-        warriorsQ.data?.find((w) => w.id === warriorId)?.display_name ?? warriorQuery;
-      return assignTemplate({
-        coachId,
-        warriorId,
-        templateId,
-        customName: customName.trim() || `${templateName} — ${warriorName}`,
-      });
-    },
-    onSuccess: onDone,
-  });
-
-  return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Assign a program</h2>
-      </div>
-      <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {assignMutation.error && <ErrorNote error={assignMutation.error} />}
-        <div className="row">
-          <div style={{ flex: 1, minWidth: 220 }}>
-            <input
-              className="field"
-              style={{ width: '100%' }}
-              placeholder="Search warrior (min 2 chars)…"
-              value={warriorQuery}
-              onChange={(e) => {
-                setWarriorQuery(e.target.value);
-                setWarriorId('');
-              }}
-              aria-label="Search warrior"
-            />
-            {warriorsQ.data && !warriorId && (
-              <div className="panel" style={{ marginTop: 6, maxHeight: 180, overflowY: 'auto' }}>
-                {warriorsQ.data.map((w) => (
-                  <button
-                    key={w.id}
-                    className="nav-item"
-                    style={{ width: '100%', textAlign: 'left' }}
-                    onClick={() => {
-                      setWarriorId(w.id);
-                      setWarriorQuery(w.display_name || w.email || w.id);
-                    }}
-                  >
-                    {w.display_name || '—'}{' '}
-                    <span style={{ color: 'var(--ink-2)' }}>{w.email}</span>
-                  </button>
-                ))}
-                {warriorsQ.data.length === 0 && <div className="empty">No matches</div>}
-              </div>
-            )}
-          </div>
-          <select
-            className="field"
-            style={{ flex: 1, minWidth: 180 }}
-            value={templateId}
-            onChange={(e) => setTemplateId(e.target.value)}
-            aria-label="Template"
-          >
-            <option value="">Template…</option>
-            {templatesQ.data?.map((t) => (
-              <option key={t.id} value={t.id}>
-                {t.name}
-                {t.is_library_template ? ' (library)' : ''}
-              </option>
-            ))}
-          </select>
-          <select
-            className="field"
-            style={{ flex: 1, minWidth: 160 }}
-            value={coachId}
-            onChange={(e) => setCoachId(e.target.value)}
-            aria-label="Coach"
-          >
-            {coachesQ.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.display_name || c.id.slice(0, 8)}
-                {c.id === me?.id ? ' (me)' : ''}
-              </option>
-            ))}
-          </select>
-          <input
-            className="field"
-            style={{ flex: 1, minWidth: 160 }}
-            placeholder="Custom name (optional)"
-            value={customName}
-            onChange={(e) => setCustomName(e.target.value)}
-            aria-label="Custom program name"
-          />
-          <button
-            className="btn primary"
-            disabled={!warriorId || !templateId || !coachId || assignMutation.isPending || !!existingActiveAssignment}
-            onClick={() => assignMutation.mutate()}
-          >
-            {assignMutation.isPending ? 'Assigning…' : 'Assign'}
-          </button>
-        </div>
-
-        {existingActiveAssignment && templateId && (
-          <>
-            <div className="notice">
-              {warriorQuery || 'This warrior'} already has an active program. Assigning here would clone a fresh
-              copy and auto-complete their current one, orphaning its weeks and history — choose how to combine
-              it instead.
-            </div>
-            <ApplyTemplateForm
-              warriorProgramId={existingActiveAssignment.id}
-              initialTemplateId={templateId}
-              onApplied={onDone}
-            />
-          </>
-        )}
-      </div>
-    </section>
-  );
-}
-
 export function ClientsPage() {
+  const { profile, isAdmin, isCoach, isCoachPaused, assistingCoachIds, pausedAssistingCoachIds } = useAuth();
+  // An assistant (not independently a coach) never deletes a client
+  // relationship — coach/admin only, per the permission matrix.
+  const canDeleteClient = isAdmin || isCoach;
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const [showAssign, setShowAssign] = useState(false);
   const [expanded, setExpanded] = useState<string | null>(null);
   // Admin-only slice: a coach-assigned program vs. a warrior who
   // self-selected a library template (tracked under the fixed Leap system
-  // coach id) — mirrors MyClientsScreen.tsx's admin filters.
+  // coach id) — mirrors MyClientsScreen.tsx's admin filters. Meaningless for
+  // a coach session, which only ever sees their own rows anyway.
   const [originFilter, setOriginFilter] = useState<'all' | 'coach' | 'library'>('all');
   const [coachFilterId, setCoachFilterId] = useState<string>('');
 
@@ -192,9 +42,15 @@ export function ClientsPage() {
     queryKey: ['assignments'],
     queryFn: fetchAssignments,
   });
-  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches });
+  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches, enabled: isAdmin });
 
   const filteredData = data?.filter((a) => {
+    if (!isAdmin) {
+      // warrior_programs RLS also returns rows where the viewer is merely
+      // the warrior (a client of some OTHER coach) — this table is "my
+      // roster," not "every assignment I can see," so exclude those.
+      return a.coach_id === profile?.id || assistingCoachIds.includes(a.coach_id);
+    }
     const isLibrarySelection = a.coach_id === LEAP_SYSTEM_PROFILE_ID;
     if (originFilter === 'coach' && isLibrarySelection) return false;
     if (originFilter === 'library' && !isLibrarySelection) return false;
@@ -217,18 +73,31 @@ export function ClientsPage() {
     {
       key: 'warrior',
       header: 'Warrior',
-      render: (a) => <span style={{ fontWeight: 700 }}>{a.warrior_name ?? a.warrior_id.slice(0, 8)}</span>,
+      render: (a) => (
+        <span className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+          <span style={{ fontWeight: 700 }}>{a.warrior_name ?? a.warrior_id.slice(0, 8)}</span>
+          {a.community_left_at && (
+            <span title={`Left the community on ${formatDate(a.community_left_at)}`}>
+              <Badge tone="warn">⚠ left community</Badge>
+            </span>
+          )}
+        </span>
+      ),
     },
     {
       key: 'template',
       header: 'Program',
       render: (a) => a.template_name ?? '—',
     },
-    {
-      key: 'coach',
-      header: 'Coach',
-      render: (a) => <span className="dim">{a.coach_name ?? '—'}</span>,
-    },
+    ...(isAdmin
+      ? [
+          {
+            key: 'coach',
+            header: 'Coach',
+            render: (a: AssignmentRow) => <span className="dim">{a.coach_name ?? '—'}</span>,
+          } satisfies Column<AssignmentRow>,
+        ]
+      : []),
     {
       key: 'status',
       header: 'Status',
@@ -249,46 +118,57 @@ export function ClientsPage() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (a) => (
-        <span
-          className="row"
-          style={{ justifyContent: 'flex-end', gap: 6 }}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {a.status === 'active' ? (
-            <button
-              className="btn small"
-              onClick={() => statusMutation.mutate({ id: a.id, status: 'paused' })}
-            >
-              Pause
-            </button>
-          ) : (
-            <button
-              className="btn small"
-              onClick={() => statusMutation.mutate({ id: a.id, status: 'active' })}
-            >
-              Activate
-            </button>
-          )}
-          <button
-            className="btn small"
-            onClick={() => statusMutation.mutate({ id: a.id, status: 'completed' })}
+      render: (a) => {
+        // isCoachPaused only ever applies to a real coach's own account —
+        // an assistant needs to check the specific coach this row belongs
+        // to instead (they might assist several, only some of which are
+        // paused).
+        const rowPaused = isCoachPaused || pausedAssistingCoachIds.includes(a.coach_id);
+        return (
+          <span
+            className="row"
+            style={{ justifyContent: 'flex-end', gap: 6 }}
+            onClick={(e) => e.stopPropagation()}
           >
-            Complete
-          </button>
-          <button className="btn small" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
-            Progress
-          </button>
-          <ConfirmButton
-            label="Delete"
-            danger
-            title={`Delete ${a.warrior_name ?? 'this warrior'}'s program data?`}
-            body="Removes the assignment, its cloned program and workout logs. This cannot be undone."
-            confirmLabel="Delete"
-            onConfirm={() => deleteMutation.mutateAsync(a.id)}
-          />
-        </span>
-      ),
+            {a.status === 'active' ? (
+              <button
+                className="btn small"
+                disabled={rowPaused}
+                onClick={() => statusMutation.mutate({ id: a.id, status: 'paused' })}
+              >
+                Pause
+              </button>
+            ) : (
+              <button
+                className="btn small"
+                disabled={rowPaused}
+                onClick={() => statusMutation.mutate({ id: a.id, status: 'active' })}
+              >
+                Activate
+              </button>
+            )}
+            <button
+              className="btn small"
+              disabled={rowPaused}
+              onClick={() => statusMutation.mutate({ id: a.id, status: 'completed' })}
+            >
+              Complete
+            </button>
+            <button className="btn small" onClick={() => setExpanded(expanded === a.id ? null : a.id)}>
+              Progress
+            </button>
+            <ConfirmButton
+              label="Delete"
+              danger
+              disabled={rowPaused || !canDeleteClient}
+              title={`Delete ${a.warrior_name ?? 'this warrior'}'s program data?`}
+              body="Removes the assignment, its cloned program and workout logs. This cannot be undone."
+              confirmLabel="Delete"
+              onConfirm={() => deleteMutation.mutateAsync(a.id)}
+            />
+          </span>
+        );
+      },
     },
   ];
 
@@ -297,12 +177,23 @@ export function ClientsPage() {
       <div className="page-head">
         <div>
           <h1>Clients</h1>
-          <div className="sub">Every coach's assignments, arena-wide.</div>
+          <div className="sub">
+            {isAdmin ? "Every coach's assignments, arena-wide." : 'Your assigned clients.'}
+          </div>
         </div>
-        <button className="btn primary" onClick={() => setShowAssign((s) => !s)}>
-          {showAssign ? 'Close' : '+ Assign program'}
-        </button>
+        <div className="row" style={{ gap: 8 }}>
+          <button className="btn primary" disabled={isCoachPaused} onClick={() => setShowAssign((s) => !s)}>
+            {showAssign ? 'Close' : '+ Assign program'}
+          </button>
+        </div>
       </div>
+
+      {isCoachPaused && (
+        <div className="notice">
+          Your coaching access is paused by an admin. You can still view your roster, but assigning,
+          updating, or removing programs is disabled until it's resumed.
+        </div>
+      )}
 
       {error && <ErrorNote error={error} />}
       {statusMutation.error && <ErrorNote error={statusMutation.error} />}
@@ -317,33 +208,35 @@ export function ClientsPage() {
         />
       )}
 
-      <div className="row" style={{ gap: 6 }}>
-        {(['all', 'coach', 'library'] as const).map((o) => (
-          <button
-            key={o}
-            className={`btn small${originFilter === o ? ' primary' : ''}`}
-            onClick={() => setOriginFilter(o)}
-          >
-            {o === 'all' ? 'All' : o === 'coach' ? 'Coach-assigned' : 'Self-selected (library)'}
-          </button>
-        ))}
-        {originFilter !== 'library' && (
-          <select
-            className="field"
-            style={{ minWidth: 160 }}
-            value={coachFilterId}
-            onChange={(e) => setCoachFilterId(e.target.value)}
-            aria-label="Filter by coach"
-          >
-            <option value="">All coaches</option>
-            {coachesQ.data?.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.display_name || c.id.slice(0, 8)}
-              </option>
-            ))}
-          </select>
-        )}
-      </div>
+      {isAdmin && (
+        <div className="row" style={{ gap: 6 }}>
+          {(['all', 'coach', 'library'] as const).map((o) => (
+            <button
+              key={o}
+              className={`btn small${originFilter === o ? ' primary' : ''}`}
+              onClick={() => setOriginFilter(o)}
+            >
+              {o === 'all' ? 'All' : o === 'coach' ? 'Coach-assigned' : 'Self-selected (library)'}
+            </button>
+          ))}
+          {originFilter !== 'library' && (
+            <select
+              className="field"
+              style={{ minWidth: 160 }}
+              value={coachFilterId}
+              onChange={(e) => setCoachFilterId(e.target.value)}
+              aria-label="Filter by coach"
+            >
+              <option value="">All coaches</option>
+              {coachesQ.data?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.display_name || c.id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          )}
+        </div>
+      )}
 
       <div className="panel">
         <DataTable

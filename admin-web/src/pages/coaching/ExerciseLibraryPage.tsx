@@ -3,7 +3,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   bulkCreateExercises,
   deleteExercise,
+  fetchCoaches,
   fetchExercises,
+  fetchProfilesByIds,
   saveExercise,
   type Exercise,
 } from '@/api/coaching';
@@ -95,8 +97,7 @@ function downloadTemplateCsv(): void {
   URL.revokeObjectURL(url);
 }
 
-function BulkImportModal() {
-  const { profile } = useAuth();
+function BulkImportModal({ disabled, coachId }: { disabled?: boolean; coachId: string }) {
   const queryClient = useQueryClient();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -136,7 +137,7 @@ function BulkImportModal() {
           youtube_url: row.youtube_url && isValidYouTubeUrl(row.youtube_url) ? row.youtube_url.trim() : null,
           category: parts.length ? parts.join(',') : 'push',
           difficulty: (row.difficulty || 'beginner').toLowerCase().trim(),
-          created_by: profile!.id,
+          created_by: coachId,
         };
       });
       await bulkCreateExercises(rows);
@@ -150,7 +151,7 @@ function BulkImportModal() {
 
   return (
     <>
-      <button type="button" className="btn" onClick={() => dialogRef.current?.showModal()}>
+      <button type="button" className="btn" disabled={disabled} onClick={() => dialogRef.current?.showModal()}>
         Bulk import
       </button>
       <dialog className="confirm" style={{ maxWidth: 640 }} ref={dialogRef} onClose={reset}>
@@ -235,7 +236,7 @@ function BulkImportModal() {
               <button
                 type="button"
                 className="btn small primary"
-                disabled={importMutation.isPending || !profile}
+                disabled={importMutation.isPending || !coachId}
                 onClick={() => importMutation.mutate()}
               >
                 {importMutation.isPending ? 'Importing…' : `Import ${previewRows.length}`}
@@ -281,14 +282,41 @@ function formatCategoryConcept(raw: string | null | undefined): string {
 }
 
 export function ExerciseLibraryPage() {
+  const { profile, isAdmin, isCoach, isCoachPaused, assistingCoachIds } = useAuth();
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [filter, setFilter] = useState('');
+  const [coachFilterId, setCoachFilterId] = useState('');
+  // Only matters when creating (not editing) as a pure assistant helping more
+  // than one coach — attributes the new row to the right coach's library.
+  const [newExerciseCoachId, setNewExerciseCoachId] = useState(
+    isCoach ? profile?.id ?? '' : assistingCoachIds[0] ?? '',
+  );
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['exercises'],
     queryFn: fetchExercises,
   });
+  const assistedCoachesQ = useQuery({
+    queryKey: ['assisted-coaches', assistingCoachIds],
+    queryFn: () => fetchProfilesByIds(assistingCoachIds),
+    enabled: !isCoach && assistingCoachIds.length > 1,
+  });
+  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches, enabled: isAdmin });
+
+  // Read access to exercise_library stays open (it always has been, and a
+  // hard per-coach restriction would blank out exercise names on every
+  // already-assigned program that references someone else's entry — this
+  // scopes what a coach (or their assistant) browses/manages here, not what's
+  // readable). Admin keeps the full catalog, optionally narrowed by
+  // coachFilterId so it doesn't turn into one giant mixed list.
+  const own = isAdmin
+    ? coachFilterId
+      ? data?.filter((e) => e.created_by === coachFilterId)
+      : data
+    : data?.filter(
+        (e) => e.created_by === profile?.id || assistingCoachIds.includes(e.created_by ?? ''),
+      );
 
   const saveMutation = useMutation({
     mutationFn: (d: Draft) =>
@@ -298,6 +326,9 @@ export function ExerciseLibraryPage() {
         youtube_url: d.youtube_url.trim() || null,
         category: [d.category, d.concept].filter(Boolean).join(',') || null,
         difficulty: d.difficulty.trim() || null,
+        // Attribution only matters on create — an update never moves an
+        // exercise to a different coach's library.
+        ...(d.id ? {} : { created_by: newExerciseCoachId }),
       }),
     onSuccess: () => {
       setDraft(null);
@@ -310,7 +341,7 @@ export function ExerciseLibraryPage() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['exercises'] }),
   });
 
-  const filtered = data?.filter(
+  const filtered = own?.filter(
     (e) =>
       !filter ||
       e.name.toLowerCase().includes(filter.toLowerCase()) ||
@@ -349,33 +380,42 @@ export function ExerciseLibraryPage() {
       key: 'actions',
       header: '',
       align: 'right',
-      render: (e) => (
-        <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
-          <button
-            className="btn small"
-            onClick={(ev) => {
-              ev.stopPropagation();
-              setDraft({
-                id: e.id,
-                name: e.name,
-                youtube_url: e.youtube_url ?? '',
-                ...parseCategoryConcept(e.category),
-                difficulty: e.difficulty ?? '',
-              });
-            }}
-          >
-            Edit
-          </button>
-          <ConfirmButton
-            label="Delete"
-            danger
-            title={`Delete “${e.name}”?`}
-            body="Programs already referencing it keep their rows; it just leaves the library."
-            confirmLabel="Delete"
-            onConfirm={() => removeMutation.mutateAsync(e.id)}
-          />
-        </span>
-      ),
+      render: (e) => {
+        // Add-only for assistants: editing/deleting is scoped to rows this
+        // account actually owns, regardless of role — a coach never edits
+        // another coach's shared catalog entry either, matching the RLS
+        // "Coaches update/delete own exercises" checks exactly.
+        if (!isAdmin && e.created_by !== profile?.id) return null;
+        return (
+          <span className="row" style={{ justifyContent: 'flex-end', gap: 6 }}>
+            <button
+              className="btn small"
+              disabled={isCoachPaused}
+              onClick={(ev) => {
+                ev.stopPropagation();
+                setDraft({
+                  id: e.id,
+                  name: e.name,
+                  youtube_url: e.youtube_url ?? '',
+                  ...parseCategoryConcept(e.category),
+                  difficulty: e.difficulty ?? '',
+                });
+              }}
+            >
+              Edit
+            </button>
+            <ConfirmButton
+              label="Delete"
+              danger
+              disabled={isCoachPaused}
+              title={`Delete “${e.name}”?`}
+              body="Programs already referencing it keep their rows; it just leaves the library."
+              confirmLabel="Delete"
+              onConfirm={() => removeMutation.mutateAsync(e.id)}
+            />
+          </span>
+        );
+      },
     },
   ];
 
@@ -384,9 +424,25 @@ export function ExerciseLibraryPage() {
       <div className="page-head">
         <div>
           <h1>Exercise library</h1>
-          <div className="sub num">{data ? `${data.length} exercises` : ' '}</div>
+          <div className="sub num">{own ? `${own.length} exercises` : ' '}</div>
         </div>
         <div className="row">
+          {isAdmin && (
+            <select
+              className="field"
+              style={{ minWidth: 160 }}
+              value={coachFilterId}
+              onChange={(e) => setCoachFilterId(e.target.value)}
+              aria-label="Filter by coach"
+            >
+              <option value="">All coaches</option>
+              {coachesQ.data?.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.display_name || c.id.slice(0, 8)}
+                </option>
+              ))}
+            </select>
+          )}
           <input
             className="field"
             placeholder="Filter…"
@@ -394,13 +450,19 @@ export function ExerciseLibraryPage() {
             onChange={(e) => setFilter(e.target.value)}
             aria-label="Filter exercises"
           />
-          <BulkImportModal />
-          <button className="btn primary" onClick={() => setDraft({ ...EMPTY })}>
+          <BulkImportModal disabled={isCoachPaused} coachId={newExerciseCoachId} />
+          <button className="btn primary" disabled={isCoachPaused} onClick={() => setDraft({ ...EMPTY })}>
             + New exercise
           </button>
         </div>
       </div>
 
+      {isCoachPaused && (
+        <div className="notice">
+          Your coaching access is paused by an admin. You can still browse the library, but
+          creating, editing, or deleting exercises is disabled until it's resumed.
+        </div>
+      )}
       {error && <ErrorNote error={error} />}
       {saveMutation.error && <ErrorNote error={saveMutation.error} />}
       {removeMutation.error && <ErrorNote error={removeMutation.error} />}
@@ -411,6 +473,22 @@ export function ExerciseLibraryPage() {
             <h2>{draft.id ? 'Edit exercise' : 'New exercise'}</h2>
           </div>
           <div className="panel-body row" style={{ alignItems: 'flex-end' }}>
+            {!draft.id && !isCoach && assistingCoachIds.length > 1 && (
+              <select
+                className="field"
+                style={{ flex: 1, minWidth: 160 }}
+                value={newExerciseCoachId}
+                onChange={(e) => setNewExerciseCoachId(e.target.value)}
+                aria-label="Attribute to coach"
+              >
+                <option value="">Which coach's library?</option>
+                {assistedCoachesQ.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.display_name || c.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            )}
             <input
               className="field"
               style={{ flex: 2, minWidth: 160 }}
@@ -463,7 +541,12 @@ export function ExerciseLibraryPage() {
             />
             <button
               className="btn primary"
-              disabled={!draft.name.trim() || saveMutation.isPending}
+              disabled={
+                !draft.name.trim() ||
+                saveMutation.isPending ||
+                isCoachPaused ||
+                (!draft.id && !newExerciseCoachId)
+              }
               onClick={() => saveMutation.mutate(draft)}
             >
               {saveMutation.isPending ? 'Saving…' : 'Save'}

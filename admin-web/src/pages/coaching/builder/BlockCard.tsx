@@ -10,12 +10,13 @@ import {
   type DragEndEvent,
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
+import { Copy, Scissors, ClipboardPaste, Trash2, GripVertical, ChevronDown, ChevronUp } from 'lucide-react';
 import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
 import { useBuilderClipboard, type ClipboardBlock } from '@/contexts/BuilderClipboardContext';
-import { Badge } from '@/components/bits';
+import { Badge, ConfirmButton } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
 import { ExerciseRow } from './ExerciseRow';
-import { clientKey, newBlock, type BuilderBlock } from './types';
+import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './types';
 
 /** Same prefix BlockConceptParser.getSubtitle composes (structure badge +
  * ladder sequence + weighted flag) — kept local rather than added to that
@@ -72,18 +73,21 @@ export function fromClipboardBlock(data: ClipboardBlock): BuilderBlock {
 export function BlockCard({
   block,
   exerciseOptions,
+  readOnly,
   onChange,
   onRemove,
   onPasteAfter,
 }: {
   block: BuilderBlock;
-  exerciseOptions: Array<{ id: string; name: string }>;
+  exerciseOptions: ExerciseOption[];
+  readOnly?: boolean;
   onChange: (patch: Partial<BuilderBlock>) => void;
   onRemove: () => void;
   onPasteAfter: (block: BuilderBlock) => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: block.id,
+    disabled: readOnly,
   });
   const clipboard = useBuilderClipboard();
   const [expanded, setExpanded] = useState(false);
@@ -91,6 +95,7 @@ export function BlockCard({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
   function onExerciseDragEnd(e: DragEndEvent) {
+    if (readOnly) return;
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIndex = block.exercises.findIndex((ex) => ex.id === active.id);
@@ -126,48 +131,33 @@ export function BlockCard({
         <div className="row" style={{ flexWrap: 'nowrap', gap: 8 }}>
           <button
             type="button"
-            className="btn small"
-            style={{ cursor: 'grab', padding: '4px 8px', flex: 'none' }}
+            className="btn icon ghost"
+            style={{ cursor: 'grab' }}
             aria-label="Drag to reorder block"
             {...attributes}
             {...listeners}
           >
-            ⠿
+            <GripVertical />
           </button>
           <input
             className="field"
             style={{ flex: 1, fontWeight: 700 }}
             placeholder="Block name"
             value={block.name}
+            disabled={readOnly}
             onChange={(e) => onChange({ name: e.target.value })}
             aria-label="Block name"
           />
-        </div>
-        <div className="row" style={{ gap: 4 }}>
-          <button className="btn small" onClick={() => clipboard.copyBlock(toClipboardBlock(block))}>
-            Copy
-          </button>
-          <button
-            className="btn small"
-            onClick={() => clipboard.cutBlock(toClipboardBlock(block), onRemove)}
-          >
-            Cut
-          </button>
-          <button
-            className="btn small"
-            disabled={!canPaste}
-            title={canPaste ? 'Paste a new block after this one' : 'Clipboard is empty'}
-            onClick={() => {
-              if (clipboard.clipboard?.type === 'block') {
-                onPasteAfter(fromClipboardBlock(clipboard.clipboard.data));
-              }
-            }}
-          >
-            Paste
-          </button>
-          <button className="btn small danger" onClick={onRemove} aria-label="Delete block">
-            Delete
-          </button>
+          <ConfirmButton
+            icon={<Trash2 />}
+            ariaLabel="Delete block"
+            danger
+            disabled={readOnly}
+            title={`Delete "${block.name || 'this block'}"?`}
+            body="Removes this block and every exercise in it. This can't be undone."
+            confirmLabel="Delete"
+            onConfirm={onRemove}
+          />
         </div>
       </div>
 
@@ -176,9 +166,8 @@ export function BlockCard({
           type="button"
           style={{
             display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            gap: 6,
+            flexDirection: 'column',
+            gap: 8,
             textAlign: 'left',
             background: 'none',
             border: 'none',
@@ -187,27 +176,73 @@ export function BlockCard({
             width: '100%',
           }}
           onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
         >
-          <Badge tone="accent">{getBlockTypeLabel(block.metadata)}</Badge>
+          <div className="row" style={{ flexWrap: 'nowrap', justifyContent: 'space-between', gap: 8 }}>
+            <span className="label" style={{ color: 'var(--ink)' }}>
+              {getBlockTypeLabel(block.metadata)}
+            </span>
+            {expanded ? (
+              <ChevronUp size={16} style={{ color: 'var(--ink-2)', flex: 'none' }} />
+            ) : (
+              <ChevronDown size={16} style={{ color: 'var(--ink-2)', flex: 'none' }} />
+            )}
+          </div>
           {block.exercises.length === 0 ? (
             <span className="dim" style={{ fontSize: 12 }}>
               No exercises yet
             </span>
           ) : (
-            block.exercises.map((ex) => <Badge key={ex.id}>{ex.exercise_name || '?'}</Badge>)
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 4 }}>
+              {block.exercises.map((ex) => (
+                <Badge key={ex.id}>{ex.exercise_name || '?'}</Badge>
+              ))}
+            </div>
           )}
-          <span className="label" style={{ marginLeft: 'auto' }}>
-            {expanded ? '▲ collapse' : '▼ expand'}
-          </span>
         </button>
 
         {expanded && (
           <>
+            <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+              <button
+                className="btn icon"
+                disabled={readOnly}
+                title="Copy block"
+                aria-label="Copy block"
+                onClick={() => clipboard.copyBlock(toClipboardBlock(block))}
+              >
+                <Copy />
+              </button>
+              <button
+                className="btn icon"
+                disabled={readOnly}
+                title="Cut block"
+                aria-label="Cut block"
+                onClick={() => clipboard.cutBlock(toClipboardBlock(block), onRemove)}
+              >
+                <Scissors />
+              </button>
+              <button
+                className="btn icon"
+                disabled={readOnly || !canPaste}
+                title={canPaste ? 'Paste a new block after this one' : 'Clipboard is empty'}
+                aria-label="Paste block after this one"
+                onClick={() => {
+                  if (clipboard.clipboard?.type === 'block') {
+                    onPasteAfter(fromClipboardBlock(clipboard.clipboard.data));
+                  }
+                }}
+              >
+                <ClipboardPaste />
+              </button>
+            </div>
+
             <div style={{ borderTop: '1px solid var(--hairline)', paddingTop: 10 }}>
               <ConceptWizard
                 metadata={block.metadata}
                 onChange={(m) => onChange({ metadata: m })}
                 exerciseCount={block.exercises.length}
+                readOnly={readOnly}
               />
             </div>
 
@@ -217,6 +252,7 @@ export function BlockCard({
               style={{ fontSize: 12 }}
               placeholder="Warm up instructions, block objectives, or performance notes…"
               value={block.notes}
+              disabled={readOnly}
               onChange={(e) => onChange({ notes: e.target.value })}
               aria-label="Block notes"
             />
@@ -230,6 +266,7 @@ export function BlockCard({
                       exercise={ex}
                       exerciseOptions={exerciseOptions}
                       blockMetadata={block.metadata}
+                      readOnly={readOnly}
                       onChange={(patch) =>
                         onChange({
                           exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),
@@ -245,6 +282,7 @@ export function BlockCard({
             <button
               className="btn small"
               style={{ alignSelf: 'flex-start' }}
+              disabled={readOnly}
               onClick={() =>
                 onChange({
                   exercises: [

@@ -1,4 +1,47 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Sun, Moon } from 'lucide-react';
+
+type Theme = 'dark' | 'light';
+const THEME_STORAGE_KEY = 'admin-theme';
+
+/** Reads the theme public/theme-init.js already applied pre-paint, and keeps
+ * it in sync with an explicit user choice (persisted) or, absent one, the
+ * OS preference (live — flips if the user changes it system-wide mid-session). */
+export function useTheme(): { theme: Theme; toggleTheme: () => void } {
+  const [theme, setThemeState] = useState<Theme>(
+    () => (document.documentElement.dataset.theme as Theme | undefined) ?? 'dark',
+  );
+
+  useEffect(() => {
+    if (localStorage.getItem(THEME_STORAGE_KEY)) return;
+    const mq = window.matchMedia('(prefers-color-scheme: light)');
+    const onChange = (e: MediaQueryListEvent) => {
+      const next: Theme = e.matches ? 'light' : 'dark';
+      document.documentElement.dataset.theme = next;
+      setThemeState(next);
+    };
+    mq.addEventListener('change', onChange);
+    return () => mq.removeEventListener('change', onChange);
+  }, []);
+
+  function setTheme(next: Theme) {
+    document.documentElement.dataset.theme = next;
+    localStorage.setItem(THEME_STORAGE_KEY, next);
+    setThemeState(next);
+  }
+
+  return { theme, toggleTheme: () => setTheme(theme === 'dark' ? 'light' : 'dark') };
+}
+
+export function ThemeToggle() {
+  const { theme, toggleTheme } = useTheme();
+  const label = theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode';
+  return (
+    <button type="button" className="btn icon ghost" title={label} aria-label={label} onClick={toggleTheme}>
+      {theme === 'dark' ? <Sun /> : <Moon />}
+    </button>
+  );
+}
 
 export function ErrorNote({ error }: { error: unknown }) {
   const msg =
@@ -38,9 +81,14 @@ export function CopyCode({ value }: { value: string }) {
   );
 }
 
-/** Native <dialog>-based confirm. Returns a trigger renderer to keep usage terse. */
+/** Native <dialog>-based confirm. Returns a trigger renderer to keep usage terse.
+ * Pass `icon` instead of `label` for a compact icon-only trigger (row actions
+ * like block/day delete) — `label` (or `ariaLabel`) is still required for the
+ * accessible name and the tooltip either way. */
 export function ConfirmButton({
   label,
+  icon,
+  ariaLabel,
   title,
   body,
   confirmLabel = 'Confirm',
@@ -48,7 +96,9 @@ export function ConfirmButton({
   disabled,
   onConfirm,
 }: {
-  label: string;
+  label?: string;
+  icon?: ReactNode;
+  ariaLabel?: string;
   title: string;
   body?: string;
   confirmLabel?: string;
@@ -58,15 +108,19 @@ export function ConfirmButton({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
+  const name = ariaLabel ?? label;
 
   return (
     <>
       <button
-        className={`btn small${danger ? ' danger' : ''}`}
+        type="button"
+        className={`btn ${icon ? 'icon' : 'small'}${danger ? ' danger' : ''}`}
         disabled={disabled}
+        title={name}
+        aria-label={name}
         onClick={() => ref.current?.showModal()}
       >
-        {label}
+        {icon ?? label}
       </button>
       <dialog className="confirm" ref={ref}>
         <h2 style={{ marginBottom: 8 }}>{title}</h2>

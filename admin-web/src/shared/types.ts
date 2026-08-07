@@ -7,6 +7,7 @@ export interface MyProfile {
   display_name: string | null;
   is_admin?: boolean;
   is_coach?: boolean;
+  coaching_paused_at?: string | null;
 }
 
 export interface DashboardOverview {
@@ -95,6 +96,8 @@ export interface AdminUserProfile {
   streak: number | null;
   is_admin: boolean;
   is_coach: boolean;
+  coaching_paused_at: string | null;
+  coaching_paused_reason: string | null;
   is_public: boolean | null;
   gender: string | null;
   country: string | null;
@@ -137,6 +140,7 @@ export interface CommunityRow {
   join_code: string;
   created_by: string | null;
   created_by_name: string | null;
+  created_by_is_coach: boolean;
   created_at: string;
   member_count: number;
 }

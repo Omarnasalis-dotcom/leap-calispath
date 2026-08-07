@@ -4,6 +4,7 @@ import {
   createTemplateFromImportedBlocks,
   deleteProgramTemplate,
   fetchAssignedTemplateIds,
+  fetchCoaches,
   fetchExercises,
   fetchProgramTemplates,
 } from '@/api/coaching';
@@ -28,7 +29,7 @@ type ListTab = 'master' | 'assigned' | 'library';
  * (this page's own ExportTemplateButton output, a client-week export, or a
  * hand-edited variant) — mirrors mobile's handleImportMasterTemplate
  * (useProgramBuilder.ts). Always creates new; never overwrites. */
-function ImportTemplateButton({ onImported }: { onImported: () => void }) {
+function ImportTemplateButton({ onImported, disabled }: { onImported: () => void; disabled?: boolean }) {
   const { profile } = useAuth();
   const inputRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
@@ -76,7 +77,12 @@ function ImportTemplateButton({ onImported }: { onImported: () => void }) {
           if (file) void handleFile(file);
         }}
       />
-      <button type="button" className="btn small" disabled={busy || !profile} onClick={() => inputRef.current?.click()}>
+      <button
+        type="button"
+        className="btn small"
+        disabled={busy || !profile || disabled}
+        onClick={() => inputRef.current?.click()}
+      >
         {busy ? 'Importing…' : 'Import from JSON'}
       </button>
       {error && <ErrorNote error={error} />}
@@ -114,9 +120,11 @@ function ExportTemplateButton({ templateId, name, description }: { templateId: s
 }
 
 export function ProgramBuilderPage() {
+  const { profile, isAdmin, isCoachPaused } = useAuth();
   const queryClient = useQueryClient();
   const [selectedId, setSelectedId] = useState<string | 'new' | null>(null);
   const [tab, setTab] = useState<ListTab>('master');
+  const [coachFilterId, setCoachFilterId] = useState('');
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -130,10 +138,17 @@ export function ProgramBuilderPage() {
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
   const assignedIdsQ = useQuery({ queryKey: ['assigned-template-ids'], queryFn: fetchAssignedTemplateIds });
+  const coachesQ = useQuery({ queryKey: ['coaches'], queryFn: fetchCoaches, enabled: isAdmin });
   const exercisesQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
   const exerciseOptions = useMemo(
-    () => (exercisesQ.data ?? []).map((e) => ({ id: e.id, name: e.name })),
-    [exercisesQ.data],
+    () =>
+      (exercisesQ.data ?? []).map((e) => ({
+        id: e.id,
+        name: e.name,
+        youtube_url: e.youtube_url,
+        pickable: isAdmin || e.created_by === profile?.id,
+      })),
+    [exercisesQ.data, isAdmin, profile?.id],
   );
 
   const loadQ = useQuery({
@@ -237,50 +252,79 @@ export function ProgramBuilderPage() {
 
   // ---------- list view ----------
   if (!selectedId) {
+    const coachFiltered = (t: { coach_id: string }) => !coachFilterId || t.coach_id === coachFilterId;
     const master = (templatesQ.data ?? []).filter(
-      (t) => !t.is_library_template && !assignedIdsQ.data?.has(t.id),
+      (t) => !t.is_library_template && !assignedIdsQ.data?.has(t.id) && coachFiltered(t),
     );
     const assigned = (templatesQ.data ?? []).filter(
-      (t) => !t.is_library_template && assignedIdsQ.data?.has(t.id),
+      (t) => !t.is_library_template && assignedIdsQ.data?.has(t.id) && coachFiltered(t),
     );
     const library = (templatesQ.data ?? []).filter((t) => t.is_library_template);
-    const rows = tab === 'master' ? master : tab === 'assigned' ? assigned : [];
+    const activeTab = tab === 'library' && !isAdmin ? 'master' : tab;
+    const rows = activeTab === 'master' ? master : activeTab === 'assigned' ? assigned : [];
 
     return (
       <div className="page">
         <div className="page-head">
           <div>
             <h1>Program builder</h1>
-            <div className="sub">Master templates and client copies, every coach.</div>
+            <div className="sub">
+              {isAdmin ? 'Master templates and client copies, every coach.' : 'Your master templates and client copies.'}
+            </div>
           </div>
           <div className="row" style={{ gap: 8 }}>
+            {isAdmin && (
+              <select
+                className="field"
+                style={{ minWidth: 160 }}
+                value={coachFilterId}
+                onChange={(e) => setCoachFilterId(e.target.value)}
+                aria-label="Filter by coach"
+              >
+                <option value="">All coaches</option>
+                {coachesQ.data?.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.display_name || c.id.slice(0, 8)}
+                  </option>
+                ))}
+              </select>
+            )}
             <ImportTemplateButton
+              disabled={isCoachPaused}
               onImported={() => {
                 void queryClient.invalidateQueries({ queryKey: ['program-templates'] });
                 void queryClient.invalidateQueries({ queryKey: ['assigned-template-ids'] });
               }}
             />
-            <button className="btn primary" onClick={() => setSelectedId('new')}>
+            <button className="btn primary" disabled={isCoachPaused} onClick={() => setSelectedId('new')}>
               + New template
             </button>
           </div>
         </div>
+        {isCoachPaused && (
+          <div className="notice">
+            Your coaching access is paused by an admin. You can still view your templates, but creating,
+            editing, or deleting them is disabled until it's resumed.
+          </div>
+        )}
         {templatesQ.error && <ErrorNote error={templatesQ.error} />}
         {deleteMutation.error && <ErrorNote error={deleteMutation.error} />}
 
         <div className="row">
-          <button className={`btn small${tab === 'master' ? ' primary' : ''}`} onClick={() => setTab('master')}>
+          <button className={`btn small${activeTab === 'master' ? ' primary' : ''}`} onClick={() => setTab('master')}>
             Master templates ({master.length})
           </button>
-          <button className={`btn small${tab === 'assigned' ? ' primary' : ''}`} onClick={() => setTab('assigned')}>
+          <button className={`btn small${activeTab === 'assigned' ? ' primary' : ''}`} onClick={() => setTab('assigned')}>
             Assigned copies ({assigned.length})
           </button>
-          <button className={`btn small${tab === 'library' ? ' primary' : ''}`} onClick={() => setTab('library')}>
-            Library ({library.length})
-          </button>
+          {isAdmin && (
+            <button className={`btn small${activeTab === 'library' ? ' primary' : ''}`} onClick={() => setTab('library')}>
+              Library ({library.length})
+            </button>
+          )}
         </div>
 
-        {tab === 'library' ? (
+        {activeTab === 'library' ? (
           <LibraryTab onSelectTemplate={setSelectedId} />
         ) : (
           <div className="panel">
@@ -289,7 +333,7 @@ export function ProgramBuilderPage() {
                 <thead>
                   <tr>
                     <th>Template</th>
-                    <th>Coach</th>
+                    {isAdmin && <th>Coach</th>}
                     <th>Status</th>
                     <th>Created</th>
                     <th></th>
@@ -299,7 +343,7 @@ export function ProgramBuilderPage() {
                   {templatesQ.isLoading &&
                     Array.from({ length: 5 }).map((_, i) => (
                       <tr key={i}>
-                        <td colSpan={5}>
+                        <td colSpan={isAdmin ? 5 : 4}>
                           <div className="skeleton" style={{ height: 14 }} />
                         </td>
                       </tr>
@@ -307,7 +351,7 @@ export function ProgramBuilderPage() {
                   {rows.map((t) => (
                     <tr key={t.id} className="clickable" onClick={() => setSelectedId(t.id)}>
                       <td style={{ fontWeight: 700 }}>{t.name}</td>
-                      <td className="dim">{t.coach_name ?? '—'}</td>
+                      {isAdmin && <td className="dim">{t.coach_name ?? '—'}</td>}
                       <td>
                         <Badge tone={t.status === 'published' ? 'ok' : undefined}>{t.status ?? 'draft'}</Badge>
                       </td>
@@ -318,6 +362,7 @@ export function ProgramBuilderPage() {
                           <ConfirmButton
                             label="Delete"
                             danger
+                            disabled={isCoachPaused}
                             title={`Delete template "${t.name}"?`}
                             body="Blocks with logged workouts will refuse to delete — client copies are separate rows and stay intact."
                             confirmLabel="Delete"
@@ -381,7 +426,7 @@ export function ProgramBuilderPage() {
           )}
           <button
             className="btn primary"
-            disabled={!name.trim() || saveMutation.isPending}
+            disabled={!name.trim() || saveMutation.isPending || isCoachPaused}
             onClick={() => saveMutation.mutate()}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save template'}
@@ -389,6 +434,11 @@ export function ProgramBuilderPage() {
         </div>
       </div>
 
+      {isCoachPaused && (
+        <div className="notice">
+          Your coaching access is paused by an admin — changes here can't be saved until it's resumed.
+        </div>
+      )}
       {loadQ.error && <ErrorNote error={loadQ.error} />}
       {saveError && <ErrorNote error={saveError} />}
       {loadQ.isLoading && selectedId !== 'new' && <div className="skeleton" style={{ height: 160 }} />}
@@ -403,13 +453,14 @@ export function ProgramBuilderPage() {
             Week {w}
           </button>
         ))}
-        <button className="btn small" onClick={duplicateWeek}>
+        <button className="btn small" disabled={isCoachPaused} onClick={duplicateWeek}>
           + Duplicate week
         </button>
         {weekNums.length > 1 && (
           <ConfirmButton
             label="Delete week"
             danger
+            disabled={isCoachPaused}
             title={`Delete week ${activeWeek}?`}
             body="Removes every day and block in this week."
             confirmLabel="Delete"
@@ -418,7 +469,7 @@ export function ProgramBuilderPage() {
         )}
       </div>
 
-      <WeekGrid days={days} exerciseOptions={exerciseOptions} onCommit={setDays} />
+      <WeekGrid days={days} exerciseOptions={exerciseOptions} onCommit={setDays} readOnly={isCoachPaused} />
     </div>
   );
 }

@@ -5,26 +5,13 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeMutation } from '../../hooks/useSafeMutation';
 import { LeapLogo } from '../LeapLogo';
-import { getMyCommunity, getCommunityById, createCommunity, joinCommunity, leaveCommunity, formatCommunityError, MyCommunity } from '../../lib/community';
+import { getMyCommunity, getCommunityById, getMyCommunityJoinCode, createCommunity, joinCommunity, leaveCommunity, formatCommunityError, MyCommunity } from '../../lib/community';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { useTutorial } from '../../contexts/TutorialContext';
-import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
+import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 
 const W = WORLD_THEMES.strength;
 const NAME_MAX = 30;
-
-// Auto-generated join code (design handoff): the user never invents their own
-// code — it's generated (prefix from the community name, else LEAP, plus 4
-// digits) with a Shuffle control to regenerate. Ambiguous chars (0/1) are
-// excluded from the digit pool.
-function generateJoinCode(name: string): string {
-  const letters = name.toUpperCase().replace(/[^A-Z]/g, '');
-  const prefix = (letters.slice(0, 4) || 'LEAP').padEnd(4, 'X');
-  const digits = '23456789';
-  let s = prefix;
-  for (let i = 0; i < 4; i++) s += digits[Math.floor(Math.random() * digits.length)];
-  return s;
-}
 
 interface CommunitySectionProps {
   userId: string;
@@ -38,7 +25,10 @@ interface CommunitySectionProps {
 }
 
 export function CommunitySection({ userId, communityId, scrollRef }: CommunitySectionProps) {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
+  const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+  const subtleOverlayStrong = mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
   // profile.community_id (AuthContext) is what every leaderboard's PUBLIC/
   // MY COMMUNITY toggle actually reads — refreshing only this component's
   // own local `community` state would update the status card here but
@@ -54,21 +44,37 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [createName, setCreateName] = useState('');
-  const [createCode, setCreateCode] = useState(() => generateJoinCode(''));
+  const [createCode, setCreateCode] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [formError, setFormError] = useState<string | null>(null);
+  const [leaderCode, setLeaderCode] = useState<string | null>(null);
+  const [codeLoading, setCodeLoading] = useState(false);
   const { safeMutate, isMutating } = useSafeMutation();
   // useScreenMeasure=true: see useTutorialTarget's own comment.
   const { ref: createButtonRef, onLayout: onCreateButtonLayout } = useTutorialTarget('community.createButton', scrollRef, true);
   const { ref: joinButtonRef, onLayout: onJoinButtonLayout } = useTutorialTarget('community.joinButton', scrollRef, true);
   const { requestRemeasure } = useTutorial();
 
-  const canCreate = createName.trim().length > 0;
+  const canCreate = createName.trim().length > 0 && createCode.trim().length > 0;
+  const isLeader = !!community && community.created_by === userId;
+
+  const toggleLeaderCode = async () => {
+    if (leaderCode) {
+      setLeaderCode(null);
+      return;
+    }
+    if (!community) return;
+    setCodeLoading(true);
+    const code = await getMyCommunityJoinCode(community.id);
+    setLeaderCode(code);
+    setCodeLoading(false);
+  };
 
   const refresh = async () => {
     setLoading(true);
     const c = await getMyCommunity(userId);
     setCommunity(c);
+    setLeaderCode(null);
     setLoading(false);
   };
 
@@ -105,7 +111,7 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   const openCreateModal = () => {
     setFormError(null);
     setCreateName('');
-    setCreateCode(generateJoinCode(''));
+    setCreateCode('');
     setShowCreateModal(true);
   };
 
@@ -120,17 +126,10 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
       onSuccess: async () => {
         setShowCreateModal(false);
         setCreateName('');
-        setCreateCode(generateJoinCode(''));
+        setCreateCode('');
         await Promise.all([refresh(), refreshProfile?.()]);
       },
-      onError: (err) => {
-        setFormError(err.message);
-        // A code collision is recoverable without user thought — the code is
-        // machine-generated, so just deal a fresh one for the retry.
-        if (/join code is already in use/i.test(err.message)) {
-          setCreateCode(generateJoinCode(createName));
-        }
-      },
+      onError: (err) => setFormError(err.message),
       // NAME_TAKEN/CODE_TAKEN are expected, already-handled validation
       // outcomes (shown inline via formError), not bugs — skip the
       // console.error that otherwise triggers a dev-mode redbox on-device.
@@ -195,9 +194,9 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   if (loading) {
     return (
       <View style={{ marginTop: 18 }}>
-        <View style={[styles.statusCard, { opacity: 0.5 }]}>
+        <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay, opacity: 0.5 }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.statusLabel}>MY COMMUNITY</Text>
+            <Text style={[styles.statusLabel, { color: neutrals.textCaption }]}>MY COMMUNITY</Text>
           </View>
           <LeapLogo size={18} animated />
         </View>
@@ -208,13 +207,27 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   return (
     <View style={{ marginTop: 18 }}>
       {community ? (
-        <View style={styles.statusCard}>
+        <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.statusLabel}>MY COMMUNITY</Text>
-            <Text style={styles.statusName} numberOfLines={1}>
+            <Text style={[styles.statusLabel, { color: neutrals.textCaption }]}>MY COMMUNITY</Text>
+            <Text style={[styles.statusName, { color: neutrals.textPrimary }]} numberOfLines={1}>
               {community.name.toUpperCase()}
             </Text>
+            {isLeader && leaderCode && (
+              <Text style={[styles.codeText, { color: W.accent, marginTop: 4 }]}>{leaderCode}</Text>
+            )}
           </View>
+          {isLeader && (
+            <TouchableOpacity onPress={toggleLeaderCode} disabled={codeLoading} style={styles.codeBtn}>
+              {codeLoading ? <LeapLogo size={16} animated /> : (
+                <MaterialCommunityIcons
+                  name={leaderCode ? 'eye-off-outline' : 'key-outline'}
+                  size={18}
+                  color={W.accent}
+                />
+              )}
+            </TouchableOpacity>
+          )}
           <TouchableOpacity onPress={confirmLeave} disabled={isMutating} style={styles.leaveBtn}>
             {isMutating ? <LeapLogo size={18} animated /> : (
               <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>LEAVE</Text>
@@ -226,11 +239,11 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
           <TouchableOpacity
             ref={createButtonRef}
             onLayout={onCreateButtonLayout}
-            style={styles.createBtn}
+            style={[styles.createBtn, { borderColor: neutrals.border }]}
             onPress={openCreateModal}
           >
-            <MaterialCommunityIcons name="account-group-outline" size={15} color="#FFFFFF" />
-            <Text style={styles.createBtnText}>CREATE COMMUNITY</Text>
+            <MaterialCommunityIcons name="account-group-outline" size={15} color={neutrals.textPrimary} />
+            <Text style={[styles.createBtnText, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={joinButtonRef}
@@ -247,44 +260,45 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
       {/* CREATE MODAL — bottom sheet (design handoff) */}
       <Modal visible={showCreateModal} transparent animationType="slide" onRequestClose={() => setShowCreateModal(false)}>
         <View style={styles.sheetOverlay}>
-          <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25) }]}>
+          <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>CREATE COMMUNITY</Text>
-              <TouchableOpacity style={styles.sheetClose} onPress={() => setShowCreateModal(false)}>
-                <MaterialCommunityIcons name="close" size={18} color={WORLD_NEUTRALS.textSecondary} />
+              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
+              <TouchableOpacity style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowCreateModal(false)}>
+                <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.fieldLabelRow}>
-              <Text style={styles.fieldLabel}>COMMUNITY NAME</Text>
-              <Text style={styles.fieldCounter}>{createName.length}/{NAME_MAX}</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>COMMUNITY NAME</Text>
+              <Text style={[styles.fieldCounter, { color: neutrals.textMuted }]}>{createName.length}/{NAME_MAX}</Text>
             </View>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: neutrals.borderStrong, color: neutrals.textPrimary }]}
               placeholder="e.g. Iron Warriors Gym"
-              placeholderTextColor={WORLD_NEUTRALS.textMuted}
+              placeholderTextColor={neutrals.textMuted}
               value={createName}
               onChangeText={(t) => setCreateName(t.slice(0, NAME_MAX))}
               maxLength={NAME_MAX}
             />
 
             <View style={[styles.fieldLabelRow, { marginTop: 20 }]}>
-              <Text style={styles.fieldLabel}>JOIN CODE</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>JOIN CODE</Text>
             </View>
-            {/* Read-only auto-generated code + Shuffle — the user never has
-                to invent a unique code themselves (handoff's key fix). */}
-            <View style={styles.codeRow}>
-              <Text style={[styles.codeText, { color: W.accent }]}>{createCode}</Text>
-              <TouchableOpacity
-                style={styles.shuffleBtn}
-                onPress={() => setCreateCode(generateJoinCode(createName))}
-              >
-                <MaterialCommunityIcons name="refresh" size={14} color={W.accent} />
-                <Text style={[styles.shuffleText, { color: W.accent }]}>SHUFFLE</Text>
-              </TouchableOpacity>
+            <View style={[styles.codeRow, { borderColor: neutrals.borderStrong }]}>
+              <TextInput
+                style={[styles.codeInput, { color: W.accent }]}
+                value={createCode}
+                onChangeText={(t) => setCreateCode(t.toUpperCase().slice(0, 20))}
+                autoCapitalize="characters"
+                autoCorrect={false}
+                maxLength={20}
+                placeholder="e.g. IRONWARRIORS"
+                placeholderTextColor={neutrals.textMuted}
+              />
             </View>
-            <Text style={styles.hint}>
-              Generated automatically — share it with people you want to join. It can't be changed after you create the community.
+            <Text style={[styles.hint, { color: neutrals.textMuted }]}>
+              Pick a code and share it with people you want to join. As the community leader, you can view it
+              again anytime from your profile.
             </Text>
 
             {formError && <Text style={styles.errorText}>{formError.toUpperCase()}</Text>}
@@ -292,13 +306,13 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
             <TouchableOpacity
               style={[
                 styles.submitBtn,
-                canCreate ? { backgroundColor: W.accent } : styles.submitBtnDisabled,
+                canCreate ? { backgroundColor: W.accent } : { backgroundColor: subtleOverlayStrong },
               ]}
               onPress={handleCreate}
               disabled={!canCreate || isMutating}
             >
               {isMutating ? <LeapLogo size={24} animated /> : (
-                <Text style={[styles.submitBtnText, { color: canCreate ? W.ctaText : 'rgba(255,255,255,0.3)' }]}>CREATE</Text>
+                <Text style={[styles.submitBtnText, { color: canCreate ? W.ctaText : neutrals.textMuted }]}>CREATE</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -308,21 +322,21 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
       {/* JOIN MODAL — same bottom-sheet pattern */}
       <Modal visible={showJoinModal} transparent animationType="slide" onRequestClose={() => setShowJoinModal(false)}>
         <View style={styles.sheetOverlay}>
-          <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25) }]}>
+          <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
-              <Text style={styles.sheetTitle}>JOIN COMMUNITY</Text>
-              <TouchableOpacity style={styles.sheetClose} onPress={() => setShowJoinModal(false)}>
-                <MaterialCommunityIcons name="close" size={18} color={WORLD_NEUTRALS.textSecondary} />
+              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>JOIN COMMUNITY</Text>
+              <TouchableOpacity style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowJoinModal(false)}>
+                <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.fieldLabelRow}>
-              <Text style={styles.fieldLabel}>JOIN CODE</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>JOIN CODE</Text>
             </View>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { borderColor: neutrals.borderStrong, color: neutrals.textPrimary }]}
               placeholder="Enter the code you were given"
-              placeholderTextColor={WORLD_NEUTRALS.textMuted}
+              placeholderTextColor={neutrals.textMuted}
               value={joinCode}
               onChangeText={setJoinCode}
               autoCapitalize="characters"
@@ -352,8 +366,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.border,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderRadius: 13,
     padding: 14,
   },
@@ -361,18 +373,22 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 10,
     letterSpacing: 1.5,
-    color: WORLD_NEUTRALS.textCaption,
     marginBottom: 2,
   },
   statusName: {
     fontSize: 15,
     fontFamily: 'BarlowCondensed-ExtraBold',
     letterSpacing: 0.5,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   leaveBtn: {
     paddingVertical: 8,
     paddingHorizontal: 12,
+  },
+  codeBtn: {
+    width: 32,
+    height: 32,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   createBtn: {
     flex: 1,
@@ -382,14 +398,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     gap: 6,
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.border,
     borderRadius: 13,
   },
   createBtnText: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 13,
     letterSpacing: 0.5,
-    color: '#FFFFFF',
   },
   joinBtn: {
     flex: 1,
@@ -412,7 +426,6 @@ const styles = StyleSheet.create({
   },
   sheet: {
     width: '100%',
-    backgroundColor: '#0e0908',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     borderWidth: 1,
@@ -429,13 +442,11 @@ const styles = StyleSheet.create({
   sheetTitle: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 22,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   sheetClose: {
     width: 32,
     height: 32,
     borderRadius: 16,
-    backgroundColor: 'rgba(255,255,255,0.08)',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -449,48 +460,39 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1.5,
-    color: WORLD_NEUTRALS.textCaption,
   },
   fieldCounter: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 11,
-    color: WORLD_NEUTRALS.textMuted,
   },
   input: {
     height: 50,
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.borderStrong,
     borderRadius: 12,
     paddingHorizontal: 14,
     fontSize: 14,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   codeRow: {
     height: 50,
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.borderStrong,
     borderRadius: 12,
     paddingHorizontal: 14,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
   },
+  codeInput: {
+    flex: 1,
+    height: '100%',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 17,
+    letterSpacing: 2,
+    paddingVertical: 0,
+  },
   codeText: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 17,
     letterSpacing: 2,
-  },
-  shuffleBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingVertical: 8,
-    paddingLeft: 8,
-  },
-  shuffleText: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 12,
-    letterSpacing: 1,
   },
   hint: {
     fontSize: 11,
@@ -511,9 +513,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     marginTop: 24,
-  },
-  submitBtnDisabled: {
-    backgroundColor: 'rgba(255,255,255,0.08)',
   },
   submitBtnText: {
     fontSize: 15,

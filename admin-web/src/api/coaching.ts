@@ -59,6 +59,7 @@ export interface AssignmentRow {
   status: string | null;
   current_week: number | null;
   assigned_at: string;
+  community_left_at?: string | null;
   warrior_name?: string | null;
   warrior_strength_tier?: number | null;
   coach_name?: string | null;
@@ -429,7 +430,7 @@ export async function deleteCoachWeekData(templateId: string, weekNumber: number
 export async function fetchAssignments(): Promise<AssignmentRow[]> {
   const { data, error } = await supabase
     .from('warrior_programs')
-    .select('id, template_id, warrior_id, coach_id, status, current_week, assigned_at')
+    .select('id, template_id, warrior_id, coach_id, status, current_week, assigned_at, community_left_at')
     .order('assigned_at', { ascending: false });
   if (error) throw new Error(error.message);
   const rows = (data ?? []) as AssignmentRow[];
@@ -683,6 +684,103 @@ export async function fetchCoaches(): Promise<Array<{ id: string; display_name: 
     .order('display_name');
   if (error) throw new Error(error.message);
   return (data ?? []) as Array<{ id: string; display_name: string | null }>;
+}
+
+export async function fetchProfilesByIds(
+  ids: string[],
+): Promise<Array<{ id: string; display_name: string | null }>> {
+  if (ids.length === 0) return [];
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('id', ids)
+    .order('display_name');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ id: string; display_name: string | null }>;
+}
+
+// ---------- assistant coaches ----------
+
+export interface AssistantRow {
+  coach_id: string;
+  assistant_id: string;
+  assistant_name: string | null;
+  created_at: string;
+}
+
+export interface CoachCommunity {
+  id: string;
+  name: string;
+  join_code: string;
+}
+
+/** Communities the calling coach created — for CommunityPage's header.
+ * join_code has no direct SELECT grant for authenticated (admin-only,
+ * never reaches app clients) — routed through a SECURITY DEFINER RPC
+ * scoped to communities the caller owns or assists instead of widening
+ * that grant. */
+export async function fetchMyCommunities(coachId: string): Promise<CoachCommunity[]> {
+  const { data, error } = await supabase.rpc('get_coach_communities', { p_coach_id: coachId });
+  if (error) throw new Error(error.message);
+  return (data ?? []) as CoachCommunity[];
+}
+
+/** Members of any community the calling coach created — the eligible pool
+ * for granting assistant access, mirroring assign_coach_assistant's own
+ * membership check. */
+export async function fetchMyCommunityMembers(
+  coachId: string,
+): Promise<Array<{ id: string; display_name: string | null }>> {
+  const { data: communities, error: cErr } = await supabase
+    .from('communities')
+    .select('id')
+    .eq('created_by', coachId);
+  if (cErr) throw new Error(cErr.message);
+  const communityIds = (communities ?? []).map((c) => c.id as string);
+  if (communityIds.length === 0) return [];
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .select('id, display_name')
+    .in('community_id', communityIds)
+    .order('display_name');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as Array<{ id: string; display_name: string | null }>;
+}
+
+export async function fetchCoachAssistants(coachId: string): Promise<AssistantRow[]> {
+  const { data, error } = await supabase
+    .from('coach_assistants')
+    .select('coach_id, assistant_id, created_at, profiles:assistant_id (display_name)')
+    .eq('coach_id', coachId)
+    .order('created_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as any[]).map((r) => ({
+    coach_id: r.coach_id,
+    assistant_id: r.assistant_id,
+    assistant_name: r.profiles?.display_name ?? null,
+    created_at: r.created_at,
+  }));
+}
+
+/** coachId only needs passing when acting on behalf of someone else (admin
+ * managing a coach's assistants) — a coach granting their own defaults to
+ * auth.uid() server-side. */
+export async function assignAssistant(assistantId: string, coachId?: string): Promise<void> {
+  const { error } = await supabase.rpc('assign_coach_assistant', {
+    p_assistant_id: assistantId,
+    ...(coachId ? { p_coach_id: coachId } : {}),
+  });
+  if (error) throw new Error(error.message);
+}
+
+export async function removeAssistant(coachId: string, assistantId: string): Promise<void> {
+  const { error } = await supabase
+    .from('coach_assistants')
+    .delete()
+    .eq('coach_id', coachId)
+    .eq('assistant_id', assistantId);
+  if (error) throw new Error(error.message);
 }
 
 // ---------- analytics ----------

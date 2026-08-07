@@ -1,7 +1,8 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '@/auth/AuthProvider';
+import { ThemeToggle } from '@/components/bits';
 
-const NAV: Array<
+const ADMIN_NAV: Array<
   { section: string } | { to: string; label: string; end?: boolean }
 > = [
   { to: '/', label: 'Dashboard', end: true },
@@ -13,6 +14,7 @@ const NAV: Array<
   { to: '/challenges/analytics', label: 'Analytics' },
   { section: 'Coaching' },
   { to: '/coaching', label: 'Clients', end: true },
+  { to: '/coaching/community', label: 'Community' },
   { to: '/coaching/builder', label: 'Program builder' },
   { to: '/coaching/exercises', label: 'Exercise library' },
   { to: '/coaching/analytics', label: 'Analytics' },
@@ -22,17 +24,28 @@ const NAV: Array<
   { to: '/tournaments', label: 'Tournaments' },
 ];
 
+// A coach's whole world is their own roster — no Dashboard/Users/Arena
+// sections, and no Analytics (its RPCs are admin-only today).
+const COACH_NAV: Array<{ section: string } | { to: string; label: string; end?: boolean }> = [
+  { section: 'Coaching' },
+  { to: '/coaching', label: 'Clients', end: true },
+  { to: '/coaching/community', label: 'Community' },
+  { to: '/coaching/builder', label: 'Program builder' },
+  { to: '/coaching/exercises', label: 'Exercise library' },
+];
+
 export function AppShell() {
-  const { profile, signOut } = useAuth();
+  const { profile, isAdmin, isCoach, signOut } = useAuth();
+  const nav = isAdmin ? ADMIN_NAV : COACH_NAV;
 
   return (
     <div className="shell">
       <nav className="sidebar" aria-label="Main">
         <div className="sidebar-brand">
           <span className="mark">LEAP</span>
-          <span className="scope">Admin</span>
+          <span className="scope">{isAdmin ? 'Admin' : isCoach ? 'Coach' : 'Assistant'}</span>
         </div>
-        {NAV.map((item) =>
+        {nav.map((item) =>
           'section' in item ? (
             <span key={item.section} className="label sidebar-section">
               {item.section}
@@ -52,9 +65,12 @@ export function AppShell() {
           <span className="who" title={profile?.email ?? undefined}>
             {profile?.display_name || profile?.email}
           </span>
-          <button className="btn small" onClick={() => void signOut()}>
-            Sign out
-          </button>
+          <div className="row" style={{ gap: 6, flexWrap: 'nowrap' }}>
+            <button className="btn small" style={{ flex: 1 }} onClick={() => void signOut()}>
+              Sign out
+            </button>
+            <ThemeToggle />
+          </div>
         </div>
       </nav>
       <main className="main">

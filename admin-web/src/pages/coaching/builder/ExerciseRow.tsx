@@ -1,19 +1,24 @@
+import { useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { GripVertical, X, PlayCircle } from 'lucide-react';
 import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
-import type { BuilderExercise } from './types';
+import { VideoModal } from '@/components/VideoModal';
+import type { BuilderExercise, ExerciseOption } from './types';
 
 function StatField({
   label,
   value,
   title,
   ariaLabel,
+  disabled,
   onChange,
 }: {
   label: string;
   value: number | null;
   title: string;
   ariaLabel: string;
+  disabled?: boolean;
   onChange: (v: number | null) => void;
 }) {
   return (
@@ -28,6 +33,7 @@ function StatField({
         min={0}
         title={title}
         value={value ?? ''}
+        disabled={disabled}
         onChange={(e) => onChange(e.target.value === '' ? null : Number(e.target.value))}
         aria-label={ariaLabel}
       />
@@ -39,17 +45,20 @@ export function ExerciseRow({
   exercise,
   exerciseOptions,
   blockMetadata,
+  readOnly,
   onChange,
   onRemove,
 }: {
   exercise: BuilderExercise;
-  exerciseOptions: Array<{ id: string; name: string }>;
+  exerciseOptions: ExerciseOption[];
   blockMetadata: ConceptMetadata;
+  readOnly?: boolean;
   onChange: (patch: Partial<BuilderExercise>) => void;
   onRemove: () => void;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: exercise.id,
+    disabled: readOnly,
   });
 
   // Mirrors mobile's BuilderExerciseRow.tsx exactly: which stat fields make
@@ -65,6 +74,15 @@ export function ExerciseRow({
       : blockMetadata.structure === 'single' || blockMetadata.type === 'single';
   const isTabata = blockMetadata.timing_system === 'tabata';
   const isLadder = !isTabata && blockMetadata.structure === 'ladder';
+
+  const [videoOpen, setVideoOpen] = useState(false);
+  // The dropdown only offers exercises the viewer can pick, but the
+  // currently-selected one always stays resolvable (name, video button)
+  // even if it isn't pickable — otherwise an existing block built from
+  // someone else's exercise would silently lose its selection the moment
+  // this scoping shipped.
+  const selected = exerciseOptions.find((o) => o.id === exercise.exercise_id);
+  const pickableOptions = exerciseOptions.filter((o) => o.pickable || o.id === exercise.exercise_id);
 
   return (
     <div
@@ -86,33 +104,54 @@ export function ExerciseRow({
       <div className="row" style={{ flexWrap: 'nowrap', gap: 8 }}>
         <button
           type="button"
-          className="btn small"
-          style={{ cursor: 'grab', padding: '4px 8px', flex: 'none' }}
+          className="btn icon ghost"
+          style={{ cursor: 'grab' }}
           aria-label="Drag to reorder exercise"
           {...attributes}
           {...listeners}
         >
-          ⠿
+          <GripVertical />
         </button>
         <select
           className="field"
           style={{ flex: 1, minWidth: 0 }}
           value={exercise.exercise_id}
+          disabled={readOnly}
           onChange={(e) => onChange({ exercise_id: e.target.value })}
           aria-label="Exercise"
           title={exercise.exercise_name || undefined}
         >
           <option value="">Exercise…</option>
-          {exerciseOptions.map((o) => (
+          {pickableOptions.map((o) => (
             <option key={o.id} value={o.id}>
               {o.name}
             </option>
           ))}
         </select>
-        <button className="btn small" style={{ flex: 'none' }} onClick={onRemove} aria-label="Remove exercise">
-          ✕
+        {selected?.youtube_url && (
+          <button
+            type="button"
+            className="btn icon"
+            title="Watch exercise demo"
+            aria-label="Watch exercise demo"
+            onClick={() => setVideoOpen(true)}
+          >
+            <PlayCircle />
+          </button>
+        )}
+        <button
+          className="btn icon"
+          disabled={readOnly}
+          title="Remove exercise"
+          onClick={onRemove}
+          aria-label="Remove exercise"
+        >
+          <X />
         </button>
       </div>
+      {videoOpen && selected?.youtube_url && (
+        <VideoModal url={selected.youtube_url} name={selected.name} onClose={() => setVideoOpen(false)} />
+      )}
       {isTabata ? (
         <div className="field" style={{ textAlign: 'center', color: 'var(--accent)', fontWeight: 700 }}>
           {blockMetadata.tabata_work_seconds || 20}S WORK / {blockMetadata.tabata_rest_seconds || 10}S REST
@@ -124,6 +163,7 @@ export function ExerciseRow({
             title="Sets"
             ariaLabel="Sets"
             value={exercise.sets}
+            disabled={readOnly}
             onChange={(v) => onChange({ sets: v })}
           />
           <StatField
@@ -131,6 +171,7 @@ export function ExerciseRow({
             title="Reps"
             ariaLabel="Reps"
             value={exercise.reps}
+            disabled={readOnly}
             onChange={(v) => onChange({ reps: v })}
           />
           <StatField
@@ -138,6 +179,7 @@ export function ExerciseRow({
             title="Rest seconds"
             ariaLabel="Rest seconds"
             value={exercise.rest_seconds}
+            disabled={readOnly}
             onChange={(v) => onChange({ rest_seconds: v })}
           />
           <StatField
@@ -145,6 +187,7 @@ export function ExerciseRow({
             title="Hold seconds"
             ariaLabel="Hold seconds"
             value={exercise.hold_seconds}
+            disabled={readOnly}
             onChange={(v) => onChange({ hold_seconds: v })}
           />
         </div>
@@ -158,6 +201,7 @@ export function ExerciseRow({
           title="Target reps for this exercise within the block's rounds"
           ariaLabel="Target reps"
           value={exercise.reps}
+          disabled={readOnly}
           onChange={(v) => onChange({ reps: v })}
         />
       )}
@@ -166,6 +210,7 @@ export function ExerciseRow({
         style={{ fontSize: 12 }}
         placeholder="Execution notes, tempo, weights, or details…"
         value={exercise.notes}
+        disabled={readOnly}
         onChange={(e) => onChange({ notes: e.target.value })}
         aria-label="Exercise notes"
       />

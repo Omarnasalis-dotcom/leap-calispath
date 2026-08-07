@@ -6,6 +6,7 @@ import {
   type ClientProgramWriteMode,
 } from '@/api/coaching';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
+import { useAuth } from '@/auth/AuthProvider';
 
 const MODE_LABELS: Record<ClientProgramWriteMode, string> = {
   append: 'Add as new weeks (keeps everything)',
@@ -28,11 +29,21 @@ export function ApplyTemplateForm({
   initialTemplateId?: string;
   onApplied: () => void;
 }) {
+  const { isAdmin, isCoach } = useAuth();
   const queryClient = useQueryClient();
   const [sourceTemplateId, setSourceTemplateId] = useState(initialTemplateId ?? '');
   const [mode, setMode] = useState<ClientProgramWriteMode>('append');
+  // Overwrite is coach-only — a delegated assistant can append or archive an
+  // already-assigned client's program, but never wipe it outright.
+  const availableModes = (Object.keys(MODE_LABELS) as ClientProgramWriteMode[]).filter(
+    (m) => isCoach || m !== 'overwrite',
+  );
 
   const templatesQ = useQuery({ queryKey: ['program-templates'], queryFn: fetchProgramTemplates });
+  // Library templates are admin-managed and admin-assigned only.
+  const assignableTemplates = isAdmin
+    ? templatesQ.data
+    : templatesQ.data?.filter((t) => !t.is_library_template);
 
   const applyMutation = useMutation({
     mutationFn: () => applyTemplateToExistingClient(mode, warriorProgramId, sourceTemplateId),
@@ -59,7 +70,7 @@ export function ApplyTemplateForm({
             aria-label="Source template"
           >
             <option value="">Template…</option>
-            {templatesQ.data?.map((t) => (
+            {assignableTemplates?.map((t) => (
               <option key={t.id} value={t.id}>
                 {t.name}
                 {t.is_library_template ? ' (library)' : ''}
@@ -73,13 +84,13 @@ export function ApplyTemplateForm({
             onChange={(e) => setMode(e.target.value as ClientProgramWriteMode)}
             aria-label="Apply mode"
           >
-            {(Object.keys(MODE_LABELS) as ClientProgramWriteMode[]).map((m) => (
+            {availableModes.map((m) => (
               <option key={m} value={m}>
                 {MODE_LABELS[m]}
               </option>
             ))}
           </select>
-          {mode === 'overwrite' ? (
+          {mode === 'overwrite' && isCoach ? (
             <ConfirmButton
               label="Apply"
               danger

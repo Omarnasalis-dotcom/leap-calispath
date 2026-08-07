@@ -1,5 +1,15 @@
 import type { ConceptMetadata } from '@/shared/BlockConceptParser';
 
+export interface ExerciseOption {
+  id: string;
+  name: string;
+  youtube_url: string | null;
+  // Whether the viewer can newly pick this exercise (their own, or admin —
+  // never restricts resolving an already-selected exercise's display info,
+  // just what's offered when choosing/changing one; see ExerciseRow).
+  pickable: boolean;
+}
+
 // Mirrors mobile's useProgramBuilder.ts state shape exactly (SelectedExercise
 // / ProgramBlock / ProgramDay) — there is no program_days table; a "day" is
 // a purely client-side grouping derived from parsing program_blocks.name as

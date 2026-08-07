@@ -1,3 +1,4 @@
+import type { PointerEvent as ReactPointerEvent } from 'react';
 import {
   DndContext,
   closestCenter,
@@ -8,10 +9,12 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, useSortable, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { Copy, Scissors, ClipboardPaste, Eraser, Trash2, GripVertical } from 'lucide-react';
 import type { ConceptMetadata } from '@/shared/BlockConceptParser';
 import { useBuilderClipboard, type ClipboardDay } from '@/contexts/BuilderClipboardContext';
+import { ConfirmButton } from '@/components/bits';
 import { BlockCard, fromClipboardBlock } from './BlockCard';
-import { clientKey, newBlock, type BuilderDay, type BuilderBlock } from './types';
+import { clientKey, newBlock, type BuilderDay, type BuilderBlock, type ExerciseOption } from './types';
 
 const FOCUS_TAGS: Array<ConceptMetadata['focus_tag']> = [
   'NONE',
@@ -59,21 +62,47 @@ function fromClipboardDay(data: ClipboardDay): BuilderDay {
   };
 }
 
+const MIN_DAY_WIDTH = 220;
+const MAX_DAY_WIDTH = 640;
+
 export function DayColumn({
   day,
   exerciseOptions,
+  width,
+  onWidthChange,
+  readOnly,
   onChange,
   onDelete,
   onInsertAfter,
 }: {
   day: BuilderDay;
-  exerciseOptions: Array<{ id: string; name: string }>;
+  exerciseOptions: ExerciseOption[];
+  width: number;
+  onWidthChange: (width: number) => void;
+  readOnly?: boolean;
   onChange: (patch: Partial<BuilderDay>) => void;
   onDelete: () => void;
   onInsertAfter: (day: BuilderDay) => void;
 }) {
   const clipboard = useBuilderClipboard();
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
+
+  function onResizeStart(e: ReactPointerEvent) {
+    e.preventDefault();
+    const startX = e.clientX;
+    const startWidth = width;
+
+    function onMove(ev: PointerEvent) {
+      const next = Math.min(MAX_DAY_WIDTH, Math.max(MIN_DAY_WIDTH, startWidth + (ev.clientX - startX)));
+      onWidthChange(next);
+    }
+    function onUp() {
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+    }
+    window.addEventListener('pointermove', onMove);
+    window.addEventListener('pointerup', onUp);
+  }
   const {
     attributes: dayAttributes,
     listeners: dayListeners,
@@ -81,13 +110,14 @@ export function DayColumn({
     transform: dayTransform,
     transition: dayTransition,
     isDragging: isDayDragging,
-  } = useSortable({ id: day.id });
+  } = useSortable({ id: day.id, disabled: readOnly });
 
   function patchBlock(blockId: string, patch: Partial<BuilderBlock>) {
     onChange({ blocks: day.blocks.map((b) => (b.id === blockId ? { ...b, ...patch } : b)) });
   }
 
   function onBlockDragEnd(e: DragEndEvent) {
+    if (readOnly) return;
     const { active, over } = e;
     if (!over || active.id === over.id) return;
     const oldIndex = day.blocks.findIndex((b) => b.id === active.id);
@@ -114,6 +144,9 @@ export function DayColumn({
         transform: CSS.Transform.toString(dayTransform),
         transition: dayTransition,
         opacity: isDayDragging ? 0.5 : 1,
+        position: 'relative',
+        width,
+        flex: 'none',
       }}
     >
       <div
@@ -128,47 +161,76 @@ export function DayColumn({
         <div className="row" style={{ flexWrap: 'nowrap', gap: 8 }}>
           <button
             type="button"
-            className="btn small"
-            style={{ cursor: 'grab', padding: '4px 8px', flex: 'none' }}
+            className="btn icon ghost"
+            style={{ cursor: 'grab' }}
             aria-label="Drag to reorder this day"
             {...dayAttributes}
             {...dayListeners}
           >
-            ⠿
+            <GripVertical />
           </button>
           <input
             className="field"
             style={{ flex: 1, fontWeight: 800, fontSize: 13 }}
             value={day.name}
+            disabled={readOnly}
             onChange={(e) => onChange({ name: e.target.value })}
             aria-label="Day name"
           />
         </div>
-        <div className="row" style={{ gap: 4 }}>
-          <button className="btn small" onClick={() => clipboard.copyDay(toClipboardDay(day))}>
-            Copy
-          </button>
-          <button className="btn small" onClick={() => clipboard.cutDay(toClipboardDay(day), onDelete)}>
-            Cut
+        <div className="row" style={{ gap: 4, flexWrap: 'nowrap' }}>
+          <button
+            className="btn icon"
+            disabled={readOnly}
+            title="Copy day"
+            aria-label="Copy day"
+            onClick={() => clipboard.copyDay(toClipboardDay(day))}
+          >
+            <Copy />
           </button>
           <button
-            className="btn small"
-            disabled={!canPasteDay}
+            className="btn icon"
+            disabled={readOnly}
+            title="Cut day"
+            aria-label="Cut day"
+            onClick={() => clipboard.cutDay(toClipboardDay(day), onDelete)}
+          >
+            <Scissors />
+          </button>
+          <button
+            className="btn icon"
+            disabled={readOnly || !canPasteDay}
             title={canPasteDay ? 'Insert a copy of the clipboard day after this one' : 'Clipboard is empty'}
+            aria-label="Paste day after this one"
             onClick={() => {
               if (clipboard.clipboard?.type === 'day') {
                 onInsertAfter(fromClipboardDay(clipboard.clipboard.data));
               }
             }}
           >
-            Paste
+            <ClipboardPaste />
           </button>
-          <button className="btn small danger" onClick={() => onChange({ blocks: [] })} aria-label="Clear day">
-            Clear
-          </button>
-          <button className="btn small danger" onClick={onDelete} aria-label="Delete day">
-            Delete
-          </button>
+          <span style={{ width: 1, alignSelf: 'stretch', background: 'var(--hairline)', margin: '0 2px' }} />
+          <ConfirmButton
+            icon={<Eraser />}
+            ariaLabel="Clear day"
+            danger
+            disabled={readOnly || day.blocks.length === 0}
+            title={`Clear "${day.name || 'this day'}"?`}
+            body="Removes every block and exercise in this day. The day itself stays, but this can't be undone."
+            confirmLabel="Clear"
+            onConfirm={() => onChange({ blocks: [] })}
+          />
+          <ConfirmButton
+            icon={<Trash2 />}
+            ariaLabel="Delete day"
+            danger
+            disabled={readOnly}
+            title={`Delete "${day.name || 'this day'}"?`}
+            body="Removes this day and every block and exercise in it. This can't be undone."
+            confirmLabel="Delete"
+            onConfirm={onDelete}
+          />
         </div>
       </div>
 
@@ -176,6 +238,7 @@ export function DayColumn({
         <select
           className="field"
           value={day.focus_tag ?? 'NONE'}
+          disabled={readOnly}
           onChange={(e) => onChange({ focus_tag: e.target.value as ConceptMetadata['focus_tag'] })}
           aria-label="Day focus tag"
         >
@@ -194,6 +257,7 @@ export function DayColumn({
                   key={block.id}
                   block={block}
                   exerciseOptions={exerciseOptions}
+                  readOnly={readOnly}
                   onChange={(patch) => patchBlock(block.id, patch)}
                   onRemove={() => onChange({ blocks: day.blocks.filter((b) => b.id !== block.id) })}
                   onPasteAfter={(pasted) => insertBlockAfter(block.id, pasted)}
@@ -204,12 +268,16 @@ export function DayColumn({
         </DndContext>
 
         <div className="row" style={{ gap: 6 }}>
-          <button className="btn small" onClick={() => onChange({ blocks: [...day.blocks, newBlock()] })}>
+          <button
+            className="btn small"
+            disabled={readOnly}
+            onClick={() => onChange({ blocks: [...day.blocks, newBlock()] })}
+          >
             + Block
           </button>
           <button
             className="btn small"
-            disabled={!canPasteBlock}
+            disabled={readOnly || !canPasteBlock}
             title={canPasteBlock ? 'Paste block into this day' : 'Clipboard is empty'}
             onClick={() => {
               if (clipboard.clipboard?.type === 'block') {
@@ -221,6 +289,16 @@ export function DayColumn({
           </button>
         </div>
       </div>
+
+      {/* Drag to resize this one day column — width is session-only (see
+          WeekGrid), a "make room while I'm working on this one" control.
+          Invisible strip until hover, per .day-resize-handle in App.css. */}
+      <div
+        className="day-resize-handle"
+        onPointerDown={onResizeStart}
+        title="Drag to resize this day"
+        aria-hidden="true"
+      />
     </div>
   );
 }

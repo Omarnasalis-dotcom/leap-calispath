@@ -8,6 +8,7 @@ import {
   fetchExercises,
 } from '@/api/coaching';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { ApplyTemplateForm } from './ApplyTemplateForm';
 import { loadTemplateWeeks, saveTemplateWeeks } from './builderIO';
@@ -15,6 +16,7 @@ import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 
 export function ClientProgramGrid() {
+  const { profile, isAdmin, isCoachPaused } = useAuth();
   const { assignmentId = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
@@ -36,8 +38,14 @@ export function ClientProgramGrid() {
 
   const exercisesQ = useQuery({ queryKey: ['exercises'], queryFn: fetchExercises });
   const exerciseOptions = useMemo(
-    () => (exercisesQ.data ?? []).map((e) => ({ id: e.id, name: e.name })),
-    [exercisesQ.data],
+    () =>
+      (exercisesQ.data ?? []).map((e) => ({
+        id: e.id,
+        name: e.name,
+        youtube_url: e.youtube_url,
+        pickable: isAdmin || e.created_by === profile?.id,
+      })),
+    [exercisesQ.data, isAdmin, profile?.id],
   );
 
   const loadQ = useQuery({
@@ -136,12 +144,12 @@ export function ClientProgramGrid() {
         <div className="row">
           {flash && <Badge tone="ok">{flash}</Badge>}
           {dirty && !flash && <Badge tone="warn">unsaved</Badge>}
-          <button className="btn" onClick={() => setShowApply((s) => !s)}>
+          <button className="btn" disabled={isCoachPaused} onClick={() => setShowApply((s) => !s)}>
             {showApply ? 'Close' : 'Apply template…'}
           </button>
           <button
             className="btn primary"
-            disabled={!templateId || saveMutation.isPending}
+            disabled={!templateId || saveMutation.isPending || isCoachPaused}
             onClick={() => saveMutation.mutate()}
           >
             {saveMutation.isPending ? 'Saving…' : 'Save program'}
@@ -149,6 +157,12 @@ export function ClientProgramGrid() {
         </div>
       </div>
 
+      {isCoachPaused && (
+        <div className="notice">
+          Your coaching access is paused by an admin. You can still view this client's program, but
+          editing and saving is disabled until it's resumed.
+        </div>
+      )}
       {loadQ.error && <ErrorNote error={loadQ.error} />}
       {saveError && <ErrorNote error={saveError} />}
       {(assignmentQ.isLoading || loadQ.isLoading) && <div className="skeleton" style={{ height: 200 }} />}
@@ -180,12 +194,13 @@ export function ClientProgramGrid() {
             {archivedQ.data?.has(activeWeek) && (
               <Badge tone="warn">Archived — hidden from warrior</Badge>
             )}
-            <button className="btn small" onClick={duplicateWeek}>
+            <button className="btn small" disabled={isCoachPaused} onClick={duplicateWeek}>
               + Duplicate week
             </button>
             <ConfirmButton
               label="Delete week"
               danger
+              disabled={isCoachPaused}
               title={`Delete week ${activeWeek}?`}
               body="Removes every block and exercise logged against this week for this client."
               confirmLabel="Delete"
@@ -196,6 +211,7 @@ export function ClientProgramGrid() {
           <WeekGrid
             days={days}
             exerciseOptions={exerciseOptions}
+            readOnly={isCoachPaused}
             onCommit={(days) => {
               setWeeks((w) => ({ ...w, [activeWeek]: days }));
               setDirty(true);

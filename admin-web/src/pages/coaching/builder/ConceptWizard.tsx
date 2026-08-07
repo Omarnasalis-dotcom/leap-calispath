@@ -29,10 +29,12 @@ export function ConceptWizard({
   metadata,
   onChange,
   exerciseCount,
+  readOnly,
 }: {
   metadata: ConceptMetadata;
   onChange: (m: ConceptMetadata) => void;
   exerciseCount: number;
+  readOnly?: boolean;
 }) {
   const timing = metadata.timing_system ?? 'straight_set';
   const structure = timing === 'tabata' ? 'circuit' : (metadata.structure ?? 'single');
@@ -55,6 +57,7 @@ export function ConceptWizard({
           className="field"
           style={{ flex: 1 }}
           value={timing}
+          disabled={readOnly}
           onChange={(e) => patch({ timing_system: e.target.value as ConceptMetadata['timing_system'] })}
           aria-label="Timing system"
         >
@@ -69,6 +72,7 @@ export function ConceptWizard({
             className="field"
             style={{ flex: 1 }}
             value={structure}
+            disabled={readOnly}
             onChange={(e) => patch({ structure: e.target.value as ConceptMetadata['structure'] })}
             aria-label="Structure"
           >
@@ -88,6 +92,7 @@ export function ConceptWizard({
           min={0}
           placeholder="Time cap (min)"
           value={metadata.time_cap_min ?? ''}
+          disabled={readOnly}
           onChange={(e) => patch({ time_cap_min: e.target.value })}
           aria-label="Time cap minutes"
         />
@@ -98,6 +103,7 @@ export function ConceptWizard({
           <input
             type="checkbox"
             checked={!!metadata.is_weighted}
+            disabled={readOnly}
             onChange={(e) => patch({ is_weighted: e.target.checked })}
           />
           Weighted block
@@ -113,6 +119,7 @@ export function ConceptWizard({
               min={0}
               placeholder="Work (s)"
               value={metadata.tabata_work_seconds ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ tabata_work_seconds: e.target.value })}
               aria-label="Tabata work seconds"
             />
@@ -122,6 +129,7 @@ export function ConceptWizard({
               min={0}
               placeholder="Rest (s)"
               value={metadata.tabata_rest_seconds ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ tabata_rest_seconds: e.target.value })}
               aria-label="Tabata rest seconds"
             />
@@ -131,6 +139,7 @@ export function ConceptWizard({
               min={0}
               placeholder="Rounds"
               value={metadata.tabata_rounds ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ tabata_rounds: e.target.value })}
               aria-label="Tabata rounds"
             />
@@ -156,6 +165,7 @@ export function ConceptWizard({
             min={0}
             placeholder="Rounds"
             value={metadata.rounds ?? ''}
+            disabled={readOnly}
             onChange={(e) => patch({ rounds: e.target.value })}
             aria-label="Rounds"
           />
@@ -166,6 +176,7 @@ export function ConceptWizard({
               min={0}
               placeholder="Rest between rounds (s)"
               value={metadata.rest_after_round ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ rest_after_round: e.target.value })}
               aria-label="Rest between rounds"
             />
@@ -182,6 +193,7 @@ export function ConceptWizard({
               min={0}
               placeholder="Starting reps"
               value={metadata.ladder_start ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ ladder_start: e.target.value })}
               aria-label="Ladder starting reps"
             />
@@ -191,12 +203,14 @@ export function ConceptWizard({
               min={0}
               placeholder="Step per round"
               value={metadata.ladder_sub ?? ''}
+              disabled={readOnly}
               onChange={(e) => patch({ ladder_sub: e.target.value })}
               aria-label="Ladder step"
             />
             <select
               className="field"
               value={metadata.ladder_direction ?? 'down'}
+              disabled={readOnly}
               onChange={(e) => patch({ ladder_direction: e.target.value as 'down' | 'up' })}
               aria-label="Ladder direction"
             >
@@ -222,6 +236,7 @@ export function ConceptWizard({
           <input
             type="checkbox"
             checked={!!metadata.is_tier_trial}
+            disabled={readOnly}
             onChange={(e) => patch({ is_tier_trial: e.target.checked })}
           />
           Set as strength tier trial route
@@ -231,6 +246,7 @@ export function ConceptWizard({
             className="field"
             style={{ marginTop: 6 }}
             value={metadata.tier_trial_tier ?? ''}
+            disabled={readOnly}
             onChange={(e) =>
               patch({ tier_trial_tier: e.target.value === '' ? undefined : Number(e.target.value) })
             }
