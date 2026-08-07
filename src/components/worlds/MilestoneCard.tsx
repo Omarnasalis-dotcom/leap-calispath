@@ -1,8 +1,9 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { WORLD_NEUTRALS, WorldTheme, worldRgba } from '../../../constants/worldThemes';
+import { getWorldNeutrals, WorldTheme, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface MilestoneCardProps {
   world: WorldTheme;
@@ -35,6 +36,8 @@ export function MilestoneCard({
   style,
 }: MilestoneCardProps) {
   const pct = clamp01(progress) * 100;
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
 
   return (
     <View style={[styles.card, { backgroundColor: world.cardFill, borderColor: world.cardBorder }, style]}>
@@ -43,10 +46,10 @@ export function MilestoneCard({
           <MaterialCommunityIcons name={icon} size={22} color={world.accent} />
         </View>
         <View style={styles.headText}>
-          <Text style={styles.headline} numberOfLines={2}>
+          <Text style={[styles.headline, { color: neutrals.textPrimary }]} numberOfLines={2}>
             {headline}
           </Text>
-          <Text style={styles.caption} numberOfLines={1}>
+          <Text style={[styles.caption, { color: neutrals.textCaption }]} numberOfLines={1}>
             {caption}
           </Text>
         </View>
@@ -55,7 +58,7 @@ export function MilestoneCard({
         <View style={[styles.fill, { backgroundColor: world.accent, width: `${pct}%` }]} />
       </View>
       <View style={styles.footerRow}>
-        <Text style={styles.footerLeft}>{footerLeft}</Text>
+        <Text style={[styles.footerLeft, { color: neutrals.textMuted }]}>{footerLeft}</Text>
         <Text style={[styles.footerRight, { color: world.accent }]}>{footerRight}</Text>
       </View>
     </View>
@@ -87,13 +90,11 @@ const styles = StyleSheet.create({
   headline: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 19,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   caption: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textCaption,
   },
   track: {
     height: 8,
@@ -115,7 +116,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 11,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textMuted,
   },
   footerRight: {
     fontFamily: 'BarlowCondensed-Bold',

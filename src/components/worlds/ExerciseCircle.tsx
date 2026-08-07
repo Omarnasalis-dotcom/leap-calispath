@@ -3,7 +3,8 @@ import { Animated, LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View, 
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WorldRing } from './WorldRing';
 import { ExerciseIcon } from './ExerciseIcon';
-import { WORLD_NEUTRALS, WorldTheme } from '../../../constants/worldThemes';
+import { getWorldNeutrals, WorldTheme } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ExerciseCircleProps {
   world: WorldTheme;
@@ -45,6 +46,8 @@ export const ExerciseCircle = forwardRef<View, ExerciseCircleProps>(function Exe
 ) {
   const scale = useRef(new Animated.Value(1)).current;
   const mounted = useRef(false);
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
 
   // Pulse when the logged value changes (i.e. after a save lands) — the
   // handoff's tap-pulse, tied to real data instead of the demo increment.
@@ -67,9 +70,9 @@ export const ExerciseCircle = forwardRef<View, ExerciseCircleProps>(function Exe
         <Animated.View style={{ transform: [{ scale }] }}>
           <WorldRing size={size} strokeWidth={5} progress={progress} accent={world.accent} trackColor={world.trackRgba}>
             <View style={styles.center}>
-              <ExerciseIcon name={icon} size={18} color={hasLogged ? world.accent : WORLD_NEUTRALS.textSecondary} />
+              <ExerciseIcon name={icon} size={18} color={hasLogged ? world.accent : neutrals.textSecondary} />
               {value !== undefined && (
-                <Text style={styles.value} numberOfLines={1}>
+                <Text style={[styles.value, { color: neutrals.textPrimary }]} numberOfLines={1}>
                   {value}
                 </Text>
               )}
@@ -96,10 +99,10 @@ export const ExerciseCircle = forwardRef<View, ExerciseCircleProps>(function Exe
           </View>
         </Animated.View>
       </TouchableOpacity>
-      <Text style={styles.name} numberOfLines={1}>
+      <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>
         {name}
       </Text>
-      <Text style={[styles.caption, hasLogged ? { color: world.accent } : styles.captionEmpty]} numberOfLines={1}>
+      <Text style={[styles.caption, hasLogged ? { color: world.accent } : [styles.captionEmpty, { color: neutrals.textMuted }]]} numberOfLines={1}>
         {caption}
       </Text>
     </View>
@@ -121,7 +124,6 @@ const styles = StyleSheet.create({
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 16,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   badge: {
     position: 'absolute',
@@ -136,7 +138,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 0.5,
-    color: WORLD_NEUTRALS.textPrimary,
     maxWidth: 110,
     textAlign: 'center',
   },
@@ -147,6 +148,5 @@ const styles = StyleSheet.create({
   },
   captionEmpty: {
     fontFamily: 'BarlowCondensed-SemiBold',
-    color: WORLD_NEUTRALS.textMuted,
   },
 });

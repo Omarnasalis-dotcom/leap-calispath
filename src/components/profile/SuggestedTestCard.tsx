@@ -3,9 +3,10 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { STATIC_MOVEMENTS, STATIC_CATEGORIES } from '../../lib/staticLogic';
-import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
+import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { POWER_MOVEMENTS, isPowerWorldUnlocked } from '../../lib/powerLogic';
 import { ONEMM_MOVEMENTS, ONEMM_CATEGORIES } from '../../lib/oneMMLogic';
+import { useTheme } from '../../contexts/ThemeContext';
 
 type WorldId = 'static' | 'power' | '1mm';
 
@@ -218,6 +219,8 @@ export function SuggestedTestCard({
   onOpenStatic, onOpenPower, onOpenOneMinMax,
   theme, compact,
 }: SuggestedTestCardProps) {
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
   const storageKey = `suggested_test_rotation_${userId}`;
   const [rotation, setRotation] = useState<RotationState | null>(null);
   const [loaded, setLoaded] = useState(false);
@@ -280,9 +283,9 @@ export function SuggestedTestCard({
         activeOpacity={0.75}
       >
         <MaterialCommunityIcons name={meta.icon} size={16} color={meta.color} style={styles.compactIcon} />
-        <Text style={styles.compactValue} numberOfLines={1}>{meta.shortLabel}</Text>
+        <Text style={[styles.compactValue, { color: neutrals.textPrimary }]} numberOfLines={1}>{meta.shortLabel}</Text>
         {/* Caption states this is a recommendation, not a stat (handoff) */}
-        <Text style={styles.compactLabel} numberOfLines={1}>SUGGESTED NEXT</Text>
+        <Text style={[styles.compactLabel, { color: neutrals.textMuted }]} numberOfLines={1}>SUGGESTED NEXT</Text>
       </TouchableOpacity>
     );
   }
@@ -338,14 +341,12 @@ const styles = StyleSheet.create({
   compactValue: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   compactLabel: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 8.5,
     letterSpacing: 0.5,
     marginTop: 2,
-    color: 'rgba(255,255,255,0.4)',
   },
   card: {
     borderWidth: 1,

@@ -12,7 +12,8 @@ import {
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { WORLD_NEUTRALS, WorldTheme, worldRgba } from '../../../constants/worldThemes';
+import { getWorldNeutrals, WorldTheme, worldRgba } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export interface PillTabItem {
   key: string;
@@ -47,6 +48,8 @@ export function PillTabRow({ world, items, activeKey, onSelect, label, activeSty
   const [showHint, setShowHint] = useState(false);
   const contentWidth = useRef(0);
   const viewWidth = useRef(0);
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
 
   const updateHint = useCallback((scrollX: number) => {
     const overflow = contentWidth.current - viewWidth.current;
@@ -76,7 +79,7 @@ export function PillTabRow({ world, items, activeKey, onSelect, label, activeSty
 
   return (
     <View style={style}>
-      {label && <Text style={styles.rowLabel}>{label}</Text>}
+      {label && <Text style={[styles.rowLabel, { color: neutrals.textCaption }]}>{label}</Text>}
       <View>
         <ScrollView
           horizontal
@@ -100,19 +103,19 @@ export function PillTabRow({ world, items, activeKey, onSelect, label, activeSty
                     ? activeStyle === 'solid'
                       ? { backgroundColor: world.accent, borderColor: world.accent }
                       : { backgroundColor: worldRgba(world.accent, 0.12), borderColor: world.accent }
-                    : styles.pillInactive,
+                    : [styles.pillInactive, { borderColor: neutrals.borderStrong }],
                   item.locked && styles.pillLocked,
                 ]}
               >
                 {item.locked && (
-                  <MaterialCommunityIcons name="lock" size={11} color={WORLD_NEUTRALS.textMuted} style={{ marginRight: 4 }} />
+                  <MaterialCommunityIcons name="lock" size={11} color={neutrals.textMuted} style={{ marginRight: 4 }} />
                 )}
                 <Text
                   style={[
                     styles.pillText,
                     active
                       ? { color: activeStyle === 'solid' ? world.ctaText : world.accent }
-                      : styles.pillTextInactive,
+                      : { color: neutrals.textSecondary },
                   ]}
                 >
                   {item.emoji ? `${item.emoji} ${item.label}` : item.label}
@@ -129,7 +132,7 @@ export function PillTabRow({ world, items, activeKey, onSelect, label, activeSty
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            <MaterialCommunityIcons name="chevron-right" size={16} color={WORLD_NEUTRALS.textSecondary} />
+            <MaterialCommunityIcons name="chevron-right" size={16} color={neutrals.textSecondary} />
           </View>
         )}
       </View>
@@ -142,7 +145,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 10,
     letterSpacing: 2,
-    color: 'rgba(255,255,255,0.4)',
     marginBottom: 8,
     paddingHorizontal: 20,
   },
@@ -161,7 +163,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   pillInactive: {
-    borderColor: WORLD_NEUTRALS.borderStrong,
     backgroundColor: 'transparent',
   },
   pillLocked: {
@@ -171,9 +172,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 13,
     letterSpacing: 1,
-  },
-  pillTextInactive: {
-    color: WORLD_NEUTRALS.textSecondary,
   },
   hint: {
     position: 'absolute',

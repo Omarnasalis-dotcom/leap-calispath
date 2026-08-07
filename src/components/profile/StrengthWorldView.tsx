@@ -12,7 +12,7 @@ import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { LeaderboardEntry } from '../../lib/leaderboard';
 import { TierLeaderboardList } from './TierLeaderboardList';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
-import { WORLD_THEMES, WORLD_NEUTRALS } from '../../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals } from '../../../constants/worldThemes';
 
 interface TierRankData {
   rank: number | null;
@@ -74,7 +74,8 @@ export function StrengthWorldView({
   onLeaderboardScopeChange,
 }: StrengthWorldViewProps) {
   const isDark = mode === 'dark';
-  const W = WORLD_THEMES.strength;
+  const W = getWorldTheme('strength', mode);
+  const neutrals = getWorldNeutrals(mode);
   // useScreenMeasure=true: see useTutorialTarget's own comment.
   const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef, true);
   return (
@@ -85,10 +86,10 @@ export function StrengthWorldView({
           the actual target + a 52px solid-accent CTA with dark text. */}
       {category === 'strength' && !isLocked && (
         <View style={[styles.challengeCard, { backgroundColor: W.cardFill, borderColor: W.cardBorder }]}>
-          <Text style={styles.challengeCaption}>
+          <Text style={[styles.challengeCaption, { color: neutrals.textCaption }]}>
             {isLowerTier ? 'PRACTICE MODE' : 'NEXT CHALLENGE'}
           </Text>
-          <Text style={styles.challengeHeadline}>
+          <Text style={[styles.challengeHeadline, { color: neutrals.textPrimary }]}>
             {isLowerTier
               ? `Sharpen your ${TIER_NAMES[selectedTier]} time`
               : (profile?.strength_tier ?? 0) < 9
@@ -294,12 +295,10 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 2,
-    color: WORLD_NEUTRALS.textCaption,
   },
   challengeHeadline: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 19,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   challengeCta: {
     height: 52,

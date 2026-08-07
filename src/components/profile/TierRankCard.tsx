@@ -2,9 +2,10 @@ import React from 'react';
 import { View, Text, StyleSheet, Dimensions } from 'react-native';
 import { StatCircle } from '../worlds/StatCircle';
 import { ScoreRingHero } from '../worlds/ScoreRingHero';
-import { WORLD_THEMES, WORLD_NEUTRALS } from '../../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface TierRankData {
   rank: number | null;
@@ -38,7 +39,9 @@ export function TierRankCard({
   theme,
   onShowTierModal,
 }: TierRankCardProps) {
-  const W = WORLD_THEMES.strength;
+  const { mode } = useTheme();
+  const W = getWorldTheme('strength', mode);
+  const neutrals = getWorldNeutrals(mode);
   const currentTier = category === 'strength' ? (profile?.strength_tier ?? 0) : (profile?.power_tier ?? 0);
   const maxTier = category === 'strength' ? MAX_STRENGTH_TIER : MAX_POWER_TIER;
   const hasEntry = tierRankData.rank !== null;
@@ -101,7 +104,7 @@ export function TierRankCard({
       {category === 'strength' && (
         <View style={styles.barSection}>
           <View style={styles.barLabels}>
-            <Text style={styles.barLabelLeft}>TIER {currentTier} OF {MAX_STRENGTH_TIER}</Text>
+            <Text style={[styles.barLabelLeft, { color: neutrals.textSecondary }]}>TIER {currentTier} OF {MAX_STRENGTH_TIER}</Text>
             <Text style={[styles.barLabelRight, { color: W.accent }]}>{overallPct}% COMPLETE</Text>
           </View>
           <View style={[styles.track, { backgroundColor: W.trackRgba }]}>
@@ -143,7 +146,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textSecondary,
   },
   barLabelRight: {
     fontFamily: 'BarlowCondensed-Bold',

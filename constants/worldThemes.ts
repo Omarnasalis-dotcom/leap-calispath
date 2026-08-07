@@ -7,6 +7,8 @@
  * from here so a color change stays a one-line swap.
  */
 
+import { ThemeMode } from './Theme';
+
 export type WorldKey = 'power' | 'strength' | 'static' | 'onemm';
 
 export interface WorldTheme {
@@ -49,6 +51,25 @@ export const WORLD_THEMES: Record<WorldKey, WorldTheme> = {
   onemm: makeWorldTheme('#FF6B35', '#050301', '#1a0603'),
 };
 
+/** Light-mode page background per world — near-white, faintly tinted toward the accent hue. */
+const WORLD_PAGE_BG_LIGHT: Record<WorldKey, string> = {
+  power: '#FFF8F7',
+  strength: '#FFF8F7',
+  static: '#FAF8FF',
+  onemm: '#FFF9F6',
+};
+
+/**
+ * Resolves a world's theme for the given app-wide light/dark mode. Accent,
+ * card, and track tokens are accent-relative and read fine in both modes, so
+ * only `pageBg` varies — `getWorldTheme(key, 'dark')` returns the same values
+ * as `WORLD_THEMES[key]` always has.
+ */
+export function getWorldTheme(key: WorldKey, mode: ThemeMode): WorldTheme {
+  const base = WORLD_THEMES[key];
+  return mode === 'dark' ? base : { ...base, pageBg: WORLD_PAGE_BG_LIGHT[key] };
+}
+
 /** Neutral tokens shared by every world screen (handoff token table). */
 export const WORLD_NEUTRALS = {
   border: 'rgba(255,255,255,0.14)',
@@ -60,5 +81,21 @@ export const WORLD_NEUTRALS = {
   /** Tier-complete green (Strength tier chips). */
   complete: '#4ADE80',
 };
+
+/** Light-mode counterpart to WORLD_NEUTRALS — dark text/borders on a light page. */
+const WORLD_NEUTRALS_LIGHT = {
+  border: 'rgba(0,0,0,0.12)',
+  borderStrong: 'rgba(0,0,0,0.16)',
+  textPrimary: '#141414',
+  textSecondary: 'rgba(0,0,0,0.55)',
+  textCaption: 'rgba(0,0,0,0.5)',
+  textMuted: 'rgba(0,0,0,0.4)',
+  /** Deeper green than the dark-mode value for contrast against a light page. */
+  complete: '#16A34A',
+};
+
+export function getWorldNeutrals(mode: ThemeMode): typeof WORLD_NEUTRALS {
+  return mode === 'dark' ? WORLD_NEUTRALS : WORLD_NEUTRALS_LIGHT;
+}
 
 export { rgba as worldRgba };

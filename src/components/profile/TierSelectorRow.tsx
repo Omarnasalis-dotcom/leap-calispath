@@ -13,7 +13,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
-import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface TierSelectorRowProps {
   scrollRef?: React.RefObject<ScrollView | null>;
@@ -44,7 +45,11 @@ export function TierSelectorRow({
   tierScrollRef,
   onSelectTier,
 }: TierSelectorRowProps) {
-  const W = WORLD_THEMES.strength;
+  const { mode } = useTheme();
+  const W = getWorldTheme('strength', mode);
+  const neutrals = getWorldNeutrals(mode);
+  const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
+  const lockedBorder = mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
   // Position the row at the user's current tier on first layout instead of
   // starting at tier 0 and animating over — avoids a visible flash of tier 0
   // before the (delayed, animated) scroll-to-current-tier effect fires.
@@ -85,7 +90,7 @@ export function TierSelectorRow({
 
   return (
     <View style={styles.tierSelectorSection} ref={ref} onLayout={onLayout}>
-      <Text style={styles.sectionTitle}>
+      <Text style={[styles.sectionTitle, { color: neutrals.textSecondary }]}>
         {category === 'power' ? 'POWER TIERS' : 'STRENGTH TIERS'}
       </Text>
       <View onLayout={onRowLayout}>
@@ -115,24 +120,26 @@ export function TierSelectorRow({
                 }}
                 style={[
                   styles.chip,
-                  isComplete && styles.chipComplete,
+                  { borderColor: neutrals.border, backgroundColor: subtleOverlay },
+                  isComplete && [styles.chipComplete, { borderColor: worldRgba(neutrals.complete, 0.4), backgroundColor: worldRgba(neutrals.complete, 0.08) }],
                   isCurrent && [styles.chipCurrent, { borderColor: W.accent, backgroundColor: worldRgba(W.accent, 0.16), shadowColor: W.accent }],
-                  isLockedItem && styles.chipLocked,
-                  isSelected && !isCurrent && { borderColor: WORLD_NEUTRALS.textPrimary },
+                  isLockedItem && [styles.chipLocked, { borderColor: lockedBorder, backgroundColor: subtleOverlay }],
+                  isSelected && !isCurrent && { borderColor: neutrals.textPrimary },
                 ]}
               >
                 {isComplete && (
-                  <MaterialCommunityIcons name="check" size={13} color={WORLD_NEUTRALS.complete} />
+                  <MaterialCommunityIcons name="check" size={13} color={neutrals.complete} />
                 )}
                 {isLockedItem && (
-                  <MaterialCommunityIcons name="lock" size={12} color={WORLD_NEUTRALS.textMuted} />
+                  <MaterialCommunityIcons name="lock" size={12} color={neutrals.textMuted} />
                 )}
                 <Text
                   style={[
                     styles.chipName,
-                    isComplete && { color: WORLD_NEUTRALS.textPrimary },
+                    { color: neutrals.textPrimary },
+                    isComplete && { color: neutrals.textPrimary },
                     isCurrent && { color: W.accent },
-                    isLockedItem && { color: WORLD_NEUTRALS.textMuted },
+                    isLockedItem && { color: neutrals.textMuted },
                   ]}
                   numberOfLines={1}
                 >
@@ -141,7 +148,8 @@ export function TierSelectorRow({
                 <Text
                   style={[
                     styles.chipCaption,
-                    isComplete && { color: WORLD_NEUTRALS.complete },
+                    { color: neutrals.textMuted },
+                    isComplete && { color: neutrals.complete },
                     isCurrent && { color: worldRgba(W.accent, 0.8) },
                   ]}
                   numberOfLines={1}
@@ -160,7 +168,7 @@ export function TierSelectorRow({
               end={{ x: 1, y: 0 }}
               style={StyleSheet.absoluteFill}
             />
-            <MaterialCommunityIcons name="chevron-right" size={16} color={WORLD_NEUTRALS.textSecondary} />
+            <MaterialCommunityIcons name="chevron-right" size={16} color={neutrals.textSecondary} />
           </View>
         )}
       </View>
@@ -177,7 +185,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 12,
     letterSpacing: 3,
-    color: 'rgba(255,255,255,0.5)',
     marginBottom: 12,
     paddingHorizontal: 20,
   },
@@ -190,18 +197,13 @@ const styles = StyleSheet.create({
     width: CHIP_WIDTH,
     borderRadius: 14,
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.border,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 10,
     paddingHorizontal: 6,
     gap: 2,
   },
-  chipComplete: {
-    borderColor: worldRgba(WORLD_NEUTRALS.complete, 0.4),
-    backgroundColor: worldRgba(WORLD_NEUTRALS.complete, 0.08),
-  },
+  chipComplete: {},
   chipCurrent: {
     shadowOpacity: 0.35,
     shadowRadius: 16,
@@ -209,22 +211,18 @@ const styles = StyleSheet.create({
     elevation: 6,
   },
   chipLocked: {
-    borderColor: 'rgba(255,255,255,0.1)',
-    backgroundColor: 'rgba(255,255,255,0.03)',
     opacity: 0.55,
   },
   chipName: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textPrimary,
     textAlign: 'center',
   },
   chipCaption: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 9,
     letterSpacing: 0.5,
-    color: WORLD_NEUTRALS.textMuted,
   },
   hint: {
     position: 'absolute',

@@ -31,7 +31,7 @@ import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { TierRankCard } from '../components/profile/TierRankCard';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
-import { WORLD_THEMES } from '../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
@@ -118,7 +118,6 @@ export function ProfileScreen({
     else Alert.alert('Locked', 'This feature is coming in V2.');
   };
 
-  const onOpenChampionsArena = showV2Popup;
   const onOpenClash = showV2Popup;
   const onOpenTournamentArena = showV2Popup;
   const onOpenCoach = showV2Popup;
@@ -128,6 +127,7 @@ export function ProfileScreen({
 
   const { profile, signOut, user, refreshProfile } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
+  const W = getWorldTheme('strength', mode);
   const hasSyncedOnMount = useRef(false);
   const mainScrollRef = useRef<ScrollView>(null);
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
@@ -449,7 +449,7 @@ export function ProfileScreen({
 
   return (
     <GlobalErrorBoundary>
-      <WorldBackground world={WORLD_THEMES.strength}>
+      <WorldBackground world={W}>
       <View style={styles.container}>
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
@@ -458,7 +458,7 @@ export function ProfileScreen({
                 style={styles.settingsGearButton}
                 onPress={() => setShowSettings(true)}
               >
-                <MaterialCommunityIcons name="cog-outline" size={18} color="rgba(255,255,255,0.6)" />
+                <MaterialCommunityIcons name="cog-outline" size={18} color={getWorldNeutrals(mode).textSecondary} />
               </TouchableOpacity>
 
               <ProfileHeader
@@ -492,7 +492,7 @@ export function ProfileScreen({
               />
 
               <TouchableOpacity
-                style={[styles.weeklyChallengeButton, { backgroundColor: WORLD_THEMES.strength.accent }]}
+                style={[styles.weeklyChallengeButton, { backgroundColor: W.accent }]}
                 onPress={onOpenWeeklyChallenge}
                 activeOpacity={0.85}
               >
@@ -506,7 +506,7 @@ export function ProfileScreen({
             <>
               <View style={{ paddingTop: 22, marginBottom: 12 }}>
                 <WorldHeaderPill
-                  world={WORLD_THEMES.strength}
+                  world={W}
                   title="STRENGTH WORLD"
                   icon="sword-cross"
                 />

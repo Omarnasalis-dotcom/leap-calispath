@@ -1,6 +1,7 @@
 import React from 'react';
 import { StyleSheet, Text, View, ViewStyle } from 'react-native';
-import { WORLD_NEUTRALS } from '../../../constants/worldThemes';
+import { getWorldNeutrals } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface StatCircleProps {
   /** Top label, e.g. "GLOBAL RANK". */
@@ -20,19 +21,22 @@ interface StatCircleProps {
  * white border, explicit "UNRANKED" copy — never "#--").
  */
 export function StatCircle({ label, value, caption, unranked = false, size = 96, style }: StatCircleProps) {
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
+
   return (
-    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2 }, style]}>
-      <Text style={styles.label} numberOfLines={1}>
+    <View style={[styles.circle, { width: size, height: size, borderRadius: size / 2, borderColor: neutrals.border }, style]}>
+      <Text style={[styles.label, { color: neutrals.textCaption }]} numberOfLines={1}>
         {label}
       </Text>
       {unranked ? (
-        <Text style={styles.unranked}>UNRANKED</Text>
+        <Text style={[styles.unranked, { color: neutrals.textMuted }]}>UNRANKED</Text>
       ) : (
-        <Text style={styles.value} numberOfLines={1}>
+        <Text style={[styles.value, { color: neutrals.textPrimary }]} numberOfLines={1}>
           {value}
         </Text>
       )}
-      <Text style={styles.caption} numberOfLines={1}>
+      <Text style={[styles.caption, { color: neutrals.textMuted }]} numberOfLines={1}>
         {caption}
       </Text>
     </View>
@@ -42,7 +46,6 @@ export function StatCircle({ label, value, caption, unranked = false, size = 96,
 const styles = StyleSheet.create({
   circle: {
     borderWidth: 1.5,
-    borderColor: WORLD_NEUTRALS.border,
     alignItems: 'center',
     justifyContent: 'center',
     paddingHorizontal: 6,
@@ -52,22 +55,18 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 8.5,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textCaption,
   },
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 24,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   unranked: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 14,
-    color: WORLD_NEUTRALS.textMuted,
   },
   caption: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 8,
     letterSpacing: 0.5,
-    color: WORLD_NEUTRALS.textMuted,
   },
 });

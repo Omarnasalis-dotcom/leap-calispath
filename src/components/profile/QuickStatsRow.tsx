@@ -1,7 +1,8 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { WORLD_THEMES, WORLD_NEUTRALS, worldRgba } from '../../../constants/worldThemes';
+import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface QuickStatsRowProps {
   streakDays: number;
@@ -21,6 +22,8 @@ interface QuickStatsRowProps {
  * what distinguished them.
  */
 export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, theme, firstTile }: QuickStatsRowProps) {
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
   const stats: { icon: keyof typeof MaterialCommunityIcons.glyphMap; tint: string; value: string; label: string }[] = [
     {
       icon: 'trending-up',
@@ -41,15 +44,15 @@ export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, t
       {firstTile ?? (
         <View style={[styles.tile, { borderColor: worldRgba(WORLD_THEMES.power.accent, 0.3), backgroundColor: worldRgba(WORLD_THEMES.power.accent, 0.06) }]}>
           <MaterialCommunityIcons name="fire" size={16} color={WORLD_THEMES.power.accent} style={styles.icon} />
-          <Text style={styles.value}>{streakDays}</Text>
-          <Text style={styles.label}>DAY STREAK</Text>
+          <Text style={[styles.value, { color: neutrals.textPrimary }]}>{streakDays}</Text>
+          <Text style={[styles.label, { color: neutrals.textMuted }]}>DAY STREAK</Text>
         </View>
       )}
       {stats.map((s) => (
         <View key={s.label} style={[styles.tile, { borderColor: worldRgba(s.tint, 0.3), backgroundColor: worldRgba(s.tint, 0.06) }]}>
           <MaterialCommunityIcons name={s.icon} size={16} color={s.tint} style={styles.icon} />
-          <Text style={styles.value}>{s.value}</Text>
-          <Text style={styles.label} numberOfLines={1}>{s.label}</Text>
+          <Text style={[styles.value, { color: neutrals.textPrimary }]}>{s.value}</Text>
+          <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>{s.label}</Text>
         </View>
       ))}
     </View>
@@ -78,13 +81,11 @@ const styles = StyleSheet.create({
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 14,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   label: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 8.5,
     letterSpacing: 0.5,
     marginTop: 2,
-    color: 'rgba(255,255,255,0.4)',
   },
 });

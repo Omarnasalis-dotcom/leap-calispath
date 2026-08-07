@@ -2,7 +2,8 @@ import React, { forwardRef } from 'react';
 import { LayoutChangeEvent, StyleSheet, Text, TouchableOpacity, View, ViewStyle } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WorldRing } from './WorldRing';
-import { WORLD_NEUTRALS, WorldTheme } from '../../../constants/worldThemes';
+import { getWorldNeutrals, WorldTheme } from '../../../constants/worldThemes';
+import { useTheme } from '../../contexts/ThemeContext';
 
 interface ScoreRingHeroProps {
   world: WorldTheme;
@@ -34,6 +35,9 @@ export const ScoreRingHero = forwardRef<View, ScoreRingHeroProps>(function Score
   { world, progress, label, value, caption, showCrown = false, onPress, badgeIcon, onBadgePress, size = 150, style, onLayout },
   ref
 ) {
+  const { mode } = useTheme();
+  const neutrals = getWorldNeutrals(mode);
+
   return (
     <View ref={ref} onLayout={onLayout} style={[{ width: size, height: size }, style]}>
       <TouchableOpacity activeOpacity={onPress ? 0.8 : 1} onPress={onPress} disabled={!onPress}>
@@ -45,10 +49,10 @@ export const ScoreRingHero = forwardRef<View, ScoreRingHeroProps>(function Score
             <Text style={[styles.label, { color: world.accent }]} numberOfLines={1}>
               {label}
             </Text>
-            <Text style={styles.value} numberOfLines={1} adjustsFontSizeToFit>
+            <Text style={[styles.value, { color: neutrals.textPrimary }]} numberOfLines={1} adjustsFontSizeToFit>
               {value}
             </Text>
-            <Text style={styles.caption} numberOfLines={1}>
+            <Text style={[styles.caption, { color: neutrals.textMuted }]} numberOfLines={1}>
               {caption}
             </Text>
           </View>
@@ -83,13 +87,11 @@ const styles = StyleSheet.create({
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 33,
-    color: WORLD_NEUTRALS.textPrimary,
   },
   caption: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 9,
     letterSpacing: 1,
-    color: WORLD_NEUTRALS.textMuted,
   },
   badge: {
     position: 'absolute',
