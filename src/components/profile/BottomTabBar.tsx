@@ -9,7 +9,7 @@ import { WORLD_THEMES } from '../../../constants/worldThemes';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TargetId } from '../../types/tutorial';
 
-export type ProfileTab = 'profile' | 'strength' | 'power' | 'static' | '1mm';
+export type ProfileTab = 'profile' | 'strength' | 'power' | 'static' | '1mm' | 'champions';
 
 const TAB_TARGET_IDS: Partial<Record<ProfileTab, TargetId>> = {
   profile: 'bottomTab.profile',
@@ -17,6 +17,7 @@ const TAB_TARGET_IDS: Partial<Record<ProfileTab, TargetId>> = {
   power: 'bottomTab.power',
   static: 'bottomTab.static',
   '1mm': 'bottomTab.1mm',
+  champions: 'bottomTab.champions',
 };
 
 interface TabDef {
@@ -37,6 +38,10 @@ const TABS: TabDef[] = [
   { id: 'power', label: 'POWER', icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
   { id: 'static', label: 'STATIC', icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
   { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
+  // unlockTier 0: open to everyone as a spectator (leaderboard/phase preview)
+  // — ChampionsArenaScreen itself gates the "START ARENA TRIAL" button at
+  // tier 9, so no separate lock is needed just to view the tab.
+  { id: 'champions', label: 'ARENA', icon: 'trophy', unlockTier: 0, route: '/champions-arena', accentColor: WORLD_THEMES.strength.accent },
 ];
 
 interface BottomTabBarProps {

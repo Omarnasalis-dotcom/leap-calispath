@@ -1,5 +1,16 @@
 import { supabase } from '../lib/supabase';
 
+// Fast-fail cache only — the DB-authoritative floors live in the
+// arena_phase_hard_floors table and are enforced inside submit_arena_attempt.
+// Must stay in sync with the seed values in
+// supabase/migrations/20260731120000_launch_champions_arena.sql.
+export const ARENA_PHASE_HARD_FLOORS: Record<string, number> = {
+  'phase-q': 262,
+  'phase-s': 440,
+  'phase-f': 625,
+};
+const ARENA_MAX_SECONDS = 3600;
+
 export interface ArenaStep {
   id: string;
   movement_name: string;
@@ -23,6 +34,16 @@ export interface ArenaPhase {
 }
 
 export const ArenaService = {
+  /**
+   * Client-side pre-check — catches obvious bad input before the network
+   * call. submit_arena_attempt is the authoritative validator.
+   */
+  isTimeValid(phaseId: string, timeSeconds: number): boolean {
+    const minTime = ARENA_PHASE_HARD_FLOORS[phaseId];
+    if (minTime === undefined) return false;
+    return timeSeconds >= minTime && timeSeconds <= ARENA_MAX_SECONDS;
+  },
+
   /**
    * Returns the hardcoded competition data with all athlete benchmarks
    */
@@ -96,17 +117,21 @@ export const ArenaService = {
   },
 
   /**
-   * Saves a user's arena attempt to the database
+   * Saves a user's arena attempt via the validated submit_arena_attempt RPC.
+   * The RPC re-validates the floor/max, the tier-9 gate, and a submission
+   * cooldown server-side — the client's isTimeValid() check above is UX-only.
    */
-  async saveAttempt(userId: string, phaseId: string, timeSeconds: number): Promise<void> {
-    const { error } = await supabase
-      .from('arena_attempts')
-      .insert({
-        user_id: userId,
-        phase_id: phaseId,
-        time_in_seconds: timeSeconds // Matching the new column name
-      });
-    
+  async saveAttempt(phaseId: string, timeSeconds: number): Promise<{ isNewBest: boolean }> {
+    const { data, error } = await supabase.rpc('submit_arena_attempt', {
+      p_phase_id: phaseId,
+      p_time_seconds: timeSeconds,
+    });
+
     if (error) throw error;
+    if (!data?.success) {
+      throw new Error(data?.message || data?.error || 'Failed to save arena attempt');
+    }
+
+    return { isNewBest: !!data.is_new_best };
   }
 };

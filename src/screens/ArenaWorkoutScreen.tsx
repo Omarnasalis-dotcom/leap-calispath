@@ -8,6 +8,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { WorldBackground } from '../components/worlds/WorldBackground';
+import { CelebrationBanner } from '../components/CelebrationBanner';
+import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
+import { NotificationService } from '../services/NotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -18,15 +22,19 @@ interface ArenaWorkoutScreenProps {
 }
 
 export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutScreenProps) {
-  const { theme } = useTheme();
-  const { user } = useAuth();
+  const { theme, mode } = useTheme();
+  const W = getWorldTheme('strength', mode);
+  const WORLD_NEUTRALS = getWorldNeutrals(mode);
+  const { user, profile } = useAuth();
   const [seconds, setSeconds] = useState(0);
   const [isActive, setIsActive] = useState(false);
   const [isPreparing, setIsPreparing] = useState(false);
   const [preCountdown, setPreCountdown] = useState(0);
   const [currentStepIdx, setCurrentStepIdx] = useState(0);
   const [completedSteps, setCompletedSteps] = useState<string[]>([]);
-  
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationProps, setCelebrationProps] = useState<any>({});
+
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
@@ -78,21 +86,40 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
 
   const handleFinish = async () => {
     setIsActive(false);
-    if (user) {
+    if (user && ArenaService.isTimeValid(phase!.id, seconds)) {
       try {
-        await ArenaService.saveAttempt(user.id, phase!.id, seconds);
+        const { isNewBest } = await ArenaService.saveAttempt(phase!.id, seconds);
+        if (isNewBest) {
+          NotificationService.notify(
+            user.id,
+            'arena_pb',
+            'New Arena PB!',
+            `${phase!.name}: ${formatTime(seconds)} — a new personal best.`,
+            { screen: 'champions-arena' }
+          );
+        }
       } catch (e) {
         console.error('Error saving attempt:', e);
       }
     }
 
     const isPB = seconds < phase!.pro_benchmark_time;
-    const msg = isPB 
-      ? `WORLD CLASS! You beat the pro time by ${formatTime(phase!.pro_benchmark_time - seconds)}!` 
-      : `Arena Trial Completed in ${formatTime(seconds)}.`;
-    
-    Alert.alert('CHAMPIONS ARENA', msg);
-    
+    setCelebrationProps({
+      title: isPB ? 'WORLD CLASS' : 'ARENA COMPLETE',
+      subtitle: phase!.name,
+      stat: formatTime(seconds),
+      rank: isPB ? `BEAT THE PRO TIME BY ${formatTime(phase!.pro_benchmark_time - seconds)}` : undefined,
+      emoji: isPB ? '🏆' : '⚔️',
+      userName: profile?.display_name || 'WARRIOR',
+      headerText: 'CHAMPIONS ARENA',
+      accentColor: W.accent,
+      celebratory: isPB,
+    });
+    setShowCelebration(true);
+  };
+
+  const handleCelebrationDismiss = () => {
+    setShowCelebration(false);
     onComplete(seconds);
   };
 
@@ -130,11 +157,12 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   if (!isActive && !isPreparing && seconds === 0) {
     return (
       <GlobalErrorBoundary>
-        <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center' }]}>
+        <WorldBackground world={W}>
+        <View style={[styles.container, { justifyContent: 'center' }]}>
         <View style={styles.prepareBox}>
-          <Text style={[styles.prepareLabel, { color: '#D32F2F' }]}>PREPARE FOR BATTLE</Text>
+          <Text style={[styles.prepareLabel, { color: W.accent }]}>PREPARE FOR BATTLE</Text>
           <Text style={[styles.prepareTitle, { color: theme.text.primary }]}>{phase!.name}</Text>
-          
+
           <View style={styles.gearCheck}>
             <Text style={[styles.gearTitle, { color: theme.text.secondary }]}>REQUIRED GEAR</Text>
             {Array.from(new Set(phase!.steps.filter(s => s.added_weight_kg > 0).map(s => s.added_weight_kg))).map((weight, i) => (
@@ -145,7 +173,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
             ))}
           </View>
 
-          <TouchableOpacity style={styles.startButton} onPress={handleStartWithLeadIn}>
+          <TouchableOpacity style={[styles.startButton, { backgroundColor: W.accent }]} onPress={handleStartWithLeadIn}>
             <Text style={styles.startButtonText}>LEAP NOW</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
@@ -153,6 +181,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
           </TouchableOpacity>
         </View>
       </View>
+      </WorldBackground>
       </GlobalErrorBoundary>
     );
   }
@@ -160,13 +189,15 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   if (isPreparing) {
     return (
       <GlobalErrorBoundary>
-        <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center', alignItems: 'center' }]}>
-        <Text style={[styles.prepareLabel, { color: '#D32F2F', fontSize: 24 }]}>{preCountdown}s</Text>
+        <WorldBackground world={W}>
+        <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <Text style={[styles.prepareLabel, { color: W.accent, fontSize: 24 }]}>{preCountdown}s</Text>
         <Text style={[styles.prepareTitle, { color: theme.text.primary, marginTop: 20 }]}>GET READY</Text>
         <TouchableOpacity style={[styles.cancelButton, { marginTop: 40 }]} onPress={cancelPreparation}>
           <Text style={[styles.cancelButtonText, { color: theme.text.tertiary, fontSize: 16 }]}>CANCEL PREPARATION</Text>
         </TouchableOpacity>
       </View>
+      </WorldBackground>
       </GlobalErrorBoundary>
     );
 
@@ -174,7 +205,8 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
 
   return (
     <GlobalErrorBoundary>
-      <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      <WorldBackground world={W}>
+      <View style={styles.container}>
       {/* HUD Header - COMPETITIVE VIEW */}
       <View style={[styles.hudHeader, { borderBottomColor: theme.card.border }]}>
         <View style={styles.hudTimerSection}>
@@ -187,7 +219,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
             <Text style={[styles.hudLabel, { color: theme.text.tertiary }]}>TARGET: </Text>
             <Text style={[styles.targetValue, { color: theme.text.primary }]}>{formatTime(phase!.pro_benchmark_time)}</Text>
           </View>
-          <Text style={[styles.paceValue, { color: isAhead ? '#4CAF50' : '#D32F2F' }]}>
+          <Text style={[styles.paceValue, { color: isAhead ? WORLD_NEUTRALS.complete : W.accent }]}>
             {isAhead ? 'AHEAD' : 'BEHIND'} {formatTime(Math.abs(Math.round(timeDiff)))}
           </Text>
         </View>
@@ -196,25 +228,25 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
       <ScrollView contentContainerStyle={styles.scrollContent}>
         {/* Progress Bar */}
         <View style={[styles.progressBar, { backgroundColor: theme.card.border }]}>
-          <View style={[styles.progressFill, { backgroundColor: '#D32F2F', width: `${((currentStepIdx) / phase!.steps.length) * 100}%` }]} />
+          <View style={[styles.progressFill, { backgroundColor: W.accent, width: `${((currentStepIdx) / phase!.steps.length) * 100}%` }]} />
         </View>
 
         {/* Current Step Card */}
-        <View style={[styles.currentStepCard, { backgroundColor: theme.card.background, borderColor: '#D32F2F' }]}>
-          <Text style={[styles.stepCounter, { color: '#D32F2F' }]}>STEP {currentStepIdx + 1} OF {phase!.steps.length}</Text>
+        <View style={[styles.currentStepCard, { backgroundColor: theme.card.background, borderColor: W.accent }]}>
+          <Text style={[styles.stepCounter, { color: W.accent }]}>STEP {currentStepIdx + 1} OF {phase!.steps.length}</Text>
           <Text style={[styles.currentStepName, { color: theme.text.primary }]}>{currentStep.movement_name.toUpperCase()}</Text>
           <View style={styles.currentStepStats}>
             <Text style={[styles.currentStepReps, { color: theme.text.primary }]}>{currentStep.reps}x</Text>
             {currentStep.added_weight_kg > 0 && (
-              <View style={styles.weightBadgeBig}>
+              <View style={[styles.weightBadgeBig, { backgroundColor: W.accent }]}>
                 <Text style={styles.weightBadgeText}>+{currentStep.added_weight_kg}KG</Text>
               </View>
             )}
           </View>
           {currentStep.is_unbroken && (
-            <View style={styles.unbrokenTag}>
-              <MaterialCommunityIcons name="link-variant" size={14} color="#D32F2F" />
-              <Text style={styles.unbrokenText}>UNBROKEN PERFORMANCE REQUIRED</Text>
+            <View style={[styles.unbrokenTag, { backgroundColor: W.cardFill }]}>
+              <MaterialCommunityIcons name="link-variant" size={14} color={W.accent} />
+              <Text style={[styles.unbrokenText, { color: W.accent }]}>UNBROKEN PERFORMANCE REQUIRED</Text>
             </View>
           )}
         </View>
@@ -228,7 +260,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
           </View>
         )}
 
-        <TouchableOpacity style={styles.completeStepButton} onPress={handleNextStep}>
+        <TouchableOpacity style={[styles.completeStepButton, { backgroundColor: W.accent }]} onPress={handleNextStep}>
           <Text style={styles.completeStepText}>
             {currentStepIdx === phase!.steps.length - 1 ? 'FINISH ARENA' : 'STEP COMPLETED'}
           </Text>
@@ -238,7 +270,14 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
           <Text style={[styles.abandonBottomText, { color: theme.text.tertiary }]}>ABANDON TRIAL</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <CelebrationBanner
+        visible={showCelebration}
+        {...celebrationProps}
+        onDismiss={handleCelebrationDismiss}
+      />
     </View>
+    </WorldBackground>
     </GlobalErrorBoundary>
   );
 }
@@ -343,13 +382,12 @@ const styles = StyleSheet.create({
     fontWeight: '900',
   },
   weightBadgeBig: {
-    backgroundColor: '#D32F2F',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 6,
   },
   weightBadgeText: {
-    color: '#FFF',
+    color: '#000',
     fontSize: 16,
     fontWeight: '900',
   },
@@ -358,13 +396,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 6,
     marginTop: 20,
-    backgroundColor: 'rgba(211,47,47,0.1)',
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 4,
   },
   unbrokenText: {
-    color: '#D32F2F',
     fontSize: 9,
     fontWeight: '900',
     letterSpacing: 1,
@@ -392,19 +428,13 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   completeStepButton: {
-    backgroundColor: '#D32F2F',
     paddingVertical: 22,
     borderRadius: 16,
     alignItems: 'center',
     marginTop: 40,
-    shadowColor: '#D32F2F',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    elevation: 8,
   },
   completeStepText: {
-    color: '#FFF',
+    color: '#000',
     fontSize: 16,
     fontWeight: '900',
     letterSpacing: 3,
@@ -439,7 +469,7 @@ const styles = StyleSheet.create({
   },
   gearCheck: {
     width: '100%',
-    backgroundColor: 'rgba(255,255,255,0.02)',
+    backgroundColor: 'rgba(255,255,255,0.05)',
     padding: 20,
     borderRadius: 16,
     marginBottom: 40,
@@ -463,7 +493,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   startButton: {
-    backgroundColor: '#D32F2F',
     width: width - 80,
     paddingVertical: 20,
     borderRadius: 16,
@@ -471,7 +500,7 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   startButtonText: {
-    color: '#FFF',
+    color: '#000',
     fontSize: 18,
     fontWeight: '900',
     letterSpacing: 4,
