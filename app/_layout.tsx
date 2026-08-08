@@ -16,6 +16,23 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Android 8+ requires a channel to exist before a notification is shown, or
+// it falls back to an OS-generated default with unpredictable importance
+// (no guaranteed heads-up banner/sound). Runs at module scope so the channel
+// exists before AuthContext's registerPushToken ever requests a token. iOS
+// has no channel concept — setNotificationChannelAsync is a no-op there, so
+// this doesn't need a Platform.OS guard, but skipping the call on iOS keeps
+// it explicit that this line means nothing outside Android.
+if (Platform.OS === 'android') {
+  Notifications.setNotificationChannelAsync('default', {
+    name: 'General',
+    importance: Notifications.AndroidImportance.HIGH,
+    vibrationPattern: [0, 250, 250, 250],
+    sound: 'default',
+    lightColor: '#FF5252',
+  });
+}
+
 // Keep the native splash screen visible while we fetch resources. Runs at
 // module scope, so a dev Fast Refresh re-executes it against a view
 // controller that's already had its splash hidden/unregistered — swallow
