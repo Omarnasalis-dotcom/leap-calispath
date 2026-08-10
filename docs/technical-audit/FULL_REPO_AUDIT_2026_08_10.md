@@ -4,7 +4,7 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: 11 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
+**Status: 12 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
 
 **Files actually read: ~210.**
 
@@ -25,14 +25,14 @@
 | 13 | repo-root config + git-history secret scan | 17/17 | ✅ complete |
 | 10 | `supabase/functions/` + `config.toml` | 10/10 | ✅ complete — see below |
 | 1 | `src/screens/` (excl. coaching) | 0/27 | ❌ spend limit |
-| 3 | `src/components/worlds/` + `profile/` | 25 read, 0 reported | ❌ connection dropped pre-report |
+| 3 | `src/components/worlds/` + `profile/` | 25/25 | ✅ complete — 2 high, see below |
 | 4 | `src/components/coaching/` + rest | partial | ⚠️ killed |
 | 7 | `app/` routes | 30 routes cross-checked | ✅ pass — see below |
 | 9 | `supabase/migrations/` (RLS, SECURITY DEFINER) | 144 analysed | ✅ security-complete — see below |
 | 14 | `_backup/` `scratch/` `sql_archive/` | 28/28 | ✅ clean, deletable |
 | 15 | `public/` `web/` `assets/` | inventoried + scanned | ✅ pass — 1 low finding |
 
-The remaining gaps (1, 3, 4) are UI/component partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
+The remaining gaps (1, 4) are UI/component partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
 
 ---
 
@@ -110,6 +110,32 @@ No secrets, no PII, no credentials. The one grep hit (`scratch/verify_edge_funct
 `public/` is copied into the Vercel deploy by `build:vercel`, so everything in it **is on the public internet**. Inventory is all intentional: `download.html` (landing), `privacy.html`, `account-deletion.html`, `request.html`, PWA manifest/icons. **`redesign.html` is correctly absent** (confirmed retired). No secrets in any live-served file.
 
 **LOW — personal email published on a live page.** `public/account-deletion.html:183` and `:229` both print `Omarnasalis@outlook.com` as the contact address. `public/privacy.html` uses the `support@leap-arena.com` alias for the same purpose. The personal address is scrapeable on a public page and inconsistent with the privacy page. Fix: swap both occurrences to the support alias.
+
+---
+
+## Partition 3 — `components/worlds/` + `components/profile/`: 2 high, several medium
+
+25/25 files read. **Zero instances of the module-scope/component-scope bug class** that broke the two log modals — every module-level declaration in this partition is self-contained, and no file imports the raw static `WORLD_NEUTRALS` (all use `getWorldNeutrals(mode)` or the `theme` prop). `BottomTabBar` re-verified fully theme-aware.
+
+**HIGH — `EditProfileModal.tsx:87` + `:198` — two sibling Modals swap in one commit.** *(verified)*
+`<Modal visible={visible && !showCountryModal}>` and `<Modal visible={showCountryModal}>` are siblings, so tapping "Select Country" unmounts one native modal host and mounts another in the **same render**, mid-animation. This is the strongest `ReactClippingViewManager.addView` candidate found anywhere in the audit. Repro: Edit Profile → Select Country → pick one. Fix: one Modal with swapped inner content, or gate the second on the first's `onDismiss`.
+
+**HIGH — `TierLeaderboardList.tsx:283` — `getItemLayout` reports the wrong row height.** *(verified)*
+Declares `length: 73`, but `entryRow` is `minHeight: 52` + `marginBottom: 5` = **57px** pitch. A ~28% per-row error compounds — by row 20 the offset is ~320px wrong. Combined with `initialScrollIndex` and Android's default `removeClippedSubviews`, wrong offsets drive wrong clip/unclip decisions, a documented path into the same `addView` crash. Guaranteed visible bug regardless: "SEE MORE" never lands on the user's own row. Fix: `length: 57`, or drop `getItemLayout`.
+
+**MEDIUM — `TierDetailsModal.tsx` — the CTA can be unreachable.** `modalContent` is `maxHeight: '90%'` with **no ScrollView in the file**. Tier 9 lists 12 movements; on a small screen the content clips and **"LEAP NOW" cannot be tapped**.
+
+**MEDIUM — `ProfileHeader.tsx:171` hardcodes `TIER {n} OF 9`.** `category` can be `'power'`, where max tier is 3 — a Tesla-tier user sees "TESLA · TIER 3 OF 9".
+
+**MEDIUM — modal-inside-modal during sign-out.** `SettingsSheet.tsx:89` renders `DeleteAccountModal` (itself a `<Modal>`) inside its own `<Modal>`, and `DeleteAccountModal.tsx:92` calls `signOut()` while both are visible — AuthGuard then navigates while two stacked native modal hosts tear down.
+
+**MEDIUM — `BottomTabBar.tsx:60-81` has no double-fire guard.** `activeTab` doesn't change until the destination mounts, so a fast double-tap fires `router.replace` twice.
+
+**Light-mode regressions (medium→low).** Inactive filter chips use `rgba(255,255,255,0.05)` fill / `0.1` border in `TierLeaderboardList` and `LeaderboardModals` — in light mode ALL/MALE/FEMALE and PUBLIC/MY COMMUNITY lose their pill entirely and become bare floating text. Leaderboard row fill and several dividers vanish similarly. `DeleteAccountModal` ignores the theme wholesale (self-consistent, but renders a dark sheet in a light app).
+
+**Security — one real gap (low).** `EditProfileModal`'s "can only be set once" rule for username/gender/country is **client-side only**. Verified DB side: the update policy has no `WITH CHECK` and no column list, and `guard_profile_protected_fields` covers `is_admin`/`is_coach`/tiers/points but **not** `gender`/`country`. Privilege escalation is correctly blocked; only the cosmetic write-once claim is bypassable via direct API call.
+
+**Organization.** `src/components/profile/ScoreBar.tsx` (190 lines) is **fully orphaned** — zero importers repo-wide, superseded by `ProfileHeader`'s inlined WRA card. Note `CLAUDE.md:123` still lists it (and `WorldSelectorGrid`, which no longer exists). Plus 9 dead styles in `StrengthWorldView`, several unused props left over from the theme refactor, and the scroll-hint + filter-chip machinery triplicated across three files.
 
 ---
 
