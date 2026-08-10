@@ -4,7 +4,7 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: INCOMPLETE — 6 of 15 partitions finished.** The run was cut short by an Anthropic monthly spend limit, not by a decision to stop. **The two highest-stakes partitions never ran** (RLS policies across 144 migrations, and edge functions running as service-role). Treat the "verified clean" claims below as scoped strictly to what was actually read.
+**Status: INCOMPLETE — 7 of 15 partitions finished.** The run was cut short by an Anthropic monthly spend limit, not by a decision to stop. **The two highest-stakes partitions never ran** (RLS policies across 144 migrations, and edge functions running as service-role). Treat the "verified clean" claims below as scoped strictly to what was actually read.
 
 **Files actually read: ~200.**
 
@@ -23,16 +23,43 @@
 | 11 | top-level shadow dirs | 7/7 | ✅ complete |
 | 12 | `ios/` + `android/` native config | 35/35 | ✅ complete |
 | 13 | repo-root config + git-history secret scan | 17/17 | ✅ complete |
+| 10 | `supabase/functions/` + `config.toml` | 10/10 | ✅ complete — see below |
 | 1 | `src/screens/` (excl. coaching) | 0/27 | ❌ spend limit |
 | 3 | `src/components/worlds/` + `profile/` | 25 read, 0 reported | ❌ connection dropped pre-report |
 | 4 | `src/components/coaching/` + rest | partial | ⚠️ killed |
 | 7 | `app/` routes | 0/31 | ❌ spend limit |
-| **9** | **`supabase/migrations/` (RLS, SECURITY DEFINER)** | **0/144** | ❌ **spend limit — highest priority** |
-| **10** | **`supabase/functions/` (service-role)** | **0/10** | ❌ **spend limit — highest priority** |
+| **9** | **`supabase/migrations/` (RLS, SECURITY DEFINER)** | **0/144** | ❌ **spend limit — now the top remaining priority** |
 | 14 | `_backup/` `scratch/` `sql_archive/` | 0/28 | ❌ spend limit |
 | 15 | `public/` `web/` `assets/` | 0/63 | ❌ spend limit |
 
-Why 9 and 10 matter most: edge functions run with the **service-role key, bypassing all RLS**, so any that trusts a client-supplied `user_id` is a full cross-account write. And P2 already found an unscoped `UPDATE` inside one RPC (see C3) — that class of bug is exactly what P9 would systematically catch.
+P9 is now the highest-value gap: P2 already found an unscoped `UPDATE` inside one RPC (see C3), and that class of bug is exactly what a systematic pass over the RLS policies and `SECURITY DEFINER` functions would catch.
+
+---
+
+## Partition 10 — Edge functions: **passes**
+
+All 10 read in full, plus `supabase/config.toml`. **No critical or high findings.** The thing this partition existed to find — a function running as service-role that trusts a client-supplied user id — **does not occur anywhere.**
+
+**Caller-identity model, per function:**
+
+| Function | `verify_jwt` | How the caller is authorised | Verdict |
+|---|---|---|---|
+| `submit-trial-result` | true | JWT; validates tier range 0-9 + hard floor server-side | ✅ |
+| `delete-user-account` | *(unlisted → true)* | JWT; deletes `user.id` only — **never a body id** | ✅ |
+| `chat-gemini` | *(unlisted → true)* | JWT via `getUser()` | ⚠️ no rate limit — see below |
+| `notify-coach-workout-logged` | true | JWT + `log.warrior_id !== user.id` → 404; coach derived server-side | ✅ |
+| `notify-client-program-update` | true | JWT + `program.coach_id !== user.id` → 403 | ✅ |
+| `send-push-notification` | true | **anon key + caller's header**, so RLS decides; someone else's row 404s identically | ✅ |
+| `send-overtake-notification-push` | true | service-role, but constrained to `leaderboard_overtaken*` types + idempotent | ✅ |
+| `send-daily-workout-reminders` | **false** | `x-cron-secret` shared secret; fails closed if env var unset | ✅ |
+| `send-weekly-challenge-started` | **false** | same cron-secret guard | ✅ |
+| `send-weekly-challenge-ending-reminder` | **false** | same cron-secret guard | ✅ |
+
+**Fan-out safety — the 2026-08-05 incident class is properly fixed.** `get_users_needing_daily_reminder()` now carries an idempotency guard (`NOT EXISTS … type='daily_reminder' … same local date`), honours `notification_preferences` opt-out, is timezone-aware, uses `NOT EXISTS` over `NOT IN` (with the NULL-semantics reason documented in the migration), sets `search_path = ''`, and has `EXECUTE` revoked from `PUBLIC`/`anon`/`authenticated` and granted only to `service_role`. Sending batches at Expo's 100 limit and prunes `DeviceNotRegistered` tokens.
+
+**Only finding — `chat-gemini` has no rate limiting (medium).** Any authenticated user can call it in a loop; each call bills against the Gemini key. Accounts are free, so this is a real cost-abuse vector. The key itself is correctly server-side (`Deno.env.get`), never in the bundle. Worth a per-user quota or a short cooldown.
+
+**Minor note:** `send-overtake-notification-push` checks only that an `Authorization: Bearer` header is *present*, never calling `getUser()`. That's safe today because `verify_jwt = true` makes the platform validate the JWT before the function runs — but the guarantee lives in `config.toml`, not in the code, so flipping that flag would silently remove all authentication. Worth a comment at minimum.
 
 ---
 
