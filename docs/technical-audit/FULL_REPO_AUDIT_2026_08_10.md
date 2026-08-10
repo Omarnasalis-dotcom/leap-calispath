@@ -4,7 +4,7 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: 12 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
+**Status: 13 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
 
 **Files actually read: ~210.**
 
@@ -26,13 +26,13 @@
 | 10 | `supabase/functions/` + `config.toml` | 10/10 | ✅ complete — see below |
 | 1 | `src/screens/` (excl. coaching) | 0/27 | ❌ spend limit |
 | 3 | `src/components/worlds/` + `profile/` | 25/25 | ✅ complete — 2 high, see below |
-| 4 | `src/components/coaching/` + rest | partial | ⚠️ killed |
+| 4 | `src/components/coaching/` + rest | 49/49 | ✅ complete — highest-yield, see below |
 | 7 | `app/` routes | 30 routes cross-checked | ✅ pass — see below |
 | 9 | `supabase/migrations/` (RLS, SECURITY DEFINER) | 144 analysed | ✅ security-complete — see below |
 | 14 | `_backup/` `scratch/` `sql_archive/` | 28/28 | ✅ clean, deletable |
 | 15 | `public/` `web/` `assets/` | inventoried + scanned | ✅ pass — 1 low finding |
 
-The remaining gaps (1, 4) are UI/component partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
+Only partition 1 (`src/screens/`, excl. coaching) remains — an agent is running it. It can still hold real bugs, but it carries none of the cross-account data-exposure risk that 9 and 10 did.
 
 ---
 
@@ -136,6 +136,36 @@ Declares `length: 73`, but `entryRow` is `minHeight: 52` + `marginBottom: 5` = *
 **Security — one real gap (low).** `EditProfileModal`'s "can only be set once" rule for username/gender/country is **client-side only**. Verified DB side: the update policy has no `WITH CHECK` and no column list, and `guard_profile_protected_fields` covers `is_admin`/`is_coach`/tiers/points but **not** `gender`/`country`. Privilege escalation is correctly blocked; only the cosmetic write-once claim is bypassable via direct API call.
 
 **Organization.** `src/components/profile/ScoreBar.tsx` (190 lines) is **fully orphaned** — zero importers repo-wide, superseded by `ProfileHeader`'s inlined WRA card. Note `CLAUDE.md:123` still lists it (and `WorldSelectorGrid`, which no longer exists). Plus 9 dead styles in `StrengthWorldView`, several unused props left over from the theme refactor, and the scroll-hint + filter-chip machinery triplicated across three files.
+
+---
+
+## Partition 4 — `components/coaching/` + remaining components: highest-yield partition
+
+49 files / 9,444 lines. Like P3, **no instances of the module-scope bug class**. The agent also explicitly listed four suspected findings it *dropped* after verification, which is what a trustworthy report looks like.
+
+**HIGH — `ForTimeInlineTimer.tsx:139-149` logs a perfect score for a timer that never ran.** *(verified)*
+`LOG WORKOUT` has no `disabled` prop and `handleFinalize` has no started-check. Tap it before pressing START and it submits `elapsedSeconds: 0` with `capped: false` — and because the code reads "not capped ⇒ all rounds done", it records `roundsCompleted: totalRounds`. **A perfect workout in 0:00, written to the client's permanent log.** The in-code comment shows the author assumed LOG is only tapped after finishing; nothing enforces it. `AmrapInlineTimer.tsx:127` has the same shape (finalises while running, at 0 rounds, no confirmation).
+
+**HIGH — `WarriorProgramScreen.tsx:1356/1366/1369/1379/1382/1393` dismisses one native Modal and presents another in a single batched commit.** *(verified)*
+All three timer-completion handlers call `setActiveTimerBlock(null)` (unmounting the timer modal) and then `setLogModalVisible(true)` synchronously. React 18 batches these into one commit. This codebase *already knows* this is dangerous — `WarriorTimerModal.tsx:415` renders its end-warning as a child `View` "without nested Modals", and `PBOverwriteConfirmModal`/`BonusTaskWheel` carry the same documented iOS-freeze warning. The pattern is correct there and reintroduced across the timer→log handoff. Strong `addView` crash candidate. Fix: wait for `onDismiss` before flipping `logModalVisible`.
+
+**HIGH — `WarriorBlockCard.tsx:69-73` — collapsing a block silently destroys a running workout.** The inline timers are gated on `isExpanded`, and `toggleBlockExpanded` has no guard. Tapping the block header mid-workout unmounts `AmrapInlineTimer`/`ForTimeInlineTimer`/`LadderRungPicker`, all of which hold timer state locally. Elapsed time, rounds, ladder rung, extra reps — all gone, no warning, no persistence. The header is a large tap target directly above the timer.
+
+**HIGH — `BuilderDayCard.tsx:239` — `DELETE DAY` removes a day and every block/exercise inside it with no confirmation.** There's no autosave and no unsaved-changes guard, so the only undo is abandoning the whole editing session. Notably this is an *inconsistency*, not house style: four other deletes in the same hook do confirm. `BuilderBlockCard.tsx:245` (delete block) has the same gap.
+
+**MEDIUM — `BlockConfigWizard.tsx:42-84` silently rewrites saved metadata on mount.** The effect fires `onChange` before the coach touches anything, and the payload is rebuilt from scratch rather than spread from `initialMetadata` — so unknown keys are dropped. Merely *expanding* a legacy block rewrites `{type:'amrap', timer_seconds:'12'}` to `{timing_system:'amrap', …}`, discarding `type`. Direct consequence: two coach-facing warnings at `BuilderBlockCard.tsx:143/150` test `metadata?.type`, which the wizard now never writes — **both warnings are dead code**.
+
+**MEDIUM — `ExercisePickerModal.tsx:135` crashes the whole picker on a null field.** `item.category.toUpperCase()` — unguarded, while line 59 in the same file guards the identical field with `?.`. One library row with a null `category` takes down the picker for every coach and escalates to the GlobalErrorBoundary "SYSTEM FAILURE" screen.
+
+**MEDIUM — uncleaned `Animated.loop` in `LeapLogo.tsx:34-45` and `Skeleton.tsx:16-31`** — no handle, no `.stop()`, and `LeapLogo`'s effect deps let a second concurrent loop drive the same `Animated.Value`. This is the app-wide loading spinner, so it mounts constantly. `tutorial/HighlightRing.tsx` and `TapDot.tsx` do it correctly — copy that pattern.
+
+**MEDIUM — `CopyBlockModal.tsx:117-120`** — an uncleaned 2s `setTimeout` calls `handleClose()`, which resets **parent** state. Closing and reopening within that window wipes the second modal's template selection.
+
+**LOW/MEDIUM — six dropped promises** (`Linking.openURL` ×3, `onCopyTemplate`, `onFetchTargetBlocks`, `onFetchOtherTemplates`). Worst placement is `ForceUpdateScreen.tsx:22` — a **blocking screen with exactly one action**, so a rejected `openURL` leaves the user permanently stuck with a dead button.
+
+**Security — one low.** `InlineVideoPlayer.tsx:12-34`: `getYouTubeVideoId` doesn't exclude quotes/angle brackets and only checks `length === 11`, then interpolates into `src="${embedUrl}"` in a WebView with `javaScriptEnabled` and `originWhitelist={['*']}`. An 11-char payload can break out of the attribute. Requires a malicious coach/admin writing `exercise_library.youtube_url`, so low — trivial fix: validate `/^[A-Za-z0-9_-]{11}$/`.
+
+**Organization.** `SpartanIntro.tsx` (100 lines) is **fully orphaned** (zero importers) and carries an uncleaned-timer bug. Timer logic is **reimplemented six times** across the inline timers — which is why the impure-updater and unmount-loses-state bugs each had to be fixed six times, and two copies (`SetRow`, `WarriorExerciseRow`) still lack the `AppState` background correction entirely, so their rest timers under-count while backgrounded. Plus dead props still threaded from parents (`logRating` is still `setLogRating(5)`-ed in all three handlers despite the star UI being removed), 5 sets of dead styles, and hardcoded white placeholders that vanish on light-mode `#FFFFFF` surfaces.
 
 ---
 
