@@ -4,11 +4,11 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: INCOMPLETE — 7 of 15 partitions finished.** The run was cut short by an Anthropic monthly spend limit, not by a decision to stop. **The two highest-stakes partitions never ran** (RLS policies across 144 migrations, and edge functions running as service-role). Treat the "verified clean" claims below as scoped strictly to what was actually read.
+**Status: INCOMPLETE — 7 of 15 partitions finished.** The run was cut short by an Anthropic monthly spend limit, not by a decision to stop. **Partition 9 — RLS policies and `SECURITY DEFINER` functions across 144 migrations — still has not run, and is the single most important gap.** Treat the "verified clean" claims below as scoped strictly to what was actually read.
 
-**Files actually read: ~200.**
+**Files actually read: ~210.**
 
-**Fixed and verified during the session: 8.** Mobile `tsc` clean on edited files · 140/140 tests pass · `admin-web` build succeeds.
+**Fixed and verified: 9** (8 audit findings + 1 regression caught while committing). Mobile `tsc` clean apart from a pre-existing repo-wide `Timeout` typing issue · 140/140 tests · `admin-web` build succeeds · Metro bundle succeeds.
 
 ---
 
@@ -63,9 +63,11 @@ All 10 read in full, plus `supabase/config.toml`. **No critical or high findings
 
 ---
 
-## ✅ Fixed this session (8)
+## ✅ Fixed this session (9)
 
-All applied to the working tree. **Not yet committed.**
+All merged to `main` and pushed (`468237b`).
+
+- [x] **Runtime crash in two log modals (found while committing, not by the audit).** The light-mode refactor in `919efee` moved `const W = WORLD_THEMES.<world>` out of module scope into each screen component so it could resolve per-render. `OneMinMaxTimerModal` and `StaticWorkoutLogModal` are declared at *module* level and referenced `W` directly, so they lost access to it — 10+ `Cannot find name 'W'` type errors, and a `ReferenceError` the moment a user opened the 1MM timer or Static hold-log modal. Metro doesn't typecheck, so it survived a simulator pass where those modals weren't opened. Fixed by threading the resolved world (and mode) through as props. **Lesson: a green simulator run and a green `tsc` are independent signals** — and verifying with a filtered `tsc | grep <files-I-touched>` hides regressions in files you didn't touch.
 
 - [x] **C1 · CRITICAL · cross-account auth leak** — `fetchProfile(userId)` never validated the RPC result against the requested user, so an in-flight refresh resolving after sign-out (still-valid access token) wrote the previous user's profile back. Both AuthGuard hold-conditions are false while a stale profile exists, so the next user to sign in was gated on the **previous user's** `is_admin`/`is_coach`/`strength_tier`.
   → guard rejects any profile whose `id` ≠ requested `userId`. `src/contexts/AuthContext.tsx:194`
