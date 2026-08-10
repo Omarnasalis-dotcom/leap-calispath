@@ -1,2 +1,33 @@
+# NOTE: when this file exists, EAS uses it INSTEAD OF .gitignore — not in
+# addition to it. Anything gitignored but not listed here still gets uploaded
+# to the build servers, so every secret/credential pattern in .gitignore has
+# to be repeated below.
+
+# Committed native dirs: EAS prebuilds fresh from app.json, so these would be
+# ignored anyway — excluding them keeps the upload small.
 android/
 ios/
+
+# Secrets — build-time values come from EAS environment variables
+# (`eas env:list`), which already cover every EXPO_PUBLIC_* key these files
+# hold, so excluding them does not affect a build.
+.env
+.env.*
+!.env.example
+
+# Release signing keystores — EAS holds its own copy of the signing
+# credentials; these must never leave the machine.
+*.jks
+*.keystore
+*.p8
+*.p12
+*.pem
+*.mobileprovision
+
+# Build output and local-only scratch/archive dirs — nothing the build needs.
+dist/
+_backup/
+scratch/
+sql_archive/
+.claude/
+.DS_Store

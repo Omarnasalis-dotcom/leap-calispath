@@ -68,11 +68,14 @@ export function WaitlistPage() {
                   Approve
                 </button>
               )}
-              {r.status !== 'rejected' && (
+              {/* 'declined', not 'rejected' — invite_requests_status_check
+                  allows only pending/approved/declined, so the old value
+                  failed the constraint on every click. */}
+              {r.status !== 'declined' && (
                 <button
                   className="btn small danger"
                   disabled={statusMutation.isPending}
-                  onClick={() => statusMutation.mutate({ id: r.id, status: 'rejected' })}
+                  onClick={() => statusMutation.mutate({ id: r.id, status: 'declined' })}
                 >
                   Reject
                 </button>
