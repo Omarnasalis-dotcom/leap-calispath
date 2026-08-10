@@ -1,8 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Platform, View } from 'react-native';
-import { Stack, useRouter, useSegments, Redirect } from 'expo-router';
+import { Stack, useRouter, useSegments, useNavigationContainerRef, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import * as Sentry from '@sentry/react-native';
+
+// registerNavigationContainer(ref) is called once the container mounts (see
+// RootLayout below) — this instance is what actually records the
+// screen-to-screen breadcrumb trail Sentry attaches to every crash report.
+const navigationIntegration = Sentry.reactNavigationIntegration({
+  enableTimeToInitialDisplay: true,
+});
+
+// Disabled in dev so local debugging (Fast Refresh, red-box errors, manual
+// testing) never pollutes the Sentry project with noise that isn't a real
+// user-facing crash — enabled is a second guard on top of only wiring the
+// DSN into preview/production EAS environments, not development.
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  enabled: !__DEV__,
+  tracesSampleRate: 1.0,
+  integrations: [navigationIntegration],
+});
 
 // Foreground pushes still show a banner/sound instead of arriving silently —
 // the default handler suppresses them while the app is open.
@@ -192,14 +211,19 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   return children;
 }
 
-export default function RootLayout() {
+function RootLayout() {
   const fontsLoaded = useStealthFonts();
   const router = useRouter();
+  const navigationRef = useNavigationContainerRef();
   const [forceUpdate, setForceUpdate] = useState<ForceUpdateStatus | null>(null);
 
   useEffect(() => {
     checkForceUpdate().then(setForceUpdate);
   }, []);
+
+  useEffect(() => {
+    navigationIntegration.registerNavigationContainer(navigationRef);
+  }, [navigationRef]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -280,3 +304,5 @@ export default function RootLayout() {
     </SafeAreaProvider>
   );
 }
+
+export default Sentry.wrap(RootLayout);

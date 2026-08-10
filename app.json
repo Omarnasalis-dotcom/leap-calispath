@@ -84,7 +84,15 @@
       ],
       "expo-router",
       "expo-video",
-      "./plugins/withPodfileModularHeaders.js"
+      "./plugins/withPodfileModularHeaders.js",
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "organization": "omarnasser",
+          "project": "react-native"
+        }
+      ]
     ],
     "extra": {
       "router": {},
