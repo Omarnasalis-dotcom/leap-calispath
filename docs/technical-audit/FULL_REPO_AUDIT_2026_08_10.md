@@ -4,7 +4,7 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: 8 of 15 partitions finished — all security-critical ones now covered.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
+**Status: 11 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
 
 **Files actually read: ~210.**
 
@@ -27,12 +27,12 @@
 | 1 | `src/screens/` (excl. coaching) | 0/27 | ❌ spend limit |
 | 3 | `src/components/worlds/` + `profile/` | 25 read, 0 reported | ❌ connection dropped pre-report |
 | 4 | `src/components/coaching/` + rest | partial | ⚠️ killed |
-| 7 | `app/` routes | 0/31 | ❌ spend limit |
+| 7 | `app/` routes | 30 routes cross-checked | ✅ pass — see below |
 | 9 | `supabase/migrations/` (RLS, SECURITY DEFINER) | 144 analysed | ✅ security-complete — see below |
-| 14 | `_backup/` `scratch/` `sql_archive/` | 0/28 | ❌ spend limit |
-| 15 | `public/` `web/` `assets/` | 0/63 | ❌ spend limit |
+| 14 | `_backup/` `scratch/` `sql_archive/` | 28/28 | ✅ clean, deletable |
+| 15 | `public/` `web/` `assets/` | inventoried + scanned | ✅ pass — 1 low finding |
 
-The remaining gaps (1, 3, 4, 7, 14, 15) are UI/component and asset partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
+The remaining gaps (1, 3, 4) are UI/component partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
 
 ---
 
@@ -82,6 +82,34 @@ All 10 read in full, plus `supabase/config.toml`. **No critical or high findings
 **Worth knowing:** ~20 permissive `SELECT using(true)` policies remain active on gameplay tables (`arena_attempts`, `power_assessments`, `static_holds`, `one_min_max_logs`, `weekly_entries`, tournament tables). These let any authenticated user read all rows — which is what leaderboards need, so it reads as intentional. Flagging it as a deliberate design choice to be aware of, not a defect: if any of these tables ever gains a sensitive column, it is exposed cross-user by default.
 
 **Standout:** `20260725110000_reenforce_profiles_column_select_lockdown.sql` is the best-documented migration in the repo — it records the empirically-verified Postgres behaviour that `REVOKE SELECT ON TABLE` also strips *column-level* grants, and re-grants the safe column list in the same transaction to avoid exactly that trap.
+
+---
+
+## Partitions 7, 14, 15 — Routes, archives, public assets: **pass** (1 low finding)
+
+### P7 · `app/` routes — no ungated protected route
+
+Cross-checked **every** route file against `AuthGuard`'s gate arrays. All 5 coaching routes (`coaching-hub`, `my-clients`, `client-dashboard`, `program-builder`, `progress-tracking`) are present in `coachingRoutes`. The apparent gaps all resolve:
+
+| Route | Why it's not in the array | Verdict |
+|---|---|---|
+| `admin-tournament` | Self-gates at route level: `if (!profile?.is_admin) return <Redirect href="/" />` | ✅ |
+| `one-min-max` | `ONEMM_UNLOCK_TIER = 0` — intentionally open to everyone | ✅ |
+| `warrior-program` | Renders a `coaching/` screen but passes `warriorId={user.id}` — **never** from params, so no arbitrary-warrior access | ✅ |
+| `battle`, `tournament-lobby`, `tournament-trial` | Genuine `<LockedFeature>` placeholders (V2) | ✅ |
+| `template-recommendations`, `weekly-challenge`, `beat-the-plank`, `guess-the-skill` | Warrior-facing by design | ✅ |
+
+**Worth knowing (low):** the codebase uses **two** gating mechanisms — the centralised `AuthGuard` arrays and per-route self-gating. `admin-tournament` uses only the latter. Both work, but a future admin route that forgets *both* is silently ungated, and nothing catches that. A comment in `_layout.tsx` pointing at the self-gated exceptions would make the split explicit.
+
+### P14 · `_backup/` · `scratch/` · `sql_archive/` — clean, deletable
+
+No secrets, no PII, no credentials. The one grep hit (`scratch/verify_edge_function.ts`) reads `process.env.SUPABASE_SERVICE_ROLE_KEY` — it doesn't contain one. Tracked status: `_backup` 0/2, `scratch` 0/14, `sql_archive` 1/12 (only `invite_requests_schema.sql`). **Nothing in `src/`, `app/`, `supabase/`, `admin-web/` or `package.json` references any of the three** — confirmed by grep. Safe to delete; no destructive loose SQL found.
+
+### P15 · `public/` (live-served) · `web/` · `assets/`
+
+`public/` is copied into the Vercel deploy by `build:vercel`, so everything in it **is on the public internet**. Inventory is all intentional: `download.html` (landing), `privacy.html`, `account-deletion.html`, `request.html`, PWA manifest/icons. **`redesign.html` is correctly absent** (confirmed retired). No secrets in any live-served file.
+
+**LOW — personal email published on a live page.** `public/account-deletion.html:183` and `:229` both print `Omarnasalis@outlook.com` as the contact address. `public/privacy.html` uses the `support@leap-arena.com` alias for the same purpose. The personal address is scrapeable on a public page and inconsistent with the privacy page. Fix: swap both occurrences to the support alias.
 
 ---
 
