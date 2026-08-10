@@ -633,8 +633,8 @@ export function PowerWorldScreen() {
 
             <ScrollView style={{ marginTop: 20 }}>
               {filteredLeaderboardData.map((item, i) => (
-                <View key={i} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `20`, borderColor: W.accent, borderWidth: 1 }]}>
-                  <View style={[styles.lbRankCircle, { backgroundColor: i < 3 ? `30` : 'transparent' }]}>
+                <View key={i} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `${W.accent}20`, borderColor: W.accent, borderWidth: 1 }]}>
+                  <View style={[styles.lbRankCircle, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
                     <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                   </View>
                   <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1}>

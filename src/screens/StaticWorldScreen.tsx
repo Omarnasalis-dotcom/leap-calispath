@@ -3,7 +3,6 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
   Dimensions, Vibration, AppState, Keyboard } from 'react-native';
-import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getCountryFlag } from '../constants/countries';
 import { useTheme } from '../contexts/ThemeContext';
@@ -27,7 +26,8 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
+import { ThemeMode } from '../../constants/Theme';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { StatCircle } from '../components/worlds/StatCircle';
@@ -544,8 +544,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
             )}
             
             {selectedLevel && levelEntries.map((item, i) => (
-              <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `20` : 'transparent' }]}>
-                <View style={[styles.lbRank, { backgroundColor: i < 3 ? `30` : 'transparent' }]}>
+              <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${W.accent}20` : 'transparent' }]}>
+                <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
                   <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
                 </View>
                 <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
@@ -648,8 +648,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
 
              <ScrollView style={{ marginTop: 20 }}>
                 {filteredWellRoundedEntries.map((item, i) => (
-                  <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `20`, borderColor: W.accent, borderWidth: 1 }]}>
-                    <View style={[styles.lbRank, { backgroundColor: i < 3 ? `30` : 'transparent' }]}>
+                  <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `${W.accent}20`, borderColor: W.accent, borderWidth: 1 }]}>
+                    <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
                       <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
                     </View>
                     <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
@@ -675,6 +675,8 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
           entries={entries}
           user={user}
           theme={theme}
+          world={W}
+          mode={mode}
           onSaveHold={handleSaveHold}
           overwriteOverlay={
             <PBOverwriteConfirmModal
@@ -722,6 +724,8 @@ interface StaticWorkoutLogModalProps {
   entries: any[];
   user: any;
   theme: any;
+  world: WorldTheme;
+  mode: ThemeMode;
   onSaveHold: (seconds: number) => Promise<void>;
   // Rendered as the last child inside this modal's own content — NOT a
   // second <Modal>, since two simultaneously-open native Modals on iOS can
@@ -737,6 +741,8 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
   entries,
   user,
   theme,
+  world: W,
+  mode,
   onSaveHold,
   overwriteOverlay
 }) => {

@@ -28,7 +28,7 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { NotificationService } from '../services/NotificationService';
-import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { StatCircle } from '../components/worlds/StatCircle';
@@ -514,8 +514,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
             </View>
           )}
           {leaderboardData.map((item, i) => (
-            <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `20` : 'transparent' }]}>
-              <View style={[styles.lbRank, { backgroundColor: i < 3 ? `30` : 'transparent' }]}>
+            <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${W.accent}20` : 'transparent' }]}>
+              <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
                 <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
               </View>
               <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
@@ -600,6 +600,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
           user={user}
           theme={theme}
+          world={W}
           onSaveResult={handleSaveResult}
           overwriteOverlay={
             <PBOverwriteConfirmModal
@@ -774,6 +775,7 @@ interface OneMinMaxTimerModalProps {
   movementName: string;
   user: any;
   theme: any;
+  world: WorldTheme;
   onSaveResult: (reps: number) => Promise<void>;
   // Rendered inside this modal's own content — NOT a second <Modal>, since two
   // simultaneously-open native Modals on iOS can freeze the app (see
@@ -787,6 +789,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   movementName,
   user,
   theme,
+  world: W,
   onSaveResult,
   overwriteOverlay
 }) => {
