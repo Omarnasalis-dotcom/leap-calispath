@@ -108,6 +108,7 @@ export function ConfirmButton({
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const name = ariaLabel ?? label;
 
   return (
@@ -118,7 +119,10 @@ export function ConfirmButton({
         disabled={disabled}
         title={name}
         aria-label={name}
-        onClick={() => ref.current?.showModal()}
+        onClick={() => {
+          setError(null);
+          ref.current?.showModal();
+        }}
       >
         {icon ?? label}
       </button>
@@ -126,6 +130,11 @@ export function ConfirmButton({
         <h2 style={{ marginBottom: 8 }}>{title}</h2>
         {body && (
           <p style={{ color: 'var(--ink-2)', fontSize: 13, margin: '0 0 16px' }}>{body}</p>
+        )}
+        {error && (
+          <p role="alert" style={{ color: 'var(--danger, #b42318)', fontSize: 13, margin: '0 0 16px' }}>
+            {error}
+          </p>
         )}
         <div className="row" style={{ justifyContent: 'flex-end' }}>
           <button className="btn small" onClick={() => ref.current?.close()} disabled={busy}>
@@ -136,9 +145,17 @@ export function ConfirmButton({
             disabled={busy}
             onClick={async () => {
               setBusy(true);
+              setError(null);
               try {
                 await onConfirm();
                 ref.current?.close();
+              } catch (e) {
+                // Without this catch the rejection escaped as an unhandled
+                // promise rejection: the dialog stayed open, "Working…" reverted
+                // to the label, and nothing told the operator the action had
+                // failed. Several call sites never render their mutation's
+                // error, so a blocked destructive action looked like a no-op.
+                setError(e instanceof Error ? e.message : 'Action failed. Please try again.');
               } finally {
                 setBusy(false);
               }

@@ -200,12 +200,20 @@ export const PowerService = {
    * Saves a new PB and checks for promotion/PR
    */
   async savePB(userId: string, movementId: string, kg: number, force: boolean = false): Promise<{ isNewPB: boolean; isPromotion: boolean; overtakenNotificationId: string | null; wraOvertakenNotificationId: string | null }> {
-    try {
-      const { data: current } = await supabase
+    {
+      const { data: current, error: currentErr } = await supabase
         .from('power_assessments')
         .select('*')
         .eq('user_id', userId)
         .maybeSingle();
+
+      // This read is the ONLY source for the three lifts we aren't changing —
+      // they get sent straight back to the RPC. On p_force the RPC assigns all
+      // four values verbatim (no GREATEST ratchet, unlike the normal path), so
+      // treating a failed read as "no existing row" would send 0 for every
+      // other lift and permanently erase those PBs. Fail loudly instead; the
+      // caller surfaces this via runSafeSave's onError.
+      if (currentErr) throw currentErr;
 
       let cleanField = 'pullup_1rm';
       if (movementId === 'dip') cleanField = 'dip_1rm';
@@ -246,9 +254,11 @@ export const PowerService = {
         return { isNewPB: isNewPBResult, isPromotion, overtakenNotificationId, wraOvertakenNotificationId };
       }
 
-      return { isNewPB: false, isPromotion: false, overtakenNotificationId: null, wraOvertakenNotificationId: null };
-    } catch (err) {
-      console.error('Exception saving Power PB:', err);
+      // Genuinely not a PB — the only case that legitimately returns falsy.
+      // Failures deliberately throw rather than returning this same shape:
+      // swallowing them made a network error, an RLS rejection and "your lift
+      // wasn't heavy enough" all render identically (nothing happens), so a
+      // user whose save failed believed their 1RM had been rejected as light.
       return { isNewPB: false, isPromotion: false, overtakenNotificationId: null, wraOvertakenNotificationId: null };
     }
   }

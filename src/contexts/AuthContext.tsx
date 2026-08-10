@@ -191,7 +191,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      setProfile(data as Profile);
+      // Never commit a profile that isn't the one this call asked for. Sign-out
+      // clears `profile`, but an in-flight request issued moments earlier still
+      // carries the previous user's (not-yet-expired) access token, so it can
+      // resolve afterwards with THEIR row. Without this guard that row is
+      // written back post-sign-out, and the next user to sign in inherits it:
+      // AuthGuard's two hold-conditions (`profileLoading && !profile`,
+      // `user && !profile`) are both false while a stale profile is present, so
+      // it proceeds to evaluate strength_tier/is_coach/is_admin against the
+      // wrong account for the whole of the new user's profile round-trip.
+      const fetched = data as Profile;
+      if (fetched?.id !== userId) return;
+
+      setProfile(fetched);
       registerPushToken(userId);
     } finally {
       setProfileLoading(false);
@@ -328,6 +340,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }
 
   async function signOut() {
+    // Release this device's push token before dropping the session. Without
+    // this the row keeps pointing at a device its owner no longer uses, so on
+    // a shared or handed-down phone the previous user's notifications keep
+    // arriving for whoever signs in next. Best-effort: a failure here must not
+    // block sign-out, and the token is re-registered on the next sign-in.
+    if (Platform.OS !== 'web' && user?.id) {
+      await supabase
+        .from('profiles')
+        .update({ push_token: null })
+        .eq('id', user.id)
+        .then(undefined, () => { });
+    }
+
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
   }
