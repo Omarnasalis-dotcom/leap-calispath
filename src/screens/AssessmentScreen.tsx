@@ -20,7 +20,6 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { ExerciseDemo } from '../components/ExerciseDemo';
 import { supabase } from '../lib/supabase';
 import {
-  calculateSpartanRank,
   MOVEMENT_OPTIONS,
   MovementVariant,
   MovementAssessment,
@@ -206,12 +205,22 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
         muscleups: finalAssessments.muscleups,
       };
 
-      const tier = calculateSpartanRank(assessment);
-      const lockedUntil = new Date();
-      lockedUntil.setHours(lockedUntil.getHours() + 72);
-
-      const { error } = await supabase.rpc('submit_initial_assessment', {
-        p_tier: tier
+      // Send the raw performance data and let the server derive the tier.
+      // The previous call sent a client-computed tier, which the RPC wrote
+      // straight to profiles.strength_tier with no validation — so anyone
+      // calling the RPC directly could award themselves tier 9 permanently.
+      // calculate_spartan_rank in the DB is a verified-identical port of
+      // calculateSpartanRank (see 20260810120000), so honest submissions land
+      // on exactly the same tier as before.
+      const { error } = await supabase.rpc('submit_initial_assessment_v2', {
+        p_pullup_variant: assessment.pullups.variant,
+        p_pullup_reps: assessment.pullups.reps,
+        p_dip_variant: assessment.dips.variant,
+        p_dip_reps: assessment.dips.reps,
+        p_pushup_variant: assessment.pushups.variant,
+        p_pushup_reps: assessment.pushups.reps,
+        p_mu_variant: assessment.muscleups?.variant ?? null,
+        p_mu_reps: assessment.muscleups?.reps ?? null,
       });
 
       if (error) throw error;
