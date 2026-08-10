@@ -4,7 +4,7 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: INCOMPLETE — 7 of 15 partitions finished.** The run was cut short by an Anthropic monthly spend limit, not by a decision to stop. **Partition 9 — RLS policies and `SECURITY DEFINER` functions across 144 migrations — still has not run, and is the single most important gap.** Treat the "verified clean" claims below as scoped strictly to what was actually read.
+**Status: 8 of 15 partitions finished — all security-critical ones now covered.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
 
 **Files actually read: ~210.**
 
@@ -28,11 +28,11 @@
 | 3 | `src/components/worlds/` + `profile/` | 25 read, 0 reported | ❌ connection dropped pre-report |
 | 4 | `src/components/coaching/` + rest | partial | ⚠️ killed |
 | 7 | `app/` routes | 0/31 | ❌ spend limit |
-| **9** | **`supabase/migrations/` (RLS, SECURITY DEFINER)** | **0/144** | ❌ **spend limit — now the top remaining priority** |
+| 9 | `supabase/migrations/` (RLS, SECURITY DEFINER) | 144 analysed | ✅ security-complete — see below |
 | 14 | `_backup/` `scratch/` `sql_archive/` | 0/28 | ❌ spend limit |
 | 15 | `public/` `web/` `assets/` | 0/63 | ❌ spend limit |
 
-P9 is now the highest-value gap: P2 already found an unscoped `UPDATE` inside one RPC (see C3), and that class of bug is exactly what a systematic pass over the RLS policies and `SECURITY DEFINER` functions would catch.
+The remaining gaps (1, 3, 4, 7, 14, 15) are UI/component and asset partitions. They can still hold real bugs — P3 in particular never reported despite reading all 25 files — but none carries the cross-account data-exposure risk that 9 and 10 did.
 
 ---
 
@@ -60,6 +60,28 @@ All 10 read in full, plus `supabase/config.toml`. **No critical or high findings
 **Only finding — `chat-gemini` has no rate limiting (medium).** Any authenticated user can call it in a loop; each call bills against the Gemini key. Accounts are free, so this is a real cost-abuse vector. The key itself is correctly server-side (`Deno.env.get`), never in the bundle. Worth a per-user quota or a short cooldown.
 
 **Minor note:** `send-overtake-notification-push` checks only that an `Authorization: Bearer` header is *present*, never calling `getUser()`. That's safe today because `verify_jwt = true` makes the platform validate the JWT before the function runs — but the guarantee lives in `config.toml`, not in the code, so flipping that flag would silently remove all authentication. Worth a comment at minimum.
+
+---
+
+## Partition 9 — Migrations / RLS: **passes** (targeted analysis, not a full read)
+
+**Method matters here.** This was *not* a line-by-line read of all 144 migrations. It was a systematic extraction targeting the security-critical questions, reasoning about **cumulative final state** (a policy created in the baseline and dropped later does not exist). That answers "is anything exposed?" with high confidence; it would *not* reliably catch a subtle logic bug inside an individual RPC body. Partition 9 should be considered **security-complete, correctness-partial**.
+
+**Findings: no critical, no high.**
+
+| Check | Result |
+|---|---|
+| Tables with RLS enabled | **44 of 44** — no gaps |
+| `SECURITY DEFINER` fns with a pinned `search_path` | **88 of 88** — no privilege-escalation vector |
+| `SECURITY DEFINER` fns with no identity check | 10, all benign: 6 leaderboards (bypass RLS *by design*, verified to expose **zero** PII columns), 2 cron-only (`EXECUTE` revoked from `PUBLIC`/`anon`/`authenticated`, granted only to `service_role`), 2 are `RETURNS TRIGGER` and not callable as RPCs |
+| Dangerous permissive **write** policies | All dropped. `profiles UPDATE using(true)` ("Tournament service can update rewards") and `tournament_participants UPDATE` ("Allow participants to update each other") → `20260629130000`; `tournament_matches` "Allow all insert/update" → `20260711100200` |
+| Write grants to `anon` | Present on `workout_set_logs`, `bodyweight_logs`, `static_hold_attempts` — but **inert**: every policy gates on `auth.uid()`, which is NULL for anon, so no row ever matches |
+| `profiles` PII | Protected by **column-level** SELECT grants. `email`, `push_token`, `timezone`, `first_name`, `last_name` are deliberately excluded; own-row reads go through `get_my_profile()`. Verified intact — **no later migration re-granted or re-revoked** across the 58 migrations that follow the lockdown |
+| C3-pattern (unscoped `UPDATE` in an RPC) | One hit, benign: a V2-locked Clash trigger scoped to its own row's participants (`WHERE id IN (NEW.sender_id, NEW.receiver_id)`) |
+
+**Worth knowing:** ~20 permissive `SELECT using(true)` policies remain active on gameplay tables (`arena_attempts`, `power_assessments`, `static_holds`, `one_min_max_logs`, `weekly_entries`, tournament tables). These let any authenticated user read all rows — which is what leaderboards need, so it reads as intentional. Flagging it as a deliberate design choice to be aware of, not a defect: if any of these tables ever gains a sensitive column, it is exposed cross-user by default.
+
+**Standout:** `20260725110000_reenforce_profiles_column_select_lockdown.sql` is the best-documented migration in the repo — it records the empirically-verified Postgres behaviour that `REVOKE SELECT ON TABLE` also strips *column-level* grants, and re-grants the safe column list in the same transaction to avoid exactly that trap.
 
 ---
 
