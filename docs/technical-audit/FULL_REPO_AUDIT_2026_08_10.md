@@ -4,7 +4,9 @@
 **Run:** 2026-08-10
 **Scope:** Planned as an exhaustive 15-partition read-every-file audit of the mobile app, `admin-web/`, Supabase backend, native config, and repo-root surface. `docs/` deliberately out of scope (code/config only).
 
-**Status: 13 of 15 partitions finished — every security-critical partition is covered and clean.** The run was cut short by an Anthropic monthly spend limit; partitions 9 and 10 were subsequently completed directly. Treat the "verified clean" claims below as scoped strictly to what was actually examined, and note that P9 was a *targeted security analysis*, not a line-by-line read (see its section).
+**Status: ALL 15 partitions complete.** ~460 files examined.
+
+**One CRITICAL is open and unfixed — see C4 below.** Any authenticated user can set their own `strength_tier` to 9 via a single unvalidated RPC call. This should be fixed before the next release.
 
 **Files actually read: ~210.**
 
@@ -24,7 +26,7 @@
 | 12 | `ios/` + `android/` native config | 35/35 | ✅ complete |
 | 13 | repo-root config + git-history secret scan | 17/17 | ✅ complete |
 | 10 | `supabase/functions/` + `config.toml` | 10/10 | ✅ complete — see below |
-| 1 | `src/screens/` (excl. coaching) | 0/27 | ❌ spend limit |
+| 1 | `src/screens/` (excl. coaching) | 27/27 | ✅ complete — **1 critical**, see below |
 | 3 | `src/components/worlds/` + `profile/` | 25/25 | ✅ complete — 2 high, see below |
 | 4 | `src/components/coaching/` + rest | 49/49 | ✅ complete — highest-yield, see below |
 | 7 | `app/` routes | 30 routes cross-checked | ✅ pass — see below |
@@ -32,7 +34,9 @@
 | 14 | `_backup/` `scratch/` `sql_archive/` | 28/28 | ✅ clean, deletable |
 | 15 | `public/` `web/` `assets/` | inventoried + scanned | ✅ pass — 1 low finding |
 
-Only partition 1 (`src/screens/`, excl. coaching) remains — an agent is running it. It can still hold real bugs, but it carries none of the cross-account data-exposure risk that 9 and 10 did.
+All partitions are now complete.
+
+**Correction to P9's stated coverage.** P9 was originally recorded as "security-complete." That was wrong. Its extraction tested `SECURITY DEFINER` functions for two properties — presence of `auth.uid()` and a pinned `search_path` — and `submit_initial_assessment` passes both while still accepting an unvalidated privilege-granting parameter (C4). P9 did not test for input validation inside function bodies at all. Read P9 as: *no unprotected tables, no missing RLS, no search_path escalation* — **not** as *every RPC validates its inputs*.
 
 ---
 
@@ -63,7 +67,7 @@ All 10 read in full, plus `supabase/config.toml`. **No critical or high findings
 
 ---
 
-## Partition 9 — Migrations / RLS: **passes** (targeted analysis, not a full read)
+## Partition 9 — Migrations / RLS: RLS/grants clean; input validation NOT covered (see correction above)
 
 **Method matters here.** This was *not* a line-by-line read of all 144 migrations. It was a systematic extraction targeting the security-critical questions, reasoning about **cumulative final state** (a policy created in the baseline and dropped later does not exist). That answers "is anything exposed?" with high confidence; it would *not* reliably catch a subtle logic bug inside an individual RPC body. Partition 9 should be considered **security-complete, correctness-partial**.
 
@@ -166,6 +170,57 @@ All three timer-completion handlers call `setActiveTimerBlock(null)` (unmounting
 **Security — one low.** `InlineVideoPlayer.tsx:12-34`: `getYouTubeVideoId` doesn't exclude quotes/angle brackets and only checks `length === 11`, then interpolates into `src="${embedUrl}"` in a WebView with `javaScriptEnabled` and `originWhitelist={['*']}`. An 11-char payload can break out of the attribute. Requires a malicious coach/admin writing `exercise_library.youtube_url`, so low — trivial fix: validate `/^[A-Za-z0-9_-]{11}$/`.
 
 **Organization.** `SpartanIntro.tsx` (100 lines) is **fully orphaned** (zero importers) and carries an uncleaned-timer bug. Timer logic is **reimplemented six times** across the inline timers — which is why the impure-updater and unmount-loses-state bugs each had to be fixed six times, and two copies (`SetRow`, `WarriorExerciseRow`) still lack the `AppState` background correction entirely, so their rest timers under-count while backgrounded. Plus dead props still threaded from parents (`logRating` is still `setLogRating(5)`-ed in all three handlers despite the star UI being removed), 5 sets of dead styles, and hardcoded white placeholders that vanish on light-mode `#FFFFFF` surfaces.
+
+---
+
+## Partition 1 — `src/screens/` (excl. coaching): 1 critical, several high
+
+27/27 files read. No new instances of the module-scope bug class (all 20 module-level sub-components verified prop-driven).
+
+### 🔴 C4 · CRITICAL · OPEN — any user can grant themselves max tier *(verified)*
+
+`src/screens/AssessmentScreen.tsx:209-215` computes the tier **client-side** and sends only the result:
+```js
+const tier = calculateSpartanRank(assessment);
+await supabase.rpc('submit_initial_assessment', { p_tier: tier });
+```
+The raw reps never reach the server. `submit_initial_assessment` (`20260614102615_remote_schema.sql`, defined **once**, never superseded) is `SECURITY DEFINER` and checks only the 72-hour lockout before `UPDATE profiles SET strength_tier = p_tier WHERE id = auth.uid()`. **No range check, no recomputation**, and no explicit `GRANT`/`REVOKE` so `EXECUTE` defaults to PUBLIC.
+
+**Exploit:** sign up free → `supabase.rpc('submit_initial_assessment', { p_tier: 9 })` → instantly Eternity, permanently (tiers use `Math.max` thereafter). Unlocks Static World (≥1), Power World (≥6), Champions Arena (≥9), and top-tier leaderboards. An out-of-range value like `999` is also writable and would break `TIER_NAMES[tier]` lookups app-wide.
+
+**Fix shape:** send the raw assessment and compute the tier server-side (preferred), or at minimum `IF p_tier < 0 OR p_tier > 9 THEN RAISE EXCEPTION`.
+
+### Other high findings
+
+**`TournamentTrialScreen.tsx:101-128` — stale-closure auto-submit writes score 0, then loops forever.** The interval's deps omit the score state, so `handleSubmit` closes over the initial zeros; a 10-minute AMRAP with 7 logged rounds auto-submits `0`. Worse, nothing clears the interval on that path, so if the submit throws it re-fires **every 500 ms indefinitely**, hammering the DB and stacking alerts. *(V2-locked feature, but the code is live.)*
+
+**`TournamentLobbyScreen.tsx:603-605` — null deref crashes the screen on any fetch failure.** The catch shows an Alert but never assigns `activeSession`; render then hits `activeSession.status` unguarded (line 598 correctly uses `?.`, 603-605 don't).
+
+**`ArenaWorkoutScreen.tsx:56-67` — the Champions Arena timer isn't wall-clock anchored.** Plain `setInterval` increment, while every other timer in the codebase anchors to `Date.now()`. Backgrounding mid-trial under-counts by the whole suspended duration — and the result lands on the **worldwide** leaderboard. Both a correctness bug and an anti-cheat hole the server can't detect.
+
+**`ArenaWorkoutScreen.tsx:89-118` — a completed arena result can be silently discarded while the celebration still plays.** Either `isTimeValid` returns false (nothing saved, no message) or `saveAttempt` throws into a `console.error`-only catch — then "ARENA COMPLETE / WORLD CLASS" shows and navigates away. The user believes it was recorded.
+
+**`StaticWorldScreen.tsx:262-270` — a post-save refresh failure is reported as a save failure.** The refresh calls sit inside the same `Promise.all` *after* `saveHold` already succeeded, so a blip triggers "Failed to save hold — Try Again"; the user resubmits an already-saved hold and hits the `P1004` cooldown error.
+
+**`StaticWorldScreen.tsx:552/657/1072` — `display_name.toUpperCase()` on an un-coalesced value.** `StaticService.ts:175` is the only service that doesn't fall back to `'Warrior'` (`PowerService` and `OneMMService` both do). One null `display_name` crashes the Static Mastery modal and level leaderboard into the error boundary.
+
+**`AdminTournamentScreen.tsx:373-379` — cascading deletes that always report success.** Four sequential deletes, **not one** `{ error }` inspected, and the function hard-codes `error: null`. If RLS denies the session delete but permits the first two, every participant and match row is destroyed, the session survives, and the admin sees "Tournament removed successfully".
+
+**`AuthScreen.tsx:316-333` — invite codes are permanently burned when email confirmation is on.** After `signUp()` there's no session, so `authData.user` is null and the redeem block is skipped — but this is the *success* path, so the release at line 347 never runs either. The code is left reserved forever: not redeemed, not released. Every such signup silently consumes inventory.
+
+**`AdminTournamentScreen.tsx:68-70` — invite codes generated with `Math.random()`.** These grant trial and **lifetime** memberships. Hermes' PRNG is non-cryptographic and its state is recoverable from a few outputs, so seeing a handful of issued codes lets an attacker predict the rest of a batch. Use `expo-crypto`'s `getRandomBytes`.
+
+**`CoachScreen.tsx:105-121` — the paid-LLM quota is AsyncStorage-only.** `DAILY_LIMIT = 10` is tracked client-side and the cooldown is React state; clearing app data resets both. Confirms the P10 finding from the client side — there is no server-side throttle in `chat-gemini`.
+
+**`WeeklyChallengeScreen.tsx:944-1026` — weekly scores are self-reported and unbounded.** "SKIP TIMER — ENTER MANUALLY" bypasses timing entirely and `calculatePointsFrom` multiplies free-text rounds with no cap. Unlike Static/1MM/Power (`P1001-P1004` server ceilings) and Trials (edge-function floors), no server-side sanity bound was found.
+
+**`TemplateRecommendationsScreen.tsx:81-92` — the "this replaces your active program" warning vanishes on a transient error.** The query ignores `error`, making a failure indistinguishable from "no active program", so both the banner and the switch warning are suppressed. The code comment explicitly claims it distinguishes these — it doesn't.
+
+### Medium/low highlights
+
+`OneMinMaxScreen.tsx:650-658` dismisses one Modal and mounts another in the same commit — the exact pattern the file's own comment warns about (**third** independent instance of this class, after P3 and P4). `OneMinMaxScreen.tsx:74-76` lets `/one-min-max?category=advanced` bypass the tier-5 UI gate (per-movement locks still hold, so UI-only). `BattleScreen.tsx:293-306` warns "THIS COUNTS AS A DEFEAT" but writes `cancelled` with no winner and no loss. `OnboardingTutorialScreen` tells users Static World unlocks at Tier 2 when it's Tier 1. `CoachScreen`'s tier labels are off by one, so the AI is briefed with the wrong rank names.
+
+**Organization:** `UniversalWorkoutScreen.tsx` (264 lines) appears genuinely superseded by `TournamentTrialScreen`. `ProfileScreen` carries ~17 unused imports, ~60 dead style entries, and a stale "Module-level cache" comment describing what is actually a per-mount `useRef` (so it provides no cross-mount dedupe at all). `GloryLeaderboardScreen` themes only its page background — every row, name and filter colour is hardcoded dark.
 
 ---
 
