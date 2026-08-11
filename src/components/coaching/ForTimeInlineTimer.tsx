@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
@@ -51,6 +51,11 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   // `timerRunning`, which goes false again the moment the warrior finishes —
   // this stays true so LOG WORKOUT remains available after a real workout.
   const [hasStarted, setHasStarted] = useState(false);
+  // Manual entry for warriors who trained away from the phone — the timer is
+  // convenience, not the only way to record a result.
+  const [manualMode, setManualMode] = useState(false);
+  const [manualMins, setManualMins] = useState('');
+  const [manualSecs, setManualSecs] = useState('');
   const intervalRef = useRef<any>(null);
   const lastTickRef = useRef<number | null>(null);
   const appState = useRef(AppState.currentState);
@@ -153,6 +158,16 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     setRoundsCompleted(prev => Math.max(0, prev - 1));
   };
 
+  // The score for a For Time block is the elapsed time, and training away from
+  // the phone is normal — so a warrior can either run the timer or type the
+  // time they got. What is NOT allowed is logging with no time at all: the
+  // "not capped ⇒ every round was completed" inference below would then record
+  // a flawless all-rounds finish in 0:00, which is what a mis-tap on this
+  // button used to produce, silently, visible to their coach as a real result.
+  const manualSeconds = Math.max(0, (parseInt(manualMins, 10) || 0) * 60 + (parseInt(manualSecs, 10) || 0));
+  const effectiveSeconds = manualMode ? manualSeconds : elapsedTime;
+  const canLog = effectiveSeconds > 0;
+
   const submit = () => {
     if (submittedRef.current) return;
     submittedRef.current = true;
@@ -162,7 +177,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     // the elapsed time itself is the score. Submitting after a cap means
     // reporting how far the warrior got, so the tracked round count matters instead.
     onFinalize({
-      elapsedSeconds: elapsedTime,
+      elapsedSeconds: effectiveSeconds,
       roundsCompleted: capped ? roundsCompleted : totalRounds,
       totalRounds,
       capped,
@@ -170,18 +185,12 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   };
 
   const handleFinalize = () => {
-    // Guard the "not capped ⇒ every round was completed" inference above. It
-    // only holds if the workout actually happened: with a 0:00 elapsed time it
-    // would log a flawless all-rounds finish, which is what a mis-tap on this
-    // button used to produce — silently, and visible to the warrior's coach as
-    // a genuine result. The button is disabled until the timer has run, and an
-    // implausibly short time still asks first.
-    if (!hasStarted) return;
+    if (!canLog) return;
 
-    if (!capped && elapsedTime < IMPLAUSIBLY_FAST_SECONDS) {
+    if (!capped && effectiveSeconds < IMPLAUSIBLY_FAST_SECONDS) {
       Alert.alert(
         'LOG THIS TIME?',
-        `This will record all ${totalRounds} ${totalRounds === 1 ? 'round' : 'rounds'} completed in ${formatTime(elapsedTime)}. Your coach sees this as your real result.`,
+        `This will record all ${totalRounds} ${totalRounds === 1 ? 'round' : 'rounds'} completed in ${formatTime(effectiveSeconds)}. Your coach sees this as your real result.`,
         [
           { text: 'CANCEL', style: 'cancel' },
           { text: 'LOG IT', style: 'destructive', onPress: submit },
@@ -306,7 +315,50 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
         </View>
       </LinearGradient>
 
-      <TouchableOpacity onPress={handleFinalize} disabled={!hasStarted} style={!hasStarted && { opacity: 0.4 }}>
+      {/* Trained away from the phone? Enter the time instead of running the
+          timer. Offered only before the timer is used, so it can't quietly
+          override a time that was actually measured. */}
+      {!hasStarted && !manualMode && (
+        <TouchableOpacity onPress={() => setManualMode(true)} style={{ alignSelf: 'center', paddingVertical: 6 }}>
+          <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
+            DIDN'T USE THE TIMER? ENTER TIME MANUALLY
+          </Text>
+        </TouchableOpacity>
+      )}
+
+      {manualMode && (
+        <View style={{ gap: 6 }}>
+          <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, textAlign: 'center' }}>
+            YOUR TIME
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+            <TextInput
+              value={manualMins}
+              onChangeText={t => setManualMins(t.replace(/[^0-9]/g, '').slice(0, 3))}
+              keyboardType="number-pad"
+              placeholder="MM"
+              placeholderTextColor={theme.text.tertiary}
+              style={[styles.manualInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+            />
+            <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>:</Text>
+            <TextInput
+              value={manualSecs}
+              onChangeText={t => setManualSecs(t.replace(/[^0-9]/g, '').slice(0, 2))}
+              keyboardType="number-pad"
+              placeholder="SS"
+              placeholderTextColor={theme.text.tertiary}
+              style={[styles.manualInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
+            />
+          </View>
+          <TouchableOpacity onPress={() => { setManualMode(false); setManualMins(''); setManualSecs(''); }} style={{ alignSelf: 'center', paddingVertical: 4 }}>
+            <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>
+              USE THE TIMER INSTEAD
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <TouchableOpacity onPress={handleFinalize} disabled={!canLog} style={!canLog && { opacity: 0.4 }}>
         <LinearGradient
           colors={['#7E57C2', '#FF5252', '#FF7043']}
           start={{ x: 0, y: 0 }}
@@ -314,7 +366,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           style={styles.logBtn}
         >
           <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-            {hasStarted ? 'LOG WORKOUT' : 'START THE TIMER FIRST'}
+            {canLog ? 'LOG WORKOUT' : 'ENTER OR RECORD A TIME FIRST'}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
@@ -412,5 +464,14 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     paddingVertical: 12,
     alignItems: 'center',
+  },
+  manualInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 8,
+    width: 64,
+    textAlign: 'center',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 18,
   },
 });
