@@ -2,7 +2,7 @@
 
 **Run:** 2026-08-10 · **Target:** v1.1.7 · Android versionCode 6
 **Scope:** 15 partitions · ~460 files · mobile app, `admin-web/`, Supabase backend, native config, repo root. `docs/` deliberately excluded (code/config only).
-**Status:** ✅ All partitions complete. **11 fixes shipped** (incl. H1). Remaining items below.
+**Status:** ✅ All partitions complete. **13 fixes shipped** (H1, H2, H3 + 10 earlier). Remaining items below.
 
 > **✅ No production exposure outstanding.** The C4 privilege-escalation fix is applied to prod (migration `20260810120000`, confirmed present in the remote column of `supabase migration list`).
 
@@ -15,7 +15,7 @@ Work top-down. Each item has a stable ID (`H1`, `M3`…) so it can be referenced
 | Priority | Meaning | Count |
 |---|---|---|
 | **P0** | Production is exposed right now | 1 |
-| **P1** | Corrupts user data or crashes the app | 7 (+1 fixed) |
+| **P1** | Corrupts user data or crashes the app | 5 (+3 fixed) |
 | **P2** | Wrong behaviour users will notice | 12 |
 | **P3** | Cleanup, consistency, dead code | 14 |
 
@@ -52,14 +52,11 @@ A legitimate tier-8 user has attempts at tier 7+. Zero attempts means the tier a
 LOG WORKOUT is now disabled until the timer has run (reads "START THE TIMER FIRST"), a sub-20s uncapped finish asks for confirmation naming what will be recorded, and a synchronous ref blocks double submission. AMRAP got a proportionate guard — it understates rather than inflates — confirming when the timer is still running or the result would be zero.
 **Not unit-tested:** no component-testing library exists in this project (tests are pure-logic by design). Worth exercising manually on the next build.
 
-### H2 · Champions Arena timer isn't wall-clock anchored
-`src/screens/ArenaWorkoutScreen.tsx:56-67` (and the lead-in at `40-54`)
-Plain `setInterval` increment, while every other timer in the codebase anchors to `Date.now()`. Backgrounding mid-trial under-counts by the whole suspended duration — and the result goes to the **worldwide** leaderboard. Both a correctness bug and an anti-cheat hole the server can't detect.
-→ Anchor to `Date.now()`, matching `useTimer` / `TrialScreen:200`.
-
-### H3 · A completed arena result can be silently discarded
-`src/screens/ArenaWorkoutScreen.tsx:89-118`
-Two paths: `isTimeValid` returns false (nothing saved, no message), or `saveAttempt` throws into a `console.error`-only catch. Either way "ARENA COMPLETE / WORLD CLASS" still shows and navigates away. In production `console` is stripped, so the user believes it was recorded.
+### ~~H2 · Champions Arena timer isn't wall-clock anchored~~ ✅ FIXED
+### ~~H3 · A completed arena result can be silently discarded~~ ✅ FIXED
+`src/screens/ArenaWorkoutScreen.tsx` — commit `95d5898`
+Timer now derives elapsed time from a `Date.now()` anchor (plus an AppState listener that recomputes on foreground), so backgrounding no longer under-counts the score that goes to the worldwide leaderboard. Both save-failure paths now tell the user the attempt was not recorded, report to Sentry, and skip the celebration — which is reached only when the result actually persisted.
+**Not unit-tested:** no component-testing library in this project. Worth exercising manually, including a background/foreground cycle mid-trial.
 
 ### H4 · Collapsing a block destroys a running workout
 `src/components/coaching/WarriorBlockCard.tsx:69-73`
