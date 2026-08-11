@@ -240,7 +240,11 @@ export function CelebrationBanner({
       return;
     }
     try {
-      const { status } = await MediaLibrary.requestPermissionsAsync();
+      // writeOnly: this screen only ever saves a generated banner — it never
+      // reads the gallery. Requesting full access made Android ask for (and the
+      // manifest declare) READ_MEDIA_IMAGES/READ_MEDIA_VIDEO, which is what the
+      // Play Store rejected under the Photo and Video Permissions policy.
+      const { status } = await MediaLibrary.requestPermissionsAsync(true);
       if (status !== 'granted') {
         Alert.alert('Permission Denied', 'We need permission to save images to your gallery.');
         return;

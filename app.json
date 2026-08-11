@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leap Arena",
     "slug": "leap-calispath",
-    "version": "1.1.7",
+    "version": "1.1.8",
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leap.calispath",
-      "buildNumber": "1",
+      "buildNumber": "4",
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.applesignin": [
@@ -39,7 +39,14 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.leap.calispath",
-      "versionCode": 6,
+      "versionCode": 7,
+      "blockedPermissions": [
+        "android.permission.SYSTEM_ALERT_WINDOW",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_MEDIA_IMAGES",
+        "android.permission.READ_MEDIA_VIDEO",
+        "android.permission.READ_MEDIA_AUDIO"
+      ],
       "intentFilters": [
         {
           "action": "VIEW",
@@ -84,6 +91,18 @@
       ],
       "expo-router",
       "expo-video",
+      [
+        "expo-media-library",
+        {
+          "granularPermissions": []
+        }
+      ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": false
+        }
+      ],
       "./plugins/withPodfileModularHeaders.js",
       [
         "@sentry/react-native/expo",
