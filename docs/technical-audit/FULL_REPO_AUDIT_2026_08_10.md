@@ -4,7 +4,7 @@
 **Scope:** 15 partitions · ~460 files · mobile app, `admin-web/`, Supabase backend, native config, repo root. `docs/` deliberately excluded (code/config only).
 **Status:** ✅ All partitions complete. **11 fixes shipped** (incl. H1). Remaining items below.
 
-> **⚠️ ONE ACTION IS OUTSTANDING RIGHT NOW:** the C4 security fix is committed and pushed but **not yet applied to the production database**. The privilege-escalation hole is open in prod until `supabase db push` runs. See [P0](#p0--do-before-anything-else).
+> **✅ No production exposure outstanding.** The C4 privilege-escalation fix is applied to prod (migration `20260810120000`, confirmed present in the remote column of `supabase migration list`).
 
 ---
 
@@ -21,24 +21,27 @@ Work top-down. Each item has a stable ID (`H1`, `M3`…) so it can be referenced
 
 ---
 
-## P0 — Do before anything else
+## P0 — ✅ Closed
 
-### ▶ **P0.1 · Apply the C4 migration to production**
+### ~~P0.1 · Apply the C4 migration to production~~ ✅ DONE
 
-```bash
-supabase db push
-```
+`supabase/migrations/20260810120000_validate_initial_assessment_tier.sql` is applied to prod. Any authenticated user could previously call one RPC and permanently become tier 9 — unlocking Static World, Power World and Champions Arena. The tier is now derived server-side from raw reps; the legacy signature was retained (range-checked 0..7) so shipped v1.1.7 builds keep working.
 
-`supabase/migrations/20260810120000_validate_initial_assessment_tier.sql` is committed but not applied. Until it runs, **any authenticated user can call one RPC and permanently become tier 9 (Eternity)** — unlocking Static World, Power World and Champions Arena, and topping the strength leaderboards.
+Verified by 6,480 parity cases plus a live Postgres run: `p_tier: 9` and `999` rejected, legitimate submissions score identically.
 
-The fix is verified (6,480 parity cases + a live Postgres run confirming `p_tier: 9` and `999` are rejected while legitimate submissions score identically). Old shipped builds keep working — the legacy signature was retained deliberately.
+**Open question — historic data.** A check for pre-existing abuse was inconclusive. Six accounts sit at tier 8-9, but the obvious detector is useless: **`trials_passed` is never incremented anywhere in the codebase** (declared `default 0`, referenced only in trigger-protection lists and a view), so it reads 0 for legitimate trial-passers too. All six predate the Play Store release and five cluster within ~2 hours on 2026-05-04 — consistent with dev-era seeding rather than exploitation. To actually check, join against `trial_history`, which is what tier 8-9 progression writes to:
 
-**After applying, spot-check for existing abuse:**
 ```sql
--- anyone at tier 8/9 who never passed the trials that grant them
-SELECT id, display_name, strength_tier, trials_passed, assessed_at
-FROM profiles WHERE strength_tier >= 8 ORDER BY assessed_at DESC;
+SELECT p.display_name, p.strength_tier, p.assessed_at,
+       count(t.id) AS trial_attempts, max(t.tier) AS highest_tier_attempted
+FROM profiles p
+LEFT JOIN trial_history t ON t.user_id = p.id
+WHERE p.strength_tier >= 8
+GROUP BY p.id, p.display_name, p.strength_tier, p.assessed_at
+ORDER BY p.assessed_at DESC;
 ```
+
+A legitimate tier-8 user has attempts at tier 7+. Zero attempts means the tier arrived some other way. Separately: **`trials_passed` should either be wired up or dropped** — right now it is a column that looks meaningful and is always 0.
 
 ---
 
