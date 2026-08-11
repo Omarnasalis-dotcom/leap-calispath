@@ -2,7 +2,7 @@
 
 **Run:** 2026-08-10 · **Target:** v1.1.7 · Android versionCode 6
 **Scope:** 15 partitions · ~460 files · mobile app, `admin-web/`, Supabase backend, native config, repo root. `docs/` deliberately excluded (code/config only).
-**Status:** ✅ All partitions complete. **10 fixes shipped.** Everything below is open.
+**Status:** ✅ All partitions complete. **11 fixes shipped** (incl. H1). Remaining items below.
 
 > **⚠️ ONE ACTION IS OUTSTANDING RIGHT NOW:** the C4 security fix is committed and pushed but **not yet applied to the production database**. The privilege-escalation hole is open in prod until `supabase db push` runs. See [P0](#p0--do-before-anything-else).
 
@@ -15,7 +15,7 @@ Work top-down. Each item has a stable ID (`H1`, `M3`…) so it can be referenced
 | Priority | Meaning | Count |
 |---|---|---|
 | **P0** | Production is exposed right now | 1 |
-| **P1** | Corrupts user data or crashes the app | 8 |
+| **P1** | Corrupts user data or crashes the app | 7 (+1 fixed) |
 | **P2** | Wrong behaviour users will notice | 12 |
 | **P3** | Cleanup, consistency, dead code | 14 |
 
@@ -44,10 +44,10 @@ FROM profiles WHERE strength_tier >= 8 ORDER BY assessed_at DESC;
 
 ## P1 — Data corruption & crashes
 
-### H1 · "For Time" logs a perfect score for a workout that never happened
-`src/components/coaching/ForTimeInlineTimer.tsx:139-149, 264`
-LOG WORKOUT has no `disabled` prop and `handleFinalize` has no started-check. Tapping it before START submits `elapsedSeconds: 0` with `capped: false` — and the logic reads *"not capped ⇒ all rounds done"*, so it records `roundsCompleted: totalRounds`. **A perfect workout in 0:00, permanently in the client's log, visible to their coach.**
-→ Gate on the timer having run; add a confirm and a double-tap guard. `AmrapInlineTimer.tsx:127` needs the same.
+### ~~H1 · "For Time" logs a perfect score for a workout that never happened~~ ✅ FIXED
+`src/components/coaching/ForTimeInlineTimer.tsx` · `AmrapInlineTimer.tsx` — commit `ef9a12f`
+LOG WORKOUT is now disabled until the timer has run (reads "START THE TIMER FIRST"), a sub-20s uncapped finish asks for confirmation naming what will be recorded, and a synchronous ref blocks double submission. AMRAP got a proportionate guard — it understates rather than inflates — confirming when the timer is still running or the result would be zero.
+**Not unit-tested:** no component-testing library exists in this project (tests are pure-logic by design). Worth exercising manually on the next build.
 
 ### H2 · Champions Arena timer isn't wall-clock anchored
 `src/screens/ArenaWorkoutScreen.tsx:56-67` (and the lead-in at `40-54`)
