@@ -36,6 +36,9 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   const intervalRef = useRef<any>(null);
   const lastTickRef = useRef<number | null>(null);
   const appState = useRef(AppState.currentState);
+  // Synchronous double-submit guard — state wouldn't have re-rendered yet on a
+  // fast double tap, and this writes to the warrior's permanent log.
+  const submittedRef = useRef(false);
 
   useEffect(() => {
     if (timerRunning && timeLeft > 0) {
@@ -110,6 +113,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
             setTimerRunning(false);
             setFinished(false);
             setTimeLeft(timeCapSeconds);
+            submittedRef.current = false;
           },
         },
       ]
@@ -124,8 +128,38 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
     setRoundsCompleted(prev => Math.max(0, prev - 1));
   };
 
-  const handleFinalize = () => {
+  const submit = () => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    clearInterval(intervalRef.current);
+    setTimerRunning(false);
     onFinalize(roundsCompleted);
+  };
+
+  const handleFinalize = () => {
+    // Unlike For Time, a mis-tap here understates rather than inflates (it logs
+    // whatever rounds were counted), so this doesn't need a hard gate. It does
+    // need to stop the two ways a warrior loses real work: ending a session
+    // that's still running, and submitting a zero. Both are one tap away from
+    // the +1 button and both write straight to the coach-visible log.
+    if (submittedRef.current) return;
+
+    const stillRunning = timerRunning && !finished;
+    if (stillRunning || roundsCompleted === 0) {
+      Alert.alert(
+        stillRunning ? 'END THIS AMRAP?' : 'LOG ZERO ROUNDS?',
+        stillRunning
+          ? `The timer is still running. This logs ${roundsCompleted} ${roundsCompleted === 1 ? 'round' : 'rounds'} and ends the workout.`
+          : 'This records no rounds completed. Your coach sees this as your real result.',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'LOG IT', style: 'destructive', onPress: submit },
+        ]
+      );
+      return;
+    }
+
+    submit();
   };
 
   return (

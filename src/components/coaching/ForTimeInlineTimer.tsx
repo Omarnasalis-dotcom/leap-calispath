@@ -27,6 +27,11 @@ interface ForTimeInlineTimerProps {
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
 }
 
+// A finish under this is almost certainly a mis-tap rather than a real
+// workout, so it gets a confirmation. Deliberately low — the point is to catch
+// "logged without doing it", not to second-guess a genuinely fast athlete.
+const IMPLAUSIBLY_FAST_SECONDS = 20;
+
 export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   theme,
   exercises,
@@ -42,9 +47,16 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   // Time cap ran out before the warrior finished — distinct from a voluntary
   // submit, since a capped result means "how far did you get," not a finish time.
   const [capped, setCapped] = useState(false);
+  // Whether the timer has ever been started this attempt. Distinct from
+  // `timerRunning`, which goes false again the moment the warrior finishes —
+  // this stays true so LOG WORKOUT remains available after a real workout.
+  const [hasStarted, setHasStarted] = useState(false);
   const intervalRef = useRef<any>(null);
   const lastTickRef = useRef<number | null>(null);
   const appState = useRef(AppState.currentState);
+  // Synchronous double-submit guard — state wouldn't have re-rendered yet on a
+  // fast double tap, and this writes to the warrior's permanent log.
+  const submittedRef = useRef(false);
   const hasRounds = totalRounds > 1;
 
   useEffect(() => {
@@ -104,6 +116,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
 
   const handleStart = () => {
     setTimerRunning(true);
+    setHasStarted(true);
     SoundServiceInstance.playBoxingBell();
   };
 
@@ -122,6 +135,10 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
             setCapped(false);
             setElapsedTime(0);
             setRoundsCompleted(0);
+            // Full reset means this attempt hasn't happened — re-arm the
+            // started gate so LOG WORKOUT can't submit a 0:00 finish.
+            setHasStarted(false);
+            submittedRef.current = false;
           },
         },
       ]
@@ -136,7 +153,11 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     setRoundsCompleted(prev => Math.max(0, prev - 1));
   };
 
-  const handleFinalize = () => {
+  const submit = () => {
+    if (submittedRef.current) return;
+    submittedRef.current = true;
+    clearInterval(intervalRef.current);
+    setTimerRunning(false);
     // Submitting before the cap means the full workout (all rounds) got done —
     // the elapsed time itself is the score. Submitting after a cap means
     // reporting how far the warrior got, so the tracked round count matters instead.
@@ -146,6 +167,30 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
       totalRounds,
       capped,
     });
+  };
+
+  const handleFinalize = () => {
+    // Guard the "not capped ⇒ every round was completed" inference above. It
+    // only holds if the workout actually happened: with a 0:00 elapsed time it
+    // would log a flawless all-rounds finish, which is what a mis-tap on this
+    // button used to produce — silently, and visible to the warrior's coach as
+    // a genuine result. The button is disabled until the timer has run, and an
+    // implausibly short time still asks first.
+    if (!hasStarted) return;
+
+    if (!capped && elapsedTime < IMPLAUSIBLY_FAST_SECONDS) {
+      Alert.alert(
+        'LOG THIS TIME?',
+        `This will record all ${totalRounds} ${totalRounds === 1 ? 'round' : 'rounds'} completed in ${formatTime(elapsedTime)}. Your coach sees this as your real result.`,
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'LOG IT', style: 'destructive', onPress: submit },
+        ]
+      );
+      return;
+    }
+
+    submit();
   };
 
   return (
@@ -261,7 +306,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
         </View>
       </LinearGradient>
 
-      <TouchableOpacity onPress={handleFinalize}>
+      <TouchableOpacity onPress={handleFinalize} disabled={!hasStarted} style={!hasStarted && { opacity: 0.4 }}>
         <LinearGradient
           colors={['#7E57C2', '#FF5252', '#FF7043']}
           start={{ x: 0, y: 0 }}
@@ -269,7 +314,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           style={styles.logBtn}
         >
           <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-            LOG WORKOUT
+            {hasStarted ? 'LOG WORKOUT' : 'START THE TIMER FIRST'}
           </Text>
         </LinearGradient>
       </TouchableOpacity>
