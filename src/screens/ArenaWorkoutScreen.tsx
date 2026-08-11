@@ -1,12 +1,13 @@
 import { useRouter, useLocalSearchParams , router } from 'expo-router';
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert, Platform, Dimensions, AppState } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ArenaPhase, ArenaStep, ArenaService } from '../services/ArenaService';
 import { useAuth } from '../contexts/AuthContext';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { Vibration } from 'react-native';
+import * as Sentry from '@sentry/react-native';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { CelebrationBanner } from '../components/CelebrationBanner';
@@ -36,6 +37,10 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   const [celebrationProps, setCelebrationProps] = useState<any>({});
 
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  // Wall-clock anchor for the trial timer. Set once when the trial goes active
+  // and kept across background/foreground cycles, so elapsed time is derived
+  // from real time rather than from how many interval ticks the OS let run.
+  const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     let interval: NodeJS.Timeout;
@@ -53,17 +58,37 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
     return () => clearInterval(interval);
   }, [isPreparing, preCountdown]);
 
+  // Anchored to wall-clock time rather than counting interval ticks. JS timers
+  // are suspended while the app is backgrounded, so `s => s + 1` silently lost
+  // the whole suspended duration — and this elapsed time IS the score that goes
+  // to the worldwide Champions Arena leaderboard, where a short time is
+  // indistinguishable from a genuinely fast one. Same approach as
+  // TrialScreen's prep timer and the inline coaching timers.
   useEffect(() => {
     if (isActive) {
+      if (startTimeRef.current === null) {
+        startTimeRef.current = Date.now() - seconds * 1000;
+      }
       timerRef.current = setInterval(() => {
-        setSeconds(s => s + 1);
-      }, 1000);
+        setSeconds(Math.floor((Date.now() - startTimeRef.current!) / 1000));
+      }, 250);
     } else {
       if (timerRef.current) clearInterval(timerRef.current);
     }
     return () => {
       if (timerRef.current) clearInterval(timerRef.current);
     };
+  }, [isActive]);
+
+  // Recompute the moment the app returns to the foreground, so the displayed
+  // time is correct immediately rather than after the next tick.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'active' && isActive && startTimeRef.current !== null) {
+        setSeconds(Math.floor((Date.now() - startTimeRef.current) / 1000));
+      }
+    });
+    return () => sub.remove();
   }, [isActive]);
 
   const formatTime = (sec: number) => {
@@ -86,23 +111,51 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
 
   const handleFinish = async () => {
     setIsActive(false);
-    if (user && ArenaService.isTimeValid(phase!.id, seconds)) {
-      try {
-        const { isNewBest } = await ArenaService.saveAttempt(phase!.id, seconds);
-        if (isNewBest) {
-          NotificationService.notify(
-            user.id,
-            'arena_pb',
-            'New Arena PB!',
-            `${phase!.name}: ${formatTime(seconds)} — a new personal best.`,
-            { screen: 'champions-arena' }
-          );
-        }
-      } catch (e) {
-        console.error('Error saving attempt:', e);
-      }
+
+    // Both failure paths below used to fall through to the celebration screen,
+    // so a result that was never recorded still showed "ARENA COMPLETE" and
+    // navigated away — and the catch was console.error-only, which production
+    // strips. The warrior believed their trial was saved when it wasn't.
+    // Alert.alert does not block, so the exit is deferred to the button press —
+    // otherwise navigation fires while the alert is still animating in.
+    const failAndExit = (title: string, message: string) =>
+      Alert.alert(title, message, [{ text: 'OK', onPress: () => onComplete(seconds) }]);
+
+    if (!user) {
+      failAndExit('NOT SAVED', 'You appear to be signed out. This trial was not recorded.');
+      return;
     }
 
+    if (!ArenaService.isTimeValid(phase!.id, seconds)) {
+      failAndExit(
+        'TIME NOT ACCEPTED',
+        `${formatTime(seconds)} is outside the accepted range for ${phase!.name}, so this attempt was not recorded.`
+      );
+      return;
+    }
+
+    try {
+      const { isNewBest } = await ArenaService.saveAttempt(phase!.id, seconds);
+      if (isNewBest) {
+        NotificationService.notify(
+          user.id,
+          'arena_pb',
+          'New Arena PB!',
+          `${phase!.name}: ${formatTime(seconds)} — a new personal best.`,
+          { screen: 'champions-arena' }
+        );
+      }
+    } catch (e) {
+      console.error('Error saving attempt:', e);
+      Sentry.captureException(e, { tags: { feature: 'champions-arena', action: 'saveAttempt' } });
+      failAndExit(
+        'NOT SAVED',
+        `Your time of ${formatTime(seconds)} could not be saved — check your connection. It has not been recorded.`
+      );
+      return;
+    }
+
+    // Reached only when the attempt actually persisted.
     const isPB = seconds < phase!.pro_benchmark_time;
     setCelebrationProps({
       title: isPB ? 'WORLD CLASS' : 'ARENA COMPLETE',
