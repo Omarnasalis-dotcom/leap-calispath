@@ -121,10 +121,19 @@ export function TemplateRecommendationsScreen({ onClose }: Props) {
       await selectLibraryTemplate(rec.id);
       setPreviewRec(null);
       setPreviewWeek1([]);
+      // Closing this Modal and replacing the whole screen were landing in the
+      // same commit — the Modal's native view tears down at the exact moment
+      // the navigator mounts the next screen, which is the live-reproduced
+      // crash: "ReactClippingViewManager.addView / the specified child
+      // already has a parent". Deferring one frame lets the Modal's unmount
+      // finish before the navigation transition starts its own mount.
+      //
       // Straight into the workout — not back to wherever this screen was
       // opened from (usually Profile). replace (not push) so the back
       // stack doesn't leave this recommendations screen sitting behind it.
-      router.replace('/warrior-program');
+      requestAnimationFrame(() => {
+        router.replace('/warrior-program');
+      });
     } catch (err: any) {
       Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
     } finally {
