@@ -2,7 +2,7 @@
 
 **Run:** 2026-08-10 · **Target:** v1.1.7 · Android versionCode 6
 **Scope:** 15 partitions · ~460 files · mobile app, `admin-web/`, Supabase backend, native config, repo root. `docs/` deliberately excluded (code/config only).
-**Status:** ✅ All partitions complete. **13 fixes shipped** (H1, H2, H3 + 10 earlier). Remaining items below.
+**Status:** ✅ All partitions complete. **14 fixes shipped** (H1, H2, H3, H5-partial + 10 earlier). Remaining items below.
 
 > **✅ No production exposure outstanding.** The C4 privilege-escalation fix is applied to prod (migration `20260810120000`, confirmed present in the remote column of `supabase migration list`).
 
@@ -62,13 +62,14 @@ Timer now derives elapsed time from a `Date.now()` anchor (plus an AppState list
 `src/components/coaching/WarriorBlockCard.tsx:69-73`
 Inline timers are gated on `isExpanded` and hold state locally. Tapping the block header — a large target directly above the timer — unmounts them, wiping elapsed time, rounds, ladder rung and extra reps. No warning, no persistence.
 
-### H5 · Three Modals swapped in a single commit → likely the production Fabric crash
-- `src/components/profile/EditProfileModal.tsx:87 + :198` (strongest candidate)
-- `src/screens/coaching/WarriorProgramScreen.tsx:1356/1366, 1369/1379, 1382/1393`
-- `src/screens/OneMinMaxScreen.tsx:650-658`
+### H5 · Three Modals swapped in a single commit → the production Fabric crash
+**One site confirmed live and fixed** — commit `4461569`. The user reproduced the exact crash on Android while confirming a template selection: `ReactClippingViewManager.addView` / *"The specified child already has a parent"*. Root cause was `src/screens/TemplateRecommendationsScreen.tsx:handleConfirmStart` — `setPreviewRec(null)` (unmounting the confirmation Modal) and `router.replace('/warrior-program')` fired synchronously back to back, so React batched both into one commit: the Modal's native view tore down at the exact moment the navigator mounted the replacement screen. Fixed by deferring the navigation one frame via `requestAnimationFrame`, so the Modal's unmount commit finishes before the navigation transition starts its own.
 
-Each dismisses one native Modal and presents another in the same render. **The codebase already knows this is dangerous** — `WarriorTimerModal.tsx:415` renders its warning as a child `View` "without nested Modals", and `PBOverwriteConfirmModal`/`BonusTaskWheel` carry the same iOS-freeze note. These are the top suspects for the live `ReactClippingViewManager.addView` "child already has a parent" crash (24 users / 31 events).
-→ Defer the second modal to `onDismiss`, or swap inner content within one Modal.
+**Two more candidates remain unconfirmed and unfixed** — same crash signature, same "swap two native mount transactions in one commit" shape, but not yet reproduced:
+- `src/components/profile/EditProfileModal.tsx:87 + :198` — two sibling Modals whose `visible` props are mutually exclusive
+- `src/screens/coaching/WarriorProgramScreen.tsx:1356/1366, 1369/1379, 1382/1393` — timer-completion handlers dismiss the timer Modal and present the log Modal synchronously
+
+If the crash recurs after this fix ships, Sentry's breadcrumbs (now wired in) should point at one of these two next.
 
 ### H6 · `TournamentTrialScreen` auto-submits score 0, then loops forever
 `src/screens/TournamentTrialScreen.tsx:101-128`
