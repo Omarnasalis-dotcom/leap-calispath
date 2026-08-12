@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Leap Arena — Turn Your Calisthenics Workout Into a Game</title>
-<meta name="description" content="Track every rep, climb tier ladders across Power, Static and Endurance, and turn your calisthenics training into a game. Free on iOS now, Android closed testing open.">
+<meta name="description" content="Track every rep, climb tier ladders across Power, Static and Endurance, and turn your calisthenics training into a game. Free on iOS and Android.">
 <meta property="og:title" content="Leap Arena">
 <meta property="og:description" content="Turn your calisthenics workout into a game.">
 <meta property="og:image" content="/assets/profile-mockup.png">
@@ -14,8 +14,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <style>
 :root{
@@ -43,10 +41,6 @@ button{font-family:inherit;}
 @keyframes heroGlow{0%,100%{opacity:.5;transform:scale(1);}50%{opacity:.85;transform:scale(1.04);}}
 @keyframes floatSlow{0%,100%{transform:translateY(0);}50%{transform:translateY(-12px);}}
 @keyframes spinRing{to{transform:rotate(360deg);}}
-@keyframes dialogIn{
-  from{opacity:0;transform:translate(-50%,-50%) scale(.96) translateY(8px);}
-  to{opacity:1;transform:translate(-50%,-50%) scale(1) translateY(0);}
-}
 
 /* Motion is opt-in: everything above renders in a static, still-correct default state.
    Only attach loops/entrances for visitors who haven't asked for reduced motion. */
@@ -55,7 +49,6 @@ button{font-family:inherit;}
   .glow{animation:heroGlow 4s ease-in-out infinite;}
   .stat-chip{animation:floatSlow 4.4s ease-in-out infinite .4s;}
   .ring-logo{animation:spinRing 20s linear infinite;}
-  dialog[open]{animation:dialogIn .22s cubic-bezier(0.16,1,0.3,1);}
 }
 
 .hero{
@@ -234,64 +227,6 @@ button:focus-visible{
   outline:2px solid var(--accent);outline-offset:3px;border-radius:4px;
 }
 
-/* ---- Play Store tester dialog ---- */
-/* Centered explicitly via fixed+translate rather than the UA default (dialog:modal's
-   margin:auto), because the page's own `* { margin:0 }` reset outranks that UA default
-   regardless of specificity and would otherwise silently pin the dialog to one edge. */
-dialog{
-  position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);
-  border:none;border-radius:20px;padding:0;background:#0d0d0f;color:var(--text-primary);
-  width:min(420px, calc(100vw - 48px));
-  max-height:calc(100vh - 48px);overflow-y:auto;
-  box-shadow:0 30px 70px -20px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.07);
-}
-dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);backdrop-filter:blur(2px);}
-.dialog-inner{padding:32px 28px 28px;position:relative;}
-.dialog-close{
-  position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:999px;
-  background:rgba(255,255,255,0.06);border:none;color:var(--text-secondary);
-  font-size:16px;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center;
-}
-.dialog-close:hover{background:rgba(255,255,255,0.12);color:#fff;}
-.dialog-eyebrow{font-size:11px;font-weight:800;letter-spacing:2.5px;color:var(--accent);text-transform:uppercase;}
-.dialog-title{font-size:26px;font-weight:800;text-transform:uppercase;margin-top:10px;line-height:1.1;}
-.dialog-copy{font-size:14px;line-height:1.55;color:var(--text-secondary);margin-top:12px;font-weight:500;}
-
-#play-form{margin-top:22px;display:flex;flex-direction:column;gap:12px;}
-#play-form label{font-size:11px;font-weight:800;letter-spacing:1.5px;color:var(--text-tertiary);text-transform:uppercase;}
-#play-form input{
-  height:50px;padding:0 16px;font-size:15px;font-family:inherit;color:#fff;
-  background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.14);border-radius:12px;
-}
-#play-form input::placeholder{color:rgba(255,255,255,0.3);}
-#play-form input:focus{outline:none;border-color:var(--accent);background:rgba(255,82,82,0.05);}
-
-.dialog-submit{
-  height:50px;margin-top:4px;border:none;cursor:pointer;border-radius:12px;background:var(--accent);
-  font-weight:800;font-size:14px;letter-spacing:1px;text-transform:uppercase;color:var(--text-on-accent);
-  display:flex;align-items:center;justify-content:center;gap:10px;
-  transition:filter .15s ease, transform .15s ease;
-}
-.dialog-submit:hover{filter:brightness(1.08);transform:translateY(-1px);}
-.dialog-submit:disabled{opacity:.5;cursor:not-allowed;transform:none;}
-
-.spinner{width:16px;height:16px;border:2.5px solid rgba(0,0,0,.25);border-top-color:var(--text-on-accent);border-radius:50%;display:none;}
-@media (prefers-reduced-motion: no-preference){.spinner{animation:spinRing .7s linear infinite;}}
-
-.dialog-message{margin-top:14px;padding:12px 14px;border-radius:10px;font-size:13px;line-height:1.5;display:none;}
-.dialog-message.error{background:rgba(255,82,82,0.1);border:1px solid rgba(255,82,82,0.3);color:#FF8579;}
-
-.success-view{display:none;text-align:center;padding-top:6px;}
-.success-icon{
-  width:52px;height:52px;border:2px solid var(--accent);border-radius:50%;
-  display:flex;align-items:center;justify-content:center;margin:0 auto 18px;
-  font-size:26px;color:var(--accent);
-}
-
-@media (max-width:480px){
-  .dialog-inner{padding:26px 20px 22px;}
-  .dialog-title{font-size:22px;}
-}
 </style>
 </head>
 <body>
@@ -322,7 +257,7 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
       <div class="copy">
         <div class="badge">
           <span class="status-dot"></span>
-          <span class="badge-label">NOW LIVE ON iOS</span>
+          <span class="badge-label">NOW LIVE ON iOS & ANDROID</span>
         </div>
 
         <h1>Turn your calisthenics workout into a <span class="accent">game.</span></h1>
@@ -338,7 +273,7 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
             </span>
           </a>
 
-          <button type="button" class="store-badge" id="play-trigger" aria-haspopup="dialog">
+          <a class="store-badge" href="https://play.google.com/store/apps/details?id=com.leap.calispath&pcampaignid=web_share" target="_blank" rel="noopener">
             <svg width="22" height="22" viewBox="0 0 512 512" aria-hidden="true">
               <path d="M99 20c-6 6-9 15-9 27v418c0 12 3 21 9 27l2 2 234-234v-6L101 18z" fill="#00d2ff"></path>
               <path d="M406 335l-71-41v-1l71-41 2 1 84 48c24 14 24 36 0 50z" fill="#ffcf00"></path>
@@ -349,7 +284,7 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
               <span class="label-small" style="display:block;">GET IT ON</span>
               <span class="label-big" style="display:block;">Google Play</span>
             </span>
-          </button>
+          </a>
         </div>
 
         <a class="privacy-link" href="/privacy">Privacy Policy</a>
@@ -371,48 +306,8 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
   </section>
 </div>
 
-<dialog id="play-dialog" aria-labelledby="play-dialog-title">
-  <div class="dialog-inner">
-    <button type="button" class="dialog-close" id="play-close" aria-label="Close">&times;</button>
-
-    <div id="play-form-view">
-      <div class="dialog-eyebrow">Android</div>
-      <h2 class="dialog-title" id="play-dialog-title">Be an early tester</h2>
-      <p class="dialog-copy">Leap Arena for Android is in closed testing before its Play Store launch. Drop your email and we'll send you an invitation link to install it.</p>
-
-      <form id="play-form">
-        <label for="play-email">Email address</label>
-        <input type="email" id="play-email" placeholder="warrior@email.com" required maxlength="150" autocomplete="email">
-        <button type="submit" class="dialog-submit" id="play-submit-btn">
-          <span>Join the testing list</span>
-          <div class="spinner" id="play-spinner"></div>
-        </button>
-      </form>
-
-      <div class="dialog-message error" id="play-error"></div>
-    </div>
-
-    <div class="success-view" id="play-success">
-      <div class="success-icon">&check;</div>
-      <h2 class="dialog-title" style="font-size:22px;">You're on the list</h2>
-      <p class="dialog-copy">We'll email your Play Store testing invite link shortly.</p>
-    </div>
-  </div>
-</dialog>
-
 <script>
-  // Same project/client pattern as /request.html.
-  const supabaseUrl = 'https://vxscvluyskawegmwaxnh.supabase.co';
-  const supabaseAnonKey = 'sb_publishable_Wa4fK1CBgsnYhH5IN7P1Vw_cCKVguLa';
-  const supabaseClient = supabase.createClient(supabaseUrl, supabaseAnonKey);
-
   const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  function sanitize(value) {
-    const temp = document.createElement('div');
-    temp.textContent = value;
-    return temp.innerHTML.trim();
-  }
 
   // ---- Cursor parallax tilt + spotlight (skipped entirely under reduced motion;
   // the phone/spotlight CSS defaults already render the correct idle pose). ----
@@ -434,65 +329,6 @@ dialog::backdrop{background:rgba(0,0,0,0.6);-webkit-backdrop-filter:blur(2px);ba
     });
     hero.addEventListener('mouseleave', () => applyPose(0.66, 0.42));
   }
-
-  // ---- Play Store tester dialog ----
-  const playDialog = document.getElementById('play-dialog');
-  const playTrigger = document.getElementById('play-trigger');
-  const playClose = document.getElementById('play-close');
-  const playForm = document.getElementById('play-form');
-  const playFormView = document.getElementById('play-form-view');
-  const playSuccess = document.getElementById('play-success');
-  const playError = document.getElementById('play-error');
-  const playSubmitBtn = document.getElementById('play-submit-btn');
-  const playSpinner = document.getElementById('play-spinner');
-
-  function showPlaySuccess() {
-    playFormView.style.display = 'none';
-    playSuccess.style.display = 'block';
-  }
-
-  playTrigger.addEventListener('click', () => {
-    if (localStorage.getItem('has_requested_play_tester_leap') === 'true') {
-      showPlaySuccess();
-    }
-    playDialog.showModal();
-  });
-
-  playClose.addEventListener('click', () => playDialog.close());
-  playDialog.addEventListener('click', (e) => {
-    if (e.target === playDialog) playDialog.close(); // backdrop click
-  });
-
-  playForm.addEventListener('submit', async (e) => {
-    e.preventDefault();
-
-    const email = sanitize(document.getElementById('play-email').value);
-    playError.style.display = 'none';
-    playSubmitBtn.disabled = true;
-    playSpinner.style.display = 'block';
-
-    try {
-      const { error } = await supabaseClient
-        .from('play_store_testers')
-        .insert([{ email }]);
-
-      if (error) {
-        if (error.code === '23505') {
-          throw new Error("You're already on the list with this email.");
-        }
-        throw error;
-      }
-
-      localStorage.setItem('has_requested_play_tester_leap', 'true');
-      showPlaySuccess();
-    } catch (err) {
-      playError.textContent = err.message || 'Something went wrong. Please try again.';
-      playError.style.display = 'block';
-    } finally {
-      playSubmitBtn.disabled = false;
-      playSpinner.style.display = 'none';
-    }
-  });
 </script>
 </body>
 </html>
