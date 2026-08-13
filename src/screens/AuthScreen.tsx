@@ -24,21 +24,80 @@ import { BlurView } from 'expo-blur';
 import Svg, { Path } from 'react-native-svg';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
 import * as AppleAuthentication from 'expo-apple-authentication';
 
-// This screen is a deliberate fixed-dark "glass card" exception to the
-// app's normal light/dark theme (see constants/Theme.ts) — not theme-
-// reactive, so colors are pulled from the dark palette directly rather
-// than via useTheme(). ACCENT matches theme.accent exactly (same value
-// in both light and dark), everything else mirrors StealthTheme.dark.
+// Accent is brand-fixed (matches theme.accent — same value in both modes,
+// per constants/Theme.ts), so it's pulled out once here rather than living
+// in the per-mode AUTH_COLORS table below.
 const ACCENT = '#FF5252';
 const ACCENT_PRESSED = '#E04545';
-const INK_PRIMARY = 'rgba(255,255,255,0.85)';
-const INK_SECONDARY = 'rgba(255,255,255,0.45)';
-const INK_TERTIARY = 'rgba(255,255,255,0.3)';
+
+// Everything else in this "glass card" material is theme-reactive. Values
+// mirror constants/Theme.ts's StealthTheme where there's a direct
+// equivalent (bg, ink tones); the glass/blur-specific tokens (gradient,
+// glassFill, blurTint, ...) are unique to this screen's material and have
+// no StealthTheme counterpart.
+interface AuthColors {
+  gradient: readonly [string, string];
+  bg: string;
+  brand: string;
+  ink: string;
+  inkSecondary: string;
+  inkTertiary: string;
+  glassBorder: string;
+  glassFill: string;
+  blurTint: 'light' | 'dark';
+  segmentTrackBg: string;
+  inputBg: string;
+  inputBorder: string;
+  inputText: string;
+  dividerLine: string;
+  modalOverlay: string;
+  statusBar: 'light' | 'dark';
+}
+
+const AUTH_COLORS: Record<'dark' | 'light', AuthColors> = {
+  dark: {
+    gradient: ['#1a0f0d', '#050505'],
+    bg: '#050505',
+    brand: '#FFFFFF',
+    ink: 'rgba(255,255,255,0.85)',
+    inkSecondary: 'rgba(255,255,255,0.45)',
+    inkTertiary: 'rgba(255,255,255,0.3)',
+    glassBorder: 'rgba(255,255,255,0.12)',
+    glassFill: 'rgba(255,255,255,0.06)',
+    blurTint: 'dark',
+    segmentTrackBg: 'rgba(0,0,0,0.3)',
+    inputBg: 'rgba(255,255,255,0.05)',
+    inputBorder: 'rgba(255,255,255,0.1)',
+    inputText: 'rgba(255,255,255,0.9)',
+    dividerLine: 'rgba(255,255,255,0.1)',
+    modalOverlay: 'rgba(0,0,0,0.7)',
+    statusBar: 'light',
+  },
+  light: {
+    gradient: ['#FFF3F1', '#FAFAFA'],
+    bg: '#FAFAFA',
+    brand: 'rgba(0,0,0,0.88)',
+    ink: 'rgba(0,0,0,0.85)',
+    inkSecondary: 'rgba(0,0,0,0.45)',
+    inkTertiary: 'rgba(0,0,0,0.28)',
+    glassBorder: 'rgba(0,0,0,0.08)',
+    glassFill: 'rgba(255,255,255,0.6)',
+    blurTint: 'light',
+    segmentTrackBg: 'rgba(0,0,0,0.06)',
+    inputBg: 'rgba(0,0,0,0.035)',
+    inputBorder: 'rgba(0,0,0,0.1)',
+    inputText: 'rgba(0,0,0,0.85)',
+    dividerLine: 'rgba(0,0,0,0.1)',
+    modalOverlay: 'rgba(0,0,0,0.35)',
+    statusBar: 'dark',
+  },
+};
 
 // Google's brand guidelines require using their exact "G" mark colors and
 // don't provide a themeable/native component that matches our button frame
@@ -55,6 +114,8 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
   );
 }
 
+// Google/Apple button chrome is brand-mandated (white pill, #1F1F1F label)
+// and stays fixed regardless of app theme — same reasoning as GoogleLogo.
 function SocialButton({
   icon,
   label,
@@ -90,7 +151,7 @@ function SocialButton({
 // Animated ENTER/JOIN segmented toggle — replaces the old underlined tab
 // bar. The pill's travel distance is measured from the track's own layout
 // rather than hardcoded, since card width varies by device/viewport.
-function SegmentedToggle({ isSignUp, onChange }: { isSignUp: boolean; onChange: (signUp: boolean) => void }) {
+function SegmentedToggle({ isSignUp, onChange, c }: { isSignUp: boolean; onChange: (signUp: boolean) => void; c: AuthColors }) {
   const [trackWidth, setTrackWidth] = useState(0);
   const [reduceMotion, setReduceMotion] = useState(false);
   const slide = useRef(new Animated.Value(isSignUp ? 1 : 0)).current;
@@ -115,7 +176,7 @@ function SegmentedToggle({ isSignUp, onChange }: { isSignUp: boolean; onChange: 
   const segmentWidth = trackWidth > 0 ? (trackWidth - 8) / 2 : 0;
 
   return (
-    <View style={styles.segmentTrack} onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}>
+    <View style={[styles.segmentTrack, { backgroundColor: c.segmentTrackBg }]} onLayout={(e) => setTrackWidth(e.nativeEvent.layout.width)}>
       {segmentWidth > 0 && (
         <Animated.View
           style={[
@@ -130,10 +191,10 @@ function SegmentedToggle({ isSignUp, onChange }: { isSignUp: boolean; onChange: 
         />
       )}
       <Pressable style={styles.segment} onPress={() => onChange(false)} hitSlop={8}>
-        <Text style={[styles.segmentText, !isSignUp && styles.segmentTextActive]}>ENTER</Text>
+        <Text style={[styles.segmentText, { color: c.inkSecondary }, !isSignUp && styles.segmentTextActive]}>ENTER</Text>
       </Pressable>
       <Pressable style={styles.segment} onPress={() => onChange(true)} hitSlop={8}>
-        <Text style={[styles.segmentText, isSignUp && styles.segmentTextActive]}>JOIN</Text>
+        <Text style={[styles.segmentText, { color: c.inkSecondary }, isSignUp && styles.segmentTextActive]}>JOIN</Text>
       </Pressable>
     </View>
   );
@@ -151,6 +212,7 @@ function GlassInput({
   keyboardType,
   autoCapitalize,
   accessibilityLabel,
+  c,
 }: {
   value: string;
   onChangeText: (text: string) => void;
@@ -159,6 +221,7 @@ function GlassInput({
   keyboardType?: 'default' | 'email-address';
   autoCapitalize?: 'none' | 'characters';
   accessibilityLabel: string;
+  c: AuthColors;
 }) {
   const [focused, setFocused] = useState(false);
   return (
@@ -166,21 +229,26 @@ function GlassInput({
       value={value}
       onChangeText={onChangeText}
       placeholder={placeholder}
-      placeholderTextColor={INK_TERTIARY}
+      placeholderTextColor={c.inkTertiary}
       secureTextEntry={secureTextEntry}
       keyboardType={keyboardType}
       autoCapitalize={autoCapitalize}
       accessibilityLabel={accessibilityLabel}
       onFocus={() => setFocused(true)}
       onBlur={() => setFocused(false)}
-      style={[styles.glassInput, focused && styles.glassInputFocused]}
+      style={[
+        styles.glassInput,
+        { backgroundColor: c.inputBg, borderColor: c.inputBorder, color: c.inputText },
+        focused && styles.glassInputFocused,
+      ]}
     />
   );
 }
 
 // Local CTA matching the glass card material — same reasoning as
 // GlassInput above; the shared Button component (src/components/Button.tsx)
-// is used elsewhere with a different radius/shadow language.
+// is used elsewhere with a different radius/shadow language. Accent bg +
+// white text read fine in both themes, so this needs no per-mode colors.
 function GlassButton({ title, onPress, loading, disabled }: { title: string; onPress: () => void; loading?: boolean; disabled?: boolean }) {
   return (
     <Pressable onPress={onPress} disabled={disabled || loading}>
@@ -205,6 +273,9 @@ function GlassButton({ title, onPress, loading, disabled }: { title: string; onP
 const INVITE_CODE_REQUIRED = false;
 
 export function AuthScreen() {
+  const { mode } = useTheme();
+  const c = AUTH_COLORS[mode];
+
   const [isSignUp, setIsSignUp] = useState(false);
   const [signupStep, setSignupStep] = useState<'choose' | 'email'>('choose');
   const [email, setEmail] = useState('');
@@ -410,9 +481,9 @@ export function AuthScreen() {
 
   const renderDivider = () => (
     <View style={styles.dividerRow}>
-      <View style={styles.dividerLine} />
-      <Text style={styles.dividerText}>OR</Text>
-      <View style={styles.dividerLine} />
+      <View style={[styles.dividerLine, { backgroundColor: c.dividerLine }]} />
+      <Text style={[styles.dividerText, { color: c.inkTertiary }]}>OR</Text>
+      <View style={[styles.dividerLine, { backgroundColor: c.dividerLine }]} />
     </View>
   );
 
@@ -426,6 +497,7 @@ export function AuthScreen() {
         keyboardType="email-address"
         autoCapitalize="none"
         accessibilityLabel="Email"
+        c={c}
       />
       <GlassInput
         placeholder="Min 6 characters"
@@ -433,16 +505,19 @@ export function AuthScreen() {
         onChangeText={setPassword}
         secureTextEntry
         accessibilityLabel="Password"
+        c={c}
       />
     </View>
   );
 
+  const modalLinkStyle = [styles.modalLinkText, { color: c.inkSecondary }];
+
   return (
     <GlobalErrorBoundary>
-      <StatusBar style="light" />
-      <SafeAreaView style={styles.safeArea}>
+      <StatusBar style={c.statusBar} />
+      <SafeAreaView style={[styles.safeArea, { backgroundColor: c.bg }]}>
         <LinearGradient
-          colors={['#1a0f0d', '#050505']}
+          colors={c.gradient}
           locations={[0, 0.6]}
           start={{ x: 0.3, y: 0 }}
           end={{ x: 0.7, y: 1 }}
@@ -455,24 +530,25 @@ export function AuthScreen() {
           <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
             <View style={styles.centerWrap}>
               <View style={styles.header}>
-                <Text style={styles.brandName}>
+                <Text style={[styles.brandName, { color: c.brand }]}>
                   LEAP <Text style={{ color: ACCENT }}>ARENA</Text>
                 </Text>
                 <Text style={styles.brandTagline}>CALISTHENICS</Text>
               </View>
 
-              <BlurView intensity={50} tint="dark" style={styles.glassCard}>
-                <View style={styles.glassCardContent}>
+              <BlurView intensity={50} tint={c.blurTint} style={[styles.glassCard, { borderColor: c.glassBorder }]}>
+                <View style={[styles.glassCardContent, { backgroundColor: c.glassFill }]}>
                   <SegmentedToggle
                     isSignUp={isSignUp}
                     onChange={(signUp) => { setIsSignUp(signUp); setSignupStep('choose'); }}
+                    c={c}
                   />
 
-                  <Text style={styles.heading}>
+                  <Text style={[styles.heading, { color: c.ink }]}>
                     {isSignUp ? 'Claim your ' : 'Welcome back, '}
                     <Text style={{ color: ACCENT }}>{isSignUp ? 'destiny' : 'Warrior'}</Text>
                   </Text>
-                  <Text style={styles.subheading}>
+                  <Text style={[styles.subheading, { color: c.inkSecondary }]}>
                     {isSignUp ? 'Begin your calisthenics journey' : 'Return to your training grounds'}
                   </Text>
 
@@ -491,7 +567,7 @@ export function AuthScreen() {
                   {isSignUp && signupStep === 'email' && (
                     <>
                       <TouchableOpacity style={styles.backButton} onPress={() => setSignupStep('choose')} hitSlop={8}>
-                        <Text style={styles.backText}>← Back</Text>
+                        <Text style={[styles.backText, { color: c.inkSecondary }]}>← Back</Text>
                       </TouchableOpacity>
 
                       {renderEmailPasswordFields()}
@@ -503,6 +579,7 @@ export function AuthScreen() {
                           onChangeText={setInviteCode}
                           autoCapitalize="characters"
                           accessibilityLabel="Invite code"
+                          c={c}
                         />
                         {INVITE_CODE_REQUIRED ? (
                           <TouchableOpacity
@@ -512,14 +589,14 @@ export function AuthScreen() {
                             <Text style={styles.linkText}>Don't have an invite code? Request one here</Text>
                           </TouchableOpacity>
                         ) : (
-                          <Text style={styles.hintText}>Have one? Add it for trial/membership perks. Not required to join.</Text>
+                          <Text style={[styles.hintText, { color: c.inkTertiary }]}>Have one? Add it for trial/membership perks. Not required to join.</Text>
                         )}
                       </View>
 
                       <GlassButton title="CLAIM YOUR DESTINY" onPress={handleSubmit} loading={loading} />
 
                       <TouchableOpacity onPress={() => Linking.openURL('https://leap-arena.com/privacy')}>
-                        <Text style={styles.privacyText}>
+                        <Text style={[styles.privacyText, { color: c.inkTertiary }]}>
                           By signing up, you agree to our{' '}
                           <Text style={styles.privacyLink}>Privacy Policy</Text>
                         </Text>
@@ -532,7 +609,7 @@ export function AuthScreen() {
                       {renderEmailPasswordFields()}
 
                       <TouchableOpacity style={styles.forgotButton} onPress={() => setIsResetModalVisible(true)} hitSlop={8}>
-                        <Text style={styles.forgotText}>Forgot password?</Text>
+                        <Text style={[styles.forgotText, { color: c.inkSecondary }]}>Forgot password?</Text>
                       </TouchableOpacity>
 
                       <GlassButton title="ENTER THE ARENA" onPress={handleSubmit} loading={loading} />
@@ -549,7 +626,7 @@ export function AuthScreen() {
                 onPress={() => { setIsSignUp(!isSignUp); setSignupStep('choose'); }}
                 hitSlop={8}
               >
-                <Text style={styles.switchText}>
+                <Text style={[styles.switchText, { color: c.inkTertiary }]}>
                   {isSignUp ? 'Already a warrior? ' : 'New here? '}
                   <Text style={styles.switchLinkAccent}>
                     {isSignUp ? 'Return to battle →' : 'Begin your journey →'}
@@ -569,11 +646,11 @@ export function AuthScreen() {
         >
           <KeyboardAvoidingView
             behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-            style={styles.modalOverlay}
+            style={[styles.modalOverlay, { backgroundColor: c.modalOverlay }]}
           >
-            <BlurView intensity={50} tint="dark" style={styles.modalGlassCard}>
-              <View style={styles.modalGlassCardContent}>
-                <Text style={styles.modalHeading}>
+            <BlurView intensity={50} tint={c.blurTint} style={[styles.modalGlassCard, { borderColor: c.glassBorder }]}>
+              <View style={[styles.modalGlassCardContent, { backgroundColor: c.glassFill }]}>
+                <Text style={[styles.modalHeading, { color: c.ink }]}>
                   Reset <Text style={{ color: ACCENT }}>Password</Text>
                 </Text>
 
@@ -583,22 +660,22 @@ export function AuthScreen() {
                       <Text style={{ color: ACCENT, fontSize: 28 }}>✓</Text>
                     </View>
 
-                    <Text style={styles.resetSentTitle}>CHECK YOUR EMAIL</Text>
-                    <Text style={styles.resetSentSubtext}>
+                    <Text style={[styles.resetSentTitle, { color: c.ink }]}>CHECK YOUR EMAIL</Text>
+                    <Text style={[styles.resetSentSubtext, { color: c.inkSecondary }]}>
                       We sent a password reset link to
                     </Text>
                     <Text style={styles.resetSentEmail}>{resetEmail}</Text>
-                    <Text style={[styles.resetSentSubtext, { marginTop: 8, color: INK_TERTIARY }]}>
+                    <Text style={[styles.resetSentSubtext, { marginTop: 8, color: c.inkTertiary }]}>
                       If you don't see it, check your spam folder.
                     </Text>
 
                     {/* Resend button with cooldown */}
                     <TouchableOpacity
-                      style={[styles.resendButton, resendCooldown > 0 && styles.resendButtonDisabled]}
+                      style={[styles.resendButton, resendCooldown > 0 && { borderColor: c.dividerLine, opacity: 0.5 }]}
                       onPress={handleResetPassword}
                       disabled={resendCooldown > 0 || resetLoading}
                     >
-                      <Text style={[styles.resendButtonText, resendCooldown > 0 && { color: INK_TERTIARY }]}>
+                      <Text style={[styles.resendButtonText, resendCooldown > 0 && { color: c.inkTertiary }]}>
                         {resetLoading
                           ? 'SENDING...'
                           : resendCooldown > 0
@@ -612,14 +689,14 @@ export function AuthScreen() {
                       style={{ marginTop: 12, padding: 8 }}
                       onPress={() => setResetSent(false)}
                     >
-                      <Text style={styles.modalLinkText}>USE A DIFFERENT EMAIL</Text>
+                      <Text style={modalLinkStyle}>USE A DIFFERENT EMAIL</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={{ marginTop: 16, alignItems: 'center', padding: 8 }}
                       onPress={() => { setIsResetModalVisible(false); setResetSent(false); setResetEmail(''); }}
                     >
-                      <Text style={styles.modalLinkText}>CLOSE</Text>
+                      <Text style={modalLinkStyle}>CLOSE</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -631,6 +708,7 @@ export function AuthScreen() {
                       keyboardType="email-address"
                       autoCapitalize="none"
                       accessibilityLabel="Email"
+                      c={c}
                     />
 
                     <View style={{ marginTop: 12 }}>
@@ -641,7 +719,7 @@ export function AuthScreen() {
                       style={{ marginTop: 16, alignItems: 'center', padding: 8 }}
                       onPress={() => { setIsResetModalVisible(false); setResetEmail(''); }}
                     >
-                      <Text style={styles.modalLinkText}>CANCEL</Text>
+                      <Text style={modalLinkStyle}>CANCEL</Text>
                     </TouchableOpacity>
                   </View>
                 )}
@@ -657,7 +735,6 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#050505',
   },
   flex: {
     flex: 1,
@@ -682,7 +759,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     fontSize: 34,
     letterSpacing: 1,
-    color: '#FFFFFF',
     textTransform: 'uppercase',
   },
   brandTagline: {
@@ -697,16 +773,13 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
   },
   glassCardContent: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     paddingVertical: 26,
     paddingHorizontal: 22,
   },
   segmentTrack: {
     flexDirection: 'row',
-    backgroundColor: 'rgba(0,0,0,0.3)',
     borderRadius: 12,
     padding: 4,
     marginBottom: 24,
@@ -730,7 +803,6 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     letterSpacing: 1.2,
-    color: INK_SECONDARY,
   },
   segmentTextActive: {
     color: '#FFFFFF',
@@ -738,28 +810,23 @@ const styles = StyleSheet.create({
   heading: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 20,
-    color: INK_PRIMARY,
     marginBottom: 4,
   },
   subheading: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 13,
-    color: INK_SECONDARY,
     marginBottom: 20,
   },
   fieldGroup: {
     gap: 12,
   },
   glassInput: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
     borderRadius: 12,
     paddingVertical: 13,
     paddingHorizontal: 15,
     fontSize: 14,
     fontFamily: 'PlusJakartaSans-Regular',
-    color: 'rgba(255,255,255,0.9)',
     minHeight: 44,
   },
   glassInputFocused: {
@@ -783,7 +850,6 @@ const styles = StyleSheet.create({
   backText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 11,
-    color: INK_SECONDARY,
   },
   forgotButton: {
     alignSelf: 'flex-end',
@@ -795,7 +861,6 @@ const styles = StyleSheet.create({
   forgotText: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 11,
-    color: INK_SECONDARY,
   },
   ctaButton: {
     width: '100%',
@@ -828,13 +893,11 @@ const styles = StyleSheet.create({
   dividerLine: {
     flex: 1,
     height: 1,
-    backgroundColor: 'rgba(255,255,255,0.1)',
   },
   dividerText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 11,
     letterSpacing: 1.5,
-    color: INK_TERTIARY,
     marginHorizontal: 12,
   },
   socialRow: {
@@ -867,13 +930,11 @@ const styles = StyleSheet.create({
     textDecorationLine: 'underline',
   },
   hintText: {
-    color: INK_TERTIARY,
     fontSize: 12,
     fontFamily: 'PlusJakartaSans-Regular',
     marginTop: 6,
   },
   privacyText: {
-    color: INK_TERTIARY,
     fontSize: 11,
     fontFamily: 'PlusJakartaSans-Regular',
     textAlign: 'center',
@@ -893,7 +954,6 @@ const styles = StyleSheet.create({
   switchText: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 13,
-    color: INK_TERTIARY,
   },
   switchLinkAccent: {
     color: ACCENT,
@@ -904,7 +964,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
-    backgroundColor: 'rgba(0,0,0,0.7)',
   },
   modalGlassCard: {
     width: '100%',
@@ -912,23 +971,19 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
   },
   modalGlassCardContent: {
-    backgroundColor: 'rgba(255,255,255,0.06)',
     padding: 24,
   },
   modalHeading: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 22,
-    color: INK_PRIMARY,
     marginBottom: 16,
   },
   modalLinkText: {
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
     letterSpacing: 1,
-    color: INK_SECONDARY,
   },
   resetSentIcon: {
     width: 56,
@@ -944,13 +999,11 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 18,
     letterSpacing: 1,
-    color: INK_PRIMARY,
     marginBottom: 8,
   },
   resetSentSubtext: {
     fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 13,
-    color: INK_SECONDARY,
     textAlign: 'center',
   },
   resetSentEmail: {
@@ -969,10 +1022,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     minHeight: 44,
     justifyContent: 'center',
-  },
-  resendButtonDisabled: {
-    opacity: 0.5,
-    borderColor: 'rgba(255,255,255,0.1)',
   },
   resendButtonText: {
     fontFamily: 'PlusJakartaSans-Bold',

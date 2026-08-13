@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#0a0908;}
+a{color:#F0C36B;}
+a:hover{color:#CD7F32;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&display=swap">
+<script>window.OM_SCENES = '[{"name":"Impact","dur":0.4,"desc":"A soft gold flash and center glow bloom in, no shake"},{"name":"Rings","dur":0.8,"desc":"Two restrained rings expand outward from center with a few soft sparks"},{"name":"Forge","dur":1.4,"desc":"Five tier rings throw into place one after another, then the tier number pops in at center"},{"name":"Reveal","dur":1.0,"desc":"The rank name reveals with a gold shimmer sweep"},{"name":"Stats","dur":0.6,"desc":"Tier and time fade up below the rank name"},{"name":"Hold","dur":0.8,"desc":"The Continue button settles in; scene holds"}]';</script>
+<script>window.OM_PLAYBACK = '{"mode":"times","count":1}';</script>
+<script>window.TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+  "motionEditor": true
+}/*EDITMODE-END*/;</script>
+</helmet>
+<div style="display:flex;align-items:center;justify-content:center;min-height:100vh;background:#0a0908;padding:40px 0;box-sizing:border-box;">
+<x-import component-from-global-scope="LevelUpApp" from="./animations-v3.jsx ./ios-frame.jsx ./tweaks-panel.jsx ./level-up-piece.jsx" hint-size="402,874"></x-import>
+</div>
+
+</x-dc>
+</body>
+</html>

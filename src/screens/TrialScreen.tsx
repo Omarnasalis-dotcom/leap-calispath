@@ -31,6 +31,7 @@ import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
+import { RankUpReveal } from '../components/trial/RankUpReveal';
 
 
 
@@ -508,8 +509,9 @@ export function TrialScreen({
   if (showVictory) {
     return (
       <GlobalErrorBoundary>
-        <VictoryScreen
-          tier={trial.tier}
+        <RankUpReveal
+          tier={trial.tier + 1}
+          trialName={trial.name}
           timeSeconds={timeSeconds}
           onContinue={onComplete}
         />
@@ -737,7 +739,7 @@ function TrialFeedbackModal({
       <View style={styles.feedbackOverlay}>
         <Animated.View style={[styles.feedbackCard, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
           <View style={styles.feedbackSeal}>
-            <MaterialCommunityIcons name={icon} size={40} color="#CD7F32" />
+            <MaterialCommunityIcons name={icon} size={40} color="#FF5252" />
           </View>
           <Text style={styles.feedbackLabel}>{label}</Text>
           <Text style={styles.feedbackTitle}>{title}</Text>
@@ -770,68 +772,6 @@ function TrialFeedbackModal({
         </Animated.View>
       </View>
     </Modal>
-  );
-}
-
-function VictoryScreen({
-  tier,
-  timeSeconds,
-  onContinue,
-}: {
-  tier: number;
-  timeSeconds: number;
-  onContinue?: () => void;
-}) {
-  const [fadeAnim] = useState(new Animated.Value(0));
-  const [scaleAnim] = useState(new Animated.Value(0.5));
-
-  useEffect(() => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 4,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  }, []);
-
-  const tierName = TIER_NAMES[tier];
-
-  return (
-    <View style={styles.victoryContainer}>
-      <Animated.View
-        style={[
-          styles.victoryContent,
-          {
-            opacity: fadeAnim,
-            transform: [{ scale: scaleAnim }],
-          },
-        ]}
-      >
-        <Text style={styles.victoryLabel}>RANK UP</Text>
-        <View style={styles.victorySeal}>
-          <Text style={styles.victorySealText}>{tierName[0]}</Text>
-        </View>
-        <Text style={styles.victoryTier}>{tierName.toUpperCase()}</Text>
-        <Text style={styles.victorySubtitle}>Tier {tier}</Text>
-        <Text style={styles.victoryTime}>Time: {formatTime(timeSeconds)}</Text>
-
-        {tier >= 6 && (
-          <Text style={styles.strategosMessage}>
-            Power & Statics worlds unlocked!
-          </Text>
-        )}
-
-        <TouchableOpacity style={styles.continueButton} onPress={onContinue}>
-          <Text style={styles.continueButtonText}>CONTINUE</Text>
-        </TouchableOpacity>
-      </Animated.View>
-    </View>
   );
 }
 
@@ -1103,82 +1043,6 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     opacity: 0.6,
   },
-  victoryTime: {
-    fontSize: 16,
-    color: 'rgba(255,255,255,0.7)',
-    marginTop: 24,
-  },
-  strategosMessage: {
-    fontSize: 14,
-    color: '#CD7F32',
-    fontStyle: 'italic',
-    marginTop: 16,
-  },
-  continueButton: {
-    marginTop: 48,
-    backgroundColor: '#8B0000',
-    paddingVertical: 20,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-    shadowColor: '#8B0000',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 15,
-  },
-  continueButtonText: {
-    fontSize: 16,
-    fontWeight: '900',
-    color: '#FFFFFF',
-    letterSpacing: 3,
-  },
-  victoryContainer: {
-    flex: 1,
-    backgroundColor: '#000000',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  victoryContent: {
-    alignItems: 'center',
-    padding: 24,
-  },
-  victoryLabel: {
-    fontSize: 18,
-    fontWeight: '900',
-    color: '#CD7F32',
-    letterSpacing: 4,
-    marginBottom: 24,
-  },
-  victorySeal: {
-    width: 140,
-    height: 140,
-    borderRadius: 70,
-    backgroundColor: 'rgba(205,127,50,0.2)',
-    borderWidth: 3,
-    borderColor: '#CD7F32',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
-    shadowColor: '#CD7F32',
-    shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-  },
-  victorySealText: {
-    fontSize: 72,
-    fontWeight: '900',
-    color: '#CD7F32',
-  },
-  victoryTier: {
-    fontSize: 36,
-    fontWeight: '900',
-    color: '#CD7F32',
-    letterSpacing: 4,
-  },
-  victorySubtitle: {
-    fontSize: 18,
-    color: 'rgba(255,255,255,0.5)',
-    marginTop: 8,
-  },
   feedbackOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.75)',
@@ -1193,9 +1057,9 @@ const styles = StyleSheet.create({
     maxWidth: 320,
     width: '100%',
     alignItems: 'center',
-    backgroundColor: '#13131A',
+    backgroundColor: '#0A0A0A',
     borderWidth: 1,
-    borderColor: 'rgba(205,127,50,0.35)',
+    borderColor: 'rgba(255,82,82,0.35)',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.6,
@@ -1206,32 +1070,33 @@ const styles = StyleSheet.create({
     width: 84,
     height: 84,
     borderRadius: 42,
-    backgroundColor: 'rgba(205,127,50,0.15)',
+    backgroundColor: 'rgba(255,82,82,0.15)',
     borderWidth: 2,
-    borderColor: '#CD7F32',
+    borderColor: '#FF5252',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 18,
-    shadowColor: '#CD7F32',
+    shadowColor: '#FF5252',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.6,
     shadowRadius: 16,
   },
   feedbackLabel: {
     fontSize: 11,
-    fontWeight: '900',
-    color: 'rgba(205,127,50,0.85)',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    color: 'rgba(255,82,82,0.85)',
     letterSpacing: 3,
   },
   feedbackTitle: {
     fontSize: 24,
-    fontWeight: '900',
+    fontFamily: 'BarlowCondensed-ExtraBold',
     color: '#FFFFFF',
     letterSpacing: 1.5,
     marginTop: 6,
   },
   feedbackSubtitle: {
     fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
     color: 'rgba(255,255,255,0.45)',
     letterSpacing: 1,
     marginTop: 8,
@@ -1243,12 +1108,13 @@ const styles = StyleSheet.create({
   },
   feedbackOldTime: {
     fontSize: 16,
+    fontFamily: 'Barlow-Regular',
     color: 'rgba(255,255,255,0.35)',
     textDecorationLine: 'line-through',
   },
   feedbackNewTime: {
     fontSize: 24,
-    fontWeight: '900',
+    fontFamily: 'BarlowCondensed-ExtraBold',
     color: '#FFFFFF',
     letterSpacing: 1,
     marginTop: 24,
@@ -1271,38 +1137,38 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   feedbackCompareBoxAttempt: {
-    borderColor: 'rgba(205,127,50,0.5)',
-    backgroundColor: 'rgba(205,127,50,0.08)',
+    borderColor: 'rgba(255,82,82,0.5)',
+    backgroundColor: 'rgba(255,82,82,0.08)',
   },
   feedbackCompareLabel: {
     fontSize: 9,
-    fontWeight: '900',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     letterSpacing: 1.5,
     color: 'rgba(255,255,255,0.45)',
     marginBottom: 6,
   },
   feedbackCompareLabelAttempt: {
-    color: '#CD7F32',
+    color: '#FF5252',
   },
   feedbackCompareValue: {
     fontSize: 18,
-    fontWeight: '900',
+    fontFamily: 'BarlowCondensed-ExtraBold',
     color: '#FFFFFF',
   },
   feedbackButton: {
     marginTop: 32,
-    backgroundColor: '#8B0000',
+    backgroundColor: '#FF5252',
     paddingVertical: 14,
     paddingHorizontal: 36,
     borderRadius: 10,
-    shadowColor: '#8B0000',
+    shadowColor: '#FF5252',
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
   },
   feedbackButtonText: {
     fontSize: 14,
-    fontWeight: '900',
+    fontFamily: 'BarlowCondensed-ExtraBold',
     color: '#FFFFFF',
     letterSpacing: 2,
   },
