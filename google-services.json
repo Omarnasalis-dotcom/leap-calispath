@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "440655869274",
+    "project_id": "leap-arena",
+    "storage_bucket": "leap-arena.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:440655869274:android:00c323f78538648cb8ef63",
+        "android_client_info": {
+          "package_name": "com.leap.calispath"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC3fDcvAq40fWkIAamY9pndkTJe4i9MM0s"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
