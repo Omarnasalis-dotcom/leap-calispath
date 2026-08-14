@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leap Arena",
     "slug": "leap-calispath",
-    "version": "1.1.8",
+    "version": "1.1.9",
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
@@ -104,7 +104,8 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.leap.calispath",
-      "versionCode": 7,
+      "versionCode": 8,
+      "googleServicesFile": "./android/app/google-services.json",
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
         "android.permission.RECORD_AUDIO",
