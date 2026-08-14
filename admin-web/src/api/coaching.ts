@@ -459,19 +459,45 @@ export async function fetchAssignments(): Promise<AssignmentRow[]> {
   return rows;
 }
 
+export type ProgramUpdateType = 'program_assigned' | 'week_unlocked';
+
+/** Mirrors mobile's NotificationService.notifyClientProgramUpdate — the edge
+ * function re-derives coach ownership, client id, and template name from
+ * warrior_program_id server-side, so this call is safe from any authenticated
+ * coach/admin session. Best-effort: a failed notify must never block or
+ * surface as an error on the assignment/write action that already succeeded. */
+async function notifyClientProgramUpdate(warriorProgramId: string, updateType: ProgramUpdateType): Promise<void> {
+  try {
+    await supabase.functions.invoke('notify-client-program-update', {
+      body: { warrior_program_id: warriorProgramId, update_type: updateType },
+    });
+  } catch (err) {
+    console.error('[Notify] client program update notify failed', err);
+  }
+}
+
 export async function assignTemplate(params: {
   coachId: string;
   warriorId: string;
   templateId: string;
   customName: string | null;
 }): Promise<void> {
-  const { error } = await supabase.rpc('assign_program_template', {
+  const { data: newTemplateId, error } = await supabase.rpc('assign_program_template', {
     p_coach_id: params.coachId,
     p_warrior_id: params.warriorId,
     p_template_id: params.templateId,
     p_custom_name: params.customName,
   });
   if (error) throw new Error(error.message);
+
+  const { data: newProgram } = await supabase
+    .from('warrior_programs')
+    .select('id')
+    .eq('template_id', newTemplateId)
+    .maybeSingle();
+  if (newProgram?.id) {
+    await notifyClientProgramUpdate(newProgram.id, 'program_assigned');
+  }
 }
 
 export async function setAssignmentStatus(id: string, status: string): Promise<void> {
@@ -576,6 +602,11 @@ export async function applyTemplateToExistingClient(
     p_blocks: blocks,
   });
   if (error) throw new Error(error.message);
+
+  // 'overwrite' resets current_week back to 1 and replaces the content
+  // wholesale — closer to a fresh assignment than a routine week unlock.
+  // Mirrors mobile's ClientProgramWriter.applyTemplateToExistingClient.
+  await notifyClientProgramUpdate(warriorProgramId, mode === 'overwrite' ? 'program_assigned' : 'week_unlocked');
 }
 
 /** Adds a JSON-imported week onto a client's program. Always append-only —
@@ -590,6 +621,8 @@ export async function appendWeekToClientProgram(
     p_blocks: blocks,
   });
   if (error) throw new Error(error.message);
+
+  await notifyClientProgramUpdate(warriorProgramId, 'week_unlocked');
 }
 
 export interface WarriorProgressSet {
