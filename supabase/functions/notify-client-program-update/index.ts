@@ -91,8 +91,19 @@ Deno.serve(async (req) => {
   if (!program) {
     return json({ error: "Program not found" }, 404);
   }
+  // This predates the coach-assistants/admin-web model: an admin managing
+  // a program on a coach's behalf, or an assistant coach, is never the
+  // literal coach_id on the row. Mirrors the same three-way check RLS
+  // already uses for warrior_programs elsewhere (is_assistant_for +
+  // "Admin manages all" policies) instead of the coach-only comparison.
   if (program.coach_id !== user.id) {
-    return json({ error: "Forbidden" }, 403);
+    const [{ data: isAdmin }, { data: isAssistant }] = await Promise.all([
+      asClient.rpc("is_admin"),
+      asClient.rpc("is_assistant_for", { p_coach_id: program.coach_id }),
+    ]);
+    if (!isAdmin && !isAssistant) {
+      return json({ error: "Forbidden" }, 403);
+    }
   }
 
   const clientId = program.warrior_id;
