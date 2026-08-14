@@ -72,7 +72,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   // suggestion outside the default "entry" tab would look like it doesn't
   // exist until the user manually switches tabs.
   const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'entry' | 'main' | 'advanced'>(
-    VALID_ONEMM_CATEGORIES.includes(category || '') ? (category as 'entry' | 'main' | 'advanced') : 'entry'
+    VALID_ONEMM_CATEGORIES.includes(category || '') && !((profile?.strength_tier ?? 0) < 5 && (category === 'main' || category === 'advanced'))
+      ? (category as 'entry' | 'main' | 'advanced')
+      : 'entry'
   );
   const [leaderboardData, setLeaderboardData] = useState<OneMMRanking[]>([]);
   const [modalLeaderboardData, setModalLeaderboardData] = useState<OneMMRanking[]>([]);

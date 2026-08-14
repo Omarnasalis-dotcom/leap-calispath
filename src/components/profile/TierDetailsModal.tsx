@@ -4,6 +4,7 @@ import {
   View,
   Text,
   TouchableOpacity,
+  ScrollView,
   StyleSheet,
 } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -63,6 +64,7 @@ export function TierDetailsModal({
               Tier {modalTier}
             </Text>
 
+            <ScrollView contentContainerStyle={{ paddingBottom: 4 }}>
             {/* Difficulty Section */}
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
               <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
@@ -108,6 +110,7 @@ export function TierDetailsModal({
                 </View>
               </View>
             )}
+            </ScrollView>
 
             {/* LEAP NOW Button - Only show if tier is not locked */}
             {modalTier !== null && modalTier <= activeCurrentTier && (

@@ -36,7 +36,8 @@ function getTierCapability(tier: number): string {
     case 5: return "Elite. Mastered muscle-ups and heavy weighted calisthenics. Entering high-level statics.";
     case 6: return "Master. Exceptional power and static control. Fully unlocked Power World.";
     case 7: return "Grandmaster. Elite level across all disciplines.";
-    case 8: return "Eternity. Peak human calisthenics performance.";
+    case 8: return "Demigod. Peak power and static mastery, just shy of Eternity.";
+    case 9: return "Eternity. Peak human calisthenics performance.";
     default: return "Capabilities unknown.";
   }
 }

@@ -25,7 +25,7 @@ interface OnboardingTutorialProps {
 
 function getUnlockMessage(tier: number): string {
   if (tier >= 6) return 'You have unlocked STATIC WORLD and POWER WORLD.';
-  if (tier >= 2) return 'You have unlocked STATIC WORLD.';
+  if (tier >= 1) return 'You have unlocked STATIC WORLD.';
   return 'You start with 1-MINUTE MAX. Conquer it to unlock the worlds above.';
 }
 
@@ -38,7 +38,7 @@ function getTierAccentColor(tier: number): string {
 
 const WORLDS = [
   { icon: '⏱️', name: '1-Minute Max', short: '1MM', unlock: 'Unlocked at Tier 0', desc: 'Build your endurance and master the basics. Every warrior starts here.', unlockedAt: 0 },
-  { icon: '🧊', name: 'Static World', short: 'STATICS', unlock: 'Unlocked at Tier 2', desc: 'Hold and control your body through handstands, levers, and planche progressions.', unlockedAt: 2 },
+  { icon: '🧊', name: 'Static World', short: 'STATICS', unlock: 'Unlocked at Tier 1', desc: 'Hold and control your body through handstands, levers, and planche progressions.', unlockedAt: 1 },
   { icon: '⚡', name: 'Power World', short: 'POWER', unlock: 'Unlocked at Tier 6', desc: 'Lift heavy. Prove your strength through weighted calisthenics and maximum output.', unlockedAt: 6 },
 ];
 

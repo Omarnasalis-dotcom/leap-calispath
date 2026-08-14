@@ -513,7 +513,7 @@ export function PowerWorldScreen() {
             <TextInput 
               style={[styles.modalInput, { color: theme.text.primary, borderColor: theme.accent }]}
               placeholder="0.0"
-              placeholderTextColor="#333"
+              placeholderTextColor={theme.text.tertiary}
               keyboardType="numeric"
               autoFocus
               value={manualInput}

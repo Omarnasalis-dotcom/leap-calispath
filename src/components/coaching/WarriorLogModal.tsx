@@ -140,7 +140,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
                       placeholder="e.g. 5 Rounds + 4 Reps"
-                      placeholderTextColor="rgba(255,255,255,0.15)"
+                      placeholderTextColor={theme.text.tertiary}
                       value={logAmrapRounds}
                       onChangeText={setLogAmrapRounds}
                     />
@@ -152,7 +152,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
                       placeholder="e.g. 14:32"
-                      placeholderTextColor="rgba(255,255,255,0.15)"
+                      placeholderTextColor={theme.text.tertiary}
                       value={logForTimeDuration}
                       onChangeText={setLogForTimeDuration}
                     />
@@ -164,7 +164,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
                       placeholder="e.g. 20"
-                      placeholderTextColor="rgba(255,255,255,0.15)"
+                      placeholderTextColor={theme.text.tertiary}
                       keyboardType="numeric"
                       value={logWeightUsed}
                       onChangeText={setLogWeightUsed}
@@ -216,7 +216,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
             <TextInput
               style={[styles.notesInput, { color: theme.text.primary, borderColor: theme.card.border }]}
               placeholder="How did it feel? Any highlights or modifications..."
-              placeholderTextColor="rgba(255,255,255,0.15)"
+              placeholderTextColor={theme.text.tertiary}
               value={logNotes}
               onChangeText={(val: string) => setLogNotes(val)}
               multiline={true}

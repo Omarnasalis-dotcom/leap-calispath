@@ -15,7 +15,7 @@ interface GloryLeaderboardScreenProps {
 }
 
 export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps) {
-  const { theme } = useTheme();
+  const { theme, mode } = useTheme();
   const { user } = useAuth();
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -79,16 +79,16 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
                     paddingVertical: 6,
                     paddingHorizontal: 16,
                     borderRadius: 20,
-                    backgroundColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.05)',
+                    backgroundColor: genderFilter === filter ? '#CD7F32' : theme.card.background,
                     borderWidth: 1,
-                    borderColor: genderFilter === filter ? '#CD7F32' : 'rgba(255,255,255,0.1)'
+                    borderColor: genderFilter === filter ? '#CD7F32' : theme.card.border
                   }}
                   onPress={() => setGenderFilter(filter as any)}
                 >
                   <Text style={{
                     fontSize: 12,
                     fontWeight: '900',
-                    color: genderFilter === filter ? '#FFF' : 'rgba(255,255,255,0.6)'
+                    color: genderFilter === filter ? '#FFF' : theme.text.secondary
                   }}>
                     {filter}
                   </Text>
@@ -103,6 +103,7 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
                   key={entry.user_id}
                   style={[
                     styles.entryRow,
+                    { backgroundColor: mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.02)' },
                     isCurrentUser && styles.entryRowCurrentUser,
                     entry.rank <= 3 && styles.entryRowTopThree
                   ]}
@@ -136,7 +137,7 @@ export function GloryLeaderboardScreen({ onClose }: GloryLeaderboardScreenProps)
           </ScrollView>
         )}
 
-        <View style={styles.floatingFooter}>
+        <View style={[styles.floatingFooter, { backgroundColor: mode === 'dark' ? 'rgba(0,0,0,0.8)' : 'rgba(255,255,255,0.9)' }]}>
           <Text style={styles.footerHint}>DUEL TO RISE IN THE HALL OF GLORY</Text>
         </View>
       </View>
@@ -181,7 +182,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 16,
     borderRadius: 8,
-    backgroundColor: 'rgba(255,255,255,0.03)',
     borderWidth: 1,
     borderColor: 'rgba(205,127,50,0.1)',
     marginBottom: 8,

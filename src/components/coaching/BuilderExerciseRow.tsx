@@ -76,7 +76,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'sets', localSets)}
                 keyboardType="numeric"
                 placeholder="4"
-                placeholderTextColor="rgba(255,255,255,0.1)"
+                placeholderTextColor={theme.text.tertiary}
               />
             </View>
             <View style={styles.exInputCol}>
@@ -88,7 +88,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
                 onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
                 placeholder="10"
-                placeholderTextColor="rgba(255,255,255,0.1)"
+                placeholderTextColor={theme.text.tertiary}
               />
             </View>
             <View style={styles.exInputCol}>
@@ -101,7 +101,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'rest_seconds', localRest)}
                 keyboardType="numeric"
                 placeholder="90S"
-                placeholderTextColor="rgba(255,255,255,0.1)"
+                placeholderTextColor={theme.text.tertiary}
               />
             </View>
             <View style={styles.exInputCol}>
@@ -137,7 +137,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
               onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
               onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
               placeholder="E.g. 10 reps, or 30s holds"
-              placeholderTextColor="rgba(255,255,255,0.1)"
+              placeholderTextColor={theme.text.tertiary}
             />
           </View>
         )}
@@ -152,7 +152,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
           onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'notes', localNotes)}
           onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'notes', localNotes)}
           placeholder="Execution notes, tempo, weights, or details..."
-          placeholderTextColor="rgba(255,255,255,0.15)"
+          placeholderTextColor={theme.text.tertiary}
         />
       </View>
 

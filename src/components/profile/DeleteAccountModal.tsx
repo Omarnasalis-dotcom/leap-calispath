@@ -2,8 +2,10 @@ import React, { useState } from 'react';
 import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '../../contexts/ThemeContext';
 
 export function DeleteAccountModal() {
+  const { theme } = useTheme();
   const { user, signInWithGoogle, signInWithApple } = useAuth();
   // "The first provider that the user used to sign up with" (Supabase's own
   // doc comment on app_metadata.provider). Google/Apple accounts never set a
@@ -144,7 +146,7 @@ export function DeleteAccountModal() {
           padding: 24,
         }}>
           <View style={{
-            backgroundColor: '#1a1a1a',
+            backgroundColor: theme.card.background,
             borderRadius: 16,
             padding: 28,
             width: '100%',
@@ -164,7 +166,7 @@ export function DeleteAccountModal() {
             </Text>
 
             <Text style={{
-              color: '#aaaaaa',
+              color: theme.text.secondary,
               fontSize: 13,
               textAlign: 'center',
               lineHeight: 20,
@@ -176,7 +178,7 @@ export function DeleteAccountModal() {
             </Text>
 
             <Text style={{
-              color: '#888',
+              color: theme.text.tertiary,
               fontSize: 11,
               letterSpacing: 1.5,
               textTransform: 'uppercase',
@@ -195,15 +197,15 @@ export function DeleteAccountModal() {
                   setDeleteError('');
                 }}
                 placeholder="Enter your password"
-                placeholderTextColor="#555"
+                placeholderTextColor={theme.text.tertiary}
                 secureTextEntry
                 style={{
-                  backgroundColor: '#111',
+                  backgroundColor: theme.card.background,
                   borderWidth: 1,
-                  borderColor: deleteError ? '#e24b4a' : '#333',
+                  borderColor: deleteError ? '#e24b4a' : theme.card.border,
                   borderRadius: 8,
                   padding: 14,
-                  color: '#fff',
+                  color: theme.text.primary,
                   fontSize: 14,
                   marginBottom: 8,
                 }}

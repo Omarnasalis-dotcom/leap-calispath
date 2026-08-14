@@ -316,17 +316,17 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
 
   const validate = async () => {
     if (!title.trim()) throw new Error('Title must not be empty');
-    if (parseInt(gpPool) <= 0) throw new Error('GP must be a positive number');
+    if (Number.isNaN(parseInt(gpPool)) || parseInt(gpPool) <= 0) throw new Error('GP must be a positive number');
     if (type === 'knockout') {
       if (rounds.some((r: RoundConfig) => r.exercises.length === 0)) throw new Error('Each round must have at least one exercise');
       if (rounds.some((r: RoundConfig) => r.exercises.some((ex: ExerciseConfig) => ex.target_reps === 0))) throw new Error('Each exercise must have at least 1 rep');
       if (rounds.some((r: RoundConfig) => r.mode === 'amrap' && r.duration_min <= 0)) throw new Error('AMRAP rounds must have a duration');
-      if (parseInt(roundWindow) <= 0) throw new Error('Window time must be > 0');
+      if (Number.isNaN(parseInt(roundWindow)) || parseInt(roundWindow) <= 0) throw new Error('Window time must be > 0');
     } else {
       if (rankWorkout.exercises.length === 0) throw new Error('Workout must have at least one exercise');
       if (rankWorkout.exercises.some((ex: ExerciseConfig) => ex.target_reps === 0)) throw new Error('Each exercise must have at least 1 rep');
       if (rankWorkout.mode === 'amrap' && rankWorkout.duration_min <= 0) throw new Error('AMRAP workouts must have a duration');
-      if (parseInt(windowHours) <= 0) throw new Error('Window time must be > 0');
+      if (Number.isNaN(parseInt(windowHours)) || parseInt(windowHours) <= 0) throw new Error('Window time must be > 0');
     }
   };
 

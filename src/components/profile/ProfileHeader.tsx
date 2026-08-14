@@ -168,7 +168,7 @@ export function ProfileHeader({
       <View style={styles.identityHeader}>
         <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>{displayName}</Text>
         <Text style={[styles.tierLine, { color: W.accent }]}>
-          {tierName} · TIER {activeCurrentTier} OF 9
+          {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
         </Text>
 
         {/* Tier-level ring badge — whole badge opens the warrior modal */}

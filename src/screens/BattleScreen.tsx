@@ -295,7 +295,7 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
             <View style={styles.resultContent}>
               <MaterialCommunityIcons name="alert-circle" size={60} color="#FFA500" />
               <Text style={[styles.resultTitle, { fontSize: 32, marginTop: 10 }]}>QUIT BATTLE?</Text>
-              <Text style={styles.resultSub}>THIS COUNTS AS A DEFEAT</Text>
+              <Text style={styles.resultSub}>THIS WILL CANCEL THE BATTLE — NO RESULT RECORDED</Text>
               
               <View style={{ width: '100%', gap: 12, marginTop: 30 }}>
                 <TouchableOpacity 

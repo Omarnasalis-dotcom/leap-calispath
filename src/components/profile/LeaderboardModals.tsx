@@ -91,9 +91,9 @@ export function LeaderboardModals({
                           paddingVertical: 6,
                           paddingHorizontal: 16,
                           borderRadius: 20,
-                          backgroundColor: wraScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                          backgroundColor: wraScope === scope ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
                           borderWidth: 1,
-                          borderColor: wraScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+                          borderColor: wraScope === scope ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)')
                         }}
                         onPress={() => onWraScopeChange && onWraScopeChange(scope)}
                       >
@@ -116,16 +116,16 @@ export function LeaderboardModals({
                         paddingVertical: 6,
                         paddingHorizontal: 16,
                         borderRadius: 20,
-                        backgroundColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.05)',
+                        backgroundColor: genderFilter === filter ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
                         borderWidth: 1,
-                        borderColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.1)'
+                        borderColor: genderFilter === filter ? theme.accent : (mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)')
                       }}
                       onPress={() => setGenderFilter(filter as any)}
                     >
-                      <Text style={{ 
-                        fontSize: 12, 
-                        fontWeight: '900', 
-                        color: genderFilter === filter ? '#FFF' : theme.text.secondary 
+                      <Text style={{
+                        fontSize: 12,
+                        fontWeight: '900',
+                        color: genderFilter === filter ? '#FFF' : theme.text.secondary
                       }}>
                         {filter}
                       </Text>
@@ -237,9 +237,9 @@ export function LeaderboardModals({
                         paddingVertical: 6,
                         paddingHorizontal: 16,
                         borderRadius: 20,
-                        backgroundColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.05)',
+                        backgroundColor: genderFilter === filter ? '#FF5252' : (mode === 'dark' ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.05)'),
                         borderWidth: 1,
-                        borderColor: genderFilter === filter ? '#FF5252' : 'rgba(255,255,255,0.1)'
+                        borderColor: genderFilter === filter ? '#FF5252' : (mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)')
                       }}
                       onPress={() => setGenderFilter(filter as any)}
                     >

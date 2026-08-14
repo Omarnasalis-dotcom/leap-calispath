@@ -112,9 +112,9 @@ export function TierLeaderboardList({
                 paddingVertical: 6,
                 paddingHorizontal: 16,
                 borderRadius: 20,
-                backgroundColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.05)',
+                backgroundColor: leaderboardScope === scope ? theme.accent : theme.card.background,
                 borderWidth: 1,
-                borderColor: leaderboardScope === scope ? theme.accent : 'rgba(255,255,255,0.1)'
+                borderColor: leaderboardScope === scope ? theme.accent : theme.card.border
               }}
               onPress={() => onLeaderboardScopeChange && onLeaderboardScopeChange(scope)}
             >
@@ -139,9 +139,9 @@ export function TierLeaderboardList({
               paddingVertical: 6,
               paddingHorizontal: 16,
               borderRadius: 20,
-              backgroundColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.05)',
+              backgroundColor: genderFilter === filter ? theme.accent : theme.card.background,
               borderWidth: 1,
-              borderColor: genderFilter === filter ? theme.accent : 'rgba(255,255,255,0.1)'
+              borderColor: genderFilter === filter ? theme.accent : theme.card.border
             }}
             onPress={() => setGenderFilter(filter as any)}
           >
@@ -280,7 +280,7 @@ export function TierLeaderboardList({
               data={filteredEntries}
               keyExtractor={item => item.user_id}
               showsVerticalScrollIndicator={false}
-              getItemLayout={(_, index) => ({ length: 73, offset: 73 * index, index })}
+              getItemLayout={(_, index) => ({ length: 57, offset: 57 * index, index })}
               initialScrollIndex={Math.max(0, (filteredEntries.findIndex(isCU)) - 2)}
               renderItem={({ item: entry, index }) => (
                 <View
