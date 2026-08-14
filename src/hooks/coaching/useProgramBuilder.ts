@@ -705,7 +705,7 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
   };
 
   const handleDeleteBlockFromDay = (dayId: string, blockId: string) => {
-    setDays(prevDays =>
+    const performDelete = () => setDays(prevDays =>
       prevDays.map(d => {
         if (d.id === dayId) {
           return {
@@ -716,10 +716,38 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
         return d;
       })
     );
+    if (Platform.OS === 'web') {
+      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS BLOCK? THIS WILL REMOVE ALL ITS EXERCISES.')) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'DELETE BLOCK',
+        'ARE YOU SURE YOU WANT TO DELETE THIS BLOCK? THIS WILL REMOVE ALL ITS EXERCISES.',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performDelete },
+        ]
+      );
+    }
   };
 
   const handleDeleteDay = (dayId: string) => {
-    setDays(prevDays => prevDays.filter(d => d.id !== dayId));
+    const performDelete = () => setDays(prevDays => prevDays.filter(d => d.id !== dayId));
+    if (Platform.OS === 'web') {
+      if (window.confirm('ARE YOU SURE YOU WANT TO DELETE THIS DAY? THIS WILL REMOVE ALL BLOCKS AND EXERCISES IN IT.')) {
+        performDelete();
+      }
+    } else {
+      Alert.alert(
+        'DELETE DAY',
+        'ARE YOU SURE YOU WANT TO DELETE THIS DAY? THIS WILL REMOVE ALL BLOCKS AND EXERCISES IN IT.',
+        [
+          { text: 'CANCEL', style: 'cancel' },
+          { text: 'DELETE', style: 'destructive', onPress: performDelete },
+        ]
+      );
+    }
   };
 
   const handleToggleWeeklyStructure = (enabled: boolean) => {

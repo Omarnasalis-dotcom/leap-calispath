@@ -175,10 +175,10 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     const confirmDelete = Platform.OS === 'web'
       ? confirm('Delete this challenge? All leaderboard entries will be removed.')
       : await new Promise(resolve => {
-        Alert.alert('Delete Challenge', 'Delete this challenge?', [
+        Alert.alert('Delete Challenge', 'Delete this challenge? All leaderboard entries will be removed.', [
           { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
           { text: 'Delete', style: 'destructive', onPress: () => resolve(true) }
-        ]);
+        ], { cancelable: true, onDismiss: () => resolve(false) });
       });
 
     if (!confirmDelete) return;

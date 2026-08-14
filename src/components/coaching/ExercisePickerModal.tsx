@@ -79,7 +79,7 @@ export function ExercisePickerModal({
             value={searchQuery}
             onChangeText={setSearchQuery}
             placeholder="SEARCH EXERCISES..."
-            placeholderTextColor="rgba(255,255,255,0.25)"
+            placeholderTextColor={theme.text.tertiary}
           />
 
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.modalFilterScroll} contentContainerStyle={{ paddingRight: 20 }}>
@@ -132,7 +132,7 @@ export function ExercisePickerModal({
                         {item.name.toUpperCase()}
                       </Text>
                       <Text style={[styles.pickerItemBadge, { color: bronzeGold }]}>
-                        {item.category.toUpperCase()} • {item.difficulty.toUpperCase()}
+                        {item.category?.toUpperCase()} • {item.difficulty?.toUpperCase()}
                       </Text>
                     </View>
                     {item.youtube_url ? (

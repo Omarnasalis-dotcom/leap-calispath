@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
 import { ProgramBlock, ExerciseDetail } from '../../screens/coaching/WarriorProgramScreen';
@@ -71,6 +71,12 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const isActiveForLadderLogging = isExpanded && !isLocked && isLadder && block.completedStatus === 'none';
   const isActiveForAmrapLogging = isExpanded && !isLocked && isAmrap && block.completedStatus === 'none';
   const isActiveForForTimeLogging = isExpanded && !isLocked && isForTime && block.completedStatus === 'none';
+  // These four hold elapsed time / rounds / rung / reps only in local component
+  // state (no lifted state, nothing persisted mid-session) — collapsing the
+  // block unmounts that subtree and silently destroys it. Block the collapse
+  // while one of these is actively running; a block that's merely expanded
+  // without a timed/round-based session underway can still collapse normally.
+  const hasActiveTimedSession = isActiveForLadderLogging || isActiveForAmrapLogging || isActiveForForTimeLogging || isActiveForCircuitLogging;
   const amrapTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10) || 10) * 60;
   const forTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || '15'), 10) || 15) * 60;
   const totalRounds = parseInt(String(block.metadata?.rounds || '1'), 10) || 1;
@@ -153,7 +159,20 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {/* Collapsible Block Header */}
           <TouchableOpacity
             style={[styles.blockHeader, { borderBottomColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, borderBottomWidth: isExpanded ? 1 : 0 }]}
-            onPress={() => toggleBlockExpanded(block.id)}
+            onPress={() => {
+              if (isExpanded && hasActiveTimedSession) {
+                Alert.alert(
+                  'Collapse this block?',
+                  'This section tracks elapsed time, rounds and reps locally — collapsing it now will lose that progress.',
+                  [
+                    { text: 'Cancel', style: 'cancel' },
+                    { text: 'Collapse Anyway', style: 'destructive', onPress: () => toggleBlockExpanded(block.id) },
+                  ],
+                );
+                return;
+              }
+              toggleBlockExpanded(block.id);
+            }}
           >
             <View style={{ flex: 1, paddingRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>

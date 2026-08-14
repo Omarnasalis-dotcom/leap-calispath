@@ -40,11 +40,30 @@ export function BlockConfigWizard({ initialMetadata, onChange }: BlockConfigWiza
   const [tierTrialTier, setTierTrialTier] = useState<number | undefined>(initialMetadata.tier_trial_tier);
 
   useEffect(() => {
-    // Compile into ConceptMetadata
-    const payload: ConceptMetadata = {
-      timing_system: timingSystem,
-      structure: timingSystem === 'tabata' ? 'circuit' : structure,
-    };
+    // Compile into ConceptMetadata. Start from the block's existing metadata
+    // so keys this wizard has no opinion on (legacy `type`, or anything a
+    // future feature stores) survive untouched instead of being silently
+    // dropped — only strip the specific keys this wizard recomputes below,
+    // then rebuild those the same way as before.
+    const payload: ConceptMetadata = { ...initialMetadata };
+    delete payload.timing_system;
+    delete payload.structure;
+    delete payload.time_cap_min;
+    delete payload.timer_seconds;
+    delete payload.tabata_work_seconds;
+    delete payload.tabata_rest_seconds;
+    delete payload.tabata_rounds;
+    delete payload.rounds;
+    delete payload.ladder_start;
+    delete payload.ladder_sub;
+    delete payload.ladder_direction;
+    delete payload.is_weighted;
+    delete payload.rest_after_round;
+    delete payload.is_tier_trial;
+    delete payload.tier_trial_tier;
+
+    payload.timing_system = timingSystem;
+    payload.structure = timingSystem === 'tabata' ? 'circuit' : structure;
 
     if (timingSystem === 'amrap' || timingSystem === 'fortime') {
       payload.time_cap_min = timeCap;

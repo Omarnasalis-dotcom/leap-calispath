@@ -331,7 +331,14 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
     loadWeekNote(selectedWarrior.warriorProgramId, selectedWeek);
   }, [historyModalVisible, selectedWarrior, selectedWeek]);
 
+  // Guards against a slower earlier request (e.g. week 1) resolving after a
+  // faster later one (week 2) and overwriting the displayed note/id with
+  // stale data — the next save would then silently write over the wrong week.
+  const weekNoteRequestRef = useRef<string | null>(null);
+
   const loadWeekNote = async (warriorProgramId: string, weekNumber: number) => {
+    const requestKey = `${warriorProgramId}:${weekNumber}`;
+    weekNoteRequestRef.current = requestKey;
     setWeekNoteLoading(true);
     try {
       const { data, error } = await supabase
@@ -341,13 +348,14 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
         .eq('week_number', weekNumber)
         .maybeSingle();
       if (error) throw error;
+      if (weekNoteRequestRef.current !== requestKey) return;
       setWeekNote(data?.note || '');
       setWeekNoteId(data?.id || null);
       setWeekNoteDirty(false);
     } catch (err: any) {
       console.error('Failed to load week note:', err);
     } finally {
-      setWeekNoteLoading(false);
+      if (weekNoteRequestRef.current === requestKey) setWeekNoteLoading(false);
     }
   };
 

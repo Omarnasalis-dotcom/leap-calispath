@@ -259,15 +259,23 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       }
 
       const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-      await Promise.all([
-        loadMovementData(),
-        refreshUserHolds(),
-        StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId)
-          .then(elite => { if (isMounted.current) setWellRoundedEntries(elite); })
-          .catch(e => console.error('Error refreshing elite leaderboard:', e)),
-        selectedLevel ? loadLevelData() : Promise.resolve(),
-        refreshProfile ? refreshProfile() : Promise.resolve(),
-      ]);
+      try {
+        await Promise.all([
+          loadMovementData(),
+          refreshUserHolds(),
+          StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId)
+            .then(elite => { if (isMounted.current) setWellRoundedEntries(elite); })
+            .catch(e => console.error('Error refreshing elite leaderboard:', e)),
+          selectedLevel ? loadLevelData() : Promise.resolve(),
+          refreshProfile ? refreshProfile() : Promise.resolve(),
+        ]);
+      } catch (refreshError) {
+        // The hold above already saved successfully — a post-save refresh blip
+        // must not surface as "Failed to save hold" (that message offers a
+        // retry, which would resubmit an already-saved hold and hit the
+        // P1004 cooldown rejection). Log it and let onSuccess still run below.
+        console.error('Error refreshing static world data after save:', refreshError);
+      }
     }, {
       onSuccess: () => {
         setLoading(false);

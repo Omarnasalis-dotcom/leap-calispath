@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, TextInput, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
@@ -35,22 +35,46 @@ export const SetRow: React.FC<SetRowProps> = ({
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const intervalRef = useRef<any>(null);
+  // Wall-clock anchor for the rest countdown. JS timers are suspended while
+  // the app is backgrounded, so a pure `prev - 1` tick silently loses the
+  // whole suspended duration and the displayed rest time under-counts. Same
+  // approach as ArenaWorkoutScreen's trial timer.
+  const restEndTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (restActive && restTimeLeft > 0) {
+      if (restEndTimeRef.current === null) {
+        restEndTimeRef.current = Date.now() + restTimeLeft * 1000;
+      }
       intervalRef.current = setInterval(() => {
-        setRestTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(intervalRef.current);
-            setRestActive(false);
-            SoundServiceInstance.playDigitalBuzzer(2);
-            return 0;
-          }
-          return prev - 1;
-        });
+        const remaining = Math.max(0, Math.round((restEndTimeRef.current! - Date.now()) / 1000));
+        setRestTimeLeft(remaining);
+        if (remaining <= 0) {
+          clearInterval(intervalRef.current);
+          setRestActive(false);
+          SoundServiceInstance.playDigitalBuzzer(2);
+        }
       }, 1000);
+    } else {
+      restEndTimeRef.current = null;
     }
     return () => clearInterval(intervalRef.current);
+  }, [restActive]);
+
+  // Recompute the moment the app returns to the foreground, so the displayed
+  // time is correct immediately rather than after the next tick.
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'active' && restActive && restEndTimeRef.current !== null) {
+        const remaining = Math.max(0, Math.round((restEndTimeRef.current - Date.now()) / 1000));
+        setRestTimeLeft(remaining);
+        if (remaining <= 0) {
+          setRestActive(false);
+          SoundServiceInstance.playDigitalBuzzer(2);
+        }
+      }
+    });
+    return () => sub.remove();
   }, [restActive]);
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;

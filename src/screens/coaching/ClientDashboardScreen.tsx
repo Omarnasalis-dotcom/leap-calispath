@@ -116,13 +116,13 @@ export function ClientDashboardScreen({ warriorId, templateId, coachId }: Client
     };
 
     if (Platform.OS === 'web') {
-      if (window.confirm(`ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED.`)) {
+      if (window.confirm(`ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED, INCLUDING THE CLIENT'S LOGGED WORKOUT HISTORY FOR THIS WEEK.`)) {
         performDelete();
       }
     } else {
       Alert.alert(
         'DELETE WEEK',
-        `ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED.`,
+        `ARE YOU SURE YOU WANT TO DELETE WEEK ${weekNum}? ALL BLOCKS AND EXERCISES WILL BE REMOVED, INCLUDING THE CLIENT'S LOGGED WORKOUT HISTORY FOR THIS WEEK.`,
         [
           { text: 'CANCEL', style: 'cancel' },
           { text: 'DELETE', style: 'destructive', onPress: performDelete }
