@@ -120,7 +120,7 @@ Power World unlocks at strength tier ≥ 6 (Strategos). Power tiers are separate
 
 ### Components
 
-Shared UI lives in `src/components/`. Profile-specific extracted components (ScoreBar, ProfileHeader, WorldSelectorGrid, TierSelectorRow, StrengthWorldView) are in `src/components/profile/`. Coaching UI components are in `src/components/coaching/`.
+Shared UI lives in `src/components/`. Profile-specific extracted components (ProfileHeader, TierSelectorRow, StrengthWorldView) are in `src/components/profile/`. Coaching UI components are in `src/components/coaching/`.
 
 ## Testing
 
