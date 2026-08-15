@@ -132,18 +132,14 @@ Deno.serve(async (req) => {
   }
   const admin = createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey);
 
-  // Respect the coach's own opt-out, same lazy-default-enabled semantics as
-  // create_notification (no row / no key for this type = enabled).
-  const { data: prefRow } = await admin
-    .from("notification_preferences")
-    .select("prefs")
-    .eq("user_id", coachId)
-    .maybeSingle();
-
-  const prefs = (prefRow?.prefs ?? {}) as Record<string, unknown>;
-  if (prefs[NOTIFICATION_TYPE] === false) {
-    return json({ success: true, notified: false, reason: "OPTED_OUT" });
-  }
+  // Fan out to the coach and every assistant managing their roster — this
+  // used to only ever notify the literal coach_id, leaving assistant
+  // coaches with zero visibility into the same clients they manage.
+  const { data: assistantRows } = await admin
+    .from("coach_assistants")
+    .select("assistant_id")
+    .eq("coach_id", coachId);
+  const recipientIds = [coachId, ...((assistantRows ?? []) as Array<{ assistant_id: string }>).map(r => r.assistant_id)];
 
   // Deep-links straight to this client's history in ProgressTrackingScreen
   // (see app/progress-tracking.tsx + the warriorId auto-open effect) rather
@@ -160,72 +156,96 @@ Deno.serve(async (req) => {
     body = `${displayName} just logged a workout.`;
   }
 
-  const { data: notification, error: insertError } = await admin
-    .from("notifications")
-    .insert({
-      user_id: coachId,
-      type: NOTIFICATION_TYPE,
-      title,
-      body,
-      data: notificationData,
-    })
-    .select("id")
-    .single();
+  const results: Array<{ recipient: string; notified: boolean; delivered?: boolean; reason?: string }> = [];
 
-  if (insertError || !notification) {
-    console.error("notifications insert error:", insertError);
-    return json({ error: "Failed to record notification" }, 500);
-  }
+  for (const recipientId of recipientIds) {
+    // Respect each recipient's own opt-out, same lazy-default-enabled
+    // semantics as create_notification (no row / no key for this type =
+    // enabled).
+    const { data: prefRow } = await admin
+      .from("notification_preferences")
+      .select("prefs")
+      .eq("user_id", recipientId)
+      .maybeSingle();
 
-  const { data: coachProfile } = await admin
-    .from("profiles")
-    .select("push_token")
-    .eq("id", coachId)
-    .maybeSingle();
+    const prefs = (prefRow?.prefs ?? {}) as Record<string, unknown>;
+    if (prefs[NOTIFICATION_TYPE] === false) {
+      results.push({ recipient: recipientId, notified: false, reason: "OPTED_OUT" });
+      continue;
+    }
 
-  const pushToken = (coachProfile as { push_token?: string | null } | null)?.push_token;
-  if (!pushToken) {
-    await admin.from("notifications").update({ push_error: "NO_TOKEN" }).eq("id", notification.id);
-    return json({ success: true, notified: true, delivered: false, reason: "NO_TOKEN" });
-  }
-
-  let expoResult: { data?: Array<{ status: string; message?: string; details?: { error?: string } }> };
-  try {
-    const expoResponse = await fetch(EXPO_PUSH_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Accept": "application/json",
-        "Accept-Encoding": "gzip, deflate",
-      },
-      body: JSON.stringify([{
-        to: pushToken,
+    const { data: notification, error: insertError } = await admin
+      .from("notifications")
+      .insert({
+        user_id: recipientId,
+        type: NOTIFICATION_TYPE,
         title,
         body,
         data: notificationData,
-        sound: "default",
-      }]),
-    });
-    expoResult = await expoResponse.json();
-  } catch (err) {
-    console.error("Expo push request failed:", err);
-    await admin.from("notifications").update({ push_error: "EXPO_REQUEST_FAILED" }).eq("id", notification.id);
-    return json({ success: true, notified: true, delivered: false, reason: "EXPO_REQUEST_FAILED" });
-  }
+      })
+      .select("id")
+      .single();
 
-  const ticket = expoResult.data?.[0];
-  if (!ticket || ticket.status !== "ok") {
-    const errorCode = ticket?.details?.error ?? ticket?.message ?? "UNKNOWN_ERROR";
-    await admin.from("notifications").update({ push_error: String(errorCode) }).eq("id", notification.id);
-
-    if (ticket?.details?.error === "DeviceNotRegistered") {
-      await admin.from("profiles").update({ push_token: null }).eq("id", coachId);
+    if (insertError || !notification) {
+      console.error("notifications insert error:", insertError);
+      results.push({ recipient: recipientId, notified: false, reason: "INSERT_FAILED" });
+      continue;
     }
 
-    return json({ success: true, notified: true, delivered: false, reason: errorCode });
+    const { data: recipientProfile } = await admin
+      .from("profiles")
+      .select("push_token")
+      .eq("id", recipientId)
+      .maybeSingle();
+
+    const pushToken = (recipientProfile as { push_token?: string | null } | null)?.push_token;
+    if (!pushToken) {
+      await admin.from("notifications").update({ push_error: "NO_TOKEN" }).eq("id", notification.id);
+      results.push({ recipient: recipientId, notified: true, delivered: false, reason: "NO_TOKEN" });
+      continue;
+    }
+
+    let expoResult: { data?: Array<{ status: string; message?: string; details?: { error?: string } }> };
+    try {
+      const expoResponse = await fetch(EXPO_PUSH_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+          "Accept-Encoding": "gzip, deflate",
+        },
+        body: JSON.stringify([{
+          to: pushToken,
+          title,
+          body,
+          data: notificationData,
+          sound: "default",
+        }]),
+      });
+      expoResult = await expoResponse.json();
+    } catch (err) {
+      console.error("Expo push request failed:", err);
+      await admin.from("notifications").update({ push_error: "EXPO_REQUEST_FAILED" }).eq("id", notification.id);
+      results.push({ recipient: recipientId, notified: true, delivered: false, reason: "EXPO_REQUEST_FAILED" });
+      continue;
+    }
+
+    const ticket = expoResult.data?.[0];
+    if (!ticket || ticket.status !== "ok") {
+      const errorCode = ticket?.details?.error ?? ticket?.message ?? "UNKNOWN_ERROR";
+      await admin.from("notifications").update({ push_error: String(errorCode) }).eq("id", notification.id);
+
+      if (ticket?.details?.error === "DeviceNotRegistered") {
+        await admin.from("profiles").update({ push_token: null }).eq("id", recipientId);
+      }
+
+      results.push({ recipient: recipientId, notified: true, delivered: false, reason: String(errorCode) });
+      continue;
+    }
+
+    await admin.from("notifications").update({ push_sent_at: new Date().toISOString() }).eq("id", notification.id);
+    results.push({ recipient: recipientId, notified: true, delivered: true });
   }
 
-  await admin.from("notifications").update({ push_sent_at: new Date().toISOString() }).eq("id", notification.id);
-
-  return json({ success: true, notified: true, delivered: true });
+  return json({ success: true, results });
 });
