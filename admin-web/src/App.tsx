@@ -22,6 +22,7 @@ import { ProgramBuilderPage } from '@/pages/coaching/ProgramBuilderPage';
 import { CoachingAnalyticsPage } from '@/pages/coaching/CoachingAnalyticsPage';
 import { ClientProgramGrid } from '@/pages/coaching/builder/ClientProgramGrid';
 import { ClientProgressPage } from '@/pages/coaching/ClientProgressPage';
+import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { BuilderClipboardProvider } from '@/contexts/BuilderClipboardContext';
 
 function Gate() {
@@ -69,6 +70,10 @@ export function App() {
                 <Route path="waitlist" element={<WaitlistPage />} />
                 <Route path="tournaments" element={<TournamentsPage />} />
               </Route>
+              {/* Reachable by admin, coach, and assistant alike — RLS scopes
+                  each signed-in user to their own notification rows, so no
+                  route-level gating is needed here either. */}
+              <Route path="notifications" element={<NotificationsPage />} />
               {/* Reachable by admin and coach alike — each page scopes its
                   own data (community-owned roster for a coach, unrestricted
                   for admin) rather than being gated at the route level. */}

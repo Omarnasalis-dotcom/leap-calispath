@@ -1,11 +1,14 @@
 import { NavLink, Outlet } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/bits';
+import { fetchUnreadCount } from '@/api/notifications';
 
 const ADMIN_NAV: Array<
   { section: string } | { to: string; label: string; end?: boolean }
 > = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/notifications', label: 'Notifications' },
   { to: '/users', label: 'Users' },
   { to: '/leaderboards', label: 'Leaderboards' },
   { section: 'Challenges' },
@@ -27,6 +30,7 @@ const ADMIN_NAV: Array<
 // A coach's whole world is their own roster — no Dashboard/Users/Arena
 // sections, and no Analytics (its RPCs are admin-only today).
 const COACH_NAV: Array<{ section: string } | { to: string; label: string; end?: boolean }> = [
+  { to: '/notifications', label: 'Notifications' },
   { section: 'Coaching' },
   { to: '/coaching', label: 'Clients', end: true },
   { to: '/coaching/community', label: 'Community' },
@@ -37,6 +41,17 @@ const COACH_NAV: Array<{ section: string } | { to: string; label: string; end?: 
 export function AppShell() {
   const { profile, isAdmin, isCoach, signOut } = useAuth();
   const nav = isAdmin ? ADMIN_NAV : COACH_NAV;
+
+  // Polling, not Realtime: this app has no existing live-update mechanism
+  // (no Supabase Realtime usage anywhere in admin-web today), and a 45s-stale
+  // coaching-dashboard badge is an acceptable tradeoff against introducing
+  // that infra for the first time here.
+  const unreadQ = useQuery({
+    queryKey: ['notifications', 'unread-count'],
+    queryFn: fetchUnreadCount,
+    refetchInterval: 45_000,
+  });
+  const unreadCount = unreadQ.data ?? 0;
 
   return (
     <div className="shell">
@@ -58,6 +73,9 @@ export function AppShell() {
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               {item.label}
+              {item.to === '/notifications' && unreadCount > 0 && (
+                <span className="nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              )}
             </NavLink>
           ),
         )}
