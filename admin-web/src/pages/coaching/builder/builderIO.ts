@@ -148,6 +148,14 @@ export async function saveTemplateWeeks(params: {
           `Week ${w} — day "${d.name.toUpperCase()}" must have at least one workout block. Add a block or delete the day.`,
         );
       }
+      for (const block of d.blocks) {
+        const emptyIdx = block.exercises.findIndex((ex) => !ex.exercise_id);
+        if (emptyIdx !== -1) {
+          throw new Error(
+            `Week ${w} — "${d.name.toUpperCase()}" → "${block.name.trim() || 'Workout Routine'}", row ${emptyIdx + 1}: no exercise selected. Pick one or remove the row before saving.`,
+          );
+        }
+      }
     }
   }
 

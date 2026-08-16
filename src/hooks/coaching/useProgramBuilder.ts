@@ -1008,6 +1008,13 @@ export function useProgramBuilder(templateId?: string, propCoachId?: string, wee
           setErrorMsg(`WEEK ${weekNum} - DAY "${d.name.toUpperCase()}" MUST HAVE AT LEAST ONE WORKOUT BLOCK. PLEASE ADD A BLOCK OR DELETE THE DAY.`);
           return;
         }
+        for (const block of d.blocks) {
+          const emptyIdx = block.exercises.findIndex((ex) => !ex.exercise_id);
+          if (emptyIdx !== -1) {
+            setErrorMsg(`WEEK ${weekNum} - "${d.name.toUpperCase()}" > "${(block.name.trim() || 'Workout Routine').toUpperCase()}", ROW ${emptyIdx + 1}: NO EXERCISE SELECTED. PICK ONE OR REMOVE THE ROW BEFORE SAVING.`);
+            return;
+          }
+        }
       }
       
       validWeeks[weekNum] = weekDays;
