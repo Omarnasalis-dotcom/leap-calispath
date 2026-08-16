@@ -53,3 +53,9 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/send-overtake-notification-push/deno.json"
 entrypoint = "./functions/send-overtake-notification-push/index.ts"
+
+[functions.send-client-attention-alerts]
+enabled = true
+verify_jwt = false
+import_map = "./functions/send-client-attention-alerts/deno.json"
+entrypoint = "./functions/send-client-attention-alerts/index.ts"
