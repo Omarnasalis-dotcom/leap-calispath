@@ -59,3 +59,17 @@ enabled = true
 verify_jwt = false
 import_map = "./functions/send-client-attention-alerts/deno.json"
 entrypoint = "./functions/send-client-attention-alerts/index.ts"
+
+# Not user-triggered — invoked by RevenueCat's server, authenticated by a
+# fixed Authorization header shared secret instead (see index.ts).
+[functions.revenuecat-webhook]
+enabled = true
+verify_jwt = false
+import_map = "./functions/revenuecat-webhook/deno.json"
+entrypoint = "./functions/revenuecat-webhook/index.ts"
+
+[functions.confirm-entitlement]
+enabled = true
+verify_jwt = true
+import_map = "./functions/confirm-entitlement/deno.json"
+entrypoint = "./functions/confirm-entitlement/index.ts"
