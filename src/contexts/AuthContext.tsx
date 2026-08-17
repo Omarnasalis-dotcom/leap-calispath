@@ -28,11 +28,25 @@ function ensureGoogleSigninConfigured() {
 
 // RevenueCat has no web SDK path here — every call site below is guarded
 // with Platform.OS === 'web' the same way push-token registration already is.
+//
+// Called unconditionally on every app boot (unlike ensureGoogleSigninConfigured,
+// which only ever runs lazily inside a user-initiated sign-in tap) — a throw
+// here must never be allowed to propagate, since it's invoked synchronously
+// inside AuthContext's critical startup useEffect, before the session check
+// and the setTimeout that flips `loading` to false. An uncaught throw at that
+// point stops the rest of the effect from running at all, leaving `loading`
+// stuck true forever — the whole app hangs on the splash screen with no
+// timeout to recover it. Every other native call in this file is
+// try/caught for the same reason; this one was missed initially.
 let purchasesConfigured = false;
 function ensurePurchasesConfigured() {
   if (purchasesConfigured || Platform.OS === 'web') return;
-  Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY! });
-  purchasesConfigured = true;
+  try {
+    Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY! });
+    purchasesConfigured = true;
+  } catch (error) {
+    console.error('[Purchases] configure failed:', error);
+  }
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
