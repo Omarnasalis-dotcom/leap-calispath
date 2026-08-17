@@ -136,7 +136,12 @@
       "template": "./web/index.html"
     },
     "plugins": [
-      "expo-secure-store",
+      [
+        "expo-secure-store",
+        {
+          "faceIDPermission": false
+        }
+      ],
       "expo-notifications",
       "expo-apple-authentication",
       [
