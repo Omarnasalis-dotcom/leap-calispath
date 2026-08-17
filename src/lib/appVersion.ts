@@ -57,3 +57,27 @@ export async function checkForceUpdate(): Promise<ForceUpdateStatus | null> {
     return null;
   }
 }
+
+// Remote kill switch for the entitlement paywall gate. Same fail-open
+// philosophy as checkForceUpdate above, but inverted for a different reason:
+// there it's a UX nudge, so failing open just means someone isn't nagged to
+// update. Here it gates real access — failing open (i.e. returning false,
+// paywall off) is still the correct default, because wrongly locking out
+// the entire user base over a network hiccup is a far worse outcome than a
+// transient bug leaving the gate off a little longer than intended.
+export async function checkPaywallEnabled(): Promise<boolean> {
+  if (Platform.OS === 'web') return false;
+
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('paywall_enabled')
+      .eq('platform', Platform.OS)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return data.paywall_enabled === true;
+  } catch {
+    return false;
+  }
+}

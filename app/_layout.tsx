@@ -80,10 +80,11 @@ import { TutorialOverlay } from '../src/components/tutorial/TutorialOverlay';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
-import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
+import { checkForceUpdate, checkPaywallEnabled, ForceUpdateStatus } from '../src/lib/appVersion';
+import { hasActiveAccess } from '../src/lib/entitlement';
 
 // Auth Guard Component
-function AuthGuard({ children }: { children: React.ReactNode }) {
+function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; paywallEnabled: boolean }) {
   const { user, profile, loading, profileLoading, needsPasswordReset } = useAuth();
   const { theme } = useTheme();
   const segments = useSegments();
@@ -174,6 +175,29 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // 6.5. Paywall gate — once past onboarding/assessment, no active trial or
+  // subscription means everything else is locked. is_admin and is_coach both
+  // bypass: coaching is an internal/operator role, not a paying customer
+  // segment, so a coach shouldn't lose access to their clients' tools because
+  // their own personal trial ran out. profile stays reachable regardless —
+  // sign-out/restore-purchases/delete-account live in SettingsSheet inside
+  // it, and ProfileScreen itself renders a locked/teaser state rather than
+  // the normal tier grid when access has expired.
+  const paywallAllowlist = ['paywall', 'profile'];
+  const routeBeforeTierLocks = segments[0];
+  if (
+    paywallEnabled &&
+    user &&
+    profile?.assessed_at &&
+    routeBeforeTierLocks &&
+    !paywallAllowlist.includes(routeBeforeTierLocks)
+  ) {
+    const isAdminOrCoach = profile?.is_admin === true || profile?.is_coach === true;
+    if (!isAdminOrCoach && !hasActiveAccess(profile)) {
+      return <Redirect href="/paywall" />;
+    }
+  }
+
   // 7. Enforce strength tier gates for locked worlds (Static, Clash, Power, Champions)
   const strengthTier = profile?.strength_tier || 0;
   const tierLocks: Record<string, number> = {
@@ -216,9 +240,11 @@ function RootLayout() {
   const router = useRouter();
   const navigationRef = useNavigationContainerRef();
   const [forceUpdate, setForceUpdate] = useState<ForceUpdateStatus | null>(null);
+  const [paywallEnabled, setPaywallEnabled] = useState(false);
 
   useEffect(() => {
     checkForceUpdate().then(setForceUpdate);
+    checkPaywallEnabled().then(setPaywallEnabled);
   }, []);
 
   useEffect(() => {
@@ -285,7 +311,7 @@ function RootLayout() {
             <AuthProvider>
               <TutorialProvider>
                 <View style={{ flex: 1 }}>
-                  <AuthGuard>
+                  <AuthGuard paywallEnabled={paywallEnabled}>
                     <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
                       <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
                       <Stack.Screen name="profile" options={{ animation: 'none' }} />
