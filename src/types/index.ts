@@ -35,6 +35,7 @@ export interface Profile {
   access_expires_at?: string | null;
   access_granted_at?: string | null;
   invite_code_used?: string | null;
+  entitlement_source?: string | null;
   created_at?: string;
   community_id?: string | null;
 }

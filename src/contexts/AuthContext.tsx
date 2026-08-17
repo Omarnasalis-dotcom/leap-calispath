@@ -14,6 +14,7 @@ import {
   isErrorWithCode,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
+import Purchases from 'react-native-purchases';
 
 let googleSigninConfigured = false;
 function ensureGoogleSigninConfigured() {
@@ -23,6 +24,15 @@ function ensureGoogleSigninConfigured() {
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
   });
   googleSigninConfigured = true;
+}
+
+// RevenueCat has no web SDK path here — every call site below is guarded
+// with Platform.OS === 'web' the same way push-token registration already is.
+let purchasesConfigured = false;
+function ensurePurchasesConfigured() {
+  if (purchasesConfigured || Platform.OS === 'web') return;
+  Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY! });
+  purchasesConfigured = true;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -98,6 +108,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   useEffect(() => {
+    ensurePurchasesConfigured();
+
     // Timeout safety - never stay loading forever
     const timeoutId = setTimeout(() => {
       setLoading(false);
@@ -114,6 +126,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(session?.user ?? null);
           if (session?.user) {
             fetchProfile(session.user.id);
+            logInPurchases(session.user.id);
           }
         }
         setLoading(false);
@@ -148,6 +161,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(session?.user ?? null);
       if (session?.user) {
         fetchProfile(session.user.id);
+        logInPurchases(session.user.id);
       } else {
         setProfile(null);
       }
@@ -155,6 +169,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Ties RevenueCat's app_user_id to Supabase's auth.uid() directly, so no
+  // separate id-mapping is ever needed — the webhook receiver relies on this.
+  // Best-effort like push-token registration: a failure here shouldn't block
+  // sign-in, RC falls back to its own anonymous id and reconciles on next launch.
+  async function logInPurchases(userId: string) {
+    if (Platform.OS === 'web') return;
+    try {
+      await Purchases.logIn(userId);
+    } catch (error) {
+      console.error('[Purchases] logIn failed:', error);
+    }
+  }
 
   async function registerPushToken(userId: string) {
     if (Platform.OS === 'web') return;
@@ -351,6 +378,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         .update({ push_token: null })
         .eq('id', user.id)
         .then(undefined, () => { });
+    }
+
+    if (Platform.OS !== 'web') {
+      await Purchases.logOut().catch(() => { });
     }
 
     const { error } = await supabase.auth.signOut();
