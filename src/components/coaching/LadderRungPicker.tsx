@@ -34,6 +34,11 @@ interface LadderRungPickerProps {
   exercises?: LadderExercise[];
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  // Reports whether this ladder currently holds unsaved progress (a running
+  // rest/timer, or a rung already selected) — the parent block card uses
+  // this to decide whether collapsing needs a confirm. Only meaningful in
+  // inline mode.
+  onActiveChange?: (active: boolean) => void;
 }
 
 export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
@@ -48,6 +53,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   exercises,
   activeVideoExerciseId,
   onToggleVideo,
+  onActiveChange,
 }) => {
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [extraReps, setExtraReps] = useState(0);
@@ -101,6 +107,10 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
     }
     return () => clearInterval(intervalRef.current);
   }, [restActive]);
+
+  useEffect(() => {
+    if (isInline) onActiveChange?.(restActive || selectedIndex !== null);
+  }, [isInline, restActive, selectedIndex]);
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

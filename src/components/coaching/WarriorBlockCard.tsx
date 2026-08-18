@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
@@ -73,10 +73,19 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const isActiveForForTimeLogging = isExpanded && !isLocked && isForTime && block.completedStatus === 'none';
   // These four hold elapsed time / rounds / rung / reps only in local component
   // state (no lifted state, nothing persisted mid-session) — collapsing the
-  // block unmounts that subtree and silently destroys it. Block the collapse
-  // while one of these is actively running; a block that's merely expanded
-  // without a timed/round-based session underway can still collapse normally.
-  const hasActiveTimedSession = isActiveForLadderLogging || isActiveForAmrapLogging || isActiveForForTimeLogging || isActiveForCircuitLogging;
+  // block unmounts that subtree and silently destroys it. Each child reports
+  // via onActiveChange whether it actually has unsaved progress right now
+  // (a running timer, a counted round, a selected rung) — merely being
+  // expanded on one of these block types isn't enough to warrant a confirm.
+  const [amrapActive, setAmrapActive] = useState(false);
+  const [forTimeActive, setForTimeActive] = useState(false);
+  const [ladderActive, setLadderActive] = useState(false);
+  const [activeCircuitRounds, setActiveCircuitRounds] = useState<Record<number, boolean>>({});
+  const handleCircuitActiveChange = useCallback((roundNumber: number, active: boolean) => {
+    setActiveCircuitRounds(prev => (prev[roundNumber] === active ? prev : { ...prev, [roundNumber]: active }));
+  }, []);
+  const hasActiveTimedSession =
+    amrapActive || forTimeActive || ladderActive || Object.values(activeCircuitRounds).some(Boolean);
   const amrapTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10) || 10) * 60;
   const forTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || '15'), 10) || 15) * 60;
   const totalRounds = parseInt(String(block.metadata?.rounds || '1'), 10) || 1;
@@ -345,6 +354,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                           }}
                           activeVideoExerciseId={activeVideoExerciseId}
                           onToggleVideo={onToggleVideo}
+                          onActiveChange={handleCircuitActiveChange}
                         />
                       );
                     })}
@@ -365,6 +375,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url }))}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
+                      onActiveChange={setLadderActive}
                     />
                   </View>
                 )}
@@ -379,6 +390,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(roundsCompleted) => onAmrapFinalize?.(block.id, roundsCompleted)}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
+                      onActiveChange={setAmrapActive}
                     />
                   </View>
                 )}
@@ -393,6 +405,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(result) => onForTimeFinalize?.(block.id, result)}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
+                      onActiveChange={setForTimeActive}
                     />
                   </View>
                 )}

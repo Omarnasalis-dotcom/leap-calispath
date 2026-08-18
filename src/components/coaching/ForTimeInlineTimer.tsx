@@ -25,6 +25,10 @@ interface ForTimeInlineTimerProps {
   onFinalize: (result: ForTimeResult) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  // Reports whether this timer currently holds unsaved progress (started,
+  // rounds counted, or a manual time typed in) — the parent block card uses
+  // this to decide whether collapsing needs a confirm.
+  onActiveChange?: (active: boolean) => void;
 }
 
 // A finish under this is almost certainly a mis-tap rather than a real
@@ -40,6 +44,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   onFinalize,
   activeVideoExerciseId,
   onToggleVideo,
+  onActiveChange,
 }) => {
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -116,6 +121,10 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     });
     return () => subscription.remove();
   }, [timerRunning, timeCapSeconds]);
+
+  useEffect(() => {
+    onActiveChange?.(hasStarted || roundsCompleted > 0 || manualMins !== '' || manualSecs !== '');
+  }, [hasStarted, roundsCompleted, manualMins, manualSecs]);
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

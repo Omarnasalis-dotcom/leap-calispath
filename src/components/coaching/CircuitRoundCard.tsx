@@ -22,6 +22,10 @@ interface CircuitRoundCardProps {
   onRoundComplete: (entries: { exerciseId: string | number; reps: number }[]) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  // Reports whether this round currently holds unsaved progress (a running
+  // rest timer, or reps edited away from the target defaults) — the parent
+  // block card uses this to decide whether collapsing needs a confirm.
+  onActiveChange?: (roundNumber: number, active: boolean) => void;
 }
 
 export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
@@ -36,6 +40,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   onRoundComplete,
   activeVideoExerciseId,
   onToggleVideo,
+  onActiveChange,
 }) => {
   const [repsByExercise, setRepsByExercise] = useState<Record<string | number, number>>(
     () => Object.fromEntries(exercises.map(ex => [ex.id, ex.targetReps]))
@@ -95,6 +100,15 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
     });
     return () => subscription.remove();
   }, [restActive]);
+
+  useEffect(() => {
+    if (completed) {
+      onActiveChange?.(roundNumber, false);
+      return;
+    }
+    const repsEdited = exercises.some(ex => (repsByExercise[ex.id] ?? 0) !== ex.targetReps);
+    onActiveChange?.(roundNumber, restActive || repsEdited);
+  }, [restActive, repsByExercise, completed]);
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

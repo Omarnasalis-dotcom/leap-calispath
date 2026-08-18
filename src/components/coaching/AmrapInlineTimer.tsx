@@ -18,6 +18,10 @@ interface AmrapInlineTimerProps {
   onFinalize: (roundsCompleted: number) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
+  // Reports whether this timer currently holds unsaved progress (running,
+  // paused-at-time-up, or rounds already counted) — the parent block card
+  // uses this to decide whether collapsing needs a confirm.
+  onActiveChange?: (active: boolean) => void;
 }
 
 export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
@@ -28,6 +32,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   onFinalize,
   activeVideoExerciseId,
   onToggleVideo,
+  onActiveChange,
 }) => {
   const [timerRunning, setTimerRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(timeCapSeconds);
@@ -91,6 +96,10 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
     });
     return () => subscription.remove();
   }, [timerRunning]);
+
+  useEffect(() => {
+    onActiveChange?.(timerRunning || roundsCompleted > 0 || finished);
+  }, [timerRunning, roundsCompleted, finished]);
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

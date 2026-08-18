@@ -7,15 +7,15 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		11E7506DB15F4AC99C5CF81E /* PlusJakartaSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = BAF86367E65043FCBE41F54B /* PlusJakartaSans-ExtraBold.ttf */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
-		37BA8C9F124B4682811096BA /* PlusJakartaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = DE3794EA12634A05BAE86F93 /* PlusJakartaSans-Bold.ttf */; };
-		387D15E05E534B6DB8504557 /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4DE5C245073F463FB74EFDE7 /* PlusJakartaSans-Regular.ttf */; };
+		22B29E4FA5244A8F8761A9A9 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 4A926C0D1BAC4FF09FD2F054 /* PrivacyInfo.xcprivacy */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
+		45E59AF2A7A44E9E766E4151 /* libPods-LeapArena.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 4A8652B5C2790EB07C4B33BC /* libPods-LeapArena.a */; };
+		4905A1EE88364730B3332D6B /* PlusJakartaSans-Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 8B238FE7D39F488794BC1A8A /* PlusJakartaSans-Regular.ttf */; };
+		8564DD42BB454663AA15824C /* PlusJakartaSans-Bold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 44FA5FEC9B9E481F9227D08C /* PlusJakartaSans-Bold.ttf */; };
 		BB2F792D24A3F905000567C9 /* Expo.plist in Resources */ = {isa = PBXBuildFile; fileRef = BB2F792C24A3F905000567C9 /* Expo.plist */; };
-		BFBF20B271AFD175037DD159 /* libPods-LeapArena.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A573AC9632122F40C4AFF70F /* libPods-LeapArena.a */; };
-		C22386C9EC6847B291805FD0 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 40F602AF74F046318BEEE297 /* PrivacyInfo.xcprivacy */; };
-		DCB613F0FFD7AB5A2E64F781 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DE38992BF0852E3562AF47B /* ExpoModulesProvider.swift */; };
+		D4684025ACA46AFE6F466AD6 /* ExpoModulesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2E830F17B526ED1F5D8B0A8 /* ExpoModulesProvider.swift */; };
+		D5B4C1A6330642DF9621A7AB /* PlusJakartaSans-ExtraBold.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 19425C5FB5CE4BD4AA4A0492 /* PlusJakartaSans-ExtraBold.ttf */; };
 		F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11748412D0307B40044C1D9 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
@@ -23,19 +23,19 @@
 		13B07F961A680F5B00A75B9A /* LeapArena.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LeapArena.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = LeapArena/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = LeapArena/Info.plist; sourceTree = "<group>"; };
-		4050BCCB54A1AEC2FA882B6A /* Pods-LeapArena.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-LeapArena.debug.xcconfig"; path = "Target Support Files/Pods-LeapArena/Pods-LeapArena.debug.xcconfig"; sourceTree = "<group>"; };
-		40F602AF74F046318BEEE297 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = LeapArena/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		4DE5C245073F463FB74EFDE7 /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Regular.ttf"; path = "../assets/fonts/PlusJakartaSans-Regular.ttf"; sourceTree = "<group>"; };
-		6DE38992BF0852E3562AF47B /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-LeapArena/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
-		A573AC9632122F40C4AFF70F /* libPods-LeapArena.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-LeapArena.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		14205CC320CA43018706B35F /* Pods-LeapArena.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-LeapArena.release.xcconfig"; path = "Target Support Files/Pods-LeapArena/Pods-LeapArena.release.xcconfig"; sourceTree = "<group>"; };
+		19425C5FB5CE4BD4AA4A0492 /* PlusJakartaSans-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraBold.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBold.ttf"; sourceTree = "<group>"; };
+		44FA5FEC9B9E481F9227D08C /* PlusJakartaSans-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Bold.ttf"; path = "../assets/fonts/PlusJakartaSans-Bold.ttf"; sourceTree = "<group>"; };
+		4A8652B5C2790EB07C4B33BC /* libPods-LeapArena.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-LeapArena.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		4A926C0D1BAC4FF09FD2F054 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = PrivacyInfo.xcprivacy; path = LeapArena/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		8B238FE7D39F488794BC1A8A /* PlusJakartaSans-Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Regular.ttf"; path = "../assets/fonts/PlusJakartaSans-Regular.ttf"; sourceTree = "<group>"; };
 		AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = SplashScreen.storyboard; path = LeapArena/SplashScreen.storyboard; sourceTree = "<group>"; };
-		BAF86367E65043FCBE41F54B /* PlusJakartaSans-ExtraBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-ExtraBold.ttf"; path = "../assets/fonts/PlusJakartaSans-ExtraBold.ttf"; sourceTree = "<group>"; };
 		BB2F792C24A3F905000567C9 /* Expo.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; path = Expo.plist; sourceTree = "<group>"; };
-		DE3794EA12634A05BAE86F93 /* PlusJakartaSans-Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = "PlusJakartaSans-Bold.ttf"; path = "../assets/fonts/PlusJakartaSans-Bold.ttf"; sourceTree = "<group>"; };
-		E412CD94C324A0E19CF97A3F /* Pods-LeapArena.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-LeapArena.release.xcconfig"; path = "Target Support Files/Pods-LeapArena/Pods-LeapArena.release.xcconfig"; sourceTree = "<group>"; };
+		C6CAB7B7ECF2798A209D88E1 /* Pods-LeapArena.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-LeapArena.debug.xcconfig"; path = "Target Support Files/Pods-LeapArena/Pods-LeapArena.debug.xcconfig"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F11748412D0307B40044C1D9 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = LeapArena/AppDelegate.swift; sourceTree = "<group>"; };
 		F11748442D0722820044C1D9 /* LeapArena-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; name = "LeapArena-Bridging-Header.h"; path = "LeapArena/LeapArena-Bridging-Header.h"; sourceTree = "<group>"; };
+		F2E830F17B526ED1F5D8B0A8 /* ExpoModulesProvider.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = ExpoModulesProvider.swift; path = "Pods/Target Support Files/Pods-LeapArena/ExpoModulesProvider.swift"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -43,21 +43,13 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				BFBF20B271AFD175037DD159 /* libPods-LeapArena.a in Frameworks */,
+				45E59AF2A7A44E9E766E4151 /* libPods-LeapArena.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		0ECAF977E8A0BEFCFB064B7C /* LeapArena */ = {
-			isa = PBXGroup;
-			children = (
-				6DE38992BF0852E3562AF47B /* ExpoModulesProvider.swift */,
-			);
-			name = LeapArena;
-			sourceTree = "<group>";
-		};
 		13B07FAE1A68108700A75B9A /* LeapArena */ = {
 			isa = PBXGroup;
 			children = (
@@ -67,7 +59,7 @@
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
-				40F602AF74F046318BEEE297 /* PrivacyInfo.xcprivacy */,
+				4A926C0D1BAC4FF09FD2F054 /* PrivacyInfo.xcprivacy */,
 			);
 			name = LeapArena;
 			sourceTree = "<group>";
@@ -76,27 +68,27 @@
 			isa = PBXGroup;
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
-				A573AC9632122F40C4AFF70F /* libPods-LeapArena.a */,
+				4A8652B5C2790EB07C4B33BC /* libPods-LeapArena.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
-		34FFEB65649F48FB9324C852 /* Resources */ = {
+		42DD71320E65455A81535141 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
-				4DE5C245073F463FB74EFDE7 /* PlusJakartaSans-Regular.ttf */,
-				DE3794EA12634A05BAE86F93 /* PlusJakartaSans-Bold.ttf */,
-				BAF86367E65043FCBE41F54B /* PlusJakartaSans-ExtraBold.ttf */,
+				8B238FE7D39F488794BC1A8A /* PlusJakartaSans-Regular.ttf */,
+				44FA5FEC9B9E481F9227D08C /* PlusJakartaSans-Bold.ttf */,
+				19425C5FB5CE4BD4AA4A0492 /* PlusJakartaSans-ExtraBold.ttf */,
 			);
 			name = Resources;
 			path = "";
 			sourceTree = "<group>";
 		};
-		40CC5BCF15C1761347363292 /* Pods */ = {
+		7D816A6637F2DC69458031F5 /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				4050BCCB54A1AEC2FA882B6A /* Pods-LeapArena.debug.xcconfig */,
-				E412CD94C324A0E19CF97A3F /* Pods-LeapArena.release.xcconfig */,
+				C6CAB7B7ECF2798A209D88E1 /* Pods-LeapArena.debug.xcconfig */,
+				14205CC320CA43018706B35F /* Pods-LeapArena.release.xcconfig */,
 			);
 			name = Pods;
 			path = Pods;
@@ -116,9 +108,9 @@
 				832341AE1AAA6A7D00B99B32 /* Libraries */,
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
-				34FFEB65649F48FB9324C852 /* Resources */,
-				40CC5BCF15C1761347363292 /* Pods */,
-				FC81813E990F8844B91AFCE4 /* ExpoModulesProviders */,
+				42DD71320E65455A81535141 /* Resources */,
+				7D816A6637F2DC69458031F5 /* Pods */,
+				B597B7E363E47D83BABCE9D2 /* ExpoModulesProviders */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -133,6 +125,14 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
+		B597B7E363E47D83BABCE9D2 /* ExpoModulesProviders */ = {
+			isa = PBXGroup;
+			children = (
+				FD880B62E18F1AF37A853E6C /* LeapArena */,
+			);
+			name = ExpoModulesProviders;
+			sourceTree = "<group>";
+		};
 		BB2F792B24A3F905000567C9 /* Supporting */ = {
 			isa = PBXGroup;
 			children = (
@@ -142,12 +142,12 @@
 			path = LeapArena/Supporting;
 			sourceTree = "<group>";
 		};
-		FC81813E990F8844B91AFCE4 /* ExpoModulesProviders */ = {
+		FD880B62E18F1AF37A853E6C /* LeapArena */ = {
 			isa = PBXGroup;
 			children = (
-				0ECAF977E8A0BEFCFB064B7C /* LeapArena */,
+				F2E830F17B526ED1F5D8B0A8 /* ExpoModulesProvider.swift */,
 			);
-			name = ExpoModulesProviders;
+			name = LeapArena;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -158,14 +158,14 @@
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "LeapArena" */;
 			buildPhases = (
 				08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */,
-				04ADAFF9D59C070C915C4575 /* [Expo] Configure project */,
+				F837FD7ECAFFA306D3B2C9E8 /* [Expo] Configure project */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */,
-				901E7E8D1A5F40C1895B03FE /* Upload Debug Symbols to Sentry */,
-				543D772CF7C9B5218C3FAE3E /* [CP] Embed Pods Frameworks */,
+				024A3A7B6B454556A0BFB27B /* Upload Debug Symbols to Sentry */,
+				9B7B171AEF1F23FBF1E58BA5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
@@ -186,8 +186,6 @@
 				TargetAttributes = {
 					13B07F861A680F5B00A75B9A = {
 						LastSwiftMigration = 1250;
-						DevelopmentTeam = "9759G68746";
-						ProvisioningStyle = Automatic;
 					};
 				};
 			};
@@ -217,10 +215,10 @@
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
-				C22386C9EC6847B291805FD0 /* PrivacyInfo.xcprivacy in Resources */,
-				387D15E05E534B6DB8504557 /* PlusJakartaSans-Regular.ttf in Resources */,
-				37BA8C9F124B4682811096BA /* PlusJakartaSans-Bold.ttf in Resources */,
-				11E7506DB15F4AC99C5CF81E /* PlusJakartaSans-ExtraBold.ttf in Resources */,
+				22B29E4FA5244A8F8761A9A9 /* PrivacyInfo.xcprivacy in Resources */,
+				4905A1EE88364730B3332D6B /* PlusJakartaSans-Regular.ttf in Resources */,
+				8564DD42BB454663AA15824C /* PlusJakartaSans-Bold.ttf in Resources */,
+				D5B4C1A6330642DF9621A7AB /* PlusJakartaSans-ExtraBold.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -244,29 +242,19 @@
 			shellPath = /bin/sh;
 			shellScript = "if [[ -f \"$PODS_ROOT/../.xcode.env\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env\"\nfi\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n# The project root by default is one level up from the ios directory\nexport PROJECT_ROOT=\"$PROJECT_DIR\"/..\n\nif [[ \"$CONFIGURATION\" = *Debug* ]]; then\n  export SKIP_BUNDLING=1\nfi\nif [[ -z \"$ENTRY_FILE\" ]]; then\n  # Set the entry JS file using the bundler's entry resolution.\n  export ENTRY_FILE=\"$(\"$NODE_BINARY\" -e \"require('expo/scripts/resolveAppEntry')\" \"$PROJECT_ROOT\" ios absolute | tail -n 1)\"\nfi\n\nif [[ -z \"$CLI_PATH\" ]]; then\n  # Use Expo CLI\n  export CLI_PATH=\"$(\"$NODE_BINARY\" --print \"require.resolve('@expo/cli', { paths: [require.resolve('expo/package.json')] })\")\"\nfi\nif [[ -z \"$BUNDLE_COMMAND\" ]]; then\n  # Default Expo CLI command for bundling\n  export BUNDLE_COMMAND=\"export:embed\"\nfi\n\n# Source .xcode.env.updates if it exists to allow\n# SKIP_BUNDLING to be unset if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.updates\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.updates\"\nfi\n# Source local changes to allow overrides\n# if needed\nif [[ -f \"$PODS_ROOT/../.xcode.env.local\" ]]; then\n  source \"$PODS_ROOT/../.xcode.env.local\"\nfi\n\n/bin/sh `\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode.sh'\"` `\"$NODE_BINARY\" --print \"require('path').dirname(require.resolve('react-native/package.json')) + '/scripts/react-native-xcode.sh'\"`\n\n";
 		};
-		04ADAFF9D59C070C915C4575 /* [Expo] Configure project */ = {
+		024A3A7B6B454556A0BFB27B /* Upload Debug Symbols to Sentry */ = {
 			isa = PBXShellScriptBuildPhase;
-			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
 			files = (
 			);
-			inputFileListPaths = (
-			);
 			inputPaths = (
-				"$(SRCROOT)/.xcode.env",
-				"$(SRCROOT)/.xcode.env.local",
-				"$(SRCROOT)/LeapArena/LeapArena.entitlements",
-				"$(SRCROOT)/Pods/Target Support Files/Pods-LeapArena/expo-configure-project.sh",
 			);
-			name = "[Expo] Configure project";
-			outputFileListPaths = (
-			);
+			name = "Upload Debug Symbols to Sentry";
 			outputPaths = (
-				"$(SRCROOT)/Pods/Target Support Files/Pods-LeapArena/ExpoModulesProvider.swift",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-LeapArena/expo-configure-project.sh\"\n";
+			shellScript = "/bin/sh `${NODE_BINARY:-node} --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode-debug-files.sh'\"`";
 		};
 		08A4A3CD28434E44B6B9DE2E /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -288,28 +276,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
-			showEnvVarsInLog = 0;
-		};
-		543D772CF7C9B5218C3FAE3E /* [CP] Embed Pods Frameworks */ = {
-			isa = PBXShellScriptBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			inputPaths = (
-				"${PODS_ROOT}/Target Support Files/Pods-LeapArena/Pods-LeapArena-frameworks.sh",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
-				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
-			);
-			name = "[CP] Embed Pods Frameworks";
-			outputPaths = (
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
-				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-LeapArena/Pods-LeapArena-frameworks.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
 		800E24972A6A228C8D4807E9 /* [CP] Copy Pods Resources */ = {
@@ -374,19 +340,51 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-LeapArena/Pods-LeapArena-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		901E7E8D1A5F40C1895B03FE /* Upload Debug Symbols to Sentry */ = {
+		9B7B171AEF1F23FBF1E58BA5 /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 			);
 			inputPaths = (
+				"${PODS_ROOT}/Target Support Files/Pods-LeapArena/Pods-LeapArena-frameworks.sh",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/React-Core-prebuilt/React.framework/React",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/ReactNativeDependencies/ReactNativeDependencies.framework/ReactNativeDependencies",
+				"${PODS_XCFRAMEWORKS_BUILD_DIR}/hermes-engine/Pre-built/hermes.framework/hermes",
 			);
-			name = "Upload Debug Symbols to Sentry";
+			name = "[CP] Embed Pods Frameworks";
 			outputPaths = (
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/React.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/ReactNativeDependencies.framework",
+				"${TARGET_BUILD_DIR}/${FRAMEWORKS_FOLDER_PATH}/hermes.framework",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "/bin/sh `${NODE_BINARY:-node} --print \"require('path').dirname(require.resolve('@sentry/react-native/package.json')) + '/scripts/sentry-xcode-debug-files.sh'\"`";
+			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-LeapArena/Pods-LeapArena-frameworks.sh\"\n";
+			showEnvVarsInLog = 0;
+		};
+		F837FD7ECAFFA306D3B2C9E8 /* [Expo] Configure project */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/.xcode.env",
+				"$(SRCROOT)/.xcode.env.local",
+				"$(SRCROOT)/LeapArena/LeapArena.entitlements",
+				"$(SRCROOT)/Pods/Target Support Files/Pods-LeapArena/expo-configure-project.sh",
+			);
+			name = "[Expo] Configure project";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(SRCROOT)/Pods/Target Support Files/Pods-LeapArena/ExpoModulesProvider.swift",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# This script configures Expo modules and generates the modules provider file.\nbash -l -c \"./Pods/Target\\ Support\\ Files/Pods-LeapArena/expo-configure-project.sh\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */
 
@@ -396,7 +394,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				F11748422D0307B40044C1D9 /* AppDelegate.swift in Sources */,
-				DCB613F0FFD7AB5A2E64F781 /* ExpoModulesProvider.swift in Sources */,
+				D4684025ACA46AFE6F466AD6 /* ExpoModulesProvider.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -405,7 +403,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 4050BCCB54A1AEC2FA882B6A /* Pods-LeapArena.debug.xcconfig */;
+			baseConfigurationReference = C6CAB7B7ECF2798A209D88E1 /* Pods-LeapArena.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -436,15 +434,12 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "9759G68746";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Debug;
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = E412CD94C324A0E19CF97A3F /* Pods-LeapArena.release.xcconfig */;
+			baseConfigurationReference = 14205CC320CA43018706B35F /* Pods-LeapArena.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
@@ -469,9 +464,6 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
-				DEVELOPMENT_TEAM = "9759G68746";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
 			};
 			name = Release;
 		};
