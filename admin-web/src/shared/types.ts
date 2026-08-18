@@ -109,6 +109,7 @@ export interface AdminUserProfile {
   statics_assessed_at: string | null;
   last_active: string | null;
   access_expires_at: string | null;
+  entitlement_source: string | null;
   invite_code_used: string | null;
   auth_created_at: string | null;
   last_sign_in_at: string | null;

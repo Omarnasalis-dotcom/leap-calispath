@@ -74,3 +74,33 @@ export async function setCoachingPaused(
   });
   if (error) throw new Error(error.message);
 }
+
+export async function grantAccess(
+  userId: string,
+  durationType: '1month' | '3month' | '6month',
+): Promise<void> {
+  const { data, error } = await supabase.rpc('admin_grant_access', {
+    p_user_id: userId,
+    p_duration_type: durationType,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as { success: boolean; error?: string };
+  if (!result?.success) {
+    throw new Error(result?.error ?? 'Grant failed');
+  }
+}
+
+export async function revokeAccess(userId: string): Promise<void> {
+  const { data, error } = await supabase.rpc('admin_revoke_access', {
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as { success: boolean; error?: string };
+  if (!result?.success) {
+    throw new Error(
+      result?.error === 'REAL_SUBSCRIPTION_CANNOT_BE_REVOKED_HERE'
+        ? 'Refused: this user has a real Apple subscription. It can only be cancelled through Apple/RevenueCat directly.'
+        : result?.error ?? 'Revoke failed',
+    );
+  }
+}

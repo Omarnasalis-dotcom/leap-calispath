@@ -1,7 +1,14 @@
 import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { fetchUserProfile, fetchUserTrialHistory, grantRole, setCoachingPaused } from '@/api/users';
+import {
+  fetchUserProfile,
+  fetchUserTrialHistory,
+  grantAccess,
+  grantRole,
+  revokeAccess,
+  setCoachingPaused,
+} from '@/api/users';
 import { useAuth } from '@/auth/AuthProvider';
 import {
   tierName,
@@ -76,6 +83,21 @@ export function UserDetailPage() {
       setCoachingPaused(id, vars.paused, vars.reason),
     onSuccess: () => {
       setPauseReason('');
+      void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
+    },
+  });
+
+  const grantMutation = useMutation({
+    mutationFn: (durationType: '1month' | '3month' | '6month') =>
+      grantAccess(id, durationType),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
+    },
+  });
+
+  const revokeMutation = useMutation({
+    mutationFn: () => revokeAccess(id),
+    onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
   });
@@ -188,6 +210,48 @@ export function UserDetailPage() {
                 />
               </div>
             )}
+          </div>
+        </section>
+      )}
+
+      {u && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Access</h2>
+            <Badge tone={u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'ok' : 'warn'}>
+              {u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'active' : 'expired'}
+            </Badge>
+          </div>
+          <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            {grantMutation.error && <ErrorNote error={grantMutation.error} />}
+            {revokeMutation.error && <ErrorNote error={revokeMutation.error} />}
+            <div className="dim" style={{ fontSize: 13 }}>
+              Expires {formatDateTime(u.access_expires_at)}
+              {u.entitlement_source ? ` — source: ${u.entitlement_source}` : ''}
+              {u.entitlement_source === 'rc_subscription' &&
+                ' (real Apple subscription — grants stack on top, but revoke must go through Apple/RevenueCat).'}
+            </div>
+            <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+              {(['1month', '3month', '6month'] as const).map((d) => (
+                <ConfirmButton
+                  key={d}
+                  label={`Gift ${d.replace('month', ' month')}`}
+                  title={`Gift ${d.replace('month', ' month')} of access to ${u.display_name || u.email}?`}
+                  body="Adds on top of any existing access (extends access_expires_at). Marked as an admin grant, not a real subscription."
+                  confirmLabel="Grant"
+                  onConfirm={() => grantMutation.mutateAsync(d)}
+                />
+              ))}
+              <ConfirmButton
+                label="Revoke access now"
+                danger
+                disabled={u.entitlement_source === 'rc_subscription'}
+                title={`Revoke access for ${u.display_name || u.email}?`}
+                body="Immediately expires their access. Refused if they have a real Apple subscription — that can only be cancelled through Apple/RevenueCat."
+                confirmLabel="Revoke"
+                onConfirm={() => revokeMutation.mutateAsync()}
+              />
+            </div>
           </div>
         </section>
       )}
