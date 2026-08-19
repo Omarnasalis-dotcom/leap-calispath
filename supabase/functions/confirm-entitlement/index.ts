@@ -71,18 +71,34 @@ Deno.serve(async (req) => {
   }
 
   const rcData = await rcResp.json();
-  const entitlements: Record<string, { expires_date: string | null }> = rcData?.subscriber?.entitlements ?? {};
+  const entitlements: Record<string, { expires_date: string | null; product_identifier?: string }> =
+    rcData?.subscriber?.entitlements ?? {};
+  const subscriptions: Record<string, { store_transaction_id?: string | number }> =
+    rcData?.subscriber?.subscriptions ?? {};
 
   // Only one entitlement exists in this project ("Leap Arena Pro") — don't
   // hardcode its identifier string, just take whichever entry has the
   // furthest-future expiry, in case that ever changes.
   let latestExpiresAt: string | null = null;
-  for (const entitlement of Object.values(entitlements)) {
+  let latestProductId: string | null = null;
+  for (const [key, entitlement] of Object.entries(entitlements)) {
     if (!entitlement.expires_date) continue;
     if (!latestExpiresAt || new Date(entitlement.expires_date) > new Date(latestExpiresAt)) {
       latestExpiresAt = entitlement.expires_date;
+      latestProductId = entitlement.product_identifier ?? key;
     }
   }
+
+  // The REST API only exposes the CURRENT transaction id per subscription
+  // (subscriber.subscriptions[productId].store_transaction_id), not the
+  // stable original_transaction_id the webhook payload carries — it
+  // changes on every renewal, unlike the webhook's identifier. This path
+  // is only a short-lived fallback for when the webhook hasn't landed yet,
+  // so a slightly different id here is acceptable: the webhook itself
+  // typically follows shortly after and corrects it to the stable value.
+  const originalTransactionId = latestProductId
+    ? subscriptions[latestProductId]?.store_transaction_id?.toString() ?? null
+    : null;
 
   if (!latestExpiresAt || new Date(latestExpiresAt).getTime() <= Date.now()) {
     return json({ success: true, active: false });
@@ -99,6 +115,7 @@ Deno.serve(async (req) => {
     p_user_id: userId,
     p_expires_at: latestExpiresAt,
     p_source: "rc_subscription",
+    p_original_transaction_id: originalTransactionId,
   });
 
   if (error) {

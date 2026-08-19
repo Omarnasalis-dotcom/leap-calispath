@@ -37,6 +37,14 @@ interface RevenueCatEvent {
   expiration_at_ms: number | null;
   product_id?: string;
   id?: string;
+  // Apple's transaction id for the ORIGINAL purchase in a subscription —
+  // stable across renewals and across RevenueCat app_user_id transfers,
+  // unlike transaction_id (changes every renewal) or app_user_id itself.
+  // Used to detect the same real subscription being claimed by more than
+  // one account (confirmed happening in testing via Purchases.logIn() on
+  // a device that already purchased) so apply_revenuecat_entitlement can
+  // revoke the previous holder.
+  original_transaction_id?: string;
 }
 
 Deno.serve(async (req) => {
@@ -80,6 +88,7 @@ Deno.serve(async (req) => {
     p_user_id: event.app_user_id,
     p_expires_at: new Date(event.expiration_at_ms).toISOString(),
     p_source: "rc_subscription",
+    p_original_transaction_id: event.original_transaction_id ?? null,
   });
 
   if (error) {
