@@ -92,6 +92,16 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
   const router = useRouter();
   const splashHiddenRef = useRef(false);
   const initialDeepLinkHandledRef = useRef(false);
+  // Mirrors `segments` for the async deep-link replay below to read the
+  // current route from, since that effect's own dependency array
+  // deliberately excludes `segments` (re-running the whole replay check on
+  // every navigation would be wrong) — same ref-mirroring pattern
+  // AuthContext already uses for needsPasswordReset inside its
+  // onAuthStateChange closure.
+  const segmentsRef = useRef(segments);
+  useEffect(() => {
+    segmentsRef.current = segments;
+  }, [segments]);
 
   // Same class of problem AuthContext's reset-password handling already
   // works around: on a cold start, AuthGuard renders a plain loading view
@@ -117,7 +127,16 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
       // various shapes a deep link can arrive in. Matching AuthContext's
       // existing reset-password handler's approach: a plain substring check
       // on the raw URL, which is robust regardless of how it parses.
-      if (url && url.includes('paywall') && user && profile?.assessed_at) {
+      //
+      // Only replay if expo-router's own automatic handling hasn't already
+      // landed here on its own — it isn't guaranteed to drop the URL, just
+      // unreliable, and re-navigating to the same route it already resolved
+      // forces PaywallScreen to remount, firing a second
+      // RevenueCatUI.presentPaywall() on top of the first.
+      if (
+        url && url.includes('paywall') && user && profile?.assessed_at &&
+        segmentsRef.current[0] !== 'paywall'
+      ) {
         router.replace('/paywall');
       }
     }).catch(() => { });
