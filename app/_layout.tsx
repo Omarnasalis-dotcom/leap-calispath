@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Platform, View } from 'react-native';
+import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useSegments, useNavigationContainerRef, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
@@ -85,7 +85,7 @@ import { hasActiveAccess } from '../src/lib/entitlement';
 
 // Auth Guard Component
 function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; paywallEnabled: boolean }) {
-  const { user, profile, loading, profileLoading, needsPasswordReset } = useAuth();
+  const { user, profile, loading, profileLoading, profileLoadFailed, refreshProfile, needsPasswordReset } = useAuth();
   const { theme } = useTheme();
   const segments = useSegments();
   const splashHiddenRef = useRef(false);
@@ -103,14 +103,16 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
 
   useEffect(() => {
     if (loading || profileLoading) return;
-    if (user && !profile) return;
+    // A failed load still needs the native splash released — otherwise the
+    // retry UI below is stuck behind it and never actually becomes visible.
+    if (user && !profile && !profileLoadFailed) return;
 
     // Auth and Onboarding state is resolved. We can now hide the native splash screen.
     if (!splashHiddenRef.current) {
       SplashScreen.hideAsync().catch(() => { });
       splashHiddenRef.current = true;
     }
-  }, [user, profile, loading, profileLoading]);
+  }, [user, profile, loading, profileLoading, profileLoadFailed]);
 
   if (loading || (profileLoading && !profile)) {
     // If the native splash screen hides early in dev, this ensures they see the logo
@@ -121,8 +123,26 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
     );
   }
 
-  // 1. Wait for profile to load in the background if logged in
+  // 1. Wait for profile to load in the background if logged in. If the fetch
+  // itself failed (network hiccup on a cold launch, most commonly), don't
+  // spin forever on a profile that's never coming — offer a retry instead.
   if (user && !profile) {
+    if (profileLoadFailed) {
+      return (
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, paddingHorizontal: 32, backgroundColor: theme.background.primary }}>
+          <LeapLogo size={120} animated={false} />
+          <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
+            Couldn't load your profile. Check your connection and try again.
+          </Text>
+          <TouchableOpacity
+            onPress={() => refreshProfile()}
+            style={{ paddingVertical: 10, paddingHorizontal: 24, borderRadius: 8, borderWidth: 1, borderColor: theme.text.secondary }}
+          >
+            <Text style={{ color: theme.text.primary, fontWeight: '600' }}>Retry</Text>
+          </TouchableOpacity>
+        </View>
+      );
+    }
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background.primary }}>
         <LeapLogo size={120} animated />

@@ -78,6 +78,7 @@ export interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   profileLoading: boolean;
+  profileLoadFailed: boolean;
   needsPasswordReset: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;

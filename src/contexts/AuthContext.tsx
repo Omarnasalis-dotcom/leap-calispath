@@ -56,6 +56,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
+  const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
   // onAuthStateChange below is registered once (mount-only effect) and would
   // otherwise close over a stale `needsPasswordReset` value forever; track
@@ -220,15 +221,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function fetchProfile(userId: string) {
     setProfileLoading(true);
+    setProfileLoadFailed(false);
     try {
-      const { data, error } = await supabase
-        .rpc('get_my_profile')
-        .single();
+      // A hung network call here (most likely right after a cold launch on a
+      // fresh install, before the connection is warmed up) would otherwise
+      // leave this await — and the finally below that clears profileLoading
+      // — suspended forever, since the Supabase client has no built-in
+      // request timeout. AuthGuard's `user && !profile` check has no escape
+      // hatch of its own, so that hang shows up as an infinite splash-screen
+      // spin with no way to recover short of force-quitting the app.
+      const { data, error } = await Promise.race([
+        supabase.rpc('get_my_profile').single(),
+        new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('fetchProfile timed out')), 10000)
+        ),
+      ]);
 
       if (error) {
         if (error.code !== 'PGRST116') {
           console.error('Error fetching profile:', error);
         }
+        setProfileLoadFailed(true);
         return;
       }
 
@@ -245,7 +258,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (fetched?.id !== userId) return;
 
       setProfile(fetched);
+      setProfileLoadFailed(false);
       registerPushToken(userId);
+    } catch (err) {
+      // Reached only on the timeout race rejecting (or any other unexpected
+      // throw) — the `error` branch above already covers a normal Supabase
+      // error response. Either way AuthGuard needs profileLoadFailed set so
+      // it can offer a retry instead of spinning on a profile that will
+      // never arrive.
+      console.error('fetchProfile failed:', err);
+      setProfileLoadFailed(true);
     } finally {
       setProfileLoading(false);
     }
@@ -432,6 +454,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profile,
     loading,
     profileLoading,
+    profileLoadFailed,
     needsPasswordReset,
     signUp,
     signIn,
