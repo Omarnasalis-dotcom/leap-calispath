@@ -3,6 +3,7 @@ import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useSegments, useNavigationContainerRef, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import * as Linking from 'expo-linking';
 import * as Sentry from '@sentry/react-native';
 
 // registerNavigationContainer(ref) is called once the container mounts (see
@@ -88,7 +89,35 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
   const { user, profile, loading, profileLoading, profileLoadFailed, refreshProfile, needsPasswordReset } = useAuth();
   const { theme } = useTheme();
   const segments = useSegments();
+  const router = useRouter();
   const splashHiddenRef = useRef(false);
+  const initialDeepLinkHandledRef = useRef(false);
+
+  // Same class of problem AuthContext's reset-password handling already
+  // works around: on a cold start, AuthGuard renders a plain loading view
+  // (not the real <Stack>) for the first several frames while auth/profile
+  // state resolves — any real-world delay there (a cold network connection,
+  // most commonly) is enough for expo-router's automatic initial-URL
+  // handling to have already given up by the time the Stack finally mounts,
+  // silently dropping the deep link and landing on the default route
+  // instead. Replay it explicitly once state has settled and it's actually
+  // safe to land there (authenticated, assessed — same gate the normal
+  // redirect logic below would apply anyway).
+  useEffect(() => {
+    if (initialDeepLinkHandledRef.current) return;
+    if (Platform.OS === 'web') return;
+    if (loading || profileLoading) return;
+    if (user && !profile) return;
+    initialDeepLinkHandledRef.current = true;
+
+    Linking.getInitialURL().then((url) => {
+      if (!url) return;
+      const { path } = Linking.parse(url);
+      if (path === 'paywall' && user && profile?.assessed_at) {
+        router.replace('/paywall');
+      }
+    }).catch(() => { });
+  }, [loading, profileLoading, user, profile, router]);
 
   if (__DEV__) {
     console.log('[AuthGuard Diagnostic]', {
