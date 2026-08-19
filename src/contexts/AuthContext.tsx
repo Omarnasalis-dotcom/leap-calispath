@@ -219,7 +219,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
-  async function fetchProfile(userId: string) {
+  async function fetchProfile(userId: string): Promise<Profile | null> {
     setProfileLoading(true);
     setProfileLoadFailed(false);
     try {
@@ -242,7 +242,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           console.error('Error fetching profile:', error);
         }
         setProfileLoadFailed(true);
-        return;
+        return null;
       }
 
       // Never commit a profile that isn't the one this call asked for. Sign-out
@@ -255,11 +255,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // it proceeds to evaluate strength_tier/is_coach/is_admin against the
       // wrong account for the whole of the new user's profile round-trip.
       const fetched = data as Profile;
-      if (fetched?.id !== userId) return;
+      if (fetched?.id !== userId) return null;
 
       setProfile(fetched);
       setProfileLoadFailed(false);
       registerPushToken(userId);
+      return fetched;
     } catch (err) {
       // Reached only on the timeout race rejecting (or any other unexpected
       // throw) — the `error` branch above already covers a normal Supabase
@@ -268,6 +269,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // never arrive.
       console.error('fetchProfile failed:', err);
       setProfileLoadFailed(true);
+      return null;
     } finally {
       setProfileLoading(false);
     }
@@ -424,10 +426,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (error) throw error;
   }
 
-  async function refreshProfile() {
+  async function refreshProfile(): Promise<Profile | null> {
     if (user?.id) {
-      await fetchProfile(user.id);
+      return fetchProfile(user.id);
     }
+    return null;
   }
 
   /**

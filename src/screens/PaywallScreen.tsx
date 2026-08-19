@@ -23,15 +23,23 @@ const POLL_INTERVAL_MS = 1500;
 
 export function PaywallScreen() {
   const router = useRouter();
-  const { profile, refreshProfile } = useAuth();
+  const { refreshProfile } = useAuth();
   const [step, setStep] = useState<Step>('presenting');
 
   const pollForAccess = useCallback(async () => {
     setStep('confirming');
     for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
       await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-      await refreshProfile();
-      if (hasActiveAccess(profile)) {
+      // Check the freshly-fetched profile returned directly from
+      // refreshProfile(), not the `profile` from this closure — reading
+      // that here would still be whatever it was when pollForAccess started,
+      // since React doesn't retroactively rebind a value already captured
+      // inside an in-flight async function. That stale read meant this loop
+      // could never actually detect newly-granted access, no matter how
+      // many times it polled — the real explanation behind every earlier
+      // "restore/purchase looks like it does nothing" report.
+      const fresh = await refreshProfile();
+      if (hasActiveAccess(fresh)) {
         router.replace('/');
         return;
       }
@@ -41,17 +49,17 @@ export function PaywallScreen() {
     // rather than trusting the client's own purchase-succeeded claim.
     try {
       await supabase.functions.invoke('confirm-entitlement');
-      await refreshProfile();
     } catch (err) {
       console.error('[Paywall] confirm-entitlement fallback failed:', err);
     }
+    const fresh = await refreshProfile();
 
-    if (hasActiveAccess(profile)) {
+    if (hasActiveAccess(fresh)) {
       router.replace('/');
     } else {
       setStep('fallback');
     }
-  }, [profile, refreshProfile, router]);
+  }, [refreshProfile, router]);
 
   const present = useCallback(async () => {
     setStep('presenting');

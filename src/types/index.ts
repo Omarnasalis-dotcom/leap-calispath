@@ -85,6 +85,6 @@ export interface AuthContextType {
   signInWithGoogle: () => Promise<boolean>;
   signInWithApple: () => Promise<boolean>;
   signOut: () => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: () => Promise<Profile | null>;
   clearPasswordReset: () => Promise<void>;
 }
