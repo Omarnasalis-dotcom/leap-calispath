@@ -155,6 +155,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      // Supabase fires this exactly once, immediately on subscribing,
+      // carrying whatever session already exists — the explicit
+      // getSession() call above already processes that same session
+      // (setUser/fetchProfile/logInPurchases). Letting this event fall
+      // through too meant every cold start fired fetchProfile and
+      // Purchases.logIn() twice concurrently for the same user, which
+      // destabilized how quickly loading/profileLoading actually settled.
+      if (event === 'INITIAL_SESSION') {
+        return;
+      }
+
       if (event === 'PASSWORD_RECOVERY') {
         // User tapped the reset link. Set the session silently but route them
         // to the reset password screen instead of the main app.

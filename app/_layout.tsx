@@ -92,16 +92,20 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
   const router = useRouter();
   const splashHiddenRef = useRef(false);
   const initialDeepLinkHandledRef = useRef(false);
-  // Mirrors `segments` for the async deep-link replay below to read the
-  // current route from, since that effect's own dependency array
-  // deliberately excludes `segments` (re-running the whole replay check on
-  // every navigation would be wrong) — same ref-mirroring pattern
-  // AuthContext already uses for needsPasswordReset inside its
-  // onAuthStateChange closure.
-  const segmentsRef = useRef(segments);
-  useEffect(() => {
-    segmentsRef.current = segments;
-  }, [segments]);
+  // Caches the one native bridge call to Linking.getInitialURL() across
+  // however many times this effect's body re-runs while waiting on
+  // sign-in — undefined means "not fetched yet", null means "fetched, no
+  // launch URL".
+  const pendingDeepLinkUrlRef = useRef<string | null | undefined>(undefined);
+  // Same singleton ref expo-router's own NavigationContainer is mounted
+  // against (this hook returns expo-router's internal shared ref, not a new
+  // one) — used below to read the actually-mounted route synchronously,
+  // right before deciding whether to navigate. useSegments() is a reactive
+  // hook one abstraction layer removed from the real navigation state and
+  // isn't guaranteed to have caught up to expo-router's own automatic
+  // linking resolution by the time this async check runs, which is what let
+  // the previous version of this fix still occasionally double-navigate.
+  const navigationRef = useNavigationContainerRef();
 
   // Same class of problem AuthContext's reset-password handling already
   // works around: on a cold start, AuthGuard renders a plain loading view
@@ -118,29 +122,52 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
     if (Platform.OS === 'web') return;
     if (loading || profileLoading) return;
     if (user && !profile) return;
-    initialDeepLinkHandledRef.current = true;
 
-    Linking.getInitialURL().then((url) => {
+    async function checkDeepLink() {
+      if (pendingDeepLinkUrlRef.current === undefined) {
+        pendingDeepLinkUrlRef.current = await Linking.getInitialURL().catch(() => null);
+      }
+      const url = pendingDeepLinkUrlRef.current;
+
       // A bare `scheme://paywall` URL parses "paywall" into the hostname
       // slot, not path (standard scheme://host/path URL structure) — a
       // strict field check on either one alone is brittle across the
       // various shapes a deep link can arrive in. Matching AuthContext's
       // existing reset-password handler's approach: a plain substring check
       // on the raw URL, which is robust regardless of how it parses.
-      //
+      if (!url || !url.includes('paywall')) {
+        // Nothing to ever replay — safe to lock this permanently.
+        initialDeepLinkHandledRef.current = true;
+        return;
+      }
+
+      // There's a pending paywall deep link, but nobody's signed in yet
+      // (e.g. cold-launched via the link while logged out). Don't lock the
+      // ref yet — leave this effect eligible to re-run once sign-in
+      // completes, so the original intent survives instead of being
+      // silently dropped the moment `loading`/`profileLoading` happened to
+      // settle before auth did.
+      if (!user || !profile?.assessed_at) return;
+
+      initialDeepLinkHandledRef.current = true;
+
       // Only replay if expo-router's own automatic handling hasn't already
       // landed here on its own — it isn't guaranteed to drop the URL, just
-      // unreliable, and re-navigating to the same route it already resolved
-      // forces PaywallScreen to remount, firing a second
+      // unreliable, and re-navigating to a route that's already the actual
+      // mounted screen forces PaywallScreen to remount, firing a second
       // RevenueCatUI.presentPaywall() on top of the first.
-      if (
-        url && url.includes('paywall') && user && profile?.assessed_at &&
-        segmentsRef.current[0] !== 'paywall'
-      ) {
+      // Cast past the strict ParamList-derived route type — this project
+      // doesn't augment ReactNavigation.RootParamList, so TS narrows
+      // getCurrentRoute() to `never` for .name even though it's a plain
+      // string at runtime.
+      const currentRouteName = (navigationRef.getCurrentRoute() as { name?: string } | undefined)?.name;
+      if (currentRouteName !== 'paywall') {
         router.replace('/paywall');
       }
-    }).catch(() => { });
-  }, [loading, profileLoading, user, profile, router]);
+    }
+
+    checkDeepLink();
+  }, [loading, profileLoading, user, profile, router, navigationRef]);
 
   if (__DEV__) {
     console.log('[AuthGuard Diagnostic]', {
