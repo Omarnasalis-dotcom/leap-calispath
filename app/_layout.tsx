@@ -111,9 +111,13 @@ function AuthGuard({ children, paywallEnabled }: { children: React.ReactNode; pa
     initialDeepLinkHandledRef.current = true;
 
     Linking.getInitialURL().then((url) => {
-      if (!url) return;
-      const { path } = Linking.parse(url);
-      if (path === 'paywall' && user && profile?.assessed_at) {
+      // A bare `scheme://paywall` URL parses "paywall" into the hostname
+      // slot, not path (standard scheme://host/path URL structure) — a
+      // strict field check on either one alone is brittle across the
+      // various shapes a deep link can arrive in. Matching AuthContext's
+      // existing reset-password handler's approach: a plain substring check
+      // on the raw URL, which is robust regardless of how it parses.
+      if (url && url.includes('paywall') && user && profile?.assessed_at) {
         router.replace('/paywall');
       }
     }).catch(() => { });
