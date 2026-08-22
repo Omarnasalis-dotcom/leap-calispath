@@ -22,6 +22,7 @@ export interface StandaloneWorkoutSummary {
   format: QuickWorkoutFormat | null;
   duration_minutes: number | null;
   is_free: boolean;
+  cover_image_url: string | null;
 }
 
 export interface StandaloneWorkoutExercise {
@@ -90,6 +91,12 @@ export interface SaveStandaloneWorkoutInput {
   is_free: boolean;
   status: StandaloneWorkoutStatus;
   blocks: StandaloneWorkoutBlockInput[];
+  // Cover photos are web-only authored (admin-web upload UI) — mobile has
+  // no upload UI, but must still round-trip whatever's already set. The
+  // RPC's p_cover_image_url defaults to NULL when omitted, which would
+  // silently wipe out an admin-set cover on every mobile-side edit save
+  // otherwise.
+  cover_image_url: string | null;
 }
 
 export interface StandaloneWorkoutFilters {
@@ -104,7 +111,7 @@ export async function getStandaloneWorkouts(
 ): Promise<StandaloneWorkoutSummary[]> {
   let query = supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url')
     .eq('kind', kind)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -138,7 +145,7 @@ export async function createCustomProgramFromWorkouts(
 export async function getStandaloneWorkoutDetail(workoutId: string): Promise<StandaloneWorkoutDetail | null> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url')
     .eq('id', workoutId)
     .maybeSingle();
   if (workoutError) throw workoutError;
@@ -186,7 +193,7 @@ export async function getStandaloneWorkoutDetail(workoutId: string): Promise<Sta
 export async function getAllStandaloneWorkoutsForAdmin(): Promise<StandaloneWorkoutAdminRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -211,6 +218,7 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_is_free: input.is_free,
     p_status: input.status,
     p_blocks: input.blocks,
+    p_cover_image_url: input.cover_image_url,
   });
   if (error) throw error;
   return data as string;

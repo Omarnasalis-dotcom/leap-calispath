@@ -6,6 +6,7 @@ import {
   fetchStandaloneWorkouts,
   importStandaloneWorkoutFromJson,
   saveStandaloneWorkout,
+  uploadWorkoutCoverImage,
   validateStandaloneWorkoutImport,
   type ImportedStandaloneWorkout,
   type StandaloneWorkoutKind,
@@ -66,6 +67,7 @@ interface Draft {
   is_free: boolean;
   status: StandaloneWorkoutStatus;
   blocks: DraftBlock[];
+  cover_image_url: string | null;
 }
 
 let keySeq = 0;
@@ -91,6 +93,7 @@ function newDraft(): Draft {
     is_free: false,
     status: 'draft',
     blocks: [emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')],
+    cover_image_url: null,
   };
 }
 
@@ -240,6 +243,7 @@ export function WorkoutLibraryPage() {
   const [kindFilter, setKindFilter] = useState<'all' | StandaloneWorkoutKind>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | StandaloneWorkoutStatus>('draft');
   const [exerciseToAdd, setExerciseToAdd] = useState<Record<string, string>>({});
+  const coverInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['standalone-workouts'],
@@ -261,6 +265,7 @@ export function WorkoutLibraryPage() {
         duration_minutes: detail.duration_minutes != null ? String(detail.duration_minutes) : '',
         is_free: detail.is_free,
         status: detail.status,
+        cover_image_url: detail.cover_image_url,
         blocks: detail.blocks.map((block) => ({
           key: newKey(),
           name: block.name,
@@ -294,6 +299,7 @@ export function WorkoutLibraryPage() {
         duration_minutes: d.kind === 'quick_workout' ? toInt(d.duration_minutes) : null,
         is_free: d.is_free,
         status: d.status,
+        cover_image_url: d.cover_image_url,
         blocks: d.blocks.map((block, bi) => ({
           name: block.name.trim(),
           order_index: bi,
@@ -321,6 +327,13 @@ export function WorkoutLibraryPage() {
   const removeMutation = useMutation({
     mutationFn: deleteStandaloneWorkout,
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] }),
+  });
+
+  const uploadCoverMutation = useMutation({
+    mutationFn: uploadWorkoutCoverImage,
+    onSuccess: (url) => {
+      setDraft((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
+    },
   });
 
   const filtered = data?.filter(
@@ -483,6 +496,7 @@ export function WorkoutLibraryPage() {
       {loadMutation.error && <ErrorNote error={loadMutation.error} />}
       {saveMutation.error && <ErrorNote error={saveMutation.error} />}
       {removeMutation.error && <ErrorNote error={removeMutation.error} />}
+      {uploadCoverMutation.error && <ErrorNote error={uploadCoverMutation.error} />}
 
       {draft && (
         <section className="panel">
@@ -514,6 +528,42 @@ export function WorkoutLibraryPage() {
                   <option key={d} value={d}>{d}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+              {draft.cover_image_url ? (
+                <img
+                  src={draft.cover_image_url}
+                  alt="Cover preview"
+                  style={{ width: 120, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #2a2a2a)' }}
+                />
+              ) : (
+                <div className="dim" style={{ fontSize: 13 }}>No cover photo — falls back to a category-color tile.</div>
+              )}
+              <input
+                ref={coverInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadCoverMutation.mutate(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="btn small"
+                disabled={uploadCoverMutation.isPending}
+                onClick={() => coverInputRef.current?.click()}
+              >
+                {uploadCoverMutation.isPending ? 'Uploading…' : draft.cover_image_url ? 'Replace cover' : 'Upload cover'}
+              </button>
+              {draft.cover_image_url && (
+                <button type="button" className="btn small danger" onClick={() => setDraft({ ...draft, cover_image_url: null })}>
+                  Remove cover
+                </button>
+              )}
             </div>
 
             {draft.kind === 'quick_workout' && (

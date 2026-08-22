@@ -83,6 +83,10 @@ export function useWorkoutLibraryBuilder() {
   const [formLoading, setFormLoading] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
   const [blocks, setBlocks] = useState<BuilderBlock[]>([]);
+  // Cover photos are web-only authored (admin-web upload UI, no picker
+  // here) — this just round-trips whatever's already set so an edit+save
+  // from mobile doesn't silently wipe out an admin-set cover.
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -122,6 +126,7 @@ export function useWorkoutLibraryBuilder() {
   const startNew = () => {
     setForm({ ...EMPTY_FORM });
     setBlocks([emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')]);
+    setCoverImageUrl(null);
     setEditingId('new');
   };
 
@@ -142,6 +147,7 @@ export function useWorkoutLibraryBuilder() {
         is_free: detail.is_free,
         status: (workouts.find((w) => w.id === id)?.status) || 'draft',
       });
+      setCoverImageUrl(detail.cover_image_url);
       setBlocks(
         detail.blocks.map((block) => ({
           key: newBlockKey(),
@@ -170,6 +176,7 @@ export function useWorkoutLibraryBuilder() {
   const cancelEdit = () => {
     setEditingId(null);
     setBlocks([]);
+    setCoverImageUrl(null);
   };
 
   const updateForm = (field: keyof typeof EMPTY_FORM, value: any) => {
@@ -291,6 +298,7 @@ export function useWorkoutLibraryBuilder() {
         duration_minutes: form.kind === 'quick_workout' ? toInt(form.duration_minutes) : null,
         is_free: form.is_free,
         status: form.status,
+        cover_image_url: coverImageUrl,
         blocks: blocks.map((b, bi) => ({
           name: b.name.trim(),
           order_index: bi,

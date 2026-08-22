@@ -29,6 +29,7 @@ export interface StandaloneWorkoutRow {
   duration_minutes: number | null;
   is_free: boolean;
   status: StandaloneWorkoutStatus;
+  cover_image_url: string | null;
 }
 
 export interface StandaloneWorkoutExerciseRow {
@@ -58,7 +59,7 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as StandaloneWorkoutRow[];
@@ -67,7 +68,7 @@ export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]>
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
     .eq('id', id)
     .single();
   if (workoutError) throw new Error(workoutError.message);
@@ -133,6 +134,7 @@ export interface SaveStandaloneWorkoutInput {
   is_free: boolean;
   status: StandaloneWorkoutStatus;
   blocks: SaveStandaloneWorkoutBlockInput[];
+  cover_image_url: string | null;
 }
 
 export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): Promise<string> {
@@ -148,6 +150,7 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_is_free: input.is_free,
     p_status: input.status,
     p_blocks: input.blocks,
+    p_cover_image_url: input.cover_image_url,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -156,6 +159,26 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
 export async function deleteStandaloneWorkout(id: string): Promise<void> {
   const { error } = await supabase.from('standalone_workouts').delete().eq('id', id);
   if (error) throw new Error(error.message);
+}
+
+const COVER_BUCKET = 'workout-covers';
+
+/**
+ * Uploads a cover image under a fresh random filename (not tied to a
+ * workout id — a new workout doesn't have one yet at upload time) and
+ * returns its public URL. Admin-only per the bucket's storage.objects RLS
+ * (supabase/migrations/20260822070000_add_standalone_workout_cover_image.sql).
+ */
+export async function uploadWorkoutCoverImage(file: File): Promise<string> {
+  const ext = file.name.split('.').pop()?.toLowerCase() || 'jpg';
+  const path = `${crypto.randomUUID()}.${ext}`;
+  const { error } = await supabase.storage.from(COVER_BUCKET).upload(path, file, {
+    contentType: file.type || undefined,
+    upsert: false,
+  });
+  if (error) throw new Error(error.message);
+  const { data } = supabase.storage.from(COVER_BUCKET).getPublicUrl(path);
+  return data.publicUrl;
 }
 
 // ---------- JSON import ----------
@@ -318,6 +341,7 @@ export async function importStandaloneWorkoutFromJson(
     kind: data.kind as StandaloneWorkoutKind,
     title: data.title!.trim(),
     description: data.description?.trim() || null,
+    cover_image_url: null, // JSON import doesn't carry a cover photo — set one after import via Edit
     category: normalizeAgainst(data.category, CATEGORY_VALUES) ?? data.category?.trim().toUpperCase() ?? null,
     difficulty: normalizeAgainst(data.difficulty, DIFFICULTY_VALUES),
     format: data.kind === 'quick_workout' ? normalizeAgainst(data.format, FORMAT_VALUES) : null,

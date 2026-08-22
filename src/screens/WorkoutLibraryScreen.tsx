@@ -65,13 +65,17 @@ function categoryGradient(category: string | null | undefined): [string, string]
   return CATEGORY_GRADIENTS[category ?? ''] ?? CATEGORY_GRADIENTS.DEFAULT;
 }
 
-// Cover photos for standalone Workouts/Quick Workouts, keyed by id — opt-in
-// per item. Anything without an entry here keeps the flat category-gradient
-// tile (GradientWorkoutCard's original, still-default look).
+// Legacy hardcoded fallback for the one cover photo added before admin
+// authoring existed — new content should use the admin-web-uploaded
+// cover_image_url instead (see WorkoutLibraryPage.tsx's Upload cover
+// button), which takes priority whenever it's set. Anything with neither
+// keeps the flat category-gradient tile (GradientWorkoutCard's original,
+// still-default look).
 const STANDALONE_WORKOUT_IMAGES: Record<string, any> = {
   '10000000-0000-0000-0000-000000000002': require('../../assets/workouts/push-power-circuit.png'), // Push Power Circuit
 };
 function getStandaloneWorkoutImage(item: StandaloneWorkoutSummary) {
+  if (item.cover_image_url) return { uri: item.cover_image_url };
   return STANDALONE_WORKOUT_IMAGES[item.id] ?? null;
 }
 
