@@ -314,6 +314,7 @@ export interface LibraryTemplateRow {
   status: string | null;
   matching_criteria: MatchingCriteria | null;
   equipment_tags: string[];
+  cover_image_url: string | null;
   block_count: number;
   week_count: number;
   coach_name?: string | null;
@@ -326,7 +327,7 @@ export interface LibraryTemplateRow {
 export async function fetchLibraryTemplates(): Promise<LibraryTemplateRow[]> {
   const { data, error } = await supabase
     .from('program_templates')
-    .select('id, coach_id, name, description, status, matching_criteria, equipment_tags')
+    .select('id, coach_id, name, description, status, matching_criteria, equipment_tags, cover_image_url')
     .eq('is_library_template', true)
     .order('name', { ascending: true });
   if (error) throw new Error(error.message);
@@ -375,6 +376,14 @@ export async function saveLibraryCriteria(
   const { error } = await supabase
     .from('program_templates')
     .update({ matching_criteria: criteria, equipment_tags: equipmentTags })
+    .eq('id', templateId);
+  if (error) throw new Error(error.message);
+}
+
+export async function saveLibraryCoverImage(templateId: string, coverImageUrl: string | null): Promise<void> {
+  const { error } = await supabase
+    .from('program_templates')
+    .update({ cover_image_url: coverImageUrl })
     .eq('id', templateId);
   if (error) throw new Error(error.message);
 }

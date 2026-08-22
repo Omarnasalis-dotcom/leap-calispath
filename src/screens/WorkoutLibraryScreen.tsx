@@ -30,10 +30,13 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 
 const bronzeGold = '#C8A040';
 
-// Cover photos for the program cards. Real athlete photography keyed by
-// tier range; anything without a dedicated shot cycles through the generic
-// fallbacks so every card is always image-first, never blank.
+// Cover photos for the program cards. An admin-uploaded cover_image_url
+// (set from admin-web's Library tab → Criteria → Upload cover) always
+// takes priority; anything without one falls back to real athlete
+// photography keyed by tier range, then the generic fallbacks, so every
+// card is always image-first, never blank.
 function getCardImage(rec: LibraryTemplateRecommendation, index: number) {
+  if (rec.cover_image_url) return { uri: rec.cover_image_url };
   if (rec.tier_range.min === 4 && rec.tier_range.max === 5) return require('../../assets/backpose.png');
   if (rec.tier_range.min === 5 && rec.tier_range.max === 6) return require('../../assets/backmuscle.png');
   if (rec.tier_range.min === 2 && rec.tier_range.max === 3) return require('../../assets/parallet.png');
@@ -121,6 +124,13 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
   const [formatFilter, setFormatFilter] = useState<string>('all');
   const [workoutDetail, setWorkoutDetail] = useState<StandaloneWorkoutDetail | null>(null);
   const [workoutDetailLoading, setWorkoutDetailLoading] = useState(false);
+  // Bumped on every open/close so a fetch that's still in flight when the
+  // user closes the modal can't repopulate it once it resolves — without
+  // this, tapping CLOSE while loading only cleared workoutDetail, but
+  // visible is also driven by workoutDetailLoading, which the in-flight
+  // request's own finally block would flip back to true->false on its own
+  // schedule, reopening (or never actually dismissing) the modal.
+  const workoutDetailRequestId = useRef(0);
 
   // "Build your week" day-picker state — Workouts tab only. Each selected
   // workout is one training day, in selection order; cleared on unmount
@@ -304,13 +314,21 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
       router.push('/paywall');
       return;
     }
+    const requestId = ++workoutDetailRequestId.current;
     setWorkoutDetailLoading(true);
     try {
       const detail = await getStandaloneWorkoutDetail(item.id);
+      if (workoutDetailRequestId.current !== requestId) return; // closed (or superseded) while in flight
       setWorkoutDetail(detail);
     } finally {
-      setWorkoutDetailLoading(false);
+      if (workoutDetailRequestId.current === requestId) setWorkoutDetailLoading(false);
     }
+  };
+
+  const closeStandaloneDetail = () => {
+    workoutDetailRequestId.current += 1; // invalidate any in-flight fetch
+    setWorkoutDetail(null);
+    setWorkoutDetailLoading(false);
   };
 
   // 1-indexed day number for a workout already in the build, or null if
@@ -650,7 +668,7 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
         nextDayNumber={selectedDayWorkouts.length + 1}
         onAdd={() => workoutDetail && addDay(workoutDetail)}
         onRemove={() => workoutDetail && removeDay(workoutDetail.id)}
-        onClose={() => setWorkoutDetail(null)}
+        onClose={closeStandaloneDetail}
       />
 
       {activeTab === 'workout' && selectedDayWorkouts.length > 0 && (
@@ -757,11 +775,6 @@ function GradientWorkoutCard({
       )}
       {isSelected && <View style={styles.selectedBorder} pointerEvents="none" />}
       <View style={styles.gradientCardTop}>
-        <View style={styles.gradientCategoryBadge}>
-          <Text style={styles.gradientCategoryBadgeText} numberOfLines={1}>
-            {(item.category ?? (item.kind === 'quick_workout' ? item.format?.toUpperCase() : 'WORKOUT') ?? 'WORKOUT').replace('_', ' ')}
-          </Text>
-        </View>
         {isSelected ? (
           <View style={styles.dayBadge}>
             <MaterialCommunityIcons name="check-circle" size={10} color="#FFFFFF" />
@@ -776,6 +789,14 @@ function GradientWorkoutCard({
             <Text style={styles.gradientLogoBadgeText}>L</Text>
           </View>
         )}
+        {/* Moved to the right — the PRO ribbon (proCorner, absolutely
+            positioned top-left) was overlapping this badge when it sat on
+            the left side of this row. */}
+        <View style={styles.gradientCategoryBadge}>
+          <Text style={styles.gradientCategoryBadgeText} numberOfLines={1}>
+            {(item.category ?? (item.kind === 'quick_workout' ? item.format?.toUpperCase() : 'WORKOUT') ?? 'WORKOUT').replace('_', ' ')}
+          </Text>
+        </View>
       </View>
       <View style={styles.gradientCardBottom}>
         <View style={styles.gradientCardAccent} />
@@ -1128,6 +1149,7 @@ const previewStyles = StyleSheet.create({
     borderWidth: 1,
     maxHeight: '82%',
     padding: 20,
+    overflow: 'hidden',
   },
   header: {
     marginBottom: 12,
@@ -1162,7 +1184,13 @@ const previewStyles = StyleSheet.create({
     fontSize: 12,
     lineHeight: 16,
   },
+  // flex:1 (not just marginBottom) is required for this to actually
+  // scroll internally — without it, the ScrollView sizes to its full
+  // content height instead of the space remaining under the card's
+  // maxHeight, pushing the footer buttons (CLOSE / ADD AS DAY N) below the
+  // visible card for any workout with enough exercises to overflow.
   body: {
+    flex: 1,
     marginBottom: 16,
   },
   loadingBox: {

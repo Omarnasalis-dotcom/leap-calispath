@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   archiveLibraryTemplate,
   fetchLibraryTemplates,
+  saveLibraryCoverImage,
   saveLibraryCriteria,
   type LibraryTemplateRow,
 } from '@/api/coaching';
+import { uploadWorkoutCoverImage } from '@/api/workoutLibrary';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { importLibraryTemplate } from '@/shared/TemplateLibraryImport';
@@ -14,10 +16,12 @@ import { publishLibraryTemplate } from '@/shared/TemplateLibraryPublish';
 function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
   const queryClient = useQueryClient();
   const ref = useRef<HTMLDialogElement>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
   const [goal, setGoal] = useState(template.matching_criteria?.goal ?? '');
   const [min, setMin] = useState(String(template.matching_criteria?.tier_range?.min ?? ''));
   const [max, setMax] = useState(String(template.matching_criteria?.tier_range?.max ?? ''));
   const [tags, setTags] = useState(template.equipment_tags.join(', '));
+  const [coverImageUrl, setCoverImageUrl] = useState(template.cover_image_url);
 
   const saveMutation = useMutation({
     mutationFn: () =>
@@ -32,6 +36,31 @@ function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
     },
   });
 
+  // Persists immediately on upload/remove — same reuse-the-shared-bucket
+  // pattern as Workout Content's cover photo (uploadWorkoutCoverImage,
+  // admin-web/src/api/workoutLibrary.ts), decoupled from the Criteria
+  // Save button below so there's no ambiguity about whether a photo
+  // survives if the dialog is closed without hitting Save.
+  const coverMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const url = await uploadWorkoutCoverImage(file);
+      await saveLibraryCoverImage(template.id, url);
+      return url;
+    },
+    onSuccess: (url) => {
+      setCoverImageUrl(url);
+      void queryClient.invalidateQueries({ queryKey: ['library-templates'] });
+    },
+  });
+
+  const removeCoverMutation = useMutation({
+    mutationFn: () => saveLibraryCoverImage(template.id, null),
+    onSuccess: () => {
+      setCoverImageUrl(null);
+      void queryClient.invalidateQueries({ queryKey: ['library-templates'] });
+    },
+  });
+
   return (
     <>
       <button type="button" className="btn small" onClick={() => ref.current?.showModal()}>
@@ -40,6 +69,48 @@ function LibraryCriteriaModal({ template }: { template: LibraryTemplateRow }) {
       <dialog className="confirm" ref={ref}>
         <h2 style={{ marginBottom: 8 }}>Matching criteria — {template.name}</h2>
         {saveMutation.error && <ErrorNote error={saveMutation.error} />}
+        {coverMutation.error && <ErrorNote error={coverMutation.error} />}
+        {removeCoverMutation.error && <ErrorNote error={removeCoverMutation.error} />}
+        <div className="row" style={{ alignItems: 'center', gap: 10, margin: '0 0 16px' }}>
+          {coverImageUrl ? (
+            <img
+              src={coverImageUrl}
+              alt="Cover preview"
+              style={{ width: 120, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #2a2a2a)' }}
+            />
+          ) : (
+            <div className="dim" style={{ fontSize: 13 }}>No cover photo — falls back to the tier-range default photo.</div>
+          )}
+          <input
+            ref={coverInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) coverMutation.mutate(file);
+              e.target.value = '';
+            }}
+          />
+          <button
+            type="button"
+            className="btn small"
+            disabled={coverMutation.isPending}
+            onClick={() => coverInputRef.current?.click()}
+          >
+            {coverMutation.isPending ? 'Uploading…' : coverImageUrl ? 'Replace cover' : 'Upload cover'}
+          </button>
+          {coverImageUrl && (
+            <button
+              type="button"
+              className="btn small danger"
+              disabled={removeCoverMutation.isPending}
+              onClick={() => removeCoverMutation.mutate()}
+            >
+              Remove cover
+            </button>
+          )}
+        </div>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
           <input
             className="field"
