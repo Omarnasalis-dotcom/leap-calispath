@@ -10,6 +10,7 @@ import {
   Platform,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
+import { canAccessPro } from '../lib/entitlement';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
@@ -105,12 +106,12 @@ export function ProfileScreen({
 
   const onOpenClash = showV2Popup;
   const onOpenTournamentArena = showV2Popup;
-  const onOpenCoach = showV2Popup;
+  const onOpenCoach = () => router.push(canAccessPro(profile, paywallEnabled) ? '/coach' : '/paywall');
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
   const onOpenWarriorProgram = () => router.push('/warrior-program');
   const onOpenAdmin = () => router.push('/admin-tournament');
 
-  const { profile, signOut, user, refreshProfile } = useAuth();
+  const { profile, signOut, user, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
   const W = getWorldTheme('strength', mode);
   const hasSyncedOnMount = useRef(false);

@@ -73,3 +73,8 @@ enabled = true
 verify_jwt = true
 import_map = "./functions/confirm-entitlement/deno.json"
 entrypoint = "./functions/confirm-entitlement/index.ts"
+
+[functions.ai-coach]
+enabled = true
+verify_jwt = true
+entrypoint = "./functions/ai-coach/index.ts"

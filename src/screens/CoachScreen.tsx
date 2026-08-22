@@ -1,5 +1,8 @@
-// AI Coach - Gemini enabled
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
+// AI Coach — Claude-powered, tool-use backed (supabase/functions/ai-coach).
+// The system prompt and per-request context (tier, PBs, program, logs) all
+// live server-side now — this screen just relays the conversation and
+// renders the reply, same shell as before.
+import { router } from 'expo-router';
 import React, { useState, useRef, useEffect } from 'react';
 import { View,
   Text,
@@ -8,7 +11,6 @@ import { View,
   ScrollView,
   TextInput,
   Platform,
-  Dimensions,
   KeyboardAvoidingView,
   Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -17,133 +19,57 @@ import { BlurView } from 'expo-blur';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES } from '../types';
-import { LeaderboardService } from '../services/LeaderboardService';
-
-import { RITES_OF_PASSAGE } from '../lib/trials';
 import { LeapLogo } from '../components/LeapLogo';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
-
-import { supabase } from '../lib/supabase'; 
-
-function getTierCapability(tier: number): string {
-  switch (tier || 0) {
-    case 0: return "Beginner. Cannot perform full push-ups or pull-ups yet. Must focus on foundational strength like knee push-ups, dead hangs, and bodyweight rows.";
-    case 1: return "Novice. Can perform basic push-ups and a few pull-ups. Building foundational endurance.";
-    case 2: return "Intermediate. Solid at basic calisthenics (push-ups, pull-ups, dips). Exploring advanced basics.";
-    case 3: return "Advanced Intermediate. High rep endurance on basics. Beginning to train for the muscle-up.";
-    case 4: return "Advanced. Has achieved the muscle-up. Working on strict form and heavier weighted basics.";
-    case 5: return "Elite. Mastered muscle-ups and heavy weighted calisthenics. Entering high-level statics.";
-    case 6: return "Master. Exceptional power and static control. Fully unlocked Power World.";
-    case 7: return "Grandmaster. Elite level across all disciplines.";
-    case 8: return "Demigod. Peak power and static mastery, just shy of Eternity.";
-    case 9: return "Eternity. Peak human calisthenics performance.";
-    default: return "Capabilities unknown.";
-  }
-}
-
-function buildSystemPrompt(profile: any): string {
-  const tierName = TIER_NAMES[profile.strength_tier] || 'Unknown';
-  const trialsRate = profile.trials_attempted > 0
-    ? Math.round((profile.trials_passed / profile.trials_attempted) * 100)
-    : 0;
-
-  return `You are the elite Leap Arena Mentor. You analyze calisthenics data and give sharp, specific, and direct advice. You use "tough love" to push the warrior to excellence, but you NEVER insult, demean, or call them names (no words like coward, peasant, or disgrace).
-
-ARENA KNOWLEDGE (HOW IT WORKS):
-- The Arena has 3 Main Worlds: 
-  1. Power World (Grants Power Points based on weighted calisthenics).
-  2. Static World (Grants Static Points/Tier based on holds like planche and front lever).
-  3. 1MM (1-Minute Max reps).
-- Global Rank is the ultimate leaderboard. A warrior climbs the Global Rank by accumulating points across all 3 worlds, plus Glory Score from winning Clashes.
-
-WARRIOR DATA:
-- Name: ${profile.display_name || 'Warrior'}
-- Strength Tier: ${profile.strength_tier} (${tierName})
-- Capability Profile: ${getTierCapability(profile.strength_tier)}
-- Glory Score: ${profile.glory_score || 0}
-- Clash Win Streak: ${profile.clash_win_streak || 0}
-- Trials: ${profile.trials_passed || 0} passed / ${profile.trials_attempted || 0} attempted (${trialsRate}% pass rate)
-- Power Points: ${profile.power_points || 0}
-- Static Points: ${profile.statics_tier || 0}
-- 1MM Points: ${profile.one_mm_points || 0}
-- Power World: ${(profile.strength_tier || 0) >= 6 ? 'Unlocked' : `Locked — needs Tier 6, at Tier ${profile.strength_tier}`}
-${(() => {
-  const nextTier = (profile.strength_tier || 0) + 1;
-  const trial = RITES_OF_PASSAGE.find(t => t.tier === nextTier);
-  if (!trial) return '';
-  return `- Next Tier Requirement (Tier ${nextTier} Trial): ${trial.movements.map((m: any) => `${m.reps}x ${m.name}`).join(', ')}`;
-})()}
-
-STRICT RULES:
-1. Keep every response under 60 words. Speak in short, punchy sentences. Do not over-explain. Say only what is absolutely necessary.
-2. NEVER use markdown headers, bullet asterisks, or bold text.
-3. If they ask about their stats, give them the numbers plainly and cleanly. Do not lecture them for asking.
-4. Do not fixate on the same weakness (like a low pass rate) in every response. Address it once, then focus on growth.
-5. ONLY give a specific training suggestion or tip if they are asking for workout advice or struggling with a movement. Do NOT give unprompted workout advice if they are just saying thank you or making casual conversation.
-6. If the question is vague, ask ONE clarifying question instead of guessing.
-7. If they greet you or say thank you, acknowledge it in ONE sentence and say nothing else.
-8. If a question is not about their training, tiers, clashes, or scores, reply: "I only analyze warrior performance. Ask me about the Arena."
-9. If they accomplish a milestone (like passing a trial), show genuine, motivating pride. If they fail, give an honest, analytical breakdown of why they failed and encourage them to retest.`;
-}
-
+import { supabase } from '../lib/supabase';
+import { FunctionsHttpError } from '@supabase/functions-js';
 
 const SUGGESTED_QUESTIONS = [
+  'I want to build a training program',
+  'How am I doing this week?',
+  'Am I ready to test for my next tier?',
+  'This exercise is bothering my shoulder, can we swap it?',
   'What is my biggest weakness right now?',
   'How do I reach the next tier?',
-  'Why am I losing clashes?',
-  'What should I focus on this week?',
-  'How close am I to unlocking Power World?',
-  'What does my pass rate tell you?',
 ];
-
 
 interface Message {
   role: 'user' | 'assistant';
   content: string;
 }
 
-const DAILY_LIMIT = 10;
-
-async function getDailyUsage(userId: string): Promise<number> {
-  const d = new Date();
-  const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-  const key = `coach_usage_${userId}_${today}`;
-  const val = await AsyncStorage.getItem(key);
-  return val ? parseInt(val) : 0;
+interface Recommendation {
+  world: 'strength_trial' | 'power' | 'static' | 'one_min_max';
+  reason: string;
 }
 
-async function incrementDailyUsage(userId: string): Promise<void> {
-  const d = new Date();
-  const today = `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
-  const key = `coach_usage_${userId}_${today}`;
-  const current = await getDailyUsage(userId);
-  await AsyncStorage.setItem(key, String(current + 1));
-}
+const RECOMMENDATION_ROUTES: Record<Recommendation['world'], string> = {
+  strength_trial: '/trial',
+  power: '/power-world',
+  static: '/static-world',
+  one_min_max: '/one-min-max',
+};
+
+const RECOMMENDATION_LABELS: Record<Recommendation['world'], string> = {
+  strength_trial: 'Try the Strength Trial',
+  power: 'Try Power World',
+  static: 'Try Static World',
+  one_min_max: 'Try 1-Minute Max',
+};
 
 export function CoachScreen({ onBack }: { onBack: () => void }) {
-  const { user, profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile } = useAuth();
   const { theme, mode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
+  const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
-  const [dailyUsage, setDailyUsage] = useState(0);
+  const [rateLimited, setRateLimited] = useState(false);
   const [lastMessageTime, setLastMessageTime] = useState(0);
-  const [globalRank, setGlobalRank] = useState<number | string>('--');
   const scrollViewRef = useRef<ScrollView>(null);
 
-  useEffect(() => {
-    async function loadUsage() {
-      if (!user?.id) return;
-      const count = await getDailyUsage(user.id);
-      setDailyUsage(count);
-    }
-    loadUsage();
-  }, [user?.id]);
-
-
-
-  const STORAGE_KEY = `coach_v14_${profile?.id}`;
+  const STORAGE_KEY = `coach_v15_${profile?.id}`;
 
   const isDark = mode === 'dark';
   const cardBg = isDark ? '#0A0A0A' : '#FFFFFF';
@@ -155,12 +81,6 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     const init = async () => {
       if (!profile?.id) return;
       await refreshProfile();
-      
-      try {
-        const lb = await LeaderboardService.getGlobalWellRoundedLeaderboard(user?.id);
-        const me = lb.find(e => e.user_id === user?.id);
-        if (me) setGlobalRank(me.rank);
-      } catch (e) { console.error(e); }
 
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
@@ -183,50 +103,61 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
   }, [messages]);
 
+  // Sends the running message history to ai-coach and applies whatever
+  // comes back (reply text + any recommend_test signals). Both
+  // startSession (empty history, a canned opener) and sendMessage (history
+  // + the new user turn) funnel through this — the server owns the system
+  // prompt and all tool-use turns; the client only ever sees the final text.
+  const callAiCoach = async (history: Message[]) => {
+    const { data, error } = await supabase.functions.invoke('ai-coach', {
+      body: { messages: history, platform: Platform.OS },
+    });
+
+    if (error) {
+      // FunctionsHttpError's `context` is the raw Response object (see
+      // @supabase/functions-js) — status is a sync property, but the body
+      // (our {error, message} JSON) needs an async read.
+      let status = 500;
+      let code: string | undefined;
+      if (error instanceof FunctionsHttpError) {
+        status = error.context.status;
+        try {
+          const body = await error.context.json();
+          code = body?.error;
+        } catch {
+          // body wasn't JSON — fall through to generic handling below
+        }
+      }
+
+      if (status === 403 && code === 'PRO_REQUIRED') {
+        router.push('/paywall');
+        return null;
+      }
+      if (status === 429 || code === 'RATE_LIMIT') {
+        setRateLimited(true);
+        return { content: "You've used all your coaching messages for today. Your quota resets at midnight. Rest well, warrior." };
+      }
+      console.error('ai-coach Edge Function error:', error);
+      throw new Error(error.message || 'Unknown error');
+    }
+
+    if (data?.recommendations?.length) {
+      setRecommendations(data.recommendations);
+    }
+    return { content: data?.reply as string };
+  };
+
   const startSession = async () => {
     if (loading) return;
     setLoading(true);
-    
-    // Removed local API key check since we rely on the Edge Function now
-
     try {
-      const { data, error } = await supabase.functions.invoke('chat-gemini', {
-        body: {
-          contents: [
-            { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] },
-            { role: 'model', parts: [{ text: 'Understood. I am the Leap Arena Mentor. Speak, Warrior.' }] },
-            { role: 'user', parts: [{ text: 'Begin session' }] }
-          ],
-          generationConfig: { 
-            maxOutputTokens: 150,
-            temperature: 0.7
-          }
-        }
-      });
-      
-      if (error) {
-        console.error('Gemini Edge Function Error:', error);
-        
-        // Supabase Edge Function errors sometimes have a nested status or message
-        const status = error.status || 500;
-        if (status === 429 || status === 403) {
-          setMessages([{ role: 'assistant', content: "The Arena is currently over-taxed (System Quota reached). The Mentor will return shortly. 🏛️" }]);
-        } else {
-          setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (Error: ${error.message || 'Unknown'}). Please check your connection.` }]);
-        }
-        return;
-      }
-
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      
-      if (text) {
-        setMessages([{ role: 'assistant', content: text }]);
-      } else {
-        throw new Error('No valid text in AI response');
+      const result = await callAiCoach([{ role: 'user', content: 'Hi, I want to start working with my AI Coach.' }]);
+      if (result?.content) {
+        setMessages([{ role: 'assistant', content: result.content }]);
       }
     } catch (error: any) {
       console.error('Coach Session Error:', error);
-      setMessages([{ role: 'assistant', content: `Arena wisdom is flickering (${error.message || 'Network failure'}). Please check your connection.` }]);
+      setMessages([{ role: 'assistant', content: `Coach is temporarily unreachable (${error.message || 'Network failure'}). Please check your connection.` }]);
     } finally {
       setLoading(false);
     }
@@ -243,83 +174,26 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
       return;
     }
 
-    const usage = await getDailyUsage(user!.id);
-    if (usage >= DAILY_LIMIT) {
-      setMessages(prev => [...prev, {
-        role: 'assistant',
-        content: `You have used all ${DAILY_LIMIT} coaching messages for today. Your quota resets at midnight. Rest well, warrior. 🏛️`,
-      }]);
-      setLoading(false);
-      return;
-    }
+    if (rateLimited) return;
 
     setLastMessageTime(now);
     const userMsg: Message = { role: 'user', content: finalInput };
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
+    setRecommendations([]);
     if (!text) setInputText('');
     setLoading(true);
 
     try {
-      const { data, error } = await supabase.functions.invoke('chat-gemini', {
-        body: {
-          contents: (() => {
-            const systemMsg = { role: 'user', parts: [{ text: `INSTRUCTIONS: ${buildSystemPrompt(profile)}` }] };
-            const ackMsg = { role: 'model', parts: [{ text: 'Understood.' }] };
-            
-            let hist = newMsgs.slice(-6).map(m => ({
-              role: m.role === 'assistant' ? 'model' : 'user',
-              parts: [{ text: m.content }]
-            }));
-            
-            return [systemMsg, ackMsg, ...hist];
-          })(),
-          generationConfig: {
-            maxOutputTokens: 150,
-            temperature: 0.7
-          }
-        }
-      });
-      
-      if (error) {
-        console.error('Gemini Edge Function Error:', error);
-        
-        // Inspect the error object closely, as it might be a FunctionsHttpError
-        const status = error.status || 500;
-        const errorMessage = error.message?.toLowerCase() || '';
-
-        if (status === 403 || errorMessage.includes('quota')) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'The Arena is currently over-taxed (System Quota reached). I must rest my wisdom for a moment. 🏛️',
-          }]);
-        } else if (status === 429) {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: 'Slow down, warrior. You are seeking wisdom too quickly for the stars to align. Try again in a minute.',
-          }]);
-        } else {
-          setMessages(prev => [...prev, {
-            role: 'assistant',
-            content: `Coach is temporarily unreachable (Error: ${error.message || 'Unknown'}). Check your connection and try again.`,
-          }]);
-        }
-        return;
-      }
-
-      const textResponse = data?.candidates?.[0]?.content?.parts?.[0]?.text;
-      if (textResponse) {
-        setMessages(prev => [...prev, { role: 'assistant', content: textResponse }]);
-        await incrementDailyUsage(user!.id);
-        setDailyUsage(prev => prev + 1);
-      } else {
-        throw new Error('Empty response from AI Edge Function');
+      const result = await callAiCoach(newMsgs);
+      if (result?.content) {
+        setMessages(prev => [...prev, { role: 'assistant', content: result.content }]);
       }
     } catch (error: any) {
       console.error('Coach Send Error:', error);
       setMessages(prev => [...prev, {
         role: 'assistant',
-        content: `Coach is temporarily unreachable (Detail: ${error.message || 'Network Timeout / Failure'}). Check your connection and try again.`,
+        content: `Coach is temporarily unreachable (${error.message || 'Network failure'}). Check your connection and try again.`,
       }]);
     } finally {
       setLoading(false);
@@ -363,18 +237,9 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
               <MaterialCommunityIcons name="close" size={22} color={subtextColor} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
-              <Text style={[styles.headerTitle, { color: textColor }]}>⚔️ WARRIOR COACH</Text>
+              <Text style={[styles.headerTitle, { color: textColor }]}>⚔️ AI COACH</Text>
               <Text style={[styles.headerSub, { color: subtextColor }]}>
-                AI · {TIER_NAMES[profile?.strength_tier || 0]} Analysis
-              </Text>
-              <Text style={[styles.quotaText, {
-                color: dailyUsage >= DAILY_LIMIT
-                  ? '#A32D2D'
-                  : dailyUsage >= DAILY_LIMIT - 3
-                  ? '#854F0B'
-                  : subtextColor
-              }]}>
-                {DAILY_LIMIT - dailyUsage}/{DAILY_LIMIT} sessions today
+                {TIER_NAMES[profile?.strength_tier || 0]} · Your Program
               </Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -387,14 +252,14 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
             {messages.length === 0 && (
               <View style={styles.welcomeContainer}>
                 <MaterialCommunityIcons name="brain" size={48} color={theme.accent} />
-                <Text style={[styles.welcomeTitle, { color: textColor }]}>Arena Mentor</Text>
-                <Text style={[styles.welcomeSub, { color: subtextColor }]}>Analyze your performance or plan your next tier-up.</Text>
-                <TouchableOpacity 
+                <Text style={[styles.welcomeTitle, { color: textColor }]}>AI Coach</Text>
+                <Text style={[styles.welcomeSub, { color: subtextColor }]}>Build a program, review your week, or ask anything.</Text>
+                <TouchableOpacity
                   style={[styles.beginBtn, { backgroundColor: theme.accent }]}
                   onPress={startSession}
                   disabled={loading}
                 >
-                  {loading ? <LeapLogo size={40} animated /> : <Text style={styles.beginBtnText}>CONSULT THE MENTOR</Text>}
+                  {loading ? <LeapLogo size={40} animated /> : <Text style={styles.beginBtnText}>START COACHING</Text>}
                 </TouchableOpacity>
               </View>
             )}
@@ -416,9 +281,24 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
                 </View>
               ))
             )}
+
+            {recommendations.map((rec, i) => (
+              <TouchableOpacity
+                key={i}
+                style={[styles.recommendationCard, { borderColor: theme.accent + '50', backgroundColor: cardBg }]}
+                onPress={() => router.push(RECOMMENDATION_ROUTES[rec.world] as never)}
+              >
+                <MaterialCommunityIcons name="arm-flex" size={18} color={theme.accent} />
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.recommendationLabel, { color: theme.accent }]}>{RECOMMENDATION_LABELS[rec.world]}</Text>
+                  <Text style={[styles.recommendationReason, { color: subtextColor }]}>{rec.reason}</Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={20} color={subtextColor} />
+              </TouchableOpacity>
+            ))}
           </ScrollView>
 
-          {dailyUsage < DAILY_LIMIT ? (
+          {!rateLimited ? (
             <View style={[styles.chipsWrap, { borderTopColor: theme.accent + '20' }]}>
               <ScrollView
                 horizontal
@@ -441,7 +321,7 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
               </ScrollView>
             </View>
           ) : (
-            <View style={[styles.quotaExhausted, { 
+            <View style={[styles.quotaExhausted, {
               backgroundColor: isDark ? '#111' : '#F5F5F5',
               borderTopColor: theme.accent + '20',
             }]}>
@@ -452,19 +332,19 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
           )}
 
           <View style={[styles.inputContainer, { borderTopColor: theme.accent + '15', backgroundColor: isDark ? '#0D0D0D' : '#F9F9F9' }]}>
-            <TextInput 
-              style={[styles.input, { color: textColor }]} 
-              value={inputText} 
-              onChangeText={setInputText} 
-              placeholder={`Speak, Warrior... (${DAILY_LIMIT} sessions/day)`} 
-              placeholderTextColor={subtextColor} 
-              multiline 
-              editable={dailyUsage < DAILY_LIMIT}
+            <TextInput
+              style={[styles.input, { color: textColor }]}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Ask your coach anything..."
+              placeholderTextColor={subtextColor}
+              multiline
+              editable={!rateLimited}
             />
-            <TouchableOpacity 
-              onPress={() => sendMessage()} 
-              disabled={loading || !inputText.trim() || dailyUsage >= DAILY_LIMIT} 
-              style={[styles.sendBtn, { backgroundColor: (inputText.trim() && dailyUsage < DAILY_LIMIT) ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}
+            <TouchableOpacity
+              onPress={() => sendMessage()}
+              disabled={loading || !inputText.trim() || rateLimited}
+              style={[styles.sendBtn, { backgroundColor: (inputText.trim() && !rateLimited) ? theme.accent : (isDark ? '#1A1A1A' : '#EEE') }]}
             >
               {loading ? <LeapLogo size={40} animated /> : <MaterialCommunityIcons name="send" size={18} color="#000" />}
             </TouchableOpacity>
@@ -538,6 +418,24 @@ const styles = StyleSheet.create({
   chipText: {
     fontSize: 12,
     fontWeight: '500',
+  },
+  recommendationCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 4,
+  },
+  recommendationLabel: {
+    fontSize: 13,
+    fontWeight: '800',
+  },
+  recommendationReason: {
+    fontSize: 11,
+    marginTop: 2,
   },
   quotaExhausted: {
     paddingVertical: 12,
