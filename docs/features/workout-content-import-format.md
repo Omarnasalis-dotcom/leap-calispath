@@ -19,7 +19,7 @@ unknown out and the assistant will ask.
 
 ```
 Build me a Workout Content JSON (not a template) for a
-[PULL / PUSH / LEGS / CORE / FULL BODY] [workout / quick workout].
+[PULL / PUSH / LEGS / CORE / FULL_BODY] [workout / quick workout].
 
 Level: [beginner / intermediate / advanced]
 Free or Pro: [free / pro]
@@ -29,6 +29,14 @@ If quick workout — format and time cap: [amrap / emom / fortime / tabata], [N]
 
 Output format: flat Workout Content JSON — kind/title/category/difficulty/
 exercises[], no blocks, no phases, no CONCEPT metadata.
+
+The "kind" field in the output JSON must be exactly the literal string
+"workout" or "quick_workout" (lowercase, underscore, no space) — not
+"Workout", not "quick workout". Anything else is rejected on import.
+
+The "category" field, if a full-body day, must be exactly "FULL_BODY"
+(underscore, no space) — "FULL BODY" won't match and the item won't show
+under any filter chip in the app.
 ```
 
 ## WHAT THE ASSISTANT WILL DO
