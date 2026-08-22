@@ -1,16 +1,20 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   deleteStandaloneWorkout,
   fetchStandaloneWorkoutDetail,
   fetchStandaloneWorkouts,
+  importStandaloneWorkoutFromJson,
   saveStandaloneWorkout,
+  validateStandaloneWorkoutImport,
+  type ImportedStandaloneWorkout,
   type StandaloneWorkoutKind,
   type StandaloneWorkoutRow,
   type StandaloneWorkoutStatus,
   type SaveStandaloneWorkoutInput,
 } from '@/api/workoutLibrary';
 import { fetchExercises } from '@/api/coaching';
+import { useAuth } from '@/auth/AuthProvider';
 import { DataTable, type Column } from '@/components/DataTable';
 import { ConfirmButton, ErrorNote } from '@/components/bits';
 
@@ -70,6 +74,132 @@ function toInt(v: string): number | null {
   if (!v.trim()) return null;
   const n = parseInt(v, 10);
   return Number.isNaN(n) ? null : n;
+}
+
+// One workout per file, two-step (paste/upload -> preview -> confirm) —
+// same dialog shape as ExerciseLibraryPage's BulkImportModal. Schema is
+// documented in docs/features/workout-content-import-format.md.
+function ImportWorkoutModal() {
+  const queryClient = useQueryClient();
+  const { profile } = useAuth();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [jsonText, setJsonText] = useState('');
+  const [parseError, setParseError] = useState<string | null>(null);
+  const [preview, setPreview] = useState<ImportedStandaloneWorkout | null>(null);
+
+  function reset() {
+    setJsonText('');
+    setParseError(null);
+    setPreview(null);
+    importMutation.reset();
+  }
+
+  function tryParse(text: string) {
+    setParseError(null);
+    let parsed: any;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      setParseError('That file is not valid JSON.');
+      return;
+    }
+    const result = validateStandaloneWorkoutImport(parsed);
+    if (!result.valid) {
+      setParseError(result.error ?? 'Invalid workout JSON.');
+      return;
+    }
+    setPreview(parsed);
+  }
+
+  const importMutation = useMutation({
+    mutationFn: () => importStandaloneWorkoutFromJson(preview!, profile!.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
+      dialogRef.current?.close();
+      reset();
+    },
+  });
+
+  return (
+    <>
+      <button type="button" className="btn" onClick={() => dialogRef.current?.showModal()}>
+        Import JSON
+      </button>
+      <dialog className="confirm" style={{ maxWidth: 560 }} ref={dialogRef} onClose={reset}>
+        <h2 style={{ marginBottom: 8 }}>Import workout from JSON</h2>
+
+        {!preview ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
+            <div className="dim" style={{ fontSize: 13 }}>
+              One workout per file — see{' '}
+              <code>docs/features/workout-content-import-format.md</code> for the schema.
+            </div>
+            {parseError && <ErrorNote error={new Error(parseError)} />}
+            <div className="row">
+              <button type="button" className="btn small" onClick={() => fileInputRef.current?.click()}>
+                Choose JSON file…
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".json,application/json"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  void file.text().then(tryParse);
+                  e.target.value = '';
+                }}
+              />
+            </div>
+            <textarea
+              className="field"
+              rows={8}
+              placeholder="…or paste JSON content here"
+              value={jsonText}
+              onChange={(e) => setJsonText(e.target.value)}
+              aria-label="Paste JSON content"
+            />
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button type="button" className="btn small" onClick={() => dialogRef.current?.close()}>
+                Cancel
+              </button>
+              <button type="button" className="btn small primary" onClick={() => tryParse(jsonText)}>
+                Preview
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 10, margin: '0 0 16px' }}>
+            {importMutation.error && <ErrorNote error={importMutation.error} />}
+            <div className="dim" style={{ fontSize: 13 }}>
+              <strong>{preview.title}</strong> — {preview.kind === 'quick_workout' ? 'Quick Workout' : 'Workout'} —{' '}
+              {(preview.exercises ?? []).length} exercise(s). Will be created as a draft for review.
+            </div>
+            <div className="row" style={{ justifyContent: 'flex-end' }}>
+              <button
+                type="button"
+                className="btn small"
+                disabled={importMutation.isPending}
+                onClick={() => setPreview(null)}
+              >
+                Back
+              </button>
+              <button
+                type="button"
+                className="btn small primary"
+                disabled={importMutation.isPending}
+                onClick={() => importMutation.mutate()}
+              >
+                {importMutation.isPending ? 'Importing…' : 'Import'}
+              </button>
+            </div>
+          </div>
+        )}
+      </dialog>
+    </>
+  );
 }
 
 export function WorkoutLibraryPage() {
@@ -250,6 +380,7 @@ export function WorkoutLibraryPage() {
               <option key={s} value={s}>{s}</option>
             ))}
           </select>
+          <ImportWorkoutModal />
           <button className="btn primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
             + New workout
           </button>
