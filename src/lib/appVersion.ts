@@ -58,13 +58,16 @@ export async function checkForceUpdate(): Promise<ForceUpdateStatus | null> {
   }
 }
 
-// Remote kill switch for the entitlement paywall gate. Same fail-open
-// philosophy as checkForceUpdate above, but inverted for a different reason:
-// there it's a UX nudge, so failing open just means someone isn't nagged to
-// update. Here it gates real access — failing open (i.e. returning false,
-// paywall off) is still the correct default, because wrongly locking out
-// the entire user base over a network hiccup is a far worse outcome than a
-// transient bug leaving the gate off a little longer than intended.
+// Remote kill switch for Pro-feature gating (AI Coach, full Workout
+// Library, etc) — see canAccessPro() in entitlement.ts. While false, every
+// user gets Pro access, which is how new Pro features ship and get tested
+// before enforcement actually turns on. Same fail-open philosophy as
+// checkForceUpdate above, but inverted for a different reason: there it's a
+// UX nudge, so failing open just means someone isn't nagged to update. Here
+// failing open (i.e. returning false, gating off) is still the correct
+// default, because wrongly locking Pro features for the entire user base
+// over a network hiccup is a far worse outcome than a transient bug leaving
+// the gate off a little longer than intended.
 export async function checkPaywallEnabled(): Promise<boolean> {
   if (Platform.OS === 'web') return false;
 

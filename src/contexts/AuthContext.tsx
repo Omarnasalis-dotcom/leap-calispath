@@ -15,6 +15,7 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import Purchases from 'react-native-purchases';
+import { checkPaywallEnabled } from '../lib/appVersion';
 
 let googleSigninConfigured = false;
 function ensureGoogleSigninConfigured() {
@@ -42,7 +43,11 @@ let purchasesConfigured = false;
 function ensurePurchasesConfigured() {
   if (purchasesConfigured || Platform.OS === 'web') return;
   try {
-    Purchases.configure({ apiKey: process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY! });
+    const apiKey =
+      Platform.OS === 'ios'
+        ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY!
+        : process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY!;
+    Purchases.configure({ apiKey });
     purchasesConfigured = true;
   } catch (error) {
     console.error('[Purchases] configure failed:', error);
@@ -58,6 +63,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
+  const [paywallEnabled, setPaywallEnabled] = useState(false);
   // onAuthStateChange below is registered once (mount-only effect) and would
   // otherwise close over a stale `needsPasswordReset` value forever; track
   // the live value in a ref so that closure can read current state.
@@ -65,6 +71,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     needsPasswordResetRef.current = needsPasswordReset;
   }, [needsPasswordReset]);
+
+  useEffect(() => {
+    checkPaywallEnabled().then(setPaywallEnabled);
+  }, []);
 
   // Handle deep link on cold start (e.g. password reset email link).
   // Native only: on web this raced with ResetPasswordScreen's own gated
@@ -470,6 +480,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileLoading,
     profileLoadFailed,
     needsPasswordReset,
+    paywallEnabled,
     signUp,
     signIn,
     signInWithGoogle,

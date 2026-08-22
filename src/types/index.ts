@@ -80,6 +80,7 @@ export interface AuthContextType {
   profileLoading: boolean;
   profileLoadFailed: boolean;
   needsPasswordReset: boolean;
+  paywallEnabled: boolean;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<boolean>;

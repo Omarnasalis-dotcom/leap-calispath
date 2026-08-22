@@ -67,16 +67,25 @@ export function PaywallScreen() {
       const result = await RevenueCatUI.presentPaywall();
       if (result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED) {
         await pollForAccess();
+      } else if (result === PAYWALL_RESULT.CANCELLED) {
+        // Dismissing the paywall means choosing free tier, not a dead end —
+        // there's no hard gate anymore (see canAccessPro), so just return
+        // to wherever the user came from.
+        if (router.canGoBack()) {
+          router.back();
+        } else {
+          router.replace('/');
+        }
       } else {
-        // CANCELLED / ERROR / NOT_PRESENTED — user backed out or the paywall
-        // couldn't render; give them a manual retry instead of a dead end.
+        // ERROR / NOT_PRESENTED — a genuine failure to render, not a user
+        // choice. Give them a manual retry instead of a silent dead end.
         setStep('fallback');
       }
     } catch (err) {
       console.error('[Paywall] presentPaywall failed:', err);
       setStep('fallback');
     }
-  }, [pollForAccess]);
+  }, [pollForAccess, router]);
 
   useEffect(() => {
     present();
@@ -115,12 +124,17 @@ export function PaywallScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <LeapLogo size={100} animated={false} />
-        <Text style={styles.title}>Unlock Full Access</Text>
+        <Text style={styles.title}>Couldn't Load Plans</Text>
         <Text style={styles.message}>
-          Your trial has ended. Subscribe to keep training with full access to every world, tier, and feature.
+          Something went wrong loading the available plans. Check your connection and try again, or continue with free access for now.
         </Text>
-        <Button title="View Plans" onPress={present} />
+        <Button title="Try Again" onPress={present} />
         <Button title="Restore Purchases" variant="secondary" onPress={handleRestore} />
+        <Button
+          title="Continue Free"
+          variant="secondary"
+          onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+        />
       </View>
     </SafeAreaView>
   );
