@@ -23,6 +23,16 @@ export interface LibraryTemplateRecommendation {
   week_count: number;
   equipment_tags: string[];
   block_count: number;
+  is_free: boolean;
+}
+
+// Programs have no difficulty/level column — level is entirely derived from
+// matching_criteria.tier_range, which already fully determines it.
+export type DifficultyBand = 'beginner' | 'intermediate' | 'advanced';
+export function tierRangeToDifficultyBand(range: TierRange): DifficultyBand {
+  if (range.max <= 2) return 'beginner';
+  if (range.max <= 5) return 'intermediate';
+  return 'advanced';
 }
 
 // Index 0 per tier is the Recommended pick; remaining entries are
@@ -77,7 +87,7 @@ export async function getRecommendations(
   const queries = tierRanges.map(async (range) => {
     const { data, error } = await supabase
       .from('program_templates')
-      .select('id, name, description, equipment_tags, matching_criteria, program_blocks(id, name, week_number)')
+      .select('id, name, description, equipment_tags, matching_criteria, is_free, program_blocks(id, name, week_number)')
       .eq('is_library_template', true)
       .eq('status', 'published')
       .contains('matching_criteria', { goal, tier_range: range })
@@ -106,12 +116,50 @@ export async function getRecommendations(
       week_count: weekCount,
       equipment_tags: Array.isArray(data.equipment_tags) ? data.equipment_tags : [],
       block_count: blocks.length,
+      is_free: data.is_free === true,
     };
     return recommendation;
   });
 
   const results = await Promise.all(queries);
   return results.filter((r): r is LibraryTemplateRecommendation => r !== null);
+}
+
+/**
+ * All published library templates, unfiltered by tier — the "Browse All"
+ * counterpart to getRecommendations' tier-matched top picks. Small catalog
+ * today (confirmed 8 templates), so no pagination — one query, one page.
+ */
+export async function getAllPublishedTemplates(): Promise<LibraryTemplateRecommendation[]> {
+  const { data, error } = await supabase
+    .from('program_templates')
+    .select('id, name, description, equipment_tags, matching_criteria, is_free, program_blocks(id, name, week_number)')
+    .eq('is_library_template', true)
+    .eq('status', 'published');
+
+  if (error) {
+    console.error('getAllPublishedTemplates: query failed', error);
+    return [];
+  }
+
+  return (data ?? []).map((row: any) => {
+    const blocks = Array.isArray(row.program_blocks) ? row.program_blocks : [];
+    const week1Blocks = blocks.filter((b: any) => (b.week_number || 1) === 1);
+    const weekCount = new Set(blocks.map((b: any) => b.week_number || 1)).size;
+    const tierRange: TierRange = row.matching_criteria?.tier_range ?? { min: 0, max: 9 };
+
+    return {
+      id: row.id,
+      template_name: row.name,
+      description: row.description,
+      tier_range: tierRange,
+      training_days_per_week: deriveTrainingDaysPerWeek(week1Blocks.map((b: any) => b.name)),
+      week_count: weekCount,
+      equipment_tags: Array.isArray(row.equipment_tags) ? row.equipment_tags : [],
+      block_count: blocks.length,
+      is_free: row.is_free === true,
+    };
+  });
 }
 
 export interface TemplateDetailExercise {

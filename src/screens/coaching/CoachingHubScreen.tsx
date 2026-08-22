@@ -16,19 +16,27 @@ import { ProgramBuilderScreen } from './ProgramBuilderScreen';
 import { MyClientsScreen } from './MyClientsScreen';
 import { ProgressTrackingScreen } from './ProgressTrackingScreen';
 import { TemplateLibraryScreen } from './TemplateLibraryScreen';
+import { WorkoutLibraryBuilderScreen } from './WorkoutLibraryBuilderScreen';
 
-type Tab = 'library' | 'builder' | 'assign' | 'progress' | 'templates';
+type Tab = 'library' | 'builder' | 'assign' | 'progress' | 'templates' | 'workoutContent';
 
 interface Tab_Config {
   key: Tab;
   label: string;
   icon: string;
+  adminOnly?: boolean;
 }
 
+// workoutContent is admin-only and hidden outright (not just server-gated)
+// — unlike 'templates' (LIBRARY), which is shown to every coach and only
+// fails write attempts server-side for non-admins. See
+// WorkoutLibraryBuilderScreen's own header comment for why that
+// "visible-but-fails" pattern isn't repeated here.
 const TABS: Tab_Config[] = [
   { key: 'library',   label: 'EXERCISES',  icon: 'dumbbell' },
   { key: 'builder',   label: 'BUILDER',    icon: 'hammer-wrench' },
   { key: 'templates', label: 'LIBRARY',    icon: 'book-open-page-variant' },
+  { key: 'workoutContent', label: 'CONTENT', icon: 'clipboard-text-multiple', adminOnly: true },
   { key: 'assign',    label: 'CLIENTS',    icon: 'account-arrow-right' },
   { key: 'progress',  label: 'PROGRESS',   icon: 'chart-line' },
 ];
@@ -89,6 +97,8 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
             isAdmin={isAdmin}
           />
         );
+      case 'workoutContent':
+        return <WorkoutLibraryBuilderScreen />;
       case 'assign':
         return (
           <MyClientsScreen
@@ -139,7 +149,7 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
         style={[styles.tabBar, { backgroundColor: isDark ? '#0D0D0D' : '#F5F5F5', borderBottomColor: 'rgba(255,255,255,0.04)' }]}
         contentContainerStyle={styles.tabBarContent}
       >
-        {TABS.map((tab) => {
+        {TABS.filter((tab) => !tab.adminOnly || isAdmin).map((tab) => {
           const isActive = activeTab === tab.key;
           return (
             <TouchableOpacity

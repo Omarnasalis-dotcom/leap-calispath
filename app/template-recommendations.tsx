@@ -1,6 +1,6 @@
 import React from 'react';
 import { useRouter } from 'expo-router';
-import { TemplateRecommendationsScreen } from '../src/screens/TemplateRecommendationsScreen';
+import { WorkoutLibraryScreen } from '../src/screens/WorkoutLibraryScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
@@ -8,7 +8,7 @@ export default function Route() {
 
   return (
     <SpartanLayout>
-      <TemplateRecommendationsScreen onClose={() => router.back()} />
+      <WorkoutLibraryScreen onClose={() => router.back()} />
     </SpartanLayout>
   );
 }
