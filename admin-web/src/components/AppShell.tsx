@@ -20,6 +20,7 @@ const ADMIN_NAV: Array<
   { to: '/coaching/community', label: 'Community' },
   { to: '/coaching/builder', label: 'Program builder' },
   { to: '/coaching/exercises', label: 'Exercise library' },
+  { to: '/coaching/workouts', label: 'Workout content' },
   { to: '/coaching/analytics', label: 'Analytics' },
   { section: 'Arena' },
   { to: '/communities', label: 'Communities' },
