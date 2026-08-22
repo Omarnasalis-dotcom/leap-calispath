@@ -124,57 +124,94 @@ export function WorkoutLibraryBuilderScreen() {
               <Switch value={b.form.is_free} onValueChange={(v) => b.updateForm('is_free', v)} trackColor={{ true: bronzeGold }} />
             </View>
 
-            <Text style={[styles.sectionTitleStyle, { color: theme.text.primary, marginTop: 12 }]}>EXERCISES</Text>
-            {b.exercises.length === 0 ? (
+            <Text style={[styles.sectionTitleStyle, { color: theme.text.primary, marginTop: 12 }]}>
+              {b.form.kind === 'quick_workout' ? 'BLOCK (USUALLY JUST ONE)' : 'BLOCKS — WARM-UP THROUGH COOL-DOWN'}
+            </Text>
+            {b.blocks.length === 0 ? (
               <View style={[styles.emptyCard, { borderColor: theme.card.border }]}>
-                <Text style={[styles.emptyCardText, { color: theme.text.tertiary }]}>NO EXERCISES ADDED YET.</Text>
+                <Text style={[styles.emptyCardText, { color: theme.text.tertiary }]}>NO BLOCKS ADDED YET.</Text>
               </View>
             ) : (
-              b.exercises.map((ex, i) => (
-                <View key={i} style={[styles.exerciseRow, { borderColor: theme.card.border }]}>
-                  <View style={styles.exInfoCol}>
-                    <Text style={[styles.exTitle, { color: theme.text.primary }]} numberOfLines={1}>{ex.name.toUpperCase()}</Text>
+              b.blocks.map((block, bi) => (
+                <View key={block.key} style={[styles.blockCard, { borderColor: theme.card.border }]}>
+                  <View style={styles.blockHeader}>
+                    <TextInput
+                      style={[styles.blockTitleInput, { color: theme.text.primary, flex: 1 }]}
+                      value={block.name}
+                      onChangeText={(v) => b.updateBlockName(bi, v)}
+                      placeholder="Block name (e.g. Warm-Up)"
+                      placeholderTextColor="rgba(255,255,255,0.2)"
+                    />
                     <View style={styles.blockReorderRow}>
-                      <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveExercise(i, -1)} disabled={i === 0}>
-                        <Text style={{ color: i === 0 ? theme.text.tertiary : theme.text.primary }}>{'↑'}</Text>
+                      <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveBlock(bi, -1)} disabled={bi === 0}>
+                        <Text style={{ color: bi === 0 ? theme.text.tertiary : theme.text.primary }}>{'↑'}</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveExercise(i, 1)} disabled={i === b.exercises.length - 1}>
-                        <Text style={{ color: i === b.exercises.length - 1 ? theme.text.tertiary : theme.text.primary }}>{'↓'}</Text>
+                      <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveBlock(bi, 1)} disabled={bi === b.blocks.length - 1}>
+                        <Text style={{ color: bi === b.blocks.length - 1 ? theme.text.tertiary : theme.text.primary }}>{'↓'}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity style={styles.deleteBlockBtn} onPress={() => b.removeBlock(bi)}>
+                        <Text style={styles.deleteBlockBtnText}>REMOVE</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
 
-                  <View style={styles.exInputsGrid}>
-                    <NumField theme={theme} label="SETS" value={ex.sets} onChange={(v) => b.updateExercise(i, 'sets', v)} />
-                    <NumField theme={theme} label="REPS" value={ex.reps} onChange={(v) => b.updateExercise(i, 'reps', v)} />
-                    <NumField theme={theme} label="REST S" value={ex.rest_seconds} onChange={(v) => b.updateExercise(i, 'rest_seconds', v)} />
-                  </View>
-                  <View style={[styles.exInputsGrid, { marginTop: 8 }]}>
-                    <NumField theme={theme} label="HOLD S" value={ex.hold_seconds} onChange={(v) => b.updateExercise(i, 'hold_seconds', v)} />
-                    <NumField theme={theme} label="WORK S" value={ex.work_seconds} onChange={(v) => b.updateExercise(i, 'work_seconds', v)} />
-                    <View style={styles.exInputCol}>
-                      <Text style={[styles.exInputLabel, { color: theme.text.tertiary }]}>WEIGHTED</Text>
-                      <Switch value={ex.is_weighted} onValueChange={(v) => b.updateExercise(i, 'is_weighted', v)} trackColor={{ true: bronzeGold }} />
+                  {block.exercises.length === 0 ? (
+                    <View style={[styles.emptyCard, { borderColor: theme.card.border, marginTop: 10 }]}>
+                      <Text style={[styles.emptyCardText, { color: theme.text.tertiary }]}>NO EXERCISES IN THIS BLOCK YET.</Text>
                     </View>
-                  </View>
+                  ) : (
+                    block.exercises.map((ex, i) => (
+                      <View key={i} style={[styles.exerciseRow, { borderColor: theme.card.border, marginTop: 10 }]}>
+                        <View style={styles.exInfoCol}>
+                          <Text style={[styles.exTitle, { color: theme.text.primary }]} numberOfLines={1}>{ex.name.toUpperCase()}</Text>
+                          <View style={styles.blockReorderRow}>
+                            <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveExercise(bi, i, -1)} disabled={i === 0}>
+                              <Text style={{ color: i === 0 ? theme.text.tertiary : theme.text.primary }}>{'↑'}</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveExercise(bi, i, 1)} disabled={i === block.exercises.length - 1}>
+                              <Text style={{ color: i === block.exercises.length - 1 ? theme.text.tertiary : theme.text.primary }}>{'↓'}</Text>
+                            </TouchableOpacity>
+                          </View>
+                        </View>
 
-                  <TextInput
-                    style={[styles.exNotesField, { color: theme.text.primary, borderColor: theme.card.border, marginTop: 8 }]}
-                    value={ex.notes}
-                    onChangeText={(v) => b.updateExercise(i, 'notes', v)}
-                    placeholder="Notes (optional)"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
-                  />
+                        <View style={styles.exInputsGrid}>
+                          <NumField theme={theme} label="SETS" value={ex.sets} onChange={(v) => b.updateExercise(bi, i, 'sets', v)} />
+                          <NumField theme={theme} label="REPS" value={ex.reps} onChange={(v) => b.updateExercise(bi, i, 'reps', v)} />
+                          <NumField theme={theme} label="REST S" value={ex.rest_seconds} onChange={(v) => b.updateExercise(bi, i, 'rest_seconds', v)} />
+                        </View>
+                        <View style={[styles.exInputsGrid, { marginTop: 8 }]}>
+                          <NumField theme={theme} label="HOLD S" value={ex.hold_seconds} onChange={(v) => b.updateExercise(bi, i, 'hold_seconds', v)} />
+                          <NumField theme={theme} label="WORK S" value={ex.work_seconds} onChange={(v) => b.updateExercise(bi, i, 'work_seconds', v)} />
+                          <View style={styles.exInputCol}>
+                            <Text style={[styles.exInputLabel, { color: theme.text.tertiary }]}>WEIGHTED</Text>
+                            <Switch value={ex.is_weighted} onValueChange={(v) => b.updateExercise(bi, i, 'is_weighted', v)} trackColor={{ true: bronzeGold }} />
+                          </View>
+                        </View>
 
-                  <TouchableOpacity style={styles.exDeleteBtn} onPress={() => b.removeExercise(i)}>
-                    <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
+                        <TextInput
+                          style={[styles.exNotesField, { color: theme.text.primary, borderColor: theme.card.border, marginTop: 8 }]}
+                          value={ex.notes}
+                          onChangeText={(v) => b.updateExercise(bi, i, 'notes', v)}
+                          placeholder="Notes (optional)"
+                          placeholderTextColor="rgba(255,255,255,0.2)"
+                        />
+
+                        <TouchableOpacity style={styles.exDeleteBtn} onPress={() => b.removeExercise(bi, i)}>
+                          <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
+                        </TouchableOpacity>
+                      </View>
+                    ))
+                  )}
+
+                  <TouchableOpacity style={[styles.addExerciseTrigger, { borderColor: theme.card.border, marginTop: 10 }]} onPress={() => b.openPicker(bi)}>
+                    <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE TO THIS BLOCK</Text>
                   </TouchableOpacity>
                 </View>
               ))
             )}
 
-            <TouchableOpacity style={[styles.addExerciseTrigger, { borderColor: theme.card.border }]} onPress={b.openPicker}>
-              <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD EXERCISE</Text>
+            <TouchableOpacity style={[styles.addExerciseTrigger, { borderColor: bronzeGold }]} onPress={b.addBlock}>
+              <Text style={[styles.addExerciseTriggerText, { color: bronzeGold }]}>+ ADD BLOCK</Text>
             </TouchableOpacity>
 
             <View style={{ flexDirection: 'row', gap: 10, marginTop: 24 }}>

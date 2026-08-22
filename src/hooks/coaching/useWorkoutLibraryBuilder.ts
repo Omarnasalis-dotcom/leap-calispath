@@ -1,9 +1,11 @@
 // State/logic behind WorkoutLibraryBuilderScreen — the admin-only authoring
-// UI for standalone_workouts/standalone_workout_exercises (Workouts + Quick
-// Workouts). Deliberately simpler than useProgramBuilder: one flat ordered
-// exercise list per workout, no weeks/days/blocks, so this reuses
-// ExercisePickerModal as-is but skips useProgramBuilder's block-tree state
-// entirely.
+// UI for standalone_workouts/standalone_workout_blocks/_exercises
+// (Workouts + Quick Workouts). A Workout is one full training day built
+// from ordered blocks/phases (Warm-Up, Skills, Strength, Cool-Down, ...) —
+// same idea as a real program day, just without weeks or CONCEPT metadata.
+// Reuses ExercisePickerModal as-is for exercise selection; it just adds
+// into whichever block is currently open (activeBlockIndex) instead of a
+// single flat list.
 
 import { useState, useCallback } from 'react';
 import { supabase } from '../../lib/supabase';
@@ -42,6 +44,22 @@ export interface BuilderExercise {
   notes: string;
 }
 
+export interface BuilderBlock {
+  key: string;
+  name: string;
+  exercises: BuilderExercise[];
+}
+
+let blockKeySeq = 0;
+function newBlockKey(): string {
+  blockKeySeq += 1;
+  return `block-${Date.now()}-${blockKeySeq}`;
+}
+
+function emptyBlock(name: string): BuilderBlock {
+  return { key: newBlockKey(), name, exercises: [] };
+}
+
 const EMPTY_FORM = {
   title: '',
   description: '',
@@ -64,11 +82,12 @@ export function useWorkoutLibraryBuilder() {
   const [editingId, setEditingId] = useState<string | 'new' | null>(null);
   const [formLoading, setFormLoading] = useState(false);
   const [form, setForm] = useState({ ...EMPTY_FORM });
-  const [exercises, setExercises] = useState<BuilderExercise[]>([]);
+  const [blocks, setBlocks] = useState<BuilderBlock[]>([]);
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   const [pickerVisible, setPickerVisible] = useState(false);
+  const [activeBlockIndex, setActiveBlockIndex] = useState<number | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [exerciseLibrary, setExerciseLibrary] = useState<ExerciseLibraryItem[]>([]);
@@ -102,7 +121,7 @@ export function useWorkoutLibraryBuilder() {
 
   const startNew = () => {
     setForm({ ...EMPTY_FORM });
-    setExercises([]);
+    setBlocks([emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')]);
     setEditingId('new');
   };
 
@@ -123,17 +142,21 @@ export function useWorkoutLibraryBuilder() {
         is_free: detail.is_free,
         status: (workouts.find((w) => w.id === id)?.status) || 'draft',
       });
-      setExercises(
-        detail.exercises.map((ex) => ({
-          exercise_id: ex.exercise_id,
-          name: ex.name,
-          sets: ex.sets != null ? String(ex.sets) : '',
-          reps: ex.reps != null ? String(ex.reps) : '',
-          rest_seconds: ex.rest_seconds != null ? String(ex.rest_seconds) : '',
-          hold_seconds: ex.hold_seconds != null ? String(ex.hold_seconds) : '',
-          work_seconds: ex.work_seconds != null ? String(ex.work_seconds) : '',
-          is_weighted: ex.is_weighted,
-          notes: ex.notes || '',
+      setBlocks(
+        detail.blocks.map((block) => ({
+          key: newBlockKey(),
+          name: block.name,
+          exercises: block.exercises.map((ex) => ({
+            exercise_id: ex.exercise_id,
+            name: ex.name,
+            sets: ex.sets != null ? String(ex.sets) : '',
+            reps: ex.reps != null ? String(ex.reps) : '',
+            rest_seconds: ex.rest_seconds != null ? String(ex.rest_seconds) : '',
+            hold_seconds: ex.hold_seconds != null ? String(ex.hold_seconds) : '',
+            work_seconds: ex.work_seconds != null ? String(ex.work_seconds) : '',
+            is_weighted: ex.is_weighted,
+            notes: ex.notes || '',
+          })),
         }))
       );
     } catch (err: any) {
@@ -146,52 +169,97 @@ export function useWorkoutLibraryBuilder() {
 
   const cancelEdit = () => {
     setEditingId(null);
-    setExercises([]);
+    setBlocks([]);
   };
 
   const updateForm = (field: keyof typeof EMPTY_FORM, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
   };
 
-  const openPicker = () => {
+  const addBlock = () => {
+    setBlocks((prev) => [...prev, emptyBlock('')]);
+  };
+
+  const removeBlock = (blockIndex: number) => {
+    setBlocks((prev) => prev.filter((_, i) => i !== blockIndex));
+  };
+
+  const moveBlock = (blockIndex: number, direction: -1 | 1) => {
+    setBlocks((prev) => {
+      const target = blockIndex + direction;
+      if (target < 0 || target >= prev.length) return prev;
+      const next = [...prev];
+      [next[blockIndex], next[target]] = [next[target], next[blockIndex]];
+      return next;
+    });
+  };
+
+  const updateBlockName = (blockIndex: number, name: string) => {
+    setBlocks((prev) => prev.map((b, i) => (i === blockIndex ? { ...b, name } : b)));
+  };
+
+  const openPicker = (blockIndex: number) => {
+    setActiveBlockIndex(blockIndex);
     setPickerVisible(true);
     if (exerciseLibrary.length === 0) fetchExerciseLibrary();
   };
 
   const addExercise = (item: ExerciseLibraryItem) => {
-    setExercises((prev) => [
-      ...prev,
-      {
-        exercise_id: String(item.id),
-        name: item.name,
-        sets: '3',
-        reps: '10',
-        rest_seconds: '60',
-        hold_seconds: '',
-        work_seconds: '',
-        is_weighted: false,
-        notes: '',
-      },
-    ]);
+    if (activeBlockIndex === null) return;
+    const blockIndex = activeBlockIndex;
+    setBlocks((prev) =>
+      prev.map((b, i) =>
+        i === blockIndex
+          ? {
+              ...b,
+              exercises: [
+                ...b.exercises,
+                {
+                  exercise_id: String(item.id),
+                  name: item.name,
+                  sets: '3',
+                  reps: '10',
+                  rest_seconds: '60',
+                  hold_seconds: '',
+                  work_seconds: '',
+                  is_weighted: false,
+                  notes: '',
+                },
+              ],
+            }
+          : b
+      )
+    );
     setPickerVisible(false);
   };
 
-  const removeExercise = (index: number) => {
-    setExercises((prev) => prev.filter((_, i) => i !== index));
+  const removeExercise = (blockIndex: number, exIndex: number) => {
+    setBlocks((prev) =>
+      prev.map((b, i) => (i === blockIndex ? { ...b, exercises: b.exercises.filter((_, j) => j !== exIndex) } : b))
+    );
   };
 
-  const moveExercise = (index: number, direction: -1 | 1) => {
-    setExercises((prev) => {
-      const target = index + direction;
-      if (target < 0 || target >= prev.length) return prev;
-      const next = [...prev];
-      [next[index], next[target]] = [next[target], next[index]];
-      return next;
-    });
+  const moveExercise = (blockIndex: number, exIndex: number, direction: -1 | 1) => {
+    setBlocks((prev) =>
+      prev.map((b, i) => {
+        if (i !== blockIndex) return b;
+        const target = exIndex + direction;
+        if (target < 0 || target >= b.exercises.length) return b;
+        const next = [...b.exercises];
+        [next[exIndex], next[target]] = [next[target], next[exIndex]];
+        return { ...b, exercises: next };
+      })
+    );
   };
 
-  const updateExercise = (index: number, field: keyof BuilderExercise, value: any) => {
-    setExercises((prev) => prev.map((ex, i) => (i === index ? { ...ex, [field]: value } : ex)));
+  const updateExercise = (blockIndex: number, exIndex: number, field: keyof BuilderExercise, value: any) => {
+    setBlocks((prev) =>
+      prev.map((b, i) =>
+        i === blockIndex
+          ? { ...b, exercises: b.exercises.map((ex, j) => (j === exIndex ? { ...ex, [field]: value } : ex)) }
+          : b
+      )
+    );
   };
 
   const toInt = (v: string): number | null => {
@@ -203,6 +271,10 @@ export function useWorkoutLibraryBuilder() {
   const save = async (): Promise<boolean> => {
     if (!form.title.trim()) {
       setErrorMsg('TITLE IS REQUIRED.');
+      return false;
+    }
+    if (blocks.some((b) => !b.name.trim())) {
+      setErrorMsg('EVERY BLOCK NEEDS A NAME.');
       return false;
     }
     setSaving(true);
@@ -219,16 +291,20 @@ export function useWorkoutLibraryBuilder() {
         duration_minutes: form.kind === 'quick_workout' ? toInt(form.duration_minutes) : null,
         is_free: form.is_free,
         status: form.status,
-        exercises: exercises.map((ex, i) => ({
-          exercise_id: ex.exercise_id,
-          sets: toInt(ex.sets),
-          reps: toInt(ex.reps),
-          rest_seconds: toInt(ex.rest_seconds),
-          hold_seconds: toInt(ex.hold_seconds),
-          work_seconds: toInt(ex.work_seconds),
-          is_weighted: ex.is_weighted,
-          notes: ex.notes.trim() || null,
-          order_index: i,
+        blocks: blocks.map((b, bi) => ({
+          name: b.name.trim(),
+          order_index: bi,
+          exercises: b.exercises.map((ex, i) => ({
+            exercise_id: ex.exercise_id,
+            sets: toInt(ex.sets),
+            reps: toInt(ex.reps),
+            rest_seconds: toInt(ex.rest_seconds),
+            hold_seconds: toInt(ex.hold_seconds),
+            work_seconds: toInt(ex.work_seconds),
+            is_weighted: ex.is_weighted,
+            notes: ex.notes.trim() || null,
+            order_index: i,
+          })),
         })),
       });
       cancelEdit();
@@ -256,8 +332,9 @@ export function useWorkoutLibraryBuilder() {
 
   return {
     workouts, loading, errorMsg, setErrorMsg, loadWorkouts,
-    editingId, formLoading, form, updateForm, exercises,
+    editingId, formLoading, form, updateForm, blocks,
     startNew, startEdit, cancelEdit, saving, deletingId,
+    addBlock, removeBlock, moveBlock, updateBlockName,
     pickerVisible, setPickerVisible, openPicker,
     searchQuery, setSearchQuery, selectedCategory, setSelectedCategory,
     exerciseLibrary, libraryLoading, categories: CATEGORIES,

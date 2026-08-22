@@ -852,14 +852,21 @@ function StandaloneWorkoutDetailModal({
                 </Text>
               )}
               <ScrollView style={previewStyles.body}>
-                {detail.exercises.map((ex) => (
-                  <View key={ex.exercise_id + String(ex.order_index)} style={[previewStyles.dayRow, { borderColor: theme.card.border }]}>
-                    <Text style={[previewStyles.dayRowText, { color: theme.text.primary }]}>{ex.name}</Text>
-                    <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, marginTop: 2 }}>
-                      {ex.sets && ex.reps ? `${ex.sets} × ${ex.reps}` : ex.work_seconds ? `${ex.work_seconds}S WORK` : ex.hold_seconds ? `${ex.hold_seconds}S HOLD` : ''}
-                      {ex.rest_seconds ? ` · ${ex.rest_seconds}S REST` : ''}
-                      {ex.is_weighted ? ' · WEIGHTED' : ''}
+                {detail.blocks.map((block) => (
+                  <View key={block.id} style={{ marginBottom: 14 }}>
+                    <Text style={[styles.sectionLabel, { color: bronzeGold, marginTop: 0, marginBottom: 8 }]}>
+                      {block.name.toUpperCase()}
                     </Text>
+                    {block.exercises.map((ex) => (
+                      <View key={ex.exercise_id + String(ex.order_index)} style={[previewStyles.dayRow, { borderColor: theme.card.border }]}>
+                        <Text style={[previewStyles.dayRowText, { color: theme.text.primary }]}>{ex.name}</Text>
+                        <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, marginTop: 2 }}>
+                          {ex.sets && ex.reps ? `${ex.sets} × ${ex.reps}` : ex.work_seconds ? `${ex.work_seconds}S WORK` : ex.hold_seconds ? `${ex.hold_seconds}S HOLD` : ''}
+                          {ex.rest_seconds ? ` · ${ex.rest_seconds}S REST` : ''}
+                          {ex.is_weighted ? ' · WEIGHTED' : ''}
+                        </Text>
+                      </View>
+                    ))}
                   </View>
                 ))}
               </ScrollView>

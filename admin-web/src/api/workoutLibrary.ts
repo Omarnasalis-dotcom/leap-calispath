@@ -1,12 +1,19 @@
 import { supabase } from '@/lib/supabase';
 import { resolveImportedExercises } from '@/shared/ProgramImportParser';
 
-// Admin-only authoring for standalone_workouts/standalone_workout_exercises
-// (Workouts + Quick Workouts) — mirrors the mobile app's src/lib/workoutLibrary.ts
-// admin functions exactly, calling the same save_standalone_workout RPC and
-// relying on the same "Admin manages all standalone workouts" FOR-ALL RLS
-// policy for the all-statuses list read and the direct delete (see
-// supabase/migrations/20260822050000_add_standalone_workout_admin_authoring.sql).
+// Admin-only authoring for standalone_workouts/standalone_workout_blocks/
+// _exercises (Workouts + Quick Workouts) — mirrors the mobile app's
+// src/lib/workoutLibrary.ts admin functions exactly, calling the same
+// save_standalone_workout RPC and relying on the same "Admin manages all
+// standalone workouts/blocks" FOR-ALL RLS policies for the all-statuses
+// list read and the direct delete (see
+// supabase/migrations/20260822060000_add_standalone_workout_blocks.sql).
+//
+// A Workout is one full training day built from ordered blocks/phases
+// (Warm-Up, Skills, Strength, Cool-Down, ...) — same idea as a real program
+// day, just without weeks or CONCEPT metadata. Quick Workouts are
+// effectively flat (one implicit block) since AMRAP/EMOM/Tabata content is
+// inherently a single continuous circuit.
 
 export type StandaloneWorkoutKind = 'workout' | 'quick_workout';
 export type StandaloneWorkoutStatus = 'draft' | 'published' | 'archived';
@@ -37,8 +44,15 @@ export interface StandaloneWorkoutExerciseRow {
   order_index: number;
 }
 
-export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
+export interface StandaloneWorkoutBlockRow {
+  id: string;
+  name: string;
+  order_index: number;
   exercises: StandaloneWorkoutExerciseRow[];
+}
+
+export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
+  blocks: StandaloneWorkoutBlockRow[];
 }
 
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
@@ -58,27 +72,53 @@ export async function fetchStandaloneWorkoutDetail(id: string): Promise<Standalo
     .single();
   if (workoutError) throw new Error(workoutError.message);
 
-  const { data: exerciseRows, error: exercisesError } = await supabase
-    .from('standalone_workout_exercises')
-    .select('exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name)')
+  const { data: blockRows, error: blocksError } = await supabase
+    .from('standalone_workout_blocks')
+    .select(
+      'id, name, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name))',
+    )
     .eq('workout_id', id)
     .order('order_index', { ascending: true });
-  if (exercisesError) throw new Error(exercisesError.message);
+  if (blocksError) throw new Error(blocksError.message);
 
-  const exercises: StandaloneWorkoutExerciseRow[] = (exerciseRows ?? []).map((row: any) => ({
-    exercise_id: row.exercise_id,
-    exercise_name: row.exercise_library?.name ?? 'Unknown exercise',
-    sets: row.sets,
-    reps: row.reps,
-    rest_seconds: row.rest_seconds,
-    hold_seconds: row.hold_seconds,
-    work_seconds: row.work_seconds,
-    is_weighted: row.is_weighted ?? false,
-    notes: row.notes,
-    order_index: row.order_index ?? 0,
+  const blocks: StandaloneWorkoutBlockRow[] = (blockRows ?? []).map((block: any) => ({
+    id: block.id,
+    name: block.name,
+    order_index: block.order_index ?? 0,
+    exercises: (Array.isArray(block.standalone_workout_exercises) ? block.standalone_workout_exercises : [])
+      .slice()
+      .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .map((row: any) => ({
+        exercise_id: row.exercise_id,
+        exercise_name: row.exercise_library?.name ?? 'Unknown exercise',
+        sets: row.sets,
+        reps: row.reps,
+        rest_seconds: row.rest_seconds,
+        hold_seconds: row.hold_seconds,
+        work_seconds: row.work_seconds,
+        is_weighted: row.is_weighted ?? false,
+        notes: row.notes,
+        order_index: row.order_index ?? 0,
+      })),
   }));
 
-  return { ...(workout as StandaloneWorkoutRow), exercises };
+  return { ...(workout as StandaloneWorkoutRow), blocks };
+}
+
+export interface SaveStandaloneWorkoutBlockInput {
+  name: string;
+  order_index: number;
+  exercises: Array<{
+    exercise_id: string;
+    sets: number | null;
+    reps: number | null;
+    rest_seconds: number | null;
+    hold_seconds: number | null;
+    work_seconds: number | null;
+    is_weighted: boolean;
+    notes: string | null;
+    order_index: number;
+  }>;
 }
 
 export interface SaveStandaloneWorkoutInput {
@@ -92,17 +132,7 @@ export interface SaveStandaloneWorkoutInput {
   duration_minutes: number | null;
   is_free: boolean;
   status: StandaloneWorkoutStatus;
-  exercises: Array<{
-    exercise_id: string;
-    sets: number | null;
-    reps: number | null;
-    rest_seconds: number | null;
-    hold_seconds: number | null;
-    work_seconds: number | null;
-    is_weighted: boolean;
-    notes: string | null;
-    order_index: number;
-  }>;
+  blocks: SaveStandaloneWorkoutBlockInput[];
 }
 
 export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): Promise<string> {
@@ -117,7 +147,7 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_duration_minutes: input.duration_minutes,
     p_is_free: input.is_free,
     p_status: input.status,
-    p_exercises: input.exercises,
+    p_blocks: input.blocks,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -144,6 +174,13 @@ export interface ImportedStandaloneWorkoutExercise {
   notes?: string | null;
 }
 
+export interface ImportedStandaloneWorkoutBlock {
+  name?: string;
+  notes?: string | null;
+  order_index?: number;
+  exercises?: ImportedStandaloneWorkoutExercise[];
+}
+
 export interface ImportedStandaloneWorkout {
   kind?: string;
   title?: string;
@@ -153,7 +190,7 @@ export interface ImportedStandaloneWorkout {
   format?: string | null;
   duration_minutes?: number | string | null;
   is_free?: boolean;
-  exercises?: ImportedStandaloneWorkoutExercise[];
+  blocks?: ImportedStandaloneWorkoutBlock[];
 }
 
 const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
@@ -179,14 +216,23 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
   if (typeof data.title !== 'string' || !data.title.trim()) {
     return { valid: false, error: '"title" is required.' };
   }
-  if (!Array.isArray(data.exercises) || data.exercises.length === 0) {
-    return { valid: false, error: '"exercises" must be a non-empty array.' };
+  if (!Array.isArray(data.blocks) || data.blocks.length === 0) {
+    return { valid: false, error: '"blocks" must be a non-empty array — one entry per phase (Warm-Up, Strength, Cool-Down, ...).' };
   }
-  for (const ex of data.exercises) {
-    const hasId = typeof ex?.exercise_id === 'string' && ex.exercise_id.length > 0;
-    const hasName = typeof ex?.name === 'string' && ex.name.trim().length > 0;
-    if (!hasId && !hasName) {
-      return { valid: false, error: 'Every exercise needs an exercise_id or a name to match against.' };
+  for (const block of data.blocks) {
+    const blockName = block?.name;
+    if (typeof blockName !== 'string' || !blockName.trim()) {
+      return { valid: false, error: 'Every block needs a name.' };
+    }
+    if (!Array.isArray(block.exercises) || block.exercises.length === 0) {
+      return { valid: false, error: `Block "${blockName}" needs a non-empty "exercises" array.` };
+    }
+    for (const ex of block.exercises) {
+      const hasId = typeof ex?.exercise_id === 'string' && ex.exercise_id.length > 0;
+      const hasName = typeof ex?.name === 'string' && ex.name.trim().length > 0;
+      if (!hasId && !hasName) {
+        return { valid: false, error: `An exercise in block "${blockName}" needs an exercise_id or a name to match against.` };
+      }
     }
   }
   // difficulty/format are DB CHECK-constrained — reject up front with a
@@ -212,48 +258,56 @@ function parseNullableInt(v: number | string | null | undefined): number | null 
 }
 
 /**
- * Resolves every exercise (existing id, matched-by-name, or newly created —
- * reuses the exact same resolveImportedExercises helper Program JSON import
- * already relies on) then creates the workout via save_standalone_workout,
- * always as a draft so it gets reviewed/published deliberately rather than
- * going live straight from an import.
+ * Resolves every exercise across every block (existing id, matched-by-name,
+ * or newly created — reuses the exact same resolveImportedExercises helper
+ * Program JSON import already relies on, which already expects exactly
+ * this blocks[].exercises[] shape) then creates the workout via
+ * save_standalone_workout, always as a draft so it gets reviewed/published
+ * deliberately rather than going live straight from an import.
  */
 export async function importStandaloneWorkoutFromJson(
   data: ImportedStandaloneWorkout,
   adminId: string,
 ): Promise<string> {
-  const resolved = await resolveImportedExercises([{ exercises: data.exercises }], adminId);
+  const inputBlocks = data.blocks ?? [];
+  const resolved = await resolveImportedExercises(inputBlocks, adminId);
 
-  const inputExercises = data.exercises ?? [];
   const unresolvedNames: string[] = [];
 
-  const exercises = inputExercises
-    .map((ex, i) => {
-      const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name ?? '').trim().toLowerCase()}`;
-      const exercise_id = resolved.get(key);
-      if (!exercise_id) {
-        // Only reachable when exercise_id was stale/invalid AND no name was
-        // given as a fallback — validateStandaloneWorkoutImport lets this
-        // through (it only checks a name-or-id is *present*, not that the
-        // id actually resolves), so without this check the exercise would
-        // silently vanish and the saved workout would have fewer exercises
-        // than the preview promised.
-        unresolvedNames.push(ex.name || ex.exercise_id || `exercise #${i + 1}`);
-        return null;
-      }
-      return {
-        exercise_id,
-        sets: parseNullableInt(ex.sets),
-        reps: parseNullableInt(ex.reps),
-        rest_seconds: parseNullableInt(ex.rest_seconds),
-        hold_seconds: parseNullableInt(ex.hold_seconds),
-        work_seconds: parseNullableInt(ex.work_seconds),
-        is_weighted: !!ex.is_weighted,
-        notes: ex.notes || null,
-        order_index: i,
-      };
-    })
-    .filter((ex): ex is NonNullable<typeof ex> => ex !== null);
+  const blocks: SaveStandaloneWorkoutBlockInput[] = inputBlocks.map((block, bi) => {
+    const exercises = (block.exercises ?? [])
+      .map((ex, i) => {
+        const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name ?? '').trim().toLowerCase()}`;
+        const exercise_id = resolved.get(key);
+        if (!exercise_id) {
+          // Only reachable when exercise_id was stale/invalid AND no name
+          // was given as a fallback — validateStandaloneWorkoutImport lets
+          // this through (it only checks a name-or-id is *present*, not
+          // that the id actually resolves), so without this check the
+          // exercise would silently vanish from the saved block.
+          unresolvedNames.push(ex.name || ex.exercise_id || `block "${block.name}" exercise #${i + 1}`);
+          return null;
+        }
+        return {
+          exercise_id,
+          sets: parseNullableInt(ex.sets),
+          reps: parseNullableInt(ex.reps),
+          rest_seconds: parseNullableInt(ex.rest_seconds),
+          hold_seconds: parseNullableInt(ex.hold_seconds),
+          work_seconds: parseNullableInt(ex.work_seconds),
+          is_weighted: !!ex.is_weighted,
+          notes: ex.notes || null,
+          order_index: i,
+        };
+      })
+      .filter((ex): ex is NonNullable<typeof ex> => ex !== null);
+
+    return {
+      name: (block.name ?? '').trim(),
+      order_index: block.order_index ?? bi,
+      exercises,
+    };
+  });
 
   if (unresolvedNames.length > 0) {
     throw new Error(`Could not resolve exercise(s): ${unresolvedNames.join(', ')}. Fix the exercise_id or name and try again.`);
@@ -270,6 +324,6 @@ export async function importStandaloneWorkoutFromJson(
     duration_minutes: data.kind === 'quick_workout' ? parseNullableInt(data.duration_minutes) : null,
     is_free: !!data.is_free,
     status: 'draft',
-    exercises,
+    blocks,
   });
 }

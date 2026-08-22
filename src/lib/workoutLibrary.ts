@@ -37,8 +37,20 @@ export interface StandaloneWorkoutExercise {
   order_index: number;
 }
 
-export interface StandaloneWorkoutDetail extends StandaloneWorkoutSummary {
+// A Workout is one full training day, built from ordered blocks/phases
+// (Warm-Up, Skills, Strength, Cool-Down, ...) — same "DAY | BLOCK" idea as
+// every other training day in this app (program_blocks/block_exercises).
+// Quick Workouts are effectively flat — one implicit block — since
+// AMRAP/EMOM/Tabata content is inherently a single continuous circuit.
+export interface StandaloneWorkoutBlock {
+  id: string;
+  name: string;
+  order_index: number;
   exercises: StandaloneWorkoutExercise[];
+}
+
+export interface StandaloneWorkoutDetail extends StandaloneWorkoutSummary {
+  blocks: StandaloneWorkoutBlock[];
 }
 
 // Admin-authoring row/input shapes — status is only ever meaningful to an
@@ -60,6 +72,12 @@ export interface StandaloneWorkoutExerciseInput {
   order_index: number;
 }
 
+export interface StandaloneWorkoutBlockInput {
+  name: string;
+  order_index: number;
+  exercises: StandaloneWorkoutExerciseInput[];
+}
+
 export interface SaveStandaloneWorkoutInput {
   id: string | null; // null = create new
   kind: StandaloneWorkoutKind;
@@ -71,7 +89,7 @@ export interface SaveStandaloneWorkoutInput {
   duration_minutes: number | null;
   is_free: boolean;
   status: StandaloneWorkoutStatus;
-  exercises: StandaloneWorkoutExerciseInput[];
+  blocks: StandaloneWorkoutBlockInput[];
 }
 
 export interface StandaloneWorkoutFilters {
@@ -126,27 +144,37 @@ export async function getStandaloneWorkoutDetail(workoutId: string): Promise<Sta
   if (workoutError) throw workoutError;
   if (!workout) return null;
 
-  const { data: exerciseRows, error: exercisesError } = await supabase
-    .from('standalone_workout_exercises')
-    .select('exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name)')
+  const { data: blockRows, error: blocksError } = await supabase
+    .from('standalone_workout_blocks')
+    .select(
+      'id, name, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name))'
+    )
     .eq('workout_id', workoutId)
     .order('order_index', { ascending: true });
-  if (exercisesError) throw exercisesError;
+  if (blocksError) throw blocksError;
 
-  const exercises: StandaloneWorkoutExercise[] = (exerciseRows ?? []).map((row) => ({
-    exercise_id: row.exercise_id,
-    name: (row as unknown as { exercise_library?: { name?: string } }).exercise_library?.name ?? 'Unknown Exercise',
-    sets: row.sets,
-    reps: row.reps,
-    rest_seconds: row.rest_seconds,
-    hold_seconds: row.hold_seconds,
-    work_seconds: row.work_seconds,
-    is_weighted: row.is_weighted ?? false,
-    notes: row.notes,
-    order_index: row.order_index ?? 0,
+  const blocks: StandaloneWorkoutBlock[] = (blockRows ?? []).map((block: any) => ({
+    id: block.id,
+    name: block.name,
+    order_index: block.order_index ?? 0,
+    exercises: (Array.isArray(block.standalone_workout_exercises) ? block.standalone_workout_exercises : [])
+      .slice()
+      .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+      .map((row: any) => ({
+        exercise_id: row.exercise_id,
+        name: row.exercise_library?.name ?? 'Unknown Exercise',
+        sets: row.sets,
+        reps: row.reps,
+        rest_seconds: row.rest_seconds,
+        hold_seconds: row.hold_seconds,
+        work_seconds: row.work_seconds,
+        is_weighted: row.is_weighted ?? false,
+        notes: row.notes,
+        order_index: row.order_index ?? 0,
+      })),
   }));
 
-  return { ...workout, exercises };
+  return { ...workout, blocks };
 }
 
 /**
@@ -182,13 +210,13 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_duration_minutes: input.duration_minutes,
     p_is_free: input.is_free,
     p_status: input.status,
-    p_exercises: input.exercises,
+    p_blocks: input.blocks,
   });
   if (error) throw error;
   return data as string;
 }
 
-/** Admin-only: cascades to standalone_workout_exercises via the FK. */
+/** Admin-only: cascades to standalone_workout_blocks/_exercises via the FK. */
 export async function deleteStandaloneWorkout(workoutId: string): Promise<void> {
   const { error } = await supabase.from('standalone_workouts').delete().eq('id', workoutId);
   if (error) throw error;

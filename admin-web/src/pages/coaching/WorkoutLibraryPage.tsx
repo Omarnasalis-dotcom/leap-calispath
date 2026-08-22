@@ -22,6 +22,12 @@ import { ConfirmButton, ErrorNote } from '@/components/bits';
 // LIBRARY tab equivalent for Programs, which is visible to every coach and
 // only fails server-side for non-admins — this page is hidden outright,
 // matching the mobile app's new CONTENT tab).
+//
+// A Workout is one full training day built from ordered blocks/phases
+// (Warm-Up, Skills, Strength, Cool-Down, ...), same idea as a real program
+// day. Quick Workouts are effectively flat — AMRAP/EMOM/Tabata content is
+// one continuous circuit — but still saved as one implicit block, since
+// exercises hang off a block either way.
 
 const KIND_OPTIONS: StandaloneWorkoutKind[] = ['workout', 'quick_workout'];
 const STATUS_OPTIONS: StandaloneWorkoutStatus[] = ['draft', 'published', 'archived'];
@@ -42,6 +48,12 @@ interface DraftExercise {
   notes: string;
 }
 
+interface DraftBlock {
+  key: string;
+  name: string;
+  exercises: DraftExercise[];
+}
+
 interface Draft {
   id: string | null;
   kind: StandaloneWorkoutKind;
@@ -53,22 +65,34 @@ interface Draft {
   duration_minutes: string;
   is_free: boolean;
   status: StandaloneWorkoutStatus;
-  exercises: DraftExercise[];
+  blocks: DraftBlock[];
 }
 
-const EMPTY_DRAFT: Draft = {
-  id: null,
-  kind: 'workout',
-  title: '',
-  description: '',
-  category: CATEGORY_OPTIONS[0],
-  difficulty: DIFFICULTY_OPTIONS[0],
-  format: FORMAT_OPTIONS[0],
-  duration_minutes: '',
-  is_free: false,
-  status: 'draft',
-  exercises: [],
-};
+let keySeq = 0;
+function newKey(): string {
+  keySeq += 1;
+  return `k-${Date.now()}-${keySeq}`;
+}
+
+function emptyBlock(name: string): DraftBlock {
+  return { key: newKey(), name, exercises: [] };
+}
+
+function newDraft(): Draft {
+  return {
+    id: null,
+    kind: 'workout',
+    title: '',
+    description: '',
+    category: CATEGORY_OPTIONS[0],
+    difficulty: DIFFICULTY_OPTIONS[0],
+    format: FORMAT_OPTIONS[0],
+    duration_minutes: '',
+    is_free: false,
+    status: 'draft',
+    blocks: [emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')],
+  };
+}
 
 function toInt(v: string): number | null {
   if (!v.trim()) return null;
@@ -125,6 +149,9 @@ function ImportWorkoutModal() {
     },
   });
 
+  const blockCount = preview?.blocks?.length ?? 0;
+  const exerciseCount = (preview?.blocks ?? []).reduce((sum, b) => sum + (b.exercises?.length ?? 0), 0);
+
   return (
     <>
       <button type="button" className="btn" onClick={() => dialogRef.current?.showModal()}>
@@ -179,7 +206,8 @@ function ImportWorkoutModal() {
             {importMutation.error && <ErrorNote error={importMutation.error} />}
             <div className="dim" style={{ fontSize: 13 }}>
               <strong>{preview.title}</strong> — {preview.kind === 'quick_workout' ? 'Quick Workout' : 'Workout'} —{' '}
-              {(preview.exercises ?? []).length} exercise(s). Will be created as a draft for review.
+              {blockCount} block{blockCount === 1 ? '' : 's'}, {exerciseCount} exercise{exerciseCount === 1 ? '' : 's'}.
+              Will be created as a draft for review.
             </div>
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button
@@ -211,7 +239,7 @@ export function WorkoutLibraryPage() {
   const [draft, setDraft] = useState<Draft | null>(null);
   const [kindFilter, setKindFilter] = useState<'all' | StandaloneWorkoutKind>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | StandaloneWorkoutStatus>('draft');
-  const [exerciseToAdd, setExerciseToAdd] = useState('');
+  const [exerciseToAdd, setExerciseToAdd] = useState<Record<string, string>>({});
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['standalone-workouts'],
@@ -233,17 +261,21 @@ export function WorkoutLibraryPage() {
         duration_minutes: detail.duration_minutes != null ? String(detail.duration_minutes) : '',
         is_free: detail.is_free,
         status: detail.status,
-        exercises: detail.exercises.map((ex, i) => ({
-          key: `${ex.exercise_id}-${i}`,
-          exercise_id: ex.exercise_id,
-          name: ex.exercise_name ?? 'Unknown exercise',
-          sets: ex.sets != null ? String(ex.sets) : '',
-          reps: ex.reps != null ? String(ex.reps) : '',
-          rest_seconds: ex.rest_seconds != null ? String(ex.rest_seconds) : '',
-          hold_seconds: ex.hold_seconds != null ? String(ex.hold_seconds) : '',
-          work_seconds: ex.work_seconds != null ? String(ex.work_seconds) : '',
-          is_weighted: ex.is_weighted,
-          notes: ex.notes ?? '',
+        blocks: detail.blocks.map((block) => ({
+          key: newKey(),
+          name: block.name,
+          exercises: block.exercises.map((ex) => ({
+            key: newKey(),
+            exercise_id: ex.exercise_id,
+            name: ex.exercise_name ?? 'Unknown exercise',
+            sets: ex.sets != null ? String(ex.sets) : '',
+            reps: ex.reps != null ? String(ex.reps) : '',
+            rest_seconds: ex.rest_seconds != null ? String(ex.rest_seconds) : '',
+            hold_seconds: ex.hold_seconds != null ? String(ex.hold_seconds) : '',
+            work_seconds: ex.work_seconds != null ? String(ex.work_seconds) : '',
+            is_weighted: ex.is_weighted,
+            notes: ex.notes ?? '',
+          })),
         })),
       });
     },
@@ -262,16 +294,20 @@ export function WorkoutLibraryPage() {
         duration_minutes: d.kind === 'quick_workout' ? toInt(d.duration_minutes) : null,
         is_free: d.is_free,
         status: d.status,
-        exercises: d.exercises.map((ex, i) => ({
-          exercise_id: ex.exercise_id,
-          sets: toInt(ex.sets),
-          reps: toInt(ex.reps),
-          rest_seconds: toInt(ex.rest_seconds),
-          hold_seconds: toInt(ex.hold_seconds),
-          work_seconds: toInt(ex.work_seconds),
-          is_weighted: ex.is_weighted,
-          notes: ex.notes.trim() || null,
-          order_index: i,
+        blocks: d.blocks.map((block, bi) => ({
+          name: block.name.trim(),
+          order_index: bi,
+          exercises: block.exercises.map((ex, i) => ({
+            exercise_id: ex.exercise_id,
+            sets: toInt(ex.sets),
+            reps: toInt(ex.reps),
+            rest_seconds: toInt(ex.rest_seconds),
+            hold_seconds: toInt(ex.hold_seconds),
+            work_seconds: toInt(ex.work_seconds),
+            is_weighted: ex.is_weighted,
+            notes: ex.notes.trim() || null,
+            order_index: i,
+          })),
         })),
       };
       return saveStandaloneWorkout(input);
@@ -291,48 +327,100 @@ export function WorkoutLibraryPage() {
     (w) => (kindFilter === 'all' || w.kind === kindFilter) && (statusFilter === 'all' || w.status === statusFilter),
   );
 
-  function addExerciseToDraft() {
-    if (!draft || !exerciseToAdd) return;
-    const ex = exercisesQ.data?.find((e) => e.id === exerciseToAdd);
+  function addBlock() {
+    if (!draft) return;
+    setDraft({ ...draft, blocks: [...draft.blocks, emptyBlock('')] });
+  }
+
+  function updateBlockName(blockIndex: number, name: string) {
+    if (!draft) return;
+    setDraft({ ...draft, blocks: draft.blocks.map((b, i) => (i === blockIndex ? { ...b, name } : b)) });
+  }
+
+  function moveBlock(blockIndex: number, dir: -1 | 1) {
+    if (!draft) return;
+    const target = blockIndex + dir;
+    if (target < 0 || target >= draft.blocks.length) return;
+    const next = [...draft.blocks];
+    [next[blockIndex], next[target]] = [next[target], next[blockIndex]];
+    setDraft({ ...draft, blocks: next });
+  }
+
+  function removeBlock(blockIndex: number) {
+    if (!draft) return;
+    setDraft({ ...draft, blocks: draft.blocks.filter((_, i) => i !== blockIndex) });
+  }
+
+  function addExerciseToBlock(blockIndex: number) {
+    if (!draft) return;
+    const block = draft.blocks[blockIndex];
+    const exerciseId = exerciseToAdd[block.key];
+    if (!exerciseId) return;
+    const ex = exercisesQ.data?.find((e) => e.id === exerciseId);
     if (!ex) return;
     setDraft({
       ...draft,
-      exercises: [
-        ...draft.exercises,
-        {
-          key: `${ex.id}-${draft.exercises.length}`,
-          exercise_id: ex.id,
-          name: ex.name,
-          sets: '3',
-          reps: '10',
-          rest_seconds: '60',
-          hold_seconds: '',
-          work_seconds: '',
-          is_weighted: false,
-          notes: '',
-        },
-      ],
+      blocks: draft.blocks.map((b, i) =>
+        i === blockIndex
+          ? {
+              ...b,
+              exercises: [
+                ...b.exercises,
+                {
+                  key: newKey(),
+                  exercise_id: ex.id,
+                  name: ex.name,
+                  sets: '3',
+                  reps: '10',
+                  rest_seconds: '60',
+                  hold_seconds: '',
+                  work_seconds: '',
+                  is_weighted: false,
+                  notes: '',
+                },
+              ],
+            }
+          : b,
+      ),
     });
-    setExerciseToAdd('');
+    setExerciseToAdd({ ...exerciseToAdd, [block.key]: '' });
   }
 
-  function updateExercise(i: number, patch: Partial<DraftExercise>) {
+  function updateExercise(blockIndex: number, exIndex: number, patch: Partial<DraftExercise>) {
     if (!draft) return;
-    setDraft({ ...draft, exercises: draft.exercises.map((ex, idx) => (idx === i ? { ...ex, ...patch } : ex)) });
+    setDraft({
+      ...draft,
+      blocks: draft.blocks.map((b, i) =>
+        i === blockIndex
+          ? { ...b, exercises: b.exercises.map((ex, j) => (j === exIndex ? { ...ex, ...patch } : ex)) }
+          : b,
+      ),
+    });
   }
 
-  function moveExercise(i: number, dir: -1 | 1) {
+  function moveExercise(blockIndex: number, exIndex: number, dir: -1 | 1) {
     if (!draft) return;
-    const target = i + dir;
-    if (target < 0 || target >= draft.exercises.length) return;
-    const next = [...draft.exercises];
-    [next[i], next[target]] = [next[target], next[i]];
-    setDraft({ ...draft, exercises: next });
+    setDraft({
+      ...draft,
+      blocks: draft.blocks.map((b, i) => {
+        if (i !== blockIndex) return b;
+        const target = exIndex + dir;
+        if (target < 0 || target >= b.exercises.length) return b;
+        const next = [...b.exercises];
+        [next[exIndex], next[target]] = [next[target], next[exIndex]];
+        return { ...b, exercises: next };
+      }),
+    });
   }
 
-  function removeExercise(i: number) {
+  function removeExercise(blockIndex: number, exIndex: number) {
     if (!draft) return;
-    setDraft({ ...draft, exercises: draft.exercises.filter((_, idx) => idx !== i) });
+    setDraft({
+      ...draft,
+      blocks: draft.blocks.map((b, i) =>
+        i === blockIndex ? { ...b, exercises: b.exercises.filter((_, j) => j !== exIndex) } : b,
+      ),
+    });
   }
 
   const columns: Column<StandaloneWorkoutRow>[] = [
@@ -385,7 +473,7 @@ export function WorkoutLibraryPage() {
             ))}
           </select>
           <ImportWorkoutModal />
-          <button className="btn primary" onClick={() => setDraft({ ...EMPTY_DRAFT })}>
+          <button className="btn primary" onClick={() => setDraft(newDraft())}>
             + New workout
           </button>
         </div>
@@ -469,49 +557,81 @@ export function WorkoutLibraryPage() {
             </div>
 
             <div style={{ borderTop: '1px solid var(--line, #2a2a2a)', paddingTop: 12 }}>
-              <div className="row" style={{ justifyContent: 'space-between', marginBottom: 8 }}>
-                <strong>Exercises</strong>
-              </div>
+              <strong>{draft.kind === 'quick_workout' ? 'Block (usually just one)' : 'Blocks — Warm-Up through Cool-Down'}</strong>
 
-              {draft.exercises.length === 0 && <div className="dim" style={{ fontSize: 13, marginBottom: 8 }}>No exercises added yet.</div>}
+              {draft.blocks.length === 0 && <div className="dim" style={{ fontSize: 13, margin: '8px 0' }}>No blocks added yet.</div>}
 
-              {draft.exercises.map((ex, i) => (
-                <div key={ex.key} className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
-                  <span style={{ minWidth: 160, fontWeight: 600 }}>{ex.name}</span>
-                  <input className="field" style={{ width: 70 }} placeholder="Sets" value={ex.sets} onChange={(e) => updateExercise(i, { sets: e.target.value })} aria-label="Sets" />
-                  <input className="field" style={{ width: 70 }} placeholder="Reps" value={ex.reps} onChange={(e) => updateExercise(i, { reps: e.target.value })} aria-label="Reps" />
-                  <input className="field" style={{ width: 80 }} placeholder="Rest s" value={ex.rest_seconds} onChange={(e) => updateExercise(i, { rest_seconds: e.target.value })} aria-label="Rest seconds" />
-                  <input className="field" style={{ width: 80 }} placeholder="Hold s" value={ex.hold_seconds} onChange={(e) => updateExercise(i, { hold_seconds: e.target.value })} aria-label="Hold seconds" />
-                  <input className="field" style={{ width: 80 }} placeholder="Work s" value={ex.work_seconds} onChange={(e) => updateExercise(i, { work_seconds: e.target.value })} aria-label="Work seconds" />
-                  <label className="row" style={{ gap: 4, alignItems: 'center' }}>
-                    <input type="checkbox" checked={ex.is_weighted} onChange={(e) => updateExercise(i, { is_weighted: e.target.checked })} />
-                    Weighted
-                  </label>
-                  <input className="field" style={{ flex: 1, minWidth: 140 }} placeholder="Notes" value={ex.notes} onChange={(e) => updateExercise(i, { notes: e.target.value })} aria-label="Notes" />
-                  <button className="btn small" onClick={() => moveExercise(i, -1)} disabled={i === 0} aria-label="Move up">↑</button>
-                  <button className="btn small" onClick={() => moveExercise(i, 1)} disabled={i === draft.exercises.length - 1} aria-label="Move down">↓</button>
-                  <button className="btn small danger" onClick={() => removeExercise(i)}>Remove</button>
+              {draft.blocks.map((block, bi) => (
+                <div key={block.key} className="panel" style={{ margin: '10px 0', padding: 12 }}>
+                  <div className="row" style={{ alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                    <input
+                      className="field"
+                      style={{ flex: 1, minWidth: 160, fontWeight: 700 }}
+                      placeholder="Block name (e.g. Warm-Up)"
+                      value={block.name}
+                      onChange={(e) => updateBlockName(bi, e.target.value)}
+                      aria-label="Block name"
+                    />
+                    <div className="row" style={{ gap: 6 }}>
+                      <button className="btn small" onClick={() => moveBlock(bi, -1)} disabled={bi === 0} aria-label="Move block up">↑</button>
+                      <button className="btn small" onClick={() => moveBlock(bi, 1)} disabled={bi === draft.blocks.length - 1} aria-label="Move block down">↓</button>
+                      <button className="btn small danger" onClick={() => removeBlock(bi)}>Remove block</button>
+                    </div>
+                  </div>
+
+                  {block.exercises.length === 0 && (
+                    <div className="dim" style={{ fontSize: 13, marginBottom: 8 }}>No exercises in this block yet.</div>
+                  )}
+
+                  {block.exercises.map((ex, i) => (
+                    <div key={ex.key} className="row" style={{ alignItems: 'center', gap: 8, marginBottom: 6, flexWrap: 'wrap' }}>
+                      <span style={{ minWidth: 160, fontWeight: 600 }}>{ex.name}</span>
+                      <input className="field" style={{ width: 70 }} placeholder="Sets" value={ex.sets} onChange={(e) => updateExercise(bi, i, { sets: e.target.value })} aria-label="Sets" />
+                      <input className="field" style={{ width: 70 }} placeholder="Reps" value={ex.reps} onChange={(e) => updateExercise(bi, i, { reps: e.target.value })} aria-label="Reps" />
+                      <input className="field" style={{ width: 80 }} placeholder="Rest s" value={ex.rest_seconds} onChange={(e) => updateExercise(bi, i, { rest_seconds: e.target.value })} aria-label="Rest seconds" />
+                      <input className="field" style={{ width: 80 }} placeholder="Hold s" value={ex.hold_seconds} onChange={(e) => updateExercise(bi, i, { hold_seconds: e.target.value })} aria-label="Hold seconds" />
+                      <input className="field" style={{ width: 80 }} placeholder="Work s" value={ex.work_seconds} onChange={(e) => updateExercise(bi, i, { work_seconds: e.target.value })} aria-label="Work seconds" />
+                      <label className="row" style={{ gap: 4, alignItems: 'center' }}>
+                        <input type="checkbox" checked={ex.is_weighted} onChange={(e) => updateExercise(bi, i, { is_weighted: e.target.checked })} />
+                        Weighted
+                      </label>
+                      <input className="field" style={{ flex: 1, minWidth: 140 }} placeholder="Notes" value={ex.notes} onChange={(e) => updateExercise(bi, i, { notes: e.target.value })} aria-label="Notes" />
+                      <button className="btn small" onClick={() => moveExercise(bi, i, -1)} disabled={i === 0} aria-label="Move up">↑</button>
+                      <button className="btn small" onClick={() => moveExercise(bi, i, 1)} disabled={i === block.exercises.length - 1} aria-label="Move down">↓</button>
+                      <button className="btn small danger" onClick={() => removeExercise(bi, i)}>Remove</button>
+                    </div>
+                  ))}
+
+                  <div className="row" style={{ marginTop: 8 }}>
+                    <select
+                      className="field"
+                      style={{ minWidth: 220 }}
+                      value={exerciseToAdd[block.key] ?? ''}
+                      onChange={(e) => setExerciseToAdd({ ...exerciseToAdd, [block.key]: e.target.value })}
+                      aria-label="Choose exercise to add"
+                    >
+                      <option value="">Choose an exercise…</option>
+                      {exercisesQ.data?.map((e) => (
+                        <option key={e.id} value={e.id}>{e.name}</option>
+                      ))}
+                    </select>
+                    <button className="btn small" disabled={!exerciseToAdd[block.key]} onClick={() => addExerciseToBlock(bi)}>
+                      Add exercise
+                    </button>
+                  </div>
                 </div>
               ))}
 
-              <div className="row" style={{ marginTop: 8 }}>
-                <select className="field" style={{ minWidth: 220 }} value={exerciseToAdd} onChange={(e) => setExerciseToAdd(e.target.value)} aria-label="Choose exercise to add">
-                  <option value="">Choose an exercise…</option>
-                  {exercisesQ.data?.map((e) => (
-                    <option key={e.id} value={e.id}>{e.name}</option>
-                  ))}
-                </select>
-                <button className="btn small" disabled={!exerciseToAdd} onClick={addExerciseToDraft}>
-                  Add exercise
-                </button>
-              </div>
+              <button className="btn small" onClick={addBlock} style={{ marginTop: 4 }}>
+                + Add block
+              </button>
             </div>
 
             <div className="row" style={{ justifyContent: 'flex-end' }}>
               <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
               <button
                 className="btn primary"
-                disabled={!draft.title.trim() || saveMutation.isPending}
+                disabled={!draft.title.trim() || draft.blocks.some((b) => !b.name.trim()) || saveMutation.isPending}
                 onClick={() => saveMutation.mutate(draft)}
               >
                 {saveMutation.isPending ? 'Saving…' : 'Save'}
