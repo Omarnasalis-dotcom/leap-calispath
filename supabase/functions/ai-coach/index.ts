@@ -24,6 +24,17 @@ function json(body: unknown, status = 200) {
 const MAX_TOOL_TURNS = 8;
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 
+// Prompt caching: the system prompt (~5-6k tokens) and the 7 tool schemas
+// are 100% static across every call in the tool-use loop below — up to
+// MAX_TOOL_TURNS full round-trips per exchange, each previously re-sending
+// both from scratch at full price. Cache breakpoint precedence is
+// tools -> system -> messages, so marking the last tool AND the system
+// block lets Anthropic cache both as one shared prefix; only the actually-
+// growing `messages` array pays full input price after the first call.
+const CACHED_TOOLS = ANTHROPIC_TOOLS.map((tool, i) =>
+  i === ANTHROPIC_TOOLS.length - 1 ? { ...tool, cache_control: { type: "ephemeral" } } : tool
+);
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -104,9 +115,9 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         model: ANTHROPIC_MODEL,
         max_tokens: 4096,
-        system: SYSTEM_PROMPT,
+        system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages,
-        tools: ANTHROPIC_TOOLS,
+        tools: CACHED_TOOLS,
       }),
     });
     if (!response.ok) {

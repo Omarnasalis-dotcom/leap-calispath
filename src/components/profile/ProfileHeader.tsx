@@ -295,6 +295,19 @@ export function ProfileHeader({
               </LinearGradient>
             )
           )}
+
+          {/* AI Coach entry point — was previously unreachable: this prop
+              existed and the "ASK LEAP" modal it opens was fully built, but
+              nothing ever called it. */}
+          {onShowCoachPrompt && (
+            <TouchableOpacity
+              style={[styles.coachEntryButton, { borderColor: neutrals.border }]}
+              onPress={onShowCoachPrompt}
+            >
+              <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
+              <Text style={[styles.coachEntryButtonText, { color: neutrals.textPrimary }]}>ASK LEAP COACH</Text>
+            </TouchableOpacity>
+          )}
         </View>
       )}
     </>
@@ -406,6 +419,21 @@ const styles = StyleSheet.create({
   programButtonText: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 14,
+    letterSpacing: 1,
+  },
+  coachEntryButton: {
+    height: 44,
+    borderRadius: 14,
+    borderWidth: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  coachEntryButtonText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 13,
     letterSpacing: 1,
   },
 });
