@@ -113,7 +113,11 @@ function ImportWorkoutModal() {
   }
 
   const importMutation = useMutation({
-    mutationFn: () => importStandaloneWorkoutFromJson(preview!, profile!.id),
+    mutationFn: () => {
+      if (!preview) throw new Error('Nothing to import.');
+      if (!profile?.id) throw new Error('Your profile hasn’t loaded yet — reload and try again.');
+      return importStandaloneWorkoutFromJson(preview, profile.id);
+    },
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
       dialogRef.current?.close();
@@ -189,7 +193,7 @@ function ImportWorkoutModal() {
               <button
                 type="button"
                 className="btn small primary"
-                disabled={importMutation.isPending}
+                disabled={importMutation.isPending || !profile?.id}
                 onClick={() => importMutation.mutate()}
               >
                 {importMutation.isPending ? 'Importing…' : 'Import'}

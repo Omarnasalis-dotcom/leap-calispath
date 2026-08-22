@@ -156,6 +156,19 @@ export interface ImportedStandaloneWorkout {
   exercises?: ImportedStandaloneWorkoutExercise[];
 }
 
+const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
+const FORMAT_VALUES = ['amrap', 'emom', 'fortime', 'tabata'];
+const CATEGORY_VALUES = ['PULL', 'PUSH', 'LEGS', 'CORE', 'FULL_BODY'];
+
+// Case-insensitive match against the exact values the DB CHECK constraint
+// (difficulty/format) or the app's own filter chips (category) require —
+// returns the canonical casing, or null if nothing matches at all.
+function normalizeAgainst(value: string | null | undefined, allowed: string[]): string | null {
+  if (!value) return null;
+  const hit = allowed.find((a) => a.toLowerCase() === value.trim().toLowerCase());
+  return hit ?? null;
+}
+
 export function validateStandaloneWorkoutImport(data: any): { valid: boolean; error?: string } {
   if (!data || typeof data !== 'object') {
     return { valid: false, error: 'File is not a valid JSON object.' };
@@ -176,7 +189,26 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
       return { valid: false, error: 'Every exercise needs an exercise_id or a name to match against.' };
     }
   }
+  // difficulty/format are DB CHECK-constrained — reject up front with a
+  // clear message instead of letting a raw Postgres constraint error surface
+  // from save_standalone_workout after the user has already clicked Import.
+  if (data.difficulty && !normalizeAgainst(data.difficulty, DIFFICULTY_VALUES)) {
+    return { valid: false, error: `"difficulty" must be one of: ${DIFFICULTY_VALUES.join(', ')}.` };
+  }
+  if (data.kind === 'quick_workout' && data.format && !normalizeAgainst(data.format, FORMAT_VALUES)) {
+    return { valid: false, error: `"format" must be one of: ${FORMAT_VALUES.join(', ')}.` };
+  }
   return { valid: true };
+}
+
+// Parses a numeric field without losing a legitimate 0 — `parseInt(...) ||
+// null` (the pattern the Program-template importer uses) silently turns 0
+// into null since 0 is falsy. Empty/omitted stays null; a non-numeric
+// string also becomes null.
+function parseNullableInt(v: number | string | null | undefined): number | null {
+  if (v === null || v === undefined || v === '') return null;
+  const n = parseInt(String(v), 10);
+  return Number.isNaN(n) ? null : n;
 }
 
 /**
@@ -192,18 +224,30 @@ export async function importStandaloneWorkoutFromJson(
 ): Promise<string> {
   const resolved = await resolveImportedExercises([{ exercises: data.exercises }], adminId);
 
-  const exercises = (data.exercises ?? [])
+  const inputExercises = data.exercises ?? [];
+  const unresolvedNames: string[] = [];
+
+  const exercises = inputExercises
     .map((ex, i) => {
       const key = ex.exercise_id ? `id:${ex.exercise_id}` : `name:${(ex.name ?? '').trim().toLowerCase()}`;
       const exercise_id = resolved.get(key);
-      if (!exercise_id) return null;
+      if (!exercise_id) {
+        // Only reachable when exercise_id was stale/invalid AND no name was
+        // given as a fallback — validateStandaloneWorkoutImport lets this
+        // through (it only checks a name-or-id is *present*, not that the
+        // id actually resolves), so without this check the exercise would
+        // silently vanish and the saved workout would have fewer exercises
+        // than the preview promised.
+        unresolvedNames.push(ex.name || ex.exercise_id || `exercise #${i + 1}`);
+        return null;
+      }
       return {
         exercise_id,
-        sets: ex.sets != null ? parseInt(String(ex.sets), 10) || null : null,
-        reps: ex.reps != null ? parseInt(String(ex.reps), 10) || null : null,
-        rest_seconds: ex.rest_seconds != null ? parseInt(String(ex.rest_seconds), 10) || null : null,
-        hold_seconds: ex.hold_seconds != null ? parseInt(String(ex.hold_seconds), 10) || null : null,
-        work_seconds: ex.work_seconds != null ? parseInt(String(ex.work_seconds), 10) || null : null,
+        sets: parseNullableInt(ex.sets),
+        reps: parseNullableInt(ex.reps),
+        rest_seconds: parseNullableInt(ex.rest_seconds),
+        hold_seconds: parseNullableInt(ex.hold_seconds),
+        work_seconds: parseNullableInt(ex.work_seconds),
         is_weighted: !!ex.is_weighted,
         notes: ex.notes || null,
         order_index: i,
@@ -211,18 +255,19 @@ export async function importStandaloneWorkoutFromJson(
     })
     .filter((ex): ex is NonNullable<typeof ex> => ex !== null);
 
+  if (unresolvedNames.length > 0) {
+    throw new Error(`Could not resolve exercise(s): ${unresolvedNames.join(', ')}. Fix the exercise_id or name and try again.`);
+  }
+
   return saveStandaloneWorkout({
     id: null,
     kind: data.kind as StandaloneWorkoutKind,
     title: data.title!.trim(),
     description: data.description?.trim() || null,
-    category: data.category || null,
-    difficulty: data.difficulty || null,
-    format: data.kind === 'quick_workout' ? data.format || null : null,
-    duration_minutes:
-      data.kind === 'quick_workout' && data.duration_minutes != null
-        ? parseInt(String(data.duration_minutes), 10) || null
-        : null,
+    category: normalizeAgainst(data.category, CATEGORY_VALUES) ?? data.category?.trim().toUpperCase() ?? null,
+    difficulty: normalizeAgainst(data.difficulty, DIFFICULTY_VALUES),
+    format: data.kind === 'quick_workout' ? normalizeAgainst(data.format, FORMAT_VALUES) : null,
+    duration_minutes: data.kind === 'quick_workout' ? parseNullableInt(data.duration_minutes) : null,
     is_free: !!data.is_free,
     status: 'draft',
     exercises,
