@@ -1,4 +1,5 @@
 import { ToolDefinition } from "./types.ts";
+import { getNextTrial } from "./trialData.ts";
 
 // Read-only grounding for every turn. get_my_profile() is the same
 // SECURITY DEFINER RPC AuthContext.tsx already calls client-side for the
@@ -11,7 +12,7 @@ import { ToolDefinition } from "./types.ts";
 export const getUserContext: ToolDefinition = {
   name: "get_user_context",
   description:
-    "Get the athlete's current profile: strength tier, power/static PBs, assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program).",
+    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs, assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program).",
   input_schema: { type: "object", properties: {} },
   handler: async (userClient) => {
     const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
@@ -39,11 +40,13 @@ export const getUserContext: ToolDefinition = {
         power_pbs: profile?.power_pbs ?? {},
         best_times: profile?.best_times ?? {},
         assessed_at: profile?.assessed_at ?? null,
+        assessment_raw: profile?.assessment_raw ?? null,
         power_assessed_at: profile?.power_assessed_at ?? null,
         statics_assessed_at: profile?.statics_assessed_at ?? null,
         trials_attempted: profile?.trials_attempted ?? 0,
         trials_passed: profile?.trials_passed ?? 0,
       },
+      next_trial: getNextTrial(profile?.strength_tier ?? 0),
       recent_trial_attempts: recentTrials ?? [],
       active_program: activeProgram
         ? {
