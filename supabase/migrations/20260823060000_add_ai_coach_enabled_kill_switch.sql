@@ -1,0 +1,14 @@
+-- Remote kill switch for the AI Coach — same app_config table/pattern as the
+-- force-update check (20260806120000) and the paywall gate (20260817090000).
+--
+-- Defaults to FALSE deliberately. The coach is being rebuilt (see
+-- docs/features/ai-coach-rebuild-plan.md): today it generates whole programs
+-- as free-form JSON in one synchronous shot, which measured ~4,000 output
+-- tokens, minutes of wall clock and ~25c per build, with several failure
+-- modes that reached real athletes. It stays off until the library-backed
+-- Match -> Clone -> Adapt flow passes its eval suite.
+--
+-- The edge function bypasses this for admins/coaches so the rebuild can be
+-- tested on prod data without exposing a half-finished feature to athletes —
+-- same carve-out shape the paywall gate already uses (isAdminOrCoach).
+alter table "public"."app_config" add column "ai_coach_enabled" boolean not null default false;
