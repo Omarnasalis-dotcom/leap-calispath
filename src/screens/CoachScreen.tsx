@@ -44,6 +44,20 @@ interface Recommendation {
   reason: string;
 }
 
+// Mirrors the shape ai-coach's index.ts builds from a propose_new_program/
+// propose_end_program/propose_delete_week tool call. None of these ever
+// write anything server-side — the actual RPC only fires from
+// handleConfirmProgramAction below, gated on an explicit tap, never from
+// the AI's own judgment mid-conversation.
+interface ProgramAction {
+  type: 'create' | 'end' | 'delete_week';
+  reason: string;
+  payload: { name: string; description: string; blocks: unknown[] } | null;
+  warriorProgramId: string | null;
+  currentProgramIsAiOwned: boolean;
+  weekNumber: number | null;
+}
+
 const RECOMMENDATION_ROUTES: Record<Recommendation['world'], string> = {
   strength_trial: '/trial',
   power: '/power-world',
@@ -63,6 +77,8 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
   const { theme, mode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
+  const [pendingProgramAction, setPendingProgramAction] = useState<ProgramAction | null>(null);
+  const [confirmingAction, setConfirmingAction] = useState(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
@@ -144,17 +160,28 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     if (data?.recommendations?.length) {
       setRecommendations(data.recommendations);
     }
+    // Only REPLACE the card when this turn actually produced a new one.
+    // This used to be `?? null`, which meant any ordinary reply — a question,
+    // a clarification — silently destroyed a card the athlete had not acted
+    // on yet, throwing away a program that took minutes to generate. A card
+    // now persists until it is confirmed, ignored, or genuinely superseded.
+    if (data?.programAction) setPendingProgramAction(data.programAction as ProgramAction);
     return { content: data?.reply as string };
   };
 
   const startSession = async () => {
     if (loading) return;
     setLoading(true);
+    setRecommendations([]);
     try {
       const result = await callAiCoach([{ role: 'user', content: 'Hi, I want to start working with my AI Coach.' }]);
-      if (result?.content) {
-        setMessages([{ role: 'assistant', content: result.content }]);
-      }
+      // Same no-silent-drop rule as sendMessage — an empty reply here would
+      // otherwise open the coach to a completely blank screen.
+      const reply = result?.content?.trim();
+      setMessages([{
+        role: 'assistant',
+        content: reply || "I'm here, but that first message came back empty. Say hello and I'll pick it up from there.",
+      }]);
     } catch (error: any) {
       console.error('Coach Session Error:', error);
       setMessages([{ role: 'assistant', content: `Coach is temporarily unreachable (${error.message || 'Network failure'}). Please check your connection.` }]);
@@ -181,14 +208,25 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     const newMsgs = [...messages, userMsg];
     setMessages(newMsgs);
     setRecommendations([]);
+    // Deliberately NOT clearing pendingProgramAction here. Sending a message
+    // is not the same as dismissing a proposal — asking "what's in day 3?"
+    // must not throw away a program that took minutes and real money to
+    // generate. It clears on confirm, on IGNORE, on chat reset, or when a
+    // new proposal genuinely replaces it.
     if (!text) setInputText('');
     setLoading(true);
 
     try {
       const result = await callAiCoach(newMsgs);
-      if (result?.content) {
-        setMessages(prev => [...prev, { role: 'assistant', content: result.content }]);
-      }
+      // Never drop a turn silently. An empty reply used to fall through this
+      // check and render nothing at all — no bubble, no error — after the
+      // athlete had already waited through a long generation. Whatever the
+      // cause, they get something they can act on.
+      const reply = result?.content?.trim();
+      setMessages(prev => [...prev, {
+        role: 'assistant',
+        content: reply || "Something went wrong on my end and that came back empty — ask me again and I'll pick it up.",
+      }]);
     } catch (error: any) {
       console.error('Coach Send Error:', error);
       setMessages(prev => [...prev, {
@@ -200,9 +238,64 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
     }
   };
 
+  // The only place either write RPC ever actually fires — always from this
+  // explicit tap, never from the AI's own judgment mid-conversation. Calls
+  // the RPC directly, bypassing the edge function/Claude entirely.
+  const handleConfirmProgramAction = async () => {
+    if (!pendingProgramAction || confirmingAction) return;
+    setConfirmingAction(true);
+    try {
+      if (pendingProgramAction.type === 'create') {
+        if (!pendingProgramAction.payload) throw new Error('Nothing to create.');
+        const { error } = await supabase.rpc('ai_coach_create_program', {
+          p_name: pendingProgramAction.payload.name,
+          p_description: pendingProgramAction.payload.description,
+          p_blocks: pendingProgramAction.payload.blocks,
+        });
+        if (error) throw error;
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `**${pendingProgramAction.payload!.name}** is live — check your Workout Program to see it.`,
+        }]);
+      } else if (pendingProgramAction.type === 'delete_week') {
+        if (!pendingProgramAction.warriorProgramId || pendingProgramAction.weekNumber == null) {
+          throw new Error('No week to delete.');
+        }
+        const { error } = await supabase.rpc('ai_coach_delete_week', {
+          p_warrior_program_id: pendingProgramAction.warriorProgramId,
+          p_week_number: pendingProgramAction.weekNumber,
+        });
+        if (error) throw error;
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `Week ${pendingProgramAction.weekNumber} has been deleted.`,
+        }]);
+      } else {
+        if (!pendingProgramAction.warriorProgramId) throw new Error('No active program to end.');
+        const { error } = await supabase.rpc('ai_coach_end_program', {
+          p_warrior_program_id: pendingProgramAction.warriorProgramId,
+        });
+        if (error) throw error;
+        setMessages(prev => [...prev, { role: 'assistant', content: 'Your program has been ended.' }]);
+      }
+      setPendingProgramAction(null);
+      await refreshProfile();
+    } catch (error: any) {
+      Alert.alert('COULD NOT COMPLETE THIS', error.message?.toUpperCase() || 'SOMETHING WENT WRONG. TRY AGAIN.');
+    } finally {
+      setConfirmingAction(false);
+    }
+  };
+
+  const handleIgnoreProgramAction = () => {
+    setPendingProgramAction(null);
+  };
+
   const clearHistory = async () => {
     const performClear = async () => {
       setMessages([]);
+      setRecommendations([]);
+      setPendingProgramAction(null);
       await AsyncStorage.removeItem(STORAGE_KEY);
       startSession();
     };
@@ -296,6 +389,61 @@ export function CoachScreen({ onBack }: { onBack: () => void }) {
                 <MaterialCommunityIcons name="chevron-right" size={20} color={subtextColor} />
               </TouchableOpacity>
             ))}
+
+            {pendingProgramAction && (
+              <View style={[styles.actionCard, { borderColor: theme.accent + '50', backgroundColor: cardBg }]}>
+                <View style={styles.actionCardHeader}>
+                  <MaterialCommunityIcons
+                    name={
+                      pendingProgramAction.type === 'create'
+                        ? 'swap-horizontal'
+                        : pendingProgramAction.type === 'delete_week'
+                        ? 'trash-can-outline'
+                        : 'close-circle-outline'
+                    }
+                    size={18}
+                    color={theme.accent}
+                  />
+                  <Text style={[styles.actionCardTitle, { color: textColor }]}>
+                    {pendingProgramAction.type === 'create'
+                      ? `Start "${pendingProgramAction.payload?.name}"?`
+                      : pendingProgramAction.type === 'delete_week'
+                      ? `Delete Week ${pendingProgramAction.weekNumber}?`
+                      : 'End your current program?'}
+                  </Text>
+                </View>
+                <Text style={[styles.actionCardReason, { color: subtextColor }]}>{pendingProgramAction.reason}</Text>
+                {pendingProgramAction.type === 'create' && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
+                  <Text style={styles.actionCardWarning}>⚠️ This is currently a program your coach assigned.</Text>
+                )}
+                <View style={styles.actionCardButtons}>
+                  <TouchableOpacity
+                    style={[styles.actionCardIgnoreBtn, { borderColor: subtextColor + '40' }]}
+                    onPress={handleIgnoreProgramAction}
+                    disabled={confirmingAction}
+                  >
+                    <Text style={[styles.actionCardIgnoreText, { color: subtextColor }]}>IGNORE</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent, opacity: confirmingAction ? 0.6 : 1 }]}
+                    onPress={handleConfirmProgramAction}
+                    disabled={confirmingAction}
+                  >
+                    {confirmingAction ? (
+                      <LeapLogo size={20} animated />
+                    ) : (
+                      <Text style={styles.actionCardConfirmText}>
+                        {pendingProgramAction.type === 'create'
+                          ? 'START PROGRAM'
+                          : pendingProgramAction.type === 'delete_week'
+                          ? 'DELETE WEEK'
+                          : 'END PROGRAM'}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           {!rateLimited ? (
@@ -436,6 +584,63 @@ const styles = StyleSheet.create({
   recommendationReason: {
     fontSize: 11,
     marginTop: 2,
+  },
+  actionCard: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 14,
+    marginTop: 4,
+    gap: 8,
+  },
+  actionCardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  actionCardTitle: {
+    fontSize: 14,
+    fontWeight: '800',
+    flex: 1,
+  },
+  actionCardReason: {
+    fontSize: 12,
+    lineHeight: 17,
+  },
+  actionCardWarning: {
+    fontSize: 12,
+    color: '#E8A33D',
+    lineHeight: 17,
+  },
+  actionCardButtons: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 4,
+  },
+  actionCardIgnoreBtn: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCardIgnoreText: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.5,
+  },
+  actionCardConfirmBtn: {
+    flex: 2,
+    borderRadius: 12,
+    paddingVertical: 11,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionCardConfirmText: {
+    color: '#000',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 0.5,
   },
   quotaExhausted: {
     paddingVertical: 12,
