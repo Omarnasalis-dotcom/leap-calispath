@@ -46,19 +46,16 @@ Phases 1, 3, 4, 5, 6 can proceed in parallel with Phase 2 (content).
 
 ---
 
-## PHASE 0 — Housekeeping
+## PHASE 0 — Housekeeping ✅ DONE 2026-08-23
 
-*Do first. The repo is currently carrying a day of unshipped work, which makes everything
-after this harder to reason about.*
-
-- [ ] **0.1** Commit the backlog. `git status` shows **24 changed files, 13 untracked** — the whole
-      day's fixes (model revert, name-resolution, `toIntOrNull`, batching, card persistence,
-      instrumentation, prompt rewrite) are unshipped. Split by concern, not one giant commit.
-- [ ] **0.2** Delete `supabase/functions/ai-coach/system-prompt-draft.md` — 20 KB, **read by zero
-      files at runtime**, and its presence implies it is live. Verified dead.
-- [ ] **0.3** Add `app_config.ai_coach_enabled boolean not null default false`, mirroring
-      `paywall_enabled` (`20260817090000`). Gate the edge function on it.
-- [ ] **0.4** Turn the coach **off** in prod until Phase 8. It currently costs money and fails.
+- [x] **0.1** Backlog committed — 7 commits split by concern (`9610184` … `a9eb7f7`), local only,
+      not yet pushed.
+- [x] **0.2** `system-prompt-draft.md` deleted.
+- [x] **0.3** `app_config.ai_coach_enabled` added, migrated, deployed. Gate sits before the
+      rate-limit call (disabled requests cost neither quota nor tokens) and returns 200 with a
+      real message, not a non-2xx.
+- [x] **0.4** Coach is off in prod for everyone except `is_admin` / `is_coach` accounts, which
+      bypass the switch so the rebuild can be tested against real data.
 
 ---
 
@@ -283,10 +280,13 @@ All unchanged. Already working.
 
 ## 11. Open decisions — needed before Phase 2
 
-1. **Weighted Strength day gating** — prompt says 4-day splits and above *and* unassisted
-   dips/pull-ups; original methodology said every program, same structure. Which?
-2. **Fixed 20 kg** on Goblet Squat / Deadlift — house standard at every level, or a starting point
-   that progresses from `weight_used`?
+1. ~~Weighted Strength day gating~~ — **RESOLVED 2026-08-25: ungated.** Present in every program,
+   matching the original methodology — a dedicated day in 4+ day splits, folded into Pull day for
+   3-day Foundation (same content, compressed for the lower frequency, not skipped). The skill hold
+   is never withheld pending a minimum; external load scales to what the athlete can currently
+   handle instead, same principle as decision 2. Live in `system-prompt.ts` §15/§18.
+2. ~~Fixed 20 kg~~ — **RESOLVED, already live before this doc's last revision.** "Standard starting
+   point," progressed from `weight_used` like any other weighted work, never a fixed number.
 3. **Multi-week programs** — support "write me a month", or one week + review loop?
 4. **Keep generation as a no-coverage fallback**, or remove entirely? *(drives 7.1)*
 5. **`coach_week_note`** cross-week memory — worth its SECURITY DEFINER write path?
