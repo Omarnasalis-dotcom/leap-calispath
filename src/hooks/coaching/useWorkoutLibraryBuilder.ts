@@ -19,7 +19,15 @@ import {
   StandaloneWorkoutStatus,
   Difficulty,
   QuickWorkoutFormat,
+  GoalTag,
 } from '../../lib/workoutLibrary';
+
+// Every value the DB CHECK constraint allows (20260825010000) — for
+// rendering the multi-select. Keep in sync with GoalTag by hand.
+export const GOAL_TAGS: GoalTag[] = [
+  'muscle_up', 'handstand', 'front_lever', 'back_lever', 'pistol',
+  'general_strength', 'conditioning',
+];
 
 // id: string | number to match ExercisePickerModal's own local type exactly
 // (TypeScript treats two structurally-identical interfaces of the same name
@@ -70,6 +78,11 @@ const EMPTY_FORM = {
   duration_minutes: '',
   is_free: false,
   status: 'draft' as StandaloneWorkoutStatus,
+  goal_tags: [] as GoalTag[],
+  // Strings for the same reason duration_minutes is a string: it's a
+  // plain numeric text input, parsed via toInt() only at save time.
+  tier_min: '',
+  tier_max: '',
 };
 
 const CATEGORIES = ['all', 'push', 'pull', 'legs', 'core', 'skill'];
@@ -146,6 +159,9 @@ export function useWorkoutLibraryBuilder() {
         duration_minutes: detail.duration_minutes != null ? String(detail.duration_minutes) : '',
         is_free: detail.is_free,
         status: (workouts.find((w) => w.id === id)?.status) || 'draft',
+        goal_tags: detail.goal_tags || [],
+        tier_min: detail.tier_min != null ? String(detail.tier_min) : '',
+        tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
       });
       setCoverImageUrl(detail.cover_image_url);
       setBlocks(
@@ -181,6 +197,15 @@ export function useWorkoutLibraryBuilder() {
 
   const updateForm = (field: keyof typeof EMPTY_FORM, value: any) => {
     setForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const toggleGoalTag = (tag: GoalTag) => {
+    setForm((prev) => ({
+      ...prev,
+      goal_tags: prev.goal_tags.includes(tag)
+        ? prev.goal_tags.filter((t) => t !== tag)
+        : [...prev.goal_tags, tag],
+    }));
   };
 
   const addBlock = () => {
@@ -299,6 +324,9 @@ export function useWorkoutLibraryBuilder() {
         is_free: form.is_free,
         status: form.status,
         cover_image_url: coverImageUrl,
+        goal_tags: form.goal_tags,
+        tier_min: toInt(form.tier_min),
+        tier_max: toInt(form.tier_max),
         blocks: blocks.map((b, bi) => ({
           name: b.name.trim(),
           order_index: bi,
@@ -340,7 +368,7 @@ export function useWorkoutLibraryBuilder() {
 
   return {
     workouts, loading, errorMsg, setErrorMsg, loadWorkouts,
-    editingId, formLoading, form, updateForm, blocks,
+    editingId, formLoading, form, updateForm, toggleGoalTag, goalTags: GOAL_TAGS, blocks,
     startNew, startEdit, cancelEdit, saving, deletingId,
     addBlock, removeBlock, moveBlock, updateBlockName,
     pickerVisible, setPickerVisible, openPicker,

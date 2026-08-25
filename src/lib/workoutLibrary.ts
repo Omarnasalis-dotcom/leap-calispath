@@ -9,6 +9,15 @@ import { supabase } from './supabase';
 
 export type StandaloneWorkoutKind = 'workout' | 'quick_workout';
 export type Difficulty = 'beginner' | 'intermediate' | 'advanced';
+// Mirrors the DB CHECK constraint (standalone_workouts_goal_tags_check,
+// 20260825010000) exactly — enum-constrained, not free text. The app's
+// OTHER library system (program_templates.matching_criteria->>'goal') is
+// unconstrained free text matched by exact jsonb containment, which is
+// why "muscle-up" and "Muscle Up" silently fail to match there. Keep this
+// list and the DB constraint in sync by hand if it ever grows.
+export type GoalTag =
+  | 'muscle_up' | 'handstand' | 'front_lever' | 'back_lever' | 'pistol'
+  | 'general_strength' | 'conditioning';
 export type QuickWorkoutFormat = 'amrap' | 'emom' | 'fortime' | 'tabata';
 export type StandaloneWorkoutStatus = 'draft' | 'published' | 'archived';
 
@@ -23,6 +32,9 @@ export interface StandaloneWorkoutSummary {
   duration_minutes: number | null;
   is_free: boolean;
   cover_image_url: string | null;
+  goal_tags: GoalTag[];
+  tier_min: number | null;
+  tier_max: number | null;
 }
 
 export interface StandaloneWorkoutExercise {
@@ -97,12 +109,22 @@ export interface SaveStandaloneWorkoutInput {
   // silently wipe out an admin-set cover on every mobile-side edit save
   // otherwise.
   cover_image_url: string | null;
+  goal_tags: GoalTag[];
+  tier_min: number | null;
+  tier_max: number | null;
 }
 
 export interface StandaloneWorkoutFilters {
   category?: string;
   difficulty?: Difficulty;
   format?: QuickWorkoutFormat;
+  // Matches ANY of the given tags (overlap, not containment) — an athlete
+  // chasing muscle-up work should also see a day tagged both muscle_up
+  // and handstand, not just an exact-set match.
+  goalTags?: GoalTag[];
+  // A workout is a candidate if its own range overlaps this tier at all,
+  // not only if it's fully contained — see the query below.
+  tier?: number;
 }
 
 export async function getStandaloneWorkouts(
@@ -111,7 +133,7 @@ export async function getStandaloneWorkouts(
 ): Promise<StandaloneWorkoutSummary[]> {
   let query = supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max')
     .eq('kind', kind)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -119,6 +141,17 @@ export async function getStandaloneWorkouts(
   if (filters.category) query = query.eq('category', filters.category);
   if (filters.difficulty) query = query.eq('difficulty', filters.difficulty);
   if (filters.format) query = query.eq('format', filters.format);
+  if (filters.goalTags && filters.goalTags.length > 0) query = query.overlaps('goal_tags', filters.goalTags);
+  // Range overlap, NULL meaning unbounded on that side — two separate .or()
+  // calls, each internally OR'd, AND'd together by PostgREST's default
+  // (chained filter calls AND). A workout tagged tier_min=6 (no tier_max)
+  // still matches a tier-9 athlete; one tagged tier_max=2 (no tier_min)
+  // still matches a tier-0 athlete.
+  if (filters.tier !== undefined) {
+    query = query
+      .or(`tier_min.is.null,tier_min.lte.${filters.tier}`)
+      .or(`tier_max.is.null,tier_max.gte.${filters.tier}`);
+  }
 
   const { data, error } = await query;
   if (error) throw error;
@@ -145,7 +178,7 @@ export async function createCustomProgramFromWorkouts(
 export async function getStandaloneWorkoutDetail(workoutId: string): Promise<StandaloneWorkoutDetail | null> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max')
     .eq('id', workoutId)
     .maybeSingle();
   if (workoutError) throw workoutError;
@@ -193,7 +226,7 @@ export async function getStandaloneWorkoutDetail(workoutId: string): Promise<Sta
 export async function getAllStandaloneWorkoutsForAdmin(): Promise<StandaloneWorkoutAdminRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -219,6 +252,9 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_status: input.status,
     p_blocks: input.blocks,
     p_cover_image_url: input.cover_image_url,
+    p_goal_tags: input.goal_tags,
+    p_tier_min: input.tier_min,
+    p_tier_max: input.tier_max,
   });
   if (error) throw error;
   return data as string;

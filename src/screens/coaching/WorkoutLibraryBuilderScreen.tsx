@@ -15,7 +15,7 @@ import { LeapLogo } from '../../components/LeapLogo';
 import { ExercisePickerModal } from '../../components/coaching/ExercisePickerModal';
 import { styles } from './ProgramBuilderScreen.styles';
 import { useWorkoutLibraryBuilder } from '../../hooks/coaching/useWorkoutLibraryBuilder';
-import { StandaloneWorkoutStatus, StandaloneWorkoutKind, Difficulty, QuickWorkoutFormat } from '../../lib/workoutLibrary';
+import { StandaloneWorkoutStatus, StandaloneWorkoutKind, Difficulty, QuickWorkoutFormat, GoalTag } from '../../lib/workoutLibrary';
 
 const bronzeGold = '#C8A040';
 const STATUS_FILTERS: StandaloneWorkoutStatus[] = ['draft', 'published', 'archived'];
@@ -99,6 +99,32 @@ export function WorkoutLibraryBuilderScreen() {
             <ChipRow label="KIND" theme={theme} options={['workout', 'quick_workout']} selected={b.form.kind} onSelect={(v) => b.updateForm('kind', v)} />
             <ChipRow label="CATEGORY" theme={theme} options={CATEGORY_OPTIONS} selected={b.form.category} onSelect={(v) => b.updateForm('category', v)} />
             <ChipRow label="DIFFICULTY" theme={theme} options={DIFFICULTY_OPTIONS} selected={b.form.difficulty} onSelect={(v) => b.updateForm('difficulty', v)} />
+            <MultiChipRow label="SKILL FOCUS (OPTIONAL)" theme={theme} options={b.goalTags} selected={b.form.goal_tags} onToggle={b.toggleGoalTag} />
+
+            <View style={{ flexDirection: 'row', gap: 12, marginBottom: 14 }}>
+              <View style={[styles.inputContainerStyle, { flex: 1 }]}>
+                <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>TIER MIN (0-9, OPTIONAL)</Text>
+                <TextInput
+                  style={[styles.searchInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                  value={b.form.tier_min}
+                  onChangeText={(v) => b.updateForm('tier_min', v)}
+                  placeholder="ANY"
+                  keyboardType="number-pad"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                />
+              </View>
+              <View style={[styles.inputContainerStyle, { flex: 1 }]}>
+                <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>TIER MAX (0-9, OPTIONAL)</Text>
+                <TextInput
+                  style={[styles.searchInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                  value={b.form.tier_max}
+                  onChangeText={(v) => b.updateForm('tier_max', v)}
+                  placeholder="ANY"
+                  keyboardType="number-pad"
+                  placeholderTextColor="rgba(255,255,255,0.2)"
+                />
+              </View>
+            </View>
 
             {b.form.kind === 'quick_workout' && (
               <>
@@ -368,6 +394,35 @@ function ChipRow({
               key={opt}
               style={[styles.chip, { borderColor: isActive ? bronzeGold : theme.card.border, backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : 'transparent' }]}
               onPress={() => onSelect(opt)}
+            >
+              <Text style={[styles.chipText, { color: isActive ? bronzeGold : theme.text.tertiary }]}>{opt.replace('_', ' ').toUpperCase()}</Text>
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+// Same visual language as ChipRow, but `selected` is a whole set and every
+// tap toggles membership rather than replacing the selection — goal tags
+// are "matches any of", not mutually exclusive like category/difficulty.
+function MultiChipRow({
+  label, theme, options, selected, onToggle,
+}: {
+  label: string; theme: any; options: readonly GoalTag[]; selected: GoalTag[]; onToggle: (tag: GoalTag) => void;
+}) {
+  return (
+    <View style={{ marginBottom: 14 }}>
+      <Text style={[styles.inputLabelStyle, { color: theme.text.secondary, marginBottom: 6 }]}>{label}</Text>
+      <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
+        {options.map((opt) => {
+          const isActive = selected.includes(opt);
+          return (
+            <TouchableOpacity
+              key={opt}
+              style={[styles.chip, { borderColor: isActive ? bronzeGold : theme.card.border, backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : 'transparent' }]}
+              onPress={() => onToggle(opt)}
             >
               <Text style={[styles.chipText, { color: isActive ? bronzeGold : theme.text.tertiary }]}>{opt.replace('_', ' ').toUpperCase()}</Text>
             </TouchableOpacity>

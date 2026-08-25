@@ -59,21 +59,44 @@ Phases 1, 3, 4, 5, 6 can proceed in parallel with Phase 2 (content).
 
 ---
 
-## PHASE 1 — Metadata
+## PHASE 1 — Metadata ✅ DONE 2026-08-25
 
 *The AI can only be as good as what it can search. `category` ('PUSH') and `difficulty`
 (beginner/intermediate/advanced) exist; neither expresses a goal, and three buckets do not map onto
 ten Leap tiers.*
 
-- [ ] **1.1** Migration on `standalone_workouts`:
+- [x] **1.1** Migration `20260825010000_add_standalone_workout_matching_fields.sql` on
+      `standalone_workouts`:
       - `goal_tags text[]` — `muscle_up`, `handstand`, `front_lever`, `back_lever`, `pistol`,
-        `general_strength`, `conditioning`
-      - `tier_min smallint` / `tier_max smallint` (0–9, nullable = any)
+        `general_strength`, `conditioning`, DB-enforced via CHECK (not free text — see the note
+        below on why that matters)
+      - `tier_min smallint` / `tier_max smallint` (0–9, nullable = any), CHECK-validated
+        (range within 0–9, min ≤ max), bands matching `tierRangeToDifficultyBand`'s existing
+        convention on the Template Library side (beginner ≤2, intermediate ≤5, advanced >5)
       - Index on `goal_tags` (GIN) and `(category, difficulty)`
-- [ ] **1.2** Admin authoring UI: goal-tag multi-select + tier range inputs
-- [ ] **1.3** Backfill the 5 existing seeded workouts with real values
-- [ ] **1.4** Decide: is `difficulty` now redundant with tier range? *Keep both — difficulty drives
-      the human-facing Library UI, tier range drives AI matching.*
+      - `save_standalone_workout` extended with the same DROP-first pattern its two prior
+        signature changes used (Postgres resolves overloads by argument types; a bare
+        `CREATE OR REPLACE` with new params creates a second overload instead of replacing)
+      - Verified against a full replay of the real migration chain (not a hand-built stand-in) on
+        a throwaway Postgres: 8 scenarios covering backfill correctness, both CHECK constraints,
+        the extended RPC as both admin and non-admin caller
+- [x] **1.2** Admin UI: `MultiChipRow` (goal tags, toggle-to-select) + two tier-range number
+      inputs in `WorkoutLibraryBuilderScreen.tsx`, wired through `useWorkoutLibraryBuilder.ts`
+      and `workoutLibrary.ts`'s query/save layer
+- [x] **1.3** Backfilled the real seeded rows — **note: there are 3, not 5 as earlier drafts of
+      this doc said** (confirmed by grep before writing the migration; earlier count was wrong).
+      All three are PUSH-focused, which is itself evidence for how thin Phase 2's starting point
+      really is: `general_strength` 0–2, `general_strength` 6–9, `conditioning` 3–5.
+- [x] **1.4** Keep both — difficulty drives the human-facing Library UI, tier range drives AI
+      matching.
+
+**Found in passing, not part of this phase's scope but worth recording:** there is a *second*,
+separate library system — `program_templates` with `is_library_template = true`, matched via
+`getRecommendations()` in `src/lib/templateLibrary.ts` on a **free-text** `goal` field (exact jsonb
+containment — "muscle-up" and "Muscle Up" don't match each other). `goal_tags` here was
+deliberately made enum-constrained specifically to not repeat that failure mode. Whether that
+second system has real published content, and whether it should be a source for "give me a full
+month" requests, is unresolved — see decision 3.
 
 ---
 
@@ -91,7 +114,7 @@ ten Leap tiers.*
   | CONDITIONING | ✓ | ✓ | ✓ |
 
   **18 minimum.** Plus goal variants on PULL/PUSH (muscle-up prep, handstand prep) ≈ **26 to launch**,
-  ~40 to feel rich. Currently: **5**.
+  ~40 to feel rich. Currently: **3** (corrected count — all three PUSH-focused, so real coverage today is one cell out of eighteen, not five).
 
 - [ ] **2.2** Every workout must be a complete day — Warm-Up → (Mobility) → (Skills) → Strength →
       Accessories → (Finisher) → Cool-Down. A day missing a cool-down will be prescribed as-is.
