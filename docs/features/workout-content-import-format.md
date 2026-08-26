@@ -34,12 +34,21 @@ Level: [beginner / intermediate / advanced]
 Free or Pro: [free / pro]
 Goal / focus: [e.g. muscle-up prep, handstand, general strength, conditioning]
 Equipment: [bar / rings / bands / weights / gym machines]
+Skill tags (goal_tags — pick 1+ from exactly this list, or "none"):
+  muscle_up / handstand / front_lever / back_lever / pistol / general_strength / conditioning
+Tier range this fits (tier_min–tier_max, 0-9, or "any"):
+
 If quick workout — format and time cap: [amrap / emom / fortime / tabata], [N] minutes
 
 Output format: Workout Content JSON — kind/title/category/difficulty/
-blocks[], each block a named phase (Warm-Up, Skills, Strength, Cool-Down,
-...) with its own exercises[]. No weeks, no CONCEPT metadata (that's the
-Single Day Template format instead).
+goal_tags/tier_min/tier_max/blocks[], each block a named phase (Warm-Up,
+Skills, Strength, Cool-Down, ...) with its own exercises[]. No weeks, no
+CONCEPT metadata (that's the Single Day Template format instead).
+
+The "goal_tags" field must only contain values from this exact list:
+"muscle_up", "handstand", "front_lever", "back_lever", "pistol",
+"general_strength", "conditioning" — anything else is rejected on import.
+Omit it (or use "general_strength") if the workout isn't skill-specific.
 
 The "kind" field in the output JSON must be exactly the literal string
 "workout" or "quick_workout" (lowercase, underscore, no space) — not
@@ -72,6 +81,9 @@ block containing the whole circuit.
   "category": "PUSH",
   "difficulty": "advanced",
   "is_free": false,
+  "goal_tags": ["general_strength"],
+  "tier_min": 5,
+  "tier_max": 9,
   "blocks": [ /* see below */ ]
 }
 ```
@@ -84,6 +96,8 @@ block containing the whole circuit.
 | `category` | no | `PULL`, `PUSH`, `LEGS`, `CORE`, or `FULL_BODY` — matched case-insensitively and normalized to that exact casing on import (the browse page's filter chips do an exact-match query, so a mismatched case would otherwise silently make the item unfilterable). Anything outside that set is accepted as-is (category has no DB constraint) but won't show under any filter chip. |
 | `difficulty` | no | `beginner`, `intermediate`, or `advanced` — case-insensitive, but must match one of these three exactly (case aside). The database rejects anything else, so the import is refused up front with a clear error rather than failing after you've already clicked Import. |
 | `is_free` | no | `true`/`false`, defaults to `false` (Pro-locked) if omitted. |
+| `goal_tags` | no | Array, subset of exactly: `muscle_up`, `handstand`, `front_lever`, `back_lever`, `pistol`, `general_strength`, `conditioning` — DB CHECK-constrained, any other value rejects the import. This is what the AI Coach uses to match a workout to an athlete's stated goal — tag every skill-specific workout, or the AI can't find it. Omit or `[]` for none. |
+| `tier_min` / `tier_max` | no | Whole numbers 0–9, the strength-tier band this workout fits (mirrors the app's tier system — `beginner` ≈ 0-2, `intermediate` ≈ 3-5, `advanced` ≈ 6-9). `tier_min` can't exceed `tier_max`. Omit either for "no floor"/"no ceiling" (matches any tier that direction) — omit both for "fits anyone." |
 | `blocks` | **yes** | Non-empty array — one entry per phase. See below. Import is rejected if empty or missing. |
 
 ### `quick_workout`-only fields
@@ -202,9 +216,10 @@ guarantee a hit on an existing row.
 ## What happens on import
 
 1. The file is validated (shape — every block named and non-empty, every
-   exercise resolvable-in-principle — plus `difficulty`/`format` against
-   their exact allowed values) and rejected with a specific error if
-   anything's wrong — nothing is written until it passes.
+   exercise resolvable-in-principle — plus `difficulty`/`format`/`goal_tags`/
+   `tier_min`/`tier_max` against their exact allowed values) and rejected
+   with a specific error if anything's wrong — nothing is written until it
+   passes.
 2. Every exercise across every block is resolved to a real `exercise_id`
    per the rules above; if any exercise fails to resolve, the whole import
    is rejected rather than silently saving with fewer exercises than shown
@@ -226,6 +241,9 @@ guarantee a hit on an existing row.
   "category": "PULL",
   "difficulty": "beginner",
   "is_free": true,
+  "goal_tags": ["general_strength"],
+  "tier_min": 0,
+  "tier_max": 2,
   "blocks": [
     {
       "name": "Warm-Up",

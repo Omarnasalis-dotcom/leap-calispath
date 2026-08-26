@@ -30,7 +30,16 @@ export interface StandaloneWorkoutRow {
   is_free: boolean;
   status: StandaloneWorkoutStatus;
   cover_image_url: string | null;
+  goal_tags: string[];
+  tier_min: number | null;
+  tier_max: number | null;
 }
+
+// supabase/migrations/20260825010000_add_standalone_workout_matching_fields.sql
+export const GOAL_TAG_VALUES = [
+  'muscle_up', 'handstand', 'front_lever', 'back_lever', 'pistol',
+  'general_strength', 'conditioning',
+] as const;
 
 export interface StandaloneWorkoutExerciseRow {
   exercise_id: string;
@@ -59,7 +68,7 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as StandaloneWorkoutRow[];
@@ -68,7 +77,7 @@ export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]>
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
     .eq('id', id)
     .single();
   if (workoutError) throw new Error(workoutError.message);
@@ -135,6 +144,9 @@ export interface SaveStandaloneWorkoutInput {
   status: StandaloneWorkoutStatus;
   blocks: SaveStandaloneWorkoutBlockInput[];
   cover_image_url: string | null;
+  goal_tags: string[];
+  tier_min: number | null;
+  tier_max: number | null;
 }
 
 export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): Promise<string> {
@@ -151,6 +163,9 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_status: input.status,
     p_blocks: input.blocks,
     p_cover_image_url: input.cover_image_url,
+    p_goal_tags: input.goal_tags,
+    p_tier_min: input.tier_min,
+    p_tier_max: input.tier_max,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -214,6 +229,9 @@ export interface ImportedStandaloneWorkout {
   duration_minutes?: number | string | null;
   is_free?: boolean;
   blocks?: ImportedStandaloneWorkoutBlock[];
+  goal_tags?: string[];
+  tier_min?: number | string | null;
+  tier_max?: number | string | null;
 }
 
 const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
@@ -266,6 +284,29 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
   }
   if (data.kind === 'quick_workout' && data.format && !normalizeAgainst(data.format, FORMAT_VALUES)) {
     return { valid: false, error: `"format" must be one of: ${FORMAT_VALUES.join(', ')}.` };
+  }
+  // goal_tags/tier_min/tier_max are DB CHECK-constrained too (see
+  // 20260825010000_add_standalone_workout_matching_fields.sql) — same
+  // up-front-rejection reasoning as difficulty/format above.
+  if (data.goal_tags !== undefined) {
+    if (!Array.isArray(data.goal_tags)) {
+      return { valid: false, error: '"goal_tags" must be an array of strings.' };
+    }
+    const bad = data.goal_tags.find((t: unknown) => !GOAL_TAG_VALUES.includes(t as any));
+    if (bad !== undefined) {
+      return { valid: false, error: `"goal_tags" contains "${bad}" — must be one of: ${GOAL_TAG_VALUES.join(', ')}.` };
+    }
+  }
+  const tierMin = data.tier_min === '' || data.tier_min == null ? null : Number(data.tier_min);
+  const tierMax = data.tier_max === '' || data.tier_max == null ? null : Number(data.tier_max);
+  if (tierMin !== null && (!Number.isInteger(tierMin) || tierMin < 0 || tierMin > 9)) {
+    return { valid: false, error: '"tier_min" must be a whole number from 0 to 9.' };
+  }
+  if (tierMax !== null && (!Number.isInteger(tierMax) || tierMax < 0 || tierMax > 9)) {
+    return { valid: false, error: '"tier_max" must be a whole number from 0 to 9.' };
+  }
+  if (tierMin !== null && tierMax !== null && tierMin > tierMax) {
+    return { valid: false, error: '"tier_min" cannot be greater than "tier_max".' };
   }
   return { valid: true };
 }
@@ -349,5 +390,8 @@ export async function importStandaloneWorkoutFromJson(
     is_free: !!data.is_free,
     status: 'draft',
     blocks,
+    goal_tags: Array.isArray(data.goal_tags) ? data.goal_tags : [],
+    tier_min: parseNullableInt(data.tier_min),
+    tier_max: parseNullableInt(data.tier_max),
   });
 }

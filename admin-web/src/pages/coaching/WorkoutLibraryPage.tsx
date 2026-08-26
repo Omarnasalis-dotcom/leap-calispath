@@ -68,6 +68,9 @@ interface Draft {
   status: StandaloneWorkoutStatus;
   blocks: DraftBlock[];
   cover_image_url: string | null;
+  goal_tags: string[];
+  tier_min: string;
+  tier_max: string;
 }
 
 let keySeq = 0;
@@ -94,6 +97,9 @@ function newDraft(): Draft {
     status: 'draft',
     blocks: [emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')],
     cover_image_url: null,
+    goal_tags: [],
+    tier_min: '',
+    tier_max: '',
   };
 }
 
@@ -266,6 +272,9 @@ export function WorkoutLibraryPage() {
         is_free: detail.is_free,
         status: detail.status,
         cover_image_url: detail.cover_image_url,
+        goal_tags: detail.goal_tags ?? [],
+        tier_min: detail.tier_min != null ? String(detail.tier_min) : '',
+        tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
         blocks: detail.blocks.map((block) => ({
           key: newKey(),
           name: block.name,
@@ -300,6 +309,9 @@ export function WorkoutLibraryPage() {
         is_free: d.is_free,
         status: d.status,
         cover_image_url: d.cover_image_url,
+        goal_tags: d.goal_tags,
+        tier_min: toInt(d.tier_min),
+        tier_max: toInt(d.tier_max),
         blocks: d.blocks.map((block, bi) => ({
           name: block.name.trim(),
           order_index: bi,
