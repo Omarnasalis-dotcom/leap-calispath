@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  html,body{margin:0;height:100%;background:#0b0b0d;overflow:hidden;}
+  .lp-spotlight{transition:background 0.15s ease-out;}
+  * { box-sizing: border-box; font-family: 'Barlow Condensed', system-ui, sans-serif; }
+  a { color:#FF4B3E; text-decoration:none; }
+  a:hover { color:#ff6b60; }
+  @keyframes pulseDot { 0%,100%{ opacity:1; transform:scale(1); } 50%{ opacity:0.4; transform:scale(0.8); } }
+  @keyframes heroGlow { 0%,100%{ opacity:0.5; transform:scale(1); } 50%{ opacity:0.85; transform:scale(1.04); } }
+  @keyframes floatSlow { 0%,100%{ transform:translateY(0px); } 50%{ transform:translateY(-12px); } }
+</style>
+</helmet>
+
+<div ref="{{ heroRef }}" onMouseMove="{{ handleMouseMove }}" onMouseLeave="{{ handleMouseLeave }}" style="min-height:100vh; width:100%; background:radial-gradient(120% 60% at 22% 0%, rgba(255,74,62,0.20), transparent 55%), radial-gradient(60% 50% at 90% 95%, rgba(255,74,62,0.08), transparent 60%), #0b0b0d; color:#fff; overflow-x:hidden; position:relative; display:flex; flex-direction:column;">
+
+  <div style="position:absolute; inset:0; background-image:linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px); background-size:64px 64px; mask-image:radial-gradient(75% 75% at 30% 35%, #000 40%, transparent 100%); pointer-events:none; z-index:0;"></div>
+
+  <div class="lp-spotlight" style="position:absolute; inset:0; pointer-events:none; z-index:0; background:radial-gradient(420px circle at {{ spotX }}% {{ spotY }}%, rgba(255,74,62,0.16), transparent 62%);"></div>
+
+  <nav style="position:relative; z-index:2; display:flex; align-items:center; justify-content:space-between; gap:24px; padding:0 clamp(20px,5vw,64px); height:clamp(64px,9vh,84px); flex-shrink:0;">
+    <img src="./assets/leap-logo.png" alt="Leap" style="height:clamp(18px,4vw,22px); width:auto; display:block;"/>
+    <a href="#download" style="height:clamp(38px,6vh,44px); padding:0 clamp(16px,3vw,24px); border-radius:999px; background:#FF4B3E; display:flex; align-items:center; font-size:clamp(11px,2.2vw,14px); font-weight:800; letter-spacing:1px; color:#1a0605; box-shadow:0 8px 24px -8px rgba(255,74,62,0.7); white-space:nowrap;" style-hover="filter:brightness(1.08); box-shadow:0 10px 28px -6px rgba(255,74,62,0.85);">{{ ctaLabel }}</a>
+  </nav>
+
+  <section style="position:relative; flex:1; min-height:0; padding:clamp(24px,4vh,0px) clamp(20px,5vw,80px) clamp(28px,4vh,0px); overflow:hidden;">
+
+    <div style="position:absolute; top:8%; right:6%; width:1px; height:38%; background:linear-gradient(180deg, transparent, rgba(255,74,62,0.35), transparent); z-index:0;"></div>
+
+    <div style="position:relative; z-index:1; max-width:1200px; margin:0 auto; min-height:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:clamp(28px,5vw,56px); padding:clamp(16px,3vh,0px) 0;">
+
+      <div style="flex:1 1 440px; min-width:280px; display:flex; flex-direction:column; justify-content:center; text-align:left;">
+
+        <div style="display:inline-flex; align-items:center; gap:9px; height:34px; padding:0 16px; border-radius:999px; border:1.5px solid rgba(255,74,62,0.5); background:rgba(255,74,62,0.08); align-self:flex-start;">
+          <span style="width:7px; height:7px; border-radius:999px; background:#FF4B3E; animation:pulseDot 1.8s ease-in-out infinite;"></span>
+          <span style="font-size:12px; font-weight:800; letter-spacing:3px; color:#FF4B3E;">NOW LIVE ON iOS</span>
+        </div>
+
+        <h1 style="font-size:clamp(32px,5.2vw,68px); font-weight:800; line-height:1.05; letter-spacing:-0.5px; margin:20px 0 0; text-transform:uppercase; max-width:560px; text-wrap:balance;">
+          Turn your calisthenics workout into a <span style="color:#FF4B3E;">game.</span>
+        </h1>
+
+        <p style="font-size:clamp(15px,2.4vw,20px); line-height:1.55; color:rgba(255,255,255,0.55); max-width:460px; margin:22px 0 0; font-weight:500;">Track every rep, climb tier ladders across Power, Static and Endurance, and turn your training into a game you keep coming back to.</p>
+
+        <div style="display:flex; align-items:center; gap:14px; margin-top:clamp(24px,4vh,36px); flex-wrap:wrap;">
+          <a href="#download" style="height:56px; padding:0 20px; border-radius:12px; background:#000; border:1px solid rgba(255,255,255,0.14); display:inline-flex; align-items:center; gap:10px;" style-hover="background:#161616; transform:translateY(-1px);">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="#fff"><path d="M16.365 1.43c0 1.14-.416 2.14-1.246 3.02-1.001 1.05-2.216 1.66-3.53 1.55-.16-1.13.42-2.32 1.24-3.15.84-.87 2.31-1.51 3.53-1.42zM20.5 17.13c-.44 1.02-.97 1.99-1.65 2.9-.94 1.28-1.71 2.16-2.3 2.65-.9.79-1.87.98-2.7.56-.75-.37-1.61-.55-2.58-.55-.99 0-1.87.18-2.63.55-.83.41-1.54.28-2.42-.51-.63-.53-1.44-1.44-2.42-2.75-1.05-1.4-1.92-3.03-2.6-4.9-.72-2.02-1.08-3.98-1.08-5.86 0-2.15.46-4 1.4-5.55.72-1.24 1.68-2.22 2.87-2.93 1.19-.71 2.48-1.08 3.86-1.1.94 0 2.06.31 3.36.93.86.42 1.42.42 1.7.42.24 0 .84-.16 1.86-.62 1.32-.58 2.44-.82 3.36-.74 1.87.15 3.28.9 4.22 2.26-1.67 1.02-2.5 2.44-2.48 4.28.02 1.43.53 2.62 1.53 3.55.45.42.95.75 1.5.98-.12.36-.25.7-.4 1.03z"></path></svg>
+            <div style="text-align:left; line-height:1.15;">
+              <div style="font-size:10px; font-weight:600; color:rgba(255,255,255,0.7);">Download on the</div>
+              <div style="font-size:17px; font-weight:800; color:#fff;">App Store</div>
+            </div>
+          </a>
+          <a href="#download" style="height:56px; padding:0 20px; border-radius:12px; background:#000; border:1px solid rgba(255,255,255,0.14); display:inline-flex; align-items:center; gap:10px;" style-hover="background:#161616; transform:translateY(-1px);">
+            <svg width="22" height="22" viewBox="0 0 512 512">
+              <path d="M99 20c-6 6-9 15-9 27v418c0 12 3 21 9 27l2 2 234-234v-6L101 18z" fill="#00d2ff"></path>
+              <path d="M406 335l-71-41v-1l71-41 2 1 84 48c24 14 24 36 0 50z" fill="#ffcf00"></path>
+              <path d="M335 294l-73-73L101 482c9 9 21 10 36 2z" fill="#ff3a44"></path>
+              <path d="M335 148L136 30c-15-8-27-7-36 2l161 161z" fill="#38d47f"></path>
+            </svg>
+            <div style="text-align:left; line-height:1.15;">
+              <div style="font-size:10px; font-weight:600; color:rgba(255,255,255,0.7);">GET IT ON</div>
+              <div style="font-size:17px; font-weight:800; color:#fff;">Google Play</div>
+            </div>
+          </a>
+        </div>
+      </div>
+
+      <div style="flex:1 1 260px; min-width:200px; display:flex; justify-content:center; align-items:center; position:relative; max-width:340px; margin:0 auto;">
+
+        <div style="position:absolute; inset:0; background:radial-gradient(55% 55% at 50% 50%, rgba(255,74,62,0.35), transparent 70%); filter:blur(30px); animation:heroGlow 4s ease-in-out infinite; z-index:0;"></div>
+
+        <div style="position:absolute; bottom:4%; width:min(200px, 26vh); height:26px; background:radial-gradient(50% 100% at 50% 50%, rgba(0,0,0,0.55), transparent 75%); z-index:1; filter:blur(2px);"></div>
+
+        <div style="width:min(232px, 34vh, 62vw); position:relative; z-index:2; transform:{{ phoneTransform }}; transition:transform 0.25s ease-out; box-shadow:0 50px 90px -20px rgba(0,0,0,0.65), 0 0 0 1px rgba(255,255,255,0.06); border-radius:38px; overflow:hidden; border:9px solid #1a1a1c; background:#050302; line-height:0;">
+          <img src="./assets/profile-mockup-leap.png" alt="Leap profile" style="width:100%; display:block;"/>
+          <div style="position:absolute; inset:0; border-radius:29px; background:linear-gradient(115deg, rgba(255,255,255,0.10) 0%, transparent 22%); pointer-events:none;"></div>
+        </div>
+
+        <div style="position:absolute; top:8%; left:0; transform:translateX(-108%); z-index:3; background:rgba(21,17,19,0.92); backdrop-filter:blur(8px); border:1.5px solid rgba(255,74,62,0.45); border-radius:16px; padding:11px 15px; display:flex; flex-direction:column; gap:2px; box-shadow:0 16px 34px -10px rgba(0,0,0,0.55); animation:floatSlow 4.4s ease-in-out infinite 0.4s; max-width:40vw; white-space:nowrap;">
+          <span style="font-size:9px; font-weight:700; letter-spacing:1.5px; color:rgba(255,255,255,0.45);">TIER 7 &middot; OLYMPIAN</span>
+          <span style="font-size:18px; font-weight:800; color:#FF4B3E;">+110 PTS THIS WEEK</span>
+        </div>
+      </div>
+    </div>
+  </section>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;ctaLabel&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;DOWNLOAD FREE&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+class Component extends DCLogic {
+  heroRef = React.createRef();
+  state = { mx: 0.66, my: 0.42 };
+
+  handleMouseMove = (e) => {
+    const rect = this.heroRef.current.getBoundingClientRect();
+    const mx = (e.clientX - rect.left) / rect.width;
+    const my = (e.clientY - rect.top) / rect.height;
+    this.setState({ mx, my });
+  };
+  handleMouseLeave = () => this.setState({ mx: 0.66, my: 0.42 });
+
+  renderVals() {
+    const tiltY = (this.state.mx - 0.5) * 16;
+    const tiltX = (0.5 - this.state.my) * 12;
+    const phoneTransform = `perspective(1400px) rotateY(${(-8 + tiltY).toFixed(2)}deg) rotateX(${(3 + tiltX).toFixed(2)}deg) rotate(1.5deg) translateY(${(this.state.my - 0.5) * -10}px)`;
+    return {
+      ctaLabel: this.props.ctaLabel ?? 'DOWNLOAD FREE',
+      heroRef: this.heroRef,
+      handleMouseMove: this.handleMouseMove,
+      handleMouseLeave: this.handleMouseLeave,
+      phoneTransform,
+      spotX: (this.state.mx * 100).toFixed(1),
+      spotY: (this.state.my * 100).toFixed(1),
+    };
+  }
+}
+</script>
+</body>
+</html>
