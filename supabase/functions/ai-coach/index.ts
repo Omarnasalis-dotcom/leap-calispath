@@ -48,6 +48,28 @@ async function buildProgramAction(
   if (toolName === "propose_delete_week") {
     return { type: "delete_week", reason: input.reason, weekNumber: input.week_number, payload: null, ...base };
   }
+  if (toolName === "propose_program_from_workouts") {
+    const workoutIds = (input.workout_ids as string[]) ?? [];
+    // Trusted server-side lookup, same reasoning as `base` above — never
+    // render a card title the AI could have gotten wrong. A stale/invalid
+    // id just falls back to a placeholder here; ai_coach_create_program_from_workouts
+    // re-validates existence for real when the athlete actually confirms.
+    const { data: titleRows } = await userClient
+      .from("standalone_workouts")
+      .select("id, title")
+      .in("id", workoutIds);
+    const titleById = new Map((titleRows ?? []).map((r: { id: string; title: string }) => [r.id, r.title]));
+    return {
+      type: "create_from_workouts",
+      reason: input.reason,
+      payload: {
+        name: input.name,
+        workoutIds,
+        dayTitles: workoutIds.map((id) => titleById.get(id) ?? "Unknown workout"),
+      },
+      ...base,
+    };
+  }
   return { type: "end", reason: input.reason, payload: null, ...base };
 }
 
@@ -61,6 +83,90 @@ function json(body: unknown, status = 200) {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// Design handoff (assets/design_handoff_leap_coach_chat): live "what the
+// coach is doing" activity indicator, real stages emitted as the request
+// progresses — never a client-side fake timer. `run` streams `event: stage`
+// (data: {verb, label}) as the tool loop executes, then exactly one
+// `event: final` carrying the same {reply, recommendations, programAction}
+// shape the client already parsed before this existed. All the early-exit
+// gates (auth/body/pro-gate/kill-switch/rate-limit, all before the tool
+// loop starts) stay plain json() — nothing about them needs to stream.
+// A genuine unhandled exception mid-loop becomes `event: error` instead of
+// a fresh HTTP status, since headers are already committed by then.
+function sseResponse(run: (send: (event: "stage" | "final" | "error", data: unknown) => void) => Promise<void>) {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream<Uint8Array>({
+    async start(controller) {
+      const send = (event: "stage" | "final" | "error", data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+      try {
+        await run(send);
+      } catch (err) {
+        console.error("[ai-coach] Unhandled error mid-stream:", err);
+        send("error", { message: err instanceof Error ? err.message : "Internal Server Error" });
+      } finally {
+        controller.close();
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      ...corsHeaders,
+      "Content-Type": "text/event-stream",
+      "Cache-Control": "no-cache",
+      Connection: "keep-alive",
+    },
+  });
+}
+
+// Real, specific stage labels keyed off which tool is about to run and its
+// actual input — never generic filler like "Thinking...". Deliberately a
+// server-side template, not model-authored text: the model already proved
+// unreliable at hand-authoring structured output today, a lookup keyed on
+// the tool call it already has to make is a much smaller surface to get
+// wrong.
+function stageForTool(name: string, input: Record<string, unknown>): { verb: string; label: string } {
+  const focus = typeof input.focus === "string" ? input.focus.replace(/_/g, " ").toLowerCase() : null;
+  switch (name) {
+    case "get_user_context":
+      return { verb: "READING", label: "Reading your profile and program" };
+    case "search_workouts":
+      return { verb: "SEARCHING", label: focus ? `Looking for a ${focus} day that fits` : "Searching the workout library" };
+    case "get_workout_detail":
+      return { verb: "READING", label: "Checking that workout's details" };
+    case "get_workout_logs":
+      return { verb: "READING", label: "Reading your logged workouts" };
+    case "get_program_structure":
+      return { verb: "READING", label: "Reading your current program" };
+    case "search_exercises":
+      return { verb: "SEARCHING", label: "Looking up exercises in the library" };
+    case "propose_new_program":
+    case "propose_program_from_workouts":
+      return { verb: "BUILDING", label: "Putting your program together" };
+    case "append_week":
+      return { verb: "WRITING", label: "Writing your next week" };
+    case "adjust_program":
+      return { verb: "ADJUSTING", label: "Applying that change" };
+    case "replace_block_exercises":
+      return { verb: "ADJUSTING", label: "Swapping that exercise" };
+    case "add_block_to_week":
+      return { verb: "WRITING", label: "Adding that day" };
+    case "recommend_test":
+      return { verb: "CHECKING", label: "Checking if you're ready to test" };
+    case "propose_end_program":
+    case "propose_delete_week":
+      return { verb: "UPDATING", label: "Preparing that change" };
+    case "attach_stat_bars":
+      return { verb: "READING", label: "Pulling your discipline scores" };
+    case "attach_steps":
+    case "suggest_replies":
+      return { verb: "WRITING", label: "Writing your reply" };
+    default:
+      return { verb: "WORKING", label: "Working on it" };
+  }
 }
 
 // Every RPC these tools call trusts auth.uid() internally (SECURITY
@@ -77,16 +183,14 @@ function json(body: unknown, status = 200) {
 // actual fix; this is headroom so a build that needs a couple of extra
 // round trips completes instead of dying silently.
 const MAX_TOOL_TURNS = 16;
-// Reverted from claude-haiku-4-5-20251001 back to Sonnet 2026-08-23: Haiku
-// repeatedly narrated actions in text ("Now building your program...")
-// without emitting the matching tool call — no card ever rendered, no
-// program ever got created. Reproduced live multiple times even after
-// prompt-level fixes (an explicit "act, don't narrate" rule placed first in
-// the prompt, shrinking the prompt by ~3KB, removing redundant
-// reinforcement). This is a real reliability ceiling for this compound
-// agentic flow (multi-turn conversation + tool orchestration + a system
-// prompt this size), not a wording problem — don't re-attempt Haiku here
-// without re-verifying this exact failure mode is actually gone first.
+// Reverted AGAIN 2026-08-26, same day as the re-attempt above: Haiku
+// claimed "Week 2 is built... Go log Week 2" with no append_week call
+// behind it (athlete checked, nothing was added) — the exact narrate-
+// without-acting failure this was reverted for on 2026-08-23, reproduced
+// on the very first live multi-turn test. Two independent occurrences now.
+// Do not re-attempt Haiku for this flow again without a real architectural
+// change (e.g. forcing tool-call-or-explicit-refusal instead of free text),
+// not just another prompt tweak — the prior attempt already tried that.
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 
 // Prompt caching: the system prompt (~5-6k tokens) and the 7 tool schemas
@@ -126,6 +230,10 @@ serve(async (req: Request) => {
   if (!Array.isArray(body.messages) || body.messages.length === 0) {
     return json({ error: "Missing messages array" }, 400);
   }
+  // Captured into its own const here, not read as `body.messages` inside
+  // the sseResponse callback below — TS's narrowing above doesn't survive
+  // into a nested closure over the mutable `body` binding.
+  const initialMessages = body.messages;
 
   // Pro gate — re-derives canAccessPro() (src/lib/entitlement.ts) server-side.
   // Never trust a client-sent flag for a paid feature: both the profile and
@@ -237,10 +345,26 @@ serve(async (req: Request) => {
     );
   }
 
-  try {
-    const messages: unknown[] = [...body.messages];
+  return sseResponse(async (send) => {
+    const messages: unknown[] = [...initialMessages];
     const recommendations: unknown[] = [];
     let programAction: unknown = null;
+    // Design handoff rich blocks (attach_stat_bars/attach_steps) and
+    // contextual quick-reply chips (suggest_replies) — same collect-as-the-
+    // loop-runs pattern as `recommendations` above.
+    const blocks: unknown[] = [];
+    let suggestedReplies: string[] = [];
+    // Found live: a turn that calls a tool (suggest_replies, recommend_test,
+    // attach_stat_bars...) alongside real prose has stop_reason "tool_use",
+    // so it never reaches the terminal branch below — and the terminal
+    // branch used to be the ONLY place `reply` was read from, meaning that
+    // turn's actual analysis was pushed into `messages` for Claude's own
+    // context and then silently discarded from what the athlete sees. The
+    // next turn's short continuation ("Let me know which you'd like to do")
+    // became the whole reply. Accumulate every turn's text here instead —
+    // §1 already forbids narrating ("checking your profile...") separately
+    // from real content, so concatenating turns in order is safe.
+    const replyParts: string[] = [];
 
     const startedAt = Date.now();
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
@@ -248,11 +372,14 @@ serve(async (req: Request) => {
       const claudeResponse = await callClaude(messages);
       logTurn(turn, Date.now() - turnStart, claudeResponse);
 
+      const turnText = (claudeResponse.content ?? [])
+        .filter((block: { type: string }) => block.type === "text")
+        .map((block: { text: string }) => block.text)
+        .join("");
+      if (turnText.trim()) replyParts.push(turnText.trim());
+
       if (claudeResponse.stop_reason !== "tool_use") {
-        const text = (claudeResponse.content ?? [])
-          .filter((block: { type: string }) => block.type === "text")
-          .map((block: { text: string }) => block.text)
-          .join("");
+        const text = replyParts.join("\n\n");
 
         // stop_reason "max_tokens" means the response was cut mid-generation.
         // If it was cut inside a tool_use block, that block is incomplete and
@@ -265,17 +392,36 @@ serve(async (req: Request) => {
             `[ai-coach] Response truncated at max_tokens (turn ${turn}). ` +
             `Text recovered: ${text.length} chars. A tool call was likely lost.`
           );
-          return json({
+          send("final", {
             reply: text.trim()
               ? `${text}\n\n(That came out longer than I could fit in one message — if you were expecting a program card, ask me to build it again and I'll keep it tighter.)`
               : "That program came out too long for one message, so it didn't make it through. Ask me to build it again — tell me the split you want and I'll keep it tighter.",
             recommendations,
             programAction,
+            blocks,
+            suggestedReplies,
           });
+          return;
+        }
+
+        // Found live: a normal (non-tool-use, non-max_tokens) turn can still
+        // come back with genuinely empty text — Claude settled with nothing
+        // to say. Same "never claim success with nothing said" reasoning as
+        // the max_tokens case above, just a different cause. The client has
+        // its own fallback text too, but the server should never need it —
+        // a real message here, not a blank one calling itself successful.
+        if (!text.trim()) {
+          console.error(`[ai-coach] Normal turn (stop_reason=${claudeResponse.stop_reason}) ended with empty text (turn ${turn}).`);
+          send("final", {
+            reply: "That didn't come through with anything to say — ask me again and I'll pick it back up.",
+            recommendations, programAction, blocks, suggestedReplies,
+          });
+          return;
         }
 
         console.log(`[ai-coach] DONE in ${Date.now() - startedAt}ms after ${turn + 1} turn(s)`);
-        return json({ reply: text, recommendations, programAction });
+        send("final", { reply: text, recommendations, programAction, blocks, suggestedReplies });
+        return;
       }
 
       messages.push({ role: "assistant", content: claudeResponse.content });
@@ -294,14 +440,18 @@ serve(async (req: Request) => {
           continue;
         }
         try {
+          send("stage", stageForTool(block.name, (block.input as Record<string, unknown>) ?? {}));
           const toolStart = Date.now();
           const result = await tool.handler(userClient, block.input ?? {});
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
           if (block.name === "recommend_test") recommendations.push(result);
+          if (block.name === "attach_stat_bars" || block.name === "attach_steps") blocks.push(result);
+          if (block.name === "suggest_replies") suggestedReplies = (result as { replies: string[] }).replies;
           if (
             block.name === "propose_new_program" ||
             block.name === "propose_end_program" ||
-            block.name === "propose_delete_week"
+            block.name === "propose_delete_week" ||
+            block.name === "propose_program_from_workouts"
           ) {
             programAction = await buildProgramAction(userClient, block.name, block.input ?? {});
           }
@@ -322,23 +472,22 @@ serve(async (req: Request) => {
     // Turn budget exhausted. This used to return a bare 500 with no `reply`,
     // which the client surfaced as nothing at all — the athlete watched a
     // long pause and then got silence, with no way to know what happened or
-    // what to do. Return 200 with a real reply instead: any work that DID
-    // complete (a recommendation, a proposal card) still reaches them, and
-    // the message tells them how to get unstuck. Logged as an error so this
-    // stays visible as a bug to fix, not a normal path.
+    // what to do. Send a final event with a real reply instead: any work
+    // that DID complete (a recommendation, a proposal card) still reaches
+    // them, and the message tells them how to get unstuck. Logged as an
+    // error so this stays visible as a bug to fix, not a normal path.
     console.error(
       `[ai-coach] Hit MAX_TOOL_TURNS (${MAX_TOOL_TURNS}) without a final reply. ` +
       `Last tool calls likely looping — check whether search_exercises is being ` +
       `called one-at-a-time instead of batched via \`queries\`.`
     );
-    return json({
+    send("final", {
       reply:
         "That took more steps than I could finish in one go — I didn't want to leave you hanging without saying so. Ask me again and I'll go straight at it; if it was a full program, telling me the split you want (e.g. \"4 days, pull/legs/push/weighted\") gets me there in one pass.",
       recommendations,
       programAction,
+      blocks,
+      suggestedReplies,
     });
-  } catch (err) {
-    console.error("[ai-coach] Unhandled error:", err);
-    return json({ error: err instanceof Error ? err.message : "Internal Server Error" }, 500);
-  }
+  });
 });

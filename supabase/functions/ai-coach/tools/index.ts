@@ -9,6 +9,14 @@ import { appendWeek } from "./appendWeek.ts";
 import { adjustProgram } from "./adjustProgram.ts";
 import { addBlockToWeek } from "./addBlockToWeek.ts";
 import { recommendTest } from "./recommendTest.ts";
+import { searchWorkouts } from "./searchWorkouts.ts";
+import { getWorkoutDetail } from "./getWorkoutDetail.ts";
+import { proposeProgramFromWorkouts } from "./proposeProgramFromWorkouts.ts";
+import { replaceBlockExercises } from "./replaceBlockExercises.ts";
+import { getProgramStructure } from "./getProgramStructure.ts";
+import { attachStatBars } from "./attachStatBars.ts";
+import { attachSteps } from "./attachSteps.ts";
+import { suggestReplies } from "./suggestReplies.ts";
 
 // Adding tool #N later: write the file (schema + handler), import it here,
 // add it to this array. Nothing else in the edge function changes — the
@@ -33,6 +41,14 @@ export const TOOLS: ToolDefinition[] = [
   adjustProgram,
   addBlockToWeek,
   recommendTest,
+  searchWorkouts,
+  getWorkoutDetail,
+  proposeProgramFromWorkouts,
+  replaceBlockExercises,
+  getProgramStructure,
+  attachStatBars,
+  attachSteps,
+  suggestReplies,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDefinition> = Object.fromEntries(

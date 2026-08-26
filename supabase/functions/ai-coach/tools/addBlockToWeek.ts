@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds } from "./blockHelpers.ts";
+import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
 // Fills the gap neither append_week (only ever writes a brand-new week
 // number) nor adjust_program (only UPDATEs exercises already in a block,
@@ -20,6 +20,11 @@ export const addBlockToWeek: ToolDefinition = {
     required: ["warrior_program_id", "week_number", "blocks"],
   },
   handler: async (userClient, input) => {
+    // Not day-complete by requirement here either — this adds one or more
+    // supplementary blocks to a week that already has its own Warm-Up/
+    // Cool-Down; a single added block (e.g. "add a Skills block") is not
+    // itself a whole day. Empty blocks are still rejected.
+    validateBlockStructure((input.blocks as never[]) ?? [], { requireDayPhases: false });
     const idMap = await resolveExerciseIds(userClient, (input.blocks as never[]) ?? []);
     const blocks = transformBlocksForInsert(input.blocks as never[], idMap);
     const { data, error } = await userClient.rpc("ai_coach_add_block_to_week", {

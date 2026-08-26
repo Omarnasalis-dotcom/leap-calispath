@@ -34,6 +34,120 @@ export function isUuid(value: unknown): value is string {
   return typeof value === "string" && UUID_RE.test(value);
 }
 
+// Same "DAY {n} | {name}" split every consumer of program_blocks.name uses
+// (see transformBlocksForInsert below) — resolves whichever of
+// name/day_name/block_name the model actually sent into a (day, phase) pair
+// for grouping, without requiring day_name/block_name specifically.
+function getBlockParts(block: ClaudeBlock): { day: string; phase: string } {
+  if (block.day_name) {
+    return { day: block.day_name.trim(), phase: (block.block_name ?? block.name ?? "").trim() };
+  }
+  const combined = (block.name ?? block.block_name ?? "").trim();
+  const pipeIndex = combined.indexOf("|");
+  if (pipeIndex === -1) return { day: combined || "?", phase: combined };
+  return { day: combined.slice(0, pipeIndex).trim(), phase: combined.slice(pipeIndex + 1).trim() };
+}
+
+// Real bug found live (2026-08-26): the model left blocks with zero
+// exercises and whole days missing Warm-Up/Cool-Down. Prompt wording alone
+// did not hold up in practice, so this is enforced here — same
+// pre-flight-reject-with-a-clear-message pattern as resolveExerciseIds,
+// so a violation surfaces as a tool error the model can see and fix in the
+// same turn, never a card that renders incomplete.
+//
+// `requireDayPhases` only applies to propose_new_program: it defines whole
+// new days from scratch, so every day needs both phases. append_week and
+// add_block_to_week send deliberately partial block sets (carry-forward,
+// one supplementary block) where this would be a false positive — the
+// empty-block check alone still applies to them.
+const MIN_WARMUP_COOLDOWN_EXERCISES = 3;
+
+// The empty-list and duplicate-name checks, factored out so
+// replaceBlockExercises.ts (4.4) — which edits one block's flat exercise
+// list in isolation, with no day_name/block_name/metadata to derive a
+// phase from — can run the same two checks validateBlockStructure runs
+// per-block below, instead of silently allowing the exact bug class
+// already found live in the other three write tools (a swap that empties
+// a block, or a substitution that duplicates the old exercise instead of
+// replacing it).
+export function validateExerciseList(
+  exercises: ClaudeBlock["exercises"],
+  label: string
+): void {
+  if ((exercises ?? []).length === 0) {
+    throw new Error(`"${label}" would have no exercises. A block's exercise list can't be emptied out — every block needs at least one.`);
+  }
+  const seenNames = new Map<string, number>();
+  (exercises ?? []).forEach((ex, i) => {
+    const key = (ex.name ?? ex.exercise_id ?? "").trim().toLowerCase();
+    if (!key) return;
+    if (seenNames.has(key)) {
+      throw new Error(
+        `"${label}" lists "${ex.name ?? ex.exercise_id}" twice (positions ${seenNames.get(key)! + 1} and ${i + 1}). If you swapped an exercise and this block already had the replacement, remove the duplicate instead of adding a second entry — pick a genuinely different substitute if that exercise is already being trained here.`
+      );
+    }
+    seenNames.set(key, i);
+  });
+}
+
+export function validateBlockStructure(
+  blocks: ClaudeBlock[],
+  opts: { requireDayPhases: boolean }
+): void {
+  for (const block of blocks ?? []) {
+    const isRest = block.metadata?.focus_tag === "REST";
+    const exercises = block.exercises ?? [];
+    const { day, phase } = getBlockParts(block);
+
+    if (!isRest) {
+      validateExerciseList(exercises, `${day} | ${phase}`);
+    }
+
+    // Found live: a 1-2 exercise Warm-Up/Cool-Down is not a real warm-up —
+    // applies whenever one of these is actually sent (any tool), never a
+    // false positive against carry-forward since an omitted block never
+    // reaches here at all.
+    const phaseLower = phase.toLowerCase();
+    if ((phaseLower === "warm-up" || phaseLower === "cool-down") && exercises.length < MIN_WARMUP_COOLDOWN_EXERCISES) {
+      throw new Error(
+        `"${day} | ${phase}" has only ${exercises.length} exercise(s) — a real Warm-Up/Cool-Down needs at least ${MIN_WARMUP_COOLDOWN_EXERCISES} (4-5 is the real target). Add more before resending.`
+      );
+    }
+
+    // Found live: a ladder block with no reps means the athlete has nothing
+    // to log — ladder_start/ladder_sub only drive the preview subtitle,
+    // nothing reads them back into a per-set target during actual logging.
+    if (block.metadata?.structure === "ladder") {
+      const missingReps = exercises.some((ex) => ex.reps === undefined || ex.reps === null || String(ex.reps).trim() === "");
+      if (missingReps) {
+        throw new Error(
+          `"${day} | ${phase}" is a ladder block with an exercise missing reps. Every exercise needs reps even in a ladder — use the block's ladder_start value.`
+        );
+      }
+    }
+  }
+
+  if (!opts.requireDayPhases) return;
+
+  const byDay = new Map<string, { phases: Set<string>; allRest: boolean }>();
+  for (const block of blocks ?? []) {
+    const { day, phase } = getBlockParts(block);
+    const entry = byDay.get(day) ?? { phases: new Set<string>(), allRest: true };
+    entry.phases.add(phase.toLowerCase());
+    entry.allRest = entry.allRest && block.metadata?.focus_tag === "REST";
+    byDay.set(day, entry);
+  }
+  for (const [day, entry] of byDay) {
+    if (entry.allRest) continue;
+    const missing = ["warm-up", "cool-down"].filter((p) => !entry.phases.has(p));
+    if (missing.length > 0) {
+      throw new Error(
+        `"${day}" is missing a ${missing.map((m) => (m === "warm-up" ? "Warm-Up" : "Cool-Down")).join(" and ")} block — every day needs both, non-negotiable. Add it and resend the whole program.`
+      );
+    }
+  }
+}
+
 // Resolve exercise NAMES to real library ids, server-side.
 //
 // Why names and not ids: routing UUIDs through the model was expensive and
@@ -139,7 +253,7 @@ export async function resolveExerciseIds(
 // completely untouched. Anything unparseable becomes NULL rather than an
 // exception, so a stray "AMRAP" or "10-12" degrades to an empty cell
 // instead of destroying the whole write.
-function toIntOrNull(value: unknown): number | null {
+export function toIntOrNull(value: unknown): number | null {
   if (value === null || value === undefined) return null;
   if (typeof value === "number") return Number.isFinite(value) ? Math.trunc(value) : null;
   if (typeof value !== "string") return null;
@@ -147,6 +261,28 @@ function toIntOrNull(value: unknown): number | null {
   if (trimmed === "") return null;
   const parsed = parseInt(trimmed, 10);
   return Number.isNaN(parsed) ? null : parsed;
+}
+
+// Shared by transformBlocksForInsert below and replaceBlockExercises.ts
+// (4.4) — the latter replaces one block's exercise list in isolation, with
+// no block-level name/notes/CONCEPT wrapper to build, just this same
+// per-exercise id-resolution + numeric-field normalization.
+export function transformExercisesForInsert(
+  exercises: ClaudeBlock["exercises"],
+  idMap: Map<string, string>
+): Record<string, unknown>[] {
+  return (exercises ?? []).map((ex) => ({
+    // Server-resolved id wins over anything the model supplied. A
+    // model-written id is only trusted when no name was given at all.
+    exercise_id: idMap.get((ex.name ?? "").trim().toLowerCase()) ?? ex.exercise_id,
+    sets: toIntOrNull(ex.sets),
+    reps: toIntOrNull(ex.reps),
+    rest_seconds: toIntOrNull(ex.rest_seconds),
+    hold_seconds: toIntOrNull(ex.hold_seconds),
+    is_weighted: ex.is_weighted ?? false,
+    notes: ex.notes,
+    order_index: toIntOrNull(ex.order_index) ?? 0,
+  }));
 }
 
 export function transformBlocksForInsert(
@@ -167,18 +303,7 @@ export function transformBlocksForInsert(
       notes,
       order_index: toIntOrNull(block.order_index) ?? 0,
       week_number: toIntOrNull(block.week_number) ?? 1,
-      exercises: (block.exercises ?? []).map((ex) => ({
-        // Server-resolved id wins over anything the model supplied. A
-        // model-written id is only trusted when no name was given at all.
-        exercise_id: idMap.get((ex.name ?? "").trim().toLowerCase()) ?? ex.exercise_id,
-        sets: toIntOrNull(ex.sets),
-        reps: toIntOrNull(ex.reps),
-        rest_seconds: toIntOrNull(ex.rest_seconds),
-        hold_seconds: toIntOrNull(ex.hold_seconds),
-        is_weighted: ex.is_weighted ?? false,
-        notes: ex.notes,
-        order_index: toIntOrNull(ex.order_index) ?? 0,
-      })),
+      exercises: transformExercisesForInsert(block.exercises, idMap),
     };
   });
 }
@@ -268,7 +393,7 @@ export const BLOCKS_SCHEMA = {
           tabata_rounds: { type: "integer", description: "Required when timing_system is tabata." },
           is_tier_trial: {
             type: "boolean",
-            description: "Optional — set true only on a block that's genuinely trial-prep (the athlete practicing their actual next-tier trial movements/sequence).",
+            description: "Almost never used — leave false/omitted. Setting this true replaces the ENTIRE block with a bare \"Start Official Trial\" button in the app; every exercise you wrote in this block becomes invisible to the athlete, permanently, not just during a preview. A trial-prep block (practising next_trial's real movements) is written as a completely normal block with real exercises/sets/reps and this field left false — the trial-relevant content is what you write, not this flag.",
           },
         },
         required: ["timing_system", "structure", "focus_tag", "is_weighted"],
@@ -282,7 +407,7 @@ export const BLOCKS_SCHEMA = {
             name: { type: "string", description: "REQUIRED. The exact library name, e.g. \"Pull Ups (Normal Grip)\". The server resolves this to the real exercise id — you do not need to look up or send an id. Copy library spellings verbatim, including deliberate misspellings like \"Pesudo Push Ups\". If a name does not exist you will get an error listing near matches; substitute a real exercise and tell the athlete, never invent one." },
             exercise_id: { type: "string", description: "Not needed — omit it. `name` is resolved server-side." },
             sets: { type: "string", description: 'e.g. "3". String, not integer — matches the app\'s stored format.' },
-            reps: { type: "string", description: 'e.g. "10". String, not integer.' },
+            reps: { type: "string", description: 'e.g. "10". String, not integer. For a rep-based exercise this is required, including inside a ladder block (structure: "ladder") — the block\'s ladder_start/ladder_sub/ladder_direction describe how the round-by-round rep count changes, but nothing else in the app reads that back into a rep target during logging, so put the block\'s ladder_start value here (the starting rep count); never leave reps blank on a rep-based exercise just because the block has a ladder. Does NOT apply to a hold-based exercise (a stretch, a plank, any static hold) — that exercise has hold_seconds instead and reps is correctly omitted, never set to "1" as a placeholder.' },
             rest_seconds: { type: "string", description: 'e.g. "60", or "0" inside a circuit/superset. Omit the field entirely if rest does not apply — do not send an empty string.' },
             hold_seconds: { type: "string", description: 'e.g. "30" for a static hold. Omit the field entirely for anything that is not a timed hold — do not send an empty string.' },
             is_weighted: { type: "boolean", description: "The source of truth for whether THIS exercise uses external load — independent of the block-level is_weighted." },

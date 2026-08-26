@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { BLOCKS_SCHEMA, resolveExerciseIds } from "./blockHelpers.ts";
+import { BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
 // Replaces the old create_program entirely — there is no tool left that
 // writes a new program directly. This only signals a proposed action back
@@ -24,6 +24,10 @@ export const proposeNewProgram: ToolDefinition = {
     required: ["name", "blocks", "reason"],
   },
   handler: async (userClient, input) => {
+    // Same reasoning as resolveExerciseIds below: reject here, as a tool
+    // error the model can see and fix in this same turn, rather than
+    // surfacing after the athlete already tapped Start on an incomplete card.
+    validateBlockStructure((input.blocks as never[]) ?? [], { requireDayPhases: true });
     // Resolve here so an unknown exercise name comes back as a tool error the
     // model can fix in this same turn, rather than surfacing after the athlete
     // has already tapped Start on a card that looked complete.

@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds } from "./blockHelpers.ts";
+import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
 export const appendWeek: ToolDefinition = {
   name: "append_week",
@@ -20,6 +20,11 @@ export const appendWeek: ToolDefinition = {
     required: ["warrior_program_id", "blocks"],
   },
   handler: async (userClient, input) => {
+    // Day-completeness (requireDayPhases) does NOT apply here — carry-forward
+    // means a day's Warm-Up/Cool-Down legitimately being absent from THIS
+    // call (unchanged from last week) is correct, not a bug. A block that
+    // IS sent still can't be empty, though.
+    validateBlockStructure((input.blocks as never[]) ?? [], { requireDayPhases: false });
     const idMap = await resolveExerciseIds(userClient, (input.blocks as never[]) ?? []);
     const blocks = transformBlocksForInsert(input.blocks as never[], idMap);
     const { data, error } = await userClient.rpc("ai_coach_append_week", {

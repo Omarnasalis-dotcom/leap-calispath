@@ -102,19 +102,27 @@ month" requests, is unresolved — see decision 3.
 
 ## PHASE 2 — Author the library *(the long pole — not engineering)*
 
-- [ ] **2.1** Define the matrix. Minimum coverage:
+- [ ] **2.1** Define the matrix. **Correction (found writing Phase 6):** `category` has no DB CHECK
+      constraint — the real, enforced set is defined only by admin-web's `CATEGORY_VALUES` and the
+      browsing UI's filter chips (confirmed against real screenshots): `PULL`, `PUSH`, `LEGS`,
+      `CORE`, `FULL_BODY`. The table below originally listed `SKILLS`/`CONDITIONING` as if they were
+      categories — they aren't; a workout imported with either would be accepted (no constraint
+      stops it) but invisible to every filter chip AND to `search_workouts` (`CATEGORIES` in
+      `tools/searchWorkouts.ts` only accepts the real 5). Skill/conditioning focus is expressed via
+      `goal_tags` (`muscle_up`/`handstand`/etc./`conditioning`) on a real category, never as the
+      category itself. Minimum coverage, corrected:
 
   | Focus | beginner | intermediate | advanced |
   |---|---|---|---|
   | PULL | ✓ | ✓ | ✓ |
   | PUSH | ✓ | ✓ | ✓ |
   | LEGS | ✓ | ✓ | ✓ |
+  | CORE | ✓ | ✓ | ✓ |
   | FULL_BODY | ✓ | ✓ | ✓ |
-  | SKILLS | ✓ | ✓ | ✓ |
-  | CONDITIONING | ✓ | ✓ | ✓ |
 
-  **18 minimum.** Plus goal variants on PULL/PUSH (muscle-up prep, handstand prep) ≈ **26 to launch**,
-  ~40 to feel rich. Currently: **3** (corrected count — all three PUSH-focused, so real coverage today is one cell out of eighteen, not five).
+  **15 minimum.** Plus goal-tagged variants (muscle-up/handstand/front-lever/back-lever/pistol,
+  each on the real category its skill line lives under per §8) ≈ **20-22 to launch**, ~35 to feel
+  rich. Currently: **3** (all three PUSH-focused — one cell out of fifteen has real coverage).
 
 - [ ] **2.2** Every workout must be a complete day — Warm-Up → (Mobility) → (Skills) → Strength →
       Accessories → (Finisher) → Cool-Down. A day missing a cool-down will be prescribed as-is.
@@ -125,98 +133,186 @@ month" requests, is unresolved — see decision 3.
 
 ---
 
-## PHASE 3 — Blocker RPCs
+## PHASE 3 — Blocker RPCs ✅ DONE 2026-08-26
 
 *Both are mandatory. Without 3.1 the flow fails on first test; without 3.2 the coach cannot remove
 an exercise an athlete should not be doing.*
 
-- [ ] **3.1** `ai_coach_create_program_from_workouts(p_workout_ids uuid[])`
-      - Clone of `create_custom_program_from_workouts`, but `coach_id = …0002` (AI COACH), not
-        `…0001` (LEAP)
+Migration: `supabase/migrations/20260826010000_add_ai_coach_workout_library_blocker_rpcs.sql`.
+Written locally, not yet deployed — `supabase db push` still pending explicit go-ahead.
+
+- [x] **3.1** `ai_coach_create_program_from_workouts(p_workout_ids uuid[])`
+      - Clone of `create_custom_program_from_workouts`'s **current** body (20260822060000, which
+        rewrote the block-cloning query — the 20260822040000 original it was first added in is
+        stale). Caught empirically: a first draft cloned the superseded single-block-per-workout
+        version; replaying the full real migration chain locally surfaced the mismatch before
+        it shipped. `coach_id = …0002` (AI COACH), not `…0001` (LEAP).
       - **Why:** every `ai_coach_*` write RPC guards `IF v_coach_id != v_ai_profile_id RAISE
         'Not authorized'`. A library-built program owned by `…0001` would **assign fine and then
         reject every edit**, and `get_user_context` would report `is_ai_coach_owned: false`.
-      - Keep the paywall check (`is_free = false AND NOT v_is_pro` → hard error)
-      - Rate limit: 2/day, kind `create_program`
-- [ ] **3.2** `ai_coach_replace_block_exercises(p_warrior_program_id, p_block_id, p_exercises jsonb)`
+      - Paywall check kept (`is_free = false AND NOT v_is_pro` → hard error)
+      - Rate limit: 2/day, kind `create_program` (shared counter with `ai_coach_create_program`)
+- [x] **3.2** `ai_coach_replace_block_exercises(p_warrior_program_id, p_block_id, p_exercises jsonb)`
       - Replaces one block's exercise list wholesale → closes **add**, **remove**, **reorder**
-      - Same ownership guard; verify `block_id` belongs to this program's template
-      - Reuses `append_week`'s existing "reuse the name, exercises fully replaced" semantic
+      - Same ownership guard; verifies `block_id` belongs to this program's template
+      - Delete-then-insert inside the function's own transaction — a bad `exercise_id` anywhere
+        in the list rolls back the whole call rather than leaving the block half-emptied
       - Rate limit: 10/day, new kind `replace_block`
-- [ ] **3.3** Extend the `ai_coach_requests.kind` CHECK constraint for `replace_block`
-      (dynamic DO-block pattern, same as `20260823030000`)
-- [ ] **3.4** Verify each locally against a throwaway Postgres before `db push` — including the
-      **ownership rejection** path and the paywall path
+- [x] **3.3** Extended the `ai_coach_requests.kind` CHECK constraint for `replace_block`
+      (dynamic DO-block pattern, same as `20260823040000`)
+- [x] **3.4** Verified locally: replayed all 181 real migration files end-to-end against a
+      throwaway `postgresql@18` instance (Docker was down), stubbing only Supabase-platform
+      pieces the migrations assume exist (`auth.uid()`/`auth.jwt()`, `storage.buckets`/`objects`,
+      `cron.schedule`) and skipping 4 unavailable dev-tooling extensions (hypopg, index_advisor,
+      pg_net, pg_cron) plus one seed-data migration that references prod-only exercise ids — none
+      of which the new functions touch. Confirmed empirically: happy path for both RPCs (including
+      as the `authenticated` role, proving the `GRANT` actually takes effect, not just assumed);
+      `coach_id` on the resulting `warrior_programs` row is `…0002` (the actual bug this RPC
+      exists to fix); correct per-block cloning (3 `program_blocks` rows, correct `DAY N | name`
+      naming) for a 2-workout, 3-block selection; paywall rejection; nonexistent-workout
+      rejection; draft/unpublished-workout rejection; 7-day cap; both rate limits (2/day and
+      10/day) tripping on the exact next call; ownership rejection against a real human coach's
+      program; `block_id`/program mismatch rejection; and the rollback-on-bad-`exercise_id` path
+      (block's original exercise list is untouched after a rejected call, not partially applied).
 
 ---
 
-## PHASE 4 — Tools
+## PHASE 4 — Tools ✅ DONE 2026-08-26
 
-- [ ] **4.1** `search_workouts({focus, difficulty?, goal_tag?, tier?})`
+Files: `tools/searchWorkouts.ts`, `tools/getWorkoutDetail.ts`,
+`tools/proposeProgramFromWorkouts.ts`, `tools/replaceBlockExercises.ts`,
+registered in `tools/index.ts`; `index.ts`'s `buildProgramAction` gained a
+`create_from_workouts` branch. `deno check` clean — the 16 pre-existing
+`getUserContext.ts` errors (untyped `.rpc().single()` result) are
+unrelated and unchanged; zero new errors. No mobile changes in this phase
+(that's Phase 5) so `tsc`/`npm test` weren't re-run.
+
+**4.7 (added later, during Phase 6 prep, not originally scoped here):**
+`tools/getProgramStructure.ts` — see the §9.1 note below for why. Without
+it, neither `adjust_program` nor `replace_block_exercises` had a real
+source for the ids they require.
+
+- [x] **4.1** `search_workouts({focus, difficulty?, goal_tag?, tier?})`
       → `[{id, title, focus, difficulty, duration_minutes, block_names[]}]`, limit ~8
       - **Must filter `is_free` for non-Pro athletes** — otherwise the assignment hard-errors at tap
         time, after the athlete already confirmed every day
       - Must filter `kind='workout' AND status='published'` (same as the RPC's own guard)
       - Lean payload: no full exercise lists here
-- [ ] **4.2** `get_workout_detail(workout_id)` → full blocks + exercises for the **one** the AI picked,
+      - **`tier`/`goal_tag` narrow ranked results, they never hard-filter to empty.** Query
+        broadest-first (category + free/pro only), then rank by tier/goal proximity —
+        an exact tier/goal match ranks first, but a near-miss still comes back rather
+        than an empty result. This is what makes §6.2's "pick the nearest and say so
+        plainly" possible — a hard `WHERE tier_min <= x AND tier_max >= x` filter would
+        make the AI come back empty-handed on a thin library instead, which is the
+        over-strict outcome we're explicitly avoiding (see Adapt step, 4.4/6.3 — the
+        real customization to the athlete happens after the match, not via the filter).
+- [x] **4.2** `get_workout_detail(workout_id)` → full blocks + exercises for the **one** the AI picked,
       so it can judge fit and present it accurately
-- [ ] **4.3** `propose_program_from_workouts({workout_ids[], name, reason})` — non-write signal tool,
+- [x] **4.3** `propose_program_from_workouts({workout_ids[], name, reason})` — non-write signal tool,
       same propose/confirm pattern as today
-- [ ] **4.4** `replace_block_exercises({warrior_program_id, block_id, exercises[]})` — wraps 3.2
-- [ ] **4.5** Register all in `tools/index.ts`
-- [ ] **4.6** Keep `search_exercises` — still needed for swap targets in `adjust_program`
+- [x] **4.4** `replace_block_exercises({warrior_program_id, block_id, exercises[]})` — wraps 3.2
+- [x] **4.5** Registered all in `tools/index.ts`
+- [x] **4.6** Kept `search_exercises` — still needed for swap targets in `adjust_program`
 
 ---
 
-## PHASE 5 — Client (`CoachScreen.tsx`)
+## PHASE 5 — Client (`CoachScreen.tsx`) ✅ DONE 2026-08-26
 
-- [ ] **5.1** Extend `ProgramAction.type` with `'create_from_workouts'` + `workoutIds: string[]`
-- [ ] **5.2** Card rendering branch — title, reason, the day titles being assigned
-- [ ] **5.3** Confirm handler → `ai_coach_create_program_from_workouts`
-- [ ] **5.4** `refreshProfile()` on success (existing pattern)
-- [ ] **5.5** Reuse the existing card component — no new UI system
+`buildProgramAction` (index.ts) was extended too, beyond this phase's original scope: the plan
+asked for day titles on the card, but the tool only ever had workout ids to send — added a
+trusted server-side title lookup (same pattern as `warriorProgramId`/`currentProgramIsAiOwned`)
+so the card never has to guess or make a second round trip. `npx tsc --noEmit` and `npm test`
+both clean (143/143).
 
----
-
-## PHASE 6 — Prompt rewrite
-
-- [ ] **6.1** Replace §11 BUILD A PROGRAM with the match-and-adapt flow (below)
-- [ ] **6.2** Add rules: never propose a workout the athlete cannot access; when nothing matches,
-      pick the nearest and **say so plainly** — never silently generate
-- [ ] **6.3** Add the adapt vocabulary: `adjust_program` for swap/rescale,
-      `replace_block_exercises` for add/remove
-- [ ] **6.4** Delete §18 SESSION TEMPLATES *(the library now carries house style)* and shrink §15
-      splits to day-ordering guidance only
-- [ ] **6.5** Keep unchanged: safety, skill lines, tier/trial facts, Arabic cues, weekly review
-      analysis, statelessness, Rule One
-- [ ] **6.6** Target: prompt should get **shorter**, not longer
+- [x] **5.1** Extended `ProgramAction.type` with `'create_from_workouts'` + payload
+      `{ name, workoutIds, dayTitles }`
+- [x] **5.2** Card rendering branch — title, reason, day-by-day title list, confirm/ignore buttons,
+      coach-owned-program warning (shared with `'create'`)
+- [x] **5.3** Confirm handler → `ai_coach_create_program_from_workouts`
+- [x] **5.4** `refreshProfile()` on success — falls through to the existing shared call, no new code
+      needed
+- [x] **5.5** Reused the existing card component — no new UI system
 
 ---
 
-## PHASE 7 — Cleanup
+## PHASE 6 — Prompt rewrite ✅ DONE 2026-08-26
 
-- [ ] **7.1** Retire `propose_new_program` + its generation path — **or** keep behind a flag as the
-      no-coverage fallback *(open decision 9.4)*
-- [ ] **7.2** If retired: `BLOCKS_SCHEMA`'s CONCEPT metadata block is only needed by `append_week`
-      and `add_block_to_week` — keep it, but drop the propose-specific descriptions
-- [ ] **7.3** **Keep** `resolveExerciseIds`, `transformBlocksForInsert`, `toIntOrNull` — still used
-      by `append_week` / `add_block_to_week` for week 2+
-- [ ] **7.4** Remove the now-unused `name` passthrough on exercises if generation is retired
-- [ ] **7.5** Re-check for orphan tool files (`tools/index.ts` registration audit — currently clean)
-- [ ] **7.6** Keep the turn/token instrumentation — it is how we verify Phase 8 targets
+Two real bugs found and fixed while writing this, not just prose changes:
+
+1. **Category matrix was wrong.** `category` has no DB CHECK constraint — the real, enforced set
+   (admin-web `CATEGORY_VALUES`, the browsing UI's filter chips, `searchWorkouts.ts`'s
+   `CATEGORIES`) is `PULL`/`PUSH`/`LEGS`/`CORE`/`FULL_BODY`. Phase 2's original matrix (§2.1) listed
+   `SKILLS`/`CONDITIONING` as if they were categories — they aren't; that table is now corrected.
+   §15 now tells the AI explicitly how to translate a skill-named split day into a real
+   (category, goal_tag) pair, which the matrix confusion would otherwise have made impossible.
+2. **`adjust_program`'s id source was fabricated.** Both its own tool schema and this plan's §9.1
+   step 12 said `block_exercise_id` comes from `get_workout_logs` — it never has, since
+   `get_warrior_progress` never puts that id in its output and only returns anything once sets are
+   logged. `adjust_program` has had no working input source since it shipped, pre-dating this
+   rebuild entirely. Added `get_program_structure` (Phase 4.7, see above) as the real, verified
+   fix, and corrected every prompt/tool-schema reference that pointed at the old, wrong source.
+
+- [x] **6.1** Replaced §11 with the match-clone-adapt flow: decide split day-focuses (§15) → per
+      day, `search_workouts` → `get_workout_detail` → present as text → athlete confirms/edits →
+      repeat → one assembly tool once every day is confirmed → `get_program_structure` for real
+      ids → apply every held edit with `adjust_program`/`replace_block_exercises`.
+- [x] **6.2** `search_workouts` itself never hard-filters to empty (Phase 4 design) — §11 tells the
+      AI to present the nearest ranked result and say plainly what doesn't fit; only a genuinely
+      **empty** result (real today — most categories have zero content until Phase 2 finishes)
+      falls back to `propose_new_program` for that day, and if any day needed that, the whole
+      program goes through `propose_new_program` rather than mixing tools.
+- [x] **6.3** Added: `adjust_program` for swap/rescale, `replace_block_exercises` for add/remove,
+      both sourced from `get_program_structure` now (see bug #2).
+- [x] **6.4** §18 SESSION TEMPLATES deleted outright; §15 shrunk to day-ordering + the new
+      category/goal_tag translation rule (a required addition, not just a trim, per bug #1).
+      Sections renumbered 18→20 with every cross-reference (§3, §9, §11, §12) updated to match.
+- [x] **6.5** Kept unchanged: §5 safety, §8 skill lines, §7 tier/trial facts, §18 (was §19) Arabic
+      cues, §12 step 2 weekly-review analysis, §2 statelessness (extended, not altered), §1 Rule
+      One (extended with the new tools, not altered).
+- [x] **6.6** Prompt body grew ~6% (28.8K → 30.4K chars) despite deleting §18 outright — a new
+      four-tool architecture and two real bug fixes needed real prose. Trimmed where redundant
+      (see file); did not chase the target at the cost of leaving a known-wrong instruction in.
+      `deno check` clean throughout (same 16 pre-existing, unrelated `getUserContext.ts` errors).
 
 ---
 
-## PHASE 8 — Verify and ship
+## PHASE 7 — Cleanup ✅ DONE 2026-08-26
 
-- [ ] **8.1** Run the eval suite (§10) — all 18 must pass
-- [ ] **8.2** Confirm latency against the instrumentation logs, not by feel:
-      **no single turn over ~5 s**
-- [ ] **8.3** Confirm cost per build ≤ 3¢ from the logged token counts
-- [ ] **8.4** Enable `ai_coach_enabled` for admin accounts only
-- [ ] **8.5** Real end-to-end test on a fresh account
-- [ ] **8.6** Staged enable to Pro users
-- [ ] **8.7** Then and only then, remove the legacy path (7.1)
+Nothing to remove — decision 4 (above) resolved to **keep** the generation path, which makes 7.2/7.4
+not-applicable by their own "if retired" wording. Everything else re-checked and confirmed:
+
+- [x] **7.1** Kept `propose_new_program` as the explicit no-coverage fallback — see decision 4.
+- [x] **7.2** N/A (not retired) — `BLOCKS_SCHEMA` unchanged.
+- [x] **7.3** Confirmed still used: `resolveExerciseIds`/`transformBlocksForInsert`/`toIntOrNull` all
+      still called from `append_week`/`add_block_to_week`, and `toIntOrNull` was exported and reused
+      by the new `transformExercisesForInsert` (Phase 4) rather than duplicated.
+- [x] **7.4** N/A (not retired) — the `name` passthrough is still load-bearing.
+- [x] **7.5** Orphan audit: every file in `tools/*.ts` (15, excluding `index.ts`/`types.ts`/
+      `blockHelpers.ts`/`trialData.ts`) has a matching entry in `TOOLS[]`, 1:1, nothing orphaned.
+- [x] **7.6** Turn/tool timing instrumentation (`logTurn`, per-tool `console.log`) confirmed intact
+      in `index.ts`, untouched by Phases 3-6.
+
+---
+
+## PHASE 8 — Verify and ship *(partial — the rest needs a real conversation, see below)*
+
+Migration `20260826010000` and the edge function (all Phase 3-6 code — new RPCs, 5 new/changed
+tools, the rewritten prompt) are both **deployed to prod** as of 2026-08-26. Confirmed live, not
+assumed: the new RPC now rejects with `"Must be authenticated"` instead of PGRST202 "not found",
+and the function upload listed every current tool file including the 5 new ones.
+
+- [x] **8.4** Already true by the existing Phase 0 design, not a new step: `ai_coach_enabled` is
+      `false` on both platforms in prod right now (checked live), and admin/coach accounts bypass
+      that in code regardless of the flag — so today's real state already is "admin-only," with
+      nothing further to flip.
+- [ ] **8.1 / 8.2 / 8.3 / 8.5** Need a real conversation against the live deployment — I have no
+      way to produce one myself without either flipping `ai_coach_enabled` prod-wide (declined:
+      that's real exposure to real users, not mine to trigger without being asked) or an
+      already-bypassed account's session, which only exists in the app. **This is exactly what
+      your clean-environment test provides** — nothing left for me to do until then.
+- [ ] **8.6** Staged enable to Pro users — a rollout decision, after 8.1-8.5 pass, not before.
+- [x] **8.7** N/A — depends on 7.1, which resolved to *keep* the legacy path (decision 4), not
+      retire it.
 
 ---
 
@@ -237,13 +333,25 @@ an exercise an athlete should not be doing.*
 | 9 | AI | `propose_program_from_workouts([id1, id2])` → card |
 | 10 | Athlete | Taps START |
 | 11 | Client | `ai_coach_create_program_from_workouts` → clone, AI-owned |
-| 12 | AI | `get_workout_logs` → real `block_exercise_id`s of the clone |
+| 12 | AI | `get_program_structure` → real `block_id`/`block_exercise_id`s of the clone |
 | 13 | AI | Apply held edits: `adjust_program` (swap/rescale) or `replace_block_exercises` (add/remove) |
 
 **Gap closed — how edits survive to step 13.** The AI is stateless between turns, so an edit
 requested at step 7 exists only as *visible chat text*. That text **does** persist (it is the
 conversation), so the AI re-reads it at step 13. The `block_exercise_id`s do **not** exist until
 step 11, which is exactly why edits are applied after assignment, never before.
+
+**A real bug found writing this phase, not just a doc fix.** Step 12 originally said
+`get_workout_logs`, and `adjust_program`'s own tool schema agreed — both wrong. `get_warrior_progress`
+(what `get_workout_logs` wraps) never puts `block_exercise_id` in its output at all, and it only
+returns anything once sets are *logged*, so it could never have supplied ids for a just-cloned,
+unlogged program either. `adjust_program` has apparently had no working source for its own required
+input since it shipped. Added `get_program_structure` (new tool, `tools/getProgramStructure.ts`) —
+a plain RLS-scoped read of `program_blocks`/`block_exercises` for one week, returning real `block_id`/
+`block_exercise_id` regardless of logging status. Verified empirically on a throwaway Postgres: the
+warrior can read their own AI-owned program's blocks/exercises (real ids returned), a different
+warrior gets zero rows (not an error) for the same query — RLS isolation confirmed, not assumed.
+`adjust_program`/`replace_block_exercises`'s tool descriptions updated to point at it instead.
 
 ### 9.2 Weekly review → next week
 Unchanged. `get_workout_logs` → analysis → comparison → confirm → `append_week` with **only changed
@@ -311,7 +419,12 @@ All unchanged. Already working.
 2. ~~Fixed 20 kg~~ — **RESOLVED, already live before this doc's last revision.** "Standard starting
    point," progressed from `weight_used` like any other weighted work, never a fixed number.
 3. **Multi-week programs** — support "write me a month", or one week + review loop?
-4. **Keep generation as a no-coverage fallback**, or remove entirely? *(drives 7.1)*
+4. ~~Keep generation as a no-coverage fallback, or remove entirely?~~ — **RESOLVED 2026-08-26: kept.**
+   Decided while writing §11 (Phase 6), not as a separate step — content is real but still thin
+   (most categories had zero coverage until today), so `propose_new_program` stays as the explicit
+   fallback for a focus `search_workouts` returns nothing for. Revisit removing it once Phase 2's
+   matrix (§2.1, corrected) has real coverage in every cell — until then it will fire often, by
+   design, not as a bug.
 5. **`coach_week_note`** cross-week memory — worth its SECURITY DEFINER write path?
 6. **Library ownership** — can coaches publish workouts the AI may prescribe, or admin only?
 7. **Should `add_block_to_week` accept a library `workout_id`** so "add a day" also pulls from the

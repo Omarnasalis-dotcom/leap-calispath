@@ -4,7 +4,7 @@ import { isUuid } from "./blockHelpers.ts";
 export const adjustProgram: ToolDefinition = {
   name: "adjust_program",
   description:
-    "Make a targeted, in-place change to one or more specific exercises, identified by block_exercise_id (from get_workout_logs) — works on any already-written week, not just the current one. Not a new week (append_week's job) and not a new program (propose_new_program's job). Use for a single issue: swap an exercise causing pain, bump/reduce sets or reps, adjust rest. Only works on an AI Coach-owned program.",
+    "Make a targeted, in-place change to one or more specific exercises, identified by block_exercise_id (from get_program_structure — call it first, every time, never reuse an id from an earlier turn) — works on any already-written week, not just the current one. Not a new week (append_week's job) and not a new program (propose_new_program's job). Use for a single issue: swap an exercise causing pain, bump/reduce sets or reps, adjust rest. Only works on an AI Coach-owned program.",
   input_schema: {
     type: "object",
     properties: {
@@ -14,7 +14,7 @@ export const adjustProgram: ToolDefinition = {
         items: {
           type: "object",
           properties: {
-            block_exercise_id: { type: "string", description: "From get_workout_logs's block/exercise data" },
+            block_exercise_id: { type: "string", description: "From get_program_structure — never guessed, remembered, or reused across turns." },
             sets: { type: "integer" },
             reps: { type: "integer" },
             rest_seconds: { type: "integer" },
@@ -32,7 +32,7 @@ export const adjustProgram: ToolDefinition = {
     const changes = (input.changes as Array<{ block_exercise_id?: unknown; new_exercise_id?: unknown }>) ?? [];
     for (const change of changes) {
       if (!isUuid(change.block_exercise_id)) {
-        throw new Error(`block_exercise_id "${change.block_exercise_id}" is not a real ID — it must come from get_workout_logs's block/exercise data, not be guessed or constructed.`);
+        throw new Error(`block_exercise_id "${change.block_exercise_id}" is not a real ID — it must come from get_program_structure, not be guessed or constructed.`);
       }
       if (change.new_exercise_id !== undefined && !isUuid(change.new_exercise_id)) {
         throw new Error(`new_exercise_id "${change.new_exercise_id}" is not a real exercise ID — it looks like a name, not a search_exercises result. Call search_exercises first.`);
