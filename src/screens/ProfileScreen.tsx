@@ -20,6 +20,7 @@ import { FloatingGamesButton } from '../components/FloatingGamesButton';
 import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
+import { CoachFab } from '../components/coach/CoachFab';
 import { TierRankCard } from '../components/profile/TierRankCard';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
@@ -31,7 +32,6 @@ import { StrengthWorldView } from '../components/profile/StrengthWorldView';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { BlurView } from 'expo-blur';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
@@ -106,7 +106,10 @@ export function ProfileScreen({
 
   const onOpenClash = showV2Popup;
   const onOpenTournamentArena = showV2Popup;
-  const onOpenCoach = () => router.push(canAccessPro(profile, paywallEnabled) ? '/coach' : '/paywall');
+  const onOpenCoach = (firstPrompt?: string) => {
+    if (!canAccessPro(profile, paywallEnabled)) { router.push('/paywall'); return; }
+    router.push(firstPrompt ? { pathname: '/coach', params: { firstPrompt } } : '/coach');
+  };
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
   const onOpenWarriorProgram = () => router.push('/warrior-program');
   const onOpenAdmin = () => router.push('/admin-tournament');
@@ -380,8 +383,6 @@ export function ProfileScreen({
     }
   }, [activeCurrentTier]);
 
-  const [showCoachPrompt, setShowCoachPrompt] = useState(false);
-
   if (!profile) {
     return <ProfileSkeleton />;
   }
@@ -466,7 +467,6 @@ export function ProfileScreen({
                 oneMMPbs={oneMMPbs}
                 weeklyStats={weeklyStats}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
-                onShowCoachPrompt={() => setShowCoachPrompt(true)}
                 onOpenAdmin={onOpenAdmin}
                 onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
@@ -632,49 +632,10 @@ export function ProfileScreen({
           onWraScopeChange={handleWraScopeChange}
         />
 
-        {/* AI COACH PROMPT MODAL */}
-        <Modal
-          visible={showCoachPrompt}
-          transparent
-          animationType="fade"
-          onRequestClose={() => setShowCoachPrompt(false)}
-        >
-          <View style={styles.coachPromptOverlay}>
-            <BlurView intensity={20} tint="dark" style={StyleSheet.absoluteFill} />
-            <View style={[styles.coachPromptCard, { backgroundColor: theme.card.background, borderColor: theme.accent + '40' }]}>
-              <View style={[styles.coachPromptIconCircle, { backgroundColor: theme.accent + '15' }]}>
-                <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
-              </View>
-
-              <Text style={[styles.coachPromptTitle, { color: theme.text.primary }]}>LEAP COACH</Text>
-              <Text style={[styles.coachPromptText, { color: theme.text.secondary }]}>
-                Want to ask coach LEAP for guidance?
-              </Text>
-
-              <View style={styles.coachPromptButtons}>
-                <TouchableOpacity
-                  style={[styles.coachPromptBtn, styles.coachPromptBtnSecondary]}
-                  onPress={() => setShowCoachPrompt(false)}
-                >
-                  <Text style={[styles.coachPromptBtnText, { color: theme.text.tertiary }]}>NOT NOW</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={[styles.coachPromptBtn, { backgroundColor: theme.accent }]}
-                  onPress={() => {
-                    setShowCoachPrompt(false);
-                    onOpenCoach?.();
-                  }}
-                >
-                  <Text style={[styles.coachPromptBtnText, { color: '#000' }]}>ASK LEAP</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
-          </View>
-        </Modal>
-
         {/* EDIT PROFILE MODAL */}
         <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
+
+        <CoachFab profile={profile} canAccessCoach={canAccessPro(profile, paywallEnabled)} onOpenCoach={onOpenCoach} />
 
       </View>
       </WorldBackground>
@@ -753,68 +714,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 15,
     letterSpacing: 1.5,
-  },
-  coachPromptOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.6)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 24,
-  },
-  coachPromptCard: {
-    width: '100%',
-    maxWidth: 340,
-    borderRadius: 24,
-    padding: 32,
-    alignItems: 'center',
-    borderWidth: 1,
-    elevation: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 10 },
-    shadowOpacity: 0.5,
-    shadowRadius: 20,
-  },
-  coachPromptIconCircle: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 20,
-  },
-  coachPromptTitle: {
-    fontSize: 18,
-    fontWeight: '900',
-    letterSpacing: 2,
-    marginBottom: 8,
-    fontFamily: 'PlusJakartaSans-Bold',
-  },
-  coachPromptText: {
-    fontSize: 14,
-    textAlign: 'center',
-    marginBottom: 32,
-    lineHeight: 20,
-    opacity: 0.8,
-  },
-  coachPromptButtons: {
-    flexDirection: 'row',
-    gap: 12,
-    width: '100%',
-  },
-  coachPromptBtn: {
-    flex: 1,
-    paddingVertical: 14,
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  coachPromptBtnSecondary: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  coachPromptBtnText: {
-    fontSize: 12,
-    fontWeight: '900',
-    letterSpacing: 1,
   },
   warriorInfoList: {
     marginTop: 20,
