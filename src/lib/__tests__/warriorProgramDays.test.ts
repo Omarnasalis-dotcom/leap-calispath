@@ -5,6 +5,7 @@ import {
   estimateSessionMinutes,
   countMovements,
   isWarmUpBlock,
+  inferBlockAccent,
 } from '../warriorProgramDays';
 import { ProgramBlock, ProgramDay, ExerciseDetail } from '../../types/warriorProgram';
 
@@ -136,5 +137,26 @@ describe('isWarmUpBlock', () => {
   test('does not match other block names', () => {
     expect(isWarmUpBlock(block('Strength', []))).toBe(false);
     expect(isWarmUpBlock(block('Cool-Down', []))).toBe(false);
+  });
+});
+
+describe('inferBlockAccent', () => {
+  test('maps the 5 real block-name conventions to their design-spec accent colors', () => {
+    expect(inferBlockAccent('Warm-Up').color).toBe('#C9A227');
+    expect(inferBlockAccent('Skills').color).toBe('#8b5cf6');
+    expect(inferBlockAccent('Strength').color).toBe('#FC5454');
+    expect(inferBlockAccent('Accessories').color).toBe('#f97316');
+    expect(inferBlockAccent('Cool-Down').color).toBe('#5b8def');
+  });
+
+  test('is case-insensitive and works on partial/compound names', () => {
+    expect(inferBlockAccent('cool down').color).toBe('#5b8def');
+    expect(inferBlockAccent('COOLDOWN STRETCH').color).toBe('#5b8def');
+    expect(inferBlockAccent('Strength - 1').color).toBe('#FC5454');
+  });
+
+  test('unrecognized block names fall back to coral, per the design spec', () => {
+    expect(inferBlockAccent('Mobility Flow').color).toBe('#FC5454');
+    expect(inferBlockAccent('').color).toBe('#FC5454');
   });
 });

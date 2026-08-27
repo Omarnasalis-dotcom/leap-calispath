@@ -30,7 +30,6 @@ import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator 
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
-import { WorkoutProgressButton } from '../../components/coaching/WorkoutProgressButton';
 import { SetLogEntry } from '../../components/coaching/SetRow';
 import { Feel } from '../../components/coaching/FeelRpePicker';
 import { NotificationService } from '../../services/NotificationService';
@@ -38,7 +37,7 @@ import { MissedReason } from '../../components/coaching/MissedReasonPicker';
 import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
-import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, isWarmUpBlock } from '../../lib/warriorProgramDays';
+import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent } from '../../lib/warriorProgramDays';
 import { DayCardList } from '../../components/coaching/DayCardList';
 
 function getStartOfIsoWeek(date: Date): Date {
@@ -325,6 +324,19 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     });
     return () => sub.remove();
   }, [screenPhase]);
+
+  // Day Blocks design: never open on all-closed cards — default to the
+  // first unfinished block (falling back to the first block if every block
+  // is already settled) each time the athlete enters 'running' for a given
+  // day. Deliberately not re-run on every block-status change within the
+  // same day (that would re-collapse whatever the athlete has open after
+  // every log), only when the phase/day itself changes.
+  useEffect(() => {
+    if (screenPhase !== 'running' || !activeDay) return;
+    const target = activeDay.blocks.find((b) => b.completedStatus === 'none') || activeDay.blocks[0];
+    setExpandedBlocks(target ? { [target.id]: true } : {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [screenPhase, activeDayIndex, activeWeek]);
 
 
   // Main loader for assigned program and completion state
@@ -1063,17 +1075,33 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   };
 
 
+  // Day Blocks design: exactly one block open at a time — tapping the open
+  // one collapses it, tapping any other replaces which one is open (never
+  // more than one, and closing the only open one is fine, matches the
+  // design's own "tapping the open one collapses it" behavior).
   const toggleBlockExpanded = (blockId: string | number) => {
-    setExpandedBlocks(prev => ({
-      ...prev,
-      [blockId]: !prev[blockId]
-    }));
+    setExpandedBlocks(prev => (prev[blockId] ? {} : { [blockId]: true }));
   };
 
   const handleToggleVideo = (exerciseId: string | number, url: string) => {
     if (!url) return;
     setActiveVideoExerciseId(prev => (prev === exerciseId ? null : exerciseId));
   };
+
+  // Day Blocks header — derived from progress, never hardcoded (design
+  // handoff §1.1). Reuses deriveDayStates (already built for the day-list
+  // view) applied to a single-day array instead of a second implementation.
+  const runnerDayState = activeDay ? deriveDayStates([activeDay])[0] : null;
+  const runnerDayBadgeLabel = runnerDayState
+    ? runnerDayState.status === 'done' ? 'COMPLETE' : runnerDayState.status === 'in_progress' ? 'IN PROGRESS' : 'NOT STARTED'
+    : 'NOT STARTED';
+  const runnerNextBlock = activeDay?.blocks.find((b) => b.completedStatus === 'none') || null;
+  const runnerNextBlockIndex = runnerNextBlock ? activeDay!.blocks.indexOf(runnerNextBlock) + 1 : null;
+  const runnerFooterLabel = !runnerDayState || runnerDayState.progressPct === 0 || !runnerNextBlockIndex
+    ? 'START WORKOUT'
+    : `RESUME BLOCK ${runnerNextBlockIndex}`;
+  const runnerOpenBlockId = Object.keys(expandedBlocks).find((k) => expandedBlocks[k]);
+  const runnerOpenBlock = activeDay?.blocks.find((b) => String(b.id) === runnerOpenBlockId) || null;
 
   return (
     <GlobalErrorBoundary>
@@ -1083,20 +1111,54 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       enabled={Platform.OS !== 'web'}
     >
       {screenPhase === 'running' && activeDay ? (
-        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
-          {/* Compact header — the branded LEAP PROGRAM header only makes
-              sense for the top-level day list, not while running a session. */}
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 16 }}>
-            <TouchableOpacity onPress={() => setScreenPhase('list')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-              <MaterialCommunityIcons name="chevron-left" size={26} color={theme.text.primary} />
-            </TouchableOpacity>
-            <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 1, color: theme.text.primary, flexShrink: 1 }} numberOfLines={1}>
-              {activeDay.name.toUpperCase()}
-            </Text>
+        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: 140 }]} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
+          {/* Day Blocks header (design handoff §1.1): back chevron, title,
+              a progress-derived state badge, meta line, percent, and a
+              per-block tick bar — never hardcoded, all read from the same
+              progress source as the day-list view. */}
+          <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+              <TouchableOpacity onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <MaterialCommunityIcons name="chevron-left" size={20} color="#8a8a8a" />
+              </TouchableOpacity>
+              <View style={{ flex: 1 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <Text style={dbRunnerStyles.title} numberOfLines={1}>{activeDay.name.toUpperCase()}</Text>
+                  <View
+                    style={[
+                      dbRunnerStyles.stateBadge,
+                      runnerDayBadgeLabel === 'NOT STARTED'
+                        ? { backgroundColor: 'rgba(255,255,255,.04)', borderColor: '#221c1c' }
+                        : { backgroundColor: 'rgba(252,84,84,.12)', borderColor: '#3a1d1d' },
+                    ]}
+                  >
+                    <Text style={{ color: runnerDayBadgeLabel === 'NOT STARTED' ? '#7a7a7a' : '#FC5454', fontSize: 7.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.3 }}>
+                      {runnerDayBadgeLabel}
+                    </Text>
+                  </View>
+                </View>
+                <Text style={dbRunnerStyles.metaLine} numberOfLines={1}>
+                  {activeDay.blocks.length} BLOCKS · {countMovements(activeDay)} MOVEMENTS · ~{estimateSessionMinutes(activeDay)} MIN
+                </Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={dbRunnerStyles.percentValue}>
+                  {runnerDayState?.progressPct ?? 0}<Text style={dbRunnerStyles.percentSign}>%</Text>
+                </Text>
+                <Text style={dbRunnerStyles.percentLabel}>COMPLETE</Text>
+              </View>
+            </View>
+            <View style={dbRunnerStyles.tickBar}>
+              {activeDay.blocks.map((b) => {
+                const tickColor = b.completedStatus === 'missed' ? '#2e2626' : b.completedStatus === 'completed' ? inferBlockAccent(b.name).color : '#191515';
+                return <View key={b.id} style={[dbRunnerStyles.tick, { backgroundColor: tickColor }]} />;
+              })}
+            </View>
           </View>
           {/* BLOCKS / WORKOUTS LIST — unchanged from before this screen had
               phases, just no longer glued directly under the day carousel. */}
-          <View style={{ gap: 16, paddingBottom: 100 }}>
+          <View style={{ gap: 16 }}>
             {(activeDay.blocks || []).map((block: ProgramBlock, index: number) => {
               // Blocks are no longer gated behind completing the previous
               // one in order — a warrior can log any block whenever they
@@ -1107,6 +1169,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 <WarriorBlockCard
                   key={block.id}
                   block={block}
+                  index={index}
                   isExpanded={!!expandedBlocks[block.id]}
                   theme={theme}
                   mode={mode as "light" | "dark"}
@@ -1130,17 +1193,42 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
               );
             })}
 
-            {blocksTotalCount > 0 && (
-              <WorkoutProgressButton
-                theme={theme}
-                blocksCompleted={blocksCompletedCount}
-                blocksTotal={blocksTotalCount}
-                isAddressed={isWorkoutAddressed}
-                onPress={handleWorkoutDonePress}
-              />
-            )}
           </View>
         </ScrollView>
+
+        {/* Sticky footer (design handoff §1.4): outlined rest-timer button
+            (opens the currently-open block's own timer — same
+            startTimerForBlock the Tabata "START TIMER" action inside the
+            block already uses) + the primary CTA. The primary CTA covers
+            two real, pre-existing behaviors: opening/resuming the next
+            unaddressed block while work remains, and — once every block is
+            addressed — handing off to the same handleWorkoutDonePress flow
+            the old WorkoutProgressButton triggered (session-complete
+            stats), so nothing that worked before is lost. */}
+        {blocksTotalCount > 0 && (
+          <View style={dbRunnerStyles.footer} pointerEvents="box-none">
+            <TouchableOpacity
+              style={[dbRunnerStyles.restBtn, !runnerOpenBlock && { opacity: 0.35 }]}
+              disabled={!runnerOpenBlock}
+              onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
+            >
+              <MaterialCommunityIcons name="clock-outline" size={20} color="#EDEDED" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={dbRunnerStyles.primaryBtn}
+              onPress={() => {
+                if (isWorkoutAddressed) { handleWorkoutDonePress(); return; }
+                const target = runnerNextBlock || activeDay.blocks[0];
+                if (target) setExpandedBlocks({ [target.id]: true });
+              }}
+            >
+              <Text style={dbRunnerStyles.primaryBtnText}>
+                {isWorkoutAddressed ? 'FINISH SESSION' : runnerFooterLabel}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        )}
+        </View>
       ) : (
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
         {/* HEADER BAR */}
@@ -1398,6 +1486,38 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     </GlobalErrorBoundary>
   );
 }
+
+// Day Blocks design tokens (assets/design_handoff_workout_runner) — fixed
+// dark palette, same choice already made across the rest of the Training
+// Center flow, independent of the app's own light/dark theme toggle.
+const dbRunnerStyles = StyleSheet.create({
+  backBtn: {
+    width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: '#221c1c',
+    backgroundColor: 'rgba(255,255,255,.02)', alignItems: 'center', justifyContent: 'center', marginTop: 2,
+  },
+  title: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-SemiBold', fontSize: 20, letterSpacing: 1.4 },
+  stateBadge: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
+  metaLine: { color: '#6d6d6d', fontFamily: 'Barlow-Regular', fontSize: 10, marginTop: 3 },
+  percentValue: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 19 },
+  percentSign: { color: '#5a5a5a', fontSize: 10 },
+  percentLabel: { color: '#4a4a4a', fontFamily: 'Barlow-Regular', fontSize: 7.5, letterSpacing: 1.5, marginTop: 1 },
+  tickBar: { flexDirection: 'row', gap: 4, marginTop: 12 },
+  tick: { flex: 1, height: 3, borderRadius: 2 },
+  footer: {
+    position: 'absolute', left: 20, right: 20, bottom: 26,
+    flexDirection: 'row', gap: 10, alignItems: 'center',
+  },
+  restBtn: {
+    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: '#241f1f',
+    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.6)',
+  },
+  primaryBtn: {
+    flex: 1, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#FC5454',
+    shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 30, elevation: 8,
+  },
+  primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.9 },
+});
 
 const styles = StyleSheet.create({
   container: {

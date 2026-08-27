@@ -1,9 +1,11 @@
 import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { ProgramBlock, ExerciseDetail } from '../../types/warriorProgram';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
+import { inferBlockAccent, estimateSessionMinutes } from '../../lib/warriorProgramDays';
 import { WarriorExerciseRow } from './WarriorExerciseRow';
 import { SetRow, SetLogEntry } from './SetRow';
 import { CircuitRoundCard } from './CircuitRoundCard';
@@ -12,8 +14,52 @@ import { AmrapInlineTimer } from './AmrapInlineTimer';
 import { ForTimeInlineTimer, ForTimeResult } from './ForTimeInlineTimer';
 import { InlineVideoPlayer } from './InlineVideoPlayer';
 
+// Design handoff (assets/design_handoff_workout_runner, "Day Blocks"):
+// fixed dark palette regardless of the app's own light/dark theme toggle,
+// same choice already made for the rest of the Training Center flow
+// (TrainingCenterScreen, CustomizeProgramScreen, QuickWorkoutScreen).
+const DB = {
+  cardOpenBg: '#0b0909',
+  cardOpenBgEnd: '#090808',
+  cardClosedBg: '#0d0b0b',
+  cardClosedBgEnd: '#090808',
+  borderClosed: '#1b1717',
+  borderDim: '#171313',
+  skippedRail: '#2e2626',
+  textPrimary: '#FFFFFF',
+  textDim: '#8a8a8a',
+  textFaint: '#7a7a7a',
+  textMuted: '#6d6d6d',
+  divider: '#221c1c',
+  chipBg: 'rgba(255,255,255,.02)',
+  chipBorder: '#1d1919',
+  chipBorderDim: '#171313',
+  chipText: '#8a8a8a',
+  chipTextDim: '#4a4444',
+  rowBg: 'rgba(255,255,255,.018)',
+};
+
+function hex(color: string, alpha: number): string {
+  const r = parseInt(color.slice(1, 3), 16);
+  const g = parseInt(color.slice(3, 5), 16);
+  const b = parseInt(color.slice(5, 7), 16);
+  return `rgba(${r},${g},${b},${alpha})`;
+}
+
+function schemeLabel(block: ProgramBlock, isAmrap: boolean, isForTime: boolean, isLadder: boolean): string {
+  const timingSystem = block.metadata?.timing_system;
+  if (isAmrap) return 'AMRAP';
+  if (isForTime) return 'FOR TIME';
+  if (timingSystem === 'tabata') return 'TABATA';
+  if (isLadder) return 'LADDER';
+  const usesHolds = block.exercises.length > 0 && block.exercises.every((ex) => !!ex.hold_seconds && !ex.reps);
+  return usesHolds ? 'HOLDS' : 'STRAIGHT SETS';
+}
+
 interface WarriorBlockCardProps {
   block: ProgramBlock;
+  /** 1-indexed position within the day's block list — shown on the index plate. */
+  index: number;
   isExpanded: boolean;
   theme: any;
   mode: 'light' | 'dark';
@@ -37,6 +83,7 @@ interface WarriorBlockCardProps {
 
 export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   block,
+  index,
   isExpanded,
   theme,
   mode,
@@ -114,6 +161,22 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
     ? fixedTrialTier
     : currentTierNum;
 
+  // Day Blocks design: one accent color per block "type", inferred from
+  // the block's own name (see inferBlockAccent's comment — no structured
+  // type field exists to key off instead).
+  const isDone = block.completedStatus === 'completed';
+  const skipped = block.completedStatus === 'missed';
+  const dim = isDone || skipped;
+  const accent = inferBlockAccent(block.name);
+  const railColor = skipped ? DB.skippedRail : accent.color;
+  const scheme = schemeLabel(block, isAmrap, isForTime, isLadder);
+  const estMinutes = estimateSessionMinutes({ name: block.name, blocks: [block] });
+  const stateLabel = isDone ? 'DONE' : skipped ? 'SKIPPED' : isExpanded ? 'OPEN' : '';
+  const previewChips = block.exercises.slice(0, 3).map((ex, i) => ({
+    key: String(ex.id),
+    label: i === 2 && block.exercises.length > 3 ? `+${block.exercises.length - 2} MORE` : ex.name.toUpperCase(),
+  }));
+
   return (
     <View style={{ gap: 12 }}>
     {activeVideoExercise && (
@@ -156,18 +219,23 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
       ) : (
         <View
           style={[
-            styles.blockCard,
+            styles.dbCard,
             {
-              backgroundColor: solidCardBg,
-              borderWidth: 0,
-              borderRadius: 11,
-              marginBottom: 0
-            }
+              borderColor: isExpanded ? hex(accent.color, 0.32) : dim ? DB.borderDim : DB.borderClosed,
+              opacity: skipped ? 0.45 : isDone ? 0.66 : 1,
+            },
           ]}
         >
+          <LinearGradient
+            colors={isExpanded ? [hex(accent.color, 0.07), DB.cardOpenBg, DB.cardOpenBgEnd] : [DB.cardClosedBg, DB.cardClosedBgEnd]}
+            style={StyleSheet.absoluteFillObject}
+            pointerEvents="none"
+          />
+          <View style={[styles.dbRail, { backgroundColor: railColor, opacity: isExpanded ? 1 : dim ? 0.4 : 0.6 }]} />
+
           {/* Collapsible Block Header */}
           <TouchableOpacity
-            style={[styles.blockHeader, { borderBottomColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, borderBottomWidth: isExpanded ? 1 : 0 }]}
+            style={styles.dbHeaderRow}
             onPress={() => {
               if (isExpanded && hasActiveTimedSession) {
                 Alert.alert(
@@ -183,93 +251,91 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               toggleBlockExpanded(block.id);
             }}
           >
+            {/* Index plate — also the quick DONE toggle (tap to mark done /
+                undo), same handleOpenLogging('completed')/handleToggleBlockStatus
+                logic as before, just moved here from a separate square button
+                to match the design's index-plate-as-status treatment. */}
+            <TouchableOpacity
+              disabled={isTogglingStatus || isLocked}
+              onPress={(e) => {
+                e.stopPropagation();
+                if (isDone) handleToggleBlockStatus(block.id, 'none');
+                else handleOpenLogging(block.id, 'completed');
+              }}
+              style={[
+                styles.dbIndexPlate,
+                {
+                  borderColor: isExpanded ? hex(accent.color, 0.38) : '#1e1a1a',
+                  backgroundColor: isExpanded ? hex(accent.color, 0.12) : 'rgba(255,255,255,.02)',
+                  opacity: (isTogglingStatus || isLocked) ? 0.4 : 1,
+                },
+              ]}
+            >
+              <Text style={{ color: skipped ? '#5a5a5a' : (isDone || isExpanded) ? accent.color : DB.textFaint, fontSize: 14, fontFamily: 'BarlowCondensed-Bold', fontWeight: '700' }}>
+                {skipped ? '–' : isDone ? '✓' : String(index + 1)}
+              </Text>
+            </TouchableOpacity>
+
             <View style={{ flex: 1, paddingRight: 8 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={{ fontSize: 12, color: theme.text.secondary }}>{isExpanded ? '▼' : '▶'}</Text>
-                <Text style={[styles.blockName, { color: theme.text.primary, fontSize: 16 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                <Text style={[styles.dbTitle, { color: dim ? DB.textDim : DB.textPrimary, textDecorationLine: skipped ? 'line-through' : 'none' }]}>
                   {block.name.toUpperCase()}
                 </Text>
                 {isLocked && <Text style={{ fontSize: 13 }}>🔒</Text>}
+                {!!stateLabel && (
+                  <View style={[styles.dbStateChip, { backgroundColor: isExpanded ? hex(accent.color, 0.16) : 'rgba(255,255,255,.04)' }]}>
+                    <Text style={{ color: isExpanded ? accent.color : DB.textFaint, fontSize: 7, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.2 }}>{stateLabel}</Text>
+                  </View>
+                )}
               </View>
-              {!isExpanded && (
-                <Text style={{ color: theme.text.tertiary, fontSize: 11, marginTop: 4, fontFamily: 'BarlowCondensed-Bold' }} numberOfLines={1}>
-                  {isLocked
-                    ? 'COMPLETE THE PREVIOUS BLOCK TO UNLOCK'
-                    : BlockConceptParser.getSubtitle(block.metadata || {}, block.exercises.map((ex: ExerciseDetail) => ex.name.toUpperCase()))}
-                </Text>
+              <View style={styles.dbMetaRow}>
+                <Text style={[styles.dbSchemeText, { color: dim ? '#4a4a4a' : accent.color }]} numberOfLines={1}>{scheme}</Text>
+                <View style={styles.dbDivider} />
+                <Text style={styles.dbMetaText} numberOfLines={1}>{block.exercises.length} MOVES</Text>
+                <View style={styles.dbDivider} />
+                <Text style={styles.dbMetaText} numberOfLines={1}>~{estMinutes} MIN</Text>
+              </View>
+              {!isExpanded && previewChips.length > 0 && (
+                <View style={styles.dbChipRow}>
+                  {previewChips.map((c) => (
+                    <View key={c.key} style={[styles.dbPreviewChip, { borderColor: dim ? DB.chipBorderDim : DB.chipBorder }]}>
+                      <Text style={[styles.dbPreviewChipText, { color: dim ? DB.chipTextDim : DB.chipText }]} numberOfLines={1}>{c.label}</Text>
+                    </View>
+                  ))}
+                </View>
               )}
             </View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-              {/* DONE — marking a block done opens the log modal so the warrior
-                  fills in feel/RPE (and can't complete it with no detail at all);
-                  tapping DONE again on an already-completed block is just an
-                  instant undo back to unlogged, which stays a quick toggle.
-                  Requires the block to be unlocked either way, since completing
-                  it implies actually doing the work. */}
-              <TouchableOpacity
-                style={{
-                  width: 40,
-                  height: 32,
-                  borderRadius: 6,
-                  borderWidth: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: (isTogglingStatus || isLocked) ? 0.4 : 1,
-                  backgroundColor: block.completedStatus === 'completed' ? 'rgba(76,175,80,0.15)' : 'transparent',
-                  borderColor: block.completedStatus === 'completed' ? '#4CAF50' : theme.card.border,
-                }}
-                disabled={isTogglingStatus || isLocked}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  if (block.completedStatus === 'completed') {
-                    handleToggleBlockStatus(block.id, 'none');
-                  } else {
-                    handleOpenLogging(block.id, 'completed');
-                  }
-                }}
-              >
-                {block.completedStatus === 'completed' && (
-                  <Text style={{ color: '#4CAF50', fontSize: 16, fontWeight: 'bold' }}>✓</Text>
-                )}
-              </TouchableOpacity>
 
-              {/* SKIP — marking a block missed opens the log modal (as 'missed')
-                  so the warrior can give a reason instead of it being logged
-                  with none. Always tappable, even while locked, so a warrior
-                  can skip past a block instead of being stuck on it — the
-                  modal open itself bypasses the lock check the same way the
-                  old quick-toggle always did. Tapping SKIP again on an
-                  already-missed block is an instant undo, same as DONE. */}
-              <TouchableOpacity
-                style={{
-                  width: 40,
-                  height: 32,
-                  borderRadius: 6,
-                  borderWidth: 1,
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: isTogglingStatus ? 0.4 : 1,
-                  backgroundColor: block.completedStatus === 'missed' ? 'rgba(255,107,107,0.15)' : 'transparent',
-                  borderColor: block.completedStatus === 'missed' ? '#FF6B6B' : theme.card.border,
-                }}
-                disabled={isTogglingStatus}
-                onPress={(e) => {
-                  e.stopPropagation();
-                  if (block.completedStatus === 'missed') {
-                    handleToggleBlockStatus(block.id, 'none');
-                  } else {
-                    handleOpenLogging(block.id, 'missed');
-                  }
-                }}
-              >
-                <Text style={{ color: block.completedStatus === 'missed' ? '#FF6B6B' : theme.text.tertiary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>SKIP</Text>
-              </TouchableOpacity>
+            <View style={{ alignItems: 'flex-end', gap: 8 }}>
+              {!isDone && (
+                <TouchableOpacity
+                  disabled={isTogglingStatus}
+                  onPress={(e) => {
+                    e.stopPropagation();
+                    if (skipped) handleToggleBlockStatus(block.id, 'none');
+                    else handleOpenLogging(block.id, 'missed');
+                  }}
+                  style={{ opacity: isTogglingStatus ? 0.4 : 1 }}
+                >
+                  <Text style={{ color: skipped ? accent.color : '#4a4444', fontSize: 8.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.4 }}>
+                    {skipped ? 'UNDO' : 'SKIP'}
+                  </Text>
+                </TouchableOpacity>
+              )}
+              <MaterialCommunityIcons
+                name="chevron-down"
+                size={20}
+                color={DB.textDim}
+                style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
+              />
             </View>
           </TouchableOpacity>
 
-          {/* Block Content (Expandable) */}
+          {/* Block Content (Expandable) — dbHeaderRow above supplies its own
+              padding (13/17 left), this needs the matching horizontal inset
+              itself since the old shared blockCard padding wrapper is gone. */}
           {isExpanded && (
-            <View style={{ paddingTop: 16 }}>
+            <View style={{ paddingTop: 2, paddingHorizontal: 13, paddingBottom: 13 }}>
               {/* Structure Badge */}
               <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 12 }}>
                 <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>
@@ -486,28 +552,87 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
 };
 
 const styles = StyleSheet.create({
-  blockCard: {
-    borderWidth: 1.2,
-    borderRadius: 12,
-    padding: 16,
-    backgroundColor: 'rgba(255, 255, 255, 0.012)',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+  // Day Blocks design tokens (assets/design_handoff_workout_runner) — see
+  // the DB constant above for the fixed-dark color palette these draw from.
+  dbCard: {
+    position: 'relative',
+    borderRadius: 18,
+    borderWidth: 1,
+    overflow: 'hidden',
   },
-  blockHeader: {
+  dbRail: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 3,
+  },
+  dbHeaderRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingBottom: 10,
-    borderBottomWidth: 1,
+    alignItems: 'flex-start',
+    gap: 12,
+    padding: 13,
+    paddingLeft: 17,
   },
-  blockName: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
-    letterSpacing: 0.8,
+  dbIndexPlate: {
+    width: 34,
+    height: 34,
+    borderRadius: 12,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  dbTitle: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 15.5,
+    letterSpacing: 1.5,
+  },
+  dbStateChip: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 5,
+  },
+  dbMetaRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+    flexWrap: 'wrap',
+  },
+  dbSchemeText: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 9,
+    letterSpacing: 1.2,
+  },
+  dbDivider: {
+    width: 1,
+    height: 9,
+    backgroundColor: DB.divider,
+  },
+  dbMetaText: {
+    color: DB.textMuted,
+    fontFamily: 'Barlow-Regular',
+    fontSize: 10,
+    letterSpacing: 0.6,
+  },
+  dbChipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  dbPreviewChip: {
+    borderWidth: 1,
+    borderRadius: 7,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    backgroundColor: DB.chipBg,
+  },
+  dbPreviewChipText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 8.5,
+    letterSpacing: 1.2,
   },
   blockNotes: {
     fontFamily: 'Barlow-Regular',

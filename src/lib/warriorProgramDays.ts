@@ -116,3 +116,34 @@ export function countMovements(day: ProgramDay): number {
 export function isWarmUpBlock(block: ProgramBlock): boolean {
   return block.name.trim().toLowerCase() === 'warm-up';
 }
+
+export interface BlockAccent {
+  color: string;
+  label: string;
+}
+
+// Day Blocks design (assets/design_handoff_workout_runner) wants one
+// accent color per block "type" — but no structured type field exists
+// anywhere in the schema (ProgramBlock only carries timing_system/
+// structure, not a category). Block names follow the real, existing
+// Warm-Up -> Skills -> Strength -> Accessories -> Cool-Down convention
+// (see supabase/migrations/20260822060000_add_standalone_workout_blocks.sql's
+// comment and the AI Coach's own block-phase validation), so the type is
+// inferred from the block's own (already-stripped, see parseBlockName)
+// name via substring match — case-insensitive, order matters (checked
+// top to bottom), coral fallback for anything unrecognized, exactly
+// matching the design's own documented fallback rule.
+const BLOCK_ACCENT_RULES: { match: string; accent: BlockAccent }[] = [
+  { match: 'warm', accent: { color: '#C9A227', label: 'WARM-UP' } },
+  { match: 'skill', accent: { color: '#8b5cf6', label: 'SKILLS' } },
+  { match: 'strength', accent: { color: '#FC5454', label: 'STRENGTH' } },
+  { match: 'accessor', accent: { color: '#f97316', label: 'ACCESSORIES' } },
+  { match: 'cool', accent: { color: '#5b8def', label: 'COOL-DOWN' } },
+];
+const FALLBACK_BLOCK_ACCENT: BlockAccent = { color: '#FC5454', label: 'WORKOUT' };
+
+export function inferBlockAccent(blockName: string): BlockAccent {
+  const normalized = (blockName || '').trim().toLowerCase();
+  const rule = BLOCK_ACCENT_RULES.find((r) => normalized.includes(r.match));
+  return rule ? rule.accent : FALLBACK_BLOCK_ACCENT;
+}
