@@ -286,7 +286,7 @@ export function TrainingCenterScreen() {
       const allLogs: HubWorkoutLog[] = allLogsRes.data || [];
 
       const weekStats = computeWeekStats(filteredBlocks, currentRawWeek, logsThisWeek);
-      const allTimeStats = computeAllTimeStats(allLogs);
+      const allTimeStats = computeAllTimeStats(filteredBlocks, allLogs);
 
       setData({
         hasActiveProgram: true,
@@ -296,7 +296,7 @@ export function TrainingCenterScreen() {
         frequencyThisWeek: weekStats.frequencyThisWeek,
         percentCompleteThisWeek: weekStats.percentCompleteThisWeek,
         sessionsLeftThisWeek: weekStats.sessionsLeftThisWeek,
-        nextUpBlockName: weekStats.nextUpBlock?.name ?? null,
+        nextUpBlockName: weekStats.nextUpDayName,
         sessionsDone: allTimeStats.sessionsDone,
         adherencePct: allTimeStats.adherencePct,
         hasHistory: allTimeStats.hasHistory,

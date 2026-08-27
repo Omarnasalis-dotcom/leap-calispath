@@ -3,6 +3,8 @@
 // the week/day math, adherence %, and sessions-left logic can be unit
 // tested without mounting any UI.
 
+import { groupRawBlocksIntoDays } from './warriorProgramDays';
+
 export interface HubBlock {
   id: string;
   name: string;
@@ -65,7 +67,10 @@ export function computeDisplayWeeks(
 }
 
 export interface HubWeekStats {
-  weekBlocks: HubBlock[];
+  /** Real session/day count this week (grouped by the "{Day} | {Block}" name
+   *  prefix — see groupRawBlocksIntoDays), not a raw block-row count. A day
+   *  with 3 blocks (Warm-Up/Strength/Cool-Down) is 1 session, not 3 — this
+   *  is the Phase 1 hub bug this function used to have. */
   frequencyThisWeek: number;
   completedThisWeek: number;
   missedThisWeek: number;
@@ -73,8 +78,8 @@ export interface HubWeekStats {
   percentCompleteThisWeek: number;
   /** Scheduled this week minus completed minus missed — never negative. */
   sessionsLeftThisWeek: number;
-  /** First not-yet-logged block this week, in order_index order, or null if none. */
-  nextUpBlock: HubBlock | null;
+  /** Name of the first not-yet-fully-logged day this week, or null if none. */
+  nextUpDayName: string | null;
 }
 
 export function computeWeekStats(
@@ -82,9 +87,8 @@ export function computeWeekStats(
   currentRawWeek: number,
   logsThisWeek: HubWorkoutLog[]
 ): HubWeekStats {
-  const weekBlocks = allFilteredBlocks
-    .filter((b) => (b.week_number ?? 1) === currentRawWeek)
-    .sort((a, b) => a.order_index - b.order_index);
+  const weekBlocks = allFilteredBlocks.filter((b) => (b.week_number ?? 1) === currentRawWeek);
+  const weekDays = groupRawBlocksIntoDays(weekBlocks);
 
   const loggedBlockIds = new Map<string, boolean>(); // block_id -> isMissed
   for (const log of logsThisWeek) {
@@ -93,31 +97,30 @@ export function computeWeekStats(
 
   let completedThisWeek = 0;
   let missedThisWeek = 0;
-  let nextUpBlock: HubBlock | null = null;
-  for (const block of weekBlocks) {
-    const logged = loggedBlockIds.get(block.id);
-    if (logged === undefined) {
-      if (!nextUpBlock) nextUpBlock = block;
-    } else if (logged) {
-      missedThisWeek += 1;
-    } else {
-      completedThisWeek += 1;
+  let nextUpDayName: string | null = null;
+  for (const day of weekDays) {
+    const statuses = day.blockIds.map((id) => loggedBlockIds.get(id));
+    const allLogged = statuses.length > 0 && statuses.every((s) => s !== undefined);
+    if (!allLogged) {
+      if (!nextUpDayName) nextUpDayName = day.dayName;
+      continue;
     }
+    if (statuses.some((s) => s === true)) missedThisWeek += 1;
+    else completedThisWeek += 1;
   }
 
-  const frequencyThisWeek = weekBlocks.length;
+  const frequencyThisWeek = weekDays.length;
   const percentCompleteThisWeek =
     frequencyThisWeek === 0 ? 0 : Math.round((completedThisWeek / frequencyThisWeek) * 100);
   const sessionsLeftThisWeek = Math.max(frequencyThisWeek - completedThisWeek - missedThisWeek, 0);
 
   return {
-    weekBlocks,
     frequencyThisWeek,
     completedThisWeek,
     missedThisWeek,
     percentCompleteThisWeek,
     sessionsLeftThisWeek,
-    nextUpBlock,
+    nextUpDayName,
   };
 }
 
@@ -128,13 +131,31 @@ export interface HubAllTimeStats {
   hasHistory: boolean;
 }
 
-export function computeAllTimeStats(allLogs: HubWorkoutLog[]): HubAllTimeStats {
+/**
+ * Day-level, not a raw workout_logs row count — a day with 3 blocks
+ * produces 3 log rows for one real session, so counting rows directly (the
+ * Phase 1 hub's original bug) triples "sessions done." A day only counts
+ * once every one of its blocks has a log; a day still mid-way through
+ * being logged isn't counted yet either direction (mirrors deriveDayStates'
+ * "today" — not resolved, not missed).
+ */
+export function computeAllTimeStats(allBlocks: HubBlock[], allLogs: HubWorkoutLog[]): HubAllTimeStats {
+  const days = groupRawBlocksIntoDays(allBlocks);
+  const loggedBlockIds = new Map<string, boolean>(); // block_id -> isMissed
+  for (const log of allLogs) {
+    if (log.block_id) loggedBlockIds.set(log.block_id, isMissedLog(log.notes));
+  }
+
   let completed = 0;
   let missed = 0;
-  for (const log of allLogs) {
-    if (isMissedLog(log.notes)) missed += 1;
+  for (const day of days) {
+    const statuses = day.blockIds.map((id) => loggedBlockIds.get(id));
+    const allLogged = statuses.length > 0 && statuses.every((s) => s !== undefined);
+    if (!allLogged) continue;
+    if (statuses.some((s) => s === true)) missed += 1;
     else completed += 1;
   }
+
   const total = completed + missed;
   return {
     sessionsDone: completed,

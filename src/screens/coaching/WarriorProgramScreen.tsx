@@ -11,6 +11,7 @@ import { View,
   Platform,
   Keyboard,
   KeyboardAvoidingView,
+  BackHandler,
   Alert } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -25,7 +26,7 @@ import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
-import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator, DayProgressBar, DayCarousel } from '../../components/coaching/WarriorProgramSections';
+import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -35,6 +36,11 @@ import { Feel } from '../../components/coaching/FeelRpePicker';
 import { NotificationService } from '../../services/NotificationService';
 import { MissedReason } from '../../components/coaching/MissedReasonPicker';
 import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
+import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, isWarmUpBlock } from '../../lib/warriorProgramDays';
+import { DayCardList } from '../../components/coaching/DayCardList';
+import { SessionDetailView } from '../../components/coaching/SessionDetailView';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -43,34 +49,6 @@ function getStartOfIsoWeek(date: Date): Date {
   d.setDate(diff);
   d.setHours(0, 0, 0, 0);
   return d;
-}
-
-
-export interface ExerciseDetail {
-  id: string | number;
-  name: string;
-  youtube_url: string;
-  sets: string | number;
-  reps: string;
-  rest_seconds: string | number;
-  hold_seconds?: string | number;
-  is_weighted?: boolean;
-  notes: string;
-}
-
-export interface ProgramBlock {
-  id: string | number;
-  name: string;
-  notes: string;
-  exercises: ExerciseDetail[];
-  completedStatus: 'completed' | 'missed' | 'none';
-  metadata?: ConceptMetadata;
-  week_number?: number;
-}
-
-export interface ProgramDay {
-  name: string;
-  blocks: ProgramBlock[];
 }
 
 interface WarriorProgramScreenProps {
@@ -96,6 +74,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [activeWeek, setActiveWeek] = useState<number>(1);
   const days = weeksData[activeWeek] || [];
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
+  // 'list' = My Active Program (week/day cards, this screen's default).
+  // 'brief' = Session Detail, reached by tapping a day's START.
+  // 'running' = the exercise-logging UI, reached by Session Detail's own
+  // START SESSION — this is exactly what used to render directly under the
+  // day carousel; only when it renders (not what it renders) changed.
+  const [screenPhase, setScreenPhase] = useState<'list' | 'brief' | 'running'>('list');
+  const activeDay = days[activeDayIndex] || null;
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string | number, boolean>>({});
   const [togglingBlockIds, setTogglingBlockIds] = useState<Record<string | number, boolean>>({});
 
@@ -327,6 +312,18 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
+  // Android hardware back steps one phase back (running -> brief -> list)
+  // instead of exiting the screen, matching the header back chevron in each
+  // phase — only 'list' falls through to the real exit.
+  useEffect(() => {
+    if (screenPhase === 'list') return;
+    const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      setScreenPhase((prev) => (prev === 'running' ? 'brief' : 'list'));
+      return true;
+    });
+    return () => sub.remove();
+  }, [screenPhase]);
+
 
   // Main loader for assigned program and completion state
   async function loadWarriorProgram() {
@@ -527,14 +524,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         const parsed = BlockConceptParser.parse(block.notes);
         const plainNotes = parsed.cleanNotes;
 
-        let dayName = block.name || '';
-        let blockName = 'Workout Routine';
-
-        if (dayName.includes(' | ')) {
-          const parts = dayName.split(' | ');
-          dayName = parts[0].trim();
-          blockName = parts.slice(1).join(' | ').trim();
-        }
+        const { dayName, blockName } = parseBlockName(block.name || '');
 
         const notesStr = loggedBlockMap.get(block.id) || '';
         const completedStatus = loggedBlockMap.has(block.id)
@@ -1090,6 +1080,75 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       enabled={Platform.OS !== 'web'}
     >
+      {screenPhase === 'brief' && activeDay ? (
+        <SessionDetailView
+          day={activeDay}
+          weekDisplayNumber={activeWeek}
+          dayIndexInWeek={activeDayIndex}
+          onLog={(blockId) => handleOpenLogModal(blockId)}
+          onStartSession={() => setScreenPhase('running')}
+          onBack={() => setScreenPhase('list')}
+        />
+      ) : screenPhase === 'running' && activeDay ? (
+        <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
+          {/* Compact header — the branded LEAP PROGRAM header only makes
+              sense for the top-level day list, not while running a session. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 16 }}>
+            <TouchableOpacity onPress={() => setScreenPhase('brief')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+              <MaterialCommunityIcons name="chevron-left" size={26} color={theme.text.primary} />
+            </TouchableOpacity>
+            <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 1, color: theme.text.primary, flexShrink: 1 }} numberOfLines={1}>
+              {activeDay.name.toUpperCase()}
+            </Text>
+          </View>
+          {/* BLOCKS / WORKOUTS LIST — unchanged from before this screen had
+              phases, just no longer glued directly under the day carousel. */}
+          <View style={{ gap: 16, paddingBottom: 100 }}>
+            {(activeDay.blocks || []).map((block: ProgramBlock, index: number) => {
+              // Blocks are no longer gated behind completing the previous
+              // one in order — a warrior can log any block whenever they
+              // want. handleWorkoutDonePress below nudges them to log any
+              // still-unaddressed blocks before finishing instead.
+              const isLocked = false;
+              return (
+                <WarriorBlockCard
+                  key={block.id}
+                  block={block}
+                  isExpanded={!!expandedBlocks[block.id]}
+                  theme={theme}
+                  mode={mode as "light" | "dark"}
+                  solidCardBg={solidCardBg}
+                  bronzeGold={bronzeGold}
+                  strengthTier={strengthTier}
+                  toggleBlockExpanded={toggleBlockExpanded}
+                  handleToggleBlockStatus={handleToggleBlockStatus}
+                  isTogglingStatus={!!togglingBlockIds[block.id]}
+                  handleOpenLogging={handleOpenLogModal}
+                  startTimerForBlock={startTimerForBlock}
+                  activeVideoExerciseId={activeVideoExerciseId}
+                  onToggleVideo={handleToggleVideo}
+                  isLocked={isLocked}
+                  loggedSetsByExercise={blockSetProgress[block.id]}
+                  onSetLogged={handleSetLogged}
+                  onLadderFinalize={handleLadderFinalize}
+                  onAmrapFinalize={handleAmrapFinalize}
+                  onForTimeFinalize={handleForTimeFinalize}
+                />
+              );
+            })}
+
+            {blocksTotalCount > 0 && (
+              <WorkoutProgressButton
+                theme={theme}
+                blocksCompleted={blocksCompletedCount}
+                blocksTotal={blocksTotalCount}
+                isAddressed={isWorkoutAddressed}
+                onPress={handleWorkoutDonePress}
+              />
+            )}
+          </View>
+        </ScrollView>
+      ) : (
       <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
         {/* HEADER BAR */}
         <View style={[styles.header, { borderBottomWidth: 0, paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 10, marginBottom: 0, justifyContent: 'center', alignItems: 'center', position: 'relative' }]}>
@@ -1177,6 +1236,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   onSelectWeek={(wNum) => {
                     setActiveWeek(wNum);
                     setActiveDayIndex(0);
+                    setScreenPhase('list');
                   }}
                   theme={theme}
                 />
@@ -1211,77 +1271,23 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                     </Text>
                   )}
                 </TouchableOpacity>
-                {/* PROGRESS STATS BAR */}
-                <DayProgressBar
-                  blocks={days[activeDayIndex]?.blocks || []}
-                  theme={theme}
-                />
-                {/* Carousel Day Navigator */}
-                <DayCarousel
+                {/* DAY LIST — completed / today / upcoming (design handoff §3);
+                    replaces the old prev/next DayCarousel pager + inline blocks
+                    list. Only the "today" card is tappable; tapping it opens
+                    Session Detail instead of jumping straight into logging. */}
+                <DayCardList
                   days={days}
-                  activeDayIndex={activeDayIndex}
-                  onPrev={() => {
-                    const newIdx = activeDayIndex - 1;
-                    setActiveDayIndex(newIdx);
+                  onStartDay={(dayIndex) => {
+                    setActiveDayIndex(dayIndex);
+                    setScreenPhase('brief');
                   }}
-                  onNext={() => {
-                    const newIdx = activeDayIndex + 1;
-                    setActiveDayIndex(newIdx);
-                  }}
-                  theme={theme}
-                  solidCardBg={solidCardBg}
-                  mode={mode}
                 />
-                {/* BLOCKS / WORKOUTS LIST */}
-                <View style={{ gap: 16, paddingBottom: 100 }}>
-                  {days.length > 0 && (days[activeDayIndex]?.blocks || []).map((block: ProgramBlock, index: number) => {
-                    // Blocks are no longer gated behind completing the previous
-                    // one in order — a warrior can log any block whenever they
-                    // want. handleWorkoutDonePress below nudges them to log any
-                    // still-unaddressed blocks before finishing instead.
-                    const isLocked = false;
-                    return (
-                      <WarriorBlockCard
-                        key={block.id}
-                        block={block}
-                        isExpanded={!!expandedBlocks[block.id]}
-                        theme={theme}
-                        mode={mode as "light" | "dark"}
-                        solidCardBg={solidCardBg}
-                        bronzeGold={bronzeGold}
-                        strengthTier={strengthTier}
-                        toggleBlockExpanded={toggleBlockExpanded}
-                        handleToggleBlockStatus={handleToggleBlockStatus}
-                        isTogglingStatus={!!togglingBlockIds[block.id]}
-                        handleOpenLogging={handleOpenLogModal}
-                        startTimerForBlock={startTimerForBlock}
-                        activeVideoExerciseId={activeVideoExerciseId}
-                        onToggleVideo={handleToggleVideo}
-                        isLocked={isLocked}
-                        loggedSetsByExercise={blockSetProgress[block.id]}
-                        onSetLogged={handleSetLogged}
-                        onLadderFinalize={handleLadderFinalize}
-                        onAmrapFinalize={handleAmrapFinalize}
-                        onForTimeFinalize={handleForTimeFinalize}
-                      />
-                    );
-                  })}
-
-                  {blocksTotalCount > 0 && (
-                    <WorkoutProgressButton
-                      theme={theme}
-                      blocksCompleted={blocksCompletedCount}
-                      blocksTotal={blocksTotalCount}
-                      isAddressed={isWorkoutAddressed}
-                      onPress={handleWorkoutDonePress}
-                    />
-                  )}
-                </View>
               </View>
             )}
           </View>
         )}
       </ScrollView>
+      )}
 
       {/* WEEKLY BODYWEIGHT CHECK-IN */}
       <BodyweightCheckInModal

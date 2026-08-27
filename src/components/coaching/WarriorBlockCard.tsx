@@ -2,7 +2,7 @@ import React, { useCallback, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useRouter } from 'expo-router';
-import { ProgramBlock, ExerciseDetail } from '../../screens/coaching/WarriorProgramScreen';
+import { ProgramBlock, ExerciseDetail } from '../../types/warriorProgram';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { WarriorExerciseRow } from './WarriorExerciseRow';
 import { SetRow, SetLogEntry } from './SetRow';
