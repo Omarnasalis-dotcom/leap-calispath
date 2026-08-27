@@ -110,6 +110,36 @@ export function countMovements(day: ProgramDay): number {
   return day.blocks.reduce((sum, b) => sum + b.exercises.length, 0);
 }
 
+/**
+ * "Next" is a visual emphasis only, not a lock (every day stays tappable —
+ * see deriveDayStates' own comment). This just picks which single card, if
+ * any, gets the loud coral "UP NEXT" treatment the Program Days design
+ * wants: the first day in the list that isn't 'done'. A day already
+ * 'in_progress' is a real candidate too — the most obviously "next" thing
+ * to finish is one you're already mid-way through. Returns null when every
+ * day is done (no card should fake a next day — see the design's own
+ * "all done" state).
+ */
+export function deriveNextDayIndex(days: ProgramDay[]): number | null {
+  const states = deriveDayStates(days);
+  const next = states.find((s) => s.status !== 'done');
+  return next ? next.index : null;
+}
+
+export interface WeekSessionSummary {
+  sessionsTotal: number;
+  sessionsDoneThisWeek: number;
+}
+
+/** "{n} sessions · {n} done this week" — done means every block in the day is logged. */
+export function summarizeWeekSessions(days: ProgramDay[]): WeekSessionSummary {
+  const states = deriveDayStates(days);
+  return {
+    sessionsTotal: days.length,
+    sessionsDoneThisWeek: states.filter((s) => s.status === 'done').length,
+  };
+}
+
 // Matches the validation convention already used elsewhere (e.g.
 // supabase/functions/ai-coach/tools/blockHelpers.ts's phase check) —
 // case-insensitive, trimmed, rather than a brittle exact "Warm-Up" ===.

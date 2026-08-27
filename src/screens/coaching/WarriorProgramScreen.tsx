@@ -26,7 +26,7 @@ import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
-import { ProgramHeaderCard, SwitchWorkoutButton, PointsDashboard, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
+import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -37,7 +37,7 @@ import { MissedReason } from '../../components/coaching/MissedReasonPicker';
 import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
-import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent } from '../../lib/warriorProgramDays';
+import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { DayCardList } from '../../components/coaching/DayCardList';
 
 function getStartOfIsoWeek(date: Date): Date {
@@ -1103,6 +1103,11 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const runnerOpenBlockId = Object.keys(expandedBlocks).find((k) => expandedBlocks[k]);
   const runnerOpenBlock = activeDay?.blocks.find((b) => String(b.id) === runnerOpenBlockId) || null;
 
+  // Program Days header (design handoff §2): "{n} sessions · {n} done this
+  // week" — real counts for the currently selected week, not the day
+  // currently being run.
+  const weekSessionSummary = summarizeWeekSessions(days);
+
   return (
     <GlobalErrorBoundary>
     <KeyboardAvoidingView
@@ -1291,25 +1296,28 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 </TouchableOpacity>
               </View>
             ) : (
-              <View style={{ gap: 20 }}>
-                {/* PROGRAM INTRO CARD */}
-                <ProgramHeaderCard
+              <View style={{ gap: 16 }}>
+                {/* PROGRAM IDENTITY CARD (design handoff §2) — replaces the
+                    old intro card + the full-width gradient SWITCH bar;
+                    SWITCH is now a small control inside this card. */}
+                <ProgramIdentityCard
                   programName={programName}
                   coachName={coachName}
-                  theme={theme}
-                  solidCardBg={solidCardBg}
-                />
-                <SwitchWorkoutButton
-                  theme={theme}
-                  onPress={() => router.push('/template-recommendations')}
+                  sessionsTotal={weekSessionSummary.sessionsTotal}
+                  sessionsDoneThisWeek={weekSessionSummary.sessionsDoneThisWeek}
+                  onSwitch={() => router.push('/template-recommendations')}
                 />
 
-                {/* CIRCLES DASHBOARD */}
-                <PointsDashboard
+                {/* PROGRAM LOAD PANEL (§3) — Static/Power/1MM arcs + total,
+                    bodyweight folded into its footer strip. */}
+                <ProgramLoadPanel
                   staticPoints={staticPoints}
                   powerPoints={powerPoints}
                   oneMmPoints={oneMmPoints}
+                  bodyweightKg={bodyweightThisWeek}
+                  onEditBodyweight={() => setShowBodyweightCheckIn(true)}
                 />
+
                 {/* WEEK NAVIGATOR */}
                 <WeekNavigator
                   weeksData={weeksData}
@@ -1321,43 +1329,16 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   }}
                   theme={theme}
                 />
-                {/* WEEKLY BODYWEIGHT — optional, once per week, tap to log or change it */}
-                <TouchableOpacity
-                  onPress={() => setShowBodyweightCheckIn(true)}
-                  style={{
-                    flexDirection: 'row',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    alignSelf: 'center',
-                    borderWidth: 1,
-                    borderRadius: 20,
-                    paddingVertical: 8,
-                    paddingHorizontal: 16,
-                    borderColor: bodyweightThisWeek !== null ? bronzeGold : theme.card.border,
-                    backgroundColor: bodyweightThisWeek !== null ? 'rgba(200,160,64,0.08)' : 'transparent',
-                  }}
-                >
-                  <Text style={{
-                    fontFamily: 'BarlowCondensed-Bold',
-                    fontSize: 11,
-                    letterSpacing: 0.5,
-                    color: bodyweightThisWeek !== null ? bronzeGold : theme.text.secondary,
-                  }}>
-                    {bodyweightThisWeek !== null ? `BODYWEIGHT: ${bodyweightThisWeek}KG` : '+ LOG BODYWEIGHT (OPTIONAL)'}
-                  </Text>
-                  {bodyweightThisWeek !== null && (
-                    <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.tertiary }}>
-                      EDIT
-                    </Text>
-                  )}
-                </TouchableOpacity>
-                {/* DAY LIST — every day tappable in any order, showing real
-                    logging progress (clean/in-progress %/done) instead of a
-                    locked sequence. Tapping a card jumps straight into that
-                    day's exercise-logging UI — no interstitial screen. */}
+
+                {/* DAY LIST (§4) — every day tappable in any order, showing
+                    real logging progress; the first not-done day gets the
+                    loud coral "UP NEXT" treatment (visual emphasis only,
+                    not a lock — see deriveNextDayIndex's own comment).
+                    Tapping a card jumps straight into that day's
+                    exercise-logging UI — no interstitial screen. */}
                 <DayCardList
                   days={days}
+                  nextIndex={deriveNextDayIndex(days)}
                   onStartDay={(dayIndex) => {
                     setActiveDayIndex(dayIndex);
                     setScreenPhase('running');

@@ -1,94 +1,239 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Svg, { Circle } from 'react-native-svg';
 
 const bronzeGold = '#C8A040';
 
-// ─── Program Header Card ────────────────────────────────────────────────────
-interface ProgramHeaderCardProps {
+// Program Days design tokens (assets/design_handoff_program_days) — fixed
+// dark palette, same choice already made across the rest of the Training
+// Center flow, independent of the app's own light/dark theme toggle.
+const PD = {
+  coral: '#FC5454',
+  gold: '#C9A227',
+  purpleText: '#c4b5fd',
+  screenBg: '#000000',
+  identityBorder: '#1e1a20',
+  identityGradient: ['#120e14', '#0b0909', '#090707'] as const,
+  chipBorder: '#2a2230',
+  panelBg: '#0A0808',
+  panelBorder: '#1a1616',
+  panelDivider: '#161212',
+  panelFooterWash: 'rgba(255,255,255,.012)',
+  zeroArc: '#2a2222',
+  zeroValue: '#3a3232',
+  textPrimary: '#FFFFFF',
+  textBody: '#9a9a9a',
+  textSecondary: '#8a8a8a',
+  textMuted: '#6d6d6d',
+  textFaint: '#5a5a5a',
+  textFainter: '#4a4a4a',
+};
+
+const DISCIPLINE_MAP: Record<string, string> = {
+  STATIC: '#8b5cf6',
+  POWER: '#FC5454',
+  '1MM': '#f97316',
+};
+
+// Reused everywhere a small control needs the "discoverable but quiet"
+// diagonal sheen (SWITCH here; the same technique as the Training Center
+// button's sheen on Profile) — a slow, subtle streak rather than a loud
+// full-width gradient bar.
+function Sheen({ borderRadius }: { borderRadius: number }) {
+  const [width, setWidth] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion || width === 0) return;
+    anim.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(anim, { toValue: 1, duration: 5000, easing: Easing.inOut(Easing.ease), useNativeDriver: true })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduceMotion, width, anim]);
+
+  if (reduceMotion) return null;
+  const streakWidth = 40;
+  const translateX = anim.interpolate({ inputRange: [0, 1], outputRange: [-streakWidth, width + streakWidth] });
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{ ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderRadius }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      {width > 0 && (
+        <Animated.View style={{ position: 'absolute', top: -10, bottom: -10, width: streakWidth, transform: [{ translateX }, { rotate: '18deg' }] }}>
+          <LinearGradient colors={['transparent', 'rgba(255,255,255,0.10)', 'transparent']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={{ flex: 1 }} />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function PulseDot() {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const anim = useRef(new Animated.Value(1)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      anim.setValue(1);
+      return;
+    }
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 0.3, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.timing(anim, { toValue: 1, duration: 850, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduceMotion, anim]);
+
+  return <Animated.View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: PD.coral, opacity: anim }} />;
+}
+
+// ─── Program Identity Card ──────────────────────────────────────────────────
+// Replaces the old ProgramHeaderCard + the full-width gradient
+// SwitchWorkoutButton — SWITCH is now a small outlined control with a sheen,
+// living inside this card rather than competing with START for attention.
+interface ProgramIdentityCardProps {
   programName: string;
   coachName: string;
-  theme: any;
-  solidCardBg: string;
+  sessionsTotal: number;
+  sessionsDoneThisWeek: number;
+  onSwitch: () => void;
 }
-export function ProgramHeaderCard({ programName, coachName, theme, solidCardBg }: ProgramHeaderCardProps) {
+export function ProgramIdentityCard({ programName, coachName, sessionsTotal, sessionsDoneThisWeek, onSwitch }: ProgramIdentityCardProps) {
   return (
-    <LinearGradient
-      colors={['#7E57C2', '#FF5252', '#FF7043']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={{ padding: 1.2, borderRadius: 12 }}
-    >
-      <View style={[styles.introCard, { backgroundColor: solidCardBg, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 16, borderRadius: 11 }]}>
+    <View style={styles.identityCard}>
+      <LinearGradient colors={PD.identityGradient} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} style={StyleSheet.absoluteFillObject} />
+      <View style={{ flexDirection: 'row' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={[styles.programName, { color: theme.text.primary }]} numberOfLines={1}>
-            {programName.toUpperCase()}
-          </Text>
+          <Text style={styles.identityEyebrow}>ACTIVE PROGRAM</Text>
+          {/* Real, user-authored casing — never uppercased, never truncated to one line. */}
+          <Text style={styles.identityProgramName} numberOfLines={2}>{programName}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6 }}>
+            <PulseDot />
+            <Text style={styles.identityMeta} numberOfLines={1}>
+              {sessionsTotal} session{sessionsTotal === 1 ? '' : 's'} · {sessionsDoneThisWeek} done this week
+            </Text>
+          </View>
         </View>
-        <View style={{ backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: theme.card.border, borderRadius: 20, paddingVertical: 4, paddingHorizontal: 10 }}>
-          <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.secondary }}>
-            COACH: <Text style={{ color: bronzeGold }}>{coachName.toUpperCase()}</Text>
-          </Text>
+        <View style={{ alignItems: 'flex-end', gap: 9 }}>
+          <View style={styles.coachChip}>
+            <MaterialCommunityIcons name="account" size={11} color={PD.gold} />
+            <Text style={styles.coachChipLabel}>COACH</Text>
+            <Text style={styles.coachChipName}>{coachName.toUpperCase()}</Text>
+          </View>
+          <TouchableOpacity onPress={onSwitch} activeOpacity={0.8} style={styles.switchControl}>
+            <Sheen borderRadius={9} />
+            <MaterialCommunityIcons name="swap-horizontal" size={13} color={PD.purpleText} />
+            <Text style={styles.switchLabel}>SWITCH</Text>
+          </TouchableOpacity>
         </View>
       </View>
-    </LinearGradient>
+    </View>
   );
 }
 
-// ─── Switch Workout Button ──────────────────────────────────────────────────
-// Deliberately high-contrast and full-width, not a small pill — this is the
-// only way back to the template library once a program is already assigned,
-// so it needs to be recognizable at a glance, not discovered by hunting.
-interface SwitchWorkoutButtonProps {
-  onPress: () => void;
-  theme: any;
-}
-export function SwitchWorkoutButton({ onPress, theme }: SwitchWorkoutButtonProps) {
+// ─── Program Load Panel ─────────────────────────────────────────────────────
+// One card replacing three floating rings + the orphaned bodyweight pill —
+// a TOTAL PTS figure, three normalized arcs, and bodyweight in the footer.
+function DisciplineArc({ label, value, maxValue }: { label: string; value: number; maxValue: number }) {
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const anim = useRef(new Animated.Value(0)).current;
+  const size = 74;
+  const strokeWidth = 3;
+  const r = 27;
+  const circumference = 2 * Math.PI * r;
+  const color = DISCIPLINE_MAP[label] ?? PD.coral;
+  const isZero = value <= 0;
+  // Normalized against the highest of the 3 scores, not a fixed ceiling —
+  // the panel reads as a comparison between disciplines. 0.03 floor keeps a
+  // real non-zero score from rendering as an empty ring.
+  const fraction = isZero ? 0 : Math.max(value / Math.max(maxValue, 0.0001), 0.03);
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion) {
+      anim.setValue(fraction);
+      return;
+    }
+    Animated.timing(anim, { toValue: fraction, duration: 1000, easing: Easing.bezier(0.2, 0.9, 0.3, 1), useNativeDriver: false }).start();
+  }, [fraction, reduceMotion, anim]);
+
+  const strokeDashoffset = anim.interpolate({ inputRange: [0, 1], outputRange: [circumference, 0] });
+
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.85}>
-      <LinearGradient
-        colors={['#7E57C2', '#FF5252', '#FF7043']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          justifyContent: 'center',
-          gap: 8,
-          borderRadius: 10,
-          paddingVertical: 13,
-        }}
-      >
-        <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.5, color: '#FFFFFF' }}>
-          ⇄ SWITCH WORKOUT
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
+          <Circle cx={size / 2} cy={size / 2} r={r} stroke={isZero ? PD.zeroArc : PD.panelDivider} strokeWidth={strokeWidth} fill="none" />
+          {!isZero && (
+            <AnimatedCircle
+              cx={size / 2} cy={size / 2} r={r} stroke={color} strokeWidth={strokeWidth} fill="none"
+              strokeLinecap="round" strokeDasharray={`${circumference} ${circumference}`} strokeDashoffset={strokeDashoffset}
+            />
+          )}
+        </Svg>
+        <Text style={[styles.arcValue, { color: isZero ? PD.zeroValue : color, fontSize: value >= 10 ? 19 : 21 }]}>
+          {value >= 100 ? value.toFixed(0) : value % 1 === 0 ? value.toFixed(0) : value.toFixed(1)}
         </Text>
-      </LinearGradient>
-    </TouchableOpacity>
+      </View>
+      <Text style={[styles.arcLabel, { color: isZero ? PD.textFainter : '#7a7a7a' }]}>{label} PTS</Text>
+    </View>
   );
 }
+const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-// ─── Points Dashboard ───────────────────────────────────────────────────────
-interface PointsDashboardProps {
+interface ProgramLoadPanelProps {
   staticPoints: number;
   powerPoints: number;
   oneMmPoints: number;
+  bodyweightKg: number | null;
+  onEditBodyweight: () => void;
 }
-export function PointsDashboard({ staticPoints, powerPoints, oneMmPoints }: PointsDashboardProps) {
-  const metrics = [
-    { label: 'STATIC PTS', value: staticPoints, color: '#7E57C2' },
-    { label: 'POWER PTS', value: powerPoints, color: '#FF5252' },
-    { label: '1MM PTS', value: oneMmPoints, color: '#FF7043' },
-  ];
+export function ProgramLoadPanel({ staticPoints, powerPoints, oneMmPoints, bodyweightKg, onEditBodyweight }: ProgramLoadPanelProps) {
+  const total = staticPoints + powerPoints + oneMmPoints;
+  const maxValue = Math.max(staticPoints, powerPoints, oneMmPoints);
   return (
-    <View style={styles.dashboardContainer}>
-      {metrics.map(m => (
-        <View key={m.label} style={styles.circleMetric}>
-          <View style={[styles.outerRing, { borderColor: m.color, shadowColor: m.color }]}>
-            <Text style={[styles.pointsNumber, { color: m.color }]}>{m.value}</Text>
-          </View>
-          <Text style={[styles.metricLabel, { color: m.color }]}>{m.label}</Text>
+    <View style={styles.loadPanel}>
+      <View style={styles.loadHeaderRow}>
+        <Text style={styles.loadEyebrow}>PROGRAM LOAD</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5 }}>
+          <Text style={styles.loadTotalValue}>{total % 1 === 0 ? total.toFixed(0) : total.toFixed(1)}</Text>
+          <Text style={styles.loadTotalLabel}>TOTAL PTS</Text>
         </View>
-      ))}
+      </View>
+      <View style={{ flexDirection: 'row', paddingHorizontal: 8, paddingTop: 12 }}>
+        <DisciplineArc label="STATIC" value={staticPoints} maxValue={maxValue} />
+        <DisciplineArc label="POWER" value={powerPoints} maxValue={maxValue} />
+        <DisciplineArc label="1MM" value={oneMmPoints} maxValue={maxValue} />
+      </View>
+      <TouchableOpacity onPress={onEditBodyweight} activeOpacity={0.7} style={styles.bodyweightFooter}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <MaterialCommunityIcons name="kettlebell" size={14} color={PD.gold} />
+          <Text style={styles.bodyweightLabel}>BODYWEIGHT</Text>
+          <Text style={styles.bodyweightValue}>{bodyweightKg !== null ? `${bodyweightKg} KG` : '— —'}</Text>
+        </View>
+        <Text style={[styles.bodyweightEdit, { color: bodyweightKg !== null ? PD.gold : PD.coral }]}>EDIT</Text>
+      </TouchableOpacity>
     </View>
   );
 }
@@ -103,7 +248,7 @@ interface WeekNavigatorProps {
 export function WeekNavigator({ weeksData, activeWeek, onSelectWeek, theme }: WeekNavigatorProps) {
   if (Object.keys(weeksData).length <= 1) return null;
   return (
-    <View style={{ marginBottom: 16 }}>
+    <View style={{ marginBottom: 4 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, paddingHorizontal: 2 }}>
         {Object.keys(weeksData).map(weekStr => {
           const wNum = parseInt(weekStr, 10);
@@ -116,14 +261,14 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek, theme }: We
               onPress={() => onSelectWeek(wNum)}
               style={{
                 paddingVertical: 8,
-                paddingHorizontal: 20,
-                borderRadius: 20,
-                backgroundColor: isActive ? 'rgba(200,160,64,0.15)' : theme.card.background,
+                paddingHorizontal: 18,
+                borderRadius: 999,
+                backgroundColor: isActive ? 'rgba(252,84,84,.12)' : 'transparent',
                 borderWidth: 1,
-                borderColor: isActive ? bronzeGold : theme.card.border,
+                borderColor: isActive ? PD.coral : '#241f1f',
               }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 14, color: isActive ? bronzeGold : theme.text.secondary }}>
+              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8, color: isActive ? PD.coral : '#6d6d6d' }}>
                 WEEK {wNum} {allCompleted ? '✓' : ''}
               </Text>
             </TouchableOpacity>
@@ -207,16 +352,44 @@ export function DayCarousel({ days, activeDayIndex, onPrev, onNext, theme, solid
 }
 
 const styles = StyleSheet.create({
-  introCard: { borderWidth: 0, borderRadius: 12, padding: 20 },
-  programName: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 15, letterSpacing: 0.8 },
-  dashboardContainer: { flexDirection: 'row', justifyContent: 'space-between', marginVertical: 12, gap: 12 },
-  circleMetric: { flex: 1, alignItems: 'center' },
-  outerRing: { width: 68, height: 68, borderRadius: 34, borderWidth: 2.5, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.02)', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.15, shadowRadius: 4, elevation: 3, marginBottom: 6 },
-  pointsNumber: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 0.5 },
-  metricLabel: { fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.8 },
   progressBarWrapper: { borderWidth: 1, borderRadius: 8, padding: 12, marginBottom: 12 },
   progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
   progressLabel: { fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 },
   progressValue: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 11, letterSpacing: 0.5 },
   progressTrack: { height: 6, borderRadius: 3, overflow: 'hidden', width: '100%' },
+
+  // Program Days redesign (assets/design_handoff_program_days)
+  identityCard: {
+    borderRadius: 20, borderWidth: 1, borderColor: PD.identityBorder,
+    padding: 17, overflow: 'hidden',
+  },
+  identityEyebrow: { color: PD.textFainter, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.4 },
+  identityProgramName: { color: PD.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 21, letterSpacing: 0.6, lineHeight: 24, marginTop: 3 },
+  identityMeta: { color: PD.textBody, fontFamily: 'Barlow-Light', fontSize: 11, flexShrink: 1 },
+  coachChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: PD.chipBorder,
+    backgroundColor: 'rgba(255,255,255,.02)', paddingHorizontal: 10, paddingVertical: 6,
+  },
+  coachChipLabel: { color: PD.textMuted, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
+  coachChipName: { color: PD.gold, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 8.5 },
+  switchControl: {
+    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: PD.chipBorder,
+    paddingHorizontal: 11, paddingVertical: 7, overflow: 'hidden',
+  },
+  switchLabel: { color: PD.purpleText, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 0.8 },
+
+  loadPanel: { borderRadius: 20, borderWidth: 1, borderColor: PD.panelBorder, backgroundColor: PD.panelBg, overflow: 'hidden' },
+  loadHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', paddingTop: 14, paddingHorizontal: 17 },
+  loadEyebrow: { color: PD.textFainter, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.4 },
+  loadTotalValue: { color: PD.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 0.4 },
+  loadTotalLabel: { color: PD.textFainter, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
+  arcValue: { fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.3 },
+  arcLabel: { fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.7, marginTop: 4 },
+  bodyweightFooter: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 14,
+    borderTopWidth: 1, borderTopColor: PD.panelDivider, backgroundColor: PD.panelFooterWash, padding: 11, paddingHorizontal: 17,
+  },
+  bodyweightLabel: { color: PD.textMuted, fontFamily: 'Barlow-Regular', fontSize: 9.5, letterSpacing: 0.6 },
+  bodyweightValue: { color: PD.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12 },
+  bodyweightEdit: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 0.6 },
 });

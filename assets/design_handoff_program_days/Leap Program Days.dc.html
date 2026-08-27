@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+@keyframes rowIn{from{opacity:0;transform:translateY(16px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes arcDraw{from{stroke-dashoffset:170}}
+@keyframes barGrow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+@keyframes glowBreath{0%,100%{opacity:.45}50%{opacity:.9}}
+@keyframes sheen{0%{background-position:-160% 0}60%,100%{background-position:280% 0}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:26px;padding:40px 20px;box-sizing:border-box;background:radial-gradient(1200px 700px at 50% -10%,#141014 0%,#080808 60%);font-family:'Oswald','Arial Narrow',sans-serif;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">PROGRAM DAYS · PREMIUM</div>
+    <div style="color:#6d6d6d;font-size:12px;font-weight:300;line-height:1.6;">Redesign of the custom-program day list. Same data, given hierarchy: one identity block, one score panel, and day cards that show what the session actually is.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#4a4a4a;font-size:10px;letter-spacing:1.8px;font-weight:500;">WHAT CHANGED</div>
+    <div style="color:#7a7a7a;font-size:11.5px;font-weight:300;line-height:1.65;">· Gradient bar demoted to a quiet SWITCH control — it was outshouting START.<br>· Three loose rings became one score panel with a total.<br>· Bodyweight folded into the panel footer.<br>· Day cards carry discipline mix, movement preview and points.<br>· Today is the only coral CTA on screen.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="color:#6d6d6d;font-size:10px;letter-spacing:1.6px;font-weight:500;">SHOW COMPLETED DAY</div>
+      <div style="{{ toggleTrack }}" onClick="{{ toggleDone }}"><div style="{{ toggleKnob }}"></div></div>
+    </div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:40px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);display:flex;flex-direction:column;">
+
+    <div style="position:absolute;top:-140px;left:50%;transform:translateX(-50%);width:420px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(252,84,84,.16) 0%,rgba(139,92,246,.09) 45%,transparent 70%);filter:blur(20px);animation:glowBreath 6s ease-in-out infinite;pointer-events:none;"></div>
+
+    <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:14px 22px 0;color:#fff;font-size:13px;font-weight:500;flex-shrink:0;">
+      <div>12:01</div>
+      <div style="display:flex;gap:5px;align-items:center;opacity:.9;">
+        <div style="width:14px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:13px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:20px;height:10px;border-radius:2px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="position:relative;flex-shrink:0;padding:16px 20px 14px;">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:34px;height:34px;border-radius:12px;border:1px solid #241c24;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+        </div>
+        <div style="flex:1;text-align:center;">
+          <div style="color:#fff;font-size:19px;font-weight:600;letter-spacing:7px;line-height:1;">LEAP</div>
+          <div style="color:#C9A227;font-size:8px;font-weight:500;letter-spacing:4.6px;margin-top:5px;">PROGRAM</div>
+        </div>
+        <div style="width:34px;flex-shrink:0;"></div>
+      </div>
+      <div style="height:1px;margin-top:14px;background:linear-gradient(90deg,transparent,#8b5cf6 18%,#FC5454 52%,#f97316 82%,transparent);opacity:.55;"></div>
+    </div>
+
+    <div style="position:relative;flex:1;overflow-y:auto;">
+
+      <div style="padding:2px 20px 0;animation:rowIn .45s cubic-bezier(.2,.9,.3,1.2) both;">
+        <div style="border-radius:20px;border:1px solid #1e1a20;background:linear-gradient(150deg,#120e14 0%,#0b0909 55%,#090707 100%);padding:16px 17px;">
+          <div style="display:flex;align-items:flex-start;gap:12px;">
+            <div style="flex:1;min-width:0;">
+              <div style="color:#5a5a5a;font-size:8.5px;font-weight:500;letter-spacing:2.4px;">ACTIVE PROGRAM</div>
+              <div style="color:#fff;font-size:21px;font-weight:600;letter-spacing:.6px;line-height:1.15;margin-top:5px;text-wrap:pretty;">{{ programName }}</div>
+              <div style="display:flex;align-items:center;gap:9px;margin-top:9px;">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <div style="width:5px;height:5px;border-radius:50%;background:#FC5454;animation:pulseDot 1.7s ease-in-out infinite;"></div>
+                  <div style="color:#9a9a9a;font-size:11px;font-weight:300;letter-spacing:.6px;">{{ programMeta }}</div>
+                </div>
+              </div>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px;flex-shrink:0;">
+              <div style="padding:6px 10px;border-radius:9px;border:1px solid #2a2230;background:rgba(255,255,255,.02);display:flex;align-items:center;gap:6px;">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"></circle><path d="M5 21c0-3.6 3.1-6 7-6s7 2.4 7 6"></path></svg>
+                <div style="color:#6d6d6d;font-size:8.5px;font-weight:500;letter-spacing:1.4px;">COACH <span style="color:#C9A227;font-weight:600;">LEAP</span></div>
+              </div>
+              <div style="display:flex;align-items:center;gap:6px;padding:7px 11px;border-radius:9px;border:1px solid #2a2230;cursor:pointer;background:linear-gradient(100deg,transparent 0%,transparent 38%,rgba(255,255,255,.06) 50%,transparent 62%,transparent 100%);background-size:250% 100%;animation:sheen 5s ease-in-out infinite;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"></path></svg>
+                <div style="color:#c4b5fd;font-size:9px;font-weight:600;letter-spacing:1.5px;">SWITCH</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:12px 20px 0;animation:rowIn .45s cubic-bezier(.2,.9,.3,1.2) .07s both;">
+        <div style="border-radius:20px;border:1px solid #1a1616;background:#0A0808;overflow:hidden;">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 17px 0;">
+            <div style="color:#4a4a4a;font-size:8.5px;font-weight:500;letter-spacing:2.4px;">PROGRAM LOAD</div>
+            <div style="display:flex;align-items:baseline;gap:5px;">
+              <div style="color:#fff;font-size:16px;font-weight:700;letter-spacing:.4px;">{{ totalPts }}</div>
+              <div style="color:#4a4a4a;font-size:8.5px;font-weight:500;letter-spacing:1.6px;">TOTAL PTS</div>
+            </div>
+          </div>
+
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);padding:12px 8px 0;">
+            <sc-for list="{{ discs }}" as="d" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;align-items:center;">
+                <div style="position:relative;width:74px;height:74px;">
+                  <svg width="74" height="74" viewBox="-37 -37 74 74" style="transform:rotate(-90deg);">
+                    <circle cx="0" cy="0" r="27" fill="none" stroke="#161212" stroke-width="3"></circle>
+                    <circle cx="0" cy="0" r="27" fill="none" stroke="{{ d.color }}" stroke-width="3" stroke-linecap="round" stroke-dasharray="170" stroke-dashoffset="{{ d.dash }}" style="{{ d.arcStyle }}"></circle>
+                  </svg>
+                  <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;">
+                    <div style="{{ d.valStyle }}">{{ d.val }}</div>
+                  </div>
+                </div>
+                <div style="{{ d.labelStyle }}">{{ d.label }}</div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding:11px 17px;border-top:1px solid #161212;background:rgba(255,255,255,.012);">
+            <div style="display:flex;align-items:center;gap:8px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#C9A227" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 7h12l2 13H4z"></path><path d="M9 7V5a3 3 0 016 0v2"></path></svg>
+              <div style="color:#6d6d6d;font-size:9.5px;font-weight:500;letter-spacing:1.6px;">BODYWEIGHT</div>
+              <div style="color:#fff;font-size:12px;font-weight:600;letter-spacing:.6px;">{{ bodyweight }}</div>
+            </div>
+            <div style="color:#C9A227;font-size:9px;font-weight:600;letter-spacing:1.6px;cursor:pointer;">EDIT</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:flex;align-items:center;gap:11px;padding:22px 20px 0;">
+        <div style="color:#3f3f3f;font-size:8.5px;font-weight:500;letter-spacing:2.6px;">SESSIONS</div>
+        <div style="flex:1;height:1px;background:#161212;"></div>
+        <div style="color:#4a4a4a;font-size:8.5px;font-weight:500;letter-spacing:1.6px;">{{ sessionCount }}</div>
+      </div>
+
+      <div style="padding:13px 20px 34px;display:grid;gap:12px;">
+        <sc-for list="{{ days }}" as="d" hint-placeholder-count="3">
+          <div style="{{ d.cardStyle }}">
+            <div style="{{ d.mixStyle }}">
+              <sc-for list="{{ d.mix }}" as="m" hint-placeholder-count="3">
+                <div style="{{ m.style }}"></div>
+              </sc-for>
+            </div>
+
+            <div style="display:flex;align-items:flex-start;gap:13px;padding:15px 16px 14px;">
+              <div style="{{ d.numStyle }}">
+                <div style="{{ d.numTopStyle }}">{{ d.numTop }}</div>
+                <div style="{{ d.numStyleBig }}">{{ d.num }}</div>
+              </div>
+
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:7px;">
+                  <div style="{{ d.stateStyle }}">{{ d.state }}</div>
+                  <div style="color:#3f3f3f;font-size:8.5px;font-weight:500;letter-spacing:1.5px;">{{ d.focus }}</div>
+                </div>
+                <div style="{{ d.titleStyle }}">{{ d.title }}</div>
+                <div style="display:flex;align-items:center;gap:11px;margin-top:7px;">
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5a5a5a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h9M17 6h3M4 12h4M12 12h8M4 18h11M19 18h1"></path><circle cx="15" cy="6" r="1.8"></circle><circle cx="10" cy="12" r="1.8"></circle><circle cx="17" cy="18" r="1.8"></circle></svg>
+                    <div style="color:#7a7a7a;font-size:10.5px;font-weight:400;letter-spacing:.9px;">{{ d.moves }}</div>
+                  </div>
+                  <div style="width:1px;height:10px;background:#221c1c;"></div>
+                  <div style="display:flex;align-items:center;gap:5px;">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#5a5a5a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5v4l2.5 2M9 2h6"></path></svg>
+                    <div style="color:#7a7a7a;font-size:10.5px;font-weight:400;letter-spacing:.9px;">{{ d.dur }}</div>
+                  </div>
+                  <div style="width:1px;height:10px;background:#221c1c;"></div>
+                  <div style="{{ d.ptsStyle }}">{{ d.pts }}</div>
+                </div>
+              </div>
+
+              <div style="{{ d.ctaStyle }}">{{ d.cta }}</div>
+            </div>
+
+            <div style="{{ d.previewStyle }}">
+              <sc-for list="{{ d.preview }}" as="p" hint-placeholder-count="3">
+                <div style="{{ p.style }}">{{ p.label }}</div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:740,&quot;height&quot;:960},&quot;programName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;My Custom Program&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Program&quot;},&quot;programMeta&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;3 sessions · 2 done this week&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Program&quot;},&quot;bodyweight&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;66 KG&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Program&quot;}}">
+const CORAL = "#FC5454";
+const PURPLE = "#8b5cf6";
+const ORANGE = "#f97316";
+const GOLD = "#C9A227";
+
+const DAYS = [
+  {
+    num: "1", focus: "FULL BODY", title: "Push & Pull Base", moves: 12, dur: "~45 MIN", pts: "+6.4",
+    mix: [["STATIC", 4], ["POWER", 5], ["1MM", 3]],
+    preview: ["PULL-UPS", "DIPS", "L-SIT", "+9 MORE"],
+  },
+  {
+    num: "2", focus: "UPPER", title: "Static Control", moves: 8, dur: "~26 MIN", pts: "+4.1",
+    mix: [["STATIC", 5], ["POWER", 2], ["1MM", 1]],
+    preview: ["TUCK PLANCHE", "FRONT LEVER", "+6 MORE"],
+  },
+  {
+    num: "3", focus: "CONDITIONING", title: "1MM Engine", moves: 9, dur: "~25 MIN", pts: "+3.6",
+    mix: [["STATIC", 1], ["POWER", 3], ["1MM", 5]],
+    preview: ["PUSH-UPS", "AIR SQUATS", "BURPEES", "+6 MORE"],
+  },
+];
+
+class Component extends DCLogic {
+  state = { showDone: false };
+
+  renderVals() {
+    const showDone = this.state.showDone;
+    const bodyweight = this.props.bodyweight ?? "66 KG";
+    const discVals = { STATIC: 17.5, POWER: 60, "1MM": 0 };
+    const maxVal = 60;
+
+    const colorFor = (k) => (k === "STATIC" ? PURPLE : k === "POWER" ? CORAL : ORANGE);
+
+    return {
+      programName: this.props.programName ?? "My Custom Program",
+      programMeta: this.props.programMeta ?? "3 sessions · 2 done this week",
+      bodyweight,
+      totalPts: "77.5",
+      sessionCount: DAYS.length + " DAYS",
+
+      discs: [
+        { key: "STATIC", label: "STATIC PTS" },
+        { key: "POWER", label: "POWER PTS" },
+        { key: "1MM", label: "1MM PTS" },
+      ].map((d, i) => {
+        const v = discVals[d.key];
+        const c = colorFor(d.key);
+        const frac = maxVal ? Math.max(v / maxVal, 0.03) : 0.03;
+        return {
+          label: d.label,
+          color: v > 0 ? c : "#2a2222",
+          val: v,
+          dash: 170 - 170 * frac,
+          arcStyle: {
+            animation: "arcDraw 1s cubic-bezier(.2,.9,.3,1) " + (0.15 + i * 0.12) + "s both",
+            filter: v > 0 ? "drop-shadow(0 0 6px " + c + "55)" : "none",
+          },
+          valStyle: { color: v > 0 ? c : "#3a3232", fontSize: v >= 10 ? 19 : 21, fontWeight: 700, letterSpacing: .3, lineHeight: 1 },
+          labelStyle: { color: v > 0 ? "#7a7a7a" : "#4a4a4a", fontSize: 8.5, fontWeight: 500, letterSpacing: 1.7, marginTop: 4 },
+        };
+      }),
+
+      days: DAYS.map((d, i) => {
+        const done = showDone && i === 0;
+        const today = showDone ? i === 1 : i === 0;
+        const upcoming = !done && !today;
+        const total = d.mix.reduce((a, b) => a + b[1], 0);
+        const accent = today ? CORAL : "#1c1818";
+
+        return {
+          num: d.num, numTop: "DAY", focus: d.focus, title: d.title,
+          moves: d.moves + " MOVEMENTS", dur: d.dur, pts: d.pts + " PTS",
+          state: done ? "COMPLETED" : today ? "UP NEXT" : "SCHEDULED",
+          cta: done ? "✓" : today ? "START" : "START",
+
+          cardStyle: {
+            position: "relative", borderRadius: 20, overflow: "hidden",
+            border: "1px solid " + (today ? "#3a1d1d" : "#191515"),
+            background: today
+              ? "linear-gradient(155deg,#170a0a 0%,#0c0707 55%,#0a0606 100%)"
+              : "linear-gradient(155deg,#0d0b0b 0%,#090808 100%)",
+            opacity: done ? 0.62 : 1,
+            boxShadow: today ? "0 14px 34px rgba(252,84,84,.10)" : "none",
+            animation: "rowIn .5s cubic-bezier(.2,.9,.3,1.2) " + (0.14 + i * 0.08) + "s both",
+          },
+
+          mixStyle: { display: "flex", height: 3, gap: 2, padding: "0 0 0 0" },
+          mix: d.mix.map(([k, n], j) => ({
+            style: {
+              flex: n / total, background: colorFor(k),
+              opacity: done ? 0.35 : today ? 0.95 : 0.55,
+              transformOrigin: "left center",
+              animation: "barGrow .7s cubic-bezier(.2,.9,.3,1) " + (0.28 + i * 0.08 + j * 0.06) + "s both",
+            },
+          })),
+
+          numStyle: {
+            width: 46, flexShrink: 0, borderRadius: 14, padding: "8px 0 9px",
+            border: "1px solid " + (today ? "#3a1d1d" : "#1c1818"),
+            background: today ? "rgba(252,84,84,.08)" : "rgba(255,255,255,.015)",
+            display: "flex", flexDirection: "column", alignItems: "center", gap: 1,
+          },
+          numTopStyle: { color: today ? "#8a5555" : "#4a4444", fontSize: 7.5, fontWeight: 500, letterSpacing: 1.6 },
+          numStyleBig: { color: today ? CORAL : "#8a8a8a", fontSize: 22, fontWeight: 700, lineHeight: 1 },
+
+          stateStyle: {
+            padding: "2px 7px", borderRadius: 5,
+            background: today ? CORAL : done ? "rgba(255,255,255,.05)" : "rgba(255,255,255,.03)",
+            color: today ? "#fff" : done ? "#7a7a7a" : "#5a5a5a",
+            fontSize: 7.5, fontWeight: 700, letterSpacing: 1.3,
+          },
+          titleStyle: {
+            color: done ? "#8a8a8a" : "#fff", fontSize: 17, fontWeight: 600, letterSpacing: .5,
+            marginTop: 5, textDecoration: done ? "line-through" : "none",
+          },
+          ptsStyle: { color: today ? CORAL : "#6d6d6d", fontSize: 10.5, fontWeight: 600, letterSpacing: 1 },
+
+          ctaStyle: today
+            ? { padding: "11px 17px", borderRadius: 12, background: CORAL, color: "#fff", fontSize: 11.5, fontWeight: 700, letterSpacing: 1.7, cursor: "pointer", flexShrink: 0, boxShadow: "0 8px 20px rgba(252,84,84,.34)" }
+            : done
+              ? { width: 34, height: 34, borderRadius: 12, border: "1px solid #2a1d1d", color: CORAL, fontSize: 14, fontWeight: 700, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }
+              : { padding: "10px 15px", borderRadius: 12, border: "1px solid #241f1f", color: "#9a9a9a", fontSize: 10.5, fontWeight: 700, letterSpacing: 1.6, cursor: "pointer", flexShrink: 0 },
+
+          previewStyle: {
+            display: "flex", gap: 6, flexWrap: "wrap",
+            padding: "0 16px 14px", paddingLeft: 75,
+            opacity: done ? 0.55 : 1,
+          },
+          preview: d.preview.map((p) => ({
+            label: p,
+            style: {
+              padding: "5px 9px", borderRadius: 7,
+              border: "1px solid " + (p.indexOf("MORE") >= 0 ? "transparent" : "#1d1919"),
+              background: p.indexOf("MORE") >= 0 ? "transparent" : "rgba(255,255,255,.022)",
+              color: p.indexOf("MORE") >= 0 ? "#4a4444" : "#8a8a8a",
+              fontSize: 8.5, fontWeight: 500, letterSpacing: 1.2,
+            },
+          })),
+        };
+      }),
+
+      toggleDone: () => this.setState((p) => ({ showDone: !p.showDone })),
+      toggleTrack: { width: 40, height: 22, borderRadius: 11, padding: 2, cursor: "pointer", background: showDone ? CORAL : "#1c1c1c", display: "flex", justifyContent: showDone ? "flex-end" : "flex-start", transition: "background .2s ease" },
+      toggleKnob: { width: 18, height: 18, borderRadius: 50, background: "#fff" },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

@@ -6,6 +6,8 @@ import {
   countMovements,
   isWarmUpBlock,
   inferBlockAccent,
+  deriveNextDayIndex,
+  summarizeWeekSessions,
 } from '../warriorProgramDays';
 import { ProgramBlock, ProgramDay, ExerciseDetail } from '../../types/warriorProgram';
 
@@ -158,5 +160,47 @@ describe('inferBlockAccent', () => {
   test('unrecognized block names fall back to coral, per the design spec', () => {
     expect(inferBlockAccent('Mobility Flow').color).toBe('#FC5454');
     expect(inferBlockAccent('').color).toBe('#FC5454');
+  });
+});
+
+describe('deriveNextDayIndex', () => {
+  test('fresh program: day 0 is next', () => {
+    const days: ProgramDay[] = [
+      { name: 'Day 1', blocks: [block('Warm-Up', [], 'none')] },
+      { name: 'Day 2', blocks: [block('Warm-Up', [], 'none')] },
+    ];
+    expect(deriveNextDayIndex(days)).toBe(0);
+  });
+
+  test('mid-week: first not-done day is next, including one already in progress', () => {
+    const days: ProgramDay[] = [
+      { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed')] },
+      { name: 'Day 2', blocks: [block('Warm-Up', [], 'completed'), block('Strength', [], 'none')] },
+      { name: 'Day 3', blocks: [block('Warm-Up', [], 'none')] },
+    ];
+    expect(deriveNextDayIndex(days)).toBe(1); // in_progress, not day 3
+  });
+
+  test('all done: no fake next day', () => {
+    const days: ProgramDay[] = [
+      { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed')] },
+      { name: 'Day 2', blocks: [block('Warm-Up', [], 'missed')] },
+    ];
+    expect(deriveNextDayIndex(days)).toBeNull();
+  });
+});
+
+describe('summarizeWeekSessions', () => {
+  test('counts real totals, never hardcoded', () => {
+    const days: ProgramDay[] = [
+      { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed')] },
+      { name: 'Day 2', blocks: [block('Warm-Up', [], 'none')] },
+      { name: 'Day 3', blocks: [block('Warm-Up', [], 'missed')] },
+    ];
+    expect(summarizeWeekSessions(days)).toEqual({ sessionsTotal: 3, sessionsDoneThisWeek: 2 });
+  });
+
+  test('empty week: zero, zero', () => {
+    expect(summarizeWeekSessions([])).toEqual({ sessionsTotal: 0, sessionsDoneThisWeek: 0 });
   });
 });
