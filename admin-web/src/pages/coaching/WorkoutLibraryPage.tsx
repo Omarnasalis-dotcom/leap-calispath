@@ -71,6 +71,8 @@ interface Draft {
   goal_tags: string[];
   tier_min: string;
   tier_max: string;
+  interval_seconds: string;
+  rounds: string;
 }
 
 let keySeq = 0;
@@ -100,6 +102,8 @@ function newDraft(): Draft {
     goal_tags: [],
     tier_min: '',
     tier_max: '',
+    interval_seconds: '',
+    rounds: '',
   };
 }
 
@@ -275,6 +279,8 @@ export function WorkoutLibraryPage() {
         goal_tags: detail.goal_tags ?? [],
         tier_min: detail.tier_min != null ? String(detail.tier_min) : '',
         tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
+        interval_seconds: detail.interval_seconds != null ? String(detail.interval_seconds) : '',
+        rounds: detail.rounds != null ? String(detail.rounds) : '',
         blocks: detail.blocks.map((block) => ({
           key: newKey(),
           name: block.name,
@@ -312,6 +318,8 @@ export function WorkoutLibraryPage() {
         goal_tags: d.goal_tags,
         tier_min: toInt(d.tier_min),
         tier_max: toInt(d.tier_max),
+        interval_seconds: d.kind === 'quick_workout' ? toInt(d.interval_seconds) : null,
+        rounds: d.kind === 'quick_workout' ? toInt(d.rounds) : null,
         blocks: d.blocks.map((block, bi) => ({
           name: block.name.trim(),
           order_index: bi,
@@ -594,6 +602,28 @@ export function WorkoutLibraryPage() {
                   onChange={(e) => setDraft({ ...draft, duration_minutes: e.target.value })}
                   aria-label="Duration in minutes"
                 />
+                {draft.format === 'emom' && (
+                  <input
+                    className="field"
+                    style={{ flex: 1, minWidth: 160 }}
+                    placeholder="Seconds per round (default 60)"
+                    type="number"
+                    value={draft.interval_seconds}
+                    onChange={(e) => setDraft({ ...draft, interval_seconds: e.target.value })}
+                    aria-label="Seconds per EMOM round"
+                  />
+                )}
+                {(draft.format === 'tabata' || draft.format === 'fortime') && (
+                  <input
+                    className="field"
+                    style={{ flex: 1, minWidth: 160 }}
+                    placeholder={draft.format === 'tabata' ? 'Rounds (default from duration)' : 'Target rounds (blank = uncapped)'}
+                    type="number"
+                    value={draft.rounds}
+                    onChange={(e) => setDraft({ ...draft, rounds: e.target.value })}
+                    aria-label="Rounds"
+                  />
+                )}
               </div>
             )}
 
@@ -642,7 +672,7 @@ export function WorkoutLibraryPage() {
                   </div>
 
                   {block.exercises.length === 0 && (
-                    <div className="dim" style={{ fontSize: 13, marginBottom: 8 }}>No exercises in this block yet.</div>
+                    <div className="dim" style={{ fontSize: 13, marginBottom: 8 }}>No exercises in this block yet — add at least one before saving.</div>
                   )}
 
                   {block.exercises.map((ex, i) => (
@@ -693,7 +723,11 @@ export function WorkoutLibraryPage() {
               <button className="btn" onClick={() => setDraft(null)}>Cancel</button>
               <button
                 className="btn primary"
-                disabled={!draft.title.trim() || draft.blocks.some((b) => !b.name.trim()) || saveMutation.isPending}
+                disabled={
+                  !draft.title.trim() ||
+                  draft.blocks.some((b) => !b.name.trim() || b.exercises.length === 0) ||
+                  saveMutation.isPending
+                }
                 onClick={() => saveMutation.mutate(draft)}
               >
                 {saveMutation.isPending ? 'Saving…' : 'Save'}

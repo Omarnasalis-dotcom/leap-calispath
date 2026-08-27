@@ -35,6 +35,12 @@ export interface StandaloneWorkoutSummary {
   goal_tags: GoalTag[];
   tier_min: number | null;
   tier_max: number | null;
+  // Timing-pattern fields (20260827040000) — EMOM/Tabata/For Time only,
+  // NULL for AMRAP and for any pre-existing content authored before these
+  // existed. See docs/features/quick-workout-timing-patterns.md for what
+  // each format does with these.
+  interval_seconds: number | null; // EMOM: seconds per round. NULL -> 60.
+  rounds: number | null; // Tabata: total work/rest cycles, NULL -> derived from duration. For Time: target round count, NULL -> uncapped stopwatch.
 }
 
 export interface StandaloneWorkoutExercise {
@@ -112,6 +118,8 @@ export interface SaveStandaloneWorkoutInput {
   goal_tags: GoalTag[];
   tier_min: number | null;
   tier_max: number | null;
+  interval_seconds: number | null;
+  rounds: number | null;
 }
 
 export interface StandaloneWorkoutFilters {
@@ -133,7 +141,7 @@ export async function getStandaloneWorkouts(
 ): Promise<StandaloneWorkoutSummary[]> {
   let query = supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
     .eq('kind', kind)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -178,7 +186,7 @@ export async function createCustomProgramFromWorkouts(
 export async function getStandaloneWorkoutDetail(workoutId: string): Promise<StandaloneWorkoutDetail | null> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
     .eq('id', workoutId)
     .maybeSingle();
   if (workoutError) throw workoutError;
@@ -226,7 +234,7 @@ export async function getStandaloneWorkoutDetail(workoutId: string): Promise<Sta
 export async function getAllStandaloneWorkoutsForAdmin(): Promise<StandaloneWorkoutAdminRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -255,6 +263,8 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_goal_tags: input.goal_tags,
     p_tier_min: input.tier_min,
     p_tier_max: input.tier_max,
+    p_interval_seconds: input.interval_seconds,
+    p_rounds: input.rounds,
   });
   if (error) throw error;
   return data as string;

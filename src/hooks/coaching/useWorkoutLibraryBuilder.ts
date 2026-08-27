@@ -83,6 +83,14 @@ const EMPTY_FORM = {
   // plain numeric text input, parsed via toInt() only at save time.
   tier_min: '',
   tier_max: '',
+  // Timing-pattern fields (20260827040000) — see
+  // docs/features/quick-workout-timing-patterns.md. interval_seconds is
+  // EMOM-only (seconds per round, blank -> engine falls back to 60);
+  // rounds is Tabata (total work/rest cycles) or For Time (target round
+  // count) — blank means "use the default" for Tabata, "uncapped
+  // stopwatch" for For Time.
+  interval_seconds: '',
+  rounds: '',
 };
 
 const CATEGORIES = ['all', 'push', 'pull', 'legs', 'core', 'skill'];
@@ -162,6 +170,8 @@ export function useWorkoutLibraryBuilder() {
         goal_tags: detail.goal_tags || [],
         tier_min: detail.tier_min != null ? String(detail.tier_min) : '',
         tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
+        interval_seconds: detail.interval_seconds != null ? String(detail.interval_seconds) : '',
+        rounds: detail.rounds != null ? String(detail.rounds) : '',
       });
       setCoverImageUrl(detail.cover_image_url);
       setBlocks(
@@ -327,6 +337,8 @@ export function useWorkoutLibraryBuilder() {
         goal_tags: form.goal_tags,
         tier_min: toInt(form.tier_min),
         tier_max: toInt(form.tier_max),
+        interval_seconds: toInt(form.interval_seconds),
+        rounds: toInt(form.rounds),
         blocks: blocks.map((b, bi) => ({
           name: b.name.trim(),
           order_index: bi,

@@ -33,6 +33,10 @@ export interface StandaloneWorkoutRow {
   goal_tags: string[];
   tier_min: number | null;
   tier_max: number | null;
+  // Timing-pattern fields (20260827040000) — see
+  // docs/features/quick-workout-timing-patterns.md.
+  interval_seconds: number | null;
+  rounds: number | null;
 }
 
 // supabase/migrations/20260825010000_add_standalone_workout_matching_fields.sql
@@ -68,7 +72,7 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as StandaloneWorkoutRow[];
@@ -77,7 +81,7 @@ export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]>
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
     .eq('id', id)
     .single();
   if (workoutError) throw new Error(workoutError.message);
@@ -147,6 +151,8 @@ export interface SaveStandaloneWorkoutInput {
   goal_tags: string[];
   tier_min: number | null;
   tier_max: number | null;
+  interval_seconds: number | null;
+  rounds: number | null;
 }
 
 export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): Promise<string> {
@@ -166,6 +172,8 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_goal_tags: input.goal_tags,
     p_tier_min: input.tier_min,
     p_tier_max: input.tier_max,
+    p_interval_seconds: input.interval_seconds,
+    p_rounds: input.rounds,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -232,6 +240,8 @@ export interface ImportedStandaloneWorkout {
   goal_tags?: string[];
   tier_min?: number | string | null;
   tier_max?: number | string | null;
+  interval_seconds?: number | string | null;
+  rounds?: number | string | null;
 }
 
 const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
@@ -307,6 +317,16 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
   }
   if (tierMin !== null && tierMax !== null && tierMin > tierMax) {
     return { valid: false, error: '"tier_min" cannot be greater than "tier_max".' };
+  }
+  // interval_seconds/rounds are DB CHECK-constrained (> 0 or NULL) — same
+  // up-front-rejection reasoning as everything else above.
+  const intervalSeconds = data.interval_seconds === '' || data.interval_seconds == null ? null : Number(data.interval_seconds);
+  if (intervalSeconds !== null && (!Number.isInteger(intervalSeconds) || intervalSeconds <= 0)) {
+    return { valid: false, error: '"interval_seconds" must be a positive whole number.' };
+  }
+  const rounds = data.rounds === '' || data.rounds == null ? null : Number(data.rounds);
+  if (rounds !== null && (!Number.isInteger(rounds) || rounds <= 0)) {
+    return { valid: false, error: '"rounds" must be a positive whole number.' };
   }
   return { valid: true };
 }
@@ -393,5 +413,7 @@ export async function importStandaloneWorkoutFromJson(
     goal_tags: Array.isArray(data.goal_tags) ? data.goal_tags : [],
     tier_min: parseNullableInt(data.tier_min),
     tier_max: parseNullableInt(data.tier_max),
+    interval_seconds: data.kind === 'quick_workout' ? parseNullableInt(data.interval_seconds) : null,
+    rounds: data.kind === 'quick_workout' ? parseNullableInt(data.rounds) : null,
   });
 }

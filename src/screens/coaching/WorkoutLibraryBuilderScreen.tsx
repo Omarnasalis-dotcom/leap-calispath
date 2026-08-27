@@ -140,6 +140,34 @@ export function WorkoutLibraryBuilderScreen() {
                     placeholderTextColor="rgba(255,255,255,0.2)"
                   />
                 </View>
+                {b.form.format === 'emom' && (
+                  <View style={[styles.inputContainerStyle, { width: '100%' }]}>
+                    <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>SECONDS PER ROUND (OPTIONAL)</Text>
+                    <TextInput
+                      style={[styles.searchInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                      value={b.form.interval_seconds}
+                      onChangeText={(v) => b.updateForm('interval_seconds', v)}
+                      placeholder="60 (every minute)"
+                      keyboardType="number-pad"
+                      placeholderTextColor="rgba(255,255,255,0.2)"
+                    />
+                  </View>
+                )}
+                {(b.form.format === 'tabata' || b.form.format === 'fortime') && (
+                  <View style={[styles.inputContainerStyle, { width: '100%' }]}>
+                    <Text style={[styles.inputLabelStyle, { color: theme.text.secondary }]}>
+                      {b.form.format === 'tabata' ? 'ROUNDS (OPTIONAL)' : 'TARGET ROUNDS (OPTIONAL — BLANK = UNCAPPED STOPWATCH)'}
+                    </Text>
+                    <TextInput
+                      style={[styles.searchInput, { color: theme.text.primary, borderColor: theme.card.border }]}
+                      value={b.form.rounds}
+                      onChangeText={(v) => b.updateForm('rounds', v)}
+                      placeholder={b.form.format === 'tabata' ? 'e.g. 8' : 'e.g. 3'}
+                      keyboardType="number-pad"
+                      placeholderTextColor="rgba(255,255,255,0.2)"
+                    />
+                  </View>
+                )}
               </>
             )}
 
