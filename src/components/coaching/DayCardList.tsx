@@ -14,14 +14,6 @@ import { TC_COLORS, TC_MOTION } from '../../../constants/trainingCenterTokens';
 // still real, just not surfaced on non-next cards).
 const PD_CORAL = '#FC5454';
 
-function previewChipsFor(day: ProgramDay): { key: string; label: string }[] {
-  const exercises = day.blocks.flatMap((b) => b.exercises);
-  return exercises.slice(0, 3).map((ex, i) => ({
-    key: ex.id + String(i),
-    label: i === 2 && exercises.length > 3 ? `+${exercises.length - 2} MORE` : ex.name.toUpperCase(),
-  }));
-}
-
 function DayCard({
   entry,
   isNext,
@@ -59,7 +51,6 @@ function DayCard({
   const done = status === 'done';
   const movementCount = countMovements(day);
   const estimatedMinutes = estimateSessionMinutes(day);
-  const chips = previewChipsFor(day);
   const statusLabel = done ? 'COMPLETED' : isNext ? 'UP NEXT' : 'SCHEDULED';
 
   const cardBorder = isNext ? '#3a1d1d' : '#191515';
@@ -108,16 +99,6 @@ function DayCard({
               <MaterialCommunityIcons name="clock-outline" size={11} color="#7a7a7a" />
               <Text style={styles.metaText}>~{estimatedMinutes} MIN</Text>
             </View>
-
-            {chips.length > 0 && (
-              <View style={styles.chipRow}>
-                {chips.map((c) => (
-                  <View key={c.key} style={styles.previewChip}>
-                    <Text style={styles.previewChipText} numberOfLines={1}>{c.label}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
           </View>
 
           {done ? (
@@ -197,10 +178,6 @@ const styles = StyleSheet.create({
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6, flexWrap: 'wrap' },
   metaText: { color: '#7a7a7a', fontFamily: 'Barlow-Regular', fontSize: 10.5, letterSpacing: 0.4 },
   metaDivider: { width: 1, height: 10, backgroundColor: '#221c1c' },
-
-  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
-  previewChip: { borderWidth: 1, borderColor: '#1d1919', backgroundColor: 'rgba(255,255,255,.022)', borderRadius: 7, paddingHorizontal: 9, paddingVertical: 5 },
-  previewChipText: { color: '#8a8a8a', fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.5 },
 
   doneBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: '#2a1d1d', alignItems: 'center', justifyContent: 'center' },
   startBtnNext: {
