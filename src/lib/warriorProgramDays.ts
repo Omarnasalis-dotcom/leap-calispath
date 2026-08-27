@@ -52,37 +52,35 @@ export function groupRawBlocksIntoDays(blocks: RawProgramBlockRow[]): GroupedPro
   return order.map((k) => map.get(k)!);
 }
 
-export type DayStatus = 'completed' | 'today' | 'upcoming';
+export type DayStatus = 'clean' | 'in_progress' | 'done';
 
 export interface DayStateEntry {
   day: ProgramDay;
   index: number;
   status: DayStatus;
+  /** 0-100, blocks logged / total blocks in the day. */
+  progressPct: number;
 }
 
 /**
- * A day is "completed" once every one of its blocks has been logged
- * (completed or missed — a missed day still reads as done, per the design's
- * own 3-state table, not a 4th "missed" state that would block progression).
- * The first day that isn't fully logged is "today," the only tappable one;
- * everything after is "upcoming" (locked). Mirrors the nextUpBlock logic
- * already built for the Training Center hub's week stats, promoted from
- * block-level to day-level.
+ * Days are never locked — a warrior can start any day in any order (the
+ * program itself, not a rigid unlock sequence, is what sets the plan).
+ * Status is purely a reflection of logging progress: 'clean' (nothing
+ * logged yet), 'in_progress' (some but not all blocks logged — the day
+ * card shows the real percentage), or 'done' (every block logged,
+ * completed or missed alike — a missed block still counts as "addressed,"
+ * not blocking).
  */
 export function deriveDayStates(days: ProgramDay[]): DayStateEntry[] {
-  let todayFound = false;
   return days.map((day, index) => {
-    const isResolved = day.blocks.length > 0 && day.blocks.every((b) => b.completedStatus !== 'none');
+    const total = day.blocks.length;
+    const logged = day.blocks.filter((b) => b.completedStatus !== 'none').length;
+    const progressPct = total === 0 ? 0 : Math.round((logged / total) * 100);
     let status: DayStatus;
-    if (isResolved) {
-      status = 'completed';
-    } else if (!todayFound) {
-      status = 'today';
-      todayFound = true;
-    } else {
-      status = 'upcoming';
-    }
-    return { day, index, status };
+    if (total > 0 && logged === total) status = 'done';
+    else if (logged > 0) status = 'in_progress';
+    else status = 'clean';
+    return { day, index, status, progressPct };
   });
 }
 

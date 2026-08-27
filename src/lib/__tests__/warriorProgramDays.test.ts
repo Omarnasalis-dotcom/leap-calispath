@@ -77,30 +77,34 @@ describe('groupRawBlocksIntoDays — the Phase 1 hub bug fix', () => {
 });
 
 describe('deriveDayStates', () => {
-  test('completed / today / upcoming: first not-fully-logged day is today, rest locked', () => {
+  test('clean / in_progress / done reflect real logging progress, not order — every day is tappable', () => {
     const days: ProgramDay[] = [
       { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed'), block('Strength', [], 'completed')] },
       { name: 'Day 2', blocks: [block('Warm-Up', [], 'completed'), block('Strength', [], 'none')] },
       { name: 'Day 3', blocks: [block('Warm-Up', [], 'none')] },
     ];
     const states = deriveDayStates(days);
-    expect(states[0].status).toBe('completed'); // every block logged
-    expect(states[1].status).toBe('today'); // one block still unlogged -> first "today"
-    expect(states[2].status).toBe('upcoming'); // after today, locked
+    expect(states[0].status).toBe('done');
+    expect(states[0].progressPct).toBe(100);
+    expect(states[1].status).toBe('in_progress');
+    expect(states[1].progressPct).toBe(50); // 1 of 2 blocks logged
+    expect(states[2].status).toBe('clean'); // nothing logged yet, but still a normal, tappable day
+    expect(states[2].progressPct).toBe(0);
   });
 
-  test('a day where every block is missed still reads as completed, not a 4th state', () => {
+  test('a day where every block is missed still reads as done, not a 4th state', () => {
     const days: ProgramDay[] = [{ name: 'Day 1', blocks: [block('Warm-Up', [], 'missed')] }];
-    expect(deriveDayStates(days)[0].status).toBe('completed');
+    expect(deriveDayStates(days)[0].status).toBe('done');
   });
 
-  test('everything already logged: no day is "today"', () => {
+  test('a day out of order can already be done while an earlier day is still clean — no gating', () => {
     const days: ProgramDay[] = [
-      { name: 'Day 1', blocks: [block('Warm-Up', [], 'completed')] },
-      { name: 'Day 2', blocks: [block('Warm-Up', [], 'missed')] },
+      { name: 'Day 1', blocks: [block('Warm-Up', [], 'none')] },
+      { name: 'Day 2', blocks: [block('Warm-Up', [], 'completed')] },
     ];
     const states = deriveDayStates(days);
-    expect(states.every((s) => s.status === 'completed')).toBe(true);
+    expect(states[0].status).toBe('clean');
+    expect(states[1].status).toBe('done');
   });
 });
 

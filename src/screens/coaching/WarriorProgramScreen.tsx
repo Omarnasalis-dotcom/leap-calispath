@@ -40,7 +40,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, isWarmUpBlock } from '../../lib/warriorProgramDays';
 import { DayCardList } from '../../components/coaching/DayCardList';
-import { SessionDetailView } from '../../components/coaching/SessionDetailView';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -75,11 +74,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const days = weeksData[activeWeek] || [];
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   // 'list' = My Active Program (week/day cards, this screen's default).
-  // 'brief' = Session Detail, reached by tapping a day's START.
-  // 'running' = the exercise-logging UI, reached by Session Detail's own
-  // START SESSION — this is exactly what used to render directly under the
-  // day carousel; only when it renders (not what it renders) changed.
-  const [screenPhase, setScreenPhase] = useState<'list' | 'brief' | 'running'>('list');
+  // 'running' = the exercise-logging UI, reached directly from a day
+  // card's START/CONTINUE/REVIEW — this is exactly what used to render
+  // under the day carousel; only when it renders (not what it renders)
+  // changed. (A Session Detail brief screen was tried between these two
+  // and removed — real usage found it just added an extra tap with no
+  // benefit; SessionDetailView.tsx is left unused rather than deleted in
+  // case a lighter-weight version of it is wanted later.)
+  const [screenPhase, setScreenPhase] = useState<'list' | 'running'>('list');
   const activeDay = days[activeDayIndex] || null;
   const [expandedBlocks, setExpandedBlocks] = useState<Record<string | number, boolean>>({});
   const [togglingBlockIds, setTogglingBlockIds] = useState<Record<string | number, boolean>>({});
@@ -312,13 +314,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     }
   };
 
-  // Android hardware back steps one phase back (running -> brief -> list)
-  // instead of exiting the screen, matching the header back chevron in each
-  // phase — only 'list' falls through to the real exit.
+  // Android hardware back returns to the day list instead of exiting the
+  // screen, matching the header back chevron — only 'list' falls through
+  // to the real exit.
   useEffect(() => {
     if (screenPhase === 'list') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setScreenPhase((prev) => (prev === 'running' ? 'brief' : 'list'));
+      setScreenPhase('list');
       return true;
     });
     return () => sub.remove();
@@ -1080,21 +1082,12 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
       enabled={Platform.OS !== 'web'}
     >
-      {screenPhase === 'brief' && activeDay ? (
-        <SessionDetailView
-          day={activeDay}
-          weekDisplayNumber={activeWeek}
-          dayIndexInWeek={activeDayIndex}
-          onLog={(blockId) => handleOpenLogModal(blockId)}
-          onStartSession={() => setScreenPhase('running')}
-          onBack={() => setScreenPhase('list')}
-        />
-      ) : screenPhase === 'running' && activeDay ? (
+      {screenPhase === 'running' && activeDay ? (
         <ScrollView contentContainerStyle={styles.scrollContainer} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
           {/* Compact header — the branded LEAP PROGRAM header only makes
               sense for the top-level day list, not while running a session. */}
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 16 }}>
-            <TouchableOpacity onPress={() => setScreenPhase('brief')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+            <TouchableOpacity onPress={() => setScreenPhase('list')} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
               <MaterialCommunityIcons name="chevron-left" size={26} color={theme.text.primary} />
             </TouchableOpacity>
             <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18, letterSpacing: 1, color: theme.text.primary, flexShrink: 1 }} numberOfLines={1}>
@@ -1271,15 +1264,15 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                     </Text>
                   )}
                 </TouchableOpacity>
-                {/* DAY LIST — completed / today / upcoming (design handoff §3);
-                    replaces the old prev/next DayCarousel pager + inline blocks
-                    list. Only the "today" card is tappable; tapping it opens
-                    Session Detail instead of jumping straight into logging. */}
+                {/* DAY LIST — every day tappable in any order, showing real
+                    logging progress (clean/in-progress %/done) instead of a
+                    locked sequence. Tapping a card jumps straight into that
+                    day's exercise-logging UI — no interstitial screen. */}
                 <DayCardList
                   days={days}
                   onStartDay={(dayIndex) => {
                     setActiveDayIndex(dayIndex);
-                    setScreenPhase('brief');
+                    setScreenPhase('running');
                   }}
                 />
               </View>
