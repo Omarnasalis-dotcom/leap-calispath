@@ -44,12 +44,10 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
   const insets = useSafeAreaInsets();
   const tabBarHeight = 10 + 22 + 3 + 11 + 8 + insets.bottom;
   const panelBottom = tabBarHeight + 12;
-  // Collapsed button now docks top-right, below FloatingGamesButton.tsx's
-  // top-left "game center" button (top: MARGIN(16), size 48) — same top
-  // offset plus its height and a gap, so the two floating buttons read as
-  // a matched pair instead of the old bottom-right placement that crowded
-  // the tab bar.
-  const fabTop = 16 + 48 + 12;
+  // Collapsed button docks right at the top-right corner (MARGIN 16) — the
+  // only thing up there now; the games button (FloatingGamesButton.tsx)
+  // moved to the left side, below the settings gear.
+  const fabTop = 16;
 
   const breathe = useRef(new Animated.Value(0)).current;
   const bob = useRef(new Animated.Value(0)).current;

@@ -329,9 +329,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       const msg = applyResult(result, "I'm here, but that first message came back empty. Say hello and I'll pick it up from there.");
       setMessages([{ role: 'assistant', content: msg.content, blocks: msg.blocks }]);
     } catch (error: any) {
+      // The raw error (network failure, a malformed response, an upstream
+      // provider error — anything) is logged for debugging only. It must
+      // never reach the athlete verbatim: this happened live with a raw
+      // Anthropic billing error (provider name, internal JSON, a request
+      // id) rendered straight into the chat bubble.
       console.error('Coach Session Error:', error);
       setConnectionStatus('offline');
-      setMessages([{ role: 'assistant', content: `Coach is temporarily unreachable (${error.message || 'Network failure'}). Please check your connection.` }]);
+      setMessages([{ role: 'assistant', content: 'Coach is temporarily unreachable. Please check your connection and try again.' }]);
     } finally {
       setLoading(false);
       setStages([]);
@@ -372,11 +377,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       const msg = applyResult(result, 'Something went wrong on my end and that came back empty — ask me again and I\'ll pick it up.');
       setMessages((prev) => [...prev, { role: 'assistant', content: msg.content, blocks: msg.blocks }]);
     } catch (error: any) {
+      // Same reasoning as startSession's catch above — log the real error,
+      // never show it.
       console.error('Coach Send Error:', error);
       setConnectionStatus('offline');
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: `Coach is temporarily unreachable (${error.message || 'Network failure'}). Check your connection and try again.`,
+        content: 'Coach is temporarily unreachable. Check your connection and try again.',
       }]);
     } finally {
       setLoading(false);

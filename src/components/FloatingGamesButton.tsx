@@ -86,7 +86,10 @@ export function FloatingGamesButton() {
     boundsRef.current = { width, height };
     if (!isPositioned.current && width > 0 && height > 0) {
       isPositioned.current = true;
-      const start = { x: MARGIN, y: MARGIN };
+      // Left side by default now, below ProfileScreen.tsx's settings gear
+      // (top: 12, size 40) — same top offset plus its height and a gap.
+      // Still fully draggable anywhere afterward.
+      const start = { x: MARGIN, y: 12 + 40 + 12 };
       lastPosition.current = start;
       pan.setValue(start);
       opacity.setValue(1);
