@@ -869,7 +869,7 @@ function GradientWorkoutCard({
   );
 }
 
-function StandaloneWorkoutDetailModal({
+export function StandaloneWorkoutDetailModal({
   visible,
   theme,
   detail,
@@ -978,7 +978,7 @@ function StandaloneWorkoutDetailModal({
 // ProgramPreviewModal's card/overlay chrome (reuses previewStyles) since
 // this is the same "confirm before you write anything" moment, just for a
 // caller-assembled program instead of a pre-authored one.
-function BuildSummaryModal({
+export function BuildSummaryModal({
   visible,
   theme,
   days,

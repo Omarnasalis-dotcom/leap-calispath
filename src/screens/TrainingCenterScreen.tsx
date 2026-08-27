@@ -347,7 +347,7 @@ export function TrainingCenterScreen() {
           sub: data.movementsCount != null ? formatMovementsSub(data.movementsCount) : 'MOVEMENTS',
           locked: false,
           badge: null,
-          onPress: () => goTab('workout'),
+          onPress: () => router.push('/customize-program'),
         },
         {
           key: 'quick',
@@ -417,7 +417,7 @@ export function TrainingCenterScreen() {
                     <MaterialCommunityIcons name="play" size={16} color="#000" />
                     <Text style={styles.continueBtnText}>CONTINUE</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.squareBtn} onPress={() => goTab('workout')}>
+                  <TouchableOpacity style={styles.squareBtn} onPress={() => router.push('/customize-program')}>
                     <MaterialCommunityIcons name="tune-vertical" size={18} color={TC_COLORS.textPrimary} />
                   </TouchableOpacity>
                 </View>
