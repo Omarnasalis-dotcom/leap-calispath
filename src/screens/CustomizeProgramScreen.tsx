@@ -68,16 +68,19 @@ function WorkoutPhotoCard({
   item,
   locked,
   dayNumber,
+  columns,
   onPress,
 }: {
   item: StandaloneWorkoutSummary;
   locked: boolean;
   dayNumber: number | null;
+  columns: 1 | 2;
   onPress: () => void;
 }) {
   const [colorStart, colorEnd] = categoryGradient(item.category);
   const coverSource = item.cover_image_url ? { uri: item.cover_image_url } : null;
   const isSelected = dayNumber !== null;
+  const isWide = columns === 1;
 
   const overlay = (
     <>
@@ -101,9 +104,14 @@ function WorkoutPhotoCard({
           </View>
         )}
       </View>
-      <LinearGradient colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']} style={styles.cardBottomGradient}>
-        <Text style={styles.cardTitle} numberOfLines={2}>{item.title.toUpperCase()}</Text>
-        {!!item.difficulty && <Text style={styles.cardMeta}>{item.difficulty.toUpperCase()}</Text>}
+      <LinearGradient
+        colors={['transparent', 'rgba(0,0,0,0.55)', 'rgba(0,0,0,0.92)']}
+        style={[styles.cardBottomGradient, isWide ? styles.cardBottomGradientWide : styles.cardBottomGradientGrid]}
+      >
+        <Text style={[styles.cardTitle, isWide ? styles.cardTitleWide : styles.cardTitleGrid]} numberOfLines={isWide ? 1 : 2}>
+          {item.title.toUpperCase()}
+        </Text>
+        {!!item.difficulty && <Text style={[styles.cardMeta, !isWide && styles.cardMetaGrid]}>{item.difficulty.toUpperCase()}</Text>}
       </LinearGradient>
     </>
   );
@@ -112,7 +120,11 @@ function WorkoutPhotoCard({
     <TouchableOpacity
       onPress={onPress}
       activeOpacity={0.85}
-      style={[styles.cardWrap, isSelected && { borderColor: TC_COLORS.coral, borderWidth: 1.5 }]}
+      style={[
+        styles.cardWrap,
+        isWide ? styles.cardWrapWide : styles.cardWrapGrid,
+        isSelected && { borderColor: TC_COLORS.coral, borderWidth: 1.5 },
+      ]}
     >
       {coverSource ? (
         <ImageBackground source={coverSource} style={styles.card} imageStyle={{ borderRadius: 16 }}>
@@ -133,6 +145,7 @@ export function CustomizeProgramScreen() {
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [columns, setColumns] = useState<1 | 2>(1);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyBand | 'all'>('all');
   const [currentProgramName, setCurrentProgramName] = useState<string | null>(null);
@@ -249,7 +262,27 @@ export function CustomizeProgramScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: selectedDayWorkouts.length > 0 ? 140 : 24 }}>
-        <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ flex: 1 }}>
+            <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
+          </View>
+          <View style={styles.layoutToggle}>
+            <TouchableOpacity
+              onPress={() => setColumns(1)}
+              style={[styles.layoutToggleBtn, columns === 1 && styles.layoutToggleBtnActive]}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            >
+              <MaterialCommunityIcons name="view-agenda-outline" size={16} color={columns === 1 ? '#000' : TC_COLORS.textMuted} />
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setColumns(2)}
+              style={[styles.layoutToggleBtn, columns === 2 && styles.layoutToggleBtnActive]}
+              hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
+            >
+              <MaterialCommunityIcons name="view-grid-outline" size={16} color={columns === 2 ? '#000' : TC_COLORS.textMuted} />
+            </TouchableOpacity>
+          </View>
+        </View>
         <View style={{ height: 8 }} />
         <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
 
@@ -262,13 +295,14 @@ export function CustomizeProgramScreen() {
             <Text style={styles.emptyText}>NO WORKOUTS MATCH THIS FILTER YET.</Text>
           </View>
         ) : (
-          <View style={styles.grid}>
+          <View style={[styles.grid, columns === 2 && styles.gridTwoUp]}>
             {workoutItems.map((item) => (
               <WorkoutPhotoCard
                 key={item.id}
                 item={item}
                 locked={!item.is_free && !isPro}
                 dayNumber={getDayNumber(item)}
+                columns={columns}
                 onPress={() => openDetail(item)}
               />
             ))}
@@ -329,8 +363,15 @@ const styles = StyleSheet.create({
   emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: TC_COLORS.cardFlat },
   emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
-  grid: { gap: 14, marginTop: 16 },
-  cardWrap: { width: '100%', aspectRatio: 16 / 9, borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  layoutToggle: { flexDirection: 'row', gap: 4, backgroundColor: TC_COLORS.cardFlat, borderWidth: 1, borderColor: TC_COLORS.borderStrong, borderRadius: 10, padding: 3 },
+  layoutToggleBtn: { width: 30, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
+  layoutToggleBtnActive: { backgroundColor: TC_COLORS.coral },
+
+  grid: { marginTop: 16, gap: 14 },
+  gridTwoUp: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14, columnGap: 0 },
+  cardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  cardWrapWide: { width: '100%', aspectRatio: 16 / 9 },
+  cardWrapGrid: { width: '48%', aspectRatio: 3 / 4 },
   card: { flex: 1, justifyContent: 'space-between' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
   dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: TC_COLORS.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
@@ -339,8 +380,13 @@ const styles = StyleSheet.create({
   categoryBadge: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   categoryBadgeText: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   cardBottomGradient: { padding: 14, paddingTop: 32 },
-  cardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 17, lineHeight: 20 },
+  cardBottomGradientWide: { padding: 14, paddingTop: 32 },
+  cardBottomGradientGrid: { padding: 10, paddingTop: 24 },
+  cardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold' },
+  cardTitleWide: { fontSize: 17, lineHeight: 20 },
+  cardTitleGrid: { fontSize: 13.5, lineHeight: 16 },
   cardMeta: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.2, marginTop: 4 },
+  cardMetaGrid: { fontSize: 9 },
 
   buildCta: {
     position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset,
