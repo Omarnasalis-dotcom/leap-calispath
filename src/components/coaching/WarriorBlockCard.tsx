@@ -226,11 +226,10 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             },
           ]}
         >
-          <LinearGradient
-            colors={isExpanded ? [hex(accent.color, 0.07), DB.cardOpenBg, DB.cardOpenBgEnd] : [DB.cardClosedBg, DB.cardClosedBgEnd]}
-            style={StyleSheet.absoluteFillObject}
-            pointerEvents="none"
-          />
+          {/* Flat background, no accent-tinted gradient wash — an earlier
+              version tinted this with the block's own accent color at open
+              time and it read as too heavy, washing out the text above it. */}
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: isExpanded ? DB.cardOpenBgEnd : DB.cardClosedBgEnd }]} pointerEvents="none" />
           <View style={[styles.dbRail, { backgroundColor: railColor, opacity: isExpanded ? 1 : dim ? 0.4 : 0.6 }]} />
 
           {/* Collapsible Block Header */}
@@ -307,21 +306,42 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             </View>
 
             <View style={{ alignItems: 'flex-end', gap: 8 }}>
-              {!isDone && (
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {/* LOG checkbox — the index plate alone wasn't a discoverable
+                    enough way to mark a block done, so this restores a
+                    visible, explicit checkbox alongside SKIP (same
+                    handleOpenLogging('completed')/handleToggleBlockStatus
+                    logic the index plate already uses). */}
                 <TouchableOpacity
-                  disabled={isTogglingStatus}
+                  disabled={isTogglingStatus || isLocked}
                   onPress={(e) => {
                     e.stopPropagation();
-                    if (skipped) handleToggleBlockStatus(block.id, 'none');
-                    else handleOpenLogging(block.id, 'missed');
+                    if (isDone) handleToggleBlockStatus(block.id, 'none');
+                    else handleOpenLogging(block.id, 'completed');
                   }}
-                  style={{ opacity: isTogglingStatus ? 0.4 : 1 }}
+                  style={[
+                    styles.dbLogCheck,
+                    { borderColor: isDone ? accent.color : '#241f1f', backgroundColor: isDone ? accent.color : 'transparent', opacity: (isTogglingStatus || isLocked) ? 0.4 : 1 },
+                  ]}
                 >
-                  <Text style={{ color: skipped ? accent.color : '#4a4444', fontSize: 8.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.4 }}>
-                    {skipped ? 'UNDO' : 'SKIP'}
-                  </Text>
+                  {isDone && <MaterialCommunityIcons name="check" size={14} color="#000" />}
                 </TouchableOpacity>
-              )}
+                {!isDone && (
+                  <TouchableOpacity
+                    disabled={isTogglingStatus}
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      if (skipped) handleToggleBlockStatus(block.id, 'none');
+                      else handleOpenLogging(block.id, 'missed');
+                    }}
+                    style={{ opacity: isTogglingStatus ? 0.4 : 1 }}
+                  >
+                    <Text style={{ color: skipped ? accent.color : '#4a4444', fontSize: 8.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.4 }}>
+                      {skipped ? 'UNDO' : 'SKIP'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </View>
               <MaterialCommunityIcons
                 name="chevron-down"
                 size={20}
@@ -582,6 +602,14 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+  },
+  dbLogCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 7,
+    borderWidth: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dbTitle: {
     fontFamily: 'BarlowCondensed-Bold',

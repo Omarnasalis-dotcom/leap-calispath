@@ -543,6 +543,27 @@ export function QuickWorkoutTimerModal({
     setCommitted(true);
   };
 
+  // EMOM/Tabata's manual SKIP — the interval otherwise only advances when
+  // its own clock runs out, with no way to move on early if an athlete
+  // wants to skip a movement or the current round. Mirrors the natural
+  // advance/complete effect's own logic exactly (same next-interval sound
+  // cues, same finish-the-workout branch at the end of the plan), just
+  // triggered on demand instead of by timer.seconds reaching 0.
+  const handleSkipInterval = () => {
+    if (phase !== 'running') return;
+    if (intervalIndex + 1 < plan.length) {
+      const next = plan[intervalIndex + 1];
+      if (next.isRest) SoundService.playDigitalBuzzer(1);
+      else SoundService.playTick();
+      setIntervalIndex((i) => i + 1);
+    } else {
+      timer.stop();
+      SoundService.playBoxingBell();
+      Vibration.vibrate([0, 100, 100, 100]);
+      setPhase('done');
+    }
+  };
+
   if (!workout) return null;
 
   const forTimeTargetRounds = workout.rounds ?? null;
@@ -644,19 +665,31 @@ export function QuickWorkoutTimerModal({
                 roundLine={dialRoundLine}
                 roundOf={dialRoundOf}
               />
-              {/* EMOM/Tabata's sole timer control — inline pause/resume, no
-                  footer (they have no LAP/splits concept, see module
-                  comment). For Time/AMRAP use the footer's pause/play icon
+              {/* EMOM/Tabata's timer controls — inline pause/resume + a
+                  manual SKIP (the interval otherwise only ever advances
+                  when its own clock runs out, with no way to move on
+                  early). No LAP/splits footer for these two, see module
+                  comment. For Time/AMRAP use the footer's pause/play icon
                   button instead, so this doesn't double up with that. */}
               {isEmomOrTabata && (
-                <TouchableOpacity
-                  style={qwStyles.pauseBtn}
-                  onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
-                  disabled={phase === 'done'}
-                >
-                  <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={18} color="#EDEDED" />
-                  <Text style={qwStyles.pauseBtnText}>{timer.isRunning ? 'PAUSE' : 'RESUME'}</Text>
-                </TouchableOpacity>
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 10 }}>
+                  <TouchableOpacity
+                    style={[qwStyles.pauseBtn, { marginTop: 0 }]}
+                    onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
+                    disabled={phase === 'done'}
+                  >
+                    <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={18} color="#EDEDED" />
+                    <Text style={qwStyles.pauseBtnText}>{timer.isRunning ? 'PAUSE' : 'RESUME'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[qwStyles.pauseBtn, { marginTop: 0 }]}
+                    onPress={handleSkipInterval}
+                    disabled={phase === 'done'}
+                  >
+                    <MaterialCommunityIcons name="skip-next" size={18} color="#EDEDED" />
+                    <Text style={qwStyles.pauseBtnText}>SKIP</Text>
+                  </TouchableOpacity>
+                </View>
               )}
               {showPips && phase !== 'done' && <RoundPips total={pipsTotal} completed={pipsCompleted} />}
             </View>
@@ -737,6 +770,31 @@ export function QuickWorkoutTimerModal({
                       <View style={[qwStyles.logDot, { backgroundColor: CORAL }]} />
                       <Text style={qwStyles.logName} numberOfLines={1}>{currentInterval.exercise.name}</Text>
                       <Text style={[qwStyles.logMetaText, { color: CORAL }]}>{exerciseSubtitle(currentInterval.exercise)}</Text>
+                    </View>
+                  </View>
+                )}
+
+                {/* Full rotation, current exercise highlighted — a single
+                    "this round only" card left no way to see the rest of
+                    the workout's structure (what's coming up, how many
+                    movements total), which read as "only one exercise" to
+                    an athlete used to seeing the whole session. */}
+                {isEmomOrTabata && flatExercises.length > 1 && (
+                  <View style={{ marginTop: 22 }}>
+                    <View style={qwStyles.sectionRule}>
+                      <Text style={qwStyles.sectionEyebrow}>ROTATION</Text>
+                    </View>
+                    <View style={{ gap: 8 }}>
+                      {flatExercises.map((ex) => {
+                        const isCurrent = currentInterval?.exercise?.exercise_id === ex.exercise_id && currentInterval?.exercise?.order_index === ex.order_index;
+                        return (
+                          <View key={ex.exercise_id + String(ex.order_index)} style={[qwStyles.logRow, isCurrent ? qwStyles.logRowNext : qwStyles.logRowIdle]}>
+                            <View style={[qwStyles.logDot, isCurrent && { backgroundColor: CORAL }]} />
+                            <Text style={[qwStyles.logName, { color: isCurrent ? '#fff' : '#8a8a8a' }]} numberOfLines={1}>{ex.name}</Text>
+                            <Text style={[qwStyles.logMetaText, isCurrent && { color: CORAL }]}>{exerciseSubtitle(ex)}</Text>
+                          </View>
+                        );
+                      })}
                     </View>
                   </View>
                 )}

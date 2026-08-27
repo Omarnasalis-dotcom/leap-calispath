@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, ImageBackground } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,10 +21,11 @@ import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 // that's the point of Quick." Same principle already applied to My Active
 // Program (Session Detail was removed as a forced interstitial). Full
 // detail (blocks/exercises) is only fetched once a card is tapped, not
-// upfront for every card in the list — StandaloneWorkoutSummary carries no
-// exercise data, so a movement-pill preview per card would mean an N+1
-// fetch; duration/format/category (all real, already-loaded fields) stand
-// in for it instead.
+// upfront for every card in the list — a movement-pill preview per card
+// would mean an N+1 fetch (StandaloneWorkoutSummary carries no exercise
+// data) — but cover_image_url IS already on the summary, so the card can
+// show its real cover photo with no extra fetch; duration/format/category
+// stand in for the movement list instead.
 const DURATION_OPTIONS = [
   { key: 'all', label: 'ALL', test: () => true },
   { key: 'short', label: '≤10 MIN', test: (m: number) => m <= 10 },
@@ -38,6 +40,21 @@ const FORMAT_LABELS: Record<string, string> = {
   fortime: 'FOR TIME',
 };
 
+function CardTrailingIcon({ locked, loadingDetail }: { locked: boolean; loadingDetail: boolean }) {
+  if (locked) {
+    return (
+      <View style={styles.lockCircle}>
+        <MaterialCommunityIcons name="lock" size={16} color={TC_COLORS.textPrimary} />
+      </View>
+    );
+  }
+  return (
+    <View style={styles.playCircle}>
+      {loadingDetail ? <ActivityIndicator size="small" color="#000" /> : <MaterialCommunityIcons name="play" size={18} color="#000" />}
+    </View>
+  );
+}
+
 function QuickWorkoutCard({
   item,
   locked,
@@ -49,6 +66,28 @@ function QuickWorkoutCard({
   loadingDetail: boolean;
   onPress: () => void;
 }) {
+  const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}${item.category ? ` · ${item.category.replace('_', ' ')}` : ''}`;
+
+  if (item.cover_image_url) {
+    return (
+      <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.photoCardWrap}>
+        <ImageBackground source={{ uri: item.cover_image_url }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
+          <LinearGradient colors={['transparent', 'rgba(0,0,0,.55)', 'rgba(0,0,0,.9)']} style={StyleSheet.absoluteFillObject} />
+          <View style={styles.photoDurationBadge}>
+            <Text style={styles.photoDurationText}>{item.duration_minutes ?? '–'} MIN</Text>
+          </View>
+          <View style={styles.photoBottomRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.photoCardTitle} numberOfLines={1}>{item.title.toUpperCase()}</Text>
+              <Text style={styles.photoCardMeta} numberOfLines={1}>{metaLine}</Text>
+            </View>
+            <CardTrailingIcon locked={locked} loadingDetail={loadingDetail} />
+          </View>
+        </ImageBackground>
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.card}>
       <View style={styles.durationBox}>
@@ -57,24 +96,9 @@ function QuickWorkoutCard({
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.title.toUpperCase()}</Text>
-        <Text style={styles.cardMeta} numberOfLines={1}>
-          {item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}
-          {item.category ? ` · ${item.category.replace('_', ' ')}` : ''}
-        </Text>
+        <Text style={styles.cardMeta} numberOfLines={1}>{metaLine}</Text>
       </View>
-      {locked ? (
-        <View style={styles.lockCircle}>
-          <MaterialCommunityIcons name="lock" size={16} color={TC_COLORS.textPrimary} />
-        </View>
-      ) : loadingDetail ? (
-        <View style={styles.playCircle}>
-          <ActivityIndicator size="small" color="#000" />
-        </View>
-      ) : (
-        <View style={styles.playCircle}>
-          <MaterialCommunityIcons name="play" size={18} color="#000" />
-        </View>
-      )}
+      <CardTrailingIcon locked={locked} loadingDetail={loadingDetail} />
     </TouchableOpacity>
   );
 }
@@ -218,4 +242,12 @@ const styles = StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
   },
   lockCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
+
+  photoCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  photoCard: { height: 140, justifyContent: 'space-between' },
+  photoDurationBadge: { alignSelf: 'flex-start', margin: 10, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
+  photoDurationText: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.8 },
+  photoBottomRow: { flexDirection: 'row', alignItems: 'flex-end', padding: 14, gap: 12 },
+  photoCardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 16 },
+  photoCardMeta: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
 });

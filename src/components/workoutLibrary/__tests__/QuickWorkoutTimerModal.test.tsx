@@ -178,6 +178,37 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     jest.useRealTimers();
   });
 
+  test('EMOM manual SKIP: advances to the next round early without waiting for the clock', () => {
+    jest.useFakeTimers();
+    const workout = {
+      ...baseWorkout, format: 'emom' as const, duration_minutes: 9,
+      blocks: [{
+        id: 'b1', name: 'Circuit', order_index: 0,
+        exercises: [ex('Pull Ups', 0, { reps: 15 }), ex('Dips', 1, { reps: 15 }), ex('Air Squat', 2, { reps: 20 })],
+      }],
+    };
+    const root = mountAndClearPrep({ visible: true, workout, theme, onClose: () => {} });
+
+    let texts = findAllText(root.toJSON());
+    expect(texts.some((t) => t.includes('Pull Ups'))).toBe(true);
+    expect(texts).toContain('SKIP');
+
+    // Tap SKIP after only 2s (well before the 60s round would naturally finish)
+    act(() => { jest.advanceTimersByTime(2000); });
+    act(() => { findButtonByText(root, 'SKIP').props.onPress(); });
+    texts = findAllText(root.toJSON());
+    expect(texts.some((t) => t.includes('Dips'))).toBe(true);
+    expect(texts).toContain('1:00'); // fresh full duration for the new round
+    expect(texts).not.toContain('WORKOUT COMPLETE');
+
+    // Also shows the full rotation (not just the current exercise) so the
+    // athlete can see what's coming up.
+    expect(texts).toContain('ROTATION');
+    expect(texts.some((t) => t.includes('Air Squat'))).toBe(true);
+
+    jest.useRealTimers();
+  });
+
   test('EMOM rotation: a different exercise each round, cycling — the real gap this session found', () => {
     jest.useFakeTimers();
     const workout = {
