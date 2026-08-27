@@ -130,6 +130,32 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     jest.useRealTimers();
   });
 
+  test('AMRAP LOG ROUND: self-reported rounds bank a split each, shown in SPLITS — no fixed total, so no round pips', () => {
+    jest.useFakeTimers();
+    const workout = { ...baseWorkout, format: 'amrap' as const, duration_minutes: 10, blocks: [] };
+    const root = mountAndClearPrep({ visible: true, workout, theme, onClose: () => {} });
+
+    let texts = findAllText(root.toJSON());
+    expect(texts).toContain('0 ROUNDS');
+    expect(texts).toContain('Finish a round to bank your first split.');
+
+    act(() => { jest.advanceTimersByTime(20000); }); // 20s in
+    act(() => { findButtonByText(root, 'LOG ROUND').props.onPress(); });
+    texts = findAllText(root.toJSON());
+    expect(texts).toContain('1 ROUND');
+    expect(texts).not.toContain('Finish a round to bank your first split.');
+
+    act(() => { jest.advanceTimersByTime(15000); }); // another 15s (35s total)
+    act(() => { findButtonByText(root, 'LOG ROUND').props.onPress(); });
+    texts = findAllText(root.toJSON());
+    expect(texts).toContain('2 ROUNDS');
+    // Two splits banked: round 1 = 20s, round 2 = 15s -> delta -5s (faster)
+    expect(texts.some((t) => t === '0:20')).toBe(true);
+    expect(texts.some((t) => t === '0:15')).toBe(true);
+
+    jest.useRealTimers();
+  });
+
   test('EMOM, same exercise every round (no interval_seconds, 1 exercise): backward-compatible default', () => {
     jest.useFakeTimers();
     const workout = {
@@ -139,7 +165,8 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     const root = mountAndClearPrep({ visible: true, workout, theme, onClose: () => {} });
 
     let texts = findAllText(root.toJSON());
-    expect(texts).toContain('ROUND 1 OF 15');
+    expect(texts).toContain('ROUND 1');
+    expect(texts).toContain('OF 15');
     expect(texts).toContain('1:00');
     expect(texts.some((t) => t.includes('Burpees'))).toBe(true);
 
@@ -164,7 +191,8 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
 
     // Round 1 of cycle 1 -> Pull Ups
     let texts = findAllText(root.toJSON());
-    expect(texts).toContain('ROUND 1 OF 3');
+    expect(texts).toContain('ROUND 1');
+    expect(texts).toContain('OF 3');
     expect(texts.some((t) => t.includes('Pull Ups'))).toBe(true);
 
     // Run out round 1, land on round 2 -> Dips
@@ -183,7 +211,8 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     // Run out round 3 (minute 4 of 9 = start of cycle 2) -> back to Pull Ups
     act(() => { jest.advanceTimersByTime(60500); });
     texts = findAllText(root.toJSON());
-    expect(texts).toContain('ROUND 2 OF 3');
+    expect(texts).toContain('ROUND 2');
+    expect(texts).toContain('OF 3');
     expect(texts.some((t) => t.includes('Pull Ups'))).toBe(true);
 
     jest.useRealTimers();
@@ -200,7 +229,8 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     const texts = findAllText(root.toJSON());
     expect(texts).toContain('2:00'); // not 1:00 -- the custom interval_seconds must be respected
     // 10 min / 2 min = 5 raw intervals, cycling through 2 exercises = ceil(5/2) = 3 cycles
-    expect(texts).toContain('ROUND 1 OF 3');
+    expect(texts).toContain('ROUND 1');
+    expect(texts).toContain('OF 3');
 
     jest.useRealTimers();
   });
@@ -238,7 +268,7 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     jest.useRealTimers();
   });
 
-  test('For Time, round-capped: stopwatch counts up, COMPLETE ROUND advances, lands on done with a real elapsed time', () => {
+  test('For Time, round-capped: stopwatch counts up, LAP ROUND advances, lands on done with a real elapsed time', () => {
     jest.useFakeTimers();
     const workout = {
       ...baseWorkout, format: 'fortime' as const, duration_minutes: null, rounds: 3,
@@ -251,30 +281,65 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     act(() => { jest.advanceTimersByTime(3500); });
 
     let texts = findAllText(root!.toJSON());
-    expect(texts).toContain('ROUND 1 OF 3');
+    expect(texts).toContain('ROUND 1');
+    expect(texts).toContain('OF 3');
     expect(texts).toContain('0:00');
-    expect(texts).toContain('COMPLETE ROUND');
+    expect(texts).toContain('LAP ROUND 1');
 
     act(() => { jest.advanceTimersByTime(30000); }); // 30s elapsed, stopwatch counts UP
     texts = findAllText(root!.toJSON());
     expect(texts).toContain('0:30');
 
-    // Tap COMPLETE ROUND
-    act(() => { findButtonByText(root!, 'COMPLETE ROUND').props.onPress(); });
+    // Tap LAP ROUND 1 — banks a split, advances to round 2
+    act(() => { findButtonByText(root!, 'LAP ROUND 1').props.onPress(); });
     texts = findAllText(root!.toJSON());
-    expect(texts).toContain('ROUND 2 OF 3');
-    expect(texts).not.toContain('WORKOUT COMPLETE');
+    expect(texts).toContain('ROUND 2');
+    expect(texts).toContain('LAP ROUND 2');
+    expect(texts).not.toContain('COMPLETE');
 
     act(() => { jest.advanceTimersByTime(30000); }); // 60s total elapsed now
-    act(() => { findButtonByText(root!, 'COMPLETE ROUND').props.onPress(); });
+    act(() => { findButtonByText(root!, 'LAP ROUND 2').props.onPress(); });
     texts = findAllText(root!.toJSON());
-    expect(texts).toContain('ROUND 3 OF 3');
-    expect(texts).toContain('FINISH'); // last round shows FINISH, not COMPLETE ROUND
+    expect(texts).toContain('ROUND 3');
+    expect(texts).toContain('FINISH'); // last round shows FINISH, not LAP ROUND 3
 
     act(() => { findButtonByText(root!, 'FINISH').props.onPress(); });
     texts = findAllText(root!.toJSON());
-    expect(texts).toContain('WORKOUT COMPLETE');
-    expect(texts).toContain('1:00'); // real elapsed time shown on the done screen
+    expect(texts).toContain('COMPLETE'); // dial's round line once finished
+    expect(texts).toContain('1:00'); // real elapsed time shown in the summary card
+
+    jest.useRealTimers();
+  });
+
+  test('For Time THIS ROUND: tapping every movement logs it and auto-advances the round', () => {
+    jest.useFakeTimers();
+    const workout = {
+      ...baseWorkout, format: 'fortime' as const, duration_minutes: null, rounds: 2,
+      blocks: [{ id: 'b1', name: 'Circuit', order_index: 0, exercises: [ex('Push Ups', 0, { reps: 10 }), ex('Leg Raises', 1, { reps: 20 })] }],
+    };
+    let root: ReturnType<typeof create>;
+    act(() => {
+      root = create(<QuickWorkoutTimerModal visible workout={workout as any} theme={theme} onClose={() => {}} />);
+    });
+    act(() => { jest.advanceTimersByTime(3500); });
+
+    let texts = findAllText(root!.toJSON());
+    expect(texts).toContain('THIS ROUND');
+    expect(texts).toContain('0 OF 2 LOGGED');
+
+    act(() => { jest.advanceTimersByTime(10000); }); // 10s in
+    // Tap both movement rows
+    act(() => { findButtonByText(root!, 'Push Ups').props.onPress(); });
+    texts = findAllText(root!.toJSON());
+    expect(texts).toContain('1 OF 2 LOGGED');
+    expect(texts).toContain('ROUND 1'); // still round 1, not every movement logged yet
+
+    act(() => { findButtonByText(root!, 'Leg Raises').props.onPress(); });
+    // Checking the last movement auto-advances (same tick, via setTimeout(0) — flush it)
+    act(() => { jest.advanceTimersByTime(0); });
+    texts = findAllText(root!.toJSON());
+    expect(texts).toContain('ROUND 2');
+    expect(texts).toContain('0 OF 2 LOGGED'); // checklist reset for the new round
 
     jest.useRealTimers();
   });
