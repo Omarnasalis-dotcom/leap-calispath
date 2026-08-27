@@ -356,7 +356,7 @@ export function TrainingCenterScreen() {
           sub: formatQuickWorkoutSub(data.quickMin, data.quickMax),
           locked: false,
           badge: null,
-          onPress: () => goTab('quick_workout'),
+          onPress: () => router.push('/quick-workout'),
         },
       ]
     : [];

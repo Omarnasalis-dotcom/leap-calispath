@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+@keyframes rowIn{from{opacity:0;transform:translateY(15px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes expandIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
+@keyframes barGrow{from{width:0}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.3;transform:scale(.65)}}
+@keyframes glowBreath{0%,100%{opacity:.4}50%{opacity:.85}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@200;300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:26px;padding:40px 20px;box-sizing:border-box;background:radial-gradient(1200px 700px at 50% -10%,#141014 0%,#080808 60%);font-family:'Oswald','Arial Narrow',sans-serif;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">WORKOUT BLOCKS · PREMIUM</div>
+    <div style="color:#6d6d6d;font-size:12px;font-weight:300;line-height:1.6;">Tap any block to expand it. The first one is open by default — the session should never open on five identical closed doors.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#4a4a4a;font-size:10px;letter-spacing:1.8px;font-weight:500;">WHAT CHANGED</div>
+    <div style="color:#7a7a7a;font-size:11.5px;font-weight:300;line-height:1.65;">· Five identical gradient borders → one accent colour per block type, carried on a left rail.<br>· Empty mystery box removed; SKIP is now a quiet ghost action.<br>· Truncated movement strings → real movement rows with set targets.<br>· Cards lost ~40% dead height.<br>· Progress moved from a card at the bottom to a live header bar + sticky CTA.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="color:#6d6d6d;font-size:10px;letter-spacing:1.6px;font-weight:500;">MID-WORKOUT STATE</div>
+      <div style="{{ toggleTrack }}" onClick="{{ toggleProgress }}"><div style="{{ toggleKnob }}"></div></div>
+    </div>
+    <div style="color:#3f3f3f;font-size:10px;font-weight:300;line-height:1.5;">Flips two blocks to done and one to skipped, so you can see every card state at once.</div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:40px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);display:flex;flex-direction:column;">
+
+    <div style="position:absolute;top:-150px;left:50%;transform:translateX(-50%);width:420px;height:300px;border-radius:50%;background:radial-gradient(circle,rgba(252,84,84,.14) 0%,rgba(139,92,246,.08) 45%,transparent 70%);filter:blur(20px);animation:glowBreath 6s ease-in-out infinite;pointer-events:none;"></div>
+
+    <div style="position:relative;display:flex;align-items:center;justify-content:space-between;padding:14px 22px 0;color:#fff;font-size:13px;font-weight:500;flex-shrink:0;">
+      <div>12:05</div>
+      <div style="display:flex;gap:5px;align-items:center;opacity:.9;">
+        <div style="width:14px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:13px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:20px;height:10px;border-radius:2px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="position:relative;flex-shrink:0;padding:16px 20px 13px;">
+      <div style="display:flex;align-items:center;gap:13px;">
+        <div style="width:34px;height:34px;border-radius:12px;border:1px solid #221c1c;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <div style="color:#fff;font-size:20px;font-weight:600;letter-spacing:1.4px;line-height:1;">DAY 1</div>
+            <div style="{{ dayStateStyle }}">{{ dayState }}</div>
+          </div>
+          <div style="color:#6d6d6d;font-size:10px;font-weight:400;letter-spacing:1.1px;margin-top:5px;white-space:nowrap;">{{ headerMeta }}</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;">
+          <div style="color:#fff;font-size:19px;font-weight:700;line-height:1;">{{ pct }}<span style="font-size:10px;color:#5a5a5a;">%</span></div>
+          <div style="color:#4a4a4a;font-size:7.5px;font-weight:500;letter-spacing:1.5px;margin-top:3px;">COMPLETE</div>
+        </div>
+      </div>
+
+      <div style="display:flex;gap:4px;margin-top:13px;">
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="5">
+          <div style="{{ t.style }}"></div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:relative;flex:1;overflow-y:auto;">
+      <div style="padding:4px 20px 132px;display:grid;gap:11px;">
+        <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="5">
+          <div style="{{ b.cardStyle }}">
+            <div style="{{ b.railStyle }}"></div>
+
+            <div style="display:flex;align-items:center;gap:12px;padding:13px 15px 13px 17px;cursor:pointer;" onClick="{{ b.toggle }}">
+              <div style="{{ b.iconStyle }}">
+                <div style="{{ b.iconNumStyle }}">{{ b.index }}</div>
+              </div>
+
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:7px;">
+                  <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+                  <div style="{{ b.stateStyle }}">{{ b.state }}</div>
+                </div>
+                <div style="display:flex;align-items:center;flex-wrap:wrap;column-gap:8px;row-gap:4px;margin-top:5px;">
+                  <div style="{{ b.schemeStyle }}">{{ b.scheme }}</div>
+                  <div style="width:1px;height:9px;background:#221c1c;flex-shrink:0;"></div>
+                  <div style="{{ b.metaTextStyle }}">{{ b.count }}</div>
+                  <div style="width:1px;height:9px;background:#221c1c;flex-shrink:0;"></div>
+                  <div style="{{ b.metaTextStyle }}">{{ b.dur }}</div>
+                </div>
+              </div>
+
+              <div style="{{ b.skipStyle }}" onClick="{{ b.skip }}">{{ b.skipLabel }}</div>
+              <div style="{{ b.chevStyle }}">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              </div>
+            </div>
+
+            <sc-if value="{{ b.collapsed }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ b.chipRowStyle }}">
+                <sc-for list="{{ b.chips }}" as="c" hint-placeholder-count="3">
+                  <div style="{{ c.style }}">{{ c.label }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ b.open }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ b.bodyStyle }}">
+                <sc-for list="{{ b.moves }}" as="m" hint-placeholder-count="3">
+                  <div style="{{ m.rowStyle }}">
+                    <div style="{{ m.dotStyle }}"></div>
+                    <div style="flex:1;min-width:0;">
+                      <div style="{{ m.nameStyle }}">{{ m.name }}</div>
+                      <div style="color:#5a5a5a;font-size:9.5px;font-weight:400;letter-spacing:1.1px;margin-top:2px;">{{ m.note }}</div>
+                    </div>
+                    <div style="display:flex;gap:5px;flex-shrink:0;">
+                      <sc-for list="{{ m.sets }}" as="s" hint-placeholder-count="3">
+                        <div style="{{ s.style }}">{{ s.label }}</div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:0;right:0;bottom:0;padding:16px 20px 26px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.92) 34%,#000 100%);pointer-events:none;">
+      <div style="display:flex;gap:10px;pointer-events:auto;">
+        <div style="width:52px;border-radius:15px;border:1px solid #241f1f;background:rgba(255,255,255,.02);display:flex;align-items:center;justify-content:center;cursor:pointer;">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5v4l2.5 2M9 2h6"></path></svg>
+        </div>
+        <div style="flex:1;border-radius:15px;background:#FC5454;padding:15px;display:flex;align-items:center;justify-content:center;gap:9px;cursor:pointer;box-shadow:0 12px 30px rgba(252,84,84,.34);">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="#fff"><path d="M7 4l13 8-13 8z"></path></svg>
+          <div style="color:#fff;font-size:13.5px;font-weight:700;letter-spacing:1.9px;">{{ ctaLabel }}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:740,&quot;height&quot;:960}}">
+const CORAL = "#FC5454";
+const PURPLE = "#8b5cf6";
+const ORANGE = "#f97316";
+const GOLD = "#C9A227";
+const STEEL = "#5b8def";
+
+const BLOCKS = [
+  {
+    title: "WARM-UP", accent: GOLD, scheme: "STRAIGHT SETS", dur: "~6 MIN",
+    moves: [
+      { name: "Deadhang", note: "Passive, shoulders relaxed", sets: ["30s", "30s"] },
+      { name: "Scapula Pulls", note: "No elbow bend", sets: ["10", "10"] },
+      { name: "Band Pull-Apart", note: "Slow return", sets: ["15", "15"] },
+    ],
+  },
+  {
+    title: "SKILLS", accent: PURPLE, scheme: "STRAIGHT SETS", dur: "~12 MIN",
+    moves: [
+      { name: "Jump Muscle-Up", note: "Explode through the transition", sets: ["4", "4", "3"] },
+      { name: "Muscle Swing to Box", note: "Hips lead, chest tall", sets: ["6", "6", "6"] },
+      { name: "False Grip Hang", note: "Wrists over the bar", sets: ["20s", "20s"] },
+    ],
+  },
+  {
+    title: "STRENGTH", accent: CORAL, scheme: "STRAIGHT SETS", dur: "~15 MIN",
+    moves: [
+      { name: "Pull-Ups", note: "Normal grip · full lockout", sets: ["8", "7", "6", "6"] },
+      { name: "Ring Row", note: "Body in one line", sets: ["12", "12", "10"] },
+    ],
+  },
+  {
+    title: "ACCESSORIES", accent: ORANGE, scheme: "STRAIGHT SETS", dur: "~8 MIN",
+    moves: [
+      { name: "Banded Biceps Curl", note: "2s down", sets: ["15", "15", "15"] },
+      { name: "Rear Delt Fly", note: "Light band, high reps", sets: ["20", "20"] },
+    ],
+  },
+  {
+    title: "COOL-DOWN", accent: STEEL, scheme: "HOLDS", dur: "~4 MIN",
+    moves: [
+      { name: "Lat Stretch", note: "Shoulder opener", sets: ["45s"] },
+      { name: "Shoulder Stretch", note: "Both sides", sets: ["45s", "45s"] },
+      { name: "Wrist Flush", note: "Slow circles", sets: ["30s"] },
+    ],
+  },
+];
+
+const hex = (h, a) => {
+  const n = parseInt(h.slice(1), 16);
+  return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+};
+
+class Component extends DCLogic {
+  state = { openIndex: 0, mid: false, skipped: {} };
+
+  renderVals() {
+    const mid = this.state.mid;
+    const doneCount = mid ? 2 : 0;
+    const statusOf = (i) => {
+      if (this.state.skipped[i]) return "skipped";
+      if (mid && i === 2) return "skipped";
+      if (i < doneCount) return "done";
+      return "todo";
+    };
+
+    const total = BLOCKS.length;
+    const settled = BLOCKS.filter((_, i) => statusOf(i) !== "todo").length;
+    const pct = Math.round((settled / total) * 100);
+
+    return {
+      pct,
+      headerMeta: BLOCKS.length + " BLOCKS · 12 MOVEMENTS · ~45 MIN",
+      ctaLabel: mid ? "RESUME BLOCK 4" : "START WORKOUT",
+      dayState: pct === 0 ? "NOT STARTED" : pct === 100 ? "COMPLETE" : "IN PROGRESS",
+      dayStateStyle: {
+        padding: "3px 7px", borderRadius: 5, whiteSpace: "nowrap",
+        background: pct === 0 ? "rgba(255,255,255,.04)" : "rgba(252,84,84,.12)",
+        border: "1px solid " + (pct === 0 ? "#221c1c" : "#3a1d1d"),
+        color: pct === 0 ? "#7a7a7a" : CORAL,
+        fontSize: 7.5, fontWeight: 700, letterSpacing: 1.3,
+      },
+
+      ticks: BLOCKS.map((b, i) => {
+        const st = statusOf(i);
+        return {
+          style: {
+            flex: 1, height: 3, borderRadius: 2,
+            background: st === "done" ? b.accent : st === "skipped" ? "#2e2626" : "#191515",
+            opacity: st === "skipped" ? 1 : 1,
+            transition: "background .4s ease",
+          },
+        };
+      }),
+
+      blocks: BLOCKS.map((b, i) => {
+        const st = statusOf(i);
+        const done = st === "done", skipped = st === "skipped";
+        const open = this.state.openIndex === i && !skipped;
+        const a = b.accent;
+        const dim = done || skipped;
+
+        return {
+          index: skipped ? "–" : done ? "✓" : String(i + 1),
+          title: b.title, scheme: b.scheme, dur: b.dur,
+          count: b.moves.length + " MOVES",
+          state: done ? "DONE" : skipped ? "SKIPPED" : open ? "OPEN" : "",
+          skipLabel: skipped ? "UNDO" : "SKIP",
+          open, collapsed: !open,
+          toggle: () => this.setState((p) => ({ openIndex: p.openIndex === i ? -1 : i })),
+          skip: (e) => {
+            if (e && e.stopPropagation) e.stopPropagation();
+            this.setState((p) => {
+              const nx = Object.assign({}, p.skipped);
+              nx[i] = !nx[i];
+              return { skipped: nx };
+            });
+          },
+
+          cardStyle: {
+            position: "relative", borderRadius: 18, overflow: "hidden",
+            border: "1px solid " + (open ? hex(a, .32) : dim ? "#171313" : "#1b1717"),
+            background: open
+              ? "linear-gradient(160deg," + hex(a, .07) + " 0%,#0b0909 46%,#090808 100%)"
+              : "linear-gradient(160deg,#0d0b0b 0%,#090808 100%)",
+            opacity: skipped ? 0.45 : done ? 0.66 : 1,
+            boxShadow: open ? "0 14px 32px " + hex(a, .09) : "none",
+            animation: "rowIn .5s cubic-bezier(.2,.9,.3,1.2) " + (0.08 + i * 0.07) + "s both",
+            transition: "border-color .25s ease, opacity .25s ease",
+          },
+          railStyle: {
+            position: "absolute", left: 0, top: 0, bottom: 0, width: 3,
+            background: skipped ? "#2e2626" : a,
+            opacity: open ? 1 : dim ? .4 : .6,
+            transition: "opacity .25s ease",
+          },
+
+          iconStyle: {
+            width: 34, height: 34, borderRadius: 12, flexShrink: 0,
+            border: "1px solid " + (open ? hex(a, .38) : "#1e1a1a"),
+            background: open ? hex(a, .12) : "rgba(255,255,255,.02)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          },
+          iconNumStyle: { color: done ? a : skipped ? "#5a5a5a" : open ? a : "#7a7a7a", fontSize: done ? 14 : 14, fontWeight: 700, letterSpacing: .4, lineHeight: 1 },
+
+          titleStyle: {
+            color: dim ? "#8a8a8a" : "#fff", fontSize: 15.5, fontWeight: 600, letterSpacing: 1.5,
+            textDecoration: skipped ? "line-through" : "none", whiteSpace: "nowrap",
+          },
+          stateStyle: b.title && (done || skipped || open)
+            ? { padding: "2px 6px", borderRadius: 5, background: open ? hex(a, .16) : "rgba(255,255,255,.04)", color: open ? a : "#7a7a7a", fontSize: 7, fontWeight: 700, letterSpacing: 1.2 }
+            : { display: "none" },
+          schemeStyle: { color: dim ? "#4a4a4a" : hex(a, .95), fontSize: 9, fontWeight: 600, letterSpacing: 1.2, whiteSpace: "nowrap", flexShrink: 0 },
+          metaTextStyle: { color: "#6d6d6d", fontSize: 10, fontWeight: 400, letterSpacing: .6, whiteSpace: "nowrap", flexShrink: 0 },
+
+          skipStyle: {
+            padding: "6px 9px", borderRadius: 8, flexShrink: 0,
+            color: skipped ? a : "#4a4444", fontSize: 8.5, fontWeight: 600, letterSpacing: 1.4,
+            cursor: "pointer", border: "1px solid transparent",
+            display: done ? "none" : "block",
+          },
+          chevStyle: {
+            width: 22, height: 22, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center",
+            transform: open ? "rotate(180deg)" : "rotate(0deg)", transition: "transform .28s cubic-bezier(.2,.9,.3,1.2)",
+          },
+
+          chipRowStyle: { display: "flex", gap: 6, flexWrap: "wrap", padding: "0 15px 13px 62px" },
+          chips: b.moves.slice(0, 3).map((m, j) => ({
+            label: j === 2 && b.moves.length > 3 ? "+" + (b.moves.length - 2) + " MORE" : m.name.toUpperCase(),
+            style: {
+              padding: "5px 9px", borderRadius: 7,
+              border: "1px solid " + (dim ? "#171313" : "#1d1919"),
+              background: "rgba(255,255,255,.02)",
+              color: dim ? "#4a4444" : "#8a8a8a", fontSize: 8.5, fontWeight: 500, letterSpacing: 1.2,
+            },
+          })),
+
+          bodyStyle: {
+            display: "grid", gap: 2, padding: "2px 13px 13px 13px",
+            animation: "expandIn .3s cubic-bezier(.2,.9,.3,1.1) both",
+          },
+          moves: b.moves.map((m) => ({
+            name: m.name, note: m.note,
+            rowStyle: { display: "flex", alignItems: "center", gap: 11, padding: "10px 11px", borderRadius: 12, background: "rgba(255,255,255,.018)" },
+            dotStyle: { width: 6, height: 6, borderRadius: 50, flexShrink: 0, background: a, opacity: .8 },
+            nameStyle: { color: "#EDEDED", fontSize: 13, fontWeight: 500, letterSpacing: .5 },
+            sets: m.sets.map((v, n) => ({
+              label: v,
+              style: {
+                minWidth: 30, textAlign: "center", padding: "5px 7px", borderRadius: 8,
+                border: "1px solid " + hex(a, .22), background: hex(a, .07),
+                color: "#D4D4D4", fontSize: 10, fontWeight: 600, letterSpacing: .6,
+              },
+            })),
+          })),
+        };
+      }),
+
+      toggleProgress: () => this.setState((p) => ({ mid: !p.mid, openIndex: p.mid ? 0 : 3, skipped: {} })),
+      toggleTrack: { width: 40, height: 22, borderRadius: 11, padding: 2, cursor: "pointer", background: mid ? CORAL : "#1c1c1c", display: "flex", justifyContent: mid ? "flex-end" : "flex-start", transition: "background .2s ease" },
+      toggleKnob: { width: 18, height: 18, borderRadius: 50, background: "#fff" },
+    };
+  }
+}
+
+</script>
+</body>
+</html>
