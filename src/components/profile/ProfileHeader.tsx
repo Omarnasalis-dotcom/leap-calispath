@@ -1,10 +1,13 @@
-import React from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Animated,
+  Easing,
+  AccessibilityInfo,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -16,6 +19,65 @@ import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
+import { TC_BUTTON_GRADIENT, TC_MOTION } from '../../../constants/trainingCenterTokens';
+
+/**
+ * Slow diagonal sheen pass across the Training Center button (design
+ * handoff §1: 4.2s ease-in-out loop) — a translating semi-transparent
+ * streak clipped inside the button. Skipped entirely under reduce-motion
+ * (same guard pattern as QuickWorkoutTimerModal's pulse animation).
+ */
+function TrainingCenterSheen() {
+  const [width, setWidth] = useState(0);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const anim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    if (reduceMotion || width === 0) return;
+    anim.setValue(0);
+    const loop = Animated.loop(
+      Animated.timing(anim, {
+        toValue: 1,
+        duration: TC_MOTION.sheenMs,
+        easing: Easing.inOut(Easing.ease),
+        useNativeDriver: true,
+      })
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [reduceMotion, width, anim]);
+
+  if (reduceMotion) return null;
+
+  const streakWidth = 70;
+  const translateX = anim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [-streakWidth, width + streakWidth],
+  });
+
+  return (
+    <View
+      pointerEvents="none"
+      style={{ ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderRadius: 14 }}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      {width > 0 && (
+        <Animated.View style={{ position: 'absolute', top: -20, bottom: -20, width: streakWidth, transform: [{ translateX }, { rotate: '18deg' }] }}>
+          <LinearGradient
+            colors={['transparent', 'rgba(255,255,255,0.10)', 'transparent']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={{ flex: 1 }}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
 
 const W = WORLD_THEMES.strength;
 
@@ -42,7 +104,7 @@ interface ProfileHeaderProps {
   onFetchWRALeaderboard: () => void;
   onFetchGloryLeaderboard: () => void;
   onOpenCoachingCenter?: () => void;
-  onOpenWarriorProgram?: () => void;
+  onOpenTrainingCenter?: () => void;
   onOpenStaticWorld: () => void;
   onOpenPowerAssessment: () => void;
   onOpenOneMinMax: (category?: 'entry' | 'main' | 'advanced') => void;
@@ -115,7 +177,7 @@ export function ProfileHeader({
   onFetchWRALeaderboard,
   onFetchGloryLeaderboard,
   onOpenCoachingCenter,
-  onOpenWarriorProgram,
+  onOpenTrainingCenter,
   onOpenStaticWorld,
   onOpenPowerAssessment,
   onOpenOneMinMax,
@@ -271,24 +333,26 @@ export function ProfileHeader({
               </LinearGradient>
             )
           ) : (
-            onOpenWarriorProgram && (
+            onOpenTrainingCenter && (
               <LinearGradient
-                colors={['#7E57C2', '#FF5252', '#FF7043']}
+                colors={TC_BUTTON_GRADIENT}
                 start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
+                end={{ x: 1, y: 1 }}
                 style={styles.programGradient}
               >
                 <TouchableOpacity
                   ref={workoutProgramButtonRef}
                   onLayout={onWorkoutProgramButtonLayout}
-                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF', borderWidth: 0 }]}
+                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#050303' : '#FFFFFF', borderWidth: 0 }]}
                   onPress={() => {
-                    onOpenWarriorProgram();
+                    onOpenTrainingCenter();
                     reportWorkoutProgramButton();
                   }}
                 >
-                  <MaterialCommunityIcons name="calendar-check-outline" size={16} color={W.accent} />
-                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>MY WORKOUT PROGRAM</Text>
+                  <TrainingCenterSheen />
+                  <MaterialCommunityIcons name="calendar-month-outline" size={16} color={neutrals.textPrimary} />
+                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>TRAINING CENTER</Text>
+                  <MaterialCommunityIcons name="chevron-right" size={18} color={neutrals.textPrimary} style={{ marginLeft: -2 }} />
                 </TouchableOpacity>
               </LinearGradient>
             )
@@ -391,7 +455,7 @@ const styles = StyleSheet.create({
     fontSize: 11,
   },
   programGradient: {
-    padding: 1.2,
+    padding: 1.5,
     borderRadius: 15,
   },
   programButton: {
@@ -401,10 +465,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
+    overflow: 'hidden',
   },
   programButtonText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 14,
-    letterSpacing: 1,
+    fontSize: 15,
+    letterSpacing: 1.8,
   },
 });

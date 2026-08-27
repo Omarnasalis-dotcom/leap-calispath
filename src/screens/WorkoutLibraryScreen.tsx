@@ -27,6 +27,7 @@ import {
 } from '../lib/workoutLibrary';
 import { canAccessPro } from '../lib/entitlement';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { QuickWorkoutTimerModal } from '../components/workoutLibrary/QuickWorkoutTimerModal';
 
 const bronzeGold = '#C8A040';
 
@@ -49,6 +50,7 @@ function getCardImage(rec: LibraryTemplateRecommendation, index: number) {
 }
 
 type Tab = 'all' | 'programs' | 'workout' | 'quick_workout';
+const VALID_TABS: Tab[] = ['all', 'programs', 'workout', 'quick_workout'];
 // Mirrors create_custom_program_from_workouts' own server-side cap.
 const MAX_CUSTOM_PROGRAM_DAYS = 7;
 const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced'];
@@ -91,15 +93,21 @@ type LibraryItem =
 
 interface Props {
   onClose?: () => void;
+  // Training Center hub tiles land here on a specific tab (Templates /
+  // Customize / Quick Workout) instead of always opening on "All" — falls
+  // back to 'all' for anything not in the real Tab union.
+  initialTab?: string;
 }
 
-export function WorkoutLibraryScreen({ onClose }: Props) {
+export function WorkoutLibraryScreen({ onClose, initialTab }: Props) {
   const router = useRouter();
   const { theme } = useTheme();
   const { user, profile, paywallEnabled } = useAuth();
   const isPro = canAccessPro(profile, paywallEnabled);
 
-  const [activeTab, setActiveTab] = useState<Tab>('all');
+  const [activeTab, setActiveTab] = useState<Tab>(
+    VALID_TABS.includes(initialTab as Tab) ? (initialTab as Tab) : 'all'
+  );
 
   const [recommendations, setRecommendations] = useState<LibraryTemplateRecommendation[]>([]);
   const [allTemplates, setAllTemplates] = useState<LibraryTemplateRecommendation[]>([]);
@@ -131,6 +139,11 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
   // request's own finally block would flip back to true->false on its own
   // schedule, reopening (or never actually dismissing) the modal.
   const workoutDetailRequestId = useRef(0);
+
+  // Quick Workout live-timer modal — only ever opened with an already-
+  // fetched workoutDetail (kind='quick_workout'), same data the preview
+  // modal is already showing.
+  const [quickWorkoutTimerVisible, setQuickWorkoutTimerVisible] = useState(false);
 
   // "Build your week" day-picker state — Workouts tab only. Each selected
   // workout is one training day, in selection order; cleared on unmount
@@ -319,7 +332,20 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
     try {
       const detail = await getStandaloneWorkoutDetail(item.id);
       if (workoutDetailRequestId.current !== requestId) return; // closed (or superseded) while in flight
+      if (!detail) {
+        Alert.alert('NOT AVAILABLE', 'THAT WORKOUT COULD NOT BE FOUND — IT MAY HAVE BEEN REMOVED.');
+        return;
+      }
       setWorkoutDetail(detail);
+    } catch (err: any) {
+      // Found live: this had no catch at all — a failed fetch (network
+      // blip, anything) reset workoutDetailLoading back to false in the
+      // finally block below with nothing ever shown, which reads as the
+      // card tap having done literally nothing.
+      console.error('openStandaloneDetail failed:', err);
+      if (workoutDetailRequestId.current === requestId) {
+        Alert.alert('COULD NOT LOAD WORKOUT', (err?.message || 'SOMETHING WENT WRONG.').toUpperCase());
+      }
     } finally {
       if (workoutDetailRequestId.current === requestId) setWorkoutDetailLoading(false);
     }
@@ -659,7 +685,7 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
       />
 
       <StandaloneWorkoutDetailModal
-        visible={workoutDetail !== null || workoutDetailLoading}
+        visible={(workoutDetail !== null || workoutDetailLoading) && !quickWorkoutTimerVisible}
         theme={theme}
         detail={workoutDetail}
         loading={workoutDetailLoading}
@@ -669,6 +695,17 @@ export function WorkoutLibraryScreen({ onClose }: Props) {
         onAdd={() => workoutDetail && addDay(workoutDetail)}
         onRemove={() => workoutDetail && removeDay(workoutDetail.id)}
         onClose={closeStandaloneDetail}
+        onStartWorkout={() => setQuickWorkoutTimerVisible(true)}
+      />
+
+      <QuickWorkoutTimerModal
+        visible={quickWorkoutTimerVisible}
+        workout={workoutDetail}
+        theme={theme}
+        onClose={() => {
+          setQuickWorkoutTimerVisible(false);
+          closeStandaloneDetail();
+        }}
       />
 
       {activeTab === 'workout' && selectedDayWorkouts.length > 0 && (
@@ -843,6 +880,7 @@ function StandaloneWorkoutDetailModal({
   onAdd,
   onRemove,
   onClose,
+  onStartWorkout,
 }: {
   visible: boolean;
   theme: any;
@@ -854,6 +892,7 @@ function StandaloneWorkoutDetailModal({
   onAdd: () => void;
   onRemove: () => void;
   onClose: () => void;
+  onStartWorkout: () => void;
 }) {
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
@@ -913,6 +952,16 @@ function StandaloneWorkoutDetailModal({
                   <MaterialCommunityIcons name="plus" size={16} color="#000" />
                 </TouchableOpacity>
               )}
+            </View>
+          ) : detail?.kind === 'quick_workout' ? (
+            <View style={[previewStyles.actions, { marginTop: 12 }]}>
+              <TouchableOpacity style={[previewStyles.cancelBtn, { borderColor: theme.card.border }]} onPress={onClose}>
+                <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CLOSE</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={previewStyles.startBtn} onPress={onStartWorkout}>
+                <Text style={previewStyles.startBtnText}>START WORKOUT</Text>
+                <MaterialCommunityIcons name="play" size={16} color="#000" />
+              </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={[previewStyles.cancelBtn, { borderColor: theme.card.border, marginTop: 12 }]} onPress={onClose}>

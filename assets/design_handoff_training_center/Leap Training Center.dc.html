@@ -1,0 +1,768 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#0a0a0a;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+@keyframes scIn{from{opacity:0;transform:translateX(26px)}to{opacity:1;transform:translateX(0)}}
+@keyframes scBack{from{opacity:0;transform:translateX(-26px)}to{opacity:1;transform:translateX(0)}}
+@keyframes rowIn{from{opacity:0;transform:translateY(14px) scale(.98)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes ringDraw{from{stroke-dashoffset:414}to{stroke-dashoffset:145}}
+@keyframes pulseDot{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.35;transform:scale(.7)}}
+@keyframes sheen{0%{background-position:-140% 0}55%,100%{background-position:260% 0}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#0a0a0a;font-family:'Oswald','Arial Narrow',sans-serif;">
+
+  <div style="display:flex;flex-direction:column;gap:14px;width:250px;padding-top:8px;">
+    <div style="color:#fff;font-size:19px;font-weight:700;letter-spacing:1.6px;">TRAINING CENTER FLOW</div>
+    <div style="color:#6d6d6d;font-size:12px;font-weight:300;line-height:1.6;">Profile → Training Center → four paths. Tap through the phone; every list and chip is live.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <sc-for list="{{ jumpItems }}" as="j" hint-placeholder-count="6">
+      <div style="{{ j.style }}" onClick="{{ j.go }}">
+        <div style="{{ j.dotStyle }}"></div>
+        <div style="flex:1;">{{ j.label }}</div>
+      </div>
+    </sc-for>
+    <div style="height:1px;background:#1c1c1c;margin-top:4px;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="color:#6d6d6d;font-size:10px;letter-spacing:1.6px;font-weight:500;">HAS ACTIVE PROGRAM</div>
+      <div style="{{ toggleTrack }}" onClick="{{ toggleActive }}"><div style="{{ toggleKnob }}"></div></div>
+    </div>
+    <div style="color:#3f3f3f;font-size:10px;font-weight:300;line-height:1.5;">Option 1 is the only gated tile — it unlocks solely when a program is assigned.</div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:38px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 30px 80px rgba(0,0,0,.85);display:flex;flex-direction:column;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 20px 0;color:#fff;font-size:13px;font-weight:500;flex-shrink:0;">
+      <div>2:51</div>
+      <div style="display:flex;gap:5px;align-items:center;opacity:.9;">
+        <div style="width:14px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:13px;height:9px;border-radius:1px;background:#fff;"></div>
+        <div style="width:20px;height:10px;border-radius:2px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;overflow-x:hidden;">
+
+      <sc-if value="{{ isProfile }}" hint-placeholder-val="{{ true }}">
+      <div style="{{ anim }}">
+        <div style="position:relative;padding:10px 20px 0;">
+          <div style="position:absolute;left:-24px;top:2px;width:80px;height:80px;border-radius:50%;border:2px solid #3d1414;display:flex;align-items:center;justify-content:center;">
+            <div style="width:50px;height:50px;border-radius:50%;background:#FC5454;"></div>
+          </div>
+          <div style="text-align:center;color:#fff;font-size:22px;font-weight:700;letter-spacing:1.5px;">OMAR NASSER</div>
+          <div style="text-align:center;color:#FC5454;font-size:12px;font-weight:600;letter-spacing:2.4px;margin-top:3px;">EPHEBE · TIER 2 OF 9</div>
+        </div>
+
+        <div style="display:flex;justify-content:center;margin-top:12px;">
+          <svg width="150" height="150" viewBox="-75 -75 150 150">
+            <circle cx="0" cy="0" r="72" fill="none" stroke="#FC5454" stroke-width="2"></circle>
+            <circle cx="0" cy="0" r="33" fill="none" stroke="#4A2020" stroke-width="2"></circle>
+            <text x="0" y="16" text-anchor="middle" font-family="Oswald" font-weight="700" font-size="44" fill="#FC5454">2</text>
+          </svg>
+        </div>
+
+        <div style="padding:0 20px 24px;display:grid;gap:12px;margin-top:8px;">
+          <div style="border:1px solid #3d1a1a;border-radius:14px;padding:14px 16px;background:#0d0605;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;">
+              <div style="color:#fff;font-size:16px;font-weight:600;">Well-Rounded Athlete</div>
+              <div style="color:#FC5454;font-size:17px;font-weight:700;">17.00</div>
+            </div>
+            <div style="color:#7a7a7a;font-size:12px;font-weight:300;margin-top:3px;">Static · Power · 1MM</div>
+            <div style="height:5px;border-radius:3px;background:#2a1212;margin-top:12px;"></div>
+          </div>
+
+          <div style="border:1px solid #1f1f1f;border-radius:14px;padding:13px 16px;display:flex;align-items:center;justify-content:space-between;">
+            <div>
+              <div style="color:#6d6d6d;font-size:10px;letter-spacing:2.4px;font-weight:500;">MY COMMUNITY</div>
+              <div style="color:#fff;font-size:17px;font-weight:600;margin-top:2px;">LEAP</div>
+            </div>
+            <div style="color:#FC5454;font-size:13px;font-weight:600;letter-spacing:1.4px;">LEAVE</div>
+          </div>
+
+          <div style="border-radius:14px;padding:1.5px;background:linear-gradient(90deg,#8b5cf6,#f97316);cursor:pointer;" onClick="{{ goDash }}">
+            <div style="border-radius:13px;background:linear-gradient(100deg,#0a0a0a 0%,#0a0a0a 40%,#171013 50%,#0a0a0a 60%,#0a0a0a 100%);background-size:240% 100%;animation:sheen 4.2s ease-in-out infinite;padding:15px;display:flex;align-items:center;justify-content:center;gap:9px;color:#fff;font-size:15px;font-weight:700;letter-spacing:1.8px;">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#a78bfa" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4"></path></svg>
+              TRAINING CENTER
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#f97316" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+            </div>
+          </div>
+
+          <div style="border-radius:14px;background:#FC5454;padding:15px;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;font-size:15px;font-weight:700;letter-spacing:2px;">
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 4h10v6a5 5 0 01-10 0z"></path><path d="M7 5H4v2a3 3 0 003 3M17 5h3v2a3 3 0 01-3 3"></path><path d="M10 20h4M12 15v5"></path></svg>
+            WEEKLY CHALLENGE
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isDash }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:19px;font-weight:700;letter-spacing:1.9px;">TRAINING CENTER</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">{{ dashSub }}</div>
+          </div>
+        </div>
+
+        <div style="padding:16px 18px 0;">
+          <div style="{{ heroStyle }}">
+            <sc-if value="{{ hasActive }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;gap:16px;align-items:center;">
+                <div style="position:relative;flex-shrink:0;">
+                  <svg width="96" height="96" viewBox="-48 -48 96 96" style="transform:rotate(-90deg);">
+                    <circle cx="0" cy="0" r="41" fill="none" stroke="#2a1212" stroke-width="5"></circle>
+                    <circle cx="0" cy="0" r="41" fill="none" stroke="#FC5454" stroke-width="5" stroke-linecap="round" stroke-dasharray="258" stroke-dashoffset="90" style="animation:ringDraw .9s cubic-bezier(.2,.9,.3,1) both;"></circle>
+                  </svg>
+                  <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+                    <div style="color:#fff;font-size:24px;font-weight:700;line-height:1;">65<span style="font-size:12px;">%</span></div>
+                    <div style="color:#6d6d6d;font-size:8px;letter-spacing:1.4px;margin-top:2px;">COMPLETE</div>
+                  </div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#6d6d6d;font-size:9px;letter-spacing:2px;font-weight:500;">ACTIVE PROGRAM</div>
+                  <div style="color:#fff;font-size:19px;font-weight:700;letter-spacing:.6px;margin-top:3px;text-wrap:pretty;">{{ programName }}</div>
+                  <div style="color:#FC5454;font-size:10px;letter-spacing:1.6px;font-weight:600;margin-top:4px;">WEEK 3 OF 8 · 4×/WEEK</div>
+                  <div style="display:flex;align-items:center;gap:7px;margin-top:11px;">
+                    <div style="width:6px;height:6px;border-radius:50%;background:#FC5454;animation:pulseDot 1.6s ease-in-out infinite;"></div>
+                    <div style="color:#D4D4D4;font-size:12.5px;font-weight:300;">Next up · Pull Strength · 35 min</div>
+                  </div>
+                </div>
+              </div>
+              <div style="display:flex;gap:9px;margin-top:15px;">
+                <div style="flex:1;border-radius:12px;background:#FC5454;padding:13px;text-align:center;color:#fff;font-size:13px;font-weight:700;letter-spacing:1.8px;cursor:pointer;box-shadow:0 8px 22px rgba(252,84,84,.32);" onClick="{{ goActive }}">CONTINUE</div>
+                <div style="width:46px;border-radius:12px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ goCustom }}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"></path><circle cx="16" cy="6" r="2"></circle><circle cx="10" cy="12" r="2"></circle><circle cx="18" cy="18" r="2"></circle></svg>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ noActive }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:13px;">
+                <div style="width:44px;height:44px;border-radius:14px;border:1px dashed #3d1a1a;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4M12 14v4M10 16h4"></path></svg>
+                </div>
+                <div style="flex:1;">
+                  <div style="color:#fff;font-size:16px;font-weight:600;letter-spacing:.6px;">No program assigned</div>
+                  <div style="color:#7a7a7a;font-size:12px;font-weight:300;margin-top:2px;">Pick a template or build your own to unlock your plan.</div>
+                </div>
+              </div>
+              <div style="border-radius:12px;background:#FC5454;padding:13px;text-align:center;color:#fff;font-size:13px;font-weight:700;letter-spacing:1.8px;margin-top:14px;cursor:pointer;" onClick="{{ goTemplates }}">BROWSE TEMPLATES</div>
+            </sc-if>
+          </div>
+        </div>
+
+        <div style="padding:12px 18px 0;display:grid;grid-template-columns:repeat(3,1fr);gap:9px;">
+          <sc-for list="{{ dashStats }}" as="s" hint-placeholder-count="3">
+            <div style="border:1px solid #1c1414;border-radius:12px;padding:11px 6px;text-align:center;background:#080505;">
+              <div style="{{ s.valStyle }}">{{ s.val }}</div>
+              <div style="color:#6d6d6d;font-size:8.5px;letter-spacing:1.3px;margin-top:3px;">{{ s.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="padding:20px 18px 6px;color:#3f3f3f;font-size:9px;letter-spacing:2.4px;font-weight:500;">CHOOSE YOUR PATH</div>
+
+        <div style="padding:0 18px 26px;display:grid;grid-template-columns:1fr 1fr;gap:11px;">
+          <div style="{{ pathActive.style }}" onClick="{{ pathActive.go }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div style="{{ pathActive.iconStyle }}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="{{ pathActive.tint }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"></rect><path d="M3 10h18M8 3v4M16 3v4M8 15h3"></path></svg>
+              </div>
+              <div style="{{ pathActive.badgeStyle }}">{{ pathActive.badge }}</div>
+            </div>
+            <div style="{{ pathActive.titleStyle }}">MY ACTIVE<br>PROGRAM</div>
+            <div style="{{ pathActive.subStyle }}">{{ pathActive.sub }}</div>
+          </div>
+
+          <div style="{{ pathTemplates.style }}" onClick="{{ pathTemplates.go }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div style="{{ pathTemplates.iconStyle }}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l9 5-9 5-9-5 9-5"></path><path d="M3 13l9 5 9-5"></path><path d="M3 17l9 5 9-5"></path></svg>
+              </div>
+            </div>
+            <div style="{{ pathTemplates.titleStyle }}">PROGRAM<br>TEMPLATES</div>
+            <div style="{{ pathTemplates.subStyle }}">5 READY PLANS</div>
+          </div>
+
+          <div style="{{ pathCustom.style }}" onClick="{{ pathCustom.go }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div style="{{ pathCustom.iconStyle }}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h8M18 7h2M4 13h3M13 13h7M4 19h12M20 19h0"></path><circle cx="15" cy="7" r="2"></circle><circle cx="10" cy="13" r="2"></circle><circle cx="17" cy="19" r="2"></circle></svg>
+              </div>
+            </div>
+            <div style="{{ pathCustom.titleStyle }}">CUSTOMIZE<br>YOUR PROGRAM</div>
+            <div style="{{ pathCustom.subStyle }}">60+ MOVEMENTS</div>
+          </div>
+
+          <div style="{{ pathQuick.style }}" onClick="{{ pathQuick.go }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+              <div style="{{ pathQuick.iconStyle }}">
+                <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2L4 14h6l-1 8 9-12h-6z"></path></svg>
+              </div>
+            </div>
+            <div style="{{ pathQuick.titleStyle }}">QUICK<br>WORKOUT</div>
+            <div style="{{ pathQuick.subStyle }}">10 – 25 MIN</div>
+          </div>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isActive }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:17px;font-weight:700;letter-spacing:1.6px;">{{ programNameUpper }}</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">MY ACTIVE PROGRAM</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;overflow-x:auto;padding:16px 18px 0;">
+          <sc-for list="{{ weeks }}" as="w" hint-placeholder-count="8">
+            <div style="{{ w.style }}" onClick="{{ w.go }}">{{ w.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="padding:16px 18px 26px;display:grid;gap:10px;">
+          <sc-for list="{{ days }}" as="d" hint-placeholder-count="4">
+            <div style="{{ d.style }}">
+              <div style="display:flex;align-items:center;gap:12px;">
+                <div style="{{ d.railStyle }}"></div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="color:#6d6d6d;font-size:9px;letter-spacing:1.8px;font-weight:500;">{{ d.day }}</div>
+                    <div style="{{ d.tagStyle }}">{{ d.tag }}</div>
+                  </div>
+                  <div style="{{ d.nameStyle }}">{{ d.name }}</div>
+                  <div style="color:#6d6d6d;font-size:10px;letter-spacing:1.2px;margin-top:3px;">{{ d.meta }}</div>
+                </div>
+                <div style="{{ d.ctaStyle }}" onClick="{{ d.open }}">{{ d.cta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isSession }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:17px;font-weight:700;letter-spacing:1.6px;">PULL STRENGTH</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">WEEK 3 · DAY 3 · TODAY</div>
+          </div>
+        </div>
+
+        <div style="padding:16px 18px 0;">
+          <div style="border-radius:18px;border:1px solid #3d1a1a;background:linear-gradient(160deg,#140807 0%,#0a0505 60%,#080505 100%);padding:16px;display:grid;grid-template-columns:repeat(3,1fr);gap:10px;">
+            <div>
+              <div style="color:#fff;font-size:21px;font-weight:700;line-height:1;">35<span style="font-size:11px;color:#6d6d6d;letter-spacing:1px;"> MIN</span></div>
+              <div style="color:#6d6d6d;font-size:8.5px;letter-spacing:1.4px;margin-top:4px;">EST. DURATION</div>
+            </div>
+            <div>
+              <div style="color:#fff;font-size:21px;font-weight:700;line-height:1;">4</div>
+              <div style="color:#6d6d6d;font-size:8.5px;letter-spacing:1.4px;margin-top:4px;">MOVEMENTS</div>
+            </div>
+            <div>
+              <div style="color:#FC5454;font-size:21px;font-weight:700;line-height:1;">+4.8</div>
+              <div style="color:#6d6d6d;font-size:8.5px;letter-spacing:1.4px;margin-top:4px;">POINTS ON DECK</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="padding:18px 18px 0;display:flex;align-items:center;gap:10px;">
+          <div style="color:#3f3f3f;font-size:9px;letter-spacing:2.4px;font-weight:500;">WARM-UP · 5 MIN</div>
+          <div style="flex:1;height:1px;background:#161010;"></div>
+        </div>
+        <div style="padding:11px 18px 0;display:flex;gap:7px;flex-wrap:wrap;">
+          <div style="padding:7px 11px;border-radius:8px;border:1px solid #1d1414;background:rgba(255,255,255,.03);color:#7a7a7a;font-size:10px;font-weight:400;letter-spacing:1.1px;">SHOULDER CIRCLES · 30s</div>
+          <div style="padding:7px 11px;border-radius:8px;border:1px solid #1d1414;background:rgba(255,255,255,.03);color:#7a7a7a;font-size:10px;font-weight:400;letter-spacing:1.1px;">BAND PULL-APART · 15</div>
+          <div style="padding:7px 11px;border-radius:8px;border:1px solid #1d1414;background:rgba(255,255,255,.03);color:#7a7a7a;font-size:10px;font-weight:400;letter-spacing:1.1px;">DEAD HANG · 30s</div>
+        </div>
+
+        <div style="padding:20px 18px 0;display:flex;align-items:center;gap:10px;">
+          <div style="color:#3f3f3f;font-size:9px;letter-spacing:2.4px;font-weight:500;">THE WORK</div>
+          <div style="flex:1;height:1px;background:#161010;"></div>
+        </div>
+
+        <div style="padding:12px 18px 108px;display:grid;gap:10px;">
+          <sc-for list="{{ exercises }}" as="e" hint-placeholder-count="4">
+            <div style="{{ e.style }}">
+              <div style="display:flex;align-items:flex-start;gap:12px;">
+                <div style="{{ e.numStyle }}">{{ e.num }}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:.5px;">{{ e.name }}</div>
+                    <div style="{{ e.tagStyle }}">{{ e.tag }}</div>
+                  </div>
+                  <div style="color:#7a7a7a;font-size:11.5px;font-weight:300;margin-top:3px;line-height:1.4;">{{ e.cue }}</div>
+                  <div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">
+                    <sc-for list="{{ e.sets }}" as="st" hint-placeholder-count="3">
+                      <div style="{{ st.style }}">{{ st.label }}</div>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex;align-items:center;gap:14px;margin-top:10px;">
+                    <div style="display:flex;align-items:center;gap:5px;">
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M9 2h6"></path></svg>
+                      <div style="color:#6d6d6d;font-size:9.5px;letter-spacing:1.2px;">{{ e.rest }}</div>
+                    </div>
+                    <div style="color:#FC5454;font-size:9.5px;font-weight:600;letter-spacing:1.2px;">{{ e.pts }}</div>
+                  </div>
+                </div>
+                <div style="{{ e.logStyle }}">LOG</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isTemplates }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:17px;font-weight:700;letter-spacing:1.6px;">PROGRAM TEMPLATES</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">{{ templateCount }}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;overflow-x:auto;padding:16px 18px 0;">
+          <sc-for list="{{ goalChips }}" as="c" hint-placeholder-count="5">
+            <div style="{{ c.style }}" onClick="{{ c.go }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="padding:16px 18px 26px;display:grid;gap:11px;">
+          <sc-for list="{{ templates }}" as="t" hint-placeholder-count="5">
+            <div style="{{ t.style }}">
+              <div style="display:flex;align-items:flex-start;gap:11px;">
+                <div style="{{ t.markStyle }}">{{ t.mark }}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#fff;font-size:15.5px;font-weight:600;letter-spacing:.9px;">{{ t.name }}</div>
+                  <div style="color:#7a7a7a;font-size:11.5px;font-weight:300;margin-top:3px;line-height:1.4;">{{ t.desc }}</div>
+                </div>
+              </div>
+              <div style="display:flex;align-items:center;gap:7px;margin-top:12px;flex-wrap:wrap;">
+                <sc-for list="{{ t.metas }}" as="m" hint-placeholder-count="3">
+                  <div style="{{ m.style }}">{{ m.label }}</div>
+                </sc-for>
+                <div style="{{ t.ctaStyle }}" onClick="{{ t.select }}">{{ t.cta }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isCustom }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:17px;font-weight:700;letter-spacing:1.6px;">CUSTOMIZE PROGRAM</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">{{ customSub }}</div>
+          </div>
+        </div>
+
+        <div style="padding:14px 18px 0;">
+          <div style="height:40px;border-radius:20px;background:#0d0909;border:1px solid #211414;display:flex;align-items:center;gap:9px;padding:0 14px;">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#5a5a5a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"></circle><path d="M16 16l4 4"></path></svg>
+            <div style="color:#5a5a5a;font-size:13px;font-weight:300;">Search movements</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;overflow-x:auto;padding:12px 18px 0;">
+          <sc-for list="{{ discChips }}" as="c" hint-placeholder-count="4">
+            <div style="{{ c.style }}" onClick="{{ c.go }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+        <div style="display:flex;gap:8px;overflow-x:auto;padding:8px 18px 0;">
+          <sc-for list="{{ levelChips }}" as="c" hint-placeholder-count="5">
+            <div style="{{ c.style }}" onClick="{{ c.go }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="padding:15px 18px 96px;display:grid;grid-template-columns:1fr 1fr;gap:11px;">
+          <sc-for list="{{ movements }}" as="m" hint-placeholder-count="8">
+            <div style="{{ m.style }}" onClick="{{ m.toggle }}">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;">
+                <div style="{{ m.discStyle }}">{{ m.disc }}</div>
+                <div style="{{ m.plusStyle }}">{{ m.plus }}</div>
+              </div>
+              <div style="color:#fff;font-size:13.5px;font-weight:600;letter-spacing:.5px;margin-top:11px;line-height:1.25;text-wrap:pretty;">{{ m.name }}</div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:6px;">
+                <div style="color:#6d6d6d;font-size:9px;letter-spacing:1.3px;">{{ m.level }}</div>
+                <div style="{{ m.ptsStyle }}">{{ m.pts }}</div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+      <sc-if value="{{ isQuick }}" hint-placeholder-val="{{ false }}">
+      <div style="{{ anim }}">
+        <div style="display:flex;align-items:center;gap:12px;padding:12px 18px 0;">
+          <div style="width:32px;height:32px;border-radius:11px;border:1px solid #241414;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ back }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+          </div>
+          <div style="flex:1;">
+            <div style="color:#fff;font-size:17px;font-weight:700;letter-spacing:1.6px;">QUICK WORKOUT</div>
+            <div style="color:#FC5454;font-size:9.5px;font-weight:500;letter-spacing:2px;margin-top:1px;">{{ quickSub }}</div>
+          </div>
+        </div>
+
+        <div style="display:flex;gap:8px;overflow-x:auto;padding:16px 18px 0;">
+          <sc-for list="{{ durChips }}" as="c" hint-placeholder-count="4">
+            <div style="{{ c.style }}" onClick="{{ c.go }}">{{ c.label }}</div>
+          </sc-for>
+        </div>
+
+        <div style="padding:16px 18px 26px;display:grid;gap:11px;">
+          <sc-for list="{{ quickies }}" as="q" hint-placeholder-count="5">
+            <div style="{{ q.style }}">
+              <div style="display:flex;align-items:center;gap:13px;">
+                <div style="{{ q.minStyle }}">
+                  <div style="{{ q.minNumStyle }}">{{ q.min }}</div>
+                  <div style="color:#6d6d6d;font-size:8px;letter-spacing:1.2px;">MIN</div>
+                </div>
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:.9px;">{{ q.name }}</div>
+                  <div style="color:#7a7a7a;font-size:11px;font-weight:300;margin-top:3px;">{{ q.meta }}</div>
+                  <div style="display:flex;gap:6px;margin-top:9px;">
+                    <sc-for list="{{ q.moves }}" as="mv" hint-placeholder-count="3">
+                      <div style="{{ mv.style }}">{{ mv.label }}</div>
+                    </sc-for>
+                  </div>
+                </div>
+                <div style="{{ q.ctaStyle }}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M7 4l13 8-13 8z"></path></svg>
+                </div>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      </sc-if>
+
+    </div>
+
+    <sc-if value="{{ isSession }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:16px;right:16px;bottom:96px;border-radius:16px;background:#FC5454;padding:15px 18px;display:flex;align-items:center;justify-content:center;gap:9px;box-shadow:0 14px 34px rgba(0,0,0,.7);animation:rowIn .34s cubic-bezier(.2,.9,.3,1.2) .1s both;cursor:pointer;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="#fff"><path d="M7 4l13 8-13 8z"></path></svg>
+        <div style="color:#fff;font-size:14px;font-weight:700;letter-spacing:2px;">START SESSION</div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ showBuildBar }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:16px;right:16px;bottom:96px;border-radius:16px;background:#FC5454;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;box-shadow:0 14px 34px rgba(0,0,0,.6);animation:rowIn .3s cubic-bezier(.2,.9,.3,1.2) both;">
+        <div style="color:#fff;font-size:11px;font-weight:600;letter-spacing:1.6px;">{{ pickedLabel }}</div>
+        <div style="color:#fff;font-size:13px;font-weight:700;letter-spacing:1.8px;">BUILD PROGRAM →</div>
+      </div>
+    </sc-if>
+
+    <div style="flex-shrink:0;display:grid;grid-template-columns:repeat(6,1fr);border-top:1px solid #1a1a1a;padding:9px 0 16px;background:#000;">
+      <div style="text-align:center;">
+        <div style="{{ tabProfile.pipStyle }}"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="{{ tabProfile.tint }}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><circle cx="12" cy="8" r="4"></circle><path d="M4 21c0-4 3.6-6.5 8-6.5s8 2.5 8 6.5"></path></svg>
+        <div style="{{ tabProfile.labelStyle }}">PROFILE</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:7px;"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><path d="M4 3l11 11M20 3L9 14"></path><path d="M14 15l3 3-2 3-3-3z"></path><path d="M10 15l-3 3 2 3 3-3z"></path></svg>
+        <div style="font-size:9px;letter-spacing:.8px;font-weight:500;margin-top:3px;color:#6d6d6d;">STRENGTH</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:7px;"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#3d3d3d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><path d="M13 2L4 14h6l-1 8 9-12h-6z"></path></svg>
+        <div style="font-size:9px;letter-spacing:.8px;font-weight:500;margin-top:3px;color:#3d3d3d;">POWER</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:7px;"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><path d="M12 2v20M4 6l16 12M20 6L4 18"></path></svg>
+        <div style="font-size:9px;letter-spacing:.8px;font-weight:500;margin-top:3px;color:#6d6d6d;">STATIC</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:7px;"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M9 2h6"></path></svg>
+        <div style="font-size:9px;letter-spacing:.8px;font-weight:500;margin-top:3px;color:#6d6d6d;">1MM</div>
+      </div>
+      <div style="text-align:center;">
+        <div style="height:7px;"></div>
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#6d6d6d" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-top:4px;"><path d="M7 4h10v6a5 5 0 01-10 0z"></path><path d="M7 5H4v2a3 3 0 003 3M17 5h3v2a3 3 0 01-3 3"></path><path d="M10 20h4M12 15v5"></path></svg>
+        <div style="font-size:9px;letter-spacing:.8px;font-weight:500;margin-top:3px;color:#6d6d6d;">ARENA</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;hasActiveProgram&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Program state&quot;},&quot;programName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Well-Rounded Base&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Program state&quot;}}">
+const CORAL = "#FC5454";
+const DISC = { STATIC: "#8b5cf6", POWER: "#FC5454", "1MM": "#f97316", "ALL-ROUND": "#FC5454" };
+
+const MOVES = [
+  { name: "Front Lever Row", disc: "STATIC", level: "MAIN", pts: "1.4" },
+  { name: "Explosive Pull-Up", disc: "POWER", level: "ADVANCED", pts: "2.0" },
+  { name: "Knee Push-Ups", disc: "1MM", level: "ENTRY", pts: "0.4" },
+  { name: "Tuck Planche Hold", disc: "STATIC", level: "ADVANCED", pts: "2.2" },
+  { name: "Clap Push-Up", disc: "POWER", level: "MAIN", pts: "1.6" },
+  { name: "Air Squats", disc: "1MM", level: "ENTRY", pts: "0.3" },
+  { name: "L-Sit Hold", disc: "STATIC", level: "MAIN", pts: "1.1" },
+  { name: "Muscle-Up", disc: "POWER", level: "ELITE", pts: "2.8" },
+  { name: "Incline Push-Ups", disc: "1MM", level: "ENTRY", pts: "0.5" },
+  { name: "Back Lever", disc: "STATIC", level: "ELITE", pts: "2.6" },
+];
+
+const TEMPLATES = [
+  { name: "FIRST PULL-UP", goal: "STATIC", weeks: 8, freq: "3×/WK", level: "ENTRY", mark: "01", desc: "Scapular control to your first clean rep." },
+  { name: "PLANCHE PATH", goal: "STATIC", weeks: 12, freq: "4×/WK", level: "ADVANCED", mark: "02", desc: "Tuck to straddle progression, lean-focused." },
+  { name: "100 REP ENGINE", goal: "1MM", weeks: 6, freq: "5×/WK", level: "ENTRY", mark: "03", desc: "Volume base for one-minute-max scoring." },
+  { name: "EXPLOSIVE UPPER", goal: "POWER", weeks: 10, freq: "3×/WK", level: "MAIN", mark: "04", desc: "Plyo push and pull for rank-up points." },
+  { name: "WELL-ROUNDED BASE", goal: "ALL-ROUND", weeks: 8, freq: "4×/WK", level: "MAIN", mark: "05", desc: "Balanced across Static, Power and 1MM." },
+];
+
+const QUICK = [
+  { name: "10-MIN BURNER", min: 10, disc: "1MM", moves: ["PUSH-UPS", "AIR SQUATS", "HOLLOW"] },
+  { name: "15-MIN PUSH", min: 15, disc: "POWER", moves: ["DIPS", "CLAP PUSH", "PIKE"] },
+  { name: "20-MIN HOLDS", min: 20, disc: "STATIC", moves: ["L-SIT", "TUCK", "PLANK"] },
+  { name: "12-MIN CORE", min: 12, disc: "STATIC", moves: ["HOLLOW", "V-UPS", "LEG RAISE"] },
+  { name: "25-MIN FULL BODY", min: 25, disc: "1MM", moves: ["PULL-UPS", "SQUATS", "BURPEES"] },
+];
+
+const EXERCISES = [
+  { name: "Scapular Pull-Ups", tag: "STATIC", cue: "Hang tall, depress the shoulders, no elbow bend.", sets: ["8", "8", "8"], rest: "60s REST", pts: "+0.8 PTS" },
+  { name: "Assisted Pull-Ups", tag: "POWER", cue: "Band under one knee, chin clears the bar each rep.", sets: ["6", "6", "5", "5"], rest: "90s REST", pts: "+1.6 PTS" },
+  { name: "Inverted Row", tag: "1MM", cue: "Body in one line, chest to the bar, slow return.", sets: ["10", "10", "10"], rest: "60s REST", pts: "+1.2 PTS" },
+  { name: "Active Hang Hold", tag: "STATIC", cue: "Shoulders packed. Stop the set when they shrug.", sets: ["25s", "25s", "20s"], rest: "45s REST", pts: "+1.2 PTS" },
+];
+
+const DAYS = [
+  { day: "DAY 1", name: "Push Power", tag: "POWER", meta: "4 MOVEMENTS · 32 MIN", state: "done" },
+  { day: "DAY 2", name: "Static Holds", tag: "STATIC", meta: "5 MOVEMENTS · 28 MIN", state: "done" },
+  { day: "DAY 3", name: "Pull Strength", tag: "POWER", meta: "4 MOVEMENTS · 35 MIN", state: "today" },
+  { day: "DAY 4", name: "1MM Engine", tag: "1MM", meta: "3 MOVEMENTS · 22 MIN", state: "next" },
+];
+
+class Component extends DCLogic {
+  state = {
+    stack: ["profile"],
+    dir: "fwd",
+    hasActiveOverride: null,
+    week: 3,
+    goal: "ALL",
+    disc: "ALL",
+    level: "ALL",
+    dur: "ALL",
+    picked: [],
+  };
+
+  get screen() { return this.state.stack[this.state.stack.length - 1]; }
+
+  go = (s) => this.setState((p) => ({ stack: p.stack.concat([s]), dir: "fwd" }));
+  back = () => this.setState((p) => ({ stack: p.stack.length > 1 ? p.stack.slice(0, -1) : p.stack, dir: "back" }));
+
+  chip(label, active, onClick) {
+    return {
+      label, go: onClick,
+      style: {
+        flexShrink: 0, padding: "8px 14px", borderRadius: 999, cursor: "pointer",
+        border: "1px solid " + (active ? CORAL : "#241414"),
+        background: active ? "rgba(252,84,84,.12)" : "transparent",
+        color: active ? CORAL : "#6d6d6d",
+        fontSize: 10.5, fontWeight: active ? 600 : 500, letterSpacing: 1.4,
+        whiteSpace: "nowrap", transition: "all .2s ease",
+      },
+    };
+  }
+
+  metaPill(label, color) {
+    return { label, style: { padding: "5px 9px", borderRadius: 7, background: "rgba(255,255,255,.03)", border: "1px solid #1d1414", color: color || "#7a7a7a", fontSize: 9, fontWeight: 500, letterSpacing: 1.3 } };
+  }
+
+  renderVals() {
+    const s = this.screen;
+    const hasActive = this.state.hasActiveOverride ?? (this.props.hasActiveProgram ?? true);
+    const programName = this.props.programName ?? "Well-Rounded Base";
+    const anim = { animation: (this.state.dir === "fwd" ? "scIn" : "scBack") + " .34s cubic-bezier(.2,.9,.3,1.05) both" };
+
+    const tile = (p, i) => ({
+      sub: p.sub, badge: p.badge,
+      tint: p.locked ? "#5a5a5a" : CORAL,
+      go: p.locked ? () => this.go("templates") : () => this.go(p.target),
+      style: {
+        border: "1px solid " + (p.locked ? "#161010" : "#241414"),
+        background: p.locked ? "#060404" : "#0B0707",
+        borderRadius: 16, padding: 14, minHeight: 118, cursor: "pointer",
+        display: "flex", flexDirection: "column",
+        opacity: p.locked ? 0.5 : 1,
+        animation: "rowIn .42s cubic-bezier(.2,.9,.3,1.2) " + (0.06 + i * 0.07) + "s both",
+        transition: "border-color .2s ease",
+      },
+      iconStyle: { width: 36, height: 36, borderRadius: 12, background: p.locked ? "#100b0b" : "rgba(252,84,84,.1)", display: "flex", alignItems: "center", justifyContent: "center" },
+      badgeStyle: p.badge ? { padding: "3px 7px", borderRadius: 6, background: p.locked ? "#140e0e" : CORAL, color: p.locked ? "#6d6d6d" : "#fff", fontSize: 8, fontWeight: 700, letterSpacing: 1.2 } : { display: "none" },
+      titleStyle: { color: p.locked ? "#8a8a8a" : "#fff", fontSize: 13.5, fontWeight: 700, letterSpacing: 1.1, marginTop: "auto", lineHeight: 1.25 },
+      subStyle: { color: p.locked ? "#4a4a4a" : "#6d6d6d", fontSize: 8.5, fontWeight: 500, letterSpacing: 1.4, marginTop: 5 },
+    });
+
+    const pathActive = tile({ sub: hasActive ? "WEEK 3 OF 8" : "NO PROGRAM ASSIGNED", badge: hasActive ? "LIVE" : "LOCKED", locked: !hasActive, target: "active" }, 0);
+    const pathTemplates = tile({ badge: "", locked: false, target: "templates" }, 1);
+    const pathCustom = tile({ badge: "", locked: false, target: "custom" }, 2);
+    const pathQuick = tile({ badge: "", locked: false, target: "quick" }, 3);
+
+    const filteredTemplates = TEMPLATES.filter((t) => this.state.goal === "ALL" || t.goal === this.state.goal);
+    const filteredMoves = MOVES.filter((m) => (this.state.disc === "ALL" || m.disc === this.state.disc) && (this.state.level === "ALL" || m.level === this.state.level));
+    const filteredQuick = QUICK.filter((q) => this.state.dur === "ALL" || (this.state.dur === "≤10" ? q.min <= 10 : this.state.dur === "15" ? q.min > 10 && q.min <= 15 : q.min > 15));
+
+    return {
+      anim, hasActive, noActive: !hasActive, programName,
+      programNameUpper: programName.toUpperCase(),
+      isProfile: s === "profile", isDash: s === "dash", isActive: s === "active",
+      isTemplates: s === "templates", isCustom: s === "custom", isQuick: s === "quick",
+      isSession: s === "session",
+      exercises: EXERCISES.map((e, i) => ({
+        name: e.name, tag: e.tag, cue: e.cue, rest: e.rest, pts: e.pts, num: "0" + (i + 1),
+        style: { borderRadius: 16, padding: 14, border: "1px solid #1c1414", background: "#0B0707", animation: "rowIn .4s cubic-bezier(.2,.9,.3,1.2) " + (0.05 + i * 0.07) + "s both" },
+        numStyle: { width: 28, height: 28, borderRadius: 9, background: "rgba(252,84,84,.1)", border: "1px solid #241414", color: CORAL, fontSize: 11, fontWeight: 700, letterSpacing: .4, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+        tagStyle: { padding: "2px 6px", borderRadius: 5, background: "rgba(255,255,255,.04)", color: DISC[e.tag], fontSize: 8, fontWeight: 700, letterSpacing: 1.1 },
+        sets: e.sets.map((v, n) => ({ label: (n + 1) + " · " + v, style: { padding: "6px 10px", borderRadius: 8, border: "1px solid #241414", background: "rgba(255,255,255,.02)", color: "#D4D4D4", fontSize: 10.5, fontWeight: 500, letterSpacing: .8 } })),
+        logStyle: { padding: "7px 11px", borderRadius: 9, border: "1px solid #241414", color: CORAL, fontSize: 9.5, fontWeight: 700, letterSpacing: 1.4, cursor: "pointer", flexShrink: 0 },
+      })),
+      back: this.back,
+      goDash: () => this.go("dash"),
+      goActive: () => this.go("active"),
+      goTemplates: () => this.go("templates"),
+      goCustom: () => this.go("custom"),
+
+      dashSub: hasActive ? "WEEK 3 · 2 SESSIONS LEFT" : "NOTHING SCHEDULED YET",
+      heroStyle: {
+        borderRadius: 20, padding: 18,
+        border: "1px solid " + (hasActive ? "#3d1a1a" : "#1c1414"),
+        background: hasActive ? "linear-gradient(160deg,#140807 0%,#0a0505 55%,#080505 100%)" : "#080505",
+        animation: "rowIn .4s cubic-bezier(.2,.9,.3,1.2) both",
+      },
+      pathActive, pathTemplates, pathCustom, pathQuick,
+      dashStats: [
+        { val: "11", label: "SESSIONS DONE", color: "#fff" },
+        { val: "86%", label: "ADHERENCE", color: CORAL },
+        { val: "4", label: "WEEK STREAK", color: "#fff" },
+      ].map((x) => ({ val: x.val, label: x.label, valStyle: { color: x.color, fontSize: 17, fontWeight: 700 } })),
+
+      weeks: Array.from({ length: 8 }, (_, i) => this.chip("W" + (i + 1), this.state.week === i + 1, () => this.setState({ week: i + 1 }))),
+      days: DAYS.map((d, i) => {
+        const done = d.state === "done", today = d.state === "today";
+        return {
+          day: d.day, name: d.name, tag: d.tag, meta: d.meta,
+          cta: done ? "✓" : today ? "START" : "LOCKED",
+          style: {
+            borderRadius: 16, padding: 14,
+            border: "1px solid " + (today ? CORAL : "#1c1414"),
+            background: today ? "#120707" : "#080505",
+            opacity: d.state === "next" ? 0.6 : 1,
+            animation: "rowIn .4s cubic-bezier(.2,.9,.3,1.2) " + (0.05 + i * 0.07) + "s both",
+          },
+          railStyle: { width: 3, alignSelf: "stretch", minHeight: 46, borderRadius: 2, background: done ? "#2a1212" : today ? CORAL : "#181010" },
+          tagStyle: { padding: "2px 6px", borderRadius: 5, background: "rgba(255,255,255,.04)", color: DISC[d.tag], fontSize: 8, fontWeight: 700, letterSpacing: 1.1 },
+          nameStyle: { color: done ? "#8a8a8a" : "#fff", fontSize: 15.5, fontWeight: 600, letterSpacing: .5, marginTop: 3, textDecoration: done ? "line-through" : "none" },
+          open: today ? () => this.go("session") : () => {},
+          ctaStyle: today
+            ? { padding: "9px 14px", borderRadius: 10, background: CORAL, color: "#fff", fontSize: 11, fontWeight: 700, letterSpacing: 1.5, cursor: "pointer" }
+            : { width: 30, textAlign: "center", color: done ? CORAL : "#3f3f3f", fontSize: done ? 15 : 8.5, fontWeight: 600, letterSpacing: 1 },
+        };
+      }),
+
+      templateCount: filteredTemplates.length + " OF " + TEMPLATES.length + " SHOWN",
+      goalChips: ["ALL", "STATIC", "POWER", "1MM", "ALL-ROUND"].map((g) => this.chip(g, this.state.goal === g, () => this.setState({ goal: g }))),
+      templates: filteredTemplates.map((t, i) => ({
+        name: t.name, desc: t.desc, mark: t.mark, cta: "SELECT",
+        select: () => this.go("active"),
+        style: { borderRadius: 16, padding: 15, border: "1px solid #1c1414", background: "#0B0707", animation: "rowIn .4s cubic-bezier(.2,.9,.3,1.2) " + (0.04 + i * 0.06) + "s both" },
+        markStyle: { width: 34, height: 34, borderRadius: 11, background: "rgba(252,84,84,.1)", border: "1px solid #241414", color: DISC[t.goal], fontSize: 12, fontWeight: 700, letterSpacing: .5, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+        metas: [this.metaPill(t.weeks + " WEEKS"), this.metaPill(t.freq), this.metaPill(t.level, DISC[t.goal])],
+        ctaStyle: { marginLeft: "auto", padding: "7px 13px", borderRadius: 8, background: CORAL, color: "#fff", fontSize: 10, fontWeight: 700, letterSpacing: 1.5, cursor: "pointer" },
+      })),
+
+      customSub: filteredMoves.length + " MOVEMENTS · " + this.state.picked.length + " ADDED",
+      discChips: ["ALL", "STATIC", "POWER", "1MM"].map((d) => this.chip(d, this.state.disc === d, () => this.setState({ disc: d }))),
+      levelChips: ["ALL", "ENTRY", "MAIN", "ADVANCED", "ELITE"].map((l) => this.chip(l, this.state.level === l, () => this.setState({ level: l }))),
+      movements: filteredMoves.map((m, i) => {
+        const on = this.state.picked.indexOf(m.name) >= 0;
+        return {
+          name: m.name, disc: m.disc, level: m.level, pts: m.pts + " PTS", plus: on ? "✓" : "+",
+          toggle: () => this.setState((p) => ({ picked: on ? p.picked.filter((x) => x !== m.name) : p.picked.concat([m.name]) })),
+          style: { borderRadius: 15, padding: 13, cursor: "pointer", border: "1px solid " + (on ? CORAL : "#1c1414"), background: on ? "#120707" : "#080505", animation: "rowIn .36s cubic-bezier(.2,.9,.3,1.2) " + (0.03 + i * 0.04) + "s both", transition: "border-color .2s ease, background .2s ease" },
+          discStyle: { padding: "3px 7px", borderRadius: 6, background: "rgba(255,255,255,.04)", color: DISC[m.disc], fontSize: 8, fontWeight: 700, letterSpacing: 1.2 },
+          plusStyle: { width: 22, height: 22, borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center", background: on ? CORAL : "transparent", border: "1px solid " + (on ? CORAL : "#241414"), color: on ? "#fff" : CORAL, fontSize: 13, fontWeight: 600, lineHeight: 1 },
+          ptsStyle: { color: CORAL, fontSize: 9, fontWeight: 600, letterSpacing: 1 },
+        };
+      }),
+      showBuildBar: s === "custom" && this.state.picked.length > 0,
+      pickedLabel: this.state.picked.length + " MOVEMENT" + (this.state.picked.length === 1 ? "" : "S") + " ADDED",
+
+      quickSub: filteredQuick.length + " READY SESSIONS",
+      durChips: ["ALL", "≤10", "15", "20+"].map((d) => this.chip(d === "ALL" ? "ALL" : d + " MIN", this.state.dur === d, () => this.setState({ dur: d }))),
+      quickies: filteredQuick.map((q, i) => ({
+        name: q.name, min: q.min, meta: q.moves.length + " movements · no equipment",
+        style: { borderRadius: 16, padding: 14, border: "1px solid #1c1414", background: "#0B0707", animation: "rowIn .4s cubic-bezier(.2,.9,.3,1.2) " + (0.04 + i * 0.06) + "s both" },
+        minStyle: { width: 52, height: 52, borderRadius: 15, border: "1px solid " + DISC[q.disc], background: "rgba(255,255,255,.02)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", flexShrink: 0 },
+        minNumStyle: { color: DISC[q.disc], fontSize: 19, fontWeight: 700, lineHeight: 1 },
+        moves: q.moves.map((mv) => this.metaPill(mv)),
+        ctaStyle: { width: 38, height: 38, borderRadius: 13, background: CORAL, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, cursor: "pointer", boxShadow: "0 8px 18px rgba(252,84,84,.3)" },
+      })),
+
+      tabProfile: {
+        tint: CORAL,
+        pipStyle: { height: 7, width: 22, margin: "0 auto", borderRadius: 2, background: CORAL },
+        labelStyle: { fontSize: 9, letterSpacing: .8, fontWeight: 500, marginTop: 3, color: CORAL },
+      },
+
+      jumpItems: [
+        { key: "profile", label: "1 · Profile" },
+        { key: "dash", label: "2 · Training Center" },
+        { key: "active", label: "3 · My Active Program" },
+        { key: "templates", label: "4 · Program Templates" },
+        { key: "custom", label: "5 · Customize Program" },
+        { key: "session", label: "3b · Session · Pull Strength" },
+        { key: "quick", label: "6 · Quick Workout" },
+      ].map((j) => ({
+        label: j.label,
+        go: () => this.setState({ stack: j.key === "profile" ? ["profile"] : j.key === "dash" ? ["profile", "dash"] : j.key === "session" ? ["profile", "dash", "active", "session"] : ["profile", "dash", j.key], dir: "fwd" }),
+        style: { display: "flex", alignItems: "center", gap: 9, cursor: "pointer", color: s === j.key ? "#fff" : "#6d6d6d", fontSize: 12, fontWeight: s === j.key ? 600 : 300, letterSpacing: .4 },
+        dotStyle: { width: 6, height: 6, borderRadius: 50, flexShrink: 0, background: s === j.key ? CORAL : "#2a2a2a" },
+      })),
+
+      toggleActive: () => this.setState({ hasActiveOverride: !hasActive, stack: ["profile", "dash"], dir: "fwd" }),
+      toggleTrack: { width: 40, height: 22, borderRadius: 11, padding: 2, cursor: "pointer", background: hasActive ? CORAL : "#1c1c1c", display: "flex", justifyContent: hasActive ? "flex-end" : "flex-start", transition: "background .2s ease" },
+      toggleKnob: { width: 18, height: 18, borderRadius: 50, background: "#fff" },
+    };
+  }
+}
+
+</script>
+</body>
+</html>

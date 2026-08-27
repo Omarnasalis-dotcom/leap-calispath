@@ -111,7 +111,7 @@ export function ProfileScreen({
     router.push(firstPrompt ? { pathname: '/coach', params: { firstPrompt } } : '/coach');
   };
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
-  const onOpenWarriorProgram = () => router.push('/warrior-program');
+  const onOpenTrainingCenter = () => router.push('/training-center');
   const onOpenAdmin = () => router.push('/admin-tournament');
 
   const { profile, signOut, user, refreshProfile, paywallEnabled } = useAuth();
@@ -471,7 +471,7 @@ export function ProfileScreen({
                 onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
-                onOpenWarriorProgram={onOpenWarriorProgram}
+                onOpenTrainingCenter={onOpenTrainingCenter}
                 onOpenStaticWorld={onOpenStaticWorld}
                 onOpenPowerAssessment={onOpenPowerAssessment}
                 onOpenOneMinMax={onOpenOneMinMax}
@@ -690,7 +690,7 @@ const styles = StyleSheet.create({
   settingsGearButton: {
     position: 'absolute',
     top: 12,
-    right: 12,
+    left: 12,
     zIndex: 100,
     width: 40,
     height: 40,
