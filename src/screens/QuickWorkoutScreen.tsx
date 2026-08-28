@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, ImageBackground } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -10,10 +10,12 @@ import {
   StandaloneWorkoutSummary,
   StandaloneWorkoutDetail,
 } from '../lib/workoutLibrary';
+import { DifficultyBand } from '../lib/templateLibrary';
 import { canAccessPro } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { QuickWorkoutTimerModal } from '../components/workoutLibrary/QuickWorkoutTimerModal';
+import { ChipRow } from '../components/trainingCenter/ChipRow';
 import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 
 // Browse standalone Quick Workouts and start one immediately — no preview
@@ -26,12 +28,15 @@ import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 // data) — but cover_image_url IS already on the summary, so the card can
 // show its real cover photo with no extra fetch; duration/format/category
 // stand in for the movement list instead.
-const DURATION_OPTIONS = [
-  { key: 'all', label: 'ALL', test: () => true },
-  { key: 'short', label: '≤10 MIN', test: (m: number) => m <= 10 },
-  { key: 'mid', label: '15 MIN', test: (m: number) => m > 10 && m <= 15 },
-  { key: 'long', label: '20+ MIN', test: (m: number) => m > 15 },
-] as const;
+//
+// Category (focus) + difficulty filters, same options as the original
+// WorkoutLibraryScreen quick_workout tab — but applied client-side over one
+// fetch-on-mount, not as separate server queries per filter change.
+// Re-querying the server on every chip tap swapped the whole list out from
+// under itself, which read as a full reload on every filter tap. Filtering
+// the same in-memory list instead is instant and never shows a spinner.
+const CATEGORY_OPTIONS = ['all', 'PULL', 'PUSH', 'LEGS', 'CORE', 'FULL_BODY'] as const;
+const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced'];
 
 const FORMAT_LABELS: Record<string, string> = {
   amrap: 'AMRAP',
@@ -59,18 +64,20 @@ function QuickWorkoutCard({
   item,
   locked,
   loadingDetail,
+  hidden,
   onPress,
 }: {
   item: StandaloneWorkoutSummary;
   locked: boolean;
   loadingDetail: boolean;
+  hidden?: boolean;
   onPress: () => void;
 }) {
   const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}${item.category ? ` · ${item.category.replace('_', ' ')}` : ''}`;
 
   if (item.cover_image_url) {
     return (
-      <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.photoCardWrap}>
+      <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.photoCardWrap, hidden && { display: 'none' }]}>
         <ImageBackground source={{ uri: item.cover_image_url }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
           <LinearGradient colors={['transparent', 'rgba(0,0,0,.55)', 'rgba(0,0,0,.9)']} style={StyleSheet.absoluteFillObject} />
           <View style={styles.photoDurationBadge}>
@@ -89,7 +96,7 @@ function QuickWorkoutCard({
   }
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={styles.card}>
+    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.card, hidden && { display: 'none' }]}>
       <View style={styles.durationBox}>
         <Text style={styles.durationValue}>{item.duration_minutes ?? '–'}</Text>
         <Text style={styles.durationUnit}>MIN</Text>
@@ -109,7 +116,8 @@ export function QuickWorkoutScreen() {
 
   const [items, setItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [durationFilter, setDurationFilter] = useState<string>('all');
+  const [categoryFilter, setCategoryFilter] = useState<string>('all');
+  const [difficultyFilter, setDifficultyFilter] = useState<DifficultyBand | 'all'>('all');
 
   const [loadingDetailId, setLoadingDetailId] = useState<string | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<StandaloneWorkoutDetail | null>(null);
@@ -125,8 +133,10 @@ export function QuickWorkoutScreen() {
     return () => { cancelled = true; };
   }, []);
 
-  const durationTest = DURATION_OPTIONS.find((o) => o.key === durationFilter)?.test ?? (() => true);
-  const filteredItems = items.filter((i) => durationTest(i.duration_minutes ?? 0));
+  const matchesFilters = (i: StandaloneWorkoutSummary) =>
+    (categoryFilter === 'all' || i.category === categoryFilter) &&
+    (difficultyFilter === 'all' || i.difficulty === difficultyFilter);
+  const filteredItems = items.filter(matchesFilters);
 
   const handlePlay = async (item: StandaloneWorkoutSummary) => {
     if (!item.is_free && !isPro) { router.push('/paywall'); return; }
@@ -161,40 +171,38 @@ export function QuickWorkoutScreen() {
       </View>
 
       <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
-          {DURATION_OPTIONS.map((opt) => (
-            <TouchableOpacity
-              key={opt.key}
-              onPress={() => setDurationFilter(opt.key)}
-              style={[
-                styles.chip,
-                durationFilter === opt.key ? { backgroundColor: TC_COLORS.chipActiveBg, borderColor: TC_COLORS.coral } : { borderColor: TC_COLORS.borderStrong },
-              ]}
-            >
-              <Text style={[styles.chipText, { color: durationFilter === opt.key ? TC_COLORS.coral : TC_COLORS.textMuted }]}>{opt.label}</Text>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
+        <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
+        <View style={{ height: 8 }} />
+        <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
 
         {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <ActivityIndicator color={TC_COLORS.coral} />
           </View>
-        ) : filteredItems.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>NO QUICK WORKOUTS MATCH THIS FILTER YET.</Text>
-          </View>
         ) : (
           <View style={{ gap: 12, marginTop: 16 }}>
-            {filteredItems.map((item) => (
+            {/* Every card stays mounted the whole time — a filter change
+                only toggles `display` on the card's own root, it never
+                adds/removes items from the tree. Filtering the array
+                instead unmounted cards that scroll back into view, forcing
+                their cover image to mount (and load) fresh each time,
+                which is what read as "still reloading" even after the
+                fetch itself was made one-shot. */}
+            {items.map((item) => (
               <QuickWorkoutCard
                 key={item.id}
                 item={item}
                 locked={!item.is_free && !isPro}
                 loadingDetail={loadingDetailId === item.id}
+                hidden={!matchesFilters(item)}
                 onPress={() => handlePlay(item)}
               />
             ))}
+            {filteredItems.length === 0 && (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>NO QUICK WORKOUTS MATCH THIS FILTER YET.</Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -218,9 +226,6 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
   headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
   headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
-
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  chipText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 1 },
 
   emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: TC_COLORS.cardFlat },
   emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },

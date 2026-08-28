@@ -11,22 +11,21 @@ import {
   createCustomProgramFromWorkouts,
   StandaloneWorkoutSummary,
   StandaloneWorkoutDetail,
-  Difficulty,
 } from '../lib/workoutLibrary';
 import { DifficultyBand } from '../lib/templateLibrary';
 import { canAccessPro } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
-import { StandaloneWorkoutDetailModal, BuildSummaryModal } from './WorkoutLibraryScreen';
+import { StandaloneWorkoutDetailModal, BuildSummaryModal } from '../components/workoutLibrary/SharedWorkoutModals';
+import { ChipRow } from '../components/trainingCenter/ChipRow';
 import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 
-// Same underlying flow as WorkoutLibraryScreen's "workout" tab — browse
-// standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your custom
-// program's days, then create it. Only the browse UI (card grid + filters)
-// is new here, restyled to match the Training Center design system; the
-// preview/build modals are reused as-is (StandaloneWorkoutDetailModal /
-// BuildSummaryModal, exported from WorkoutLibraryScreen.tsx) rather than
-// rebuilt, so the actual add/remove/create behavior is unchanged.
+// Browse standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your
+// custom program's days, then create it. The preview/build modals are
+// shared with ProgramTemplatesScreen (StandaloneWorkoutDetailModal /
+// BuildSummaryModal, from ../components/workoutLibrary/SharedWorkoutModals)
+// rather than rebuilt, so the actual add/remove/create behavior stays
+// consistent everywhere it's used.
 const MAX_CUSTOM_PROGRAM_DAYS = 7;
 const CATEGORY_OPTIONS = ['all', 'PULL', 'PUSH', 'LEGS', 'CORE', 'FULL_BODY'] as const;
 const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced'];
@@ -43,38 +42,19 @@ function categoryGradient(category: string | null | undefined): [string, string]
   return CATEGORY_GRADIENTS[category ?? ''] ?? CATEGORY_GRADIENTS.DEFAULT;
 }
 
-function ChipRow({ options, selected, onSelect }: { options: readonly string[]; selected: string; onSelect: (v: string) => void }) {
-  return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          onPress={() => onSelect(opt)}
-          style={[
-            styles.chip,
-            selected === opt ? { backgroundColor: TC_COLORS.chipActiveBg, borderColor: TC_COLORS.coral } : { borderColor: TC_COLORS.borderStrong },
-          ]}
-        >
-          <Text style={[styles.chipText, { color: selected === opt ? TC_COLORS.coral : TC_COLORS.textMuted }]}>
-            {opt.toUpperCase().replace('_', ' ')}
-          </Text>
-        </TouchableOpacity>
-      ))}
-    </ScrollView>
-  );
-}
-
 function WorkoutPhotoCard({
   item,
   locked,
   dayNumber,
   columns,
+  hidden,
   onPress,
 }: {
   item: StandaloneWorkoutSummary;
   locked: boolean;
   dayNumber: number | null;
   columns: 1 | 2;
+  hidden?: boolean;
   onPress: () => void;
 }) {
   const [colorStart, colorEnd] = categoryGradient(item.category);
@@ -96,7 +76,9 @@ function WorkoutPhotoCard({
             <MaterialCommunityIcons name="lock" size={12} color={TC_COLORS.textPrimary} />
           </View>
         ) : (
-          <View />
+          <View style={styles.addBadge}>
+            <MaterialCommunityIcons name="plus" size={14} color={TC_COLORS.coral} />
+          </View>
         )}
         {!!item.category && (
           <View style={styles.categoryBadge}>
@@ -124,6 +106,7 @@ function WorkoutPhotoCard({
         styles.cardWrap,
         isWide ? styles.cardWrapWide : styles.cardWrapGrid,
         isSelected && { borderColor: TC_COLORS.coral, borderWidth: 1.5 },
+        hidden && { display: 'none' },
       ]}
     >
       {coverSource ? (
@@ -173,18 +156,24 @@ export function CustomizeProgramScreen() {
       });
   }, [user?.id]);
 
+  // Fetched once on mount, then filtered client-side below — re-querying
+  // the server on every chip tap swapped the whole list out from under
+  // itself, which read as a full reload on every filter tap. Filtering
+  // the same in-memory list instead is instant and never shows a spinner.
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    getStandaloneWorkouts('workout', {
-      category: categoryFilter === 'all' ? undefined : categoryFilter,
-      difficulty: difficultyFilter === 'all' ? undefined : (difficultyFilter as Difficulty),
-    })
+    getStandaloneWorkouts('workout')
       .then((items) => { if (!cancelled) setWorkoutItems(items); })
       .catch((err) => { console.error('CustomizeProgramScreen load failed:', err); if (!cancelled) setWorkoutItems([]); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
-  }, [categoryFilter, difficultyFilter]);
+  }, []);
+
+  const matchesFilters = (i: StandaloneWorkoutSummary) =>
+    (categoryFilter === 'all' || i.category === categoryFilter) &&
+    (difficultyFilter === 'all' || i.difficulty === difficultyFilter);
+  const filteredWorkoutItems = workoutItems.filter(matchesFilters);
 
   const getDayNumber = (item: { id: string }): number | null => {
     const idx = selectedDayWorkouts.findIndex((w) => w.id === item.id);
@@ -257,7 +246,7 @@ export function CustomizeProgramScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
           <Text style={styles.headerTitle}>CUSTOMIZE YOUR PROGRAM</Text>
-          <Text style={styles.headerSubline}>{workoutItems.length} WORKOUTS · {selectedDayWorkouts.length} ADDED</Text>
+          <Text style={styles.headerSubline}>{filteredWorkoutItems.length} WORKOUTS · {selectedDayWorkouts.length} ADDED</Text>
         </View>
       </View>
 
@@ -290,12 +279,15 @@ export function CustomizeProgramScreen() {
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <ActivityIndicator color={TC_COLORS.coral} />
           </View>
-        ) : workoutItems.length === 0 ? (
-          <View style={styles.emptyBox}>
-            <Text style={styles.emptyText}>NO WORKOUTS MATCH THIS FILTER YET.</Text>
-          </View>
         ) : (
           <View style={[styles.grid, columns === 2 && styles.gridTwoUp]}>
+            {/* Every card stays mounted — a filter change only toggles
+                `display` on the card's own root (not a wrapping View,
+                which would break the 2-column grid's %-width children),
+                it never adds/removes cards from the tree. Filtering the
+                array instead unmounted cards that scroll back into view,
+                forcing their cover image to load fresh each time, which
+                is what read as "still reloading." */}
             {workoutItems.map((item) => (
               <WorkoutPhotoCard
                 key={item.id}
@@ -303,9 +295,15 @@ export function CustomizeProgramScreen() {
                 locked={!item.is_free && !isPro}
                 dayNumber={getDayNumber(item)}
                 columns={columns}
+                hidden={!matchesFilters(item)}
                 onPress={() => openDetail(item)}
               />
             ))}
+            {filteredWorkoutItems.length === 0 && (
+              <View style={styles.emptyBox}>
+                <Text style={styles.emptyText}>NO WORKOUTS MATCH THIS FILTER YET.</Text>
+              </View>
+            )}
           </View>
         )}
       </ScrollView>
@@ -357,10 +355,7 @@ const styles = StyleSheet.create({
   headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
   headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 12, paddingVertical: 7 },
-  chipText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 1 },
-
-  emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: TC_COLORS.cardFlat },
+  emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: TC_COLORS.cardFlat },
   emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
   layoutToggle: { flexDirection: 'row', gap: 4, backgroundColor: TC_COLORS.cardFlat, borderWidth: 1, borderColor: TC_COLORS.borderStrong, borderRadius: 10, padding: 3 },
@@ -377,6 +372,10 @@ const styles = StyleSheet.create({
   dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: TC_COLORS.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   dayBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.5 },
   lockBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
+  addBadge: {
+    width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)',
+    borderWidth: 1.5, borderColor: TC_COLORS.coral, alignItems: 'center', justifyContent: 'center',
+  },
   categoryBadge: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   categoryBadgeText: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   cardBottomGradient: { padding: 14, paddingTop: 32 },

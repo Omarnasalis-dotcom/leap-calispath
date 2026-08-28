@@ -318,8 +318,6 @@ export function TrainingCenterScreen() {
     load();
   }, [load]);
 
-  const goTab = (tab: string) => router.push({ pathname: '/template-recommendations', params: { tab } });
-
   const tiles: PathTileDef[] = data
     ? [
         {
@@ -329,7 +327,7 @@ export function TrainingCenterScreen() {
           sub: formatActiveProgramSub(data.hasActiveProgram, data.currentDisplayWeek, data.totalWeeks),
           locked: !data.hasActiveProgram,
           badge: data.hasActiveProgram ? 'LIVE' : 'LOCKED',
-          onPress: () => (data.hasActiveProgram ? router.push('/warrior-program') : goTab('programs')),
+          onPress: () => (data.hasActiveProgram ? router.push('/warrior-program') : router.push('/program-templates')),
         },
         {
           key: 'templates',
@@ -338,7 +336,7 @@ export function TrainingCenterScreen() {
           sub: data.templatesCount != null ? formatTemplatesSub(data.templatesCount) : 'READY PLANS',
           locked: false,
           badge: null,
-          onPress: () => goTab('programs'),
+          onPress: () => router.push('/program-templates'),
         },
         {
           key: 'customize',
@@ -429,7 +427,7 @@ export function TrainingCenterScreen() {
                 </View>
                 <Text style={styles.heroEmptyTitle}>No program assigned</Text>
                 <Text style={styles.heroEmptySub}>Pick a template or build your own to unlock your plan.</Text>
-                <TouchableOpacity style={[styles.continueBtn, { alignSelf: 'stretch', justifyContent: 'center' }]} onPress={() => goTab('programs')}>
+                <TouchableOpacity style={[styles.continueBtn, { alignSelf: 'stretch', justifyContent: 'center' }]} onPress={() => router.push('/program-templates')}>
                   <Text style={styles.continueBtnText}>BROWSE TEMPLATES</Text>
                 </TouchableOpacity>
               </View>

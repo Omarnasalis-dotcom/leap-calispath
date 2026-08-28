@@ -186,14 +186,14 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
         onClose={() => onToggleVideo(activeVideoExercise.id, activeVideoExercise.youtube_url)}
       />
     )}
-    <LinearGradient
-      key={block.id}
-      colors={['#7E57C2', '#FF5252', '#FF7043']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 1, y: 0 }}
-      style={{ padding: 1.2, borderRadius: 12, opacity: isLocked ? 0.5 : (isMissed ? 0.75 : 1) }}
-    >
-      {block.metadata?.is_tier_trial ? (
+    {block.metadata?.is_tier_trial ? (
+      <LinearGradient
+        key={block.id}
+        colors={['#7E57C2', '#FF5252', '#FF7043']}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 0 }}
+        style={{ padding: 1.2, borderRadius: 12, opacity: isLocked ? 0.5 : (isMissed ? 0.75 : 1) }}
+      >
         <TouchableOpacity
           style={{
             padding: 24,
@@ -216,13 +216,22 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             START OFFICIAL TIER ASSESSMENT
           </Text>
         </TouchableOpacity>
-      ) : (
+      </LinearGradient>
+    ) : (
+        // Flat card, no outer rainbow gradient border — an earlier version
+        // wrapped every block (including this one) in the same purple/red/
+        // orange LinearGradient border used for Program cards elsewhere.
+        // It wasn't dimmed by isDone (only by isMissed/isLocked), so once a
+        // block was logged done the inner content faded but that border
+        // stayed at full opacity, reading as "the block turned gradient."
+        // Dropped in favor of the card's own accent-tinted border below.
         <View
+          key={block.id}
           style={[
             styles.dbCard,
             {
               borderColor: isExpanded ? hex(accent.color, 0.32) : dim ? DB.borderDim : DB.borderClosed,
-              opacity: skipped ? 0.45 : isDone ? 0.66 : 1,
+              opacity: isLocked ? 0.5 : skipped ? 0.45 : isDone ? 0.66 : 1,
             },
           ]}
         >
@@ -566,10 +575,10 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           )}
         </View>
       )}
-    </LinearGradient>
     </View>
   );
 };
+
 
 const styles = StyleSheet.create({
   // Day Blocks design tokens (assets/design_handoff_workout_runner) — see

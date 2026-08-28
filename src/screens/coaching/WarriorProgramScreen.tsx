@@ -405,7 +405,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         // state entirely and go straight to picking one. Replace (not push)
         // so backing out of the recommendations screen returns to Profile
         // rather than bouncing back into this now-skipped screen.
-        router.replace('/template-recommendations');
+        router.replace('/program-templates');
         return;
       }
 
@@ -1288,7 +1288,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 </Text>
                 <TouchableOpacity
                   style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
-                  onPress={() => router.push('/template-recommendations')}
+                  onPress={() => router.push('/program-templates')}
                 >
                   <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
                     BROWSE WORKOUT PROGRAMS
@@ -1305,15 +1305,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                   coachName={coachName}
                   sessionsTotal={weekSessionSummary.sessionsTotal}
                   sessionsDoneThisWeek={weekSessionSummary.sessionsDoneThisWeek}
-                  onSwitch={() => router.push('/template-recommendations')}
+                  onSwitch={() => router.push('/program-templates')}
                 />
 
-                {/* PROGRAM LOAD PANEL (§3) — Static/Power/1MM arcs + total,
-                    bodyweight folded into its footer strip. */}
+                {/* BODYWEIGHT — the Static/Power/1MM arc dashboard this
+                    used to sit alongside was dropped for reading as too
+                    busy next to the identity card and day list; this is
+                    the one real, actionable control that was in it. */}
                 <ProgramLoadPanel
-                  staticPoints={staticPoints}
-                  powerPoints={powerPoints}
-                  oneMmPoints={oneMmPoints}
                   bodyweightKg={bodyweightThisWeek}
                   onEditBodyweight={() => setShowBodyweightCheckIn(true)}
                 />
