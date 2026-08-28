@@ -95,11 +95,33 @@ function findButtonByText(root: ReturnType<typeof create>, text: string) {
   return match;
 }
 
+// Every test's rendered tree is tracked here so afterEach can always
+// unmount it — react-test-renderer never unmounts on its own, and this
+// component keeps a live setInterval (the prep countdown) running via a
+// ref. Without an explicit unmount(), that interval's cleanup effect never
+// fires; it survives the fake->real jest.useRealTimers() switch at the end
+// of each test and keeps ticking on the real clock, occasionally firing
+// again after Jest has already torn down the module registry for the
+// whole file — "You are trying to `import` a file after the Jest
+// environment has been torn down." This was an intermittent CI flake
+// (confirmed live: passed cleanly earlier in the same session, then failed
+// with exactly this stack on a later run), not a one-off.
+let currentRoot: ReturnType<typeof create> | null = null;
+
+afterEach(() => {
+  if (currentRoot) {
+    act(() => { currentRoot!.unmount(); });
+    currentRoot = null;
+  }
+  jest.useRealTimers();
+});
+
 function mountAndClearPrep(props: any) {
   let root: ReturnType<typeof create>;
   act(() => {
     root = create(<QuickWorkoutTimerModal {...props} />);
   });
+  currentRoot = root!;
   act(() => { jest.advanceTimersByTime(3500); }); // clear the 3s prep lead-in
   return root!;
 }
@@ -309,6 +331,7 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     act(() => {
       root = create(<QuickWorkoutTimerModal visible workout={workout as any} theme={theme} onClose={() => {}} />);
     });
+    currentRoot = root!;
     act(() => { jest.advanceTimersByTime(3500); });
 
     let texts = findAllText(root!.toJSON());
@@ -352,6 +375,7 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     act(() => {
       root = create(<QuickWorkoutTimerModal visible workout={workout as any} theme={theme} onClose={() => {}} />);
     });
+    currentRoot = root!;
     act(() => { jest.advanceTimersByTime(3500); });
 
     let texts = findAllText(root!.toJSON());
@@ -395,6 +419,7 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     act(() => {
       root = create(<QuickWorkoutTimerModal visible={false} workout={null} theme={theme} onClose={() => {}} />);
     });
+    currentRoot = root!;
     act(() => {
       root!.update(<QuickWorkoutTimerModal visible workout={workout as any} theme={theme} onClose={() => {}} />);
     });
@@ -415,6 +440,7 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     act(() => {
       root = create(<QuickWorkoutTimerModal visible workout={workout as any} theme={theme} onClose={() => {}} />);
     });
+    currentRoot = root!;
     act(() => { jest.advanceTimersByTime(3500); });
 
     let texts = findAllText(root!.toJSON());
