@@ -17,6 +17,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { canAccessCustomizeProgram } from '../lib/entitlement';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
@@ -158,7 +159,7 @@ interface PathTileDef {
   title: string;
   sub: string;
   locked: boolean;
-  badge: 'LIVE' | 'LOCKED' | null;
+  badge: 'LIVE' | 'LOCKED' | 'PRO' | null;
   /** The one tile that deserves the premium purple->orange treatment —
    * same gradient/sheen language as the Profile screen's own "TRAINING
    * CENTER" entry button — reserved for "my active program," the single
@@ -244,10 +245,21 @@ function PathTile({ def, index }: { def: PathTileDef; index: number }) {
           <View
             style={[
               styles.tileBadge,
-              def.badge === 'LIVE' ? { backgroundColor: TC_COLORS.coral } : { backgroundColor: TC_COLORS.cardLocked },
+              def.badge === 'LIVE'
+                ? { backgroundColor: TC_COLORS.coral }
+                : def.badge === 'PRO'
+                ? { backgroundColor: '#C9A227' }
+                : { backgroundColor: TC_COLORS.cardLocked },
             ]}
           >
-            <Text style={[styles.tileBadgeText, { color: def.badge === 'LIVE' ? '#000' : TC_COLORS.textMuted }]}>{def.badge}</Text>
+            <Text
+              style={[
+                styles.tileBadgeText,
+                { color: def.badge === 'LIVE' || def.badge === 'PRO' ? '#000' : TC_COLORS.textMuted },
+              ]}
+            >
+              {def.badge}
+            </Text>
           </View>
         )}
       </View>
@@ -329,7 +341,7 @@ async function fetchMovementsCount(): Promise<number | null> {
 }
 
 export function TrainingCenterScreen() {
-  const { user, profile } = useAuth();
+  const { user, profile, paywallEnabled } = useAuth();
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<HubData | null>(null);
@@ -468,7 +480,7 @@ export function TrainingCenterScreen() {
           title: 'CUSTOMIZE\nPROGRAM',
           sub: data.movementsCount != null ? formatMovementsSub(data.movementsCount) : 'MOVEMENTS',
           locked: false,
-          badge: null,
+          badge: canAccessCustomizeProgram(profile, paywallEnabled) ? null : 'PRO',
           accent: '#C9A227',
           bgImage: require('../../assets/customize-program-bg.png'),
           onPress: () => router.push('/customize-program'),

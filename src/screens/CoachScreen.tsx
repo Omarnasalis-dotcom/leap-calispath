@@ -38,6 +38,7 @@ import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
 
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
+import { canAccessPro, isProRequiredError } from '../lib/entitlement';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -80,6 +81,41 @@ const RECOMMENDATION_LABELS: Record<Recommendation['world'], string> = {
   static: 'Try Static World',
   one_min_max: 'Try 1-Minute Max',
 };
+
+// ai_coach_log_chat_request (supabase/migrations) raises one of these
+// RATE_LIMIT:<REASON> prefixes depending on which cap was hit — soft "come
+// back later" copy, no upsell nudge, per the tier system's confirmed UX
+// (2026-08-29). DAY1/DAILY/WEEKLY are genuinely tier-blind ("today"/"this
+// week" reads the same regardless of tier), so only BUDGET/CAP get their
+// own copy; everything else falls back to the pre-existing generic string.
+function rateLimitCopy(message: string | undefined): string {
+  if (message?.startsWith('RATE_LIMIT:BUDGET')) {
+    return "You've used this period's AI Coach budget — more opens up when your plan renews.";
+  }
+  if (message?.startsWith('RATE_LIMIT:CAP')) {
+    return "You've used this period's coaching messages — more opens up when your plan renews.";
+  }
+  if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
+    return "You've used this week's coaching messages — more opens up next week.";
+  }
+  if (message?.startsWith('RATE_LIMIT:DAY1') || message?.startsWith('RATE_LIMIT:DAILY')) {
+    return "You've used today's coaching messages. Your quota resets at midnight. Rest well, warrior.";
+  }
+  return "You've used all your coaching messages for today. Your quota resets at midnight. Rest well, warrior.";
+}
+
+// Short-form variant of rateLimitCopy() for the input-area banner (replaces
+// "🏛️ Daily sessions exhausted — resets at midnight", which was wrong for
+// anything but the daily cap once BUDGET/WEEKLY/CAP became real reasons).
+function rateLimitBannerCopy(message: string | undefined): string {
+  if (message?.startsWith('RATE_LIMIT:BUDGET') || message?.startsWith('RATE_LIMIT:CAP')) {
+    return '🏛️ AI Coach budget used for this period — resets on renewal';
+  }
+  if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
+    return '🏛️ Weekly sessions exhausted — resets next week';
+  }
+  return '🏛️ Daily sessions exhausted — resets at midnight';
+}
 
 // Real, verified RAISE EXCEPTION text from every RPC handleConfirmProgramAction
 // calls (ai_coach_create_program, ai_coach_create_program_from_workouts,
@@ -165,7 +201,7 @@ function consumeSseBuffer(buffer: string, onStage: (s: Stage) => void): { rest: 
 }
 
 export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; initialPrompt?: string }) {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [recommendations, setRecommendations] = useState<Recommendation[]>([]);
@@ -177,6 +213,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const [stages, setStages] = useState<Stage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'reconnecting'>('online');
   const [rateLimited, setRateLimited] = useState(false);
+  const [rateLimitReason, setRateLimitReason] = useState<string | undefined>(undefined);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -238,11 +275,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // (our {error, message} JSON) needs an async read.
       let status = 500;
       let code: string | undefined;
+      let rateLimitMessage: string | undefined;
       if (error instanceof FunctionsHttpError) {
         status = error.context.status;
         try {
           const body = await error.context.json();
           code = body?.error;
+          rateLimitMessage = body?.message;
         } catch {
           // body wasn't JSON — fall through to generic handling below
         }
@@ -254,8 +293,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       }
       if (status === 429 || code === 'RATE_LIMIT') {
         setRateLimited(true);
+        setRateLimitReason(rateLimitMessage);
         return {
-          reply: "You've used all your coaching messages for today. Your quota resets at midnight. Rest well, warrior.",
+          reply: rateLimitCopy(rateLimitMessage),
           recommendations: [], programAction: null, blocks: [], suggestedReplies: [],
         };
       }
@@ -396,6 +436,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // the RPC directly, bypassing the edge function/Claude entirely.
   const handleConfirmProgramAction = async () => {
     if (!pendingProgramAction || confirmingAction) return;
+    if (!canAccessPro(profile, paywallEnabled)) { router.push('/paywall'); return; }
     setConfirmingAction(true);
     try {
       if (pendingProgramAction.type === 'create') {
@@ -448,6 +489,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       setPendingProgramAction(null);
       await refreshProfile();
     } catch (error: any) {
+      if (isProRequiredError(error)) { router.push('/paywall'); return; }
       Alert.alert('COULD NOT COMPLETE THIS', friendlyActionError(error.message ?? '').toUpperCase());
     } finally {
       setConfirmingAction(false);
@@ -678,7 +720,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           ) : (
             <View style={[styles.quotaExhausted, { backgroundColor: c.cardBg, borderTopColor: c.headerDivider }]}>
               <Text style={[styles.quotaExhaustedText, { color: c.secondaryText }]}>
-                🏛️ Daily sessions exhausted — resets at midnight
+                {rateLimitBannerCopy(rateLimitReason)}
               </Text>
             </View>
           )}

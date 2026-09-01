@@ -36,6 +36,10 @@ export interface Profile {
   access_granted_at?: string | null;
   invite_code_used?: string | null;
   entitlement_source?: string | null;
+  subscription_tier?: string | null;
+  entitlement_period_start?: string | null;
+  ai_coach_budget_usd?: number | null;
+  duplicate_subscription_flagged_at?: string | null;
   created_at?: string;
   community_id?: string | null;
 }

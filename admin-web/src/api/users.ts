@@ -77,10 +77,12 @@ export async function setCoachingPaused(
 
 export async function grantAccess(
   userId: string,
+  tier: 'first' | 'pro' | 'max',
   durationType: '1month' | '3month' | '6month',
 ): Promise<void> {
   const { data, error } = await supabase.rpc('admin_grant_access', {
     p_user_id: userId,
+    p_tier: tier,
     p_duration_type: durationType,
   });
   if (error) throw new Error(error.message);

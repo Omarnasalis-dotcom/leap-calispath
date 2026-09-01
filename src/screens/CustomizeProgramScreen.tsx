@@ -13,7 +13,7 @@ import {
   StandaloneWorkoutDetail,
 } from '../lib/workoutLibrary';
 import { DifficultyBand } from '../lib/templateLibrary';
-import { canAccessPro } from '../lib/entitlement';
+import { canAccessCustomizeProgram, isProRequiredError } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { StandaloneWorkoutDetailModal, BuildSummaryModal } from '../components/workoutLibrary/SharedWorkoutModals';
@@ -124,7 +124,7 @@ function WorkoutPhotoCard({
 
 export function CustomizeProgramScreen() {
   const { user, profile, paywallEnabled } = useAuth();
-  const isPro = canAccessPro(profile, paywallEnabled);
+  const isPro = canAccessCustomizeProgram(profile, paywallEnabled);
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,7 +181,6 @@ export function CustomizeProgramScreen() {
   };
 
   const openDetail = async (item: StandaloneWorkoutSummary) => {
-    if (!item.is_free && !isPro) { router.push('/paywall'); return; }
     const requestId = ++workoutDetailRequestId.current;
     setWorkoutDetailLoading(true);
     try {
@@ -223,6 +222,7 @@ export function CustomizeProgramScreen() {
 
   const handleCreateCustomProgram = async () => {
     if (selectedDayWorkouts.length === 0) return;
+    if (!isPro) { router.push('/paywall'); return; }
     setCreatingProgram(true);
     try {
       await createCustomProgramFromWorkouts(selectedDayWorkouts.map((w) => w.id));
@@ -232,6 +232,7 @@ export function CustomizeProgramScreen() {
         router.replace('/warrior-program');
       });
     } catch (err: any) {
+      if (isProRequiredError(err)) { router.push('/paywall'); return; }
       Alert.alert('COULD NOT CREATE PROGRAM', err.message?.toUpperCase() || 'SOMETHING WENT WRONG.');
     } finally {
       setCreatingProgram(false);
@@ -292,7 +293,7 @@ export function CustomizeProgramScreen() {
               <WorkoutPhotoCard
                 key={item.id}
                 item={item}
-                locked={!item.is_free && !isPro}
+                locked={false}
                 dayNumber={getDayNumber(item)}
                 columns={columns}
                 hidden={!matchesFilters(item)}

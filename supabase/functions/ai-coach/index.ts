@@ -3,6 +3,7 @@ import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
 import { transformBlocksForInsert, resolveExerciseIds } from "./tools/blockHelpers.ts";
+import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 
 const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -235,9 +236,6 @@ serve(async (req: Request) => {
   // into a nested closure over the mutable `body` binding.
   const initialMessages = body.messages;
 
-  // Pro gate — re-derives canAccessPro() (src/lib/entitlement.ts) server-side.
-  // Never trust a client-sent flag for a paid feature: both the profile and
-  // the paywall_enabled kill switch are read fresh here.
   const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
   if (profileError || !profile) {
     return json({ error: "Failed to load profile" }, 500);
@@ -246,10 +244,9 @@ serve(async (req: Request) => {
   const platform = body.platform === "android" ? "android" : "ios";
   const { data: appConfig } = await userClient
     .from("app_config")
-    .select("paywall_enabled, ai_coach_enabled")
+    .select("ai_coach_enabled")
     .eq("platform", platform)
     .maybeSingle();
-  const paywallEnabled = appConfig?.paywall_enabled === true;
 
   const isAdminOrCoach = profile.is_admin === true || profile.is_coach === true;
 
@@ -268,24 +265,29 @@ serve(async (req: Request) => {
     });
   }
 
-  const hasActiveAccess =
-    !!profile.access_expires_at && new Date(profile.access_expires_at).getTime() > Date.now();
-  const canAccessPro = !paywallEnabled || isAdminOrCoach || hasActiveAccess;
-
-  if (!canAccessPro) {
-    return json({ error: "PRO_REQUIRED", message: "AI Coach is a Pro feature." }, 403);
-  }
-
-  // Rate limit + log in one call — see ai_coach_log_chat_request. If this
-  // rejects, we never spend a Claude API call at all.
-  const { error: rateLimitError } = await userClient.rpc("ai_coach_log_chat_request");
+  // Free users can chat now (no outright block here) — ai_coach_log_chat_request
+  // itself enforces a tier-aware cap: a small lifetime allowance for free
+  // callers (raises PRO_REQUIRED/403 once exhausted, routing to the paywall
+  // the same way this used to happen outright) and, for paid tiers
+  // (First/Pro/Max), a real $ budget plus day-1/steady-state/weekly message
+  // pacing (raises RATE_LIMIT:BUDGET|DAY1|DAILY|WEEKLY|CAP, all still 429 —
+  // the client doesn't need to distinguish which one). Never spend a Claude
+  // API call before this check passes. On success it returns request_id —
+  // the ai_coach_requests row this turn's real Claude cost gets attached to
+  // once the tool-use loop below finishes (see recordCost()).
+  const { data: chatLogResult, error: rateLimitError } = await userClient.rpc("ai_coach_log_chat_request");
   if (rateLimitError) {
+    const isProRequired = rateLimitError.message?.includes("PRO_REQUIRED");
     const isRateLimit = rateLimitError.message?.includes("RATE_LIMIT");
     return json(
-      { error: isRateLimit ? "RATE_LIMIT" : "Internal error", message: rateLimitError.message },
-      isRateLimit ? 429 : 500
+      {
+        error: isProRequired ? "PRO_REQUIRED" : isRateLimit ? "RATE_LIMIT" : "Internal error",
+        message: rateLimitError.message,
+      },
+      isProRequired ? 403 : isRateLimit ? 429 : 500
     );
   }
+  const chatRequestId = (chatLogResult as { request_id?: string } | null)?.request_id;
 
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!ANTHROPIC_API_KEY) {
@@ -366,11 +368,40 @@ serve(async (req: Request) => {
     // from real content, so concatenating turns in order is safe.
     const replyParts: string[] = [];
 
+    // A single chat turn (one call to this function) can span multiple
+    // Claude API calls — every tool_use iteration below calls callClaude()
+    // again. Real cost is the SUM of usage across all of them, not just the
+    // last call. Recorded against chatRequestId (the ai_coach_requests row
+    // ai_coach_log_chat_request already inserted) once this turn is done,
+    // at whichever exit point below is actually hit.
+    let totalUsage: AccumulatedUsage = {
+      input_tokens: 0,
+      output_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+    };
+    async function recordCost() {
+      if (!chatRequestId) return;
+      const costUsd = usageCostUsd(totalUsage);
+      const { error } = await userClient.rpc("ai_coach_record_chat_cost", {
+        p_request_id: chatRequestId,
+        p_input_tokens: totalUsage.input_tokens,
+        p_output_tokens: totalUsage.output_tokens,
+        p_cache_creation_input_tokens: totalUsage.cache_creation_input_tokens,
+        p_cache_read_input_tokens: totalUsage.cache_read_input_tokens,
+        p_cost_usd: costUsd,
+      });
+      // Never let cost bookkeeping break a reply that's already been
+      // generated and is about to be sent to the athlete.
+      if (error) console.error("[ai-coach] ai_coach_record_chat_cost failed:", error.message);
+    }
+
     const startedAt = Date.now();
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
       const turnStart = Date.now();
       const claudeResponse = await callClaude(messages);
       logTurn(turn, Date.now() - turnStart, claudeResponse);
+      totalUsage = addUsage(totalUsage, (claudeResponse.usage ?? {}) as ClaudeUsage);
 
       const turnText = (claudeResponse.content ?? [])
         .filter((block: { type: string }) => block.type === "text")
@@ -392,6 +423,7 @@ serve(async (req: Request) => {
             `[ai-coach] Response truncated at max_tokens (turn ${turn}). ` +
             `Text recovered: ${text.length} chars. A tool call was likely lost.`
           );
+          await recordCost();
           send("final", {
             reply: text.trim()
               ? `${text}\n\n(That came out longer than I could fit in one message — if you were expecting a program card, ask me to build it again and I'll keep it tighter.)`
@@ -412,6 +444,7 @@ serve(async (req: Request) => {
         // a real message here, not a blank one calling itself successful.
         if (!text.trim()) {
           console.error(`[ai-coach] Normal turn (stop_reason=${claudeResponse.stop_reason}) ended with empty text (turn ${turn}).`);
+          await recordCost();
           send("final", {
             reply: "That didn't come through with anything to say — ask me again and I'll pick it back up.",
             recommendations, programAction, blocks, suggestedReplies,
@@ -420,6 +453,7 @@ serve(async (req: Request) => {
         }
 
         console.log(`[ai-coach] DONE in ${Date.now() - startedAt}ms after ${turn + 1} turn(s)`);
+        await recordCost();
         send("final", { reply: text, recommendations, programAction, blocks, suggestedReplies });
         return;
       }
@@ -481,6 +515,7 @@ serve(async (req: Request) => {
       `Last tool calls likely looping — check whether search_exercises is being ` +
       `called one-at-a-time instead of batched via \`queries\`.`
     );
+    await recordCost();
     send("final", {
       reply:
         "That took more steps than I could finish in one go — I didn't want to leave you hanging without saying so. Ask me again and I'll go straight at it; if it was a full program, telling me the split you want (e.g. \"4 days, pull/legs/push/weighted\") gets me there in one pass.",

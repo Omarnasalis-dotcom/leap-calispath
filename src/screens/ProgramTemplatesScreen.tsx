@@ -15,7 +15,7 @@ import {
   TemplateDetailBlock,
   DifficultyBand,
 } from '../lib/templateLibrary';
-import { canAccessPro } from '../lib/entitlement';
+import { canAccessPro, isProRequiredError } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ProgramPreviewModal } from '../components/workoutLibrary/SharedWorkoutModals';
@@ -284,6 +284,7 @@ export function ProgramTemplatesScreen() {
 
   const handleCardPress = (rec: LibraryTemplateRecommendation) => {
     if (isProgramLocked(rec)) { router.push('/paywall'); return; }
+    if (!isPro && !!currentProgramName) { router.push('/paywall'); return; }
     openPreview(rec);
   };
 
@@ -302,6 +303,12 @@ export function ProgramTemplatesScreen() {
         router.replace('/warrior-program');
       });
     } catch (err: any) {
+      if (isProRequiredError(err)) {
+        setPreviewRec(null);
+        setPreviewWeek1([]);
+        router.push('/paywall');
+        return;
+      }
       Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
     } finally {
       setSelectingId(null);
