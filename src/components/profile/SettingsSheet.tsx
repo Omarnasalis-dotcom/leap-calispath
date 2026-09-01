@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import Purchases from 'react-native-purchases';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTutorial } from '../../contexts/TutorialContext';
@@ -22,6 +23,21 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const handleReplayTutorial = () => {
     onClose();
     startTutorial();
+  };
+
+  const handleManageSubscription = async () => {
+    // Apple/Google require subscription management (including cancellation)
+    // to go through the platform's own UI — apps can't build a competing
+    // in-app cancel flow. This opens that native sheet directly rather than
+    // making the user hunt through iOS Settings themselves. Web has no
+    // native subscription sheet to open.
+    if (Platform.OS === 'web') return;
+    try {
+      await Purchases.showManageSubscriptions();
+    } catch (error) {
+      console.error('[Settings] showManageSubscriptions failed:', error);
+      Alert.alert('COULD NOT OPEN', 'MANAGE YOUR SUBSCRIPTION FROM YOUR DEVICE SETTINGS INSTEAD.');
+    }
   };
 
   const handleSignOut = async () => {
@@ -77,6 +93,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
               <Text style={[styles.rowText, { color: theme.text.primary }]}>Replay Tutorial</Text>
             </View>
           </TouchableOpacity>
+
+          {Platform.OS !== 'web' && (
+            <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleManageSubscription}>
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="credit-card-outline" size={18} color={theme.text.secondary} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>Manage Subscription</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} />
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleSignOut}>
             <View style={styles.rowLeft}>

@@ -6,10 +6,10 @@ import Purchases from 'react-native-purchases';
 import { LeapLogo } from '../components/LeapLogo';
 import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
-import { hasActiveAccess } from '../lib/entitlement';
+import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 
-type Step = 'presenting' | 'confirming' | 'fallback';
+type Step = 'context' | 'presenting' | 'confirming' | 'fallback';
 
 // The RevenueCat SDK's own purchase/restore callback fires the instant
 // StoreKit confirms the transaction, but the actual DB grant happens
@@ -23,8 +23,24 @@ const POLL_INTERVAL_MS = 1500;
 
 export function PaywallScreen() {
   const router = useRouter();
-  const { refreshProfile } = useAuth();
-  const [step, setStep] = useState<Step>('presenting');
+  const { profile, paywallEnabled, refreshProfile } = useAuth();
+  const alreadySubscribed = hasActiveAccess(profile);
+  const currentTier = getSubscriptionTier(profile, paywallEnabled);
+  const [step, setStep] = useState<Step>(alreadySubscribed ? 'context' : 'presenting');
+
+  // router.replace('/') alone doesn't clear whatever screen the paywall was
+  // opened on top of (e.g. Customize Program) — '/' is itself just a
+  // <Redirect> to '/profile' (app/index.tsx), and neither that redirect nor
+  // the replace() before it pops screens further down the stack. Confirmed
+  // live: the screen underneath stayed mounted and visibly bled through
+  // Profile after a successful purchase. dismissAll() clears the whole
+  // stack back to root first, so there's nothing left underneath to bleed
+  // through; replacing straight to '/profile' also skips the extra
+  // index-redirect hop.
+  const goToProfile = useCallback(() => {
+    if (router.canDismiss()) router.dismissAll();
+    router.replace('/profile');
+  }, [router]);
 
   const pollForAccess = useCallback(async () => {
     setStep('confirming');
@@ -40,7 +56,7 @@ export function PaywallScreen() {
       // "restore/purchase looks like it does nothing" report.
       const fresh = await refreshProfile();
       if (hasActiveAccess(fresh)) {
-        router.replace('/');
+        goToProfile();
         return;
       }
     }
@@ -55,11 +71,11 @@ export function PaywallScreen() {
     const fresh = await refreshProfile();
 
     if (hasActiveAccess(fresh)) {
-      router.replace('/');
+      goToProfile();
     } else {
       setStep('fallback');
     }
-  }, [refreshProfile, router]);
+  }, [refreshProfile, goToProfile]);
 
   const present = useCallback(async () => {
     setStep('presenting');
@@ -88,6 +104,14 @@ export function PaywallScreen() {
   }, [pollForAccess, router]);
 
   useEffect(() => {
+    // Already-subscribed users land on the 'context' interstitial instead
+    // (see initial state above) — presenting the native paywall waits for
+    // their explicit tap there, since RevenueCat's stock paywall has no
+    // built-in way to show "this is your current plan" or otherwise signal
+    // upgrade-vs-fresh-purchase on its own (confirmed no such option exists
+    // in this project's paywall config). A Free user has nothing to be
+    // confused about, so they skip straight to the paywall as before.
+    if (alreadySubscribed) return;
     present();
     // Only auto-present once on mount — re-presenting is a manual retry from
     // the fallback screen (present() below), not something to loop on.
@@ -102,6 +126,30 @@ export function PaywallScreen() {
       console.error('[Paywall] restorePurchases failed:', err);
     }
     await pollForAccess();
+  }
+
+  if (step === 'context') {
+    const expiresLabel = profile?.access_expires_at
+      ? new Date(profile.access_expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      : null;
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.content}>
+          <LeapLogo size={100} animated={false} />
+          <Text style={styles.currentPlanBadge}>{currentTier.toUpperCase()}</Text>
+          <Text style={styles.title}>Change Your Plan</Text>
+          <Text style={styles.message}>
+            You're currently on {currentTier.toUpperCase()}{expiresLabel ? ` (renews ${expiresLabel})` : ''}. Picking a plan on the next screen upgrades your existing subscription — it replaces what you have now, it doesn't stack on top of it.
+          </Text>
+          <Button title="Continue" onPress={present} />
+          <Button
+            title="Cancel"
+            variant="secondary"
+            onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
+          />
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (step === 'presenting' || step === 'confirming') {
@@ -158,6 +206,18 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     letterSpacing: 1,
     marginTop: 16,
+  },
+  currentPlanBadge: {
+    marginTop: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 4,
+    borderRadius: 10,
+    backgroundColor: '#FF5252',
+    color: '#000000',
+    fontSize: 12,
+    fontWeight: '800',
+    letterSpacing: 1.5,
+    overflow: 'hidden',
   },
   message: {
     fontSize: 16,
