@@ -10,7 +10,6 @@ import {
   Platform,
 } from 'react-native';
 import { useAuth } from '../contexts/AuthContext';
-import { canAccessPro } from '../lib/entitlement';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
@@ -107,15 +106,44 @@ export function ProfileScreen({
   const onOpenClash = showV2Popup;
   const onOpenTournamentArena = showV2Popup;
   const onOpenCoach = (firstPrompt?: string) => {
-    if (!canAccessPro(profile, paywallEnabled)) { router.push('/paywall'); return; }
     router.push(firstPrompt ? { pathname: '/coach', params: { firstPrompt } } : '/coach');
   };
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
   const onOpenTrainingCenter = () => router.push('/training-center');
   const onOpenAdmin = () => router.push('/admin-tournament');
+  const onOpenPaywall = () => router.push('/paywall');
 
   const { profile, signOut, user, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
+
+  // Detect-after-the-fact warning for the one class of subscription issue
+  // that can't be prevented at the paywall: neither Apple nor Google expose
+  // which payment account will be used before a purchase completes, so a
+  // second real subscription from a different Apple ID/Google account can
+  // land on this same profile without any way to block it in advance
+  // (confirmed against RevenueCat's own guidance — this is the standard
+  // industry pattern for it, not something specific to this app).
+  // duplicate_subscription_flagged_at is set server-side by
+  // apply_revenuecat_entitlement the moment that happens.
+  useEffect(() => {
+    if (!profile?.duplicate_subscription_flagged_at) return;
+    Alert.alert(
+      'Possible Duplicate Subscription',
+      'It looks like this account now has two active subscriptions from different Apple ID or Google accounts — you may be getting charged twice. Check your subscriptions in your device\'s account settings, and contact Apple or Google support to cancel the one you don\'t need.',
+      [{
+        text: 'Got it',
+        onPress: () => {
+          supabase.rpc('acknowledge_duplicate_subscription').then(({ error }) => {
+            if (error) console.error('[Profile] acknowledge_duplicate_subscription failed:', error);
+            else refreshProfile();
+          });
+        },
+      }]
+    );
+    // Only re-fire if the flag timestamp itself changes (e.g. a second,
+    // separate incident later) — not on every unrelated profile refresh.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profile?.duplicate_subscription_flagged_at]);
   const W = getWorldTheme('strength', mode);
   const hasSyncedOnMount = useRef(false);
   const mainScrollRef = useRef<ScrollView>(null);
@@ -451,6 +479,7 @@ export function ProfileScreen({
               <ProfileHeader
                 scrollRef={mainScrollRef}
                 profile={profile}
+                paywallEnabled={paywallEnabled}
                 category={category}
                 activeCurrentTier={activeCurrentTier}
                 mode={mode}
@@ -468,6 +497,7 @@ export function ProfileScreen({
                 weeklyStats={weeklyStats}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onOpenAdmin={onOpenAdmin}
+                onOpenPaywall={onOpenPaywall}
                 onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
@@ -635,7 +665,7 @@ export function ProfileScreen({
         {/* EDIT PROFILE MODAL */}
         <EditProfileModal visible={showEditProfile} onClose={() => setShowEditProfile(false)} profile={profile} refreshProfile={refreshProfile} />
 
-        <CoachFab profile={profile} canAccessCoach={canAccessPro(profile, paywallEnabled)} onOpenCoach={onOpenCoach} />
+        <CoachFab profile={profile} canAccessCoach={true} onOpenCoach={onOpenCoach} />
 
       </View>
       </WorldBackground>
