@@ -14,6 +14,8 @@ import { View,
   BackHandler,
   Alert } from 'react-native';
 import { useTheme } from '../../contexts/ThemeContext';
+import { useAuth } from '../../contexts/AuthContext';
+import { getSubscriptionTier, meetsMinTier } from '../../lib/entitlement';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import { supabase } from '../../lib/supabase';
@@ -56,6 +58,7 @@ interface WarriorProgramScreenProps {
 
 export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
   const { theme, mode } = useTheme();
+  const { profile, paywallEnabled } = useAuth();
   const bronzeGold = '#C8A040';
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
 
@@ -67,6 +70,8 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [coachName, setCoachName] = useState('');
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [warriorProgramId, setWarriorProgramId] = useState<string>('');
+  const [minAccessTier, setMinAccessTier] = useState<'first' | 'pro' | null>(null);
+  const [endingProgram, setEndingProgram] = useState(false);
 
   const [weeksData, setWeeksData] = useState<Record<number, ProgramDay[]>>({ 1: [] });
   const [activeWeek, setActiveWeek] = useState<number>(1);
@@ -210,6 +215,35 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           onPress: async () => {
             await Promise.all(unaddressedBlocks.map(b => handleToggleBlockStatus(b.id, 'missed')));
             setShowSessionComplete(true);
+          },
+        },
+      ]
+    );
+  };
+
+  const currentTier = getSubscriptionTier(profile, paywallEnabled);
+  const isLockedByTier = !!minAccessTier && !meetsMinTier(currentTier, minAccessTier);
+
+  const handleEndLockedProgram = () => {
+    Alert.alert(
+      'DELETE THIS PROGRAM?',
+      'This will end your current program so you can pick a free template instead. This can\'t be undone.',
+      [
+        { text: 'CANCEL', style: 'cancel' },
+        {
+          text: 'DELETE & CHOOSE FREE TEMPLATE',
+          style: 'destructive',
+          onPress: async () => {
+            setEndingProgram(true);
+            try {
+              const { error } = await supabase.rpc('end_active_program');
+              if (error) throw error;
+              router.replace('/program-templates');
+            } catch (err: any) {
+              Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO END PROGRAM.');
+            } finally {
+              setEndingProgram(false);
+            }
           },
         },
       ]
@@ -374,7 +408,8 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             ),
             program_templates:template_id (
               name,
-              description
+              description,
+              min_access_tier
             )
           `)
           .eq('warrior_id', warriorId)
@@ -413,6 +448,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       const progName = Array.isArray(templatesInfo)
         ? templatesInfo[0]?.name
         : templatesInfo?.name;
+      const minTier = Array.isArray(templatesInfo)
+        ? templatesInfo[0]?.min_access_tier
+        : templatesInfo?.min_access_tier;
+      setMinAccessTier(minTier || null);
 
       const coachInfo: any = actualAssignment.profiles;
       const cName = Array.isArray(coachInfo)
@@ -1292,6 +1331,32 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 >
                   <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
                     BROWSE WORKOUT PROGRAMS
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : isLockedByTier ? (
+              <View style={[styles.emptyContainer, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
+                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>UPGRADE TO KEEP THIS PROGRAM</Text>
+                <Text style={[styles.emptySubtitle, { color: theme.text.secondary }]}>
+                  {minAccessTier === 'pro'
+                    ? 'THIS PROGRAM WAS BUILT USING A PRO FEATURE YOU NO LONGER HAVE ACCESS TO.'
+                    : 'THIS PROGRAM WAS BUILT USING AN AI COACH FEATURE YOU NO LONGER HAVE ACCESS TO.'}
+                </Text>
+                <TouchableOpacity
+                  style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
+                  onPress={() => router.push('/paywall')}
+                >
+                  <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
+                    UPGRADE
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ marginTop: 12, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', borderWidth: 1, borderColor: theme.card.border }}
+                  onPress={handleEndLockedProgram}
+                  disabled={endingProgram}
+                >
+                  <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
+                    {endingProgram ? 'ENDING...' : 'DELETE & CHOOSE A FREE TEMPLATE'}
                   </Text>
                 </TouchableOpacity>
               </View>
