@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { AuthContextType, Profile } from '../types';
 import { User } from '@supabase/supabase-js';
 import * as Notifications from 'expo-notifications';
-import { Platform } from 'react-native';
+import { Platform, AppState } from 'react-native';
 import * as Linking from 'expo-linking';
 import * as AppleAuthentication from 'expo-apple-authentication';
 import {
@@ -75,6 +75,28 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     checkPaywallEnabled().then(setPaywallEnabled);
   }, []);
+
+  // Nothing else re-fetches `profile` just from time passing or the app
+  // regaining focus — confirmed live via sandbox testing: a subscription
+  // auto-renews, access_expires_at correctly advances server-side, but the
+  // cached profile here stays on its old (expired-looking) values until
+  // something else happens to call refreshProfile(). That's not just a
+  // stale badge — client-side gates (e.g. CoachScreen's canAccessPro check
+  // before firing a write RPC) read this same cached profile, so a
+  // genuinely-renewed subscriber could get wrongly bounced to the paywall
+  // by the client before ever reaching the (correct) server check.
+  // Re-fetching on every foreground return bounds the staleness to "however
+  // long the app was backgrounded" instead of "until something unrelated
+  // happens to refresh it."
+  useEffect(() => {
+    if (!user?.id) return;
+    const subscription = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') {
+        fetchProfile(user.id);
+      }
+    });
+    return () => subscription.remove();
+  }, [user?.id]);
 
   // Handle deep link on cold start (e.g. password reset email link).
   // Native only: on web this raced with ResetPasswordScreen's own gated
