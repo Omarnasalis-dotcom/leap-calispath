@@ -2,24 +2,29 @@
 
 Use this prompt whenever you want a **single-session workout, built from
 ordered blocks/phases** (Warm-Up → Skills → Strength → Cool-Down, same idea
-as a real program day — no weeks, no CONCEPT metadata) imported directly
-onto the **Workout Content** library page (admin web →
-`/coaching/workouts` → **Import JSON**). It creates exactly **one** Workout
-or Quick Workout per file, always as a `draft` — review it and flip its
-status to `published` when it's ready to appear in the app.
+as a real program day — one day only, no weeks) imported directly onto the
+**Workout Content** library page (admin web → `/coaching/workouts` →
+**Import JSON**). It creates exactly **one** Workout or Quick Workout per
+file, always as a `draft` — review it and flip its status to `published`
+when it's ready to appear in the app.
 
 A Workout represents one full training day, so it's built the same way any
 other training day in this app is: multiple blocks, each with its own
-exercise list. A Quick Workout is effectively flat — AMRAP/EMOM/Tabata
-content is one continuous circuit, not phased — so it's usually just one
-block.
+exercise list, and — as of this doc's current revision — the same
+`day_name`/`block_name`/CONCEPT-`metadata`/`coach_notes` shape a Master
+Template day uses (see `blocks[]` below), just without `week_number`. A
+Quick Workout is effectively flat — AMRAP/EMOM/Tabata content is one
+continuous circuit, not phased — so its block shape is **unchanged**:
+`name`/`notes`, no `metadata`.
 
 Companion doc: [single-day-template-import-format.md](./single-day-template-import-format.md)
 covers the **other** format — a full-phase single day imported as a Master
 Template instead. See "Which format do I want?" below if you're not sure
-which one applies — the block structure itself is now the same idea in
-both; the real difference is CONCEPT metadata and which import flow it
-goes through.
+which one applies — the block structure is now the same idea in both for
+`kind: "workout"`; the real difference is which import flow/table it goes
+through (`standalone_workouts` here vs. `program_templates` there) and that
+a Master Template day can be part of a multi-week program later, while a
+Workout Content item never has weeks.
 
 ## PROMPT TEMPLATE
 
@@ -42,8 +47,11 @@ If quick workout — format and time cap: [amrap / emom / fortime / tabata], [N]
 
 Output format: Workout Content JSON — kind/title/category/difficulty/
 goal_tags/tier_min/tier_max/blocks[], each block a named phase (Warm-Up,
-Skills, Strength, Cool-Down, ...) with its own exercises[]. No weeks, no
-CONCEPT metadata (that's the Single Day Template format instead).
+Skills, Strength, Cool-Down, ...) with its own exercises[]. For a
+"workout": each block also needs day_name/block_name/metadata/coach_notes
+(same CONCEPT metadata shape as a Master Template day, no week_number —
+single day only). For a "quick_workout": blocks stay name/notes only, no
+metadata.
 
 The "goal_tags" field must only contain values from this exact list:
 "muscle_up", "handstand", "front_lever", "back_lever", "pistol",
@@ -127,27 +135,79 @@ otherwise:
 
 ## `blocks[]`
 
-One entry per phase — `"name"` is the phase label (e.g. `"Warm-Up"`,
-`"Skills"`, `"Strength"`, `"Cool-Down"`), rendered as a section header in
-the app above its exercises:
+The shape here depends on `kind`.
+
+### `kind: "workout"` — same block shape as a Master Template day
+
+One entry per phase, same fields as a Master Template block (see
+[single-day-template-import-format.md](./single-day-template-import-format.md))
+minus `week_number` — a Workout Content item is always exactly one day:
 
 ```json
 {
-  "name": "Strength",
+  "day_name": "PUSH DAY",
+  "block_name": "Strength",
+  "metadata": { "timing_system": "straight_set", "structure": "single", "is_weighted": false },
+  "coach_notes": "Full range of motion, controlled tempo.",
   "order_index": 1,
   "exercises": [ /* see below */ ]
 }
 ```
 
-- **`name`** — **required**, non-empty. Missing a name rejects the whole import.
-- **`order_index`** — optional; defaults to the block's position in the array. Controls display order.
-- **`exercises`** — **required**, non-empty array — see below. A block with no exercises rejects the whole import.
+- **`day_name`** — optional. When present, the saved block name becomes
+  `"{day_name} | {block_name}"` (identical convention to a Master Template
+  day) — otherwise it's just `block_name`. Usually the same value across
+  every block in one file, since one file is one day.
+- **`block_name`** — **required**, non-empty. The phase label (e.g.
+  `"Warm-Up"`, `"Skills"`, `"Strength"`, `"Cool-Down"`). Missing it rejects
+  the whole import.
+- **`metadata`** — **required**, an object (can be `{}`). CONCEPT metadata —
+  same fields/conditional rules as a Master Template block:
 
-For a `workout`: always include a `"Warm-Up"` and a `"Cool-Down"` block —
-non-negotiable. Add `"Skills"` / `"Strength"` / `"Strength - 2"` /
-`"Accessories"` / `"Finisher"` blocks only when relevant to the requested
-focus and level. For a `quick_workout`: usually a single block (e.g.
-`"Circuit"`) holding the whole thing.
+  | Field | When it applies |
+  |---|---|
+  | `timing_system` | `"straight_set"`, `"amrap"`, `"fortime"`, or `"tabata"`. |
+  | `structure` | `"single"`, `"superset"`, `"circuit"`, or `"ladder"`. Forced to `"circuit"` when `timing_system` is `"tabata"`. |
+  | `time_cap_min` | Only for `timing_system: "amrap"` or `"fortime"`. |
+  | `is_weighted` | Only meaningful when `timing_system: "straight_set"`. |
+  | `rounds` | When `structure` is `"superset"`, `"circuit"`, or `"ladder"`. |
+  | `rest_after_round` | When `structure` is one of the above **and** `timing_system: "straight_set"`. |
+  | `tabata_work_seconds` / `tabata_rest_seconds` / `tabata_rounds` | Only for `timing_system: "tabata"`. |
+  | `ladder_start` / `ladder_sub` / `ladder_direction` | Only when `structure: "ladder"`. |
+  | `focus_tag` | `"PULL"`, `"PUSH"`, `"LEGS"`, `"FULL_BODY"`, `"CORE"`, or `"NONE"` — optional, informational. |
+
+  Nothing in the importer validates the *shape* of `metadata` beyond "it's
+  an object" — an unrecognized `timing_system`/`structure` value is stored
+  as-is rather than rejected, same leniency as the Master Template importer.
+- **`coach_notes`** — optional free text, defaults to empty.
+- **`order_index`** — optional; defaults to the block's position in the array.
+- **`exercises`** — **required**, non-empty array — see below.
+
+Sending `metadata`, `day_name`, or `coach_notes` on a `quick_workout` block
+(below) is rejected — those fields only exist for `kind: "workout"`.
+
+Always include a `"Warm-Up"` and a `"Cool-Down"` block — non-negotiable.
+Add `"Skills"` / `"Strength"` / `"Strength - 2"` / `"Accessories"` /
+`"Finisher"` blocks only when relevant to the requested focus and level.
+
+### `kind: "quick_workout"` — unchanged, flat block shape
+
+```json
+{
+  "name": "Circuit",
+  "order_index": 0,
+  "exercises": [ /* see below */ ]
+}
+```
+
+- **`name`** — **required**, non-empty. Missing a name rejects the whole import.
+- **`order_index`** — optional; defaults to the block's position in the array.
+- **`exercises`** — **required**, non-empty array — see below.
+
+AMRAP/EMOM/Tabata/For-Time timing for a Quick Workout still comes entirely
+from the top-level `format`/`duration_minutes` fields, not from any
+per-block metadata — so this is usually just a single `"Circuit"` block
+holding the whole thing, exactly as before.
 
 ## `exercises[]` (inside a block)
 
@@ -227,7 +287,13 @@ guarantee a hit on an existing row.
 3. One `standalone_workouts` row is created, with one `standalone_workout_blocks`
    row per block (in order) and its exercises under it, `status: "draft"` —
    it never appears in the app's public Workout Library until an admin
-   explicitly publishes it.
+   explicitly publishes it. For `kind: "workout"`, each block's `metadata`
+   is packed into that row's `notes` column as `[CONCEPT:{...}] coach_notes`
+   — the exact same encoding a Master Template block's `notes` column uses
+   — rather than a separate column. **The mobile app does not read or
+   display this metadata yet** — it's stored and round-trippable, but
+   nothing in the client currently parses `standalone_workout_blocks.notes`;
+   wiring that up is separate, later work.
 4. Re-importing the same file again creates a **second, separate** workout —
    this format has no "update existing" concept. Edit the workout directly
    in the admin panel instead if you're correcting one already imported.
@@ -246,23 +312,30 @@ guarantee a hit on an existing row.
   "tier_max": 2,
   "blocks": [
     {
-      "name": "Warm-Up",
+      "day_name": "PULL DAY",
+      "block_name": "Warm-Up",
+      "metadata": {},
       "exercises": [
         { "name": "Arm Circles", "sets": 2, "reps": 15 }
       ]
     },
     {
-      "name": "Strength",
+      "day_name": "PULL DAY",
+      "block_name": "Strength",
+      "metadata": { "timing_system": "straight_set", "structure": "single" },
+      "coach_notes": "Full range of motion, controlled tempo.",
       "exercises": [
-        { "name": "Ring Rows", "sets": 3, "reps": 12, "rest_seconds": 60 },
-        { "name": "Dead Hang", "hold_seconds": 20, "rest_seconds": 60 },
-        { "name": "Banded Pulldowns", "sets": 3, "reps": 10, "rest_seconds": 60 }
+        { "name": "Ring Rows", "sets": "3", "reps": "12", "rest_seconds": "60" },
+        { "name": "Dead Hang", "hold_seconds": "20", "rest_seconds": "60" },
+        { "name": "Banded Pulldowns", "sets": "3", "reps": "10", "rest_seconds": "60" }
       ]
     },
     {
-      "name": "Cool-Down",
+      "day_name": "PULL DAY",
+      "block_name": "Cool-Down",
+      "metadata": {},
       "exercises": [
-        { "name": "Cat-Cow Stretch", "hold_seconds": 30 }
+        { "name": "Cat-Cow Stretch", "hold_seconds": "30" }
       ]
     }
   ]
@@ -271,18 +344,22 @@ guarantee a hit on an existing row.
 
 ## Which format do I want?
 
-- **This doc (Workout Content)** — the result becomes a single-session
-  item on the Workout Content browse page, with no weeks or CONCEPT
-  metadata. Use this if the output is meant to be a self-contained "day
-  card" someone taps to open in the app's browsable library — this is also
-  what the Workouts tab's "build your week" day-picker assembles from
-  (each selected workout's own blocks become that day's blocks in the
-  generated program).
+- **This doc (Workout Content)** — the result becomes a single-session item
+  on the Workout Content browse page (`standalone_workouts` table). For
+  `kind: "workout"` it now carries the same day/block/CONCEPT-metadata
+  shape a Master Template day does — the real difference from the other
+  format is that this one is never part of a multi-week program (no
+  `week_number`) and lands in a different table. Use this if the output is
+  meant to be a self-contained "day card" someone taps to open in the app's
+  browsable library — this is also what the Workouts tab's "build your
+  week" day-picker assembles from (each selected workout's own blocks
+  become that day's blocks in the generated program).
 - **[Single Day Template](./single-day-template-import-format.md)** — the
-  result becomes an importable *template* with CONCEPT metadata (timing
-  system, structure), going through the same import flow as a full
-  multi-week program. Use this if the output should behave like any other
-  library template.
+  result becomes an importable *template* (`program_templates` table),
+  going through the same import flow as a full multi-week program, and can
+  later be extended into more weeks. Use this if the output should behave
+  like any other library template rather than a standalone Workout Content
+  item.
 
 Source of truth for this format is the code, not this document:
 - Validation: `validateStandaloneWorkoutImport` in `admin-web/src/api/workoutLibrary.ts`

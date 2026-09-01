@@ -322,6 +322,11 @@ export function WorkoutLibraryPage() {
         rounds: d.kind === 'quick_workout' ? toInt(d.rounds) : null,
         blocks: d.blocks.map((block, bi) => ({
           name: block.name.trim(),
+          // The manual block builder has no block-level notes field today
+          // (only per-exercise notes below) — same as before this field
+          // existed on SaveStandaloneWorkoutBlockInput, when it was simply
+          // omitted from the RPC payload entirely.
+          notes: null,
           order_index: bi,
           exercises: block.exercises.map((ex, i) => ({
             exercise_id: ex.exercise_id,

@@ -1,5 +1,6 @@
 import { supabase } from '@/lib/supabase';
 import { resolveImportedExercises } from '@/shared/ProgramImportParser';
+import { BlockConceptParser, ConceptMetadata } from '@/shared/BlockConceptParser';
 
 // Admin-only authoring for standalone_workouts/standalone_workout_blocks/
 // _exercises (Workouts + Quick Workouts) — mirrors the mobile app's
@@ -121,6 +122,10 @@ export async function fetchStandaloneWorkoutDetail(id: string): Promise<Standalo
 
 export interface SaveStandaloneWorkoutBlockInput {
   name: string;
+  // CONCEPT-prefixed for kind:"workout" blocks (see BlockConceptParser),
+  // raw passthrough for kind:"quick_workout" — same encoding program_blocks
+  // already uses, so this content parses identically if ever compared.
+  notes: string | null;
   order_index: number;
   exercises: Array<{
     exercise_id: string;
@@ -221,8 +226,17 @@ export interface ImportedStandaloneWorkoutExercise {
 }
 
 export interface ImportedStandaloneWorkoutBlock {
+  // kind:"quick_workout" shape — unchanged.
   name?: string;
   notes?: string | null;
+  // kind:"workout"-only — same block shape as Master Template's
+  // MasterTemplateExportBlock, minus week_number (this is always a single
+  // day). block_name replaces `name`, coach_notes replaces `notes`;
+  // metadata is required per block when present in this shape.
+  day_name?: string;
+  block_name?: string;
+  metadata?: ConceptMetadata;
+  coach_notes?: string | null;
   order_index?: number;
   exercises?: ImportedStandaloneWorkoutExercise[];
 }
@@ -271,9 +285,19 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
     return { valid: false, error: '"blocks" must be a non-empty array — one entry per phase (Warm-Up, Strength, Cool-Down, ...).' };
   }
   for (const block of data.blocks) {
-    const blockName = block?.name;
+    if (data.kind === 'quick_workout') {
+      if (block?.metadata !== undefined || block?.day_name !== undefined || block?.block_name !== undefined || block?.coach_notes !== undefined) {
+        return { valid: false, error: '"metadata", "day_name", "block_name" and "coach_notes" are not supported on quick_workout blocks.' };
+      }
+    }
+    // kind:"workout" blocks use block_name/metadata (Master Template's
+    // shape); kind:"quick_workout" blocks keep the original name-only shape.
+    const blockName = data.kind === 'workout' ? block?.block_name : block?.name;
     if (typeof blockName !== 'string' || !blockName.trim()) {
-      return { valid: false, error: 'Every block needs a name.' };
+      return { valid: false, error: data.kind === 'workout' ? 'Every block needs a "block_name".' : 'Every block needs a name.' };
+    }
+    if (data.kind === 'workout' && (typeof block.metadata !== 'object' || block.metadata === null || Array.isArray(block.metadata))) {
+      return { valid: false, error: `Block "${blockName}" is missing "metadata".` };
     }
     if (!Array.isArray(block.exercises) || block.exercises.length === 0) {
       return { valid: false, error: `Block "${blockName}" needs a non-empty "exercises" array.` };
@@ -369,7 +393,8 @@ export async function importStandaloneWorkoutFromJson(
           // this through (it only checks a name-or-id is *present*, not
           // that the id actually resolves), so without this check the
           // exercise would silently vanish from the saved block.
-          unresolvedNames.push(ex.name || ex.exercise_id || `block "${block.name}" exercise #${i + 1}`);
+          const blockLabel = data.kind === 'workout' ? block.block_name : block.name;
+          unresolvedNames.push(ex.name || ex.exercise_id || `block "${blockLabel}" exercise #${i + 1}`);
           return null;
         }
         return {
@@ -386,8 +411,23 @@ export async function importStandaloneWorkoutFromJson(
       })
       .filter((ex): ex is NonNullable<typeof ex> => ex !== null);
 
+    if (data.kind === 'workout') {
+      // Same "{day_name} | {block_name}" join program_blocks.name already
+      // uses for Master Template days, and the same [CONCEPT:{...}] notes
+      // prefix program_blocks.notes already uses — so this content parses
+      // identically to a Master Template day if ever cross-referenced.
+      const name = block.day_name ? `${block.day_name} | ${block.block_name}` : (block.block_name ?? '').trim();
+      return {
+        name,
+        notes: BlockConceptParser.stringify(block.metadata ?? {}, block.coach_notes ?? ''),
+        order_index: block.order_index ?? bi,
+        exercises,
+      };
+    }
+
     return {
       name: (block.name ?? '').trim(),
+      notes: block.notes ?? null,
       order_index: block.order_index ?? bi,
       exercises,
     };

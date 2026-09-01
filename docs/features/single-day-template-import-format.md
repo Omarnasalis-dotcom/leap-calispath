@@ -10,9 +10,11 @@ a `blocks[]` array containing only one day's blocks imports exactly like a
 full program does.
 
 Companion doc: [workout-content-import-format.md](./workout-content-import-format.md)
-covers the **other** format — a flat, phase-less single workout for the
-Workout Content library page instead of a template. See "Which format do I
-want?" below if you're not sure which one applies.
+covers the **other** format — a single-day `standalone_workouts` entry for
+the Workout Content library page instead of a template. Its block shape is
+now the same idea as this one (day_name/block_name/metadata/coach_notes),
+minus `week_number`. See "Which format do I want?" below if you're not
+sure which one applies.
 
 ## PROMPT TEMPLATE
 
@@ -91,12 +93,13 @@ matching.
   structure, and CONCEPT metadata (timing system, structure). Use this if
   the output should behave like any other library template.
 - **[Workout Content](./workout-content-import-format.md)** — the result
-  becomes a flat, single-session item on the Workout Content browse page
-  (`/coaching/workouts`), with no phases/blocks/CONCEPT metadata, just a
-  title, category, difficulty, and one flat exercise list. Use this if the
-  output is meant to be a self-contained "day card" someone taps to open in
-  the app's browsable library — this is also what the Workouts tab's
-  "build your week" day-picker assembles from.
+  becomes a single-session item on the Workout Content browse page
+  (`/coaching/workouts`, `standalone_workouts` table), never part of a
+  multi-week program. For `kind: "workout"` it now supports the same
+  block/CONCEPT-metadata shape as this doc, just without `week_number`. Use
+  this if the output is meant to be a self-contained "day card" someone
+  taps to open in the app's browsable library — this is also what the
+  Workouts tab's "build your week" day-picker assembles from.
 
 If you're not sure, say so explicitly in your message — e.g. "Build me a
 Workout Content JSON (not a template) for a PUSH day, intermediate, flat
