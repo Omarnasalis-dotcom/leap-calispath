@@ -15,6 +15,8 @@ import {
   formatDate,
   formatDateTime,
   formatSeconds,
+  subscriptionTierLabel,
+  SUBSCRIPTION_TIER_COLORS,
 } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
@@ -87,9 +89,11 @@ export function UserDetailPage() {
     },
   });
 
+  const [grantTier, setGrantTier] = useState<'first' | 'pro' | 'max'>('pro');
+
   const grantMutation = useMutation({
     mutationFn: (durationType: '1month' | '3month' | '6month') =>
-      grantAccess(id, durationType),
+      grantAccess(id, grantTier, durationType),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
@@ -218,9 +222,15 @@ export function UserDetailPage() {
         <section className="panel">
           <div className="panel-head">
             <h2>Access</h2>
-            <Badge tone={u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'ok' : 'warn'}>
-              {u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'active' : 'expired'}
-            </Badge>
+            <div className="row" style={{ gap: 6 }}>
+              <Badge color={SUBSCRIPTION_TIER_COLORS[subscriptionTierLabel(u.subscription_tier, u.access_expires_at)]}>
+                {subscriptionTierLabel(u.subscription_tier, u.access_expires_at)}
+              </Badge>
+              <Badge tone={u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'ok' : 'warn'}>
+                {u.access_expires_at && new Date(u.access_expires_at).getTime() > Date.now() ? 'active' : 'expired'}
+              </Badge>
+              {u.duplicate_subscription_flagged_at && <Badge tone="warn">possible duplicate sub</Badge>}
+            </div>
           </div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {grantMutation.error && <ErrorNote error={grantMutation.error} />}
@@ -231,13 +241,35 @@ export function UserDetailPage() {
               {u.entitlement_source === 'rc_subscription' &&
                 ' (real Apple subscription — grants stack on top, but revoke must go through Apple/RevenueCat).'}
             </div>
+            {u.duplicate_subscription_flagged_at && (
+              <div className="dim" style={{ fontSize: 13, color: 'var(--warn, #b26a00)' }}>
+                Flagged {formatDateTime(u.duplicate_subscription_flagged_at)} — a new real subscription landed on
+                this account while a different one (transaction {u.duplicate_subscription_previous_transaction_id})
+                was still active. Likely two payment accounts on the same Leap Arena account — the user was shown
+                an in-app warning; they'll need to cancel the extra one through Apple/Google support directly (we
+                can't issue store refunds ourselves).
+              </div>
+            )}
+            <div className="row" style={{ gap: 8, alignItems: 'center' }}>
+              <span className="dim" style={{ fontSize: 13 }}>Gift tier:</span>
+              {(['first', 'pro', 'max'] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  className={`btn small ${grantTier === t ? 'primary' : 'ghost'}`}
+                  onClick={() => setGrantTier(t)}
+                >
+                  {t}
+                </button>
+              ))}
+            </div>
             <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
               {(['1month', '3month', '6month'] as const).map((d) => (
                 <ConfirmButton
                   key={d}
                   label={`Gift ${d.replace('month', ' month')}`}
-                  title={`Gift ${d.replace('month', ' month')} of access to ${u.display_name || u.email}?`}
-                  body="Adds on top of any existing access (extends access_expires_at). Marked as an admin grant, not a real subscription."
+                  title={`Gift ${grantTier} — ${d.replace('month', ' month')} of access to ${u.display_name || u.email}?`}
+                  body={`Adds on top of any existing access (extends access_expires_at). Sets tier=${grantTier} with that tier's real AI Coach budget/message caps — same structure as a real paying subscriber, not unlimited. Marked as an admin grant, not a real subscription.`}
                   confirmLabel="Grant"
                   onConfirm={() => grantMutation.mutateAsync(d)}
                 />

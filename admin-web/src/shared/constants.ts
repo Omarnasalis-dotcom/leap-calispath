@@ -25,6 +25,31 @@ export function tierName(tier: number | null | undefined): string {
   return TIER_NAMES[tier];
 }
 
+// Mirrored from the mobile app's SUBSCRIPTION_TIER_COLORS
+// (src/components/profile/ProfileHeader.tsx) — same colors so the tier
+// badge reads consistently between the app and this panel.
+export const SUBSCRIPTION_TIER_COLORS: Record<'free' | 'first' | 'pro' | 'max', string> = {
+  free: '#8a8a8a',
+  first: '#C9A227',
+  pro: '#FC5454',
+  max: '#a479e2',
+};
+
+// Raw entitlement truth (subscription_tier + whether access_expires_at is
+// still valid), not the client's gating-time "effective tier" — an admin
+// auditing a user wants to know what they actually hold, not what the
+// paywall kill switch or an admin/coach bypass would treat them as.
+export function subscriptionTierLabel(
+  subscriptionTier: string | null | undefined,
+  accessExpiresAt: string | null | undefined,
+): 'free' | 'first' | 'pro' | 'max' {
+  const hasAccess = !!accessExpiresAt && new Date(accessExpiresAt).getTime() > Date.now();
+  if (hasAccess && subscriptionTier && subscriptionTier in SUBSCRIPTION_TIER_COLORS) {
+    return subscriptionTier as 'first' | 'pro' | 'max';
+  }
+  return 'free';
+}
+
 export const CHALLENGE_GROUPS = [
   { id: 1, name: 'Recruits', tiers: 'Tiers 0–2' },
   { id: 2, name: 'Warriors', tiers: 'Tiers 3–5' },

@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { keepPreviousData, useQuery } from '@tanstack/react-query';
 import { searchUsers } from '@/api/users';
 import type { AdminUserRow } from '@/shared/types';
-import { tierName, formatDate } from '@/shared/constants';
+import { tierName, formatDate, subscriptionTierLabel, SUBSCRIPTION_TIER_COLORS } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ErrorNote } from '@/components/bits';
 
@@ -66,6 +66,14 @@ const COLUMNS: Column<AdminUserRow>[] = [
     key: 'community',
     header: 'Community',
     render: (u) => <span className="dim">{u.community_name ?? '—'}</span>,
+  },
+  {
+    key: 'subscription_tier',
+    header: 'Tier',
+    render: (u) => {
+      const label = subscriptionTierLabel(u.subscription_tier, u.access_expires_at);
+      return <Badge color={SUBSCRIPTION_TIER_COLORS[label]}>{label}</Badge>;
+    },
   },
   {
     key: 'roles',

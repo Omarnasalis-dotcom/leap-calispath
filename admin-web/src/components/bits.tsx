@@ -51,12 +51,22 @@ export function ErrorNote({ error }: { error: unknown }) {
 
 export function Badge({
   tone,
+  color,
   children,
 }: {
   tone?: 'accent' | 'ok' | 'warn';
+  /** Inline background override for palettes the fixed tones don't cover (e.g. per-subscription-tier colors) — takes precedence over `tone`. */
+  color?: string;
   children: ReactNode;
 }) {
-  return <span className={`badge${tone ? ` ${tone}` : ''}`}>{children}</span>;
+  return (
+    <span
+      className={`badge${tone && !color ? ` ${tone}` : ''}`}
+      style={color ? { background: color, color: '#000' } : undefined}
+    >
+      {children}
+    </span>
+  );
 }
 
 /** Inline code with click-to-copy (join codes, invite codes). */

@@ -20,6 +20,14 @@ import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
 import { TC_BUTTON_GRADIENT, TC_MOTION } from '../../../constants/trainingCenterTokens';
+import { getSubscriptionTier, SubscriptionTier } from '../../lib/entitlement';
+
+const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
+  free: '#8a8a8a',
+  first: '#C9A227',
+  pro: '#FC5454',
+  max: '#a479e2',
+};
 
 /**
  * Slow diagonal sheen pass across the Training Center button (design
@@ -84,6 +92,7 @@ const W = WORLD_THEMES.strength;
 interface ProfileHeaderProps {
   scrollRef?: React.RefObject<ScrollView | null>;
   profile: any;
+  paywallEnabled: boolean;
   category: 'strength' | 'power';
   activeCurrentTier: number;
   mode: 'light' | 'dark';
@@ -101,6 +110,7 @@ interface ProfileHeaderProps {
   weeklyStats: { streakDays: number; pointsThisWeek: number; workoutsCompleted: number };
   onShowWarriorModal: () => void;
   onOpenAdmin: () => void;
+  onOpenPaywall: () => void;
   onFetchWRALeaderboard: () => void;
   onFetchGloryLeaderboard: () => void;
   onOpenCoachingCenter?: () => void;
@@ -157,6 +167,7 @@ function TierRingBadge({ tierLevel }: { tierLevel: number }) {
 export function ProfileHeader({
   scrollRef,
   profile,
+  paywallEnabled,
   category,
   activeCurrentTier,
   mode,
@@ -174,6 +185,7 @@ export function ProfileHeader({
   weeklyStats,
   onShowWarriorModal,
   onOpenAdmin,
+  onOpenPaywall,
   onFetchWRALeaderboard,
   onFetchGloryLeaderboard,
   onOpenCoachingCenter,
@@ -194,6 +206,7 @@ export function ProfileHeader({
   const displayName = profile.first_name || profile.last_name
     ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
     : 'WARRIOR';
+  const subscriptionTier = getSubscriptionTier(profile, paywallEnabled);
   const wraPct = clamp01(wraScore / WRA_MAX) * 100;
   const neutrals = getWorldNeutrals(mode);
   const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
@@ -226,7 +239,17 @@ export function ProfileHeader({
           line column. The settings gear sits outside this block, absolutely
           positioned by ProfileScreen, so the column stays truly centered. */}
       <View style={styles.identityHeader}>
-        <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>{displayName}</Text>
+        <View style={styles.nameRow}>
+          <Text style={[styles.name, { color: neutrals.textPrimary, flexShrink: 1 }]} numberOfLines={1}>{displayName}</Text>
+          <TouchableOpacity
+            activeOpacity={subscriptionTier === 'max' ? 1 : 0.7}
+            disabled={subscriptionTier === 'max'}
+            onPress={onOpenPaywall}
+            style={[styles.subscriptionBadge, { backgroundColor: SUBSCRIPTION_TIER_COLORS[subscriptionTier] }]}
+          >
+            <Text style={styles.subscriptionBadgeText}>{subscriptionTier.toUpperCase()}</Text>
+          </TouchableOpacity>
+        </View>
         <Text style={[styles.tierLine, { color: W.accent }]}>
           {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
         </Text>
@@ -376,6 +399,25 @@ const styles = StyleSheet.create({
     fontSize: 23,
     letterSpacing: 0.5,
     textAlign: 'center',
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    maxWidth: '100%',
+  },
+  subscriptionBadge: {
+    flexShrink: 0,
+    paddingHorizontal: 10,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  subscriptionBadgeText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 10.5,
+    letterSpacing: 1.5,
+    color: '#000',
   },
   tierLine: {
     fontFamily: 'BarlowCondensed-Bold',

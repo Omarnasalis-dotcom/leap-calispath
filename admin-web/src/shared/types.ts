@@ -78,6 +78,8 @@ export interface AdminUserRow {
   gender: string | null;
   last_active: string | null;
   created_at: string;
+  subscription_tier: string | null;
+  access_expires_at: string | null;
   total_count: number;
 }
 
@@ -110,6 +112,11 @@ export interface AdminUserProfile {
   last_active: string | null;
   access_expires_at: string | null;
   entitlement_source: string | null;
+  subscription_tier: string | null;
+  entitlement_period_start: string | null;
+  ai_coach_budget_usd: number | null;
+  duplicate_subscription_flagged_at: string | null;
+  duplicate_subscription_previous_transaction_id: string | null;
   invite_code_used: string | null;
   auth_created_at: string | null;
   last_sign_in_at: string | null;
