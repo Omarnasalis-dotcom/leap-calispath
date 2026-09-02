@@ -29,6 +29,7 @@ import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
+import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -58,7 +59,7 @@ interface WarriorProgramScreenProps {
 
 export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
   const { theme, mode } = useTheme();
-  const { profile, paywallEnabled } = useAuth();
+  const { profile, paywallEnabled, refreshProfile } = useAuth();
   const bronzeGold = '#C8A040';
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
 
@@ -72,6 +73,28 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [warriorProgramId, setWarriorProgramId] = useState<string>('');
   const [minAccessTier, setMinAccessTier] = useState<'first' | 'pro' | null>(null);
   const [endingProgram, setEndingProgram] = useState(false);
+
+  // Soft paywall gate for the "locked by tier" upgrade CTA below — same
+  // pattern as CustomizeProgramScreen/ProgramTemplatesScreen/
+  // QuickWorkoutScreen's UpgradeToSaveModal usage, this screen's own copy
+  // of the ref/state scaffolding since it previously bounced straight to
+  // /paywall with no in-between step.
+  const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
+  const [upgrading, setUpgrading] = useState(false);
+  const upgradingRef = useRef(false);
+  const pendingPaywallNavRef = useRef(false);
+  const requestPaywallAfterModalCloses = () => {
+    if (Platform.OS === 'ios') {
+      pendingPaywallNavRef.current = true;
+    } else {
+      router.push('/paywall');
+    }
+  };
+  const handleUpgradeModalDismissed = () => {
+    if (!pendingPaywallNavRef.current) return;
+    pendingPaywallNavRef.current = false;
+    router.push('/paywall');
+  };
 
   const [weeksData, setWeeksData] = useState<Record<number, ProgramDay[]>>({ 1: [] });
   const [activeWeek, setActiveWeek] = useState<number>(1);
@@ -700,8 +723,15 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 
     } catch (err: any) {
       console.error("Failed to toggle block status:", err);
-      // Revert on failure
-      await loadWarriorProgram();
+      // Revert on failure. loadWarriorProgram() alone refreshes
+      // minAccessTier/program data but NOT profile — isLockedByTier reads
+      // currentTier from AuthContext's own (separately cached) profile, so
+      // without also refreshing that here, a server-side PRO_REQUIRED
+      // rejection (e.g. a subscription that lapsed mid-session, before
+      // AuthContext's next foreground refresh) would silently no-op: the
+      // block stays unmarked with isLockedByTier still reading the stale,
+      // still-looks-entitled tier, and the screen never explains why.
+      await Promise.all([loadWarriorProgram(), refreshProfile()]);
     } finally {
       setTogglingBlockIds(prev => {
         const next = { ...prev };
@@ -1343,7 +1373,15 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 </Text>
                 <TouchableOpacity
                   style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
-                  onPress={() => router.push('/paywall')}
+                  onPress={() => {
+                    // Reset the double-tap guard on every open — see
+                    // CustomizeProgramScreen's handlePressCreate comment for
+                    // why (without this, backing out of the paywall once and
+                    // reopening leaves both buttons permanently disabled).
+                    upgradingRef.current = false;
+                    setUpgrading(false);
+                    setUpgradeModalVisible(true);
+                  }}
                 >
                   <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
                     UPGRADE
@@ -1443,6 +1481,28 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
           setShowSessionComplete(false);
           setScreenPhase('list');
         }}
+      />
+
+      <UpgradeToSaveModal
+        visible={upgradeModalVisible}
+        theme={theme}
+        title="UPGRADE TO KEEP THIS PROGRAM"
+        body={
+          minAccessTier === 'pro'
+            ? 'This program was built using a Pro feature you no longer have access to. Upgrade to keep training with it.'
+            : 'This program was built using an AI Coach feature you no longer have access to. Upgrade to keep training with it.'
+        }
+        cancelLabel="NOT NOW"
+        upgrading={upgrading}
+        onUpgrade={() => {
+          if (upgradingRef.current) return;
+          upgradingRef.current = true;
+          setUpgrading(true);
+          setUpgradeModalVisible(false);
+          requestPaywallAfterModalCloses();
+        }}
+        onCancel={() => setUpgradeModalVisible(false)}
+        onDismiss={handleUpgradeModalDismissed}
       />
 
       {/* LOG DETAILS MODAL */}
