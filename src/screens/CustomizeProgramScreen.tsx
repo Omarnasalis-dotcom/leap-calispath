@@ -710,6 +710,11 @@ export function CustomizeProgramScreen() {
     setBuilderMode('quickBuild');
     setColumns(2);
     setQuickBuildPanelOpen(true);
+    // 3 days pre-selected so the panel opens ready to build instead of
+    // forcing a day-count tap first — only on first entry though; if the
+    // user already has slots from an earlier Quick Build pass (toggled to
+    // Browse and back), leave that progress alone rather than resetting it.
+    setDaySlots((prev) => (prev.length === 0 ? Array(3).fill(null) : prev));
   };
 
   const handleExitQuickBuild = () => {
@@ -1061,7 +1066,10 @@ export function CustomizeProgramScreen() {
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
         theme={StealthTheme.dark}
-        dayCount={buildSummarySource === 'quickBuild' ? daySlots.length : selectedDayWorkouts.length}
+        title="START YOUR PROGRAM"
+        body="Custom programs are a Pro and Max feature. Upgrade to start training with the days you just built — nothing is lost."
+        cancelLabel="KEEP EDITING"
+        pillLabel={`${buildSummarySource === 'quickBuild' ? daySlots.length : selectedDayWorkouts.length}-DAY PROGRAM BUILT`}
         upgrading={upgrading}
         onUpgrade={() => {
           if (upgradingRef.current) return;

@@ -18,7 +18,7 @@ import {
 import { canAccessPro, isProRequiredError } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
-import { ProgramPreviewModal } from '../components/workoutLibrary/SharedWorkoutModals';
+import { ProgramPreviewModal, UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
 import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 
@@ -228,6 +228,14 @@ export function ProgramTemplatesScreen() {
   const [previewWeek1, setPreviewWeek1] = useState<TemplateDetailBlock[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
 
+  // Soft paywall gate — same pattern as CustomizeProgramScreen's
+  // UpgradeToSaveModal usage. Content varies per trigger (locked card vs.
+  // switching an active program vs. a stale-entitlement retry), so it's
+  // stored as state rather than fixed copy.
+  const [upgradeModalContent, setUpgradeModalContent] = useState<{ title: string; body: string; pillLabel?: string } | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
+  const upgradingRef = useRef(false);
+
   useEffect(() => {
     if (!user?.id) return;
     supabase
@@ -298,15 +306,41 @@ export function ProgramTemplatesScreen() {
       router.push('/paywall');
     }
   };
-  const handlePreviewModalDismissed = () => {
+  // Generic across both modals below (ProgramPreviewModal and
+  // UpgradeToSaveModal) — this is just "resolve the pending nav once
+  // whichever modal was open has actually finished closing," agnostic to
+  // which one it was.
+  const handleModalDismissed = () => {
     if (!pendingPaywallNavRef.current) return;
     pendingPaywallNavRef.current = false;
     router.push('/paywall');
   };
 
+  // Resets the double-tap guard on every open, not just once — see
+  // CustomizeProgramScreen's handlePressCreate comment for why (without
+  // this, backing out of the paywall once and reopening leaves both
+  // buttons permanently disabled).
+  const openUpgradeModal = (content: { title: string; body: string; pillLabel?: string }) => {
+    upgradingRef.current = false;
+    setUpgrading(false);
+    setUpgradeModalContent(content);
+  };
+
+  const templateLockedUpgradeCopy = (rec: LibraryTemplateRecommendation) => ({
+    title: 'START THIS PROGRAM',
+    body: 'Coach-built programs are a Pro and Max feature. Upgrade to unlock the full library and start training today.',
+    pillLabel: `${rec.week_count}-WEEK PROGRAM`,
+  });
+
   const handleCardPress = (rec: LibraryTemplateRecommendation) => {
-    if (isProgramLocked(rec)) { router.push('/paywall'); return; }
-    if (!isPro && !!currentProgramName) { router.push('/paywall'); return; }
+    if (isProgramLocked(rec)) { openUpgradeModal(templateLockedUpgradeCopy(rec)); return; }
+    if (!isPro && !!currentProgramName) {
+      openUpgradeModal({
+        title: 'SWITCH YOUR PROGRAM',
+        body: 'Switching your active program is a Pro and Max feature. Upgrade to pick a new program anytime.',
+      });
+      return;
+    }
     openPreview(rec);
   };
 
@@ -326,9 +360,13 @@ export function ProgramTemplatesScreen() {
       });
     } catch (err: any) {
       if (isProRequiredError(err)) {
+        // Same "requires Pro" reason as the locked-card gate above, just
+        // discovered later (a stale client-side entitlement check that
+        // passed, followed by the server's own check rejecting it) — not
+        // worth a distinct message for what's a rare edge case.
+        openUpgradeModal(templateLockedUpgradeCopy(rec));
         setPreviewRec(null);
         setPreviewWeek1([]);
-        requestPaywallAfterModalCloses();
         return;
       }
       Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
@@ -438,7 +476,26 @@ export function ProgramTemplatesScreen() {
         }
         onCancel={closePreview}
         onConfirm={handleConfirmStart}
-        onDismiss={handlePreviewModalDismissed}
+        onDismiss={handleModalDismissed}
+      />
+
+      <UpgradeToSaveModal
+        visible={upgradeModalContent !== null}
+        theme={StealthTheme.dark}
+        title={upgradeModalContent?.title || ''}
+        body={upgradeModalContent?.body || ''}
+        cancelLabel="MAYBE LATER"
+        pillLabel={upgradeModalContent?.pillLabel}
+        upgrading={upgrading}
+        onUpgrade={() => {
+          if (upgradingRef.current) return;
+          upgradingRef.current = true;
+          setUpgrading(true);
+          setUpgradeModalContent(null);
+          requestPaywallAfterModalCloses();
+        }}
+        onCancel={() => setUpgradeModalContent(null)}
+        onDismiss={handleModalDismissed}
       />
 
       <BottomTabBar activeTab="profile" strengthTier={profile?.strength_tier || 0} />

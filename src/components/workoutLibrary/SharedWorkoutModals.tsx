@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LeapLogo } from '../LeapLogo';
 import { TemplateDetailBlock } from '../../lib/templateLibrary';
 import { StandaloneWorkoutSummary, StandaloneWorkoutDetail } from '../../lib/workoutLibrary';
+import { TC_BUTTON_GRADIENT, TC_COLORS } from '../../../constants/trainingCenterTokens';
 
 // Three modals shared across the Training Center's browse screens
 // (ProgramTemplatesScreen, CustomizeProgramScreen — QuickWorkoutScreen
@@ -318,15 +320,20 @@ export function BuildSummaryModal({
 // Shown instead of BuildSummaryModal when a free user hits Create on a
 // custom program — Customize Program is "browse free, paywall on Create"
 // (Pro/Max only), so this is the moment that actually needs to sell the
-// upgrade rather than just confirm-and-create. Reuses previewStyles'
-// card/overlay/actions chrome for consistency with the modal it replaces;
-// startBtn's existing bronzeGold fill already reads as "the premium
-// action" in this file's own vocabulary, so no new button treatment
-// needed — only the content between the header and the actions is new.
+// upgrade rather than just confirm-and-create. Uses TC_BUTTON_GRADIENT
+// (the purple->orange treatment this app already reserves for exactly one
+// premium call-to-action per screen — see ProfileHeader.tsx's Training
+// Center button / TrainingCenterScreen.tsx's primary tile) instead of a
+// flat fill, so this reads as premium using the app's own established
+// language rather than a one-off gold treatment.
 export function UpgradeToSaveModal({
   visible,
   theme,
-  dayCount,
+  title,
+  body,
+  cancelLabel,
+  pillLabel,
+  pillIcon = 'calendar-check',
   upgrading,
   onUpgrade,
   onCancel,
@@ -334,13 +341,23 @@ export function UpgradeToSaveModal({
 }: {
   visible: boolean;
   theme: any;
-  dayCount: number;
+  title: string;
+  body: string;
+  // "KEEP EDITING" only makes sense for Customize Program (you're mid-
+  // build) — other callers (browsing a template, a quick workout) need
+  // their own wording since there's nothing being "edited."
+  cancelLabel: string;
+  // Pill is hidden entirely when omitted — not every caller has a
+  // meaningful "count" to show (e.g. switching programs isn't about the
+  // target's stats).
+  pillLabel?: string;
+  pillIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
   // iOS-only native signal (RN's Modal never calls this on Android) that
   // the dismiss animation has actually finished — see BuildSummaryModal's
   // onDismiss above for why the caller wants this instead of a guessed
   // delay before navigating to /paywall.
   onDismiss?: () => void;
-  // True from the moment "Upgrade to Save" is tapped until the paywall
+  // True from the moment "Upgrade to Start" is tapped until the paywall
   // route actually pushes — disables both buttons and shows a spinner so
   // a second tap (very plausible during the deliberate delay before
   // navigating, see CustomizeProgramScreen's onUpgrade comment) can't fire
@@ -354,20 +371,22 @@ export function UpgradeToSaveModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
-        <View style={[previewStyles.card, upgradeStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-          <View style={upgradeStyles.iconWell}>
-            <MaterialCommunityIcons name="crown" size={26} color={bronzeGold} />
-          </View>
+        <View style={[previewStyles.card, upgradeStyles.card, { backgroundColor: theme.background.primary, borderColor: TC_COLORS.coral }]}>
+          <LinearGradient colors={TC_BUTTON_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={upgradeStyles.iconWell}>
+            <MaterialCommunityIcons name="crown" size={26} color="#FFFFFF" />
+          </LinearGradient>
 
-          <Text style={[upgradeStyles.title, { color: theme.text.primary }]}>SAVE YOUR PROGRAM</Text>
+          <Text style={[upgradeStyles.title, { color: theme.text.primary }]}>{title}</Text>
 
-          <View style={upgradeStyles.dayCountPill}>
-            <MaterialCommunityIcons name="calendar-check" size={12} color={bronzeGold} />
-            <Text style={upgradeStyles.dayCountText}>{dayCount}-DAY PROGRAM BUILT</Text>
-          </View>
+          {!!pillLabel && (
+            <View style={upgradeStyles.metaPill}>
+              <MaterialCommunityIcons name={pillIcon} size={12} color={TC_COLORS.coral} />
+              <Text style={upgradeStyles.metaPillText}>{pillLabel}</Text>
+            </View>
+          )}
 
           <Text style={[upgradeStyles.body, { color: theme.text.secondary }]}>
-            Custom programs are a Pro and Max feature. Upgrade to save this one and start training today — your days stay exactly as you built them.
+            {body}
           </Text>
 
           <View style={previewStyles.actions}>
@@ -376,19 +395,20 @@ export function UpgradeToSaveModal({
               onPress={onCancel}
               disabled={upgrading}
             >
-              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>KEEP EDITING</Text>
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{cancelLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={[previewStyles.startBtn, upgrading && { opacity: 0.7 }]}
               onPress={onUpgrade}
               disabled={upgrading}
+              style={[{ flex: 2 }, upgradeStyles.startBtn, upgrading && { opacity: 0.7 }]}
             >
+              <LinearGradient colors={TC_BUTTON_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={StyleSheet.absoluteFillObject} />
               {upgrading ? (
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={previewStyles.startBtnText}>UPGRADE TO SAVE</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
+                  <Text style={upgradeStyles.startBtnText}>UPGRADE TO START</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" />
                 </>
               )}
             </TouchableOpacity>
@@ -400,17 +420,26 @@ export function UpgradeToSaveModal({
 }
 
 const upgradeStyles = StyleSheet.create({
+  // Plain solid border (not a gradient) — a LinearGradient used as an
+  // auto-sized outer wrapper around previewStyles.card's percentage-based
+  // maxHeight ('82%') produced a huge, broken render on-device across
+  // every internal button structure tried, which never changed when the
+  // button's own markup changed — pointing at this outer wrapper, not the
+  // button, as the actual cause. The only proven use of this app's
+  // gradient-border technique (ProfileHeader.tsx) is on a fixed-height
+  // button, never an auto-sized card with a percentage cap; this modal's
+  // content is short and fixed anyway; a plain colored border (matching
+  // every other modal in this file) is simple, safe, and doesn't lose much
+  // — the icon well and CTA button still carry the gradient accent.
   card: {
     alignItems: 'center',
     paddingTop: 28,
+    borderRadius: 20,
   },
   iconWell: {
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: 'rgba(200,160,64,0.12)',
-    borderWidth: 1,
-    borderColor: 'rgba(200,160,64,0.3)',
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: 16,
@@ -422,20 +451,20 @@ const upgradeStyles = StyleSheet.create({
     textAlign: 'center',
     marginBottom: 12,
   },
-  dayCountPill: {
+  metaPill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: 'rgba(200,160,64,0.1)',
+    backgroundColor: TC_COLORS.chipActiveBg,
     borderWidth: 1,
-    borderColor: 'rgba(200,160,64,0.3)',
+    borderColor: 'rgba(252,84,84,0.3)',
     borderRadius: 999,
     paddingHorizontal: 12,
     paddingVertical: 6,
     marginBottom: 16,
   },
-  dayCountText: {
-    color: bronzeGold,
+  metaPillText: {
+    color: TC_COLORS.coral,
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1,
@@ -446,6 +475,40 @@ const upgradeStyles = StyleSheet.create({
     lineHeight: 19,
     textAlign: 'center',
     marginBottom: 22,
+  },
+  // Applied directly to the TouchableOpacity; the gradient fill is a
+  // StyleSheet.absoluteFillObject background layer inside it, a sibling of
+  // the label. There was originally also an animated sheen streak here
+  // (matching ProfileHeader.tsx's TrainingCenterSheen), but it caused this
+  // button to render as a huge, unbounded gradient block covering the rest
+  // of the modal — confirmed live across two different container
+  // structures (sheen inside the LinearGradient itself, then sheen inside
+  // a plain TouchableOpacity with the gradient as an absolute-fill
+  // sibling), so the actual mechanism was never pinned down with
+  // confidence. Removed the sheen entirely rather than keep guessing at
+  // animation/clipping internals with no device to verify against — the
+  // static gradient fill alone still delivers the premium look this was
+  // for.
+  // 44 is Apple HIG's minimum tap-target height — compact without
+  // dropping below that. previewStyles.actions' row has no explicit
+  // alignItems (defaults to 'stretch'), so cancelBtn (padding-sized, no
+  // fixed height of its own) stretches to match this exactly — both
+  // buttons end up the same height without needing to touch cancelBtn's
+  // shared style, which other modals in this file also use.
+  startBtn: {
+    height: 44,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 10,
+    gap: 8,
+    overflow: 'hidden',
+  },
+  startBtnText: {
+    color: '#FFFFFF',
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 14,
+    letterSpacing: 1,
   },
 });
 

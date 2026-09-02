@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert, Modal } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert, Modal, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -15,6 +15,7 @@ import { canAccessPro } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { QuickWorkoutTimerModal } from '../components/workoutLibrary/QuickWorkoutTimerModal';
+import { UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
 import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
 
@@ -187,6 +188,42 @@ export function QuickWorkoutScreen() {
   const [activeWorkout, setActiveWorkout] = useState<StandaloneWorkoutDetail | null>(null);
   const [timerVisible, setTimerVisible] = useState(false);
 
+  // Soft paywall gate — same pattern as CustomizeProgramScreen/
+  // ProgramTemplatesScreen's UpgradeToSaveModal usage, built from scratch
+  // here since this screen previously bounced straight to /paywall with no
+  // in-between step.
+  const [upgradeModalContent, setUpgradeModalContent] = useState<{ title: string; body: string; pillLabel?: string } | null>(null);
+  const [upgrading, setUpgrading] = useState(false);
+  const upgradingRef = useRef(false);
+  // presentPaywall() (native full-screen view controller on iOS) can race
+  // this Modal's own dismiss animation and/or this screen's push-in
+  // transition if fired too early — see PaywallScreen.tsx's transitionEnd
+  // gating and CustomizeProgramScreen's requestPaywallAfterModalCloses for
+  // the full explanation. Android has no such exclusive-presentation
+  // constraint, so it navigates immediately there.
+  const pendingPaywallNavRef = useRef(false);
+  const requestPaywallAfterModalCloses = () => {
+    if (Platform.OS === 'ios') {
+      pendingPaywallNavRef.current = true;
+    } else {
+      router.push('/paywall');
+    }
+  };
+  const handleModalDismissed = () => {
+    if (!pendingPaywallNavRef.current) return;
+    pendingPaywallNavRef.current = false;
+    router.push('/paywall');
+  };
+  // Resets the double-tap guard on every open, not just once — without
+  // this, backing out of the paywall once and reopening leaves both
+  // buttons permanently disabled (see CustomizeProgramScreen's
+  // handlePressCreate comment).
+  const openUpgradeModal = (content: { title: string; body: string; pillLabel?: string }) => {
+    upgradingRef.current = false;
+    setUpgrading(false);
+    setUpgradeModalContent(content);
+  };
+
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
@@ -203,7 +240,14 @@ export function QuickWorkoutScreen() {
   const filteredItems = items.filter(matchesFilters);
 
   const handlePlay = async (item: StandaloneWorkoutSummary) => {
-    if (!item.is_free && !isPro) { router.push('/paywall'); return; }
+    if (!item.is_free && !isPro) {
+      openUpgradeModal({
+        title: 'START THIS WORKOUT',
+        body: 'Quick Workouts outside the free set are a Pro and Max feature. Upgrade to unlock the full library and start training today.',
+        pillLabel: `${item.duration_minutes ?? '–'} MIN WORKOUT`,
+      });
+      return;
+    }
     if (loadingDetailId) return;
     setLoadingDetailId(item.id);
     try {
@@ -286,6 +330,26 @@ export function QuickWorkoutScreen() {
           setTimerVisible(false);
           setActiveWorkout(null);
         }}
+      />
+
+      <UpgradeToSaveModal
+        visible={upgradeModalContent !== null}
+        theme={StealthTheme.dark}
+        title={upgradeModalContent?.title || ''}
+        body={upgradeModalContent?.body || ''}
+        cancelLabel="MAYBE LATER"
+        pillLabel={upgradeModalContent?.pillLabel}
+        pillIcon="timer-outline"
+        upgrading={upgrading}
+        onUpgrade={() => {
+          if (upgradingRef.current) return;
+          upgradingRef.current = true;
+          setUpgrading(true);
+          setUpgradeModalContent(null);
+          requestPaywallAfterModalCloses();
+        }}
+        onCancel={() => setUpgradeModalContent(null)}
+        onDismiss={handleModalDismissed}
       />
 
       <BottomTabBar activeTab="profile" strengthTier={profile?.strength_tier || 0} />
