@@ -108,6 +108,8 @@ interface ProfileHeaderProps {
   powerPbs: Record<string, number>;
   oneMMPbs: Record<string, number>;
   weeklyStats: { streakDays: number; pointsThisWeek: number; workoutsCompleted: number };
+  hasActiveWorkout: boolean;
+  onOpenActiveWorkout: () => void;
   onShowWarriorModal: () => void;
   onOpenAdmin: () => void;
   onOpenPaywall: () => void;
@@ -183,6 +185,8 @@ export function ProfileHeader({
   powerPbs,
   oneMMPbs,
   weeklyStats,
+  hasActiveWorkout,
+  onOpenActiveWorkout,
   onShowWarriorModal,
   onOpenAdmin,
   onOpenPaywall,
@@ -315,6 +319,8 @@ export function ProfileHeader({
         pointsThisWeek={weeklyStats.pointsThisWeek}
         workoutsCompleted={weeklyStats.workoutsCompleted}
         theme={theme}
+        hasActiveWorkout={hasActiveWorkout}
+        onOpenActiveWorkout={onOpenActiveWorkout}
         firstTile={
           <SuggestedTestCard
             compact

@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -13,6 +13,13 @@ interface QuickStatsRowProps {
   // used to fit SuggestedTestCard's compact tile into this row instead.
   // Falls back to a Day Streak tile when omitted.
   firstTile?: React.ReactNode;
+  // Quick-access nav into the athlete's active workout — the tile itself
+  // becomes a "CONTINUE" CTA when one exists (the weekly count isn't shown
+  // in that state, a raw number reads oddly next to a CTA). With no active
+  // program it falls back to a locked, inert state (no redirect) that does
+  // show the weekly count.
+  hasActiveWorkout: boolean;
+  onOpenActiveWorkout: () => void;
 }
 
 /**
@@ -21,23 +28,10 @@ interface QuickStatsRowProps {
  * count) — the original three cards looked identical with no indication of
  * what distinguished them.
  */
-export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, theme, firstTile }: QuickStatsRowProps) {
+export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, theme, firstTile, hasActiveWorkout, onOpenActiveWorkout }: QuickStatsRowProps) {
   const { mode } = useTheme();
   const neutrals = getWorldNeutrals(mode);
-  const stats: { icon: keyof typeof MaterialCommunityIcons.glyphMap; tint: string; value: string; label: string }[] = [
-    {
-      icon: 'trending-up',
-      tint: WORLD_THEMES.power.accent,
-      value: `${pointsThisWeek >= 0 ? '+' : ''}${pointsThisWeek}`,
-      label: 'PTS THIS WEEK',
-    },
-    {
-      icon: 'target',
-      tint: WORLD_THEMES.onemm.accent,
-      value: `${workoutsCompleted}`,
-      label: 'WORKOUTS LOGGED',
-    },
-  ];
+  const workoutsTint = hasActiveWorkout ? WORLD_THEMES.onemm.accent : neutrals.textMuted;
 
   return (
     <View style={styles.row}>
@@ -48,13 +42,39 @@ export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, t
           <Text style={[styles.label, { color: neutrals.textMuted }]}>DAY STREAK</Text>
         </View>
       )}
-      {stats.map((s) => (
-        <View key={s.label} style={[styles.tile, { borderColor: worldRgba(s.tint, 0.3), backgroundColor: worldRgba(s.tint, 0.06) }]}>
-          <MaterialCommunityIcons name={s.icon} size={16} color={s.tint} style={styles.icon} />
-          <Text style={[styles.value, { color: neutrals.textPrimary }]}>{s.value}</Text>
-          <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>{s.label}</Text>
-        </View>
-      ))}
+      <View style={[styles.tile, { borderColor: worldRgba(WORLD_THEMES.power.accent, 0.3), backgroundColor: worldRgba(WORLD_THEMES.power.accent, 0.06) }]}>
+        <MaterialCommunityIcons name="trending-up" size={16} color={WORLD_THEMES.power.accent} style={styles.icon} />
+        <Text style={[styles.value, { color: neutrals.textPrimary }]}>{`${pointsThisWeek >= 0 ? '+' : ''}${pointsThisWeek}`}</Text>
+        <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>PTS THIS WEEK</Text>
+      </View>
+      <TouchableOpacity
+        activeOpacity={hasActiveWorkout ? 0.7 : 1}
+        disabled={!hasActiveWorkout}
+        onPress={onOpenActiveWorkout}
+        style={[
+          styles.tile,
+          hasActiveWorkout
+            ? { borderColor: worldRgba(workoutsTint, 0.5), backgroundColor: worldRgba(workoutsTint, 0.1) }
+            : { borderColor: worldRgba(workoutsTint, 0.3), backgroundColor: worldRgba(workoutsTint, 0.06) },
+        ]}
+      >
+        {hasActiveWorkout ? (
+          <>
+            <MaterialCommunityIcons name="play-circle" size={18} color={workoutsTint} style={styles.icon} />
+            <View style={styles.continueRow}>
+              <Text style={[styles.value, { color: neutrals.textPrimary }]}>CONTINUE</Text>
+              <MaterialCommunityIcons name="chevron-right" size={14} color={neutrals.textPrimary} />
+            </View>
+            <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>ACTIVE PROGRAM</Text>
+          </>
+        ) : (
+          <>
+            <MaterialCommunityIcons name="lock" size={16} color={workoutsTint} style={styles.icon} />
+            <Text style={[styles.value, { color: neutrals.textMuted }]}>{workoutsCompleted}</Text>
+            <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>NO ACTIVE WORKOUT YET</Text>
+          </>
+        )}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -77,6 +97,10 @@ const styles = StyleSheet.create({
   },
   icon: {
     marginBottom: 4,
+  },
+  continueRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',

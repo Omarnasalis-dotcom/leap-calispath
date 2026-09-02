@@ -231,6 +231,7 @@ export function ProfileScreen({
 
   // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
   const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
+  const [hasActiveWorkout, setHasActiveWorkout] = useState(false);
   const [staticPbs, setStaticPbs] = useState<Record<string, number>>({});
   const [oneMMPbs, setOneMMPbs] = useState<Record<string, number>>({});
 
@@ -316,6 +317,13 @@ export function ProfileScreen({
       ActivityStatsService.getWeeklyStats(profile.id).then(setWeeklyStats).catch(() => {});
       StaticService.getUserStats(profile.id).then(({ pbs }) => setStaticPbs(pbs)).catch(() => {});
       OneMMService.getUserStats(profile.id).then(({ pbs }) => setOneMMPbs(pbs)).catch(() => {});
+      supabase
+        .from('warrior_programs')
+        .select('id')
+        .eq('warrior_id', profile.id)
+        .eq('status', 'active')
+        .maybeSingle()
+        .then(({ data }) => setHasActiveWorkout(!!data), () => {});
     }, [profile?.id])
   );
 
@@ -495,6 +503,8 @@ export function ProfileScreen({
                 powerPbs={profile.power_pbs || {}}
                 oneMMPbs={oneMMPbs}
                 weeklyStats={weeklyStats}
+                hasActiveWorkout={hasActiveWorkout}
+                onOpenActiveWorkout={() => router.push('/warrior-program')}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onOpenAdmin={onOpenAdmin}
                 onOpenPaywall={onOpenPaywall}
@@ -583,7 +593,7 @@ export function ProfileScreen({
           onSelectProfileTab={setActiveTab}
         />
 
-        <FloatingGamesButton />
+        {(profile?.is_admin || profile?.is_coach) && <FloatingGamesButton />}
 
         <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
 
