@@ -243,8 +243,10 @@ export function ProfileHeader({
           line column. The settings gear sits outside this block, absolutely
           positioned by ProfileScreen, so the column stays truly centered. */}
       <View style={styles.identityHeader}>
-        <View style={styles.nameRow}>
-          <Text style={[styles.name, { color: neutrals.textPrimary, flexShrink: 1 }]} numberOfLines={1}>{displayName}</Text>
+        {/* Badge + upgrade chip together, above the name, both sized down —
+            a small row of "status" info sitting above the name rather than
+            sharing a row with it. */}
+        <View style={styles.tierBadgeRow}>
           <TouchableOpacity
             activeOpacity={subscriptionTier === 'max' ? 1 : 0.7}
             disabled={subscriptionTier === 'max'}
@@ -253,10 +255,21 @@ export function ProfileHeader({
           >
             <Text style={styles.subscriptionBadgeText}>{subscriptionTier.toUpperCase()}</Text>
           </TouchableOpacity>
+
+          {/* Only makes sense while "Pro" is actually an upgrade — hidden
+              once already Pro or Max, same tier the label names. Outlined
+              chip (no fill) rather than a second gradient block next to the
+              badge — the one accent color (coral) plus a crown icon reads
+              as "there's an upgrade here" without competing for attention. */}
+          {(subscriptionTier === 'free' || subscriptionTier === 'first') && (
+            <TouchableOpacity activeOpacity={0.7} onPress={onOpenPaywall} style={styles.upgradePill}>
+              <MaterialCommunityIcons name="crown-outline" size={7} color="#FC5454" />
+              <Text style={styles.upgradePillText}>UPGRADE</Text>
+            </TouchableOpacity>
+          )}
         </View>
-        <Text style={[styles.tierLine, { color: W.accent }]}>
-          {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
-        </Text>
+
+        <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>{displayName}</Text>
 
         {/* Tier-level ring badge — whole badge opens the warrior modal */}
         <TouchableOpacity
@@ -264,10 +277,14 @@ export function ProfileHeader({
           onLayout={onLevelCircleLayout}
           activeOpacity={0.7}
           onPress={onShowWarriorModal}
-          style={{ marginTop: 22 }}
+          style={{ marginTop: 12 }}
         >
           <TierRingBadge tierLevel={activeCurrentTier} />
         </TouchableOpacity>
+
+        <Text style={[styles.tierLine, { color: W.accent, marginTop: 10 }]}>
+          {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
+        </Text>
       </View>
 
       {/* Well-Rounded Athlete achievement card */}
@@ -405,31 +422,48 @@ const styles = StyleSheet.create({
     fontSize: 23,
     letterSpacing: 0.5,
     textAlign: 'center',
+    marginTop: 6,
   },
-  nameRow: {
+  tierBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    maxWidth: '100%',
+    gap: 5,
   },
   subscriptionBadge: {
     flexShrink: 0,
-    paddingHorizontal: 10,
-    paddingVertical: 3,
-    borderRadius: 10,
+    paddingHorizontal: 6,
+    paddingVertical: 1.5,
+    borderRadius: 6,
   },
   subscriptionBadgeText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 10.5,
-    letterSpacing: 1.5,
+    fontSize: 7.5,
+    letterSpacing: 0.8,
     color: '#000',
+  },
+  upgradePill: {
+    flexShrink: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    height: 13,
+    paddingHorizontal: 5,
+    borderRadius: 999,
+    borderWidth: 1,
+    borderColor: 'rgba(252,84,84,0.5)',
+  },
+  upgradePillText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 7.3,
+    letterSpacing: 0.3,
+    color: '#FC5454',
   },
   tierLine: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11.5,
     letterSpacing: 1.5,
-    marginTop: 3,
+    textAlign: 'center',
   },
   ringBadge: {
     width: 150,
