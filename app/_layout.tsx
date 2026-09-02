@@ -79,6 +79,7 @@ import { SpartanLayout } from '../src/components/SpartanLayout';
 import { LeapLogo } from '../src/components/LeapLogo';
 import { TutorialOverlay } from '../src/components/tutorial/TutorialOverlay';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
+import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
@@ -370,37 +371,39 @@ function RootLayout() {
   }
 
   return (
-    <SafeAreaProvider>
-      <GlobalErrorBoundary>
-        <ThemeProvider>
-          {forceUpdate ? (
-            // ForceUpdateScreen renders LeapLogo, which calls useTheme() —
-            // it still needs ThemeProvider even though it deliberately skips
-            // AuthProvider/TutorialProvider (nothing below this screen ever
-            // needs auth or tutorial state; it's a full-screen block, not a
-            // normal app screen).
-            <ForceUpdateScreen message={forceUpdate.message} storeUrl={forceUpdate.storeUrl} />
-          ) : (
-            <AuthProvider>
-              <TutorialProvider>
-                <View style={{ flex: 1 }}>
-                  <AuthGuard>
-                    <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
-                      <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
-                      <Stack.Screen name="profile" options={{ animation: 'none' }} />
-                      <Stack.Screen name="power-world" options={{ animation: 'none' }} />
-                      <Stack.Screen name="static-world" options={{ animation: 'none' }} />
-                      <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
-                    </Stack>
-                  </AuthGuard>
-                  <TutorialOverlay />
-                </View>
-              </TutorialProvider>
-            </AuthProvider>
-          )}
-        </ThemeProvider>
-      </GlobalErrorBoundary>
-    </SafeAreaProvider>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <SafeAreaProvider>
+        <GlobalErrorBoundary>
+          <ThemeProvider>
+            {forceUpdate ? (
+              // ForceUpdateScreen renders LeapLogo, which calls useTheme() —
+              // it still needs ThemeProvider even though it deliberately skips
+              // AuthProvider/TutorialProvider (nothing below this screen ever
+              // needs auth or tutorial state; it's a full-screen block, not a
+              // normal app screen).
+              <ForceUpdateScreen message={forceUpdate.message} storeUrl={forceUpdate.storeUrl} />
+            ) : (
+              <AuthProvider>
+                <TutorialProvider>
+                  <View style={{ flex: 1 }}>
+                    <AuthGuard>
+                      <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
+                        <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
+                        <Stack.Screen name="profile" options={{ animation: 'none' }} />
+                        <Stack.Screen name="power-world" options={{ animation: 'none' }} />
+                        <Stack.Screen name="static-world" options={{ animation: 'none' }} />
+                        <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
+                      </Stack>
+                    </AuthGuard>
+                    <TutorialOverlay />
+                  </View>
+                </TutorialProvider>
+              </AuthProvider>
+            )}
+          </ThemeProvider>
+        </GlobalErrorBoundary>
+      </SafeAreaProvider>
+    </GestureHandlerRootView>
   );
 }
 

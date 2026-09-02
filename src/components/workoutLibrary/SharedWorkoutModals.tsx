@@ -158,7 +158,7 @@ export function StandaloneWorkoutDetailModal({
                   )}
                 </ScrollView>
               ) : detail.description ? (
-                <ScrollView style={previewStyles.body}>
+                <ScrollView style={[previewStyles.body, { flex: undefined, minHeight: 140, maxHeight: 320 }]}>
                   <Text style={{ color: theme.text.secondary, fontFamily: 'Barlow-Regular', fontSize: 13 }}>
                     {detail.description}
                   </Text>
@@ -225,6 +225,7 @@ export function BuildSummaryModal({
   onAddAnother,
   onStart,
   onClose,
+  onDismiss,
 }: {
   visible: boolean;
   theme: any;
@@ -235,9 +236,15 @@ export function BuildSummaryModal({
   onAddAnother: () => void;
   onStart: () => void;
   onClose: () => void;
+  // iOS-only native signal (RN's Modal never calls this on Android) that
+  // the dismiss animation has actually finished — callers navigating to
+  // /paywall right after closing this modal should wait for this instead
+  // of guessing a delay; see CustomizeProgramScreen's
+  // requestPaywallAfterModalCloses for why that guess used to fail.
+  onDismiss?: () => void;
 }) {
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
         <View style={[previewStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
           <View style={previewStyles.header}>
@@ -254,7 +261,10 @@ export function BuildSummaryModal({
             </View>
           )}
 
-          <ScrollView style={previewStyles.body} contentContainerStyle={{ paddingBottom: 8 }}>
+          <ScrollView
+            style={[previewStyles.body, { flex: undefined, minHeight: 140, maxHeight: 320 }]}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          >
             {days.length === 0 ? (
               <Text style={[previewStyles.emptyText, { color: theme.text.tertiary }]}>
                 NO DAYS SELECTED YET.
@@ -305,6 +315,140 @@ export function BuildSummaryModal({
   );
 }
 
+// Shown instead of BuildSummaryModal when a free user hits Create on a
+// custom program — Customize Program is "browse free, paywall on Create"
+// (Pro/Max only), so this is the moment that actually needs to sell the
+// upgrade rather than just confirm-and-create. Reuses previewStyles'
+// card/overlay/actions chrome for consistency with the modal it replaces;
+// startBtn's existing bronzeGold fill already reads as "the premium
+// action" in this file's own vocabulary, so no new button treatment
+// needed — only the content between the header and the actions is new.
+export function UpgradeToSaveModal({
+  visible,
+  theme,
+  dayCount,
+  upgrading,
+  onUpgrade,
+  onCancel,
+  onDismiss,
+}: {
+  visible: boolean;
+  theme: any;
+  dayCount: number;
+  // iOS-only native signal (RN's Modal never calls this on Android) that
+  // the dismiss animation has actually finished — see BuildSummaryModal's
+  // onDismiss above for why the caller wants this instead of a guessed
+  // delay before navigating to /paywall.
+  onDismiss?: () => void;
+  // True from the moment "Upgrade to Save" is tapped until the paywall
+  // route actually pushes — disables both buttons and shows a spinner so
+  // a second tap (very plausible during the deliberate delay before
+  // navigating, see CustomizeProgramScreen's onUpgrade comment) can't fire
+  // router.push('/paywall') twice, stacking two PaywallScreen instances
+  // that each independently call RevenueCatUI.presentPaywall() — confirmed
+  // live as the cause of an indefinite native-paywall hang.
+  upgrading: boolean;
+  onUpgrade: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
+      <View style={previewStyles.overlay}>
+        <View style={[previewStyles.card, upgradeStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
+          <View style={upgradeStyles.iconWell}>
+            <MaterialCommunityIcons name="crown" size={26} color={bronzeGold} />
+          </View>
+
+          <Text style={[upgradeStyles.title, { color: theme.text.primary }]}>SAVE YOUR PROGRAM</Text>
+
+          <View style={upgradeStyles.dayCountPill}>
+            <MaterialCommunityIcons name="calendar-check" size={12} color={bronzeGold} />
+            <Text style={upgradeStyles.dayCountText}>{dayCount}-DAY PROGRAM BUILT</Text>
+          </View>
+
+          <Text style={[upgradeStyles.body, { color: theme.text.secondary }]}>
+            Custom programs are a Pro and Max feature. Upgrade to save this one and start training today — your days stay exactly as you built them.
+          </Text>
+
+          <View style={previewStyles.actions}>
+            <TouchableOpacity
+              style={[previewStyles.cancelBtn, { borderColor: theme.card.border }, upgrading && { opacity: 0.5 }]}
+              onPress={onCancel}
+              disabled={upgrading}
+            >
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>KEEP EDITING</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[previewStyles.startBtn, upgrading && { opacity: 0.7 }]}
+              onPress={onUpgrade}
+              disabled={upgrading}
+            >
+              {upgrading ? (
+                <LeapLogo size={22} animated />
+              ) : (
+                <>
+                  <Text style={previewStyles.startBtnText}>UPGRADE TO SAVE</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
+                </>
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const upgradeStyles = StyleSheet.create({
+  card: {
+    alignItems: 'center',
+    paddingTop: 28,
+  },
+  iconWell: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: 'rgba(200,160,64,0.12)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,64,0.3)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 21,
+    letterSpacing: 1,
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  dayCountPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: 'rgba(200,160,64,0.1)',
+    borderWidth: 1,
+    borderColor: 'rgba(200,160,64,0.3)',
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    marginBottom: 16,
+  },
+  dayCountText: {
+    color: bronzeGold,
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  body: {
+    fontFamily: 'Barlow-Regular',
+    fontSize: 13.5,
+    lineHeight: 19,
+    textAlign: 'center',
+    marginBottom: 22,
+  },
+});
+
 // Library template days are authored as "{FOCUS} DAY {N} | {Section}" (e.g.
 // "PUSH DAY 1 | Strength - 1", "FULL BODY DAY 3 | Warm-Up") — getTemplateDetails
 // already splits off the "| Section" part into blockName, so block.day here is
@@ -340,6 +484,7 @@ export function ProgramPreviewModal({
   switchWarning,
   onCancel,
   onConfirm,
+  onDismiss,
 }: {
   visible: boolean;
   theme: any;
@@ -351,10 +496,15 @@ export function ProgramPreviewModal({
   switchWarning: string | null;
   onCancel: () => void;
   onConfirm: () => void;
+  // iOS-only native signal (RN's Modal never calls this on Android) that
+  // the dismiss animation has actually finished — see BuildSummaryModal's
+  // onDismiss (SharedWorkoutModals.tsx) for why ProgramTemplatesScreen
+  // wants this instead of a guessed delay before navigating to /paywall.
+  onDismiss?: () => void;
 }) {
   const days = summarizeWeek1Days(week1);
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
         <View style={[previewStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
           <View style={previewStyles.header}>
@@ -373,7 +523,10 @@ export function ProgramPreviewModal({
             </View>
           )}
 
-          <ScrollView style={previewStyles.body} contentContainerStyle={{ paddingBottom: 8 }}>
+          <ScrollView
+            style={[previewStyles.body, { flex: undefined, minHeight: 140, maxHeight: 320 }]}
+            contentContainerStyle={{ paddingBottom: 8 }}
+          >
             {loading ? (
               <View style={previewStyles.loadingBox}>
                 <LeapLogo size={32} animated />
