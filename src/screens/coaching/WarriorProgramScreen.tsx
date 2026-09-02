@@ -359,16 +359,15 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
     return () => sub.remove();
   }, [screenPhase]);
 
-  // Day Blocks design: never open on all-closed cards — default to the
-  // first unfinished block (falling back to the first block if every block
-  // is already settled) each time the athlete enters 'running' for a given
-  // day. Deliberately not re-run on every block-status change within the
-  // same day (that would re-collapse whatever the athlete has open after
-  // every log), only when the phase/day itself changes.
+  // Day Blocks design: every block starts collapsed when the athlete enters
+  // 'running' for a given day — they choose which one to open (via
+  // toggleBlockExpanded, or the footer's START/RESUME CTA). Deliberately not
+  // re-run on every block-status change within the same day (that would
+  // re-collapse whatever the athlete has open after every log), only when
+  // the phase/day itself changes.
   useEffect(() => {
     if (screenPhase !== 'running' || !activeDay) return;
-    const target = activeDay.blocks.find((b) => b.completedStatus === 'none') || activeDay.blocks[0];
-    setExpandedBlocks(target ? { [target.id]: true } : {});
+    setExpandedBlocks({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenPhase, activeDayIndex, activeWeek]);
 
