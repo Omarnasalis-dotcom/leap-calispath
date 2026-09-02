@@ -1439,7 +1439,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         totalReps={sessionTotalReps}
         bodyweightKg={bodyweightThisWeek}
         sessionSeconds={Math.floor((Date.now() - sessionStartRef.current) / 1000)}
-        onClose={() => setShowSessionComplete(false)}
+        onClose={() => {
+          setShowSessionComplete(false);
+          setScreenPhase('list');
+        }}
       />
 
       {/* LOG DETAILS MODAL */}
