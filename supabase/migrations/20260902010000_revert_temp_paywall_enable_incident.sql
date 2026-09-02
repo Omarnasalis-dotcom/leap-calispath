@@ -1,0 +1,21 @@
+-- INCIDENT ROLLBACK: 20260831080000_temp_enable_paywall_for_live_testing.sql
+-- flipped app_config.paywall_enabled to true for ios/android to test the
+-- new First/Pro/Max tier system on real devices, expecting a prompt
+-- follow-up revert once testing wrapped. That revert never landed.
+--
+-- app_config.paywall_enabled is a single global flag with no app-version
+-- awareness — it is read by whatever binary a given user currently has
+-- installed. At least one already-shipped production build still carries
+-- the OLD pre-freemium hard gate (a full-screen "Unlock Full Access — your
+-- trial has ended" block with no browse-free path), rather than the new
+-- "browse free, paywall only at the commit action" behavior this flag was
+-- actually being tested for. Flipping paywall_enabled back on therefore
+-- hard-locked every currently-active free user still on that older binary
+-- out of the app entirely — a live incident, not a test artifact.
+--
+-- Reverting to false immediately restores free access for everyone on any
+-- app version (see getSubscriptionTier/caller_effective_tier: paywall
+-- disabled means everyone resolves to 'max'), while the underlying gating
+-- code itself is fixed separately. Re-enabling this again later needs a
+-- plan for already-installed old binaries, not just a flag flip.
+UPDATE public.app_config SET paywall_enabled = false WHERE platform IN ('ios', 'android');

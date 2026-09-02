@@ -1,0 +1,15 @@
+-- Re-enables enforcement now that 20260902020000 (applied earlier in this
+-- same push, since migrations run in filename/timestamp order) has given
+-- every current profile a 14-day Max-tier grace window — nobody hits a
+-- hard paywall regardless of this flag, so it's safe to turn back on.
+--
+-- This does NOT fix the actual gap that caused the 20260831080000/
+-- 20260902010000 incident: app_config.paywall_enabled is a single global
+-- flag with no app-version awareness, and at least one already-shipped
+-- production binary still runs the old pre-freemium hard gate tied
+-- directly to it. The 14-day grant is a time-boxed safety net, not a fix —
+-- before it lapses, that binary's gating behavior needs to actually be
+-- addressed (forced update, server-side version gate, or confirming that
+-- build is no longer in meaningful circulation), or this same incident
+-- repeats in 14 days.
+UPDATE public.app_config SET paywall_enabled = true WHERE platform IN ('ios', 'android');
