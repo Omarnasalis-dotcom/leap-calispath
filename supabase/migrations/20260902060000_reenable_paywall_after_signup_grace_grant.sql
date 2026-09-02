@@ -1,0 +1,11 @@
+-- Re-enables enforcement now that both existing profiles (20260902020000)
+-- and new signups (20260902050000, applied earlier in this same push)
+-- get the 14-day Max-tier grace window — nobody, old or new, hits a hard
+-- paywall during the grace period regardless of this flag.
+--
+-- Same caveat as 20260902030000: this is a time-boxed safety net, not a
+-- fix for the underlying app-version blind spot. It also doesn't change
+-- that 20260902050000's signup grant needs its own follow-up revert once
+-- the grace window is actually meant to end — the two are separate
+-- switches (this flag, and whether the trigger over-grants), track both.
+UPDATE public.app_config SET paywall_enabled = true WHERE platform IN ('ios', 'android');
