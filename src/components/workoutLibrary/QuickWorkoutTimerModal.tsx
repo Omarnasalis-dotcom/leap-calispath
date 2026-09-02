@@ -29,6 +29,7 @@
 // a lap delta would always read ~0).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Vibration, Alert, AccessibilityInfo, Animated, Easing } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
@@ -266,6 +267,10 @@ export function QuickWorkoutTimerModal({
   const isForTime = workout?.format === 'fortime';
   const isAmrap = workout?.format === 'amrap';
   const isEmomOrTabata = workout?.format === 'emom' || workout?.format === 'tabata';
+  // fullScreen Modal renders in its own native layer, outside SpartanLayout's
+  // safe-area padding — confirmed live: the close button overlapped the
+  // status bar/notch with a bare paddingTop:16 and no inset awareness at all.
+  const insets = useSafeAreaInsets();
 
   const [phase, setPhase] = useState<'prep' | 'running' | 'done'>('prep');
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
@@ -632,7 +637,7 @@ export function QuickWorkoutTimerModal({
   return (
     <Modal visible={visible} transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleRequestClose}>
       <View style={[qwStyles.container, { backgroundColor: '#000000' }]}>
-        <View style={qwStyles.header}>
+        <View style={[qwStyles.header, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
             <MaterialCommunityIcons name="close" size={18} color="#EDEDED" />
           </TouchableOpacity>

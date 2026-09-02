@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -48,8 +48,9 @@ const FORMAT_LABELS: Record<string, string> = {
 function CardTrailingIcon({ locked, loadingDetail }: { locked: boolean; loadingDetail: boolean }) {
   if (locked) {
     return (
-      <View style={styles.lockCircle}>
-        <MaterialCommunityIcons name="lock" size={16} color={TC_COLORS.textPrimary} />
+      <View style={styles.proBadge}>
+        <MaterialCommunityIcons name="crown" size={11} color="#FFFFFF" />
+        <Text style={styles.proBadgeText}>PRO</Text>
       </View>
     );
   }
@@ -110,6 +111,69 @@ function QuickWorkoutCard({
   );
 }
 
+// Shown after tapping a card, before the timer/countdown starts — gives the
+// user a chance to see what they're actually starting and back out. A
+// transparent, centered-card modal (not full-screen) so it never needs
+// safe-area handling of its own.
+function WorkoutPreviewModal({
+  workout,
+  onStart,
+  onCancel,
+}: {
+  workout: StandaloneWorkoutDetail | null;
+  onStart: () => void;
+  onCancel: () => void;
+}) {
+  if (!workout) return null;
+  const allExercises = workout.blocks.flatMap((b) => b.exercises);
+  const metaLine = `${workout.duration_minutes ?? '–'} MIN · ${workout.format ? (FORMAT_LABELS[workout.format] ?? workout.format.toUpperCase()) : 'QUICK WORKOUT'}${workout.category ? ` · ${workout.category.replace('_', ' ')}` : ''}`;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
+      <View style={previewStyles.overlay}>
+        <View style={previewStyles.card}>
+          <ScrollView style={{ maxHeight: '70%' }} contentContainerStyle={{ paddingBottom: 4 }}>
+            <Text style={previewStyles.title}>{workout.title.toUpperCase()}</Text>
+            <Text style={previewStyles.meta}>{metaLine}</Text>
+            {!!workout.description && <Text style={previewStyles.description}>{workout.description}</Text>}
+            <View style={{ marginTop: 14, gap: 8 }}>
+              {allExercises.map((ex, i) => (
+                <View key={`${ex.exercise_id}-${i}`} style={previewStyles.exerciseRow}>
+                  <Text style={previewStyles.exerciseName} numberOfLines={1}>{ex.name}</Text>
+                  <Text style={previewStyles.exerciseMeta}>
+                    {ex.sets && ex.reps ? `${ex.sets} × ${ex.reps}` : ex.work_seconds ? `${ex.work_seconds}S` : ex.hold_seconds ? `${ex.hold_seconds}S HOLD` : ''}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </ScrollView>
+          <TouchableOpacity style={previewStyles.startBtn} onPress={onStart}>
+            <Text style={previewStyles.startBtnText}>START WORKOUT</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={previewStyles.cancelBtn} onPress={onCancel}>
+            <Text style={previewStyles.cancelBtnText}>CANCEL</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
+const previewStyles = StyleSheet.create({
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
+  card: { width: '100%', maxWidth: 420, backgroundColor: TC_COLORS.cardRaised, borderRadius: 18, borderWidth: 1, borderColor: TC_COLORS.border, padding: 20 },
+  title: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 0.5 },
+  meta: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  description: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12.5, marginTop: 10, lineHeight: 17 },
+  exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: TC_COLORS.border, paddingBottom: 8 },
+  exerciseName: { flex: 1, color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 13, marginRight: 10 },
+  exerciseMeta: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5 },
+  startBtn: { marginTop: 18, backgroundColor: TC_COLORS.coral, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  startBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1 },
+  cancelBtn: { marginTop: 10, paddingVertical: 10, alignItems: 'center' },
+  cancelBtnText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 },
+});
+
 export function QuickWorkoutScreen() {
   const { profile, paywallEnabled } = useAuth();
   const isPro = canAccessPro(profile, paywallEnabled);
@@ -149,7 +213,6 @@ export function QuickWorkoutScreen() {
         return;
       }
       setActiveWorkout(detail);
-      setTimerVisible(true);
     } catch (err: any) {
       console.error('handlePlay failed:', err);
       Alert.alert('COULD NOT LOAD WORKOUT', (err?.message || 'SOMETHING WENT WRONG.').toUpperCase());
@@ -207,6 +270,14 @@ export function QuickWorkoutScreen() {
         )}
       </ScrollView>
 
+      {activeWorkout && !timerVisible && (
+        <WorkoutPreviewModal
+          workout={activeWorkout}
+          onStart={() => setTimerVisible(true)}
+          onCancel={() => setActiveWorkout(null)}
+        />
+      )}
+
       <QuickWorkoutTimerModal
         visible={timerVisible}
         workout={activeWorkout}
@@ -246,7 +317,8 @@ const styles = StyleSheet.create({
     width: 38, height: 38, borderRadius: 19, backgroundColor: TC_COLORS.coral, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
   },
-  lockCircle: { width: 38, height: 38, borderRadius: 19, backgroundColor: 'rgba(255,255,255,0.06)', alignItems: 'center', justifyContent: 'center' },
+  proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FF5252', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
+  proBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 9, letterSpacing: 0.4 },
 
   photoCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
   photoCard: { height: 140, justifyContent: 'space-between' },
