@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ImageBackground, ActivityIndicator, Alert } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ImageBackground, ActivityIndicator, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -282,6 +282,28 @@ export function ProgramTemplatesScreen() {
     setPreviewWeek1([]);
   };
 
+  // Same fix as CustomizeProgramScreen's requestPaywallAfterModalCloses/
+  // handleModalDismissed — see its comment there for the actual root cause
+  // ("Upgrade to Save" spinning for the paywall's whole timeout before
+  // dumping to the fallback screen). RevenueCatUI.presentPaywall() races
+  // ProgramPreviewModal's own native dismiss animation on iOS; a guessed
+  // setTimeout(300) narrowed that window without closing it. Modal's real
+  // onDismiss (iOS-only) replaces the guess; Android has no such
+  // exclusive-presentation constraint, so it navigates immediately.
+  const pendingPaywallNavRef = useRef(false);
+  const requestPaywallAfterModalCloses = () => {
+    if (Platform.OS === 'ios') {
+      pendingPaywallNavRef.current = true;
+    } else {
+      router.push('/paywall');
+    }
+  };
+  const handlePreviewModalDismissed = () => {
+    if (!pendingPaywallNavRef.current) return;
+    pendingPaywallNavRef.current = false;
+    router.push('/paywall');
+  };
+
   const handleCardPress = (rec: LibraryTemplateRecommendation) => {
     if (isProgramLocked(rec)) { router.push('/paywall'); return; }
     if (!isPro && !!currentProgramName) { router.push('/paywall'); return; }
@@ -306,7 +328,7 @@ export function ProgramTemplatesScreen() {
       if (isProRequiredError(err)) {
         setPreviewRec(null);
         setPreviewWeek1([]);
-        router.push('/paywall');
+        requestPaywallAfterModalCloses();
         return;
       }
       Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
@@ -416,6 +438,7 @@ export function ProgramTemplatesScreen() {
         }
         onCancel={closePreview}
         onConfirm={handleConfirmStart}
+        onDismiss={handlePreviewModalDismissed}
       />
 
       <BottomTabBar activeTab="profile" strengthTier={profile?.strength_tier || 0} />

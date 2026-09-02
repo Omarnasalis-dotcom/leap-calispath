@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useNavigation } from 'expo-router';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import Purchases from 'react-native-purchases';
 import { LeapLogo } from '../components/LeapLogo';
@@ -21,8 +21,31 @@ type Step = 'context' | 'presenting' | 'confirming' | 'fallback';
 const POLL_ATTEMPTS = 5;
 const POLL_INTERVAL_MS = 1500;
 
+// There is deliberately NO timeout wrapping RevenueCatUI.presentPaywall()
+// below. Confirmed live via a real sandbox purchase: its promise doesn't
+// resolve once the native paywall renders — per RevenueCat's own docs, it
+// "resolves with the result of the paywall presentation," meaning it stays
+// pending for the ENTIRE flow (user browsing the plans, tapping buy,
+// Face/Touch ID, StoreKit's own receipt round-trip), which is paced by the
+// user, not the SDK. A 12s (previously 25s, previously 10s) timeout here
+// fired WHILE a real purchase was still mid-StoreKit-confirmation — the
+// user saw "Couldn't Load Plans" and a console error, then the purchase
+// went on to actually succeed a few seconds later, completely independent
+// of the timeout that had already given up on it. No fixed duration is
+// safe to race against this specific call: any value long enough to
+// survive a normal purchase is also long enough to make a genuinely-stuck
+// call look identical while it's still "waiting." The earlier, separate
+// bug this timeout was originally trying to paper over — the call never
+// even rendering anything — was a native transition race, not slowness,
+// and is fixed at its actual source by the transitionEnd gating below (see
+// also CustomizeProgramScreen's requestPaywallAfterModalCloses /
+// ProgramTemplatesScreen's equivalent for the Modal half of that race).
+// Nothing else in this app wraps a third-party async call in an artificial
+// timeout either — this was the one outlier, and it was actively harmful.
+
 export function PaywallScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
   const { profile, paywallEnabled, refreshProfile } = useAuth();
   const alreadySubscribed = hasActiveAccess(profile);
   const currentTier = getSubscriptionTier(profile, paywallEnabled);
@@ -112,7 +135,37 @@ export function PaywallScreen() {
     // in this project's paywall config). A Free user has nothing to be
     // confused about, so they skip straight to the paywall as before.
     if (alreadySubscribed) return;
-    present();
+
+    // Calling presentPaywall() while THIS screen's own push-in transition
+    // is still animating races react-native-screens' native transition —
+    // presenting a full-screen view controller (iOS) while another one is
+    // mid-transition can silently stall until it clears. This was one of
+    // two separate bugs behind "Upgrade to Save doesn't reach the paywall
+    // reliably" — the other was the timeout that used to wrap the call
+    // below (see the comment above this effect for that one; confirmed via
+    // a real purchase that it fired mid-StoreKit-confirmation, unrelated to
+    // this transition race). transitionEnd fires once react-native-screens'
+    // real transition has finished; a short fallback covers the rare case
+    // it never fires (e.g. this being the very first screen in the stack,
+    // with no transition to end) so this never waits on the event alone.
+    // expo-router's useNavigation() is typed against a generic
+    // NavigationProp that doesn't know about native-stack-only events —
+    // the underlying navigator here is always a native-stack (Expo
+    // Router's <Stack>), which does emit transitionEnd at runtime.
+    let didPresent = false;
+    const runPresent = () => {
+      if (didPresent) return;
+      didPresent = true;
+      present();
+    };
+    const unsubscribe = (navigation as any).addListener('transitionEnd', (e: { data: { closing: boolean } }) => {
+      if (!e.data.closing) runPresent();
+    });
+    const fallback = setTimeout(runPresent, 400);
+    return () => {
+      unsubscribe();
+      clearTimeout(fallback);
+    };
     // Only auto-present once on mount — re-presenting is a manual retry from
     // the fallback screen (present() below), not something to loop on.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,12 +210,10 @@ export function PaywallScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.content}>
           <LeapLogo size={100} animated />
-          {step === 'confirming' && (
-            <>
-              <ActivityIndicator color="#FF5252" style={styles.spinner} />
-              <Text style={styles.message}>Confirming your purchase...</Text>
-            </>
-          )}
+          <ActivityIndicator color="#FF5252" style={styles.spinner} />
+          <Text style={styles.message}>
+            {step === 'confirming' ? 'Confirming your purchase...' : 'Loading your plans...'}
+          </Text>
         </View>
       </SafeAreaView>
     );
