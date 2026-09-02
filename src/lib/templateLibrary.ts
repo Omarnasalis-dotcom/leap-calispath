@@ -86,12 +86,19 @@ export async function getRecommendations(
   }
 
   const queries = tierRanges.map(async (range) => {
+    // order('id') before limit(1) so this deterministically agrees with
+    // select_library_template's own identically-ordered pick server-side —
+    // without it, two templates ever matching the same range could let the
+    // client show one as "free" while the server's independent pick (no
+    // guaranteed row order otherwise) allows a different one, rejecting the
+    // one the card advertised as free with PRO_REQUIRED.
     const { data, error } = await supabase
       .from('program_templates')
       .select('id, name, description, equipment_tags, matching_criteria, is_free, cover_image_url, program_blocks(id, name, week_number)')
       .eq('is_library_template', true)
       .eq('status', 'published')
       .contains('matching_criteria', { goal, tier_range: range })
+      .order('id', { ascending: true })
       .limit(1)
       .maybeSingle();
 
