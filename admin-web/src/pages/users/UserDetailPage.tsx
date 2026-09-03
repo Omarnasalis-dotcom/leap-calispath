@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+  clearDuplicateSubscriptionFlag,
   fetchUserProfile,
   fetchUserTrialHistory,
   grantAccess,
@@ -101,6 +102,13 @@ export function UserDetailPage() {
 
   const revokeMutation = useMutation({
     mutationFn: () => revokeAccess(id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
+    },
+  });
+
+  const clearDuplicateFlagMutation = useMutation({
+    mutationFn: () => clearDuplicateSubscriptionFlag(id),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['user-profile', id] });
     },
@@ -243,11 +251,22 @@ export function UserDetailPage() {
             </div>
             {u.duplicate_subscription_flagged_at && (
               <div className="dim" style={{ fontSize: 13, color: 'var(--warn, #b26a00)' }}>
-                Flagged {formatDateTime(u.duplicate_subscription_flagged_at)} — a new real subscription landed on
-                this account while a different one (transaction {u.duplicate_subscription_previous_transaction_id})
-                was still active. Likely two payment accounts on the same Leap Arena account — the user was shown
-                an in-app warning; they'll need to cancel the extra one through Apple/Google support directly (we
-                can't issue store refunds ourselves).
+                <div>
+                  Flagged {formatDateTime(u.duplicate_subscription_flagged_at)} — a new real subscription landed on
+                  this account while a different one (transaction {u.duplicate_subscription_previous_transaction_id})
+                  was still active. Likely two payment accounts on the same Leap Arena account, though this can also
+                  fire from repeated sandbox test purchases on one tester — no in-app warning is shown to the user,
+                  so reach out directly to confirm before assuming it's real. If it is, they'll need to cancel the
+                  extra one through Apple/Google support directly (we can't issue store refunds ourselves).
+                </div>
+                <ConfirmButton
+                  label="Clear flag"
+                  title={`Clear the duplicate-subscription flag for ${u.display_name || u.email}?`}
+                  body="Only do this once you've confirmed with the user or ruled out real double-billing — this just clears the flag, it doesn't cancel any subscription."
+                  confirmLabel="Clear"
+                  onConfirm={() => clearDuplicateFlagMutation.mutateAsync()}
+                />
+                {clearDuplicateFlagMutation.error && <ErrorNote error={clearDuplicateFlagMutation.error} />}
               </div>
             )}
             <div className="row" style={{ gap: 8, alignItems: 'center' }}>

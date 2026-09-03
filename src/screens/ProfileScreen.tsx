@@ -116,34 +116,18 @@ export function ProfileScreen({
   const { profile, signOut, user, refreshProfile, paywallEnabled } = useAuth();
   const { theme, mode, toggleTheme } = useTheme();
 
-  // Detect-after-the-fact warning for the one class of subscription issue
-  // that can't be prevented at the paywall: neither Apple nor Google expose
-  // which payment account will be used before a purchase completes, so a
-  // second real subscription from a different Apple ID/Google account can
-  // land on this same profile without any way to block it in advance
-  // (confirmed against RevenueCat's own guidance — this is the standard
-  // industry pattern for it, not something specific to this app).
-  // duplicate_subscription_flagged_at is set server-side by
-  // apply_revenuecat_entitlement the moment that happens.
-  useEffect(() => {
-    if (!profile?.duplicate_subscription_flagged_at) return;
-    Alert.alert(
-      'Possible Duplicate Subscription',
-      'It looks like this account now has two active subscriptions from different Apple ID or Google accounts — you may be getting charged twice. Check your subscriptions in your device\'s account settings, and contact Apple or Google support to cancel the one you don\'t need.',
-      [{
-        text: 'Got it',
-        onPress: () => {
-          supabase.rpc('acknowledge_duplicate_subscription').then(({ error }) => {
-            if (error) console.error('[Profile] acknowledge_duplicate_subscription failed:', error);
-            else refreshProfile();
-          });
-        },
-      }]
-    );
-    // Only re-fire if the flag timestamp itself changes (e.g. a second,
-    // separate incident later) — not on every unrelated profile refresh.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile?.duplicate_subscription_flagged_at]);
+  // Not an Apple/Google requirement — this was a defensive, optional feature
+  // for a real-but-rare edge case (a second genuine subscription landing on
+  // this account from a different Apple ID/Google account). Removed the
+  // end-user-facing alert: it was misfiring on sandbox-tested accounts
+  // (repeated real sandbox purchases legitimately produce new
+  // original_transaction_ids on the same tester, which this heuristic can't
+  // tell apart from an actual second payer), and an alarming "you may be
+  // getting charged twice" popup is not something to risk showing an App
+  // Store reviewer. Server-side detection in apply_revenuecat_entitlement
+  // and admin-web's visibility/clear action on flagged accounts are
+  // unchanged — support can still see and resolve these, just not via an
+  // in-app popup. See UserDetailPage.tsx's duplicate-subscription badge.
   const W = getWorldTheme('strength', mode);
   const hasSyncedOnMount = useRef(false);
   const mainScrollRef = useRef<ScrollView>(null);

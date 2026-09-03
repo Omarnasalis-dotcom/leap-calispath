@@ -106,3 +106,14 @@ export async function revokeAccess(userId: string): Promise<void> {
     );
   }
 }
+
+export async function clearDuplicateSubscriptionFlag(userId: string): Promise<void> {
+  const { data, error } = await supabase.rpc('admin_clear_duplicate_subscription_flag', {
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+  const result = data as { success: boolean; error?: string };
+  if (!result?.success) {
+    throw new Error(result?.error ?? 'Clear failed');
+  }
+}
