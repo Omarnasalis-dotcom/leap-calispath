@@ -275,7 +275,7 @@ serve(async (req: Request) => {
   // API call before this check passes. On success it returns request_id —
   // the ai_coach_requests row this turn's real Claude cost gets attached to
   // once the tool-use loop below finishes (see recordCost()).
-  const { data: chatLogResult, error: rateLimitError } = await userClient.rpc("ai_coach_log_chat_request");
+  const { data: chatLogResult, error: rateLimitError } = await userClient.rpc("ai_coach_log_chat_request", { p_platform: platform });
   if (rateLimitError) {
     const isProRequired = rateLimitError.message?.includes("PRO_REQUIRED");
     const isRateLimit = rateLimitError.message?.includes("RATE_LIMIT");

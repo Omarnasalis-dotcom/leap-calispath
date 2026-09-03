@@ -24,6 +24,23 @@ export const proposeNewProgram: ToolDefinition = {
     required: ["name", "blocks", "reason"],
   },
   handler: async (userClient, input) => {
+    // Structural ceiling, not a prompt hope: writing week 2+ upfront for a
+    // program that hasn't been trained yet has no real performance data
+    // behind it — the prompt already discourages this, but under enough
+    // pressure ("just build all 10 weeks, don't ask questions") a model can
+    // be talked past prose guidance. This makes the ceiling a hard tool
+    // error instead, same pattern as resolveExerciseIds/validateBlockStructure
+    // below — surfaced as a tool result the model must react to in this
+    // turn, never silently truncated later by hitting max_tokens on an
+    // oversized blocks array.
+    const blocks = (input.blocks as Array<{ week_number?: number }>) ?? [];
+    const weekNumbers = new Set(blocks.map((b) => b.week_number ?? 1));
+    if (weekNumbers.size > 2) {
+      throw new Error(
+        `This proposes ${weekNumbers.size} weeks in one call, but at most 2 can be built at once. Programming further weeks before any training has actually happened isn't coaching, it's a guess. Resend with only weeks ${[...weekNumbers].sort((a, b) => a - b).slice(0, 2).join(" and ")} — the rest comes from append_week once the athlete has logged real training.`
+      );
+    }
+
     // Same reasoning as resolveExerciseIds below: reject here, as a tool
     // error the model can see and fix in this same turn, rather than
     // surfacing after the athlete already tapped Start on an incomplete card.
