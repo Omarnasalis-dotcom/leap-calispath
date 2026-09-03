@@ -40,6 +40,7 @@ export interface Profile {
   entitlement_period_start?: string | null;
   ai_coach_budget_usd?: number | null;
   duplicate_subscription_flagged_at?: string | null;
+  free_library_template_id?: string | null;
   created_at?: string;
   community_id?: string | null;
 }

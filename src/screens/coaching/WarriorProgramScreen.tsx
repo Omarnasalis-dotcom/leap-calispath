@@ -30,6 +30,7 @@ import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
+import { selectLibraryTemplate } from '../../lib/templateLibrary';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
@@ -57,11 +58,58 @@ interface WarriorProgramScreenProps {
   onClose?: () => void;
 }
 
+// "Running" day view (dbRunnerStyles below) was fixed dark-only — same
+// relationship-preservation split as DB_COLORS/PD_COLORS elsewhere.
+interface DBRPalette {
+  backBtnBorder: string;
+  backBtnBg: string;
+  title: string;
+  metaLine: string;
+  percentValue: string;
+  percentSign: string;
+  percentLabel: string;
+  tickMissed: string;
+  tickScheduled: string;
+  restBtnBorder: string;
+  restBtnBg: string;
+}
+
+const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
+  dark: {
+    backBtnBorder: '#221c1c',
+    backBtnBg: 'rgba(255,255,255,.02)',
+    title: '#FFFFFF',
+    metaLine: '#6d6d6d',
+    percentValue: '#FFFFFF',
+    percentSign: '#5a5a5a',
+    percentLabel: '#4a4a4a',
+    tickMissed: '#2e2626',
+    tickScheduled: '#191515',
+    restBtnBorder: '#241f1f',
+    restBtnBg: 'rgba(0,0,0,.6)',
+  },
+  light: {
+    backBtnBorder: '#E5DADA',
+    backBtnBg: 'rgba(0,0,0,.03)',
+    title: '#2A2A2A',
+    metaLine: '#8A8A8A',
+    percentValue: '#2A2A2A',
+    percentSign: '#A5A5A5',
+    percentLabel: '#B5B5B5',
+    tickMissed: '#E8C4C4',
+    tickScheduled: '#EAE0E0',
+    restBtnBorder: '#DDD0D0',
+    restBtnBg: 'rgba(255,255,255,.85)',
+  },
+};
+
 export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
   const { theme, mode } = useTheme();
   const { profile, paywallEnabled, refreshProfile } = useAuth();
   const bronzeGold = '#C8A040';
   const solidCardBg = mode === 'dark' ? '#151515' : '#FFFFFF';
+  const dbr = DBR_COLORS[mode];
+  const dbRunnerStyles = getDbRunnerStyles(dbr);
 
   // State Management
   const [loading, setLoading] = useState(true);
@@ -271,6 +319,26 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         },
       ]
     );
+  };
+
+  // Faster path back for a free-tier athlete whose locked program used to
+  // be a paid AI Coach feature: select_library_template already completes
+  // whatever program is currently active before creating the new one, so
+  // there's no separate "end program" step needed here — unlike
+  // handleEndLockedProgram's fallback below, which still routes through
+  // Program Templates because there's no free_library_template_id to
+  // restore yet.
+  const handleRestoreFreeTemplate = async () => {
+    if (!profile?.free_library_template_id) return;
+    setEndingProgram(true);
+    try {
+      await selectLibraryTemplate(profile.free_library_template_id);
+      await Promise.all([loadWarriorProgram(), refreshProfile()]);
+    } catch (err: any) {
+      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO RESTORE YOUR FREE PROGRAM.');
+    } finally {
+      setEndingProgram(false);
+    }
   };
 
   useEffect(() => {
@@ -1184,7 +1252,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       enabled={Platform.OS !== 'web'}
     >
       {screenPhase === 'running' && activeDay ? (
-        <View style={{ flex: 1, backgroundColor: '#000000' }}>
+        <View style={{ flex: 1, backgroundColor: theme.background.primary }}>
         <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: 140 }]} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
           {/* Day Blocks header (design handoff §1.1): back chevron, title,
               a progress-derived state badge, meta line, percent, and a
@@ -1224,7 +1292,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
             </View>
             <View style={dbRunnerStyles.tickBar}>
               {activeDay.blocks.map((b) => {
-                const tickColor = b.completedStatus === 'missed' ? '#2e2626' : b.completedStatus === 'completed' ? inferBlockAccent(b.name).color : '#191515';
+                const tickColor = b.completedStatus === 'missed' ? dbr.tickMissed : b.completedStatus === 'completed' ? inferBlockAccent(b.name).color : dbr.tickScheduled;
                 return <View key={b.id} style={[dbRunnerStyles.tick, { backgroundColor: tickColor }]} />;
               })}
             </View>
@@ -1389,11 +1457,13 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                 </TouchableOpacity>
                 <TouchableOpacity
                   style={{ marginTop: 12, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center', borderWidth: 1, borderColor: theme.card.border }}
-                  onPress={handleEndLockedProgram}
+                  onPress={profile?.free_library_template_id ? handleRestoreFreeTemplate : handleEndLockedProgram}
                   disabled={endingProgram}
                 >
                   <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
-                    {endingProgram ? 'ENDING...' : 'DELETE & CHOOSE A FREE TEMPLATE'}
+                    {endingProgram
+                      ? (profile?.free_library_template_id ? 'RESTORING...' : 'ENDING...')
+                      : (profile?.free_library_template_id ? 'BACK TO YOUR FREE PROGRAM' : 'DELETE & CHOOSE A FREE TEMPLATE')}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1428,7 +1498,6 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                     setActiveDayIndex(0);
                     setScreenPhase('list');
                   }}
-                  theme={theme}
                 />
 
                 {/* DAY LIST (§4) — every day tappable in any order, showing
@@ -1597,17 +1666,17 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
 // Day Blocks design tokens (assets/design_handoff_workout_runner) — fixed
 // dark palette, same choice already made across the rest of the Training
 // Center flow, independent of the app's own light/dark theme toggle.
-const dbRunnerStyles = StyleSheet.create({
+const getDbRunnerStyles = (dbr: DBRPalette) => StyleSheet.create({
   backBtn: {
-    width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: '#221c1c',
-    backgroundColor: 'rgba(255,255,255,.02)', alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: dbr.backBtnBorder,
+    backgroundColor: dbr.backBtnBg, alignItems: 'center', justifyContent: 'center', marginTop: 2,
   },
-  title: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-SemiBold', fontSize: 20, letterSpacing: 1.4 },
+  title: { color: dbr.title, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 20, letterSpacing: 1.4 },
   stateBadge: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  metaLine: { color: '#6d6d6d', fontFamily: 'Barlow-Regular', fontSize: 10, marginTop: 3 },
-  percentValue: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 19 },
-  percentSign: { color: '#5a5a5a', fontSize: 10 },
-  percentLabel: { color: '#4a4a4a', fontFamily: 'Barlow-Regular', fontSize: 7.5, letterSpacing: 1.5, marginTop: 1 },
+  metaLine: { color: dbr.metaLine, fontFamily: 'Barlow-Regular', fontSize: 10, marginTop: 3 },
+  percentValue: { color: dbr.percentValue, fontFamily: 'BarlowCondensed-Bold', fontSize: 19 },
+  percentSign: { color: dbr.percentSign, fontSize: 10 },
+  percentLabel: { color: dbr.percentLabel, fontFamily: 'Barlow-Regular', fontSize: 7.5, letterSpacing: 1.5, marginTop: 1 },
   tickBar: { flexDirection: 'row', gap: 4, marginTop: 12 },
   tick: { flex: 1, height: 3, borderRadius: 2 },
   footer: {
@@ -1615,8 +1684,8 @@ const dbRunnerStyles = StyleSheet.create({
     flexDirection: 'row', gap: 10, alignItems: 'center',
   },
   restBtn: {
-    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: '#241f1f',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.6)',
+    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: dbr.restBtnBorder,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: dbr.restBtnBg,
   },
   primaryBtn: {
     flex: 1, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
