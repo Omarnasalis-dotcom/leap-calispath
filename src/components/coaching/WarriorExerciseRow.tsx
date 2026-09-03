@@ -105,7 +105,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
-    <View style={[styles.exerciseRow, { backgroundColor: 'rgba(255,255,255,0.02)', borderColor: theme.card.border }]}>
+    <View style={[styles.exerciseRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
       <View style={[styles.exInfoRow, { justifyContent: 'flex-start' }]}>
         <Text style={[styles.exTitle, { color: theme.text.primary, flex: 1 }]} numberOfLines={1}>
           {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}> (WEIGHTED)</Text>}

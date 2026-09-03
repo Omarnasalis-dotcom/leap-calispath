@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ImageBackground, ActivityIndicator, Alert, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
   getRecommendations,
@@ -20,7 +21,7 @@ import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ProgramPreviewModal, UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
-import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
+import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // getRecommendations/getAllPublishedTemplates/selectLibraryTemplate own the
 // data/mutations; the preview/confirm step is ProgramPreviewModal, shared
@@ -53,6 +54,8 @@ function getCardImage(rec: LibraryTemplateRecommendation, index: number) {
 }
 
 function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFirst: boolean; isProItem: boolean }) {
+  const { mode } = useTheme();
+  const styles = getStyles(TC_COLORS[mode]);
   if (isCurrent) {
     return (
       <View style={styles.activeBadge}>
@@ -104,6 +107,8 @@ function RecommendedCard({
   locked: boolean;
   onSelect: () => void;
 }) {
+  const { mode } = useTheme();
+  const styles = getStyles(TC_COLORS[mode]);
   return (
     <TouchableOpacity
       activeOpacity={0.85}
@@ -154,6 +159,9 @@ function TemplateRowCard({
   locked: boolean;
   onSelect: () => void;
 }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(c);
   const level = tierRangeToDifficultyBand(rec.tier_range);
 
   return (
@@ -192,7 +200,8 @@ function TemplateRowCard({
             </View>
           ) : locked ? (
             <View style={styles.lockCircle}>
-              <MaterialCommunityIcons name="lock" size={16} color={TC_COLORS.textPrimary} />
+              {/* Always white — lockCircle sits on the cover photo, not the page bg */}
+              <MaterialCommunityIcons name="lock" size={16} color="#FFFFFF" />
             </View>
           ) : (
             <View style={styles.selectBtn}>
@@ -214,6 +223,9 @@ function TemplateRowCard({
 
 export function ProgramTemplatesScreen() {
   const { user, profile, paywallEnabled } = useAuth();
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => getStyles(c), [c]);
   const isPro = canAccessPro(profile, paywallEnabled);
 
   const [recommendations, setRecommendations] = useState<LibraryTemplateRecommendation[]>([]);
@@ -380,10 +392,10 @@ export function ProgramTemplatesScreen() {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: TC_COLORS.screenBg }}>
+    <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={TC_COLORS.textPrimary} />
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
           <Text style={styles.headerTitle}>PROGRAM TEMPLATES</Text>
@@ -393,14 +405,14 @@ export function ProgramTemplatesScreen() {
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={TC_COLORS.coral} />
+          <ActivityIndicator color={c.coral} />
         </View>
       ) : (
         <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
           {currentProgramName && (
             <View style={styles.currentProgramBanner}>
               <Text style={styles.currentProgramText}>
-                CURRENTLY ACTIVE: <Text style={{ color: TC_COLORS.coral }}>{currentProgramName.toUpperCase()}</Text> — SELECTING A NEW PROGRAM WILL SWITCH YOU OVER
+                CURRENTLY ACTIVE: <Text style={{ color: c.coral }}>{currentProgramName.toUpperCase()}</Text> — SELECTING A NEW PROGRAM WILL SWITCH YOU OVER
               </Text>
             </View>
           )}
@@ -503,57 +515,61 @@ export function ProgramTemplatesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
-  headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
+  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
-  sectionLabel: { color: TC_COLORS.textFaint3, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1.8, marginTop: 4, marginBottom: 12 },
+  sectionLabel: { color: c.textFaint3, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1.8, marginTop: 4, marginBottom: 12 },
 
-  currentProgramBanner: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 10, padding: 12, marginBottom: 16, backgroundColor: TC_COLORS.cardFlat },
-  currentProgramText: { color: TC_COLORS.textFaint3, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 },
+  currentProgramBanner: { borderWidth: 1, borderColor: c.border, borderRadius: 10, padding: 12, marginBottom: 16, backgroundColor: c.cardFlat },
+  currentProgramText: { color: c.textFaint3, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 },
 
   errorBanner: { backgroundColor: 'rgba(255,107,107,0.1)', borderColor: '#FF6B6B', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 16 },
   errorText: { color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center' },
 
-  emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: TC_COLORS.cardFlat },
-  emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
+  emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: c.cardFlat },
+  emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
   cardImageInner: { borderRadius: 16 },
   lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
 
   tierPill: { backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },
-  tierPillText: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
+  tierPillText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
 
   activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#2ECC71', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
   activeBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5 },
-  topPickBadge: { backgroundColor: TC_COLORS.coral, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
+  topPickBadge: { backgroundColor: c.coral, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
   topPickBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.4 },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FF5252', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
   proBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 8, letterSpacing: 0.4 },
 
   // Recommended — 3-up grid
   grid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 12, marginBottom: 24 },
-  gridCardWrap: { width: '31%', aspectRatio: 3 / 4, borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  gridCardWrap: { width: '31%', aspectRatio: 3 / 4, borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   gridCard: { flex: 1, justifyContent: 'space-between' },
   gridTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 8 },
   gridBottom: { padding: 10, paddingTop: 20 },
-  gridTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12.5, lineHeight: 15 },
-  gridStatus: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.8, marginTop: 3 },
+  // Always light — sits on a real cover photo + dark gradient scrim
+  // (getCardImage always resolves to an image, per its own comment), which
+  // never changes with the app theme, unlike the page background around it.
+  gridTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12.5, lineHeight: 15 },
+  gridStatus: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.8, marginTop: 3 },
 
   // Browse All — one wide row card per template
-  rowCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  rowCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   rowCard: { height: 150, justifyContent: 'space-between' },
   rowTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 12 },
   rowBottom: { flexDirection: 'row', alignItems: 'flex-end', padding: 14, gap: 12 },
-  rowTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 17 },
+  // Always light — same cover-photo reasoning as gridTitle above.
+  rowTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 17 },
   rowMetaLine: { flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 5 },
-  rowMetaText: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6 },
-  rowMetaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: TC_COLORS.textMuted },
+  rowMetaText: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6 },
+  rowMetaDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: '#7a7a7a' },
 
   selectBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: TC_COLORS.coral, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
+    backgroundColor: c.coral, borderRadius: 10, paddingHorizontal: 14, paddingVertical: 10,
     shadowColor: '#000', shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.3, shadowRadius: 14, elevation: 5,
   },
   selectBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5, letterSpacing: 1 },

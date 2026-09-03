@@ -2,33 +2,66 @@ import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useTheme } from '../../contexts/ThemeContext';
 
 const bronzeGold = '#C8A040';
 
-// Program Days design tokens (assets/design_handoff_program_days) — fixed
-// dark palette, same choice already made across the rest of the Training
-// Center flow, independent of the app's own light/dark theme toggle.
-const PD = {
-  coral: '#FC5454',
-  gold: '#C9A227',
-  purpleText: '#c4b5fd',
-  screenBg: '#000000',
-  identityBorder: '#1e1a20',
-  identityGradient: ['#120e14', '#0b0909', '#090707'] as const,
-  chipBorder: '#2a2230',
-  panelBg: '#0A0808',
-  panelBorder: '#1a1616',
-  panelDivider: '#161212',
-  panelFooterWash: 'rgba(255,255,255,.012)',
-  zeroArc: '#2a2222',
-  zeroValue: '#3a3232',
-  textPrimary: '#FFFFFF',
-  textBody: '#9a9a9a',
-  textSecondary: '#8a8a8a',
-  textMuted: '#6d6d6d',
-  textFaint: '#5a5a5a',
-  textFainter: '#4a4a4a',
+// Program Days design tokens (assets/design_handoff_program_days) — was a
+// fixed dark-only palette, independent of the app's own light/dark theme
+// toggle; now split {dark, light} on request, same relationship-
+// preservation approach as TC_COLORS/COACH_COLORS. Only fields actually
+// used in this file are kept (screenBg/panelDivider/panelFooterWash/
+// zeroArc/zeroValue/textSecondary/textFaint were already dead in the prior
+// version — dropped rather than inventing light values nothing reads).
+interface PDPalette {
+  identityBorder: string;
+  identityGradient: readonly [string, string, string];
+  chipBorder: string;
+  panelBg: string;
+  panelBorder: string;
+  textPrimary: string;
+  textBody: string;
+  textMuted: string;
+  textFainter: string;
+  purpleText: string;
+  weekChipBorder: string;
+  weekChipText: string;
+}
+
+const PD_COLORS: { dark: PDPalette; light: PDPalette } = {
+  dark: {
+    identityBorder: '#1e1a20',
+    identityGradient: ['#120e14', '#0b0909', '#090707'],
+    chipBorder: '#2a2230',
+    panelBg: '#0A0808',
+    panelBorder: '#1a1616',
+    textPrimary: '#FFFFFF',
+    textBody: '#9a9a9a',
+    textMuted: '#6d6d6d',
+    textFainter: '#4a4a4a',
+    purpleText: '#c4b5fd',
+    weekChipBorder: '#241f1f',
+    weekChipText: '#6d6d6d',
+  },
+  light: {
+    identityBorder: '#E5DFE8',
+    identityGradient: ['#F8F5FA', '#FBF8F8', '#FFFFFF'],
+    chipBorder: '#E0D8E8',
+    panelBg: '#FBF8F8',
+    panelBorder: '#EAE0E0',
+    textPrimary: '#2A2A2A',
+    textBody: '#5A5A5A',
+    textMuted: '#8A8A8A',
+    textFainter: '#B5B5B5',
+    purpleText: '#7C5CD6',
+    weekChipBorder: '#E5DADA',
+    weekChipText: '#8A8A8A',
+  },
 };
+
+// coral/gold are brand/accent colors, not surface colors — same in both
+// modes, matching how theme.accent stays fixed elsewhere in this app.
+const PD_BRAND = { coral: '#FC5454', gold: '#C9A227' };
 
 // Reused everywhere a small control needs the "discoverable but quiet"
 // diagonal sheen (SWITCH here; the same technique as the Training Center
@@ -95,7 +128,7 @@ function PulseDot() {
     return () => loop.stop();
   }, [reduceMotion, anim]);
 
-  return <Animated.View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: PD.coral, opacity: anim }} />;
+  return <Animated.View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: PD_BRAND.coral, opacity: anim }} />;
 }
 
 // ─── Program Identity Card ──────────────────────────────────────────────────
@@ -110,9 +143,12 @@ interface ProgramIdentityCardProps {
   onSwitch: () => void;
 }
 export function ProgramIdentityCard({ programName, coachName, sessionsTotal, sessionsDoneThisWeek, onSwitch }: ProgramIdentityCardProps) {
+  const { mode } = useTheme();
+  const pd = PD_COLORS[mode];
+  const styles = getStyles(pd);
   return (
     <View style={styles.identityCard}>
-      <LinearGradient colors={PD.identityGradient} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} style={StyleSheet.absoluteFillObject} />
+      <LinearGradient colors={pd.identityGradient} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} style={StyleSheet.absoluteFillObject} />
       <View style={{ flexDirection: 'row' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
           <Text style={styles.identityEyebrow}>ACTIVE PROGRAM</Text>
@@ -127,13 +163,13 @@ export function ProgramIdentityCard({ programName, coachName, sessionsTotal, ses
         </View>
         <View style={{ alignItems: 'flex-end', gap: 9 }}>
           <View style={styles.coachChip}>
-            <MaterialCommunityIcons name="account" size={11} color={PD.gold} />
+            <MaterialCommunityIcons name="account" size={11} color={PD_BRAND.gold} />
             <Text style={styles.coachChipLabel}>COACH</Text>
             <Text style={styles.coachChipName}>{coachName.toUpperCase()}</Text>
           </View>
           <TouchableOpacity onPress={onSwitch} activeOpacity={0.8} style={styles.switchControl}>
             <Sheen borderRadius={9} />
-            <MaterialCommunityIcons name="swap-horizontal" size={13} color={PD.purpleText} />
+            <MaterialCommunityIcons name="swap-horizontal" size={13} color={pd.purpleText} />
             <Text style={styles.switchLabel}>SWITCH</Text>
           </TouchableOpacity>
         </View>
@@ -153,14 +189,16 @@ interface ProgramLoadPanelProps {
   onEditBodyweight: () => void;
 }
 export function ProgramLoadPanel({ bodyweightKg, onEditBodyweight }: ProgramLoadPanelProps) {
+  const { mode } = useTheme();
+  const styles = getStyles(PD_COLORS[mode]);
   return (
     <TouchableOpacity onPress={onEditBodyweight} activeOpacity={0.7} style={styles.bodyweightCard}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        <MaterialCommunityIcons name="kettlebell" size={14} color={PD.gold} />
+        <MaterialCommunityIcons name="kettlebell" size={14} color={PD_BRAND.gold} />
         <Text style={styles.bodyweightLabel}>BODYWEIGHT</Text>
         <Text style={styles.bodyweightValue}>{bodyweightKg !== null ? `${bodyweightKg} KG` : '— —'}</Text>
       </View>
-      <Text style={[styles.bodyweightEdit, { color: bodyweightKg !== null ? PD.gold : PD.coral }]}>EDIT</Text>
+      <Text style={[styles.bodyweightEdit, { color: bodyweightKg !== null ? PD_BRAND.gold : PD_BRAND.coral }]}>EDIT</Text>
     </TouchableOpacity>
   );
 }
@@ -170,9 +208,10 @@ interface WeekNavigatorProps {
   weeksData: Record<number, any[]>;
   activeWeek: number;
   onSelectWeek: (week: number) => void;
-  theme: any;
 }
-export function WeekNavigator({ weeksData, activeWeek, onSelectWeek, theme }: WeekNavigatorProps) {
+export function WeekNavigator({ weeksData, activeWeek, onSelectWeek }: WeekNavigatorProps) {
+  const { mode } = useTheme();
+  const pd = PD_COLORS[mode];
   if (Object.keys(weeksData).length <= 1) return null;
   return (
     <View style={{ marginBottom: 4 }}>
@@ -192,10 +231,10 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek, theme }: We
                 borderRadius: 999,
                 backgroundColor: isActive ? 'rgba(252,84,84,.12)' : 'transparent',
                 borderWidth: 1,
-                borderColor: isActive ? PD.coral : '#241f1f',
+                borderColor: isActive ? PD_BRAND.coral : pd.weekChipBorder,
               }}
             >
-              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8, color: isActive ? PD.coral : '#6d6d6d' }}>
+              <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8, color: isActive ? PD_BRAND.coral : pd.weekChipText }}>
                 WEEK {wNum} {allCompleted ? '✓' : ''}
               </Text>
             </TouchableOpacity>
@@ -207,33 +246,33 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek, theme }: We
 }
 
 
-const styles = StyleSheet.create({
+const getStyles = (pd: PDPalette) => StyleSheet.create({
   // Program Days redesign (assets/design_handoff_program_days)
   identityCard: {
-    borderRadius: 20, borderWidth: 1, borderColor: PD.identityBorder,
+    borderRadius: 20, borderWidth: 1, borderColor: pd.identityBorder,
     padding: 20, overflow: 'hidden',
   },
-  identityEyebrow: { color: PD.textFainter, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.4 },
-  identityProgramName: { color: PD.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 21, letterSpacing: 0.6, lineHeight: 24, marginTop: 7 },
-  identityMeta: { color: PD.textBody, fontFamily: 'Barlow-Light', fontSize: 11, flexShrink: 1 },
+  identityEyebrow: { color: pd.textFainter, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.4 },
+  identityProgramName: { color: pd.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 21, letterSpacing: 0.6, lineHeight: 24, marginTop: 7 },
+  identityMeta: { color: pd.textBody, fontFamily: 'Barlow-Light', fontSize: 11, flexShrink: 1 },
   coachChip: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: PD.chipBorder,
+    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: pd.chipBorder,
     backgroundColor: 'rgba(255,255,255,.02)', paddingHorizontal: 10, paddingVertical: 6,
   },
-  coachChipLabel: { color: PD.textMuted, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
-  coachChipName: { color: PD.gold, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 8.5 },
+  coachChipLabel: { color: pd.textMuted, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
+  coachChipName: { color: PD_BRAND.gold, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 8.5 },
   switchControl: {
-    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: PD.chipBorder,
+    flexDirection: 'row', alignItems: 'center', gap: 5, borderRadius: 9, borderWidth: 1, borderColor: pd.chipBorder,
     paddingHorizontal: 11, paddingVertical: 7, overflow: 'hidden',
   },
-  switchLabel: { color: PD.purpleText, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 0.8 },
+  switchLabel: { color: pd.purpleText, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 0.8 },
 
   bodyweightCard: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderRadius: 16, borderWidth: 1, borderColor: PD.panelBorder, backgroundColor: PD.panelBg,
+    borderRadius: 16, borderWidth: 1, borderColor: pd.panelBorder, backgroundColor: pd.panelBg,
     paddingVertical: 14, paddingHorizontal: 17,
   },
-  bodyweightLabel: { color: PD.textMuted, fontFamily: 'Barlow-Regular', fontSize: 9.5, letterSpacing: 0.6 },
-  bodyweightValue: { color: PD.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12 },
+  bodyweightLabel: { color: pd.textMuted, fontFamily: 'Barlow-Regular', fontSize: 9.5, letterSpacing: 0.6 },
+  bodyweightValue: { color: pd.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12 },
   bodyweightEdit: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 0.6 },
 });

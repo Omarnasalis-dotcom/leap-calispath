@@ -14,6 +14,7 @@ import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handl
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
   getStandaloneWorkouts,
@@ -28,7 +29,7 @@ import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { StandaloneWorkoutDetailModal, BuildSummaryModal, UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
-import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
+import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // Browse standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your
 // custom program's days, then create it. The preview/build modals are
@@ -120,6 +121,9 @@ function WorkoutCardVisual({
   dayNumber: number | null;
   columns: 1 | 2;
 }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(c);
   const [colorStart, colorEnd] = categoryGradient(item.category);
   const coverSource = item.cover_image_url ? { uri: item.cover_image_url } : null;
   const isSelected = dayNumber !== null;
@@ -136,11 +140,12 @@ function WorkoutCardVisual({
           </View>
         ) : locked ? (
           <View style={styles.lockBadge}>
-            <MaterialCommunityIcons name="lock" size={12} color={TC_COLORS.textPrimary} />
+            {/* Always white — sits on the workout's cover photo/gradient, not the page bg */}
+            <MaterialCommunityIcons name="lock" size={12} color="#FFFFFF" />
           </View>
         ) : (
           <View style={styles.addBadge}>
-            <MaterialCommunityIcons name="plus" size={14} color={TC_COLORS.coral} />
+            <MaterialCommunityIcons name="plus" size={14} color={c.coral} />
           </View>
         )}
         <View style={styles.topRightBadges}>
@@ -203,6 +208,9 @@ function WorkoutPhotoCard({
   hidden?: boolean;
   onPress: () => void;
 }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(c);
   const isSelected = dayNumber !== null;
   return (
     <TouchableOpacity
@@ -211,7 +219,7 @@ function WorkoutPhotoCard({
       style={[
         styles.cardWrap,
         columns === 1 ? styles.cardWrapWide : styles.cardWrapGrid,
-        isSelected && { borderColor: TC_COLORS.coral, borderWidth: 1.5 },
+        isSelected && { borderColor: c.coral, borderWidth: 1.5 },
         hidden && { display: 'none' },
       ]}
     >
@@ -334,6 +342,8 @@ function DragGhostOverlay({
   isPro: boolean;
   columns: 1 | 2;
 }) {
+  const { mode } = useTheme();
+  const styles = getStyles(TC_COLORS[mode]);
   const animatedStyle = useAnimatedStyle(() => ({
     width: width.value,
     height: height.value,
@@ -389,6 +399,9 @@ function DaySlotCard({
   onClear: () => void;
   onDrop: (absoluteX: number, absoluteY: number) => void;
 }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(c);
   const ref = useRef<View>(null);
   const measure = () => {
     ref.current?.measureInWindow((x, y, width, height) => {
@@ -399,7 +412,7 @@ function DaySlotCard({
   if (!workout) {
     return (
       <View ref={ref} onLayout={measure} style={styles.daySlotEmpty}>
-        <MaterialCommunityIcons name="plus" size={20} color={TC_COLORS.textFaint2} />
+        <MaterialCommunityIcons name="plus" size={20} color={c.textFaint2} />
         <Text style={styles.daySlotEmptyLabel}>DAY {index + 1}</Text>
       </View>
     );
@@ -437,6 +450,9 @@ function DaySlotCard({
 
 export function CustomizeProgramScreen() {
   const { user, profile, paywallEnabled } = useAuth();
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => getStyles(c), [c]);
   const isPro = canAccessCustomizeProgram(profile, paywallEnabled);
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
@@ -818,10 +834,10 @@ export function CustomizeProgramScreen() {
 
   return (
     <DragGhostContext.Provider value={dragGhostContextValue}>
-    <View style={{ flex: 1, backgroundColor: TC_COLORS.screenBg }}>
+    <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={TC_COLORS.textPrimary} />
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
           <Text style={styles.headerTitle}>CUSTOMIZE YOUR PROGRAM</Text>
@@ -848,14 +864,14 @@ export function CustomizeProgramScreen() {
               style={[styles.layoutToggleBtn, columns === 1 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             >
-              <MaterialCommunityIcons name="view-agenda-outline" size={16} color={columns === 1 ? '#000' : TC_COLORS.textMuted} />
+              <MaterialCommunityIcons name="view-agenda-outline" size={16} color={columns === 1 ? '#000' : c.textMuted} />
             </TouchableOpacity>
             <TouchableOpacity
               onPress={() => setColumns(2)}
               style={[styles.layoutToggleBtn, columns === 2 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             >
-              <MaterialCommunityIcons name="view-grid-outline" size={16} color={columns === 2 ? '#000' : TC_COLORS.textMuted} />
+              <MaterialCommunityIcons name="view-grid-outline" size={16} color={columns === 2 ? '#000' : c.textMuted} />
             </TouchableOpacity>
           </View>
         </View>
@@ -864,7 +880,7 @@ export function CustomizeProgramScreen() {
 
         {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator color={TC_COLORS.coral} />
+            <ActivityIndicator color={c.coral} />
           </View>
         ) : builderMode === 'quickBuild' ? (
           <View style={[styles.grid, columns === 2 && styles.gridTwoUp]}>
@@ -880,7 +896,7 @@ export function CustomizeProgramScreen() {
                 style={[
                   styles.cardWrap,
                   columns === 1 ? styles.cardWrapWide : styles.cardWrapGrid,
-                  quickBuildDayNumberFor(item) !== null && { borderColor: TC_COLORS.coral, borderWidth: 1.5 },
+                  quickBuildDayNumberFor(item) !== null && { borderColor: c.coral, borderWidth: 1.5 },
                   !matchesFilters(item) && { display: 'none' },
                 ]}
                 onTap={() => handleTapAssignFirstEmpty(item)}
@@ -955,10 +971,10 @@ export function CustomizeProgramScreen() {
             <Text style={styles.quickBuildPanelTitle}>QUICK BUILD</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
               <TouchableOpacity onPress={() => setQuickBuildPanelOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <MaterialCommunityIcons name="chevron-down" size={20} color={TC_COLORS.textMuted} />
+                <MaterialCommunityIcons name="chevron-down" size={20} color={c.textMuted} />
               </TouchableOpacity>
               <TouchableOpacity onPress={handleExitQuickBuild} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <MaterialCommunityIcons name="close" size={20} color={TC_COLORS.textMuted} />
+                <MaterialCommunityIcons name="close" size={20} color={c.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
@@ -1106,17 +1122,17 @@ export function CustomizeProgramScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
-  headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
+  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
-  emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: TC_COLORS.cardFlat },
-  emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
+  emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: c.cardFlat },
+  emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
-  layoutToggle: { flexDirection: 'row', gap: 4, backgroundColor: TC_COLORS.cardFlat, borderWidth: 1, borderColor: TC_COLORS.borderStrong, borderRadius: 10, padding: 3 },
+  layoutToggle: { flexDirection: 'row', gap: 4, backgroundColor: c.cardFlat, borderWidth: 1, borderColor: c.borderStrong, borderRadius: 10, padding: 3 },
   layoutToggleBtn: { width: 30, height: 26, borderRadius: 7, alignItems: 'center', justifyContent: 'center' },
-  layoutToggleBtnActive: { backgroundColor: TC_COLORS.coral },
+  layoutToggleBtnActive: { backgroundColor: c.coral },
 
   // Floating trigger pill — sits directly above the tab bar by default.
   // buildCta only ever renders in Browse mode, so the one place this needs
@@ -1126,7 +1142,7 @@ const styles = StyleSheet.create({
   quickBuildFab: {
     position: 'absolute', alignSelf: 'center', bottom: TC_LAYOUT.bottomBarOffset,
     flexDirection: 'row', alignItems: 'center', gap: 7,
-    backgroundColor: TC_COLORS.coral, borderRadius: 999, paddingHorizontal: 18, height: 44,
+    backgroundColor: c.coral, borderRadius: 999, paddingHorizontal: 18, height: 44,
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.6, shadowRadius: 24, elevation: 10,
   },
   quickBuildFabText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.4 },
@@ -1135,17 +1151,17 @@ const styles = StyleSheet.create({
   // so this always sits directly above the tab bar, same anchor as the FAB.
   quickBuildPanel: {
     position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset,
-    backgroundColor: TC_COLORS.cardRaised, borderRadius: 20, borderWidth: 1, borderColor: TC_COLORS.borderStrong,
+    backgroundColor: c.cardRaised, borderRadius: 20, borderWidth: 1, borderColor: c.borderStrong,
     padding: 16, maxHeight: '70%',
     shadowColor: '#000', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.7, shadowRadius: 34, elevation: 12,
   },
   quickBuildPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
-  quickBuildPanelTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.6 },
+  quickBuildPanelTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.6 },
   quickBuildCreateBtn: {
     marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: TC_COLORS.coral, borderRadius: 14, height: 46,
+    backgroundColor: c.coral, borderRadius: 14, height: 46,
   },
-  quickBuildSectionLabel: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6 },
+  quickBuildSectionLabel: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6 },
 
   // The single top-level drag ghost (see DragGhostContext/DragGhostOverlay)
   // — absolute + top:0/left:0 so its animated x/y translate directly in
@@ -1153,25 +1169,26 @@ const styles = StyleSheet.create({
   // for slot hit-testing everywhere else in this file.
   dragGhost: {
     position: 'absolute', top: 0, left: 0,
-    borderRadius: 16, borderWidth: 1.5, borderColor: TC_COLORS.coral, overflow: 'hidden',
-    backgroundColor: TC_COLORS.cardRaised,
+    borderRadius: 16, borderWidth: 1.5, borderColor: c.coral, overflow: 'hidden',
+    backgroundColor: c.cardRaised,
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 20,
   },
 
   daySlotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   daySlotOuter: { width: '31%', aspectRatio: 1 },
   daySlotEmpty: {
-    width: '31%', aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: TC_COLORS.borderStrong,
-    backgroundColor: TC_COLORS.cardFlat, alignItems: 'center', justifyContent: 'center', gap: 4,
+    width: '31%', aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
+    backgroundColor: c.cardFlat, alignItems: 'center', justifyContent: 'center', gap: 4,
   },
-  daySlotEmptyLabel: { color: TC_COLORS.textFaint2, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1 },
-  daySlotFilled: { flex: 1, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: TC_COLORS.coral },
+  daySlotEmptyLabel: { color: c.textFaint2, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1 },
+  daySlotFilled: { flex: 1, borderRadius: 14, overflow: 'hidden', borderWidth: 1, borderColor: c.coral },
   daySlotOverlay: { flex: 1, justifyContent: 'space-between', padding: 8, backgroundColor: 'rgba(0,0,0,0.28)' },
   daySlotTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   daySlotDayLabel: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 1 },
   daySlotTitle: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 11, lineHeight: 13 },
   daySlotCategoryBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
-  daySlotCategoryBadgeText: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 0.5 },
+  // Always light — badge sits on a photo/gradient day-slot card, not the page bg.
+  daySlotCategoryBadgeText: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 0.5 },
 
   quickBuildWarningBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12,
@@ -1181,21 +1198,22 @@ const styles = StyleSheet.create({
 
   grid: { marginTop: 16, gap: 14 },
   gridTwoUp: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14, columnGap: 0 },
-  cardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  cardWrap: { borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   cardWrapWide: { width: '100%', aspectRatio: 16 / 9 },
   cardWrapGrid: { width: '48%', aspectRatio: 3 / 4 },
   card: { flex: 1, justifyContent: 'space-between' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
-  dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: TC_COLORS.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
+  dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   dayBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.5 },
   lockBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
   addBadge: {
     width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)',
-    borderWidth: 1.5, borderColor: TC_COLORS.coral, alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1.5, borderColor: c.coral, alignItems: 'center', justifyContent: 'center',
   },
   topRightBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   categoryBadge: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
-  categoryBadgeText: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
+  // Always light — badge sits on the workout's cover photo/gradient, not the page bg.
+  categoryBadgeText: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   // Purely informational — Customize Program is browse-free, paywalled only
   // on Create, so this never blocks a card the way `lockBadge` does.
   proBadge: { backgroundColor: '#C9A227', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
@@ -1203,16 +1221,17 @@ const styles = StyleSheet.create({
   cardBottomGradient: { padding: 14, paddingTop: 32 },
   cardBottomGradientWide: { padding: 14, paddingTop: 32 },
   cardBottomGradientGrid: { padding: 10, paddingTop: 24 },
-  cardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold' },
+  // Always white — sits on the workout's cover photo/gradient, not the page bg.
+  cardTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold' },
   cardTitleWide: { fontSize: 17, lineHeight: 20 },
   cardTitleGrid: { fontSize: 13.5, lineHeight: 16 },
-  cardMeta: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.2, marginTop: 4 },
+  cardMeta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.2, marginTop: 4 },
   cardMetaGrid: { fontSize: 9 },
 
   buildCta: {
     position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
-    backgroundColor: TC_COLORS.coral, borderRadius: 16, height: 52,
+    backgroundColor: c.coral, borderRadius: 16, height: 52,
     shadowColor: '#000', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.7, shadowRadius: 34, elevation: 10,
   },
   buildCtaText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.6 },

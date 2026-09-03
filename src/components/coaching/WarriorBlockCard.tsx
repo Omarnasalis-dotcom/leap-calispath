@@ -14,29 +14,80 @@ import { AmrapInlineTimer } from './AmrapInlineTimer';
 import { ForTimeInlineTimer, ForTimeResult } from './ForTimeInlineTimer';
 import { InlineVideoPlayer } from './InlineVideoPlayer';
 
-// Design handoff (assets/design_handoff_workout_runner, "Day Blocks"):
-// fixed dark palette regardless of the app's own light/dark theme toggle,
-// same choice already made for the rest of the Training Center flow
-// (TrainingCenterScreen, CustomizeProgramScreen, QuickWorkoutScreen).
-const DB = {
-  cardOpenBg: '#0b0909',
-  cardOpenBgEnd: '#090808',
-  cardClosedBg: '#0d0b0b',
-  cardClosedBgEnd: '#090808',
-  borderClosed: '#1b1717',
-  borderDim: '#171313',
-  skippedRail: '#2e2626',
-  textPrimary: '#FFFFFF',
-  textDim: '#8a8a8a',
-  textFaint: '#7a7a7a',
-  textMuted: '#6d6d6d',
-  divider: '#221c1c',
-  chipBg: 'rgba(255,255,255,.02)',
-  chipBorder: '#1d1919',
-  chipBorderDim: '#171313',
-  chipText: '#8a8a8a',
-  chipTextDim: '#4a4444',
-  rowBg: 'rgba(255,255,255,.018)',
+// Design handoff (assets/design_handoff_workout_runner, "Day Blocks") — was
+// a fixed dark-only palette independent of the app's own theme toggle; now
+// split {dark, light} on request, same relationship-preservation approach
+// used for TC_COLORS/COACH_COLORS/WarriorProgramSections' PD_COLORS. Only
+// fields actually read are kept (cardOpenBg/cardClosedBg/rowBg — the
+// non-"End" variants — were already dead in the prior version).
+interface DBPalette {
+  cardOpenBgEnd: string;
+  cardClosedBgEnd: string;
+  borderClosed: string;
+  borderDim: string;
+  skippedRail: string;
+  textPrimary: string;
+  textDim: string;
+  textFaint: string;
+  textMuted: string;
+  textFainter: string;
+  divider: string;
+  chipBg: string;
+  chipBorder: string;
+  chipBorderDim: string;
+  chipText: string;
+  chipTextDim: string;
+  indexPlateBorderClosed: string;
+  logCheckBorder: string;
+  washFaint: string;
+  washSoft: string;
+}
+
+const DB_COLORS: { dark: DBPalette; light: DBPalette } = {
+  dark: {
+    cardOpenBgEnd: '#090808',
+    cardClosedBgEnd: '#090808',
+    borderClosed: '#1b1717',
+    borderDim: '#171313',
+    skippedRail: '#2e2626',
+    textPrimary: '#FFFFFF',
+    textDim: '#8a8a8a',
+    textFaint: '#7a7a7a',
+    textMuted: '#6d6d6d',
+    textFainter: '#4a4444',
+    divider: '#221c1c',
+    chipBg: 'rgba(255,255,255,.02)',
+    chipBorder: '#1d1919',
+    chipBorderDim: '#171313',
+    chipText: '#8a8a8a',
+    chipTextDim: '#4a4444',
+    indexPlateBorderClosed: '#1e1a1a',
+    logCheckBorder: '#241f1f',
+    washFaint: 'rgba(255,255,255,.02)',
+    washSoft: 'rgba(255,255,255,.05)',
+  },
+  light: {
+    cardOpenBgEnd: '#FBF8F8',
+    cardClosedBgEnd: '#FCFAFA',
+    borderClosed: '#E5DADA',
+    borderDim: '#EEE4E4',
+    skippedRail: '#D4C4C4',
+    textPrimary: '#2A2A2A',
+    textDim: '#7A7A7A',
+    textFaint: '#8A8A8A',
+    textMuted: '#8A8A8A',
+    textFainter: '#B0A8A8',
+    divider: '#E5DADA',
+    chipBg: 'rgba(0,0,0,.03)',
+    chipBorder: '#E5DADA',
+    chipBorderDim: '#EEE4E4',
+    chipText: '#7A7A7A',
+    chipTextDim: '#B0A8A8',
+    indexPlateBorderClosed: '#E5DADA',
+    logCheckBorder: '#DDD0D0',
+    washFaint: 'rgba(0,0,0,.03)',
+    washSoft: 'rgba(0,0,0,.05)',
+  },
 };
 
 function hex(color: string, alpha: number): string {
@@ -104,6 +155,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   onAmrapFinalize,
   onForTimeFinalize,
 }) => {
+  const db = DB_COLORS[mode];
+  const styles = getStyles(db);
   const timingSystem = block.metadata?.timing_system;
   const structure = block.metadata?.structure || block.metadata?.type;
   const isAmrapLadder = timingSystem === 'amrap' && structure === 'ladder';
@@ -168,7 +221,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const skipped = block.completedStatus === 'missed';
   const dim = isDone || skipped;
   const accent = inferBlockAccent(block.name);
-  const railColor = skipped ? DB.skippedRail : accent.color;
+  const railColor = skipped ? db.skippedRail : accent.color;
   const scheme = schemeLabel(block, isAmrap, isForTime, isLadder);
   const estMinutes = estimateSessionMinutes({ name: block.name, blocks: [block] });
   const stateLabel = isDone ? 'DONE' : skipped ? 'SKIPPED' : isExpanded ? 'OPEN' : '';
@@ -230,7 +283,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           style={[
             styles.dbCard,
             {
-              borderColor: isExpanded ? hex(accent.color, 0.32) : dim ? DB.borderDim : DB.borderClosed,
+              borderColor: isExpanded ? hex(accent.color, 0.32) : dim ? db.borderDim : db.borderClosed,
               opacity: isLocked ? 0.5 : skipped ? 0.45 : isDone ? 0.66 : 1,
             },
           ]}
@@ -238,7 +291,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {/* Flat background, no accent-tinted gradient wash — an earlier
               version tinted this with the block's own accent color at open
               time and it read as too heavy, washing out the text above it. */}
-          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: isExpanded ? DB.cardOpenBgEnd : DB.cardClosedBgEnd }]} pointerEvents="none" />
+          <View style={[StyleSheet.absoluteFillObject, { backgroundColor: isExpanded ? db.cardOpenBgEnd : db.cardClosedBgEnd }]} pointerEvents="none" />
           <View style={[styles.dbRail, { backgroundColor: railColor, opacity: isExpanded ? 1 : dim ? 0.4 : 0.6 }]} />
 
           {/* Collapsible Block Header */}
@@ -273,26 +326,26 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               style={[
                 styles.dbIndexPlate,
                 {
-                  borderColor: isExpanded ? hex(accent.color, 0.38) : '#1e1a1a',
-                  backgroundColor: isExpanded ? hex(accent.color, 0.12) : 'rgba(255,255,255,.02)',
+                  borderColor: isExpanded ? hex(accent.color, 0.38) : db.indexPlateBorderClosed,
+                  backgroundColor: isExpanded ? hex(accent.color, 0.12) : db.washFaint,
                   opacity: (isTogglingStatus || isLocked) ? 0.4 : 1,
                 },
               ]}
             >
-              <Text style={{ color: skipped ? '#5a5a5a' : (isDone || isExpanded) ? accent.color : DB.textFaint, fontSize: 14, fontFamily: 'BarlowCondensed-Bold', fontWeight: '700' }}>
+              <Text style={{ color: skipped ? db.textFainter : (isDone || isExpanded) ? accent.color : db.textFaint, fontSize: 14, fontFamily: 'BarlowCondensed-Bold', fontWeight: '700' }}>
                 {skipped ? '–' : isDone ? '✓' : String(index + 1)}
               </Text>
             </TouchableOpacity>
 
             <View style={{ flex: 1, paddingRight: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                <Text style={[styles.dbTitle, { color: dim ? DB.textDim : DB.textPrimary, textDecorationLine: skipped ? 'line-through' : 'none' }]}>
+                <Text style={[styles.dbTitle, { color: dim ? db.textDim : db.textPrimary, textDecorationLine: skipped ? 'line-through' : 'none' }]}>
                   {block.name.toUpperCase()}
                 </Text>
                 {isLocked && <Text style={{ fontSize: 13 }}>🔒</Text>}
                 {!!stateLabel && (
-                  <View style={[styles.dbStateChip, { backgroundColor: isExpanded ? hex(accent.color, 0.16) : 'rgba(255,255,255,.04)' }]}>
-                    <Text style={{ color: isExpanded ? accent.color : DB.textFaint, fontSize: 7, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.2 }}>{stateLabel}</Text>
+                  <View style={[styles.dbStateChip, { backgroundColor: isExpanded ? hex(accent.color, 0.16) : db.washSoft }]}>
+                    <Text style={{ color: isExpanded ? accent.color : db.textFaint, fontSize: 7, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.2 }}>{stateLabel}</Text>
                   </View>
                 )}
               </View>
@@ -306,8 +359,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               {!isExpanded && previewChips.length > 0 && (
                 <View style={styles.dbChipRow}>
                   {previewChips.map((c) => (
-                    <View key={c.key} style={[styles.dbPreviewChip, { borderColor: dim ? DB.chipBorderDim : DB.chipBorder }]}>
-                      <Text style={[styles.dbPreviewChipText, { color: dim ? DB.chipTextDim : DB.chipText }]} numberOfLines={1}>{c.label}</Text>
+                    <View key={c.key} style={[styles.dbPreviewChip, { borderColor: dim ? db.chipBorderDim : db.chipBorder }]}>
+                      <Text style={[styles.dbPreviewChipText, { color: dim ? db.chipTextDim : db.chipText }]} numberOfLines={1}>{c.label}</Text>
                     </View>
                   ))}
                 </View>
@@ -330,7 +383,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                   }}
                   style={[
                     styles.dbLogCheck,
-                    { borderColor: isDone ? accent.color : '#241f1f', backgroundColor: isDone ? accent.color : 'transparent', opacity: (isTogglingStatus || isLocked) ? 0.4 : 1 },
+                    { borderColor: isDone ? accent.color : db.logCheckBorder, backgroundColor: isDone ? accent.color : 'transparent', opacity: (isTogglingStatus || isLocked) ? 0.4 : 1 },
                   ]}
                 >
                   {isDone && <MaterialCommunityIcons name="check" size={14} color="#000" />}
@@ -345,7 +398,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                     }}
                     style={{ opacity: isTogglingStatus ? 0.4 : 1 }}
                   >
-                    <Text style={{ color: skipped ? accent.color : '#4a4444', fontSize: 8.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.4 }}>
+                    <Text style={{ color: skipped ? accent.color : db.textFainter, fontSize: 8.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.4 }}>
                       {skipped ? 'UNDO' : 'SKIP'}
                     </Text>
                   </TouchableOpacity>
@@ -354,7 +407,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               <MaterialCommunityIcons
                 name="chevron-down"
                 size={20}
-                color={DB.textDim}
+                color={db.textDim}
                 style={{ transform: [{ rotate: isExpanded ? '180deg' : '0deg' }] }}
               />
             </View>
@@ -366,7 +419,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {isExpanded && (
             <View style={{ paddingTop: 2, paddingHorizontal: 13, paddingBottom: 13 }}>
               {/* Structure Badge */}
-              <View style={{ backgroundColor: 'rgba(255,255,255,0.05)', paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 12 }}>
+              <View style={{ backgroundColor: db.washSoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 12 }}>
                 <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>
                   {BlockConceptParser.getStructureBadge(block.metadata || {})}
                 </Text>
@@ -550,7 +603,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                         borderWidth: 1,
                         borderColor: block.completedStatus !== 'none' ? '#4CAF50' : 'rgba(76, 175, 80, 0.4)',
                         borderRadius: 6,
-                        backgroundColor: block.completedStatus !== 'none' ? 'rgba(76, 175, 80, 0.05)' : 'rgba(255,255,255,0.02)',
+                        backgroundColor: block.completedStatus !== 'none' ? 'rgba(76, 175, 80, 0.05)' : db.washFaint,
                         opacity: isLocked ? 0.5 : 1
                       }}
                       disabled={isLocked}
@@ -580,7 +633,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
 };
 
 
-const styles = StyleSheet.create({
+const getStyles = (db: DBPalette) => StyleSheet.create({
   // Day Blocks design tokens (assets/design_handoff_workout_runner) — see
   // the DB constant above for the fixed-dark color palette these draw from.
   dbCard: {
@@ -645,10 +698,10 @@ const styles = StyleSheet.create({
   dbDivider: {
     width: 1,
     height: 9,
-    backgroundColor: DB.divider,
+    backgroundColor: db.divider,
   },
   dbMetaText: {
-    color: DB.textMuted,
+    color: db.textMuted,
     fontFamily: 'Barlow-Regular',
     fontSize: 10,
     letterSpacing: 0.6,
@@ -664,7 +717,7 @@ const styles = StyleSheet.create({
     borderRadius: 7,
     paddingHorizontal: 9,
     paddingVertical: 5,
-    backgroundColor: DB.chipBg,
+    backgroundColor: db.chipBg,
   },
   dbPreviewChipText: {
     fontFamily: 'BarlowCondensed-Bold',

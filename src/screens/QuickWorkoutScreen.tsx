@@ -1,9 +1,10 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, ImageBackground, Alert, Modal, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import {
   getStandaloneWorkouts,
   getStandaloneWorkoutDetail,
@@ -17,7 +18,7 @@ import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { QuickWorkoutTimerModal } from '../components/workoutLibrary/QuickWorkoutTimerModal';
 import { UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
-import { TC_COLORS, TC_LAYOUT } from '../../constants/trainingCenterTokens';
+import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // Browse standalone Quick Workouts and start one immediately — no preview
 // screen. Design intent (handoff §7): "starts the session immediately —
@@ -47,6 +48,8 @@ const FORMAT_LABELS: Record<string, string> = {
 };
 
 function CardTrailingIcon({ locked, loadingDetail }: { locked: boolean; loadingDetail: boolean }) {
+  const { mode } = useTheme();
+  const styles = getStyles(TC_COLORS[mode]);
   if (locked) {
     return (
       <View style={styles.proBadge}>
@@ -75,6 +78,8 @@ function QuickWorkoutCard({
   hidden?: boolean;
   onPress: () => void;
 }) {
+  const { mode } = useTheme();
+  const styles = getStyles(TC_COLORS[mode]);
   const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}${item.category ? ` · ${item.category.replace('_', ' ')}` : ''}`;
 
   if (item.cover_image_url) {
@@ -125,6 +130,8 @@ function WorkoutPreviewModal({
   onStart: () => void;
   onCancel: () => void;
 }) {
+  const { mode } = useTheme();
+  const previewStyles = getPreviewStyles(TC_COLORS[mode]);
   if (!workout) return null;
   const allExercises = workout.blocks.flatMap((b) => b.exercises);
   const metaLine = `${workout.duration_minutes ?? '–'} MIN · ${workout.format ? (FORMAT_LABELS[workout.format] ?? workout.format.toUpperCase()) : 'QUICK WORKOUT'}${workout.category ? ` · ${workout.category.replace('_', ' ')}` : ''}`;
@@ -160,23 +167,26 @@ function WorkoutPreviewModal({
   );
 }
 
-const previewStyles = StyleSheet.create({
+const getPreviewStyles = (c: TCPalette) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
-  card: { width: '100%', maxWidth: 420, backgroundColor: TC_COLORS.cardRaised, borderRadius: 18, borderWidth: 1, borderColor: TC_COLORS.border, padding: 20 },
-  title: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 0.5 },
-  meta: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, marginTop: 4 },
-  description: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12.5, marginTop: 10, lineHeight: 17 },
-  exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: TC_COLORS.border, paddingBottom: 8 },
-  exerciseName: { flex: 1, color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 13, marginRight: 10 },
-  exerciseMeta: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5 },
-  startBtn: { marginTop: 18, backgroundColor: TC_COLORS.coral, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  card: { width: '100%', maxWidth: 420, backgroundColor: c.cardRaised, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 20 },
+  title: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 0.5 },
+  meta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  description: { color: c.textMuted, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12.5, marginTop: 10, lineHeight: 17 },
+  exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 8 },
+  exerciseName: { flex: 1, color: c.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 13, marginRight: 10 },
+  exerciseMeta: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5 },
+  startBtn: { marginTop: 18, backgroundColor: c.coral, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   startBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1 },
   cancelBtn: { marginTop: 10, paddingVertical: 10, alignItems: 'center' },
-  cancelBtnText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 },
+  cancelBtnText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 },
 });
 
 export function QuickWorkoutScreen() {
   const { profile, paywallEnabled } = useAuth();
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => getStyles(c), [c]);
   const isPro = canAccessPro(profile, paywallEnabled);
 
   const [items, setItems] = useState<StandaloneWorkoutSummary[]>([]);
@@ -266,10 +276,10 @@ export function QuickWorkoutScreen() {
   };
 
   return (
-    <View style={{ flex: 1, backgroundColor: TC_COLORS.screenBg }}>
+    <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={TC_COLORS.textPrimary} />
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
           <Text style={styles.headerTitle}>QUICK WORKOUT</Text>
@@ -284,7 +294,7 @@ export function QuickWorkoutScreen() {
 
         {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
-            <ActivityIndicator color={TC_COLORS.coral} />
+            <ActivityIndicator color={c.coral} />
           </View>
         ) : (
           <View style={{ gap: 12, marginTop: 16 }}>
@@ -357,38 +367,40 @@ export function QuickWorkoutScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
-  headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
+  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
-  emptyBox: { borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: TC_COLORS.cardFlat },
-  emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
+  emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: c.cardFlat },
+  emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
   card: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
-    borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 16, backgroundColor: TC_COLORS.cardRaised, padding: 14,
+    borderWidth: 1, borderColor: c.border, borderRadius: 16, backgroundColor: c.cardRaised, padding: 14,
   },
   durationBox: {
-    width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: TC_COLORS.coral,
+    width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderColor: c.coral,
     alignItems: 'center', justifyContent: 'center',
   },
-  durationValue: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19 },
-  durationUnit: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1 },
-  cardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 15 },
-  cardMeta: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
+  durationValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19 },
+  durationUnit: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1 },
+  cardTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 15 },
+  cardMeta: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
   playCircle: {
-    width: 38, height: 38, borderRadius: 19, backgroundColor: TC_COLORS.coral, alignItems: 'center', justifyContent: 'center',
+    width: 38, height: 38, borderRadius: 19, backgroundColor: c.coral, alignItems: 'center', justifyContent: 'center',
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 18, elevation: 6,
   },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FF5252', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
   proBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 9, letterSpacing: 0.4 },
 
-  photoCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: TC_COLORS.border, overflow: 'hidden' },
+  photoCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   photoCard: { height: 140, justifyContent: 'space-between' },
   photoDurationBadge: { alignSelf: 'flex-start', margin: 10, backgroundColor: 'rgba(0,0,0,.55)', borderRadius: 8, paddingHorizontal: 9, paddingVertical: 5 },
-  photoDurationText: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.8 },
+  // Always light from here down — sits on the workout's cover photo +
+  // dark gradient scrim, which never changes with the app theme.
+  photoDurationText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.8 },
   photoBottomRow: { flexDirection: 'row', alignItems: 'flex-end', padding: 14, gap: 12 },
-  photoCardTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 16 },
-  photoCardMeta: { color: TC_COLORS.textBody, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
+  photoCardTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 16 },
+  photoCardMeta: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
 });

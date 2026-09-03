@@ -48,24 +48,22 @@ export function QuickStatsRow({ streakDays, pointsThisWeek, workoutsCompleted, t
         <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>PTS THIS WEEK</Text>
       </View>
       <TouchableOpacity
-        activeOpacity={hasActiveWorkout ? 0.7 : 1}
+        activeOpacity={hasActiveWorkout ? 0.8 : 1}
         disabled={!hasActiveWorkout}
         onPress={onOpenActiveWorkout}
         style={[
           styles.tile,
-          hasActiveWorkout
-            ? { borderColor: worldRgba(workoutsTint, 0.5), backgroundColor: worldRgba(workoutsTint, 0.1) }
-            : { borderColor: worldRgba(workoutsTint, 0.3), backgroundColor: worldRgba(workoutsTint, 0.06) },
+          // Same tint treatment as the other two tiles — just orange
+          // (onemm accent) instead of power's red, no special solid-fill
+          // treatment for this one.
+          { borderColor: worldRgba(workoutsTint, 0.3), backgroundColor: worldRgba(workoutsTint, 0.06) },
         ]}
       >
         {hasActiveWorkout ? (
           <>
-            <MaterialCommunityIcons name="play-circle" size={18} color={workoutsTint} style={styles.icon} />
-            <View style={styles.continueRow}>
-              <Text style={[styles.value, { color: neutrals.textPrimary }]}>CONTINUE</Text>
-              <MaterialCommunityIcons name="chevron-right" size={14} color={neutrals.textPrimary} />
-            </View>
-            <Text style={[styles.label, { color: neutrals.textMuted }]} numberOfLines={1}>ACTIVE PROGRAM</Text>
+            <MaterialCommunityIcons name="play-circle" size={16} color={workoutsTint} style={styles.icon} />
+            <Text style={[styles.value, styles.activeProgramValue, { color: neutrals.textPrimary }]} numberOfLines={1}>ACTIVE PROGRAM</Text>
+            <Text style={[styles.continueLabel, { color: workoutsTint }]}>CONTINUE</Text>
           </>
         ) : (
           <>
@@ -98,18 +96,29 @@ const styles = StyleSheet.create({
   icon: {
     marginBottom: 4,
   },
-  continueRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   value: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 14,
+  },
+  // "ACTIVE PROGRAM" is a phrase, not a 1-3 digit number like the sibling
+  // tiles' values — same weight/family, sized down so it still reads at
+  // the same visual scale on one line instead of looking oversized/cramped.
+  activeProgramValue: {
+    fontSize: 10.5,
+    letterSpacing: 0.3,
   },
   label: {
     fontFamily: 'BarlowCondensed-SemiBold',
     fontSize: 8.5,
     letterSpacing: 0.5,
     marginTop: 2,
+  },
+  // The CTA itself — smaller than the ACTIVE PROGRAM title above it, but
+  // bold/letter-spaced like a button label, not a plain caption.
+  continueLabel: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 9.5,
+    letterSpacing: 1.2,
+    marginTop: 3,
   },
 });

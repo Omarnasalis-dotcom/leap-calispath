@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -16,13 +16,14 @@ import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { canAccessCustomizeProgram } from '../lib/entitlement';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
 import { getStandaloneWorkouts } from '../lib/workoutLibrary';
-import { TC_COLORS, TC_HERO_GRADIENT, TC_BUTTON_GRADIENT, TC_MOTION, TC_LAYOUT } from '../../constants/trainingCenterTokens';
+import { TC_COLORS, TC_HERO_GRADIENT, TC_BUTTON_GRADIENT, TC_MOTION, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 import {
   HubBlock,
   HubWorkoutLog,
@@ -101,6 +102,8 @@ function RowIn({ index, children, style }: { index: number; children: React.Reac
 }
 
 function ProgressDonut({ percent, size = 96, strokeWidth = 5 }: { percent: number; size?: number; strokeWidth?: number }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
   const [reduceMotion, setReduceMotion] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
   const r = (size - strokeWidth) / 2;
@@ -132,12 +135,12 @@ function ProgressDonut({ percent, size = 96, strokeWidth = 5 }: { percent: numbe
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke={TC_COLORS.ringTrack} strokeWidth={strokeWidth} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={c.ringTrack} strokeWidth={strokeWidth} fill="none" />
         <AnimatedCircle
           cx={size / 2}
           cy={size / 2}
           r={r}
-          stroke={TC_COLORS.coral}
+          stroke={c.coral}
           strokeWidth={strokeWidth}
           fill="none"
           strokeLinecap="round"
@@ -145,8 +148,8 @@ function ProgressDonut({ percent, size = 96, strokeWidth = 5 }: { percent: numbe
           strokeDashoffset={strokeDashoffset}
         />
       </Svg>
-      <Text style={{ color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24 }}>{percent}%</Text>
-      <Text style={{ color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.4 }}>COMPLETE</Text>
+      <Text style={{ color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24 }}>{percent}%</Text>
+      <Text style={{ color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.4 }}>COMPLETE</Text>
     </View>
   );
 }
@@ -225,8 +228,11 @@ function TileSheen() {
 }
 
 function PathTile({ def, index }: { def: PathTileDef; index: number }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(c);
   const isPrimary = !!def.primary && !def.locked;
-  const accent = def.accent ?? TC_COLORS.coral;
+  const accent = def.accent ?? c.coral;
   const hasPhoto = !!def.bgImage && !def.locked;
 
   const content = (
@@ -239,23 +245,23 @@ function PathTile({ def, index }: { def: PathTileDef; index: number }) {
             def.locked ? { backgroundColor: 'rgba(90,90,90,0.1)' } : { backgroundColor: accent },
           ]}
         >
-          <MaterialCommunityIcons name={def.icon} size={18} color={def.locked ? TC_COLORS.textFaint2 : '#000'} />
+          <MaterialCommunityIcons name={def.icon} size={18} color={def.locked ? c.textFaint2 : '#000'} />
         </View>
         {def.badge && (
           <View
             style={[
               styles.tileBadge,
               def.badge === 'LIVE'
-                ? { backgroundColor: TC_COLORS.coral }
+                ? { backgroundColor: c.coral }
                 : def.badge === 'PRO'
                 ? { backgroundColor: '#C9A227' }
-                : { backgroundColor: TC_COLORS.cardLocked },
+                : { backgroundColor: c.cardLocked },
             ]}
           >
             <Text
               style={[
                 styles.tileBadgeText,
-                { color: def.badge === 'LIVE' || def.badge === 'PRO' ? '#000' : TC_COLORS.textMuted },
+                { color: def.badge === 'LIVE' || def.badge === 'PRO' ? '#000' : c.textMuted },
               ]}
             >
               {def.badge}
@@ -266,14 +272,18 @@ function PathTile({ def, index }: { def: PathTileDef; index: number }) {
       <Text
         style={[
           styles.tileTitle,
-          { color: def.locked ? TC_COLORS.textFaint3 : TC_COLORS.textPrimary },
+          // Unlocked = hasPhoto (a real cover image + gradient scrim, see
+          // hasPhoto above) — always white regardless of theme, same
+          // reasoning as ProgramTemplatesScreen/QuickWorkoutScreen/
+          // CustomizeProgramScreen's own cover-photo card text.
+          { color: def.locked ? c.textFaint3 : '#FFFFFF' },
           hasPhoto && { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
         ]}
         numberOfLines={2}
       >
         {def.title}
       </Text>
-      <Text style={[styles.tileSub, { color: def.locked ? TC_COLORS.textMuted : hexToRgba(accent, 0.9) }]} numberOfLines={1}>
+      <Text style={[styles.tileSub, { color: def.locked ? c.textMuted : hexToRgba(accent, 0.9) }]} numberOfLines={1}>
         {def.sub}
       </Text>
     </>
@@ -293,10 +303,10 @@ function PathTile({ def, index }: { def: PathTileDef; index: number }) {
         isPrimary
           ? { borderWidth: 0, overflow: 'hidden' }
           : def.locked
-            ? { borderColor: TC_COLORS.borderLocked, backgroundColor: TC_COLORS.cardLocked, opacity: 0.5 }
+            ? { borderColor: c.borderLocked, backgroundColor: c.cardLocked, opacity: 0.5 }
             : {
                 borderColor: hexToRgba(accent, hasPhoto ? 0.45 : 0.35),
-                backgroundColor: hasPhoto ? undefined : TC_COLORS.cardRaised,
+                backgroundColor: hasPhoto ? undefined : c.cardRaised,
                 overflow: hasPhoto ? 'hidden' : undefined,
               },
       ]}
@@ -342,6 +352,9 @@ async function fetchMovementsCount(): Promise<number | null> {
 
 export function TrainingCenterScreen() {
   const { user, profile, paywallEnabled } = useAuth();
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = useMemo(() => getStyles(c), [c]);
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<HubData | null>(null);
@@ -503,7 +516,7 @@ export function TrainingCenterScreen() {
     <View style={styles.screen}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={TC_COLORS.textPrimary} />
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
           <Text style={styles.headerTitle}>TRAINING CENTER</Text>
@@ -518,7 +531,7 @@ export function TrainingCenterScreen() {
 
       {loading && (
         <View style={styles.centerFill}>
-          <ActivityIndicator color={TC_COLORS.coral} />
+          <ActivityIndicator color={c.coral} />
         </View>
       )}
 
@@ -535,7 +548,7 @@ export function TrainingCenterScreen() {
         <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
           <RowIn index={0}>
             {data.hasActiveProgram ? (
-              <View style={[styles.heroCard, { borderColor: TC_COLORS.heroBorderActive }]}>
+              <View style={[styles.heroCard, { borderColor: c.heroBorderActive }]}>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   <ProgressDonut percent={data.percentCompleteThisWeek} />
                   <View style={{ flex: 1 }}>
@@ -571,7 +584,7 @@ export function TrainingCenterScreen() {
             ) : (
               <View style={[styles.heroCard, styles.heroCardEmpty]}>
                 <View style={styles.heroEmptyIconWrap}>
-                  <MaterialCommunityIcons name="calendar-blank-outline" size={28} color={TC_COLORS.textFaint} />
+                  <MaterialCommunityIcons name="calendar-blank-outline" size={28} color={c.textFaint} />
                 </View>
                 <Text style={styles.heroEmptyTitle}>No program assigned</Text>
                 <Text style={styles.heroEmptySub}>Pick a template or build your own to unlock your plan.</Text>
@@ -589,7 +602,7 @@ export function TrainingCenterScreen() {
                 <Text style={styles.statLabel}>SESSIONS DONE</Text>
               </View>
               <View style={styles.statCard}>
-                <Text style={[styles.statValue, { color: TC_COLORS.coral }]}>{data.adherencePct ?? 0}%</Text>
+                <Text style={[styles.statValue, { color: c.coral }]}>{data.adherencePct ?? 0}%</Text>
                 <Text style={styles.statLabel}>ADHERENCE</Text>
               </View>
               <View style={styles.statCard}>
@@ -613,8 +626,8 @@ export function TrainingCenterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: TC_COLORS.screenBg },
+const getStyles = (c: TCPalette) => StyleSheet.create({
+  screen: { flex: 1, backgroundColor: c.screenBg },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -622,52 +635,52 @@ const styles = StyleSheet.create({
     paddingTop: 14,
     paddingBottom: 10,
   },
-  headerTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
-  headerSubline: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
+  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  errorText: { color: TC_COLORS.textSecondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
-  retryBtn: { backgroundColor: TC_COLORS.coral, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
+  errorText: { color: c.textSecondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
+  retryBtn: { backgroundColor: c.coral, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
   retryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.4 },
 
-  heroCard: { borderRadius: 20, borderWidth: 1, padding: 18, backgroundColor: TC_COLORS.cardFlat },
-  heroCardEmpty: { borderColor: TC_COLORS.dividerFaint, backgroundColor: TC_COLORS.cardFlat, alignItems: 'center', gap: 6 },
+  heroCard: { borderRadius: 20, borderWidth: 1, padding: 18, backgroundColor: c.cardFlat },
+  heroCardEmpty: { borderColor: c.dividerFaint, backgroundColor: c.cardFlat, alignItems: 'center', gap: 6 },
   heroEmptyIconWrap: {
-    width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: TC_COLORS.borderStrong,
+    width: 52, height: 52, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
     alignItems: 'center', justifyContent: 'center', marginBottom: 6,
   },
-  heroEmptyTitle: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 },
-  heroEmptySub: { color: TC_COLORS.textMuted, fontFamily: 'Barlow-Regular', fontSize: 12, textAlign: 'center', marginBottom: 10 },
-  heroEyebrow: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2 },
-  heroProgramName: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 19, marginTop: 2 },
-  heroMeta: { color: TC_COLORS.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6, marginTop: 4 },
+  heroEmptyTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 },
+  heroEmptySub: { color: c.textMuted, fontFamily: 'Barlow-Regular', fontSize: 12, textAlign: 'center', marginBottom: 10 },
+  heroEyebrow: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2 },
+  heroProgramName: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 19, marginTop: 2 },
+  heroMeta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6, marginTop: 4 },
   heroNextRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
-  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: TC_COLORS.coral },
-  heroNextText: { color: TC_COLORS.textBody, fontFamily: 'Barlow-Light', fontSize: 12.5, flexShrink: 1 },
+  heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.coral },
+  heroNextText: { color: c.textBody, fontFamily: 'Barlow-Light', fontSize: 12.5, flexShrink: 1 },
   continueBtn: {
     flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
-    backgroundColor: TC_COLORS.coral, borderRadius: 12, height: 46,
+    backgroundColor: c.coral, borderRadius: 12, height: 46,
   },
   continueBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.6 },
   coachEntryBtn: {
-    width: 46, height: 46, borderRadius: 23, backgroundColor: TC_COLORS.coral,
+    width: 46, height: 46, borderRadius: 23, backgroundColor: c.coral,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2.5,
-    shadowColor: TC_COLORS.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
+    shadowColor: c.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.4, shadowRadius: 16, elevation: 10,
   },
   coachEntryBar: { width: 2, borderRadius: 2, backgroundColor: '#fff' },
 
-  statCard: { flex: 1, borderWidth: 1, borderColor: TC_COLORS.border, borderRadius: 12, backgroundColor: TC_COLORS.cardFlat, alignItems: 'center', paddingVertical: 12, gap: 4 },
-  statValue: { color: TC_COLORS.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17 },
-  statLabel: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.3 },
+  statCard: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.cardFlat, alignItems: 'center', paddingVertical: 12, gap: 4 },
+  statValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17 },
+  statLabel: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.3 },
 
-  sectionEyebrow: { color: TC_COLORS.textFaint, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2.4, marginTop: 22, marginBottom: 10 },
+  sectionEyebrow: { color: c.textFaint, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2.4, marginTop: 22, marginBottom: 10 },
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: TC_LAYOUT.tileGap, justifyContent: 'space-between' },
   tile: { borderWidth: 1, borderRadius: 16, padding: 14, minHeight: 118, justifyContent: 'space-between' },
   tileGradientBorder: {
     padding: 1.5, borderRadius: 17,
-    shadowColor: TC_COLORS.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 16, elevation: 5,
+    shadowColor: c.coral, shadowOffset: { width: 0, height: 6 }, shadowOpacity: 0.28, shadowRadius: 16, elevation: 5,
   },
   tileTopRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between' },
-  tileIconWell: { width: 36, height: 36, borderRadius: 10, backgroundColor: TC_COLORS.iconWell, alignItems: 'center', justifyContent: 'center' },
+  tileIconWell: { width: 36, height: 36, borderRadius: 10, backgroundColor: c.iconWell, alignItems: 'center', justifyContent: 'center' },
   tileBadge: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   tileBadgeText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.1 },
   tileTitle: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.1, lineHeight: 16, marginTop: 10 },

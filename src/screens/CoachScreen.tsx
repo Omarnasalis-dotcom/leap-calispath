@@ -577,7 +577,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             <View style={styles.headerCenter}>
               <View style={styles.headerTitleRow}>
                 <PulsingAvatar accent={theme.accent} />
-                <Text style={styles.headerTitle}>LEAP COACH</Text>
+                <Text style={[styles.headerTitle, { color: c.bodyText }]}>LEAP COACH</Text>
               </View>
               <Text style={[styles.headerSub, { color: theme.accent }]}>{statusLine}</Text>
             </View>
@@ -885,7 +885,7 @@ const styles = StyleSheet.create({
   input: { flex: 1, minHeight: 46, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, borderRadius: 23, borderWidth: 1 },
   sendBtn: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
   headerCenter: { alignItems: 'center', flex: 1 },
-  headerTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 2.4, color: '#fff' },
+  headerTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 2.4 },
   headerSub: { fontSize: 9.5, fontWeight: '500', letterSpacing: 1.6, marginTop: 2, textTransform: 'uppercase' },
   welcomeContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
   welcomeTitle: { fontSize: 22, fontWeight: '900', marginTop: 16 },

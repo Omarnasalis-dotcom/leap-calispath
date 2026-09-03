@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { ProgramDay } from '../../types/warriorProgram';
 import { DayStateEntry, deriveDayStates, estimateSessionMinutes, countMovements } from '../../lib/warriorProgramDays';
 import { TC_COLORS, TC_MOTION } from '../../../constants/trainingCenterTokens';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Program Days design (assets/design_handoff_program_days) §4 — day cards.
 // Every day stays tappable regardless of state (no lock — see
@@ -13,6 +14,52 @@ import { TC_COLORS, TC_MOTION } from '../../../constants/trainingCenterTokens';
 // done/next/scheduled, no partial-scheduled visual — the underlying % is
 // still real, just not surfaced on non-next cards).
 const PD_CORAL = '#FC5454';
+
+// This design predates TC_COLORS (own bespoke hex literals throughout, not
+// shared tokens) and was dark-only until now — light variant follows the
+// same relationship-preservation approach used for TC_COLORS/COACH_COLORS.
+interface PDPalette {
+  cardBorderNext: string; cardBorderScheduled: string;
+  cardBgNext: string; cardBgScheduled: string;
+  plateBorderNext: string; plateBorderScheduled: string;
+  plateBgNext: string; plateBgScheduled: string;
+  plateLabelNext: string; plateLabelScheduled: string; plateNumberScheduled: string;
+  statusChipQuietBg: string; statusChipQuietText: string;
+  sessionName: string; sessionNameDone: string;
+  metaText: string; metaDivider: string;
+  doneBadgeBorder: string;
+  startScheduledBorder: string; startScheduledText: string;
+  sectionRuleBorder: string; sectionEyebrow: string; sectionCount: string;
+}
+
+const PD_COLORS: { dark: PDPalette; light: PDPalette } = {
+  dark: {
+    cardBorderNext: '#3a1d1d', cardBorderScheduled: '#191515',
+    cardBgNext: '#170a0a', cardBgScheduled: '#0d0b0b',
+    plateBorderNext: '#3a1d1d', plateBorderScheduled: '#1c1818',
+    plateBgNext: 'rgba(252,84,84,.08)', plateBgScheduled: 'rgba(255,255,255,.015)',
+    plateLabelNext: '#8a5555', plateLabelScheduled: '#4a4444', plateNumberScheduled: '#8a8a8a',
+    statusChipQuietBg: 'rgba(255,255,255,.04)', statusChipQuietText: '#7a7a7a',
+    sessionName: '#FFFFFF', sessionNameDone: '#8a8a8a',
+    metaText: '#7a7a7a', metaDivider: '#221c1c',
+    doneBadgeBorder: '#2a1d1d',
+    startScheduledBorder: '#241f1f', startScheduledText: '#9a9a9a',
+    sectionRuleBorder: '#161212', sectionEyebrow: '#3f3f3f', sectionCount: '#4a4a4a',
+  },
+  light: {
+    cardBorderNext: '#E8B8B8', cardBorderScheduled: '#EAE0E0',
+    cardBgNext: '#FFF0EE', cardBgScheduled: '#FBF8F8',
+    plateBorderNext: '#E8B8B8', plateBorderScheduled: '#E5DADA',
+    plateBgNext: 'rgba(252,84,84,.08)', plateBgScheduled: 'rgba(0,0,0,.02)',
+    plateLabelNext: '#C57A7A', plateLabelScheduled: '#A89A9A', plateNumberScheduled: '#9A8A8A',
+    statusChipQuietBg: 'rgba(0,0,0,.05)', statusChipQuietText: '#8A8A8A',
+    sessionName: '#2A2A2A', sessionNameDone: '#A89A9A',
+    metaText: '#8A8A8A', metaDivider: '#E5DADA',
+    doneBadgeBorder: '#E5D0D0',
+    startScheduledBorder: '#DDD0D0', startScheduledText: '#8A8A8A',
+    sectionRuleBorder: '#E5DADA', sectionEyebrow: '#B5A5A5', sectionCount: '#9A8A8A',
+  },
+} as const;
 
 function DayCard({
   entry,
@@ -25,6 +72,9 @@ function DayCard({
   index: number;
   onPress: () => void;
 }) {
+  const { mode } = useTheme();
+  const pd = PD_COLORS[mode];
+  const styles = getStyles(pd, TC_COLORS[mode]);
   const [reduceMotion, setReduceMotion] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
 
@@ -53,10 +103,10 @@ function DayCard({
   const estimatedMinutes = estimateSessionMinutes(day);
   const statusLabel = done ? 'COMPLETED' : isNext ? 'UP NEXT' : 'SCHEDULED';
 
-  const cardBorder = isNext ? '#3a1d1d' : '#191515';
-  const cardBg = isNext ? '#170a0a' : '#0d0b0b';
-  const plateBorder = isNext ? '#3a1d1d' : '#1c1818';
-  const plateBg = isNext ? 'rgba(252,84,84,.08)' : 'rgba(255,255,255,.015)';
+  const cardBorder = isNext ? pd.cardBorderNext : pd.cardBorderScheduled;
+  const cardBg = isNext ? pd.cardBgNext : pd.cardBgScheduled;
+  const plateBorder = isNext ? pd.plateBorderNext : pd.plateBorderScheduled;
+  const plateBg = isNext ? pd.plateBgNext : pd.plateBgScheduled;
 
   return (
     <Animated.View
@@ -79,24 +129,24 @@ function DayCard({
 
         <View style={styles.body}>
           <View style={[styles.plate, { borderColor: plateBorder, backgroundColor: plateBg }]}>
-            <Text style={[styles.plateLabel, { color: isNext ? '#8a5555' : '#4a4444' }]}>DAY</Text>
-            <Text style={[styles.plateNumber, { color: isNext ? PD_CORAL : '#8a8a8a' }]}>{index + 1}</Text>
+            <Text style={[styles.plateLabel, { color: isNext ? pd.plateLabelNext : pd.plateLabelScheduled }]}>DAY</Text>
+            <Text style={[styles.plateNumber, { color: isNext ? PD_CORAL : pd.plateNumberScheduled }]}>{index + 1}</Text>
           </View>
 
           <View style={{ flex: 1 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
               <View style={[styles.statusChip, done || !isNext ? styles.statusChipQuiet : styles.statusChipNext]}>
-                <Text style={[styles.statusChipText, { color: done || !isNext ? '#7a7a7a' : '#FFFFFF' }]}>{statusLabel}</Text>
+                <Text style={[styles.statusChipText, { color: done || !isNext ? pd.statusChipQuietText : '#FFFFFF' }]}>{statusLabel}</Text>
               </View>
             </View>
-            <Text style={[styles.sessionName, done && { color: '#8a8a8a', textDecorationLine: 'line-through' }]} numberOfLines={2}>
+            <Text style={[styles.sessionName, done && { color: pd.sessionNameDone, textDecorationLine: 'line-through' }]} numberOfLines={2}>
               {day.name.toUpperCase()}
             </Text>
             <View style={styles.metaRow}>
-              <MaterialCommunityIcons name="tune-variant" size={11} color="#7a7a7a" />
+              <MaterialCommunityIcons name="tune-variant" size={11} color={pd.metaText} />
               <Text style={styles.metaText}>{movementCount} MOVEMENTS</Text>
               <View style={styles.metaDivider} />
-              <MaterialCommunityIcons name="clock-outline" size={11} color="#7a7a7a" />
+              <MaterialCommunityIcons name="clock-outline" size={11} color={pd.metaText} />
               <Text style={styles.metaText}>~{estimatedMinutes} MIN</Text>
             </View>
           </View>
@@ -121,11 +171,14 @@ function DayCard({
 }
 
 export function DayCardList({ days, nextIndex, onStartDay }: { days: ProgramDay[]; nextIndex: number | null; onStartDay: (dayIndex: number) => void }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const styles = getStyles(PD_COLORS[mode], c);
   const entries = React.useMemo(() => deriveDayStates(days), [days]);
 
   if (entries.length === 0) {
     return (
-      <View style={[styles.card, { borderColor: TC_COLORS.border, backgroundColor: TC_COLORS.cardFlat, justifyContent: 'center', padding: 20 }]}>
+      <View style={[styles.card, { borderColor: c.border, backgroundColor: c.cardFlat, justifyContent: 'center', padding: 20 }]}>
         <Text style={styles.emptyText}>NO SESSIONS SCHEDULED THIS WEEK.</Text>
       </View>
     );
@@ -146,13 +199,13 @@ export function DayCardList({ days, nextIndex, onStartDay }: { days: ProgramDay[
   );
 }
 
-const styles = StyleSheet.create({
+const getStyles = (pd: PDPalette, c: import('../../../constants/trainingCenterTokens').TCPalette) => StyleSheet.create({
   sectionRule: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
-    borderBottomWidth: 1, borderColor: '#161212', paddingBottom: 8, marginBottom: 13,
+    borderBottomWidth: 1, borderColor: pd.sectionRuleBorder, paddingBottom: 8, marginBottom: 13,
   },
-  sectionEyebrow: { color: '#3f3f3f', fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6 },
-  sectionCount: { color: '#4a4a4a', fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
+  sectionEyebrow: { color: pd.sectionEyebrow, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6 },
+  sectionCount: { color: pd.sectionCount, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6 },
 
   card: {
     borderWidth: 1,
@@ -170,23 +223,23 @@ const styles = StyleSheet.create({
 
   statusChip: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   statusChipNext: { backgroundColor: PD_CORAL },
-  statusChipQuiet: { backgroundColor: 'rgba(255,255,255,.04)' },
+  statusChipQuiet: { backgroundColor: pd.statusChipQuietBg },
   statusChipText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 7.5, letterSpacing: 1.3 },
 
-  sessionName: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-SemiBold', fontSize: 17, letterSpacing: 0.5, marginTop: 5 },
+  sessionName: { color: pd.sessionName, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 17, letterSpacing: 0.5, marginTop: 5 },
 
   metaRow: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 6, flexWrap: 'wrap' },
-  metaText: { color: '#7a7a7a', fontFamily: 'Barlow-Regular', fontSize: 10.5, letterSpacing: 0.4 },
-  metaDivider: { width: 1, height: 10, backgroundColor: '#221c1c' },
+  metaText: { color: pd.metaText, fontFamily: 'Barlow-Regular', fontSize: 10.5, letterSpacing: 0.4 },
+  metaDivider: { width: 1, height: 10, backgroundColor: pd.metaDivider },
 
-  doneBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: '#2a1d1d', alignItems: 'center', justifyContent: 'center' },
+  doneBadge: { width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: pd.doneBadgeBorder, alignItems: 'center', justifyContent: 'center' },
   startBtnNext: {
     backgroundColor: PD_CORAL, borderRadius: 12, paddingHorizontal: 17, paddingVertical: 11,
     shadowColor: '#000', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.34, shadowRadius: 20, elevation: 6,
   },
   startBtnNextText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5, letterSpacing: 1.7 },
-  startBtnScheduled: { borderWidth: 1, borderColor: '#241f1f', borderRadius: 12, paddingHorizontal: 17, paddingVertical: 11 },
-  startBtnScheduledText: { color: '#9a9a9a', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 1.6 },
+  startBtnScheduled: { borderWidth: 1, borderColor: pd.startScheduledBorder, borderRadius: 12, paddingHorizontal: 17, paddingVertical: 11 },
+  startBtnScheduledText: { color: pd.startScheduledText, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 1.6 },
 
-  emptyText: { color: TC_COLORS.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
+  emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 });

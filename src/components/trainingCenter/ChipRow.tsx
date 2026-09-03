@@ -1,6 +1,7 @@
 import React from 'react';
 import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { TC_COLORS } from '../../../constants/trainingCenterTokens';
+import { useTheme } from '../../contexts/ThemeContext';
 
 // Shared horizontal filter-chip row — was duplicated byte-for-byte across
 // ProgramTemplatesScreen, CustomizeProgramScreen, and QuickWorkoutScreen.
@@ -13,6 +14,8 @@ export function ChipRow({
   selected: string;
   onSelect: (v: string) => void;
 }) {
+  const { mode } = useTheme();
+  const c = TC_COLORS[mode];
   return (
     <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingRight: 12 }}>
       {options.map((opt) => (
@@ -21,10 +24,10 @@ export function ChipRow({
           onPress={() => onSelect(opt)}
           style={[
             styles.chip,
-            selected === opt ? { backgroundColor: TC_COLORS.chipActiveBg, borderColor: TC_COLORS.coral } : { borderColor: TC_COLORS.borderStrong },
+            selected === opt ? { backgroundColor: c.chipActiveBg, borderColor: c.coral } : { borderColor: c.borderStrong },
           ]}
         >
-          <Text style={[styles.chipText, { color: selected === opt ? TC_COLORS.coral : TC_COLORS.textMuted }]}>
+          <Text style={[styles.chipText, { color: selected === opt ? c.coral : c.textMuted }]}>
             {opt.toUpperCase().replace('_', ' ')}
           </Text>
         </TouchableOpacity>

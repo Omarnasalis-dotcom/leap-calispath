@@ -371,7 +371,9 @@ export function UpgradeToSaveModal({
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
-        <View style={[previewStyles.card, upgradeStyles.card, { backgroundColor: theme.background.primary, borderColor: TC_COLORS.coral }]}>
+        {/* coral is identical in TC_COLORS.dark/.light (brand accent, not a
+            surface color) — .dark here is arbitrary, not a theme choice. */}
+        <View style={[previewStyles.card, upgradeStyles.card, { backgroundColor: theme.background.primary, borderColor: TC_COLORS.dark.coral }]}>
           <LinearGradient colors={TC_BUTTON_GRADIENT} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={upgradeStyles.iconWell}>
             <MaterialCommunityIcons name="crown" size={26} color="#FFFFFF" />
           </LinearGradient>
@@ -380,7 +382,7 @@ export function UpgradeToSaveModal({
 
           {!!pillLabel && (
             <View style={upgradeStyles.metaPill}>
-              <MaterialCommunityIcons name={pillIcon} size={12} color={TC_COLORS.coral} />
+              <MaterialCommunityIcons name={pillIcon} size={12} color={TC_COLORS.dark.coral} />
               <Text style={upgradeStyles.metaPillText}>{pillLabel}</Text>
             </View>
           )}
@@ -455,7 +457,7 @@ const upgradeStyles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 6,
-    backgroundColor: TC_COLORS.chipActiveBg,
+    backgroundColor: TC_COLORS.dark.chipActiveBg, // theme-invariant (rgba coral), see comment above
     borderWidth: 1,
     borderColor: 'rgba(252,84,84,0.3)',
     borderRadius: 999,
@@ -464,7 +466,7 @@ const upgradeStyles = StyleSheet.create({
     marginBottom: 16,
   },
   metaPillText: {
-    color: TC_COLORS.coral,
+    color: TC_COLORS.dark.coral,
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 1,

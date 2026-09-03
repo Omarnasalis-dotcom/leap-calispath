@@ -109,7 +109,7 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
     <>
       {showGreeting && !open && (
         <View pointerEvents="none" style={[fabStyles.greeting, { top: fabTop + FAB_SIZE + 8, backgroundColor: c.bubbleBg, borderColor: c.bubbleBorder }]}>
-          <Text style={fabStyles.greetingTitle}>I'M YOUR COACH</Text>
+          <Text style={[fabStyles.greetingTitle, { color: c.bodyText }]}>I'M YOUR COACH</Text>
           <Text style={[fabStyles.greetingSub, { color: c.secondaryText }]}>Here to help you any time.</Text>
         </View>
       )}
@@ -147,9 +147,9 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
             <View style={[fabStyles.panelAvatarRing, { borderColor: theme.accent }]}>
               <View style={[fabStyles.panelAvatarDot, { backgroundColor: theme.accent }]} />
             </View>
-            <Text style={fabStyles.panelTitle}>LEAP COACH</Text>
+            <Text style={[fabStyles.panelTitle, { color: c.bodyText }]}>LEAP COACH</Text>
           </View>
-          <Text style={fabStyles.panelHeadline}>I'M YOUR COACH</Text>
+          <Text style={[fabStyles.panelHeadline, { color: c.bodyText }]}>I'M YOUR COACH</Text>
           <Text style={[fabStyles.panelSub, { color: c.secondaryText }]}>Here to help you any time.</Text>
           {teaser && (
             <>
@@ -191,7 +191,7 @@ const fabStyles = StyleSheet.create({
     position: 'absolute', right: 16, borderWidth: 1, borderRadius: 16, borderTopRightRadius: 4,
     padding: 12, maxWidth: 190,
   },
-  greetingTitle: { color: '#fff', fontSize: 14, fontWeight: '700', letterSpacing: 1 },
+  greetingTitle: { fontSize: 14, fontWeight: '700', letterSpacing: 1 },
   greetingSub: { fontSize: 11.5, fontWeight: '300', marginTop: 3 },
   backdrop: { ...StyleSheet.absoluteFillObject },
   panel: {
@@ -202,8 +202,8 @@ const fabStyles = StyleSheet.create({
   panelHeader: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   panelAvatarRing: { width: 30, height: 30, borderRadius: 15, borderWidth: 1.5, alignItems: 'center', justifyContent: 'center' },
   panelAvatarDot: { width: 9, height: 9, borderRadius: 4.5 },
-  panelTitle: { color: '#fff', fontSize: 15, fontWeight: '600', letterSpacing: 2.5 },
-  panelHeadline: { color: '#fff', fontSize: 21, fontWeight: '700', letterSpacing: 1.3, marginTop: 16 },
+  panelTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 2.5 },
+  panelHeadline: { fontSize: 21, fontWeight: '700', letterSpacing: 1.3, marginTop: 16 },
   panelSub: { fontSize: 13.5, fontWeight: '300', marginTop: 4 },
   panelLine: { fontSize: 14, fontWeight: '300', lineHeight: 21.7, marginTop: 14 },
   panelChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
