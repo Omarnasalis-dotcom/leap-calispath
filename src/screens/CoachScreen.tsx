@@ -512,6 +512,36 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     if (Platform.OS === 'web') { if (window.confirm('Reset chat?')) performClear(); } else { Alert.alert('Clear?', 'Reset chat?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: performClear }]); }
   };
 
+  // App Store Guideline 4.7.1 requires chatbot features to include a
+  // mechanism for reporting content, independent of how well the system
+  // prompt filters output — see ai_coach_message_reports migration.
+  const submitReport = async (assistantMessage: string, precedingUserMessage: string | undefined, reason: 'inaccurate' | 'inappropriate' | 'other') => {
+    if (!profile) return;
+    const { error } = await supabase.from('ai_coach_message_reports').insert({
+      user_id: profile.id,
+      reason,
+      assistant_message: assistantMessage,
+      preceding_user_message: precedingUserMessage ?? null,
+    });
+    if (error) {
+      console.error('[Coach] Failed to submit report:', error);
+      Alert.alert('Something went wrong', 'Could not submit your report. Please try again.');
+    } else {
+      Alert.alert('Reported', "Thanks — we'll review this.");
+    }
+  };
+
+  const handleReportMessage = (index: number) => {
+    const assistantMessage = messages[index]?.content ?? '';
+    const precedingUserMessage = index > 0 ? messages[index - 1]?.content : undefined;
+    Alert.alert('Report this response?', 'What was wrong with it?', [
+      { text: 'Cancel', style: 'cancel' },
+      { text: 'Inaccurate', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inaccurate') },
+      { text: 'Inappropriate', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inappropriate') },
+      { text: 'Other', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'other') },
+    ]);
+  };
+
   const renderText = (content: string, isUser: boolean) => {
     const parts = content.split(/(\*\*.*?\*\*)/g);
     return (
@@ -600,6 +630,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     <ResponseBlockView key={bi} block={b} accent={theme.accent} colors={c} />
                   ))}
                 </View>
+                {m.role === 'assistant' && m.content.length > 0 && (
+                  <TouchableOpacity
+                    style={styles.reportButton}
+                    onPress={() => handleReportMessage(i)}
+                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  >
+                    <MaterialCommunityIcons name="flag-outline" size={13} color={c.secondaryText} />
+                  </TouchableOpacity>
+                )}
               </View>
             ))}
 
@@ -837,6 +876,7 @@ const styles = StyleSheet.create({
   bubble: { paddingHorizontal: 15, paddingVertical: 13, borderRadius: 16, maxWidth: '85%' },
   userBubble: { borderBottomRightRadius: 4 },
   assistantBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
+  reportButton: { padding: 4, opacity: 0.5 },
   // Handoff spec's fontWeight:300 read faint/blurry on real devices at this
   // size (hex contrast was fine on paper, thin system-font strokes weren't
   // legible in practice) — bumped to a normal weight for real legibility.

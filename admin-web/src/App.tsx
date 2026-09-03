@@ -11,6 +11,7 @@ import { UserDetailPage } from '@/pages/users/UserDetailPage';
 import { CommunitiesPage } from '@/pages/communities/CommunitiesPage';
 import { LeaderboardsPage } from '@/pages/leaderboards/LeaderboardsPage';
 import { WaitlistPage } from '@/pages/waitlist/WaitlistPage';
+import { AiCoachReportsPage } from '@/pages/aiCoachReports/AiCoachReportsPage';
 import { TournamentsPage } from '@/pages/tournaments/TournamentsPage';
 import { ChallengeWeekPage } from '@/pages/challenges/ChallengeWeekPage';
 import { TemplatesPage } from '@/pages/challenges/TemplatesPage';
@@ -70,6 +71,7 @@ export function App() {
                 <Route path="leaderboards" element={<LeaderboardsPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />
                 <Route path="tournaments" element={<TournamentsPage />} />
+                <Route path="ai-coach-reports" element={<AiCoachReportsPage />} />
               </Route>
               {/* Reachable by admin, coach, and assistant alike — RLS scopes
                   each signed-in user to their own notification rows, so no

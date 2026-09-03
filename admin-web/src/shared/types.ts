@@ -165,6 +165,17 @@ export interface InviteRequestRow {
   created_at: string;
 }
 
+export interface AiCoachMessageReportRow {
+  id: string;
+  user_id: string;
+  reason: 'inaccurate' | 'inappropriate' | 'other';
+  assistant_message: string;
+  preceding_user_message: string | null;
+  created_at: string;
+  reviewed_at: string | null;
+  reviewed_by: string | null;
+}
+
 export interface TournamentConfigRow {
   id: string;
   title: string;

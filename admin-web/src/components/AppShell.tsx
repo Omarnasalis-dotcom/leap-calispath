@@ -11,6 +11,7 @@ const ADMIN_NAV: Array<
   { to: '/notifications', label: 'Notifications' },
   { to: '/users', label: 'Users' },
   { to: '/leaderboards', label: 'Leaderboards' },
+  { to: '/ai-coach-reports', label: 'AI Coach reports' },
   { section: 'Challenges' },
   { to: '/challenges', label: 'Week editor', end: true },
   { to: '/challenges/templates', label: 'Templates' },
