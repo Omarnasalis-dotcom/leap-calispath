@@ -174,8 +174,14 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
 // DEFINER, "trust only auth.uid()" throughout this feature's design) — so
 // every tool call and profile read in this function goes through a client
 // authenticated AS THE CALLING USER (their own JWT forwarded from the
-// request), never a service-role bypass. This function never touches
-// SUPABASE_SERVICE_ROLE_KEY at all.
+// request), never a service-role bypass. One deliberate exception:
+// ai_coach_record_chat_cost (see recordCost() below) — real infrastructure
+// telemetry, not a user action, so it's called via a service-role client
+// instead. It used to run as the user's own JWT and trust a client-supplied
+// p_cost_usd at face value, which meant any authenticated caller could
+// invoke it directly and report $0 for their own usage, defeating the
+// budget cap entirely. Locked down at the DB level (GRANT restricted to
+// service_role only) — this client-side change keeps that the only way in.
 // Raised from 8 after a real production failure: a program build spends
 // turns on get_user_context + exercise lookups before it can call
 // propose_new_program, and at 8 it ran out mid-lookup and fell through to
@@ -221,6 +227,29 @@ serve(async (req: Request) => {
 
   const { data: { user }, error: authError } = await userClient.auth.getUser();
   if (authError || !user) return json({ error: "Unauthorized" }, 401);
+
+  // Narrow, deliberate exception to this function's "always call as the
+  // user" rule — see the comment above MAX_TOOL_TURNS. Only ever used for
+  // ai_coach_record_chat_cost. Same fallback shape as
+  // confirm-entitlement/index.ts's resolveServiceRoleKey, in case this
+  // project's secrets are exposed as SUPABASE_SECRET_KEYS instead.
+  const serviceRoleKey = (() => {
+    const raw = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    if (raw) return raw;
+    const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
+    if (rawSecretKeys) {
+      try {
+        const parsed = JSON.parse(rawSecretKeys);
+        return parsed.service_role ?? parsed.serviceRole ?? parsed[Object.keys(parsed)[0]] ?? "";
+      } catch {
+        return "";
+      }
+    }
+    return "";
+  })();
+  const serviceClient = serviceRoleKey
+    ? createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey)
+    : null;
 
   let body: { messages?: Array<{ role: string; content: unknown }>; platform?: string };
   try {
@@ -383,8 +412,18 @@ serve(async (req: Request) => {
     async function recordCost() {
       if (!chatRequestId) return;
       const costUsd = usageCostUsd(totalUsage);
-      const { error } = await userClient.rpc("ai_coach_record_chat_cost", {
+      if (!serviceClient) {
+        // Never let cost bookkeeping break a reply that's already been
+        // generated — but this is a real gap when it happens: this turn's
+        // spend never gets attributed, so it never counts against the
+        // athlete's budget. Logged loudly since it means the cap is
+        // silently not enforcing, not just a missed nice-to-have.
+        console.error("[ai-coach] Missing service role credentials — chat cost NOT recorded, budget enforcement degraded for this turn.");
+        return;
+      }
+      const { error } = await serviceClient.rpc("ai_coach_record_chat_cost", {
         p_request_id: chatRequestId,
+        p_user_id: user.id,
         p_input_tokens: totalUsage.input_tokens,
         p_output_tokens: totalUsage.output_tokens,
         p_cache_creation_input_tokens: totalUsage.cache_creation_input_tokens,
