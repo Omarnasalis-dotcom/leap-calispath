@@ -1,10 +1,102 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSortable } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
 import { GripVertical, X, PlayCircle } from 'lucide-react';
 import { BlockConceptParser, type ConceptMetadata } from '@/shared/BlockConceptParser';
 import { VideoModal } from '@/components/VideoModal';
 import type { BuilderExercise, ExerciseOption } from './types';
+
+// A plain <select> only supports the browser's native type-ahead (jump to
+// the option starting with the last key pressed, resetting after a short
+// pause) — with a long exercise library that reads as "search is broken"
+// past the first letter. This is a real text-filtered combobox instead.
+function ExercisePicker({
+  exercise,
+  options,
+  disabled,
+  onSelect,
+}: {
+  exercise: BuilderExercise;
+  options: ExerciseOption[];
+  disabled?: boolean;
+  onSelect: (option: ExerciseOption) => void;
+}) {
+  const selected = options.find((o) => o.id === exercise.exercise_id);
+  const [query, setQuery] = useState('');
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function onOutsideClick(e: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(e.target as Node)) {
+        setOpen(false);
+        setQuery('');
+      }
+    }
+    document.addEventListener('mousedown', onOutsideClick);
+    return () => document.removeEventListener('mousedown', onOutsideClick);
+  }, []);
+
+  const filtered = query.trim()
+    ? options.filter((o) => o.name.toLowerCase().includes(query.trim().toLowerCase()))
+    : options;
+
+  return (
+    <div ref={containerRef} style={{ position: 'relative', flex: 1, minWidth: 0 }}>
+      <input
+        className="field"
+        style={{ width: '100%' }}
+        placeholder="Exercise…"
+        value={open ? query : selected?.name ?? ''}
+        disabled={disabled}
+        onFocus={() => {
+          setOpen(true);
+          setQuery('');
+        }}
+        onChange={(e) => setQuery(e.target.value)}
+        aria-label="Exercise"
+        title={exercise.exercise_name || undefined}
+      />
+      {open && (
+        <div
+          className="panel"
+          style={{
+            position: 'absolute',
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            zIndex: 20,
+            maxHeight: 220,
+            overflowY: 'auto',
+            padding: 4,
+          }}
+        >
+          {filtered.length === 0 && (
+            <div style={{ padding: 8, fontSize: 13, color: 'var(--ink-2)' }}>No matching exercises.</div>
+          )}
+          {filtered.map((o) => (
+            <button
+              key={o.id}
+              type="button"
+              className="nav-item"
+              style={{ width: '100%', textAlign: 'left' }}
+              onMouseDown={(e) => {
+                // mousedown (not click) fires before the input's blur, so the
+                // outside-click handler above doesn't close this first.
+                e.preventDefault();
+                onSelect(o);
+                setOpen(false);
+                setQuery('');
+              }}
+            >
+              {o.name}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function StatField({
   label,
@@ -112,22 +204,12 @@ export function ExerciseRow({
         >
           <GripVertical />
         </button>
-        <select
-          className="field"
-          style={{ flex: 1, minWidth: 0 }}
-          value={exercise.exercise_id}
+        <ExercisePicker
+          exercise={exercise}
+          options={pickableOptions}
           disabled={readOnly}
-          onChange={(e) => onChange({ exercise_id: e.target.value })}
-          aria-label="Exercise"
-          title={exercise.exercise_name || undefined}
-        >
-          <option value="">Exercise…</option>
-          {pickableOptions.map((o) => (
-            <option key={o.id} value={o.id}>
-              {o.name}
-            </option>
-          ))}
-        </select>
+          onSelect={(o) => onChange({ exercise_id: o.id, exercise_name: o.name })}
+        />
         {selected?.youtube_url && (
           <button
             type="button"
