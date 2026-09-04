@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
 
 interface BodyweightCheckInModalProps {
   visible: boolean;
@@ -44,7 +45,7 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
       animationType="fade"
       onRequestClose={onSkip}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <DismissKeyboardOnOutsideTap>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
             <Text style={[styles.modalHeading, { color: theme.text.primary }]}>WEEKLY CHECK-IN</Text>
@@ -82,7 +83,7 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
             </View>
           </View>
         </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </DismissKeyboardOnOutsideTap>
     </Modal>
   );
 };

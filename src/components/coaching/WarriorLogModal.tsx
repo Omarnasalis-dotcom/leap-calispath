@@ -1,7 +1,8 @@
 import React from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeapLogo } from '../../components/LeapLogo';
+import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
 import { FeelRpePicker, Feel } from './FeelRpePicker';
 import { MissedReasonPicker, MissedReason } from './MissedReasonPicker';
 
@@ -86,7 +87,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
       animationType="fade"
       onRequestClose={() => setLogModalVisible(false)}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <DismissKeyboardOnOutsideTap>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
           <Text style={[styles.modalHeading, { color: theme.text.primary }]}>LOG WORKOUT DETAILS</Text>
@@ -256,7 +257,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
           </View>
         </View>
         </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </DismissKeyboardOnOutsideTap>
     </Modal>
   );
 };

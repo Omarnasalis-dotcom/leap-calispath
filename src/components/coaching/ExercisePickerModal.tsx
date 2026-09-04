@@ -8,12 +8,11 @@ import { Modal,
   Linking,
   StyleSheet,
   KeyboardAvoidingView,
-  TouchableWithoutFeedback,
-  Keyboard,
   Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '../../contexts/ThemeContext';
 import { LeapLogo } from '../LeapLogo';
+import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
 
 
 interface ExerciseLibraryItem {
@@ -67,7 +66,7 @@ export function ExercisePickerModal({
       transparent={true}
       onRequestClose={onClose}
     >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+      <DismissKeyboardOnOutsideTap>
       <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
           <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
@@ -154,7 +153,7 @@ export function ExercisePickerModal({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </DismissKeyboardOnOutsideTap>
     </Modal>
   );
 }
