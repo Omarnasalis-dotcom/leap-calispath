@@ -40,6 +40,13 @@ const PRODUCT_TIER_MAP: Record<string, { tier: "first" | "pro" | "max"; budgetUs
   // ".v2" — see revenuecat-webhook/index.ts's copy of this map for why.
   "com.leap.calispath.sub.max.1month.v2": { tier: "max", budgetUsd: 10.0 },
   "com.leap.calispath.sub.max.2month": { tier: "max", budgetUsd: 20.0 },
+  // Android — RevenueCat identifies Play Store products as
+  // "<product_id>:<base_plan_id>", unlike iOS's flat product ID string.
+  "first:first-1month": { tier: "first", budgetUsd: 1.0 },
+  "pro:pro-1month": { tier: "pro", budgetUsd: 4.0 },
+  "pro:pro-2month": { tier: "pro", budgetUsd: 8.0 },
+  "max:max-1month": { tier: "max", budgetUsd: 10.0 },
+  "max:max-2month": { tier: "max", budgetUsd: 20.0 },
 };
 
 function resolveServiceRoleKey(): string {

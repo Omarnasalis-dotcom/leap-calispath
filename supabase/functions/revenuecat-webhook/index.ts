@@ -79,6 +79,13 @@ const PRODUCT_TIER_MAP: Record<string, { tier: "first" | "pro" | "max"; budgetUs
   // deleted product ID to be reused, so this is the real, final ID.
   "com.leap.calispath.sub.max.1month.v2": { tier: "max", budgetUsd: 10.0 },
   "com.leap.calispath.sub.max.2month": { tier: "max", budgetUsd: 20.0 },
+  // Android — RevenueCat identifies Play Store products as
+  // "<product_id>:<base_plan_id>", unlike iOS's flat product ID string.
+  "first:first-1month": { tier: "first", budgetUsd: 1.0 },
+  "pro:pro-1month": { tier: "pro", budgetUsd: 4.0 },
+  "pro:pro-2month": { tier: "pro", budgetUsd: 8.0 },
+  "max:max-1month": { tier: "max", budgetUsd: 10.0 },
+  "max:max-2month": { tier: "max", budgetUsd: 20.0 },
 };
 
 // Events that mean "a new billing period just started" — only these reset
