@@ -10,11 +10,14 @@ import {
 } from '@dnd-kit/core';
 import { SortableContext, verticalListSortingStrategy, arrayMove } from '@dnd-kit/sortable';
 import {
+  bulkDeleteStandaloneWorkouts,
+  bulkSetStandaloneWorkoutStatus,
   deleteStandaloneWorkout,
   fetchStandaloneWorkoutDetail,
   fetchStandaloneWorkouts,
   importStandaloneWorkoutFromJson,
   saveStandaloneWorkout,
+  setStandaloneWorkoutCoverImage,
   uploadWorkoutCoverImage,
   validateStandaloneWorkoutImport,
   type ImportedStandaloneWorkout,
@@ -355,12 +358,75 @@ function WorkoutBlocksEditor({
   );
 }
 
+// List-view cover upload — uploads and attaches a cover photo directly from
+// the table row, without opening the full edit form.
+function CoverCell({ workout }: { workout: StandaloneWorkoutRow }) {
+  const queryClient = useQueryClient();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const mutation = useMutation({
+    mutationFn: async (file: File) => {
+      const url = await uploadWorkoutCoverImage(file);
+      await setStandaloneWorkoutCoverImage(workout.id, url);
+    },
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] }),
+  });
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
+        {workout.cover_image_url ? (
+          <img
+            src={workout.cover_image_url}
+            alt=""
+            style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--line, #2a2a2a)' }}
+          />
+        ) : (
+          <span
+            className="dim"
+            style={{
+              width: 44,
+              height: 32,
+              borderRadius: 4,
+              border: '1px dashed var(--line, #2a2a2a)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              fontSize: 10,
+              flex: 'none',
+            }}
+          >
+            —
+          </span>
+        )}
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/png,image/jpeg,image/webp"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) mutation.mutate(file);
+            e.target.value = '';
+          }}
+        />
+        <button type="button" className="btn small" disabled={mutation.isPending} onClick={() => inputRef.current?.click()}>
+          {mutation.isPending ? 'Uploading…' : workout.cover_image_url ? 'Replace' : 'Upload'}
+        </button>
+      </span>
+      {mutation.error && (
+        <span style={{ color: 'var(--danger, #d33)', fontSize: 11 }}>{mutation.error.message}</span>
+      )}
+    </div>
+  );
+}
+
 export function WorkoutLibraryPage() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [kindFilter, setKindFilter] = useState<'all' | StandaloneWorkoutKind>('all');
   const [statusFilter, setStatusFilter] = useState<'all' | StandaloneWorkoutStatus>('draft');
   const [exerciseToAdd, setExerciseToAdd] = useState<Record<string, string>>({});
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const coverInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery({
@@ -522,7 +588,31 @@ export function WorkoutLibraryPage() {
 
   const removeMutation = useMutation({
     mutationFn: deleteStandaloneWorkout,
-    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] }),
+    onSuccess: (_data, id) => {
+      setSelectedIds((prev) => {
+        if (!prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.delete(id);
+        return next;
+      });
+      void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: string[]) => bulkDeleteStandaloneWorkouts(ids),
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
+    },
+  });
+
+  const bulkStatusMutation = useMutation({
+    mutationFn: (status: StandaloneWorkoutStatus) => bulkSetStandaloneWorkoutStatus(Array.from(selectedIds), status),
+    onSuccess: () => {
+      setSelectedIds(new Set());
+      void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] });
+    },
   });
 
   const uploadCoverMutation = useMutation({
@@ -635,6 +725,33 @@ export function WorkoutLibraryPage() {
   }
 
   const columns: Column<StandaloneWorkoutRow>[] = [
+    {
+      key: 'select',
+      header: (
+        <input
+          type="checkbox"
+          checked={!!filtered && filtered.length > 0 && filtered.every((w) => selectedIds.has(w.id))}
+          onChange={(e) => setSelectedIds(e.target.checked ? new Set(filtered?.map((w) => w.id)) : new Set())}
+          aria-label="Select all visible workouts"
+        />
+      ),
+      render: (w) => (
+        <input
+          type="checkbox"
+          checked={selectedIds.has(w.id)}
+          onChange={(e) =>
+            setSelectedIds((prev) => {
+              const next = new Set(prev);
+              if (e.target.checked) next.add(w.id);
+              else next.delete(w.id);
+              return next;
+            })
+          }
+          aria-label={`Select "${w.title}"`}
+        />
+      ),
+    },
+    { key: 'cover', header: 'Cover', render: (w) => <CoverCell workout={w} /> },
     { key: 'title', header: 'Title', render: (w) => <span style={{ fontWeight: 700 }}>{w.title}</span> },
     { key: 'kind', header: 'Kind', render: (w) => <span className="dim">{w.kind.replace('_', ' ')}</span> },
     { key: 'category', header: 'Category', render: (w) => <span className="dim">{w.category ?? '—'}</span> },
@@ -927,6 +1044,48 @@ export function WorkoutLibraryPage() {
             </div>
           </div>
         </section>
+      )}
+
+      {bulkDeleteMutation.error && <ErrorNote error={bulkDeleteMutation.error} />}
+      {bulkStatusMutation.error && <ErrorNote error={bulkStatusMutation.error} />}
+
+      {selectedIds.size > 0 && (
+        <div className="panel row" style={{ alignItems: 'center', gap: 10, padding: 10 }}>
+          <strong>{selectedIds.size} selected</strong>
+          <button
+            className="btn small"
+            disabled={bulkStatusMutation.isPending}
+            onClick={() => bulkStatusMutation.mutate('published')}
+          >
+            Publish
+          </button>
+          <button
+            className="btn small"
+            disabled={bulkStatusMutation.isPending}
+            onClick={() => bulkStatusMutation.mutate('archived')}
+          >
+            Archive
+          </button>
+          <button
+            className="btn small"
+            disabled={bulkStatusMutation.isPending}
+            onClick={() => bulkStatusMutation.mutate('draft')}
+          >
+            Move to draft
+          </button>
+          <ConfirmButton
+            label="Delete"
+            danger
+            disabled={bulkDeleteMutation.isPending}
+            title={`Delete ${selectedIds.size} workout${selectedIds.size === 1 ? '' : 's'}?`}
+            body="This cannot be undone."
+            confirmLabel="Delete"
+            onConfirm={() => bulkDeleteMutation.mutateAsync(Array.from(selectedIds))}
+          />
+          <button className="btn small" style={{ marginLeft: 'auto' }} onClick={() => setSelectedIds(new Set())}>
+            Clear selection
+          </button>
+        </div>
       )}
 
       <div className="panel">

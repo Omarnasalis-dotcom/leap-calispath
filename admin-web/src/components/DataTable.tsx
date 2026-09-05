@@ -2,7 +2,9 @@ import type { ReactNode } from 'react';
 
 export interface Column<T> {
   key: string;
-  header: string;
+  // ReactNode (not just string) so a column header can host controls of its
+  // own, e.g. a "select all" checkbox paired with a per-row selection column.
+  header: ReactNode;
   render: (row: T) => ReactNode;
   /** enables server-driven sorting via onSort */
   sortable?: boolean;

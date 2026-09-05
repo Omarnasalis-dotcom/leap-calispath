@@ -194,6 +194,28 @@ export async function deleteStandaloneWorkout(id: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
+// Bulk row actions (list-view multi-select) and the list-view cover upload
+// below all go straight to the table rather than through
+// save_standalone_workout — they only ever touch one column (or delete the
+// row outright), and the "Admin manages all standalone workouts" FOR ALL
+// RLS policy already covers it, so there's nothing the RPC's full
+// block-replace logic would add.
+
+export async function bulkDeleteStandaloneWorkouts(ids: string[]): Promise<void> {
+  const { error } = await supabase.from('standalone_workouts').delete().in('id', ids);
+  if (error) throw new Error(error.message);
+}
+
+export async function bulkSetStandaloneWorkoutStatus(ids: string[], status: StandaloneWorkoutStatus): Promise<void> {
+  const { error } = await supabase.from('standalone_workouts').update({ status }).in('id', ids);
+  if (error) throw new Error(error.message);
+}
+
+export async function setStandaloneWorkoutCoverImage(id: string, coverImageUrl: string): Promise<void> {
+  const { error } = await supabase.from('standalone_workouts').update({ cover_image_url: coverImageUrl }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 const COVER_BUCKET = 'workout-covers';
 
 /**
