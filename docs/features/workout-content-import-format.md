@@ -106,6 +106,8 @@ block containing the whole circuit.
 | `is_free` | no | `true`/`false`, defaults to `false` (Pro-locked) if omitted. |
 | `goal_tags` | no | Array, subset of exactly: `muscle_up`, `handstand`, `front_lever`, `back_lever`, `pistol`, `general_strength`, `conditioning` — DB CHECK-constrained, any other value rejects the import. This is what the AI Coach uses to match a workout to an athlete's stated goal — tag every skill-specific workout, or the AI can't find it. Omit or `[]` for none. |
 | `tier_min` / `tier_max` | no | Whole numbers 0–9, the strength-tier band this workout fits (mirrors the app's tier system — `beginner` ≈ 0-2, `intermediate` ≈ 3-5, `advanced` ≈ 6-9). `tier_min` can't exceed `tier_max`. Omit either for "no floor"/"no ceiling" (matches any tier that direction) — omit both for "fits anyone." |
+| `is_skill` | no | `true`/`false`, defaults to `false`. Shows a tag on the browse card beside the category badge. |
+| `skill_label` | no | Free text, 40 characters max — the tag's text (e.g. `"Handstand"`). Only shown when `is_skill` is `true`; blank/omitted falls back to the literal tag "Skills". |
 | `blocks` | **yes** | Non-empty array — one entry per phase. See below. Import is rejected if empty or missing. |
 
 ### `quick_workout`-only fields

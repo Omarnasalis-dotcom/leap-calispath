@@ -159,6 +159,11 @@ function WorkoutCardVisual({
               <Text style={styles.categoryBadgeText} numberOfLines={1}>{item.category.replace('_', ' ')}</Text>
             </View>
           )}
+          {item.is_skill && (
+            <View style={styles.skillBadge}>
+              <Text style={styles.skillBadgeText} numberOfLines={1}>{(item.skill_label?.trim() || 'Skills').toUpperCase()}</Text>
+            </View>
+          )}
         </View>
       </View>
       <LinearGradient
@@ -437,9 +442,18 @@ function DaySlotCard({
             </TouchableOpacity>
           </View>
           <Text style={styles.daySlotTitle} numberOfLines={2}>{workout.title.toUpperCase()}</Text>
-          {!!workout.category && (
-            <View style={styles.daySlotCategoryBadge}>
-              <Text style={styles.daySlotCategoryBadgeText} numberOfLines={1}>{workout.category.replace('_', ' ')}</Text>
+          {(!!workout.category || workout.is_skill) && (
+            <View style={styles.daySlotBadgeRow}>
+              {!!workout.category && (
+                <View style={styles.daySlotCategoryBadge}>
+                  <Text style={styles.daySlotCategoryBadgeText} numberOfLines={1}>{workout.category.replace('_', ' ')}</Text>
+                </View>
+              )}
+              {workout.is_skill && (
+                <View style={styles.daySlotSkillBadge}>
+                  <Text style={styles.daySlotSkillBadgeText} numberOfLines={1}>{(workout.skill_label?.trim() || 'Skills').toUpperCase()}</Text>
+                </View>
+              )}
             </View>
           )}
         </View>
@@ -1186,9 +1200,12 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   daySlotTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   daySlotDayLabel: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 1 },
   daySlotTitle: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 11, lineHeight: 13 },
+  daySlotBadgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4 },
   daySlotCategoryBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   // Always light — badge sits on a photo/gradient day-slot card, not the page bg.
   daySlotCategoryBadgeText: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 0.5 },
+  daySlotSkillBadge: { alignSelf: 'flex-start', backgroundColor: 'rgba(108,92,231,0.85)', borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
+  daySlotSkillBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 0.5 },
 
   quickBuildWarningBanner: {
     flexDirection: 'row', alignItems: 'flex-start', gap: 8, marginTop: 12,
@@ -1218,6 +1235,8 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   // on Create, so this never blocks a card the way `lockBadge` does.
   proBadge: { backgroundColor: '#C9A227', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4 },
   proBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.8 },
+  skillBadge: { backgroundColor: 'rgba(108,92,231,0.85)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
+  skillBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
   cardBottomGradient: { padding: 14, paddingTop: 32 },
   cardBottomGradientWide: { padding: 14, paddingTop: 32 },
   cardBottomGradientGrid: { padding: 10, paddingTop: 24 },

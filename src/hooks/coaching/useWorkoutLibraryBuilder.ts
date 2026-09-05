@@ -108,6 +108,13 @@ export function useWorkoutLibraryBuilder() {
   // here) — this just round-trips whatever's already set so an edit+save
   // from mobile doesn't silently wipe out an admin-set cover.
   const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  // Skill tag is web-only authored (admin-web checkbox + text field, no
+  // picker here) — same round-trip-only treatment as coverImageUrl above,
+  // so an edit+save from mobile doesn't silently wipe out an admin-set tag.
+  const [skillTag, setSkillTag] = useState<{ is_skill: boolean; skill_label: string }>({
+    is_skill: false,
+    skill_label: '',
+  });
   const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
@@ -148,6 +155,7 @@ export function useWorkoutLibraryBuilder() {
     setForm({ ...EMPTY_FORM });
     setBlocks([emptyBlock('Warm-Up'), emptyBlock('Strength'), emptyBlock('Cool-Down')]);
     setCoverImageUrl(null);
+    setSkillTag({ is_skill: false, skill_label: '' });
     setEditingId('new');
   };
 
@@ -174,6 +182,7 @@ export function useWorkoutLibraryBuilder() {
         rounds: detail.rounds != null ? String(detail.rounds) : '',
       });
       setCoverImageUrl(detail.cover_image_url);
+      setSkillTag({ is_skill: detail.is_skill, skill_label: detail.skill_label ?? '' });
       setBlocks(
         detail.blocks.map((block) => ({
           key: newBlockKey(),
@@ -203,6 +212,7 @@ export function useWorkoutLibraryBuilder() {
     setEditingId(null);
     setBlocks([]);
     setCoverImageUrl(null);
+    setSkillTag({ is_skill: false, skill_label: '' });
   };
 
   const updateForm = (field: keyof typeof EMPTY_FORM, value: any) => {
@@ -339,6 +349,8 @@ export function useWorkoutLibraryBuilder() {
         tier_max: toInt(form.tier_max),
         interval_seconds: toInt(form.interval_seconds),
         rounds: toInt(form.rounds),
+        is_skill: skillTag.is_skill,
+        skill_label: skillTag.is_skill ? skillTag.skill_label.trim() || null : null,
         blocks: blocks.map((b, bi) => ({
           name: b.name.trim(),
           order_index: bi,

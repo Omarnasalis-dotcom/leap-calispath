@@ -38,6 +38,11 @@ export interface StandaloneWorkoutRow {
   // docs/features/quick-workout-timing-patterns.md.
   interval_seconds: number | null;
   rounds: number | null;
+  // Skill tag (20260906020000) — shown on the browse card beside the
+  // category badge. is_skill toggles the tag on/off; skill_label is the
+  // custom text (e.g. "Handstand"), falling back to "Skills" when blank.
+  is_skill: boolean;
+  skill_label: string | null;
 }
 
 // supabase/migrations/20260825010000_add_standalone_workout_matching_fields.sql
@@ -77,7 +82,7 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as StandaloneWorkoutRow[];
@@ -86,7 +91,7 @@ export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]>
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('id', id)
     .single();
   if (workoutError) throw new Error(workoutError.message);
@@ -163,6 +168,10 @@ export interface SaveStandaloneWorkoutInput {
   tier_max: number | null;
   interval_seconds: number | null;
   rounds: number | null;
+  // Optional — omitted by callers that don't author these (e.g. JSON import
+  // defaults them via the RPC's own DEFAULTs).
+  is_skill?: boolean;
+  skill_label?: string | null;
 }
 
 export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): Promise<string> {
@@ -184,6 +193,8 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_tier_max: input.tier_max,
     p_interval_seconds: input.interval_seconds,
     p_rounds: input.rounds,
+    p_is_skill: input.is_skill ?? false,
+    p_skill_label: input.skill_label ?? null,
   });
   if (error) throw new Error(error.message);
   return data as string;
@@ -283,6 +294,8 @@ export interface ImportedStandaloneWorkout {
   tier_max?: number | string | null;
   interval_seconds?: number | string | null;
   rounds?: number | string | null;
+  is_skill?: boolean;
+  skill_label?: string | null;
 }
 
 const DIFFICULTY_VALUES = ['beginner', 'intermediate', 'advanced'];
@@ -378,6 +391,14 @@ export function validateStandaloneWorkoutImport(data: any): { valid: boolean; er
   const rounds = data.rounds === '' || data.rounds == null ? null : Number(data.rounds);
   if (rounds !== null && (!Number.isInteger(rounds) || rounds <= 0)) {
     return { valid: false, error: '"rounds" must be a positive whole number.' };
+  }
+  // skill_label is DB CHECK-constrained (<= 40 chars) — same
+  // up-front-rejection reasoning as everything else above.
+  if (data.skill_label != null && typeof data.skill_label !== 'string') {
+    return { valid: false, error: '"skill_label" must be a string.' };
+  }
+  if (typeof data.skill_label === 'string' && data.skill_label.length > 40) {
+    return { valid: false, error: '"skill_label" must be 40 characters or fewer.' };
   }
   return { valid: true };
 }
@@ -482,5 +503,7 @@ export async function importStandaloneWorkoutFromJson(
     tier_max: parseNullableInt(data.tier_max),
     interval_seconds: data.kind === 'quick_workout' ? parseNullableInt(data.interval_seconds) : null,
     rounds: data.kind === 'quick_workout' ? parseNullableInt(data.rounds) : null,
+    is_skill: !!data.is_skill,
+    skill_label: data.skill_label?.trim() || null,
   });
 }

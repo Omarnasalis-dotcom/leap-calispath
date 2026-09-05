@@ -41,6 +41,11 @@ export interface StandaloneWorkoutSummary {
   // each format does with these.
   interval_seconds: number | null; // EMOM: seconds per round. NULL -> 60.
   rounds: number | null; // Tabata: total work/rest cycles, NULL -> derived from duration. For Time: target round count, NULL -> uncapped stopwatch.
+  // Skill tag (20260906020000) — shown on the browse card beside the
+  // category badge. is_skill toggles it; skill_label is the custom text
+  // ("Handstand"), falling back to "Skills" when checked but blank.
+  is_skill: boolean;
+  skill_label: string | null;
 }
 
 export interface StandaloneWorkoutExercise {
@@ -120,6 +125,10 @@ export interface SaveStandaloneWorkoutInput {
   tier_max: number | null;
   interval_seconds: number | null;
   rounds: number | null;
+  // Optional — omitted here, the RPC's own DEFAULTs keep existing content's
+  // skill tag untouched (mobile has no authoring UI for this field yet).
+  is_skill?: boolean;
+  skill_label?: string | null;
 }
 
 export interface StandaloneWorkoutFilters {
@@ -141,7 +150,7 @@ export async function getStandaloneWorkouts(
 ): Promise<StandaloneWorkoutSummary[]> {
   let query = supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('kind', kind)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -186,7 +195,7 @@ export async function createCustomProgramFromWorkouts(
 export async function getStandaloneWorkoutDetail(workoutId: string): Promise<StandaloneWorkoutDetail | null> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('id', workoutId)
     .maybeSingle();
   if (workoutError) throw workoutError;
@@ -234,7 +243,7 @@ export async function getStandaloneWorkoutDetail(workoutId: string): Promise<Sta
 export async function getAllStandaloneWorkoutsForAdmin(): Promise<StandaloneWorkoutAdminRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .order('created_at', { ascending: false });
   if (error) throw error;
   return data ?? [];
@@ -265,6 +274,8 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
     p_tier_max: input.tier_max,
     p_interval_seconds: input.interval_seconds,
     p_rounds: input.rounds,
+    p_is_skill: input.is_skill ?? false,
+    p_skill_label: input.skill_label ?? null,
   });
   if (error) throw error;
   return data as string;

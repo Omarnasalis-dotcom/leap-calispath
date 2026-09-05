@@ -112,6 +112,11 @@ interface Draft {
   tier_max: string;
   interval_seconds: string;
   rounds: string;
+  // Skill tag shown on the browse card beside the category badge —
+  // is_skill toggles it, skill_label is the custom text ("Handstand"),
+  // falling back to "Skills" when checked but blank.
+  is_skill: boolean;
+  skill_label: string;
 }
 
 function newDraft(): Draft {
@@ -134,6 +139,8 @@ function newDraft(): Draft {
     tier_max: '',
     interval_seconds: '',
     rounds: '',
+    is_skill: false,
+    skill_label: '',
   };
 }
 
@@ -464,6 +471,8 @@ export function WorkoutLibraryPage() {
         tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
         interval_seconds: detail.interval_seconds != null ? String(detail.interval_seconds) : '',
         rounds: detail.rounds != null ? String(detail.rounds) : '',
+        is_skill: detail.is_skill,
+        skill_label: detail.skill_label ?? '',
       };
 
       if (detail.kind === 'workout') {
@@ -576,6 +585,8 @@ export function WorkoutLibraryPage() {
         tier_max: toInt(d.tier_max),
         interval_seconds: d.kind === 'quick_workout' ? toInt(d.interval_seconds) : null,
         rounds: d.kind === 'quick_workout' ? toInt(d.rounds) : null,
+        is_skill: d.is_skill,
+        skill_label: d.is_skill ? d.skill_label.trim() || null : null,
         blocks,
       };
       return saveStandaloneWorkout(input);
@@ -754,7 +765,16 @@ export function WorkoutLibraryPage() {
     { key: 'cover', header: 'Cover', render: (w) => <CoverCell workout={w} /> },
     { key: 'title', header: 'Title', render: (w) => <span style={{ fontWeight: 700 }}>{w.title}</span> },
     { key: 'kind', header: 'Kind', render: (w) => <span className="dim">{w.kind.replace('_', ' ')}</span> },
-    { key: 'category', header: 'Category', render: (w) => <span className="dim">{w.category ?? '—'}</span> },
+    {
+      key: 'category',
+      header: 'Category',
+      render: (w) => (
+        <span className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
+          <span className="dim">{w.category ?? '—'}</span>
+          {w.is_skill && <span className="badge accent">{w.skill_label?.trim() || 'Skills'}</span>}
+        </span>
+      ),
+    },
     { key: 'difficulty', header: 'Difficulty', render: (w) => <span className="dim">{w.difficulty ?? '—'}</span> },
     { key: 'free', header: 'Access', render: (w) => <span className={`badge ${w.is_free ? 'ok' : 'accent'}`}>{w.is_free ? 'Free' : 'Pro'}</span> },
     { key: 'status', header: 'Status', render: (w) => <span className="badge">{w.status}</span> },
@@ -949,6 +969,27 @@ export function WorkoutLibraryPage() {
                   <option key={s} value={s}>{s}</option>
                 ))}
               </select>
+            </div>
+
+            <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+              <label className="row" style={{ gap: 6, alignItems: 'center' }}>
+                <input
+                  type="checkbox"
+                  checked={draft.is_skill}
+                  onChange={(e) => setDraft({ ...draft, is_skill: e.target.checked })}
+                />
+                Skill
+              </label>
+              <input
+                className="field"
+                style={{ flex: 1, minWidth: 200 }}
+                placeholder='Skill tag text (optional — shows "Skills" if left blank)'
+                value={draft.skill_label}
+                disabled={!draft.is_skill}
+                maxLength={40}
+                onChange={(e) => setDraft({ ...draft, skill_label: e.target.value })}
+                aria-label="Skill tag label"
+              />
             </div>
 
             <div style={{ borderTop: '1px solid var(--line, #2a2a2a)', paddingTop: 12 }}>
