@@ -74,6 +74,7 @@ export function BlockCard({
   block,
   exerciseOptions,
   readOnly,
+  showWorkSeconds,
   onChange,
   onRemove,
   onPasteAfter,
@@ -81,6 +82,8 @@ export function BlockCard({
   block: BuilderBlock;
   exerciseOptions: ExerciseOption[];
   readOnly?: boolean;
+  // Workout Content only — forwarded to each ExerciseRow, see its own doc.
+  showWorkSeconds?: boolean;
   onChange: (patch: Partial<BuilderBlock>) => void;
   onRemove: () => void;
   onPasteAfter: (block: BuilderBlock) => void;
@@ -267,6 +270,7 @@ export function BlockCard({
                       exerciseOptions={exerciseOptions}
                       blockMetadata={block.metadata}
                       readOnly={readOnly}
+                      showWorkSeconds={showWorkSeconds}
                       onChange={(patch) =>
                         onChange({
                           exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),

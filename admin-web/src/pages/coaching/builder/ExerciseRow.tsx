@@ -138,6 +138,7 @@ export function ExerciseRow({
   exerciseOptions,
   blockMetadata,
   readOnly,
+  showWorkSeconds,
   onChange,
   onRemove,
 }: {
@@ -145,6 +146,11 @@ export function ExerciseRow({
   exerciseOptions: ExerciseOption[];
   blockMetadata: ConceptMetadata;
   readOnly?: boolean;
+  // Workout Content only — adds a 5th "Work s" field to the single-exercise
+  // grid below for standalone_workout_exercises.work_seconds, which has no
+  // Program Builder equivalent. Omitted (default false) call sites, i.e.
+  // Program Builder's own, render the original 4-field grid unchanged.
+  showWorkSeconds?: boolean;
   onChange: (patch: Partial<BuilderExercise>) => void;
   onRemove: () => void;
 }) {
@@ -239,7 +245,7 @@ export function ExerciseRow({
           {blockMetadata.tabata_work_seconds || 20}S WORK / {blockMetadata.tabata_rest_seconds || 10}S REST
         </div>
       ) : isSingle ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: `repeat(${showWorkSeconds ? 5 : 4}, 1fr)`, gap: 6 }}>
           <StatField
             label="Sets"
             title="Sets"
@@ -272,6 +278,16 @@ export function ExerciseRow({
             disabled={readOnly}
             onChange={(v) => onChange({ hold_seconds: v })}
           />
+          {showWorkSeconds && (
+            <StatField
+              label="Work"
+              title="Work seconds"
+              ariaLabel="Work seconds"
+              value={exercise.work_seconds ?? null}
+              disabled={readOnly}
+              onChange={(v) => onChange({ work_seconds: v })}
+            />
+          )}
         </div>
       ) : isLadder ? (
         <div className="field" style={{ textAlign: 'center', color: 'var(--warn)', fontWeight: 700 }}>

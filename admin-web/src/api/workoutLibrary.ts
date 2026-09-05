@@ -62,6 +62,10 @@ export interface StandaloneWorkoutExerciseRow {
 export interface StandaloneWorkoutBlockRow {
   id: string;
   name: string;
+  // [CONCEPT:{json}] notes encoding — same as program_blocks.notes, parsed
+  // via BlockConceptParser. Only meaningful for kind:"workout"; kind:
+  // "quick_workout" blocks keep this as plain passthrough text (or null).
+  notes: string | null;
   order_index: number;
   exercises: StandaloneWorkoutExerciseRow[];
 }
@@ -90,7 +94,7 @@ export async function fetchStandaloneWorkoutDetail(id: string): Promise<Standalo
   const { data: blockRows, error: blocksError } = await supabase
     .from('standalone_workout_blocks')
     .select(
-      'id, name, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name))',
+      'id, name, notes, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, work_seconds, is_weighted, notes, order_index, exercise_library(name))',
     )
     .eq('workout_id', id)
     .order('order_index', { ascending: true });
@@ -99,6 +103,7 @@ export async function fetchStandaloneWorkoutDetail(id: string): Promise<Standalo
   const blocks: StandaloneWorkoutBlockRow[] = (blockRows ?? []).map((block: any) => ({
     id: block.id,
     name: block.name,
+    notes: block.notes ?? null,
     order_index: block.order_index ?? 0,
     exercises: (Array.isArray(block.standalone_workout_exercises) ? block.standalone_workout_exercises : [])
       .slice()

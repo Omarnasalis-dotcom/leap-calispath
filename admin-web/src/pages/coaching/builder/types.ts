@@ -25,6 +25,10 @@ export interface BuilderExercise {
   reps: number | null;
   rest_seconds: number | null;
   hold_seconds: number | null;
+  // Workout Content only (standalone_workout_exercises.work_seconds) — no
+  // Program Builder equivalent, so it's optional and ExerciseRow only
+  // renders a field for it when explicitly asked to.
+  work_seconds?: number | null;
   notes: string;
 }
 
