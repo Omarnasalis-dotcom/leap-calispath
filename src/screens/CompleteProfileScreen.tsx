@@ -40,6 +40,13 @@ export function CompleteProfileScreen() {
 
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
 
+  // Sign in with Apple already supplies first/last name on first authorization
+  // (captured into the profile by AuthContext.signInWithApple before this
+  // screen ever mounts) — showing these as fields to fill in again violates
+  // App Review Guideline 4's Sign in with Apple requirements. Google/email
+  // signups never populate these, so they still correctly see the fields.
+  const needsName = !profile?.first_name && !profile?.last_name;
+
   async function handleContinue() {
     const cleanDisplayName = displayName.trim();
     if (!cleanDisplayName) {
@@ -91,15 +98,17 @@ export function CompleteProfileScreen() {
             Choose a username to finish setting up your account.
           </Text>
 
-          <View style={styles.row}>
-            <View style={{ flex: 1 }}>
-              <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+          {needsName && (
+            <View style={styles.row}>
+              <View style={{ flex: 1 }}>
+                <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+              </View>
+              <View style={{ width: 12 }} />
+              <View style={{ flex: 1 }}>
+                <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
+              </View>
             </View>
-            <View style={{ width: 12 }} />
-            <View style={{ flex: 1 }}>
-              <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
-            </View>
-          </View>
+          )}
 
           <Input
             label="Username"

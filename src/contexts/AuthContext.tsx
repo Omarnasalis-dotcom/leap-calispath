@@ -438,6 +438,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from('profiles')
             .update({ first_name: firstName, last_name: lastName })
             .eq('id', authData.user.id);
+          // Without this, CompleteProfileScreen can mount from a profile
+          // snapshot fetched before this update lands, initializing its
+          // First/Last Name fields as empty even though Apple just provided
+          // them — exactly the Sign in with Apple redundant-data-entry the
+          // App Review Guideline 4 rejection flagged.
+          await refreshProfile();
         }
       }
       return true;
