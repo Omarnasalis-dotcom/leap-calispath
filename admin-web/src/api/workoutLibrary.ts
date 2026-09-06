@@ -222,6 +222,11 @@ export async function bulkSetStandaloneWorkoutStatus(ids: string[], status: Stan
   if (error) throw new Error(error.message);
 }
 
+export async function setStandaloneWorkoutSkillTag(id: string, isSkill: boolean, skillLabel: string | null): Promise<void> {
+  const { error } = await supabase.from('standalone_workouts').update({ is_skill: isSkill, skill_label: skillLabel }).eq('id', id);
+  if (error) throw new Error(error.message);
+}
+
 export async function setStandaloneWorkoutCoverImage(id: string, coverImageUrl: string): Promise<void> {
   const { error } = await supabase.from('standalone_workouts').update({ cover_image_url: coverImageUrl }).eq('id', id);
   if (error) throw new Error(error.message);

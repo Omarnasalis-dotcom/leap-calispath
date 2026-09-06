@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   DndContext,
@@ -18,6 +18,7 @@ import {
   importStandaloneWorkoutFromJson,
   saveStandaloneWorkout,
   setStandaloneWorkoutCoverImage,
+  setStandaloneWorkoutSkillTag,
   uploadWorkoutCoverImage,
   validateStandaloneWorkoutImport,
   type ImportedStandaloneWorkout,
@@ -427,6 +428,94 @@ function CoverCell({ workout }: { workout: StandaloneWorkoutRow }) {
   );
 }
 
+// List-view skill tag — checking the box opens a small dialog to (optionally)
+// name the tag, and saves directly, without opening the full edit form.
+// Unchecking clears it immediately; an already-checked row gets an "Edit"
+// button to change the text without re-toggling the checkbox.
+function SkillTagCell({ workout }: { workout: StandaloneWorkoutRow }) {
+  const queryClient = useQueryClient();
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const [label, setLabel] = useState('');
+  // Local, optimistic mirror of workout.is_skill — a checkbox bound straight
+  // to the server value would snap back to unchecked the instant it's
+  // clicked (nothing persists until the dialog's Save), which reads as
+  // broken. This checks immediately on click and only reverts if the
+  // dialog is cancelled or the row's real value changes underneath it.
+  const [checked, setChecked] = useState(workout.is_skill);
+  useEffect(() => setChecked(workout.is_skill), [workout.is_skill]);
+
+  const mutation = useMutation({
+    mutationFn: (input: { isSkill: boolean; skillLabel: string | null }) =>
+      setStandaloneWorkoutSkillTag(workout.id, input.isSkill, input.skillLabel),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] }),
+  });
+
+  function openEditor() {
+    setLabel(workout.skill_label ?? '');
+    dialogRef.current?.showModal();
+  }
+
+  function confirm() {
+    mutation.mutate({ isSkill: true, skillLabel: label.trim() || null });
+    dialogRef.current?.close();
+  }
+
+  function cancelDialog() {
+    dialogRef.current?.close();
+    setChecked(workout.is_skill);
+  }
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <span className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
+        <input
+          type="checkbox"
+          checked={checked}
+          disabled={mutation.isPending}
+          onChange={(e) => {
+            setChecked(e.target.checked);
+            if (e.target.checked) openEditor();
+            else mutation.mutate({ isSkill: false, skillLabel: null });
+          }}
+          aria-label={`Mark "${workout.title}" as a skill workout`}
+        />
+        {workout.is_skill && (
+          <>
+            <span className="badge accent">{workout.skill_label?.trim() || 'Skills'}</span>
+            <button type="button" className="btn small" disabled={mutation.isPending} onClick={openEditor}>
+              Edit
+            </button>
+          </>
+        )}
+      </span>
+      {mutation.error && (
+        <span style={{ color: 'var(--danger, #d33)', fontSize: 11 }}>{mutation.error.message}</span>
+      )}
+      <dialog className="confirm" ref={dialogRef} style={{ maxWidth: 320 }}>
+        <h2 style={{ marginBottom: 8 }}>Skill tag</h2>
+        <input
+          className="field"
+          style={{ width: '100%' }}
+          placeholder='Tag text (optional — defaults to "Skills")'
+          value={label}
+          maxLength={40}
+          onChange={(e) => setLabel(e.target.value)}
+          aria-label="Skill tag text"
+          autoFocus
+        />
+        <div className="row" style={{ justifyContent: 'flex-end', marginTop: 12, gap: 8 }}>
+          <button type="button" className="btn small" onClick={cancelDialog}>
+            Cancel
+          </button>
+          <button type="button" className="btn small primary" disabled={mutation.isPending} onClick={confirm}>
+            {mutation.isPending ? 'Saving…' : 'Save'}
+          </button>
+        </div>
+      </dialog>
+    </div>
+  );
+}
+
 export function WorkoutLibraryPage() {
   const queryClient = useQueryClient();
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -765,16 +854,8 @@ export function WorkoutLibraryPage() {
     { key: 'cover', header: 'Cover', render: (w) => <CoverCell workout={w} /> },
     { key: 'title', header: 'Title', render: (w) => <span style={{ fontWeight: 700 }}>{w.title}</span> },
     { key: 'kind', header: 'Kind', render: (w) => <span className="dim">{w.kind.replace('_', ' ')}</span> },
-    {
-      key: 'category',
-      header: 'Category',
-      render: (w) => (
-        <span className="row" style={{ gap: 6, alignItems: 'center', flexWrap: 'nowrap' }}>
-          <span className="dim">{w.category ?? '—'}</span>
-          {w.is_skill && <span className="badge accent">{w.skill_label?.trim() || 'Skills'}</span>}
-        </span>
-      ),
-    },
+    { key: 'category', header: 'Category', render: (w) => <span className="dim">{w.category ?? '—'}</span> },
+    { key: 'skill', header: 'Skill', render: (w) => <SkillTagCell workout={w} /> },
     { key: 'difficulty', header: 'Difficulty', render: (w) => <span className="dim">{w.difficulty ?? '—'}</span> },
     { key: 'free', header: 'Access', render: (w) => <span className={`badge ${w.is_free ? 'ok' : 'accent'}`}>{w.is_free ? 'Free' : 'Pro'}</span> },
     { key: 'status', header: 'Status', render: (w) => <span className="badge">{w.status}</span> },
