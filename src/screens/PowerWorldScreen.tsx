@@ -25,6 +25,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
+import { DismissKeyboardOnOutsideTap } from '../components/DismissKeyboardOnOutsideTap';
 import { NotificationService } from '../services/NotificationService';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
@@ -497,6 +498,7 @@ export function PowerWorldScreen() {
 
       {/* LOG MODAL */}
       <Modal visible={showLogModal} transparent animationType="fade">
+        <DismissKeyboardOnOutsideTap>
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
             <View style={styles.modalHeader}>
@@ -553,6 +555,7 @@ export function PowerWorldScreen() {
             />
           </View>
         </View>
+        </DismissKeyboardOnOutsideTap>
       </Modal>
 
       {/* OVERALL LEADERBOARD MODAL */}

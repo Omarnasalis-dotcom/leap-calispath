@@ -26,6 +26,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
+import { DismissKeyboardOnOutsideTap } from '../components/DismissKeyboardOnOutsideTap';
 import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
 import { ThemeMode } from '../../constants/Theme';
 import { WorldBackground } from '../components/worlds/WorldBackground';
@@ -912,6 +913,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
+      <DismissKeyboardOnOutsideTap>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
            <View style={styles.modalHeader}>
@@ -1093,6 +1095,7 @@ const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
            {overwriteOverlay}
         </View>
       </View>
+      </DismissKeyboardOnOutsideTap>
     </Modal>
   );
 };
