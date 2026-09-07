@@ -64,6 +64,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
   const [paywallEnabled, setPaywallEnabled] = useState(false);
+  const [pendingAppleName, setPendingAppleName] = useState<{ firstName?: string; lastName?: string } | null>(null);
   // onAuthStateChange below is registered once (mount-only effect) and would
   // otherwise close over a stale `needsPasswordReset` value forever; track
   // the live value in a ref so that closure can read current state.
@@ -420,17 +421,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         throw new Error('Apple did not return an identity token. Please try again.');
       }
 
+      // Apple only ever returns the user's name on the very first authorization
+      // for this app, and only as this in-memory credential object — it can
+      // never be retrieved again on later sign-ins, and re-fetching it from the
+      // database afterward races the auth listener's own unawaited profile
+      // fetch (see pendingAppleName's doc comment). Capture it synchronously,
+      // straight from the credential, before that race even starts.
+      const firstName = credential.fullName?.givenName ?? undefined;
+      const lastName = credential.fullName?.familyName ?? undefined;
+      if (firstName || lastName) {
+        setPendingAppleName({ firstName, lastName });
+      }
+
       const { error } = await supabase.auth.signInWithIdToken({
         provider: 'apple',
         token: credential.identityToken,
       });
       if (error) throw error;
 
-      // Apple only ever returns the user's name on the very first authorization
-      // for this app — capture it now into the profile row the DB trigger just
-      // created, since it can never be retrieved again on later sign-ins.
-      const firstName = credential.fullName?.givenName ?? undefined;
-      const lastName = credential.fullName?.familyName ?? undefined;
+      // Best-effort persistence for later sign-ins — nothing downstream waits
+      // on this to complete or reflects in AuthContext.profile promptly.
       if (firstName || lastName) {
         const { data: authData } = await supabase.auth.getUser();
         if (authData?.user?.id) {
@@ -438,12 +448,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             .from('profiles')
             .update({ first_name: firstName, last_name: lastName })
             .eq('id', authData.user.id);
-          // Without this, CompleteProfileScreen can mount from a profile
-          // snapshot fetched before this update lands, initializing its
-          // First/Last Name fields as empty even though Apple just provided
-          // them — exactly the Sign in with Apple redundant-data-entry the
-          // App Review Guideline 4 rejection flagged.
-          await refreshProfile();
         }
       }
       return true;
@@ -473,6 +477,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { error } = await supabase.auth.signOut();
     if (error) throw error;
+    setPendingAppleName(null);
   }
 
   async function refreshProfile(): Promise<Profile | null> {
@@ -509,6 +514,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     profileLoadFailed,
     needsPasswordReset,
     paywallEnabled,
+    pendingAppleName,
     signUp,
     signIn,
     signInWithGoogle,

@@ -26,12 +26,21 @@ import { useSafeMutation } from '../hooks/useSafeMutation';
 // later, once, and nothing in the assessment/scoring flow reads them), but
 // display_name has no other entry point once this screen is passed.
 export function CompleteProfileScreen() {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, pendingAppleName } = useAuth();
   const { theme } = useTheme();
   const { safeMutate, isMutating } = useSafeMutation();
 
-  const [firstName, setFirstName] = useState(profile?.first_name || '');
-  const [lastName, setLastName] = useState(profile?.last_name || '');
+  // pendingAppleName is captured synchronously from Apple's credential and
+  // can't be stale the way profile.first_name/last_name can (that round-trips
+  // through the database and races the auth listener's own profile fetch —
+  // see AuthContext.signInWithApple). Prefer it whenever present; fall back to
+  // profile for a later render pass or for Google/email, neither of which set
+  // pendingAppleName at all.
+  const initialFirstName = pendingAppleName?.firstName || profile?.first_name || '';
+  const initialLastName = pendingAppleName?.lastName || profile?.last_name || '';
+
+  const [firstName, setFirstName] = useState(initialFirstName);
+  const [lastName, setLastName] = useState(initialLastName);
   const [displayName, setDisplayName] = useState('');
   const [gender, setGender] = useState<string | null>(null);
   const [country, setCountry] = useState('');
@@ -41,11 +50,10 @@ export function CompleteProfileScreen() {
   const filteredCountries = COUNTRIES.filter(c => c.toLowerCase().includes(countrySearch.toLowerCase()));
 
   // Sign in with Apple already supplies first/last name on first authorization
-  // (captured into the profile by AuthContext.signInWithApple before this
-  // screen ever mounts) — showing these as fields to fill in again violates
-  // App Review Guideline 4's Sign in with Apple requirements. Google/email
-  // signups never populate these, so they still correctly see the fields.
-  const needsName = !profile?.first_name && !profile?.last_name;
+  // — showing these as fields to fill in again violates App Review Guideline
+  // 4's Sign in with Apple requirements. Google/email signups never populate
+  // either source, so they still correctly see the fields.
+  const needsName = !initialFirstName && !initialLastName;
 
   async function handleContinue() {
     const cleanDisplayName = displayName.trim();

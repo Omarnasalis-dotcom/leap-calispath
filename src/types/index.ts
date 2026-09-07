@@ -86,6 +86,11 @@ export interface AuthContextType {
   profileLoadFailed: boolean;
   needsPasswordReset: boolean;
   paywallEnabled: boolean;
+  // Set synchronously from Apple's credential the moment signInWithApple()
+  // receives it — CompleteProfileScreen reads this instead of profile.first_name/
+  // last_name, since those are populated by a DB round-trip that races against
+  // the auth listener's own unawaited profile fetch and can lose.
+  pendingAppleName: { firstName?: string; lastName?: string } | null;
   signUp: (email: string, password: string) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<boolean>;
