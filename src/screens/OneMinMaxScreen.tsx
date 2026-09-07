@@ -804,6 +804,11 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
   const [isTimerRunning, setIsTimerRunning] = useState(false);
   const [timerFinished, setTimerFinished] = useState(false);
   const [repsInput, setRepsInput] = useState('');
+  // Lets a user skip the live timer entirely and type a known rep count
+  // directly — same escape hatch as Static World's manualMode, only
+  // reachable from the pure idle screen (never mid-sprint or after one
+  // finishes, where the timer-derived flow already owns the input).
+  const [manualMode, setManualMode] = useState(false);
   const [saving, setSaving] = useState(false);
   const isSlowSave = useSlowSubmitNotice(saving);
 
@@ -911,6 +916,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     setIsTimerRunning(false);
     setPreCountdown(0);
     setTimeLeft(60);
+    setManualMode(false);
     preStartTimeRef.current = null;
     startTimeRef.current = null;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -925,6 +931,16 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
     setRepsInput('');
     preStartTimeRef.current = null;
     startTimeRef.current = null;
+  };
+
+  const handleEnterManually = () => {
+    setManualMode(true);
+    setRepsInput('');
+  };
+
+  const handleUseTimerInstead = () => {
+    setManualMode(false);
+    resetTimer();
   };
 
   const handleSave = async () => {
@@ -969,26 +985,71 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
             </View>
 
             <View style={styles.timerContainer}>
-              <Text style={[
-                styles.timerText, 
-                { color: isPreTimerRunning ? W.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
-              ]}>
-                {isPreTimerRunning ? preCountdown : timeLeft}s
-              </Text>
-              <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
-              </Text>
+              {manualMode ? (
+                <>
+                  <TextInput
+                    style={[styles.timerText, styles.manualTimerInput, { color: theme.text.primary, borderColor: W.accent }]}
+                    keyboardType="numeric"
+                    value={repsInput}
+                    onChangeText={setRepsInput}
+                    placeholder="0"
+                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    autoFocus
+                  />
+                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ENTER REPS MANUALLY</Text>
+                </>
+              ) : (
+                <>
+                  <Text style={[
+                    styles.timerText,
+                    { color: isPreTimerRunning ? W.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
+                  ]}>
+                    {isPreTimerRunning ? preCountdown : timeLeft}s
+                  </Text>
+                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
+                    {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
+                  </Text>
+                </>
+              )}
             </View>
 
-            {!isPreTimerRunning && !isTimerRunning && !timerFinished && (
-              <TouchableOpacity
-                ref={startSprintRef}
-                onLayout={onStartSprintLayout}
-                style={[styles.startBtn, { backgroundColor: W.accent }]}
-                onPress={startTimer}
-              >
-                <Text style={styles.startBtnText}>START SPRINT</Text>
-              </TouchableOpacity>
+            {!isPreTimerRunning && !isTimerRunning && !timerFinished && !manualMode && (
+              <>
+                <TouchableOpacity
+                  ref={startSprintRef}
+                  onLayout={onStartSprintLayout}
+                  style={[styles.startBtn, { backgroundColor: W.accent }]}
+                  onPress={startTimer}
+                >
+                  <Text style={styles.startBtnText}>START SPRINT</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.manualEntryLink} onPress={handleEnterManually}>
+                  <Text style={[styles.manualEntryLinkText, { color: theme.text.tertiary }]}>ENTER REPS MANUALLY INSTEAD</Text>
+                </TouchableOpacity>
+              </>
+            )}
+
+            {manualMode && (
+              <View style={{ gap: 10 }}>
+                <TouchableOpacity
+                  style={[styles.saveBtn, { backgroundColor: W.accent }]}
+                  onPress={handleSave}
+                  disabled={saving}
+                >
+                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
+                </TouchableOpacity>
+                {isSlowSave && (
+                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
+                    Still submitting — hang tight...
+                  </Text>
+                )}
+                <TouchableOpacity
+                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
+                  onPress={handleUseTimerInstead}
+                >
+                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>USE TIMER INSTEAD</Text>
+                </TouchableOpacity>
+              </View>
             )}
 
             {(isPreTimerRunning || isTimerRunning) && (
@@ -997,7 +1058,7 @@ const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
               </TouchableOpacity>
             )}
 
-            {timerFinished && (
+            {timerFinished && !manualMode && (
               <View style={styles.inputContainer}>
                 <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
                 <TextInput
@@ -1112,5 +1173,8 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontSize: 14,
     letterSpacing: 1,
-  }
+  },
+  manualEntryLink: { paddingVertical: 10, alignItems: 'center' },
+  manualEntryLinkText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textDecorationLine: 'underline' },
+  manualTimerInput: { borderWidth: 2, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24, textAlign: 'center', minWidth: 160 },
 });
