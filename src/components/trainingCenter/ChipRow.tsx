@@ -1,5 +1,15 @@
 import React from 'react';
-import { ScrollView, TouchableOpacity, Text, StyleSheet } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet } from 'react-native';
+// RNGH's ScrollView, not react-native's — CustomizeProgramScreen nests this
+// component inside its own gesture-handler-based drag-and-drop grid
+// (Gesture.Race/GestureDetector on each DraggableCard). A plain react-native
+// ScrollView here doesn't negotiate with that separate gesture recognizer
+// system: tapping a chip can desync RNGH's gesture state for the sibling
+// cards, leaving them unresponsive to further taps/drags until the screen
+// remounts (see CustomizeProgramScreen.tsx's own top-of-file comment, which
+// applies the same fix to its outer ScrollView). Harmless drop-in for the
+// other ChipRow consumers, which have no competing gesture system.
+import { ScrollView } from 'react-native-gesture-handler';
 import { TC_COLORS } from '../../../constants/trainingCenterTokens';
 import { useTheme } from '../../contexts/ThemeContext';
 
