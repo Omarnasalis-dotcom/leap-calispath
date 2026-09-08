@@ -43,6 +43,9 @@ export interface Profile {
   free_library_template_id?: string | null;
   created_at?: string;
   community_id?: string | null;
+  onboarding_completed_at?: string | null;
+  primary_goal?: string | null;
+  available_equipment?: string[] | null;
 }
 
 export type TierRank =
