@@ -204,7 +204,21 @@ function DayNode({ number, status, title, isNext, isLast, onPress }: {
   );
 }
 
-function SideQuestChip({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+function SideQuestChip({ icon, label, unlockHint, locked, onPress }: {
+  icon: string;
+  label: string;
+  unlockHint?: string;
+  locked?: boolean;
+  onPress: () => void;
+}) {
+  if (locked) {
+    return (
+      <View style={[styles.sideQuestChip, styles.sideQuestChipLocked]}>
+        <MaterialCommunityIcons name="lock-outline" size={14} color="rgba(255,255,255,0.3)" />
+        <Text style={styles.sideQuestChipTextLocked}>{unlockHint || label}</Text>
+      </View>
+    );
+  }
   return (
     <TouchableOpacity style={styles.sideQuestChip} onPress={onPress}>
       <MaterialCommunityIcons name={icon as any} size={16} color={ACCENT} />
@@ -370,6 +384,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
   const weekComplete = !!journeyData && journeyData.days.length > 0 && journeyData.days.every((d) => d.status === 'done');
+  const daysDoneCount = journeyData ? journeyData.days.filter((d) => d.status === 'done').length : 0;
 
   return (
     <View style={styles.screen}>
@@ -502,16 +517,22 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
             <View style={styles.sideQuestSection}>
               <Text style={styles.journeySectionLabel}>SIDE QUESTS</Text>
-              <Text style={styles.journeyMuted}>Optional tests you can jump into any time.</Text>
+              <Text style={styles.journeyMuted}>
+                {journeyData ? 'Optional tests that unlock as you progress through the week.' : 'Optional tests you can jump into any time.'}
+              </Text>
               <View style={styles.sideQuestRow}>
                 <SideQuestChip
                   icon="timer-outline"
                   label="Test Your Endurance"
+                  unlockHint="Unlocks after Day 1"
+                  locked={!!journeyData && daysDoneCount < 1}
                   onPress={() => router.push({ pathname: '/one-min-max', params: { category: 'entry', returnTo: 'journey' } })}
                 />
                 <SideQuestChip
                   icon="hand-back-left-outline"
                   label="Test Your Hold"
+                  unlockHint="Unlocks after Day 2"
+                  locked={!!journeyData && daysDoneCount < 2}
                   onPress={() => router.push({ pathname: '/static-world', params: { movement: 'wall_handstand', returnTo: 'journey' } })}
                 />
               </View>
@@ -694,6 +715,14 @@ const styles = StyleSheet.create({
   },
   sideQuestChipText: {
     color: ACCENT,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
+  },
+  sideQuestChipLocked: {
+    borderColor: 'rgba(255,255,255,0.1)',
+  },
+  sideQuestChipTextLocked: {
+    color: 'rgba(255,255,255,0.3)',
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
   },
