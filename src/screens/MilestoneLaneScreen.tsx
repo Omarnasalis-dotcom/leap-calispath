@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
-import { useRouter, useFocusEffect } from 'expo-router';
+import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
@@ -219,24 +219,38 @@ function DayNode({ number, status, title, isNext, isLast, onPress }: {
 
 type SideQuestKind = '1mm' | 'static' | 'power';
 
-const SIDE_QUEST_DEFS: Record<SideQuestKind, { icon: string; title: string; desc: string; onPress: (router: ReturnType<typeof useRouter>) => void }> = {
+// pathname/params build the deep link; questSlotKey (this slot's unique id,
+// e.g. "w2_s0") rides along as a route param so the destination screen can
+// hand it straight back once the user actually logs something there —
+// that's the one signal MilestoneLaneScreen needs to mark this specific
+// slot complete, no new table or polling required.
+const SIDE_QUEST_DEFS: Record<SideQuestKind, {
+  icon: string;
+  title: string;
+  desc: string;
+  pathname: string;
+  params: Record<string, string>;
+}> = {
   '1mm': {
     icon: 'timer-outline',
     title: 'SIDE QUEST · TEST YOUR ENDURANCE',
     desc: '1-Minute Max — optional, skip it and move on any time.',
-    onPress: (router) => router.push({ pathname: '/one-min-max', params: { category: 'entry', returnTo: 'journey' } }),
+    pathname: '/one-min-max',
+    params: { category: 'entry' },
   },
   static: {
     icon: 'hand-back-left-outline',
     title: 'SIDE QUEST · TEST YOUR HOLD',
     desc: 'Static World wall handstand — optional, skip it and move on any time.',
-    onPress: (router) => router.push({ pathname: '/static-world', params: { movement: 'wall_handstand', returnTo: 'journey' } }),
+    pathname: '/static-world',
+    params: { movement: 'wall_handstand' },
   },
   power: {
     icon: 'lightning-bolt-outline',
     title: 'SIDE QUEST · TEST YOUR POWER',
     desc: 'Power World — optional, skip it and move on any time.',
-    onPress: (router) => router.push({ pathname: '/power-world', params: { returnTo: 'journey' } }),
+    pathname: '/power-world',
+    params: {},
   },
 };
 
@@ -250,10 +264,20 @@ function getSideQuestForSlot(slotIndex: number, strengthTier: number): SideQuest
   return rotation[slotIndex % rotation.length];
 }
 
-function SideQuestNode({ kind, isLast, onPress }: { kind: SideQuestKind; isLast: boolean; onPress: () => void }) {
+function SideQuestNode({ kind, state, isLast, onPress }: { kind: SideQuestKind; state: NodeState; isLast: boolean; onPress: () => void }) {
   const def = SIDE_QUEST_DEFS[kind];
+  const desc = state === 'complete' ? 'Done — nice work.' : state === 'locked' ? 'Unlocks once the day before it is done.' : def.desc;
   return (
-    <NodeRow number={0} state="active" title={def.title} desc={def.desc} ctaLabel="START" onPressCta={onPress} isLast={isLast} isSideQuest />
+    <NodeRow
+      number={0}
+      state={state}
+      title={def.title}
+      desc={desc}
+      ctaLabel={state === 'active' ? 'START' : undefined}
+      onPressCta={state === 'active' ? onPress : undefined}
+      isLast={isLast}
+      isSideQuest
+    />
   );
 }
 
@@ -277,14 +301,47 @@ interface JourneyProgramData {
   weeks: JourneyWeekData[];
 }
 
+const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
+
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile } = useAuth();
   const router = useRouter();
+  const { questDone } = useLocalSearchParams<{ questDone?: string }>();
   const { theme } = useTheme();
   const [showReveal, setShowReveal] = useState(false);
   const revealCheckedRef = useRef(false);
   const [journeyData, setJourneyData] = useState<JourneyProgramData | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(mode === 'journey');
+  // Which side-quest slots (keyed "w{week}_s{index}") the user has actually
+  // completed — set only when a quest screen hands a matching questSlotKey
+  // back on a real successful log, never just from visiting. Local/per-
+  // device by design (AsyncStorage, same pattern as the tier-reveal flag):
+  // this is a lightweight gamification signal, not core progress data, so
+  // it doesn't need a new table or cross-device sync.
+  const [completedQuestSlots, setCompletedQuestSlots] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    if (mode !== 'journey' || !profile?.id) return;
+    AsyncStorage.getItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`)
+      .then((stored) => {
+        if (stored) setCompletedQuestSlots(new Set(JSON.parse(stored)));
+      })
+      .catch(() => {});
+  }, [mode, profile?.id]);
+
+  // A quest screen navigating back with ?questDone=<slotKey> is the one
+  // signal that a real log happened there (not just a visit) — persist it
+  // and reflect it immediately without waiting for a re-fetch.
+  useEffect(() => {
+    if (!questDone || !profile?.id) return;
+    setCompletedQuestSlots((prev) => {
+      if (prev.has(questDone)) return prev;
+      const next = new Set(prev);
+      next.add(questDone);
+      AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  }, [questDone, profile?.id]);
 
   useFocusEffect(
     useCallback(() => {
@@ -587,13 +644,26 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     // challenge below).
                     if (!isLatestWeek || i >= week.days.length - 1) return [dayRow];
                     const kind = getSideQuestForSlot(seedSlot + i, profile?.strength_tier || 0);
+                    const slotKey = `w${week.weekNumber}_s${i}`;
+                    const questState: NodeState = completedQuestSlots.has(slotKey)
+                      ? 'complete'
+                      : d.status === 'done'
+                      ? 'active'
+                      : 'locked';
+                    const def = SIDE_QUEST_DEFS[kind];
                     return [
                       dayRow,
                       <SideQuestNode
                         key={`quest-${week.weekNumber}-${i}`}
                         kind={kind}
+                        state={questState}
                         isLast={false}
-                        onPress={() => SIDE_QUEST_DEFS[kind].onPress(router)}
+                        onPress={() =>
+                          router.push({
+                            pathname: def.pathname,
+                            params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
+                          })
+                        }
                       />,
                     ];
                   });

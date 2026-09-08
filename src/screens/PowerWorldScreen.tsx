@@ -50,7 +50,7 @@ export function PowerWorldScreen() {
   const { theme, toggleTheme, mode } = useTheme();
   const W = getWorldTheme('power', mode);
   const { user, profile, refreshProfile } = useAuth();
-  const { returnTo, goBackOrReturnTo } = useReturnTo();
+  const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('power.scoreCircle');
@@ -265,6 +265,13 @@ export function PowerWorldScreen() {
             }
           }, 400);
         }
+
+        // Came from a My Journey side quest — head straight back and mark
+        // this slot complete, after a brief pause so the result/celebration
+        // is actually visible first rather than yanking the screen away.
+        setTimeout(() => {
+          if (isMounted.current) completeQuestAndReturn();
+        }, 1800);
       },
       onError: (error: any) => {
         setSaving(false);

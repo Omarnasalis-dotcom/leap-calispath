@@ -76,7 +76,7 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
   const isDark = mode === 'dark';
   const W = getWorldTheme('static', mode);
   const { user, profile, refreshProfile } = useAuth();
-  const { returnTo, goBackOrReturnTo } = useReturnTo();
+  const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('static.scoreCircle');
@@ -302,6 +302,13 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
             }
           }, 400);
         }
+
+        // Came from a My Journey side quest — head straight back and mark
+        // this slot complete, after a brief pause so the result/celebration
+        // is actually visible first rather than yanking the screen away.
+        setTimeout(() => {
+          if (isMounted.current) completeQuestAndReturn();
+        }, 1800);
       },
       onError: (error: any) => {
         setLoading(false);

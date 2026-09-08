@@ -53,7 +53,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
   const W = getWorldTheme('onemm', mode);
   const { user, profile, refreshProfile } = useAuth();
-  const { returnTo, goBackOrReturnTo } = useReturnTo();
+  const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
@@ -254,6 +254,13 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
             }
           }, 400);
         }
+
+        // Came from a My Journey side quest — head straight back and mark
+        // this slot complete, after a brief pause so the result/celebration
+        // is actually visible first rather than yanking the screen away.
+        setTimeout(() => {
+          if (isMounted.current) completeQuestAndReturn();
+        }, 1800);
       },
       onError: (error: any) => {
         setPendingOverwrite(null);
