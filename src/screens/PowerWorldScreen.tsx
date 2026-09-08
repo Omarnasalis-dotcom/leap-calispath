@@ -36,6 +36,7 @@ import { ExerciseCircle } from '../components/worlds/ExerciseCircle';
 import { PillTabRow } from '../components/worlds/PillTabRow';
 import { MilestoneCard } from '../components/worlds/MilestoneCard';
 import { powerLevelProgress, powerMovementProgress } from '../lib/worldProgress';
+import { useReturnTo } from '../hooks/useReturnTo';
 
 const { width } = Dimensions.get('window');
 
@@ -49,6 +50,7 @@ export function PowerWorldScreen() {
   const { theme, toggleTheme, mode } = useTheme();
   const W = getWorldTheme('power', mode);
   const { user, profile, refreshProfile } = useAuth();
+  const { returnTo, goBackOrReturnTo } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('power.scoreCircle');
@@ -487,6 +489,12 @@ export function PowerWorldScreen() {
       <WorldBackground world={W}>
       <View style={styles.container}>
       {renderHeader()}
+      {returnTo === 'journey' && (
+        <TouchableOpacity style={styles.backToJourneyPill} onPress={() => goBackOrReturnTo('/power-world')}>
+          <MaterialCommunityIcons name="chevron-left" size={16} color={W.accent} />
+          <Text style={[styles.backToJourneyText, { color: W.accent }]}>BACK TO JOURNEY</Text>
+        </TouchableOpacity>
+      )}
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={W.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -668,6 +676,8 @@ export function PowerWorldScreen() {
 const styles = StyleSheet.create({
   container: { flex: 1, paddingTop: 22 },
   headerPill: { marginTop: 0 },
+  backToJourneyPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 4, marginTop: 10 },
+  backToJourneyText: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
 
   dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 26 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },

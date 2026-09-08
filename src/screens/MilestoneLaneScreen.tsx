@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { isPowerWorldUnlocked } from '../lib/powerLogic';
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
 // corrections noted in the plan: the handoff's coral (#FC5454) and Oswald
@@ -41,19 +42,29 @@ function usePulse(enabled: boolean) {
   return value;
 }
 
-function NodeCircle({ state, number }: { state: NodeState; number: number }) {
+function NodeCircle({ state, number, isSideQuest }: { state: NodeState; number: number; isSideQuest?: boolean }) {
   const pulse = usePulse(state === 'active');
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
 
   if (state === 'complete') {
     return (
-      <View style={[styles.nodeCircle, { backgroundColor: ACCENT }]}>
-        <MaterialCommunityIcons name="check" size={26} color="#FFFFFF" />
+      <View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }]}>
+        <MaterialCommunityIcons name="check" size={isSideQuest ? 18 : 26} color="#FFFFFF" />
       </View>
     );
   }
   if (state === 'active') {
+    // Side quests are optional extras, not "you are here" path milestones —
+    // a smaller dashed ring with a compass icon instead of a number and no
+    // ambient glow, so they read as a fork off the main path, not part of it.
+    if (isSideQuest) {
+      return (
+        <View style={[styles.nodeCircle, styles.nodeCircleSmall, { borderWidth: 1.5, borderColor: ACCENT, borderStyle: 'dashed' }]}>
+          <MaterialCommunityIcons name="compass-outline" size={16} color={ACCENT} />
+        </View>
+      );
+    }
     return (
       <View style={styles.nodeCircleWrap}>
         <Animated.View
@@ -67,8 +78,8 @@ function NodeCircle({ state, number }: { state: NodeState; number: number }) {
     );
   }
   return (
-    <View style={[styles.nodeCircle, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
-      <MaterialCommunityIcons name="lock-outline" size={18} color="rgba(255,255,255,0.3)" />
+    <View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
+      <MaterialCommunityIcons name="lock-outline" size={isSideQuest ? 14 : 18} color="rgba(255,255,255,0.3)" />
     </View>
   );
 }
@@ -94,6 +105,7 @@ function NodeRow({
   ctaLabel,
   onPressCta,
   isLast,
+  isSideQuest,
   children,
 }: {
   number: number;
@@ -103,20 +115,21 @@ function NodeRow({
   ctaLabel?: string;
   onPressCta?: () => void;
   isLast: boolean;
+  isSideQuest?: boolean;
   children?: React.ReactNode;
 }) {
-  const pulse = usePulse(state === 'active');
+  const pulse = usePulse(state === 'active' && !isSideQuest);
   const labelOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
   const dim = state === 'locked';
 
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, isSideQuest && styles.rowSideQuest]}>
       <View style={styles.rowLeft}>
-        <NodeCircle state={state} number={number} />
+        <NodeCircle state={state} number={number} isSideQuest={isSideQuest} />
         {!isLast && <Connector complete={state === 'complete'} />}
       </View>
       <View style={styles.rowRight}>
-        {state === 'active' && (
+        {state === 'active' && !isSideQuest && (
           <Animated.Text style={[styles.youAreHere, { opacity: labelOpacity }]}>YOU ARE HERE</Animated.Text>
         )}
         <Text
@@ -204,26 +217,43 @@ function DayNode({ number, status, title, isNext, isLast, onPress }: {
   );
 }
 
-function SideQuestChip({ icon, label, unlockHint, locked, onPress }: {
-  icon: string;
-  label: string;
-  unlockHint?: string;
-  locked?: boolean;
-  onPress: () => void;
-}) {
-  if (locked) {
-    return (
-      <View style={[styles.sideQuestChip, styles.sideQuestChipLocked]}>
-        <MaterialCommunityIcons name="lock-outline" size={14} color="rgba(255,255,255,0.3)" />
-        <Text style={styles.sideQuestChipTextLocked}>{unlockHint || label}</Text>
-      </View>
-    );
-  }
+type SideQuestKind = '1mm' | 'static' | 'power';
+
+const SIDE_QUEST_DEFS: Record<SideQuestKind, { icon: string; title: string; desc: string; onPress: (router: ReturnType<typeof useRouter>) => void }> = {
+  '1mm': {
+    icon: 'timer-outline',
+    title: 'SIDE QUEST · TEST YOUR ENDURANCE',
+    desc: '1-Minute Max — optional, skip it and move on any time.',
+    onPress: (router) => router.push({ pathname: '/one-min-max', params: { category: 'entry', returnTo: 'journey' } }),
+  },
+  static: {
+    icon: 'hand-back-left-outline',
+    title: 'SIDE QUEST · TEST YOUR HOLD',
+    desc: 'Static World wall handstand — optional, skip it and move on any time.',
+    onPress: (router) => router.push({ pathname: '/static-world', params: { movement: 'wall_handstand', returnTo: 'journey' } }),
+  },
+  power: {
+    icon: 'lightning-bolt-outline',
+    title: 'SIDE QUEST · TEST YOUR POWER',
+    desc: 'Power World — optional, skip it and move on any time.',
+    onPress: (router) => router.push({ pathname: '/power-world', params: { returnTo: 'journey' } }),
+  },
+};
+
+// Rotation the user asked for: 1MM -> Static -> Power, but Power only if
+// tier 6+ (isPowerWorldUnlocked) -- otherwise it's skipped and the
+// rotation just alternates 1MM/Static. slotIndex runs continuously across
+// the whole path (not reset per week) so progressing into a new week picks
+// up the rotation where it left off rather than always starting at 1MM.
+function getSideQuestForSlot(slotIndex: number, strengthTier: number): SideQuestKind {
+  const rotation: SideQuestKind[] = isPowerWorldUnlocked(strengthTier) ? ['1mm', 'static', 'power'] : ['1mm', 'static'];
+  return rotation[slotIndex % rotation.length];
+}
+
+function SideQuestNode({ kind, isLast, onPress }: { kind: SideQuestKind; isLast: boolean; onPress: () => void }) {
+  const def = SIDE_QUEST_DEFS[kind];
   return (
-    <TouchableOpacity style={styles.sideQuestChip} onPress={onPress}>
-      <MaterialCommunityIcons name={icon as any} size={16} color={ACCENT} />
-      <Text style={styles.sideQuestChipText}>{label}</Text>
-    </TouchableOpacity>
+    <NodeRow number={0} state="active" title={def.title} desc={def.desc} ctaLabel="START" onPressCta={onPress} isLast={isLast} isSideQuest />
   );
 }
 
@@ -449,7 +479,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // the latest (current) week — earlier weeks in the path are already done.
   const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeek.days.every((d) => d.status === 'done');
-  const daysDoneCount = latestWeek ? latestWeek.days.filter((d) => d.status === 'done').length : 0;
+  // Strength Trial: every 2 weeks, not every week — only odd->even
+  // transitions (week 2, 4, 6...) count as a trial week.
+  const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 0;
 
   return (
     <View style={styles.screen}>
@@ -531,33 +563,76 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 {journeyData.weeks.map((week, weekIdx) => {
                   const isLatestWeek = weekIdx === journeyData.weeks.length - 1;
                   const startNumber = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + w.days.length, 0);
+                  // Side-quest rotation runs continuously across the whole
+                  // path, not reset per week — seed it with how many
+                  // between-day gaps happened in every earlier week so a
+                  // new week picks the rotation up where it left off.
+                  const seedSlot = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + Math.max(w.days.length - 1, 0), 0);
+
+                  const rows: React.ReactNode[] = week.days.flatMap((d, i) => {
+                    const dayRow = (
+                      <DayNode
+                        key={`day-${week.weekNumber}-${i}`}
+                        number={startNumber + i + 1}
+                        status={d.status}
+                        title={d.day.name.toUpperCase()}
+                        isNext={isLatestWeek && week.nextDayIndex === i}
+                        isLast={false}
+                        onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                      />
+                    );
+                    // Side quests only make sense for the week still in
+                    // progress — inserted between each pair of days, not
+                    // after the last one (that slot belongs to the weekly
+                    // challenge below).
+                    if (!isLatestWeek || i >= week.days.length - 1) return [dayRow];
+                    const kind = getSideQuestForSlot(seedSlot + i, profile?.strength_tier || 0);
+                    return [
+                      dayRow,
+                      <SideQuestNode
+                        key={`quest-${week.weekNumber}-${i}`}
+                        kind={kind}
+                        isLast={false}
+                        onPress={() => SIDE_QUEST_DEFS[kind].onPress(router)}
+                      />,
+                    ];
+                  });
+
+                  if (isLatestWeek) {
+                    rows.push(
+                      <NodeRow
+                        key={`weekly-challenge-${week.weekNumber}`}
+                        number={0}
+                        state="active"
+                        title="SIDE QUEST · WEEKLY CHALLENGE"
+                        desc="This week's community challenge — optional, skip it and move on any time."
+                        ctaLabel="START"
+                        onPressCta={() => router.push('/weekly-challenge')}
+                        isLast
+                        isSideQuest
+                      />
+                    );
+                  }
+
                   return (
                     <View key={week.weekNumber}>
                       <Text style={styles.journeySectionLabel}>
                         {journeyData.programName.toUpperCase()} · WEEK {week.weekNumber}
                         {!isLatestWeek ? ' — COMPLETE' : ''}
                       </Text>
-                      {week.days.map((d, i) => (
-                        <DayNode
-                          key={`${week.weekNumber}-${i}`}
-                          number={startNumber + i + 1}
-                          status={d.status}
-                          title={d.day.name.toUpperCase()}
-                          isNext={isLatestWeek && week.nextDayIndex === i}
-                          isLast={false}
-                          onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
-                        />
-                      ))}
+                      {rows}
                     </View>
                   );
                 })}
 
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
-                  state={weekComplete ? 'active' : 'locked'}
+                  state={weekComplete && isTrialWeek ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
                   desc={
-                    weekComplete
+                    !isTrialWeek
+                      ? `Every 2 weeks — next available Week ${journeyData.currentWeek % 2 === 0 ? journeyData.currentWeek : journeyData.currentWeek + 1}.`
+                      : weekComplete
                       ? "Test your current tier now that this week's days are done."
                       : 'Unlocks after every day this week is done.'
                   }
@@ -589,29 +664,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             ) : (
               <Text style={styles.journeyMuted}>No active program yet — build one above to see your daily journey here.</Text>
             )}
-
-            <View style={styles.sideQuestSection}>
-              <Text style={styles.journeySectionLabel}>SIDE QUESTS</Text>
-              <Text style={styles.journeyMuted}>
-                {journeyData ? 'Optional tests that unlock as you progress through the week.' : 'Optional tests you can jump into any time.'}
-              </Text>
-              <View style={styles.sideQuestRow}>
-                <SideQuestChip
-                  icon="timer-outline"
-                  label="Test Your Endurance"
-                  unlockHint="Unlocks after Day 1"
-                  locked={!!journeyData && daysDoneCount < 1}
-                  onPress={() => router.push({ pathname: '/one-min-max', params: { category: 'entry', returnTo: 'journey' } })}
-                />
-                <SideQuestChip
-                  icon="hand-back-left-outline"
-                  label="Test Your Hold"
-                  unlockHint="Unlocks after Day 2"
-                  locked={!!journeyData && daysDoneCount < 2}
-                  onPress={() => router.push({ pathname: '/static-world', params: { movement: 'wall_handstand', returnTo: 'journey' } })}
-                />
-              </View>
-            </View>
 
             <GhostNode />
           </>
@@ -648,6 +700,9 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
+  rowSideQuest: {
+    opacity: 0.95,
+  },
   rowLeft: {
     alignItems: 'center',
     width: NODE_SIZE,
@@ -676,6 +731,11 @@ const styles = StyleSheet.create({
     borderRadius: NODE_SIZE / 2,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  nodeCircleSmall: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
   },
   nodeNumberActive: {
     color: ACCENT,
@@ -767,39 +827,6 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 1.5,
     marginBottom: 12,
-  },
-  sideQuestSection: {
-    marginTop: 8,
-    marginBottom: 28,
-  },
-  sideQuestRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 10,
-    marginTop: 12,
-  },
-  sideQuestChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    borderWidth: 1,
-    borderColor: 'rgba(255,82,82,0.35)',
-    borderRadius: 20,
-    paddingVertical: 9,
-    paddingHorizontal: 14,
-  },
-  sideQuestChipText: {
-    color: ACCENT,
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 12,
-  },
-  sideQuestChipLocked: {
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  sideQuestChipTextLocked: {
-    color: 'rgba(255,255,255,0.3)',
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 12,
   },
   weekCompleteBanner: {
     alignItems: 'center',
