@@ -230,7 +230,10 @@ function SideQuestChip({ icon, label, unlockHint, locked, onPress }: {
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
 
 interface JourneyProgramData {
+  warriorProgramId: string;
   programName: string;
+  currentWeek: number;
+  hasNextWeek: boolean;
   days: DayStateEntry[];
   nextDayIndex: number | null;
 }
@@ -317,9 +320,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
       const templateRel = (program as any).program_templates;
       const programName = Array.isArray(templateRel) ? templateRel[0]?.name : templateRel?.name;
+      const hasNextWeek = (blocks ?? []).some((b: any) => (b.week_number || 1) === rawCurrentWeek + 1);
 
       setJourneyData({
+        warriorProgramId: (program as any).id,
         programName: programName || 'Your Program',
+        currentWeek: rawCurrentWeek,
+        hasNextWeek,
         days: deriveDayStates(days),
         nextDayIndex: deriveNextDayIndex(days),
       });
@@ -366,6 +373,29 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     }
     setShowReveal(false);
   }, [profile?.id, profile?.assessed_at]);
+
+  // The one warrior-driven write of current_week in the app — everywhere
+  // else it only ever moves via coach/AI-coach week management (append/
+  // archive). Scoped to a plain guarded UPDATE (RLS already allows
+  // warrior_id = auth.uid()) rather than a new RPC; only fires on this one
+  // explicit "I'm ready to move on" tap, never automatically.
+  const [advancingWeek, setAdvancingWeek] = useState(false);
+  const handleContinueProgram = useCallback(async () => {
+    if (!journeyData?.hasNextWeek) {
+      router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
+      return;
+    }
+    setAdvancingWeek(true);
+    const { error } = await supabase
+      .from('warrior_programs')
+      .update({ current_week: journeyData.currentWeek + 1 })
+      .eq('id', journeyData.warriorProgramId);
+    setAdvancingWeek(false);
+    if (error) {
+      console.error('Failed to advance to next week:', error);
+    }
+    router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
+  }, [journeyData, router]);
 
   if (showReveal && profile?.assessed_at) {
     return (
@@ -491,22 +521,21 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 />
 
                 {weekComplete && (
-                  // current_week only ever advances via coach/AI-coach week
-                  // management (append/archive) -- nothing in the app has a
-                  // warrior-driven "advance to next week" mutation, and
-                  // introducing one here would duplicate/risk conflicting
-                  // with that existing logic. WarriorProgramScreen already
-                  // has its own week-tab navigation (the weeks themselves
-                  // already exist in program_blocks), so once this week's
-                  // done, hand off there rather than owning that mutation.
                   <View style={styles.weekCompleteBanner}>
                     <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
-                    <Text style={styles.weekCompleteText}>Week complete — nice work.</Text>
+                    <Text style={styles.weekCompleteText}>
+                      {journeyData.hasNextWeek
+                        ? 'Week complete — nice work.'
+                        : "Week complete — that's every week in this program."}
+                    </Text>
                     <TouchableOpacity
-                      style={styles.weekCompletePill}
-                      onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                      style={[styles.weekCompletePill, advancingWeek && { opacity: 0.6 }]}
+                      onPress={handleContinueProgram}
+                      disabled={advancingWeek}
                     >
-                      <Text style={styles.weekCompletePillText}>CONTINUE IN YOUR PROGRAM</Text>
+                      <Text style={styles.weekCompletePillText}>
+                        {advancingWeek ? 'STARTING NEXT WEEK…' : journeyData.hasNextWeek ? 'START WEEK ' + (journeyData.currentWeek + 1) : 'VIEW PROGRAM'}
+                      </Text>
                     </TouchableOpacity>
                   </View>
                 )}
