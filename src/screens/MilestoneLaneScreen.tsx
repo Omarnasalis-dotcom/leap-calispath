@@ -257,27 +257,39 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         return;
       }
 
-      const [{ data: blocks }, { data: logs }] = await Promise.all([
+      // No week_number filter in the query itself — program_blocks.week_number
+      // isn't reliably non-null across every creation path (template picks
+      // copy it raw via SQL with no normalization; WarriorProgramScreen and
+      // ClientProgramWriter both defensively treat it as `week_number || 1`
+      // in JS rather than trusting the column). A `.eq('week_number', 1)`
+      // filter would silently match zero rows for any block whose real value
+      // is null — fetch everything for the template and filter client-side
+      // with the same fallback instead.
+      const [{ data: blocks, error: blocksError }, { data: logs, error: logsError }] = await Promise.all([
         supabase
           .from('program_blocks')
-          .select('id, name, week_number')
+          .select('id, name, week_number, order_index')
           .eq('template_id', (program as any).template_id)
-          .eq('week_number', (program as any).current_week ?? 1)
           .order('order_index', { ascending: true }),
         supabase
           .from('workout_logs')
           .select('block_id')
           .eq('warrior_program_id', (program as any).id),
       ]);
+      if (blocksError) throw blocksError;
+      if (logsError) throw logsError;
+
+      const rawCurrentWeek = (program as any).current_week || 1;
+      const currentWeekBlocks = (blocks ?? []).filter((b: any) => (b.week_number || 1) === rawCurrentWeek);
 
       const loggedBlockIds = new Set((logs ?? []).map((l: any) => String(l.block_id)));
-      const rawBlocks: RawProgramBlockRow[] = (blocks ?? []).map((b: any) => ({
+      const rawBlocks: RawProgramBlockRow[] = currentWeekBlocks.map((b: any) => ({
         id: b.id,
         name: b.name,
         week_number: b.week_number,
       }));
       const grouped = groupRawBlocksIntoDays(rawBlocks);
-      const blockById = new Map((blocks ?? []).map((b: any) => [String(b.id), b]));
+      const blockById = new Map(currentWeekBlocks.map((b: any) => [String(b.id), b]));
       const days: ProgramDay[] = grouped.map((g) => ({
         name: g.dayName,
         blocks: g.blockIds.map((id): ProgramBlock => ({
@@ -297,7 +309,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         days: deriveDayStates(days),
         nextDayIndex: deriveNextDayIndex(days),
       });
-    } catch {
+    } catch (err) {
+      console.error('Failed to load journey program:', err);
       setJourneyData(null);
     } finally {
       setJourneyLoading(false);
