@@ -229,13 +229,22 @@ function SideQuestChip({ icon, label, unlockHint, locked, onPress }: {
 
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
 
+interface JourneyWeekData {
+  weekNumber: number;
+  days: DayStateEntry[];
+  nextDayIndex: number | null;
+}
+
 interface JourneyProgramData {
   warriorProgramId: string;
   programName: string;
   currentWeek: number;
   hasNextWeek: boolean;
-  days: DayStateEntry[];
-  nextDayIndex: number | null;
+  // Every week from 1 through currentWeek, in order — the full path so
+  // far, not just "this week". Past weeks are already fully done (that's
+  // how currentWeek got here), so only the last entry ever has an active
+  // next-day or unfinished trial/side-quest gate.
+  weeks: JourneyWeekData[];
 }
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
@@ -297,26 +306,50 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (logsError) throw logsError;
 
       const rawCurrentWeek = (program as any).current_week || 1;
-      const currentWeekBlocks = (blocks ?? []).filter((b: any) => (b.week_number || 1) === rawCurrentWeek);
+      // Full path so far: every week from 1 through currentWeek, not just
+      // the current one — a "START WEEK 2" tap must not make Week 1's
+      // finished days disappear.
+      const pastAndCurrentBlocks = (blocks ?? []).filter((b: any) => (b.week_number || 1) <= rawCurrentWeek);
 
       const loggedBlockIds = new Set((logs ?? []).map((l: any) => String(l.block_id)));
-      const rawBlocks: RawProgramBlockRow[] = currentWeekBlocks.map((b: any) => ({
+      const rawBlocks: RawProgramBlockRow[] = pastAndCurrentBlocks.map((b: any) => ({
         id: b.id,
         name: b.name,
         week_number: b.week_number,
       }));
+      // groupRawBlocksIntoDays already keys by week+day, so grouping the
+      // full multi-week set in one call and then bucketing by weekNumber
+      // below is equivalent to (and simpler than) grouping per-week.
       const grouped = groupRawBlocksIntoDays(rawBlocks);
-      const blockById = new Map(currentWeekBlocks.map((b: any) => [String(b.id), b]));
-      const days: ProgramDay[] = grouped.map((g) => ({
-        name: g.dayName,
-        blocks: g.blockIds.map((id): ProgramBlock => ({
-          id,
-          name: blockById.get(String(id))?.name ?? '',
-          notes: '',
-          exercises: [],
-          completedStatus: loggedBlockIds.has(String(id)) ? 'completed' : 'none',
-        })),
-      }));
+      const blockById = new Map(pastAndCurrentBlocks.map((b: any) => [String(b.id), b]));
+
+      const daysByWeek = new Map<number, ProgramDay[]>();
+      for (const g of grouped) {
+        const day: ProgramDay = {
+          name: g.dayName,
+          blocks: g.blockIds.map((id): ProgramBlock => ({
+            id,
+            name: blockById.get(String(id))?.name ?? '',
+            notes: '',
+            exercises: [],
+            completedStatus: loggedBlockIds.has(String(id)) ? 'completed' : 'none',
+          })),
+        };
+        const list = daysByWeek.get(g.weekNumber) ?? [];
+        list.push(day);
+        daysByWeek.set(g.weekNumber, list);
+      }
+
+      const weeks: JourneyWeekData[] = Array.from(daysByWeek.keys())
+        .sort((a, b) => a - b)
+        .map((weekNumber) => {
+          const weekDays = daysByWeek.get(weekNumber)!;
+          return {
+            weekNumber,
+            days: deriveDayStates(weekDays),
+            nextDayIndex: deriveNextDayIndex(weekDays),
+          };
+        });
 
       const templateRel = (program as any).program_templates;
       const programName = Array.isArray(templateRel) ? templateRel[0]?.name : templateRel?.name;
@@ -327,8 +360,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         programName: programName || 'Your Program',
         currentWeek: rawCurrentWeek,
         hasNextWeek,
-        days: deriveDayStates(days),
-        nextDayIndex: deriveNextDayIndex(days),
+        weeks,
       });
     } catch (err) {
       console.error('Failed to load journey program:', err);
@@ -413,8 +445,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
-  const weekComplete = !!journeyData && journeyData.days.length > 0 && journeyData.days.every((d) => d.status === 'done');
-  const daysDoneCount = journeyData ? journeyData.days.filter((d) => d.status === 'done').length : 0;
+  // Trial/side-quest gating and the week-complete banner only ever look at
+  // the latest (current) week — earlier weeks in the path are already done.
+  const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
+  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeek.days.every((d) => d.status === 'done');
+  const daysDoneCount = latestWeek ? latestWeek.days.filter((d) => d.status === 'done').length : 0;
 
   return (
     <View style={styles.screen}>
@@ -493,21 +528,32 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               <Text style={styles.journeyMuted}>Loading your program…</Text>
             ) : journeyData ? (
               <>
-                <Text style={styles.journeySectionLabel}>{journeyData.programName.toUpperCase()} · WEEK {journeyData.currentWeek}</Text>
-                {journeyData.days.map((d, i) => (
-                  <DayNode
-                    key={i}
-                    number={i + 1}
-                    status={d.status}
-                    title={d.day.name.toUpperCase()}
-                    isNext={journeyData.nextDayIndex === i}
-                    isLast={false}
-                    onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
-                  />
-                ))}
+                {journeyData.weeks.map((week, weekIdx) => {
+                  const isLatestWeek = weekIdx === journeyData.weeks.length - 1;
+                  const startNumber = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + w.days.length, 0);
+                  return (
+                    <View key={week.weekNumber}>
+                      <Text style={styles.journeySectionLabel}>
+                        {journeyData.programName.toUpperCase()} · WEEK {week.weekNumber}
+                        {!isLatestWeek ? ' — COMPLETE' : ''}
+                      </Text>
+                      {week.days.map((d, i) => (
+                        <DayNode
+                          key={`${week.weekNumber}-${i}`}
+                          number={startNumber + i + 1}
+                          status={d.status}
+                          title={d.day.name.toUpperCase()}
+                          isNext={isLatestWeek && week.nextDayIndex === i}
+                          isLast={false}
+                          onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                        />
+                      ))}
+                    </View>
+                  );
+                })}
 
                 <NodeRow
-                  number={journeyData.days.length + 1}
+                  number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   state={weekComplete ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
                   desc={
