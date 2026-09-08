@@ -898,12 +898,21 @@ export function CustomizeProgramScreen() {
           </View>
         ) : builderMode === 'quickBuild' ? (
           <View style={[styles.grid, columns === 2 && styles.gridTwoUp]}>
-            {/* Same "every card stays mounted, filter only toggles display"
-                approach as Browse mode below — DraggableCard here just swaps
-                in for WorkoutPhotoCard's TouchableOpacity so a long-press+
-                drag (or a plain tap, which fills the first empty day) can
-                target a day slot instead of opening the detail modal. */}
-            {workoutItems.map((item) => (
+            {/* Deliberately NOT the "every card stays mounted, filter only
+                toggles display" approach Browse mode below uses — that was
+                tried here too (plus an RNGH `.enabled()` toggle on the
+                gesture itself) and neither survived repeated filter changes:
+                a GestureDetector's Pan/Tap handlers can end up permanently
+                desynced after their view's `display` (or the gesture's own
+                enabled state) is flipped back and forth enough times,
+                leaving that card's drag-and-tap dead until the screen
+                remounts. Actually removing filtered-out cards from the tree
+                is the only thing that reliably gives a returning card a
+                fresh gesture handler — the cost is the same one Browse mode
+                rejected (a cover image can visibly reload when its card
+                reappears), which is real but far better than drag/select
+                silently breaking mid-build. */}
+            {filteredWorkoutItems.map((item) => (
               <DraggableCard
                 key={item.id}
                 payload={{ type: 'workout', workout: item }}
@@ -911,7 +920,6 @@ export function CustomizeProgramScreen() {
                   styles.cardWrap,
                   columns === 1 ? styles.cardWrapWide : styles.cardWrapGrid,
                   quickBuildDayNumberFor(item) !== null && { borderColor: c.coral, borderWidth: 1.5 },
-                  !matchesFilters(item) && { display: 'none' },
                 ]}
                 onTap={() => handleTapAssignFirstEmpty(item)}
                 onDrop={(x, y) => handleDropAtPoint({ type: 'workout', workout: item }, x, y)}
