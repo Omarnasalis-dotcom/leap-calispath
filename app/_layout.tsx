@@ -234,6 +234,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
   const inCompleteProfile = segments[0] === 'complete-profile';
   const isResetPassword = segments[0] === 'reset-password';
+  // Milestone Lane onboarding (post-assessment, pre-onboarding_completed_at):
+  // the lane itself, its Goals & Equipment sub-step, and the 3 "Build Your
+  // Program" destinations it links out to (also ordinary, freely-reachable
+  // app routes once onboarded — only exempted here, never added to rule 6's
+  // block-list below).
+  const inOnboardingJourney = segments[0] === 'onboarding-journey';
+  const inGoalsEquipment = segments[0] === 'goals-equipment';
+  const inBuildProgramRoute = segments[0] === 'coach' || segments[0] === 'customize-program' || segments[0] === 'program-templates';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
@@ -258,17 +266,35 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     } else if (inCompleteProfile) {
       return <Redirect href="/" />;
     } else if (!profile?.assessed_at) {
-      // 5. Prevent rendering children and redirect unassessed users to assessment
-      if (!inAssessmentGroup) {
-        return <Redirect href="/assessment" />;
+      // 5. Prevent rendering children and redirect unassessed users to the
+      // Milestone Lane (it owns showing the "Start Assessment" CTA and
+      // pushes into /assessment itself — this only decides the default
+      // landing screen, not the assessment flow's own internal routing).
+      // inOnboardingJourney must be exempted here too, not just
+      // inAssessmentGroup — omitting it redirects the lane to itself on
+      // every render (a tight self-redirect loop) the instant an unassessed
+      // user actually lands on /onboarding-journey.
+      if (!inAssessmentGroup && !inOnboardingJourney) {
+        return <Redirect href="/onboarding-journey" />;
+      }
+    } else if (!profile?.onboarding_completed_at) {
+      // 5b. Assessed but onboarding not finished (Goals & Equipment / Build
+      // Your Program still pending) — same default-landing role as 5 above,
+      // one tier further along. inAssessmentGroup is deliberately NOT
+      // exempted here (unlike rule 5): assessment is already done at this
+      // point, so finishing it must bounce the user back to the lane for
+      // the tier-reveal, not strand them on the now-finished assessment
+      // screen — that screen relies entirely on this redirect to leave.
+      if (!inOnboardingJourney && !inGoalsEquipment && !inBuildProgramRoute) {
+        return <Redirect href="/onboarding-journey" />;
       }
     } else {
-      // 6. Prevent rendering children and redirect assessed users away from onboarding/auth/assessment routes.
+      // 6. Prevent rendering children and redirect fully-onboarded users away from onboarding/auth/assessment routes.
       // reset-password is deliberately excluded: it must stay reachable regardless of
       // whatever session happens to already exist (a stale cached session, or the
       // transient USER_UPDATED event fired mid-flow by updateUser() during the reset
       // itself) — otherwise this redirect fires before the reset flow ever completes.
-      if (inAssessmentGroup || (inAuthGroup && !isResetPassword) || inOnboarding) {
+      if (inAssessmentGroup || inOnboardingJourney || inGoalsEquipment || (inAuthGroup && !isResetPassword) || inOnboarding) {
         return <Redirect href="/" />;
       }
     }

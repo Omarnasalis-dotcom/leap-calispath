@@ -18,9 +18,13 @@ export default function Index() {
     );
   }
 
-  // Intercept new users and force them to the assessment
-  if (!profile?.assessed_at) {
-    return <Redirect href="/assessment" />;
+  // Intercept new/incomplete-onboarding users and send them to the Milestone
+  // Lane — same combined condition as AuthGuard's own rule 5/5b in
+  // app/_layout.tsx (assessed_at then onboarding_completed_at). Keeping this
+  // in sync with AuthGuard matters: this screen's own decision, not just
+  // AuthGuard's, is what a user's very first post-signup navigation lands on.
+  if (!profile?.assessed_at || !profile?.onboarding_completed_at) {
+    return <Redirect href="/onboarding-journey" />;
   }
 
   return <Redirect href="/profile" />;
