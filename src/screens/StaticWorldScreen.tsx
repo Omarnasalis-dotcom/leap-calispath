@@ -44,6 +44,7 @@ import {
   rankGapProgress,
   STATIC_HOLD_TARGET_SECONDS,
 } from '../lib/worldProgress';
+import { useReturnTo } from '../hooks/useReturnTo';
 
 const { width } = Dimensions.get('window');
 
@@ -54,6 +55,12 @@ const HOLD_CIRCLE_SIZE = Math.min(100, Math.floor((width - 40 - 20) / 3));
 
 interface StaticWorldScreenProps {
   onClose?: () => void;
+  // Deep-linked from the Milestone Lane's "Test Your Hold" side quest with a
+  // STATIC_MOVEMENTS id (e.g. 'wall_handstand') — mirrors how OneMinMaxScreen
+  // pre-selects its own category from an incoming `category` prop. Only
+  // pre-selects the category/movement; doesn't auto-open the log modal, same
+  // restraint as that precedent.
+  movement?: string;
 }
 
 // Map categories to professional icons
@@ -64,17 +71,19 @@ const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMa
   planche: 'diamond-stone',
 };
 
-export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
+export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps) {
   const { theme, mode } = useTheme();
   const isDark = mode === 'dark';
   const W = getWorldTheme('static', mode);
   const { user, profile, refreshProfile } = useAuth();
+  const { returnTo, goBackOrReturnTo } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('static.scoreCircle');
   const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('static.movementRow');
+  const deepLinkedMovement = movement ? STATIC_MOVEMENTS.find(m => m.id === movement) ?? null : null;
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(null);
+  const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(deepLinkedMovement);
   const [selectedLevel, setSelectedLevel] = useState<1 | 2 | 3 | null>(null);
   const [entries, setEntries] = useState<StaticLeaderboardEntry[]>([]);
   const [levelEntries, setLevelEntries] = useState<StaticLevelLeaderboardEntry[]>([]);
@@ -106,7 +115,9 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
   const [loading, setLoading] = useState(false);
   const [showGlobalMastery, setShowGlobalMastery] = useState(false);
   const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
-  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>('handstand');
+  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>(
+    deepLinkedMovement?.category ?? 'handstand'
+  );
   
   const [showLogModal, setShowLogModal] = useState(false);
   const [userHolds, setUserHolds] = useState<Record<string, number>>({});
@@ -367,7 +378,13 @@ export function StaticWorldScreen({ onClose }: StaticWorldScreenProps) {
       <WorldBackground world={W}>
       <View style={styles.container}>
       {renderLapHeader()}
-      
+      {returnTo === 'journey' && (
+        <TouchableOpacity style={styles.backToJourneyPill} onPress={() => goBackOrReturnTo('/static-world')}>
+          <MaterialCommunityIcons name="chevron-left" size={16} color={W.accent} />
+          <Text style={[styles.backToJourneyText, { color: W.accent }]}>BACK TO JOURNEY</Text>
+        </TouchableOpacity>
+      )}
+
       <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={styles.dashboard}>
           <View style={styles.heroRow}>
@@ -1104,6 +1121,8 @@ const styles = StyleSheet.create({
   slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
   container: { flex: 1, paddingTop: 22 },
   headerPill: { marginTop: 0 },
+  backToJourneyPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 4, marginTop: 10 },
+  backToJourneyText: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
   dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },
   modalTitleBox: { flexDirection: 'row', alignItems: 'center' },

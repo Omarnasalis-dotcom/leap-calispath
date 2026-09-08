@@ -28,6 +28,7 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { NotificationService } from '../services/NotificationService';
+import { useReturnTo } from '../hooks/useReturnTo';
 import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
@@ -52,6 +53,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, toggleTheme, mode } = useTheme();
   const W = getWorldTheme('onemm', mode);
   const { user, profile, refreshProfile } = useAuth();
+  const { returnTo, goBackOrReturnTo } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
@@ -585,6 +587,12 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
       <WorldBackground world={W}>
       <View style={styles.container}>
       {renderHeader()}
+      {returnTo === 'journey' && (
+        <TouchableOpacity style={styles.backToJourneyPill} onPress={() => goBackOrReturnTo('/one-min-max')}>
+          <MaterialCommunityIcons name="chevron-left" size={16} color={W.accent} />
+          <Text style={[styles.backToJourneyText, { color: W.accent }]}>BACK TO JOURNEY</Text>
+        </TouchableOpacity>
+      )}
       <ScrollView
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={W.accent} />}
         contentContainerStyle={{ paddingBottom: 100 }}
@@ -1115,6 +1123,18 @@ const styles = StyleSheet.create({
   slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
   container: { flex: 1, paddingTop: 22 },
   headerPill: { marginTop: 0 },
+  backToJourneyPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 4,
+    marginTop: 10,
+  },
+  backToJourneyText: {
+    fontSize: 11,
+    fontWeight: '700',
+    letterSpacing: 1.5,
+  },
 
   dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 24 },
   heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },

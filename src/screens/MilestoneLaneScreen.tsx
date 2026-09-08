@@ -6,6 +6,10 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
+import { supabase } from '../lib/supabase';
+import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
+import { BottomTabBar } from '../components/profile/BottomTabBar';
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
 // corrections noted in the plan: the handoff's coral (#FC5454) and Oswald
@@ -172,7 +176,50 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
   );
 }
 
+function DayNode({ number, status, title, isNext, isLast, onPress }: {
+  number: number;
+  status: 'clean' | 'in_progress' | 'done';
+  title: string;
+  isNext: boolean;
+  isLast: boolean;
+  onPress: () => void;
+}) {
+  // Days are never hard-locked (see deriveDayStates' own comment in
+  // warriorProgramDays.ts) — every day stays tappable regardless of visual
+  // state, "next" is emphasis only, not a gate. So unlike the mandatory
+  // milestone nodes above, every DayNode is pressable.
+  const state: NodeState = status === 'done' ? 'complete' : isNext ? 'active' : 'locked';
+  return (
+    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+      <NodeRow
+        number={number}
+        state={state}
+        title={title}
+        desc={status === 'done' ? 'Completed.' : isNext ? 'Up next in your program.' : 'Tap to jump in any time.'}
+        ctaLabel={isNext ? 'START' : undefined}
+        onPressCta={isNext ? onPress : undefined}
+        isLast={isLast}
+      />
+    </TouchableOpacity>
+  );
+}
+
+function SideQuestChip({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
+  return (
+    <TouchableOpacity style={styles.sideQuestChip} onPress={onPress}>
+      <MaterialCommunityIcons name={icon as any} size={16} color={ACCENT} />
+      <Text style={styles.sideQuestChipText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
+
+interface JourneyProgramData {
+  programName: string;
+  days: DayStateEntry[];
+  nextDayIndex: number | null;
+}
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile } = useAuth();
@@ -180,11 +227,87 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { theme } = useTheme();
   const [showReveal, setShowReveal] = useState(false);
   const revealCheckedRef = useRef(false);
+  const [journeyData, setJourneyData] = useState<JourneyProgramData | null>(null);
+  const [journeyLoading, setJourneyLoading] = useState(mode === 'journey');
 
   useFocusEffect(
     useCallback(() => {
       refreshProfile();
     }, [refreshProfile])
+  );
+
+  // "My Journey" mode's Day-N section: the same real completion data
+  // WarriorProgramScreen itself derives (program_blocks grouped into days,
+  // status sourced from a real workout_logs join), not a separate tracker —
+  // consistent with how every other milestone state here is derived rather
+  // than stored.
+  const loadJourneyProgram = useCallback(async () => {
+    if (mode !== 'journey' || !profile?.id) return;
+    setJourneyLoading(true);
+    try {
+      const { data: program } = await supabase
+        .from('warrior_programs')
+        .select('id, template_id, current_week, program_templates:template_id ( name )')
+        .eq('warrior_id', profile.id)
+        .eq('status', 'active')
+        .maybeSingle();
+
+      if (!program) {
+        setJourneyData(null);
+        return;
+      }
+
+      const [{ data: blocks }, { data: logs }] = await Promise.all([
+        supabase
+          .from('program_blocks')
+          .select('id, name, week_number')
+          .eq('template_id', (program as any).template_id)
+          .eq('week_number', (program as any).current_week ?? 1)
+          .order('order_index', { ascending: true }),
+        supabase
+          .from('workout_logs')
+          .select('block_id')
+          .eq('warrior_program_id', (program as any).id),
+      ]);
+
+      const loggedBlockIds = new Set((logs ?? []).map((l: any) => String(l.block_id)));
+      const rawBlocks: RawProgramBlockRow[] = (blocks ?? []).map((b: any) => ({
+        id: b.id,
+        name: b.name,
+        week_number: b.week_number,
+      }));
+      const grouped = groupRawBlocksIntoDays(rawBlocks);
+      const blockById = new Map((blocks ?? []).map((b: any) => [String(b.id), b]));
+      const days: ProgramDay[] = grouped.map((g) => ({
+        name: g.dayName,
+        blocks: g.blockIds.map((id): ProgramBlock => ({
+          id,
+          name: blockById.get(String(id))?.name ?? '',
+          notes: '',
+          exercises: [],
+          completedStatus: loggedBlockIds.has(String(id)) ? 'completed' : 'none',
+        })),
+      }));
+
+      const templateRel = (program as any).program_templates;
+      const programName = Array.isArray(templateRel) ? templateRel[0]?.name : templateRel?.name;
+
+      setJourneyData({
+        programName: programName || 'Your Program',
+        days: deriveDayStates(days),
+        nextDayIndex: deriveNextDayIndex(days),
+      });
+    } catch {
+      setJourneyData(null);
+    } finally {
+      setJourneyLoading(false);
+    }
+  }, [mode, profile?.id]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadJourneyProgram();
+    }, [loadJourneyProgram])
   );
 
   // The tier-reveal celebration fires exactly once per assessment result —
@@ -235,80 +358,140 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
 
   return (
+    <View style={styles.screen}>
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <Text style={styles.header}>MY JOURNEY</Text>
 
       <View style={styles.lane}>
-        <NodeRow
-          number={1}
-          state={milestone1State}
-          title="01 ASSESSMENT"
-          desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
-          ctaLabel="START"
-          onPressCta={() => router.push('/assessment-gate')}
-          isLast={false}
-        />
-        <NodeRow
-          number={2}
-          state={milestone2State}
-          title="02 GOALS & EQUIPMENT"
-          desc={
-            milestone2State === 'complete'
-              ? goalLabel ?? 'Saved.'
-              : milestone2State === 'active'
-              ? 'Tell us your goal and equipment.'
-              : 'Unlocks after your assessment.'
-          }
-          ctaLabel="START"
-          onPressCta={() => router.push('/goals-equipment')}
-          isLast={false}
-        />
-        <NodeRow
-          number={3}
-          state={milestone3State}
-          title="03 BUILD YOUR PROGRAM"
-          desc={
-            milestone3State === 'active'
-              ? 'Choose how you want to train. This is where onboarding ends.'
-              : 'Unlocks after your goals.'
-          }
-          isLast
-        >
-          <View style={styles.choiceStack}>
-            <ProgramChoiceCard
-              icon="creation"
-              title="AI COACH"
-              desc="A day-by-day plan that adapts as you progress."
-              onPress={() => router.push('/coach')}
+        {mode === 'onboarding' ? (
+          <>
+            <NodeRow
+              number={1}
+              state={milestone1State}
+              title="01 ASSESSMENT"
+              desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
+              ctaLabel="START"
+              onPressCta={() => router.push('/assessment-gate')}
+              isLast={false}
             />
-            <ProgramChoiceCard
-              icon="tune-vertical"
-              title="CUSTOMIZE PROGRAM"
-              desc="Pick your focus, frequency and equipment."
-              onPress={() => router.push('/customize-program')}
+            <NodeRow
+              number={2}
+              state={milestone2State}
+              title="02 GOALS & EQUIPMENT"
+              desc={
+                milestone2State === 'complete'
+                  ? goalLabel ?? 'Saved.'
+                  : milestone2State === 'active'
+                  ? 'Tell us your goal and equipment.'
+                  : 'Unlocks after your assessment.'
+              }
+              ctaLabel="START"
+              onPressCta={() => router.push('/goals-equipment')}
+              isLast={false}
             />
-            <ProgramChoiceCard
-              icon="view-grid-outline"
-              title="READY TEMPLATE"
-              desc="Start an expert-built program today."
-              onPress={() => router.push('/program-templates')}
-            />
-          </View>
-        </NodeRow>
+            <NodeRow
+              number={3}
+              state={milestone3State}
+              title="03 BUILD YOUR PROGRAM"
+              desc={
+                milestone3State === 'active'
+                  ? 'Choose how you want to train. This is where onboarding ends.'
+                  : 'Unlocks after your goals.'
+              }
+              isLast
+            >
+              <View style={styles.choiceStack}>
+                <ProgramChoiceCard
+                  icon="creation"
+                  title="AI COACH"
+                  desc="A day-by-day plan that adapts as you progress."
+                  onPress={() => router.push('/coach')}
+                />
+                <ProgramChoiceCard
+                  icon="tune-vertical"
+                  title="CUSTOMIZE PROGRAM"
+                  desc="Pick your focus, frequency and equipment."
+                  onPress={() => router.push('/customize-program')}
+                />
+                <ProgramChoiceCard
+                  icon="view-grid-outline"
+                  title="READY TEMPLATE"
+                  desc="Start an expert-built program today."
+                  onPress={() => router.push('/program-templates')}
+                />
+              </View>
+            </NodeRow>
+            <GhostNode />
+          </>
+        ) : (
+          <>
+            <View style={styles.onboardingSummary}>
+              <MaterialCommunityIcons name="check-circle" size={16} color={ACCENT} />
+              <Text style={styles.onboardingSummaryText}>Onboarding complete{goalLabel ? ` · ${goalLabel}` : ''}</Text>
+            </View>
 
-        <GhostNode />
+            {journeyLoading ? (
+              <Text style={styles.journeyMuted}>Loading your program…</Text>
+            ) : journeyData ? (
+              <>
+                <Text style={styles.journeySectionLabel}>{journeyData.programName.toUpperCase()} · THIS WEEK</Text>
+                {journeyData.days.map((d, i) => (
+                  <DayNode
+                    key={i}
+                    number={i + 1}
+                    status={d.status}
+                    title={d.day.name.toUpperCase()}
+                    isNext={journeyData.nextDayIndex === i}
+                    isLast={false}
+                    onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                  />
+                ))}
 
-        {mode === 'journey' && (
-          <Text style={styles.journeyComingSoon}>
-            Daily workouts, side quests and weekly trials are landing here soon.
-          </Text>
+                <NodeRow
+                  number={journeyData.days.length + 1}
+                  state="active"
+                  title="STRENGTH TRIAL"
+                  desc="Test your current tier whenever you're ready."
+                  ctaLabel="START"
+                  onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
+                  isLast
+                />
+              </>
+            ) : (
+              <Text style={styles.journeyMuted}>No active program yet — build one above to see your daily journey here.</Text>
+            )}
+
+            <View style={styles.sideQuestSection}>
+              <Text style={styles.journeySectionLabel}>SIDE QUESTS</Text>
+              <Text style={styles.journeyMuted}>Optional tests you can jump into any time.</Text>
+              <View style={styles.sideQuestRow}>
+                <SideQuestChip
+                  icon="timer-outline"
+                  label="Test Your Endurance"
+                  onPress={() => router.push({ pathname: '/one-min-max', params: { category: 'entry', returnTo: 'journey' } })}
+                />
+                <SideQuestChip
+                  icon="hand-back-left-outline"
+                  label="Test Your Hold"
+                  onPress={() => router.push({ pathname: '/static-world', params: { movement: 'wall_handstand', returnTo: 'journey' } })}
+                />
+              </View>
+            </View>
+
+            <GhostNode />
+          </>
         )}
       </View>
     </ScrollView>
+    {mode === 'journey' && <BottomTabBar activeTab="journey" strengthTier={profile?.strength_tier || 0} />}
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
+  screen: {
+    flex: 1,
+  },
   scrollContent: {
     flexGrow: 1,
     paddingTop: 24,
@@ -420,13 +603,60 @@ const styles = StyleSheet.create({
     fontSize: 11,
     letterSpacing: 2,
   },
-  journeyComingSoon: {
+  journeyMuted: {
     color: 'rgba(255,255,255,0.3)',
     fontFamily: 'Barlow-Regular',
     fontSize: 12.5,
-    textAlign: 'center',
-    marginTop: 12,
+    marginTop: 4,
+    marginBottom: 16,
     lineHeight: 18,
+  },
+  onboardingSummary: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255,255,255,0.04)',
+    borderRadius: 12,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
+    marginBottom: 24,
+  },
+  onboardingSummaryText: {
+    color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12.5,
+  },
+  journeySectionLabel: {
+    color: ACCENT,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 11,
+    letterSpacing: 1.5,
+    marginBottom: 12,
+  },
+  sideQuestSection: {
+    marginTop: 8,
+    marginBottom: 28,
+  },
+  sideQuestRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10,
+    marginTop: 12,
+  },
+  sideQuestChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1,
+    borderColor: 'rgba(255,82,82,0.35)',
+    borderRadius: 20,
+    paddingVertical: 9,
+    paddingHorizontal: 14,
+  },
+  sideQuestChipText: {
+    color: ACCENT,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 12,
   },
   choiceStack: {
     marginTop: 12,

@@ -2,10 +2,12 @@ import React from 'react';
 import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
 import { TrialScreen } from '../src/screens/TrialScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
+import { useReturnTo } from '../src/hooks/useReturnTo';
 
 export default function Route() {
   const router = useRouter();
   const { mode, tier } = useLocalSearchParams<{ mode: string; tier: string }>();
+  const { returnTo, goBackOrReturnTo } = useReturnTo();
 
   return (
     <SpartanLayout hideToggle>
@@ -13,14 +15,8 @@ export default function Route() {
       <TrialScreen
         mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
-        onComplete={() => router.replace('/profile')}
-        onBack={() => {
-          if (router.canGoBack()) {
-            router.back();
-          } else {
-            router.replace('/');
-          }
-        }}
+        onComplete={() => (returnTo === 'journey' ? router.replace('/my-journey') : router.replace('/profile'))}
+        onBack={() => goBackOrReturnTo('/')}
       />
     </SpartanLayout>
   );
