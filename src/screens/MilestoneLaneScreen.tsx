@@ -493,7 +493,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               <Text style={styles.journeyMuted}>Loading your program…</Text>
             ) : journeyData ? (
               <>
-                <Text style={styles.journeySectionLabel}>{journeyData.programName.toUpperCase()} · THIS WEEK</Text>
+                <Text style={styles.journeySectionLabel}>{journeyData.programName.toUpperCase()} · WEEK {journeyData.currentWeek}</Text>
                 {journeyData.days.map((d, i) => (
                   <DayNode
                     key={i}
