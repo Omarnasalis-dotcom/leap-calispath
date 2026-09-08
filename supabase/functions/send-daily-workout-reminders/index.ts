@@ -56,7 +56,10 @@ Deno.serve(async (req) => {
     return json({ success: true, targeted: 0, sent: 0, failed: 0 });
   }
 
-  const notificationData = { screen: "profile" };
+  // Points at the Milestone Lane's "My Journey" tab (added after this
+  // function shipped) rather than bare profile -- it's the more relevant
+  // landing spot for a "you haven't trained today" nudge now that it exists.
+  const notificationData = { screen: "my-journey" };
   const rows = (targets as Array<{ user_id: string; display_name: string | null }>).map((t) => ({
     user_id: t.user_id,
     type: NOTIFICATION_TYPE,
