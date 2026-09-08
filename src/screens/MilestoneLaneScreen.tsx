@@ -369,6 +369,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
+  const weekComplete = !!journeyData && journeyData.days.length > 0 && journeyData.days.every((d) => d.status === 'done');
 
   return (
     <View style={styles.screen}>
@@ -462,10 +463,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
                 <NodeRow
                   number={journeyData.days.length + 1}
-                  state={journeyData.days.every((d) => d.status === 'done') ? 'active' : 'locked'}
+                  state={weekComplete ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
                   desc={
-                    journeyData.days.every((d) => d.status === 'done')
+                    weekComplete
                       ? "Test your current tier now that this week's days are done."
                       : 'Unlocks after every day this week is done.'
                   }
@@ -473,6 +474,27 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
                 />
+
+                {weekComplete && (
+                  // current_week only ever advances via coach/AI-coach week
+                  // management (append/archive) -- nothing in the app has a
+                  // warrior-driven "advance to next week" mutation, and
+                  // introducing one here would duplicate/risk conflicting
+                  // with that existing logic. WarriorProgramScreen already
+                  // has its own week-tab navigation (the weeks themselves
+                  // already exist in program_blocks), so once this week's
+                  // done, hand off there rather than owning that mutation.
+                  <View style={styles.weekCompleteBanner}>
+                    <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
+                    <Text style={styles.weekCompleteText}>Week complete — nice work.</Text>
+                    <TouchableOpacity
+                      style={styles.weekCompletePill}
+                      onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                    >
+                      <Text style={styles.weekCompletePillText}>CONTINUE IN YOUR PROGRAM</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
               </>
             ) : (
               <Text style={styles.journeyMuted}>No active program yet — build one above to see your daily journey here.</Text>
@@ -674,6 +696,36 @@ const styles = StyleSheet.create({
     color: ACCENT,
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12,
+  },
+  weekCompleteBanner: {
+    alignItems: 'center',
+    backgroundColor: 'rgba(255,82,82,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,82,82,0.25)',
+    borderRadius: 16,
+    paddingVertical: 20,
+    paddingHorizontal: 16,
+    marginTop: 20,
+    marginBottom: 8,
+    gap: 8,
+  },
+  weekCompleteText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 13,
+  },
+  weekCompletePill: {
+    marginTop: 6,
+    backgroundColor: ACCENT,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+  },
+  weekCompletePillText: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 12,
+    letterSpacing: 1.5,
   },
   choiceStack: {
     marginTop: 12,
