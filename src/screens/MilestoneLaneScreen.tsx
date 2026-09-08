@@ -462,9 +462,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
                 <NodeRow
                   number={journeyData.days.length + 1}
-                  state="active"
+                  state={journeyData.days.every((d) => d.status === 'done') ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
-                  desc="Test your current tier whenever you're ready."
+                  desc={
+                    journeyData.days.every((d) => d.status === 'done')
+                      ? "Test your current tier now that this week's days are done."
+                      : 'Unlocks after every day this week is done.'
+                  }
                   ctaLabel="START"
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
