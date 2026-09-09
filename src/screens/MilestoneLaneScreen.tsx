@@ -849,10 +849,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
-  const isQuestSlotResolved = useCallback(
-    (slotKey: string) => completedQuestSlots.has(slotKey) || skippedQuestSlots.has(slotKey),
-    [completedQuestSlots, skippedQuestSlots]
-  );
+  // Plain function, not useCallback -- it's only ever called directly below
+  // in the same render, never passed down as a memoized prop or referenced
+  // in another hook's dependency array, so memoizing it bought nothing. A
+  // useCallback here was also the actual bug just reported live ("Rendered
+  // fewer hooks than expected"): it sat after the early RankUpReveal return
+  // above, so the render pass where showReveal is true skipped this hook
+  // call entirely while the very next render (showReveal now false) called
+  // it -- a genuine Rules-of-Hooks violation, not the earlier auto-scroll
+  // effect (which was already correctly placed before that return).
+  const isQuestSlotResolved = (slotKey: string) => completedQuestSlots.has(slotKey) || skippedQuestSlots.has(slotKey);
   // Trial/side-quest gating and the week-complete banner only ever look at
   // the latest (current) week — earlier weeks in the path are already done.
   const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
