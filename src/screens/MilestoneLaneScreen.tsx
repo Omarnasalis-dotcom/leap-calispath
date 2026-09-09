@@ -804,15 +804,24 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   useEffect(() => {
     if (mode === 'journey' && journeyLoading) return;
     const t = setTimeout(() => {
-      const node = activeStepRef.current as unknown as { measureLayout?: Function } | null;
-      const scrollNode = scrollViewRef.current as any;
-      if (!node?.measureLayout || !scrollNode) return;
-      const relativeTo = scrollNode.getInnerViewNode?.() ?? scrollNode;
-      node.measureLayout(
-        relativeTo,
-        (_x: number, y: number) => scrollNode.scrollTo({ y: Math.max(y - 100, 0), animated: true }),
-        () => {}
-      );
+      const node = activeStepRef.current as unknown as { measureInWindow?: (cb: (x: number, y: number) => void) => void } | null;
+      const scrollNode = scrollViewRef.current as unknown as { measureInWindow?: (cb: (x: number, y: number) => void) => void; scrollTo: (o: { y: number; animated: boolean }) => void } | null;
+      if (!node?.measureInWindow || !scrollNode?.measureInWindow) return;
+      // measureLayout's relativeTo-node approach silently failed here
+      // (likely a New Architecture/Fabric ref quirk — this project has
+      // newArchEnabled: true) and swallowing that failure meant it just
+      // did nothing, landing on the default top-of-list position instead
+      // of scrolling — reported live as "still navigates to the first
+      // step." measureInWindow on both nodes and subtracting is a simpler,
+      // more universally reliable alternative: at this point (right after
+      // mount, before any user scrolling) the ScrollView's own offset is
+      // still 0, so the difference between the two window positions is
+      // already the target scroll offset, no relative-node argument needed.
+      scrollNode.measureInWindow((_svX, svY) => {
+        node.measureInWindow!((_nX, nY) => {
+          scrollNode.scrollTo({ y: Math.max(nY - svY - 100, 0), animated: true });
+        });
+      });
     }, 400);
     return () => clearTimeout(t);
   }, [mode, journeyLoading, journeyData, legacyAcknowledged, legacyFlowActive]);
