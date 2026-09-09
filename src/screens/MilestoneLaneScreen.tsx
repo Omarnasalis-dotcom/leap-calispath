@@ -483,13 +483,13 @@ function NodeRow({
             <Text
               style={[
                 styles.nodeTitle,
-                { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.85)' },
+                { color: dim ? 'rgba(255,255,255,0.25)' : '#FFFFFF' },
                 state === 'complete' && styles.nodeTitleComplete,
               ]}
             >
               {title}
             </Text>
-            <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)' }]}>{desc}</Text>
+            <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.68)' }]}>{desc}</Text>
             {state === 'active' && (ctaLabel || secondaryCtaLabel) && (
               <View style={styles.ctaRow}>
                 {ctaLabel && onPressCta && (
@@ -1562,8 +1562,8 @@ const styles = StyleSheet.create({
   },
   nodeNumberActive: {
     color: ACCENT,
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 17,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 16,
   },
   connector: {
     width: 2,
@@ -1594,16 +1594,16 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   nodeTitle: {
-    fontFamily: 'PlusJakartaSans-Bold',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 15,
-    letterSpacing: 0.5,
+    letterSpacing: 0.3,
   },
   nodeTitleComplete: {
     textDecorationLine: 'line-through',
     textDecorationColor: 'rgba(255,255,255,0.25)',
   },
   nodeDesc: {
-    fontFamily: 'Barlow-Regular',
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12.5,
     marginTop: 4,
     lineHeight: 17,
@@ -1636,7 +1636,7 @@ const styles = StyleSheet.create({
     borderRadius: 24,
   },
   ctaPillSecondaryText: {
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.7)',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12,
     letterSpacing: 1.5,
@@ -1703,7 +1703,7 @@ const styles = StyleSheet.create({
   },
   milestoneCardTitle: {
     color: '#FFFFFF',
-    fontFamily: 'PlusJakartaSans-Bold',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 14,
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowOffset: { width: 0, height: 1 },
@@ -1713,8 +1713,8 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.35)',
   },
   milestoneCardDesc: {
-    color: 'rgba(255,255,255,0.78)',
-    fontFamily: 'Barlow-Regular',
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
     marginTop: 3,
   },
@@ -1752,8 +1752,8 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
   },
   journeyMuted: {
-    color: 'rgba(255,255,255,0.3)',
-    fontFamily: 'Barlow-Regular',
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12.5,
     marginTop: 4,
     marginBottom: 16,
@@ -1771,8 +1771,8 @@ const styles = StyleSheet.create({
   },
   onboardingSummaryText: {
     flex: 1,
-    color: 'rgba(255,255,255,0.65)',
-    fontFamily: 'PlusJakartaSans-Bold',
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12.5,
   },
   onboardingSummaryLink: {
@@ -1801,8 +1801,8 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   weekCompleteText: {
-    color: 'rgba(255,255,255,0.85)',
-    fontFamily: 'PlusJakartaSans-Bold',
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 13,
   },
   weekCompletePill: {
@@ -1841,14 +1841,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   choiceTitle: {
-    color: 'rgba(255,255,255,0.85)',
+    color: '#FFFFFF',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 13,
     letterSpacing: 1,
   },
   choiceDesc: {
-    color: 'rgba(255,255,255,0.45)',
-    fontFamily: 'Barlow-Regular',
+    color: 'rgba(255,255,255,0.65)',
+    fontFamily: 'PlusJakartaSans-Regular',
     fontSize: 12,
     marginTop: 3,
     lineHeight: 16,
