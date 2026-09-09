@@ -29,6 +29,18 @@ export function getSubscriptionTier(profile: Profile | null, paywallEnabled: boo
   return 'free';
 }
 
+// Display-only — distinguishes "had a paid tier that lapsed" from "never
+// subscribed" for the profile badge. Deliberately separate from
+// getSubscriptionTier(): that function must keep collapsing both cases to
+// 'free' for every actual access-control check (gating, RPCs, tier
+// comparisons), so an expired subscriber is never treated as still paid.
+// This only changes what's shown, never what's allowed.
+export function hasExpiredSubscription(profile: Profile | null, paywallEnabled: boolean): boolean {
+  if (!paywallEnabled) return false;
+  if (profile?.is_admin === true || profile?.is_coach === true) return false;
+  return !!profile?.subscription_tier && !hasActiveAccess(profile);
+}
+
 // "Pro" here means "any paid tier" — First/Pro/Max all pass. This is what
 // Program Templates, Quick Workouts, and AI Coach's "Start Program" gate
 // all actually want; none of them distinguish between the three paid

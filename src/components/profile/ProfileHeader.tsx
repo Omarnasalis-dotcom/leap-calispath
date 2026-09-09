@@ -20,7 +20,7 @@ import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
 import { TC_BUTTON_GRADIENT, TC_MOTION } from '../../../constants/trainingCenterTokens';
-import { getSubscriptionTier, SubscriptionTier } from '../../lib/entitlement';
+import { getSubscriptionTier, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
 
 const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
   free: '#8a8a8a',
@@ -28,6 +28,11 @@ const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
   pro: '#FC5454',
   max: '#a479e2',
 };
+
+// Distinct from SUBSCRIPTION_TIER_COLORS.free — a lapsed subscriber reads
+// the badge as "you had access, it ran out" rather than "you never had it",
+// same reasoning as hasExpiredSubscription's own doc comment.
+const EXPIRED_BADGE_COLOR = '#a1584a';
 
 /**
  * Slow diagonal sheen pass across the Training Center button (design
@@ -211,6 +216,7 @@ export function ProfileHeader({
     ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
     : 'WARRIOR';
   const subscriptionTier = getSubscriptionTier(profile, paywallEnabled);
+  const isExpiredSubscriber = hasExpiredSubscription(profile, paywallEnabled);
   const wraPct = clamp01(wraScore / WRA_MAX) * 100;
   const neutrals = getWorldNeutrals(mode);
   const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
@@ -251,9 +257,12 @@ export function ProfileHeader({
             activeOpacity={subscriptionTier === 'max' ? 1 : 0.7}
             disabled={subscriptionTier === 'max'}
             onPress={onOpenPaywall}
-            style={[styles.subscriptionBadge, { backgroundColor: SUBSCRIPTION_TIER_COLORS[subscriptionTier] }]}
+            style={[
+              styles.subscriptionBadge,
+              { backgroundColor: isExpiredSubscriber ? EXPIRED_BADGE_COLOR : SUBSCRIPTION_TIER_COLORS[subscriptionTier] },
+            ]}
           >
-            <Text style={styles.subscriptionBadgeText}>{subscriptionTier.toUpperCase()}</Text>
+            <Text style={styles.subscriptionBadgeText}>{isExpiredSubscriber ? 'EXPIRED' : subscriptionTier.toUpperCase()}</Text>
           </TouchableOpacity>
 
           {/* Only makes sense while "Pro" is actually an upgrade — hidden
@@ -264,7 +273,7 @@ export function ProfileHeader({
           {(subscriptionTier === 'free' || subscriptionTier === 'first') && (
             <TouchableOpacity activeOpacity={0.7} onPress={onOpenPaywall} style={styles.upgradePill}>
               <MaterialCommunityIcons name="crown-outline" size={7} color="#FC5454" />
-              <Text style={styles.upgradePillText}>UPGRADE</Text>
+              <Text style={styles.upgradePillText}>{isExpiredSubscriber ? 'RENEW' : 'UPGRADE'}</Text>
             </TouchableOpacity>
           )}
         </View>
