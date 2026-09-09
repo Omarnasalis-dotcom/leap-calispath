@@ -125,15 +125,37 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
 
 function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex: number }) {
   const fillOpacity = useMountPop(complete ? staggerIndex : -1);
+  // The actual "route lights up and moves to the next step" ask — a small
+  // glowing dot travels the length of the connector as it fills, matching
+  // the design handoff's line-draw + traveling-dot beat. Needs the
+  // connector's real measured height (percentage transforms don't exist in
+  // RN) to know how far to travel, so it only renders once onLayout reports
+  // one; travels via translateY (native-driver safe) reusing the same
+  // mount-pop timing as the fill itself, so they move together.
+  const [height, setHeight] = useState(0);
   return (
     <Animated.View
+      onLayout={complete ? (e) => setHeight(e.nativeEvent.layout.height) : undefined}
       style={[
         styles.connector,
         complete
           ? { backgroundColor: ACCENT, borderWidth: 0, opacity: fillOpacity }
           : { backgroundColor: 'transparent', borderLeftWidth: 2, borderLeftColor: 'rgba(255,255,255,0.12)', borderStyle: 'dashed' },
       ]}
-    />
+    >
+      {complete && height > 0 && (
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.connectorDot,
+            {
+              opacity: fillOpacity.interpolate({ inputRange: [0, 0.15, 0.8, 1], outputRange: [0, 1, 1, 0] }),
+              transform: [{ translateY: fillOpacity.interpolate({ inputRange: [0, 1], outputRange: [0, height] }) }],
+            },
+          ]}
+        />
+      )}
+    </Animated.View>
   );
 }
 
@@ -954,6 +976,21 @@ const styles = StyleSheet.create({
     flex: 1,
     minHeight: 34,
     marginTop: 4,
+    position: 'relative',
+  },
+  connectorDot: {
+    position: 'absolute',
+    top: 0,
+    left: -3,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: ACCENT,
+    shadowColor: ACCENT,
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.9,
+    shadowRadius: 6,
+    elevation: 4,
   },
   youAreHere: {
     color: ACCENT,
