@@ -17,15 +17,24 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 // Cards, added for this purpose). require() needs static string literals, so
 // these can't be built from a template — each is named individually and mapped
 // to a specific card below by content (assessment/day/side-quest theme).
-const IMG_SQUAT = require('../../assets/Milestone Cards/Deep squat .png');
-const IMG_INCLINE_PUSHUP = require('../../assets/Milestone Cards/Incline Push ups used.png');
-const IMG_MOBILITY = require('../../assets/Milestone Cards/Mobility.png');
-const IMG_PULLUPS = require('../../assets/Milestone Cards/Pull Ups back view used.png');
-const IMG_LUNGES = require('../../assets/Milestone Cards/RUN lunges used.png');
-const IMG_HANDSTAND = require('../../assets/Milestone Cards/han used.png');
-const IMG_MOUNTAIN_CLIMBER = require('../../assets/Milestone Cards/mountin climper used.png');
-const IMG_PISTOL = require('../../assets/Milestone Cards/pistol side used.png');
-const IMG_SPRINT = require('../../assets/Milestone Cards/sprint used .png');
+//
+// Filenames here are deliberately space-free: React Native's on-device asset
+// URL is built by AssetSourceResolver.js via plain string concatenation of
+// `asset.name` (never encodeURIComponent'd), so a literal space in the
+// filename produces a URI with an unencoded space in it -- which
+// NSURL(string:) on iOS fails to parse at all, silently, so the Image never
+// even fires a request. That's what "cards is empty" was: every one of
+// these files originally had a space in its base name (only Mobility.png
+// didn't), so only that one card was ever rendering a photo.
+const IMG_SQUAT = require('../../assets/Milestone Cards/deep-squat.png');
+const IMG_INCLINE_PUSHUP = require('../../assets/Milestone Cards/incline-pushup.png');
+const IMG_MOBILITY = require('../../assets/Milestone Cards/mobility.png');
+const IMG_PULLUPS = require('../../assets/Milestone Cards/pull-ups.png');
+const IMG_LUNGES = require('../../assets/Milestone Cards/lunges.png');
+const IMG_HANDSTAND = require('../../assets/Milestone Cards/handstand.png');
+const IMG_MOUNTAIN_CLIMBER = require('../../assets/Milestone Cards/mountain-climber.png');
+const IMG_PISTOL = require('../../assets/Milestone Cards/pistol-squat.png');
+const IMG_SPRINT = require('../../assets/Milestone Cards/sprint.png');
 
 const SIDE_QUEST_IMAGES: Record<'1mm' | 'static' | 'power', ImageSourcePropType> = {
   '1mm': IMG_SPRINT,
