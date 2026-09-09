@@ -42,16 +42,55 @@ function usePulse(enabled: boolean) {
   return value;
 }
 
-function NodeCircle({ state, number, isSideQuest }: { state: NodeState; number: number; isSideQuest?: boolean }) {
+// Mirrors the design handoff's Node Unlock transition (ring/check crossfade
+// + spring pop, ~1.2s in the reference) — RN Animated rather than the
+// file's CSS keyframes (reference-only per its own README).
+//
+// This deliberately animates on every mount, not on a state *change* — an
+// earlier version tried to diff previous-vs-current state and only animate
+// real transitions, but this screen has no persistent tab navigator behind
+// it (BottomTabBar does router.replace between plain stack routes, not a
+// React Navigation Tabs navigator), so it genuinely unmounts and remounts
+// fresh every time the user navigates back from finishing something. A
+// "did the state change since last render" check never fires in that case
+// — the freshly mounted screen only ever sees the final, already-complete
+// state, so nothing ever appeared to move. Animating on mount, staggered by
+// each node's position in the list, is what actually reads as the lane
+// coming alive when you land back on it.
+// staggerIndex < 0 means "don't animate this one" (e.g. locked nodes,
+// still-dashed connectors) — settles at fully visible immediately.
+function useMountPop(staggerIndex: number) {
+  const anim = useRef(new Animated.Value(staggerIndex < 0 ? 1 : 0)).current;
+  useEffect(() => {
+    if (staggerIndex < 0) return;
+    const delay = Math.min(staggerIndex * 70, 600);
+    const t = setTimeout(() => {
+      Animated.spring(anim, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }).start();
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return anim;
+}
+
+function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeState; number: number; isSideQuest?: boolean; staggerIndex: number }) {
   const pulse = usePulse(state === 'active');
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
+  // Locked nodes stay fully static — "no motion until unlocked" is
+  // deliberate per the design handoff, it's what draws the eye to what's
+  // actually active. Only active/complete ever animate in.
+  const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
+  const popStyle = {
+    opacity: pop,
+    transform: [{ scale: pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.4, 1.15, 1] }) }],
+  };
 
   if (state === 'complete') {
     return (
-      <View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }]}>
+      <Animated.View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }, popStyle]}>
         <MaterialCommunityIcons name="check" size={isSideQuest ? 18 : 26} color="#FFFFFF" />
-      </View>
+      </Animated.View>
     );
   }
   if (state === 'active') {
@@ -60,9 +99,9 @@ function NodeCircle({ state, number, isSideQuest }: { state: NodeState; number: 
     // ambient glow, so they read as a fork off the main path, not part of it.
     if (isSideQuest) {
       return (
-        <View style={[styles.nodeCircle, styles.nodeCircleSmall, { borderWidth: 1.5, borderColor: ACCENT, borderStyle: 'dashed' }]}>
+        <Animated.View style={[styles.nodeCircle, styles.nodeCircleSmall, { borderWidth: 1.5, borderColor: ACCENT, borderStyle: 'dashed' }, popStyle]}>
           <MaterialCommunityIcons name="compass-outline" size={16} color={ACCENT} />
-        </View>
+        </Animated.View>
       );
     }
     return (
@@ -71,9 +110,9 @@ function NodeCircle({ state, number, isSideQuest }: { state: NodeState; number: 
           pointerEvents="none"
           style={[styles.nodeGlow, { opacity: glowOpacity, transform: [{ scale: glowScale }] }]}
         />
-        <View style={[styles.nodeCircle, { borderWidth: 3, borderColor: ACCENT }]}>
+        <Animated.View style={[styles.nodeCircle, { borderWidth: 3, borderColor: ACCENT }, popStyle]}>
           <Text style={styles.nodeNumberActive}>{number}</Text>
-        </View>
+        </Animated.View>
       </View>
     );
   }
@@ -84,13 +123,14 @@ function NodeCircle({ state, number, isSideQuest }: { state: NodeState; number: 
   );
 }
 
-function Connector({ complete }: { complete: boolean }) {
+function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex: number }) {
+  const fillOpacity = useMountPop(complete ? staggerIndex : -1);
   return (
-    <View
+    <Animated.View
       style={[
         styles.connector,
         complete
-          ? { backgroundColor: ACCENT, borderWidth: 0 }
+          ? { backgroundColor: ACCENT, borderWidth: 0, opacity: fillOpacity }
           : { backgroundColor: 'transparent', borderLeftWidth: 2, borderLeftColor: 'rgba(255,255,255,0.12)', borderStyle: 'dashed' },
       ]}
     />
@@ -106,6 +146,7 @@ function NodeRow({
   onPressCta,
   isLast,
   isSideQuest,
+  staggerIndex = 0,
   children,
 }: {
   number: number;
@@ -116,19 +157,27 @@ function NodeRow({
   onPressCta?: () => void;
   isLast: boolean;
   isSideQuest?: boolean;
+  staggerIndex?: number;
   children?: React.ReactNode;
 }) {
   const pulse = usePulse(state === 'active' && !isSideQuest);
   const labelOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
   const dim = state === 'locked';
+  // Same one-time mount-pop as NodeCircle (see useMountPop's comment for
+  // why this animates on mount rather than on a state-change diff),
+  // applied to the text/CTA side so the whole row visibly arrives together
+  // rather than the circle animating while the copy next to it just snaps
+  // into place.
+  const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
+  const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] };
 
   return (
     <View style={[styles.row, isSideQuest && styles.rowSideQuest]}>
       <View style={styles.rowLeft}>
-        <NodeCircle state={state} number={number} isSideQuest={isSideQuest} />
-        {!isLast && <Connector complete={state === 'complete'} />}
+        <NodeCircle state={state} number={number} isSideQuest={isSideQuest} staggerIndex={staggerIndex} />
+        {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
       </View>
-      <View style={styles.rowRight}>
+      <Animated.View style={[styles.rowRight, contentPopStyle]}>
         {state === 'active' && !isSideQuest && (
           <Animated.Text style={[styles.youAreHere, { opacity: labelOpacity }]}>YOU ARE HERE</Animated.Text>
         )}
@@ -148,7 +197,7 @@ function NodeRow({
           </TouchableOpacity>
         )}
         {state === 'active' && children}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -212,6 +261,7 @@ function DayNode({ number, status, title, isNext, isLast, onPress }: {
         ctaLabel={isNext ? 'START' : undefined}
         onPressCta={isNext ? onPress : undefined}
         isLast={isLast}
+        staggerIndex={number}
       />
     </TouchableOpacity>
   );
@@ -264,7 +314,13 @@ function getSideQuestForSlot(slotIndex: number, strengthTier: number): SideQuest
   return rotation[slotIndex % rotation.length];
 }
 
-function SideQuestNode({ kind, state, isLast, onPress }: { kind: SideQuestKind; state: NodeState; isLast: boolean; onPress: () => void }) {
+function SideQuestNode({ kind, state, isLast, staggerIndex, onPress }: {
+  kind: SideQuestKind;
+  state: NodeState;
+  isLast: boolean;
+  staggerIndex: number;
+  onPress: () => void;
+}) {
   const def = SIDE_QUEST_DEFS[kind];
   const desc = state === 'complete' ? 'Done — nice work.' : state === 'locked' ? 'Unlocks once the day before it is done.' : def.desc;
   return (
@@ -276,6 +332,7 @@ function SideQuestNode({ kind, state, isLast, onPress }: { kind: SideQuestKind; 
       ctaLabel={state === 'active' ? 'START' : undefined}
       onPressCta={state === 'active' ? onPress : undefined}
       isLast={isLast}
+      staggerIndex={staggerIndex}
       isSideQuest
     />
   );
@@ -556,6 +613,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               ctaLabel="START"
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
+              staggerIndex={1}
             />
             <NodeRow
               number={2}
@@ -571,6 +629,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               ctaLabel="START"
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
+              staggerIndex={2}
             />
             <NodeRow
               number={3}
@@ -582,6 +641,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   : 'Unlocks after your goals.'
               }
               isLast
+              staggerIndex={3}
             >
               <View style={styles.choiceStack}>
                 <ProgramChoiceCard
@@ -658,6 +718,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         kind={kind}
                         state={questState}
                         isLast={false}
+                        staggerIndex={startNumber + i + 1}
                         onPress={() =>
                           router.push({
                             pathname: def.pathname,
@@ -679,6 +740,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         ctaLabel="START"
                         onPressCta={() => router.push('/weekly-challenge')}
                         isLast
+                        staggerIndex={startNumber + week.days.length + 1}
                         isSideQuest
                       />
                     );
@@ -709,6 +771,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ctaLabel="START"
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
+                  staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                 />
 
                 {weekComplete && (
