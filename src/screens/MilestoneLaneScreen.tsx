@@ -262,9 +262,12 @@ function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex
       onLayout={complete ? (e) => setHeight(e.nativeEvent.layout.height) : undefined}
       style={[
         styles.connector,
-        complete
-          ? { backgroundColor: ACCENT, borderWidth: 0, opacity: fillOpacity }
-          : { backgroundColor: 'transparent', borderLeftWidth: 2, borderLeftColor: 'rgba(255,255,255,0.12)', borderStyle: 'dashed' },
+        // Solid the whole way down, not dashed -- the lane should read as
+        // one continuous path extending through the locked cards ahead,
+        // just dark past whatever's actually been opened (complete), which
+        // is the only segment that gets the lit/glowing + traveling-dot
+        // treatment below.
+        complete ? { backgroundColor: ACCENT, opacity: fillOpacity } : { backgroundColor: 'rgba(255,255,255,0.08)' },
       ]}
     >
       {complete && height > 0 && (
