@@ -547,10 +547,11 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
 
 function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress }: {
   number: number;
-  // Only ever 'complete' (already resolved, kept visible as history) or
-  // 'active' (the one current pointer position) -- the strict one-step-at-
-  // a-time model below never mounts a DayNode in any other state; there's
-  // nothing "locked" to render since future days aren't in the tree yet.
+  // 'complete' (already resolved, kept visible as history), 'active' (the
+  // one current pointer position — the only one actually startable), or
+  // 'locked' (a future day in this week, shown so the full week is visible
+  // but not yet reachable -- the strict one-step-at-a-time gating still
+  // applies, only visibility changed per direct request).
   state: NodeState;
   title: string;
   // Real block/exercise data for this day, used to pick a push/pull/lower-
@@ -565,12 +566,12 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   onPress: () => void;
 }) {
   return (
-    <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress} disabled={state === 'locked'}>
       <NodeRow
         number={number}
         state={state}
         title={title}
-        desc={state === 'complete' ? 'Completed.' : 'Up next in your program.'}
+        desc={state === 'complete' ? 'Completed.' : state === 'active' ? 'Up next in your program.' : 'Unlocks once the step before it is done.'}
         image={pickDayCardImage(day, seed)}
         ctaLabel={state === 'active' ? 'START' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
@@ -678,7 +679,12 @@ function SideQuestNode({ kind, state, skipped, seed, isLast, staggerIndex, conta
   onSkip?: () => void;
 }) {
   const def = SIDE_QUEST_DEFS[kind];
-  const desc = state === 'complete' ? (skipped ? 'Skipped.' : 'Done — nice work.') : def.desc;
+  const desc =
+    state === 'complete'
+      ? (skipped ? 'Skipped.' : 'Done — nice work.')
+      : state === 'active'
+      ? def.desc
+      : 'Unlocks once the step before it is done.';
   return (
     <NodeRow
       number={0}
@@ -1315,22 +1321,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       />
                     ));
                   } else {
-                    // Current week: strict one-step-at-a-time. Render every
-                    // resolved item as complete, the pointer item as the
-                    // one active step (with a ref for auto-scroll), and
-                    // stop — nothing after the pointer is in the tree yet,
-                    // which is also what keeps this list short regardless
-                    // of how many days/quests are still ahead.
-                    const visibleCount = latestWeekPointer === -1 ? latestWeekSequence.length : latestWeekPointer + 1;
-                    rows = latestWeekSequence.slice(0, visibleCount).map((item, idx) => {
+                    // Current week: the full week is always visible (per
+                    // direct request — "can i see the full week instead of
+                    // showing me next step and next trial strength only").
+                    // Gating itself is unchanged: only the pointer item is
+                    // 'active' (startable), everything after it renders
+                    // 'locked' (no CTA, dimmed, not tappable) so the whole
+                    // week's shape is visible without letting anyone skip
+                    // ahead out of order.
+                    rows = latestWeekSequence.map((item, idx) => {
                       const isPointer = idx === latestWeekPointer;
+                      const isBeforePointer = latestWeekPointer === -1 || idx < latestWeekPointer;
                       if (item.kind === 'day') {
                         const d = week.days[item.dayIndex];
+                        const dayState: NodeState = isBeforePointer ? 'complete' : isPointer ? 'active' : 'locked';
                         return (
                           <DayNode
                             key={`day-${week.weekNumber}-${item.dayIndex}`}
                             number={startNumber + item.dayIndex + 1}
-                            state={isPointer ? 'active' : 'complete'}
+                            state={dayState}
                             title={d.day.name.toUpperCase()}
                             day={d.day}
                             seed={`w${week.weekNumber}-d${item.dayIndex}-${d.day.name}`}
@@ -1344,11 +1353,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
                       const resolved = isQuestSlotResolved(slotKey);
                       const def = SIDE_QUEST_DEFS[kind];
+                      const questState: NodeState = resolved ? 'complete' : isPointer ? 'active' : 'locked';
                       return (
                         <SideQuestNode
                           key={`quest-${week.weekNumber}-${item.slotIndex}`}
                           kind={kind}
-                          state={resolved ? 'complete' : 'active'}
+                          state={questState}
                           skipped={skippedQuestSlots.has(slotKey)}
                           seed={slotKey}
                           isLast={false}
@@ -1365,23 +1375,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       );
                     });
 
-                    if (weekComplete) {
-                      rows.push(
-                        <NodeRow
-                          key={`weekly-challenge-${week.weekNumber}`}
-                          number={0}
-                          state="active"
-                          title="SIDE QUEST · WEEKLY CHALLENGE"
-                          desc="This week's community challenge — optional, skip it and move on any time."
-                          image={pickFromPool(RANDOM_IMAGES, `weekly-challenge-${week.weekNumber}`)}
-                          ctaLabel="START"
-                          onPressCta={() => router.push('/weekly-challenge')}
-                          isLast
-                          staggerIndex={startNumber + week.days.length + 1}
-                          isSideQuest
-                        />
-                      );
-                    }
+                    rows.push(
+                      <NodeRow
+                        key={`weekly-challenge-${week.weekNumber}`}
+                        number={0}
+                        state={weekComplete ? 'active' : 'locked'}
+                        title="SIDE QUEST · WEEKLY CHALLENGE"
+                        desc={
+                          weekComplete
+                            ? "This week's community challenge — optional, skip it and move on any time."
+                            : 'Unlocks after every day this week is done.'
+                        }
+                        image={pickFromPool(RANDOM_IMAGES, `weekly-challenge-${week.weekNumber}`)}
+                        ctaLabel="START"
+                        onPressCta={() => router.push('/weekly-challenge')}
+                        isLast={false}
+                        staggerIndex={startNumber + week.days.length + 1}
+                        isSideQuest
+                      />
+                    );
                   }
 
                   return (
