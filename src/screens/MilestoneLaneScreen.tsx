@@ -671,12 +671,13 @@ type SequenceItem =
 // tested their tier yet.
 //
 // A day is resolved by real completion data (workout_logs, via day.status).
-// A quest (weekly-challenge or rotating alike) opens as soon as the day
-// right before it is done, and resolves by finishing it for real or
-// explicitly skipping it -- but per direct request, a quest is "part of
-// the day before," not its own gate: it never blocks the day after it (see
-// the render loop, which derives each item's state independently rather
-// than from a single shared pointer).
+// A quest (weekly-challenge or rotating alike) opens alongside the day it's
+// paired with -- the moment that day becomes the current step, not once
+// it's finished -- and resolves by finishing it for real or explicitly
+// skipping it. Per direct request, a quest is "part of the day before," not
+// its own gate: it never blocks the day after it (see the render loop,
+// which derives each item's state independently rather than from a single
+// shared pointer).
 function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strengthTier: number, rotationSeed: number): SequenceItem[] {
   const items: SequenceItem[] = [];
   let rotationCounter = rotationSeed;
@@ -1216,9 +1217,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     : [];
   // Days gate days -- the first not-yet-done day is the one active step.
   // Quests are deliberately decoupled from this (see the render loop
-  // below): a quest opens as soon as the day right before it is done, but
-  // never blocks the day after it -- it's "part of the day before," not
-  // its own gate. -1 means every day this week is already done.
+  // below): a quest opens alongside the day it's paired with, the moment
+  // that day becomes current, but never blocks the day after it -- it's
+  // "part of the day before," not its own gate. -1 means every day this
+  // week is already done.
   const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
   // The strength trial is the one exception that keeps a real gate: it
   // only unlocks once every day this week is done, same as before.
@@ -1389,15 +1391,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           />
                         );
                       }
-                      // Opens as soon as the day it follows is done -- "part
-                      // of the day before," not its own gate, so it never
-                      // blocks the day after it (unlike the strength trial,
-                      // which still waits for the whole week).
-                      const dayBeforeDone = latestDayPointer === -1 || item.afterDayIndex < latestDayPointer;
+                      // Opens alongside the day it's paired with -- the
+                      // moment that day becomes the current step (not once
+                      // it's finished), and never blocks the day after it
+                      // (unlike the strength trial, which still waits for
+                      // the whole week).
+                      const dayReached = latestDayPointer === -1 || item.afterDayIndex <= latestDayPointer;
                       const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
                       const resolved = isQuestSlotResolved(slotKey);
                       const def = SIDE_QUEST_DEFS[item.questKind];
-                      const questState: NodeState = resolved ? 'complete' : dayBeforeDone ? 'active' : 'locked';
+                      const questState: NodeState = resolved ? 'complete' : dayReached ? 'active' : 'locked';
                       return (
                         <SideQuestNode
                           key={`quest-${week.weekNumber}-${item.slotIndex}`}
