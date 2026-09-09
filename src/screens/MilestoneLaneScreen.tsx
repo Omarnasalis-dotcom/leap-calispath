@@ -655,7 +655,10 @@ function rotationSlotsUsed(dayCount: number, isTrialWeek: boolean): number {
   return midWeekRotating + (isTrialWeek ? 0 : 1);
 }
 
-type SequenceItem = { kind: 'day'; dayIndex: number } | { kind: 'quest'; slotIndex: number; questKind: SideQuestKind };
+type SequenceItem =
+  | { kind: 'day'; dayIndex: number }
+  // afterDayIndex is the day this quest opens alongside -- see buildWeekSequence.
+  | { kind: 'quest'; slotIndex: number; questKind: SideQuestKind; afterDayIndex: number };
 
 // The one-step-at-a-time flow, per direct spec: Day1 -> Weekly Challenge
 // (always, fixed) -> Day2 -> a rotating quest -> Day3 (last day) -> another
@@ -667,9 +670,13 @@ type SequenceItem = { kind: 'day'; dayIndex: number } | { kind: 'quest'; slotInd
 // user is never blocked from starting next week just because they haven't
 // tested their tier yet.
 //
-// A day is resolved by real completion data (workout_logs, via day.status);
-// a quest (weekly-challenge or rotating alike) by finishing it for real or
-// explicitly skipping it -- see findSequencePointer.
+// A day is resolved by real completion data (workout_logs, via day.status).
+// A quest (weekly-challenge or rotating alike) opens as soon as the day
+// right before it is done, and resolves by finishing it for real or
+// explicitly skipping it -- but per direct request, a quest is "part of
+// the day before," not its own gate: it never blocks the day after it (see
+// the render loop, which derives each item's state independently rather
+// than from a single shared pointer).
 function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strengthTier: number, rotationSeed: number): SequenceItem[] {
   const items: SequenceItem[] = [];
   let rotationCounter = rotationSeed;
@@ -679,24 +686,18 @@ function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strength
     const isLastDay = i === days.length - 1;
     if (!isLastDay) {
       const questKind: SideQuestKind = i === 0 ? 'weekly' : getSideQuestForSlot(rotationCounter++, strengthTier);
-      items.push({ kind: 'quest', slotIndex: slotIndex++, questKind });
+      items.push({ kind: 'quest', slotIndex: slotIndex++, questKind, afterDayIndex: i });
     }
   });
   if (!isTrialWeek) {
-    items.push({ kind: 'quest', slotIndex: slotIndex++, questKind: getSideQuestForSlot(rotationCounter++, strengthTier) });
+    items.push({
+      kind: 'quest',
+      slotIndex: slotIndex++,
+      questKind: getSideQuestForSlot(rotationCounter++, strengthTier),
+      afterDayIndex: days.length - 1,
+    });
   }
   return items;
-}
-
-function findSequencePointer(
-  items: SequenceItem[],
-  days: DayStateEntry[],
-  isSlotResolved: (slotKey: string) => boolean,
-  weekNumber: number
-): number {
-  return items.findIndex((item) =>
-    item.kind === 'day' ? days[item.dayIndex].status !== 'done' : !isSlotResolved(`w${weekNumber}_s${item.slotIndex}`)
-  );
 }
 
 function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRef, onPress, onSkip }: {
@@ -1213,20 +1214,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const latestWeekSequence = latestWeek
     ? buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed)
     : [];
-  const latestWeekPointer = latestWeek
-    ? findSequencePointer(latestWeekSequence, latestWeek.days, isQuestSlotResolved, latestWeek.weekNumber)
-    : -1;
-  // -1 from findSequencePointer means every item resolved — i.e. every day
-  // AND every between-day quest (finished or skipped) for this week. This
-  // is what actually gates the weekly challenge and trial now, not just
-  // "are the days done" — a day can technically be marked done (via
-  // workout_logs) without its preceding quest ever being resolved in the
-  // lane, since WarriorProgramScreen itself doesn't enforce this sequence;
-  // this stays deliberately in agreement with what the lane is currently
-  // showing rather than what the raw data alone would say. The strength
-  // trial itself is deliberately NOT part of this sequence (see
-  // buildWeekSequence) -- it never blocks reaching weekComplete.
-  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeekPointer === -1;
+  // Days gate days -- the first not-yet-done day is the one active step.
+  // Quests are deliberately decoupled from this (see the render loop
+  // below): a quest opens as soon as the day right before it is done, but
+  // never blocks the day after it -- it's "part of the day before," not
+  // its own gate. -1 means every day this week is already done.
+  const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
+  // The strength trial is the one exception that keeps a real gate: it
+  // only unlocks once every day this week is done, same as before.
+  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
 
   return (
     <View style={styles.screen}>
@@ -1373,12 +1369,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     // 'locked' (no CTA, dimmed, not tappable) so the whole
                     // week's shape is visible without letting anyone skip
                     // ahead out of order.
-                    rows = latestWeekSequence.map((item, idx) => {
-                      const isPointer = idx === latestWeekPointer;
-                      const isBeforePointer = latestWeekPointer === -1 || idx < latestWeekPointer;
+                    rows = latestWeekSequence.map((item) => {
                       if (item.kind === 'day') {
                         const d = week.days[item.dayIndex];
-                        const dayState: NodeState = isBeforePointer ? 'complete' : isPointer ? 'active' : 'locked';
+                        const isDayPointer = item.dayIndex === latestDayPointer;
+                        const dayState: NodeState =
+                          latestDayPointer === -1 || item.dayIndex < latestDayPointer ? 'complete' : isDayPointer ? 'active' : 'locked';
                         return (
                           <DayNode
                             key={`day-${week.weekNumber}-${item.dayIndex}`}
@@ -1388,15 +1384,20 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                             day={d.day}
                             seed={`w${week.weekNumber}-d${item.dayIndex}-${d.day.name}`}
                             isLast={false}
-                            containerRef={isPointer ? activeStepRef : undefined}
+                            containerRef={isDayPointer ? activeStepRef : undefined}
                             onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
                           />
                         );
                       }
+                      // Opens as soon as the day it follows is done -- "part
+                      // of the day before," not its own gate, so it never
+                      // blocks the day after it (unlike the strength trial,
+                      // which still waits for the whole week).
+                      const dayBeforeDone = latestDayPointer === -1 || item.afterDayIndex < latestDayPointer;
                       const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
                       const resolved = isQuestSlotResolved(slotKey);
                       const def = SIDE_QUEST_DEFS[item.questKind];
-                      const questState: NodeState = resolved ? 'complete' : isPointer ? 'active' : 'locked';
+                      const questState: NodeState = resolved ? 'complete' : dayBeforeDone ? 'active' : 'locked';
                       return (
                         <SideQuestNode
                           key={`quest-${week.weekNumber}-${item.slotIndex}`}
@@ -1405,14 +1406,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           skipped={skippedQuestSlots.has(slotKey)}
                           isLast={false}
                           staggerIndex={startNumber + item.slotIndex + 1}
-                          containerRef={isPointer ? activeStepRef : undefined}
                           onPress={() =>
                             router.push({
                               pathname: def.pathname,
                               params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
                             })
                           }
-                          onSkip={isPointer ? () => handleSkipQuest(slotKey) : undefined}
+                          onSkip={questState === 'active' ? () => handleSkipQuest(slotKey) : undefined}
                         />
                       );
                     });
