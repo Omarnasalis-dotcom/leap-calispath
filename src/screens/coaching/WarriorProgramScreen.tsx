@@ -58,6 +58,12 @@ interface WarriorProgramScreenProps {
   onClose?: () => void;
 }
 
+// Customize Program / Ready Template flows both assign warrior_programs
+// under this system profile (see MilestoneLaneScreen's own copy of this
+// constant) rather than a real coach — only those are eligible for
+// self-service week extension via add_week_to_own_program.
+const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+
 // "Running" day view (dbRunnerStyles below) was fixed dark-only — same
 // relationship-preservation split as DB_COLORS/PD_COLORS elsewhere.
 interface DBRPalette {
@@ -119,8 +125,10 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [coachName, setCoachName] = useState('');
   const [templateId, setTemplateId] = useState<string | null>(null);
   const [warriorProgramId, setWarriorProgramId] = useState<string>('');
+  const [coachId, setCoachId] = useState<string | null>(null);
   const [minAccessTier, setMinAccessTier] = useState<'first' | 'pro' | null>(null);
   const [endingProgram, setEndingProgram] = useState(false);
+  const [addingWeek, setAddingWeek] = useState(false);
 
   // Soft paywall gate for the "locked by tier" upgrade CTA below — same
   // pattern as CustomizeProgramScreen/ProgramTemplatesScreen/
@@ -147,6 +155,14 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [weeksData, setWeeksData] = useState<Record<number, ProgramDay[]>>({ 1: [] });
   const [activeWeek, setActiveWeek] = useState<number>(1);
   const days = weeksData[activeWeek] || [];
+  // "ADD NEW WEEK" surfaces right here too (not just the Journey lane) once
+  // the warrior finishes every day of their last built week — mirrors
+  // MilestoneLaneScreen's own canAddWeek/weekComplete gating so both
+  // entry points agree on when a Customize/Template program is extendable.
+  const weekNumbers = Object.keys(weeksData).map(Number);
+  const maxWeek = weekNumbers.length ? Math.max(...weekNumbers) : 1;
+  const isLastWeekDone = days.length > 0 && deriveDayStates(days).every(d => d.status === 'done');
+  const canAddWeek = activeWeek === maxWeek && isLastWeekDone && coachId === LEAP_SYSTEM_PROFILE_ID;
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   // 'list' = My Active Program (week/day cards, this screen's default).
   // 'running' = the exercise-logging UI, reached directly from a day
@@ -582,6 +598,7 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setCoachName(cName || 'COACH');
       setTemplateId(activeTemplateId);
       setWarriorProgramId(actualAssignment.id);
+      setCoachId(actualAssignment.coach_id || null);
 
       const { data: loggedToday, error: loggedError } = loggedTodayRes;
       if (loggedError) throw loggedError;
@@ -760,6 +777,33 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       setLoading(false);
     }
   }
+
+  // Same mechanic as MilestoneLaneScreen's handleContinueProgram, exposed
+  // here too since the warrior can reach "week finished" straight from this
+  // screen without ever going through the Journey lane. Clones the current
+  // last week forward via add_week_to_own_program, then bumps current_week
+  // and reloads so the new week becomes active immediately.
+  const handleAddWeek = async () => {
+    if (addingWeek || !warriorProgramId) return;
+    setAddingWeek(true);
+    const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
+      p_warrior_program_id: warriorProgramId,
+    });
+    if (addWeekError) {
+      console.error('Failed to add a new week:', addWeekError);
+      setAddingWeek(false);
+      return;
+    }
+    const { error: bumpError } = await supabase
+      .from('warrior_programs')
+      .update({ current_week: activeWeek + 1 })
+      .eq('id', warriorProgramId);
+    if (bumpError) {
+      console.error('Failed to advance to new week:', bumpError);
+    }
+    await loadWarriorProgram();
+    setAddingWeek(false);
+  };
 
   // targetStatus is the explicit state to switch to (not a cycle) — the DONE and
   // SKIP buttons in WarriorBlockCard each toggle their own status directly.
@@ -1543,6 +1587,24 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
                     setScreenPhase('running');
                   }}
                 />
+
+                {canAddWeek && (
+                  <TouchableOpacity
+                    style={{
+                      borderRadius: 12,
+                      paddingVertical: 16,
+                      alignItems: 'center',
+                      backgroundColor: '#FF5252',
+                      opacity: addingWeek ? 0.6 : 1,
+                    }}
+                    onPress={handleAddWeek}
+                    disabled={addingWeek}
+                  >
+                    <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 15, letterSpacing: 1 }}>
+                      {addingWeek ? 'ADDING WEEK…' : 'ADD NEW WEEK'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </View>
             )}
           </View>
