@@ -27,14 +27,40 @@ const IMG_MOUNTAIN_CLIMBER = require('../../assets/Milestone Cards/mountin climp
 const IMG_PISTOL = require('../../assets/Milestone Cards/pistol side used.png');
 const IMG_SPRINT = require('../../assets/Milestone Cards/sprint used .png');
 
-// Training-day rows cycle through this set by day number so consecutive days
-// don't repeat the same photo.
-const DAY_CARD_IMAGES: ImageSourcePropType[] = [IMG_INCLINE_PUSHUP, IMG_PISTOL, IMG_MOUNTAIN_CLIMBER, IMG_SQUAT];
 const SIDE_QUEST_IMAGES: Record<'1mm' | 'static' | 'power', ImageSourcePropType> = {
   '1mm': IMG_SPRINT,
   static: IMG_HANDSTAND,
   power: IMG_PULLUPS,
 };
+
+// Training-day photo picked from what the day is actually made of, not a
+// blind rotation: program_blocks/exercises carry no structured muscle-group
+// category by the time they reach the client (that only exists upstream, on
+// workout_library rows, at pick time in CustomizeProgramScreen) -- so this
+// reads the day's real block/exercise names for push/pull/lower-body
+// keywords instead. Falls back to a stable, per-day pick (hashed off the day
+// name, not Math.random()) when nothing matches, since this screen remounts
+// on every nav and a re-rolled random pick would flicker the photo on every
+// visit -- see useMountPop's comment for why this screen has no persistent
+// tab navigator to rely on for "only compute once."
+const PUSH_KEYWORDS = /push[\s-]?up|\bpush\b|\bdip\b|\bpress\b/i;
+const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\bleg\b|\bcalf|\bglute|\bnordic|step[\s-]?up/i;
+const PULL_KEYWORDS = /pull[\s-]?up|\bpull\b|\brow\b|chin[\s-]?up|\blat\b|muscle[\s-]?up/i;
+const DAY_FALLBACK_IMAGES: ImageSourcePropType[] = [IMG_INCLINE_PUSHUP, IMG_PISTOL, IMG_SQUAT, IMG_PULLUPS];
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return Math.abs(h);
+}
+
+function pickDayCardImage(day: ProgramDay): ImageSourcePropType {
+  const text = day.blocks.map((b) => `${b.name} ${b.exercises.map((e) => e.name).join(' ')}`).join(' ');
+  if (PUSH_KEYWORDS.test(text)) return IMG_INCLINE_PUSHUP;
+  if (LOWER_BODY_KEYWORDS.test(text)) return hashString(day.name) % 2 === 0 ? IMG_PISTOL : IMG_SQUAT;
+  if (PULL_KEYWORDS.test(text)) return IMG_PULLUPS;
+  return DAY_FALLBACK_IMAGES[hashString(day.name) % DAY_FALLBACK_IMAGES.length];
+}
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
 // corrections noted in the plan: the handoff's coral (#FC5454) and Oswald
@@ -488,7 +514,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
   );
 }
 
-function DayNode({ number, state, title, isLast, containerRef, onPress }: {
+function DayNode({ number, state, title, day, isLast, containerRef, onPress }: {
   number: number;
   // Only ever 'complete' (already resolved, kept visible as history) or
   // 'active' (the one current pointer position) -- the strict one-step-at-
@@ -496,6 +522,9 @@ function DayNode({ number, state, title, isLast, containerRef, onPress }: {
   // nothing "locked" to render since future days aren't in the tree yet.
   state: NodeState;
   title: string;
+  // Real block/exercise data for this day, used to pick a push/pull/lower-
+  // body photo (see pickDayCardImage) -- not just for display.
+  day: ProgramDay;
   isLast: boolean;
   containerRef?: React.Ref<View>;
   onPress: () => void;
@@ -507,7 +536,7 @@ function DayNode({ number, state, title, isLast, containerRef, onPress }: {
         state={state}
         title={title}
         desc={state === 'complete' ? 'Completed.' : 'Up next in your program.'}
-        image={DAY_CARD_IMAGES[(number - 1) % DAY_CARD_IMAGES.length]}
+        image={pickDayCardImage(day)}
         ctaLabel={state === 'active' ? 'START' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
@@ -1242,6 +1271,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         number={startNumber + i + 1}
                         state="complete"
                         title={d.day.name.toUpperCase()}
+                        day={d.day}
                         isLast={false}
                         onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
                       />
@@ -1264,6 +1294,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                             number={startNumber + item.dayIndex + 1}
                             state={isPointer ? 'active' : 'complete'}
                             title={d.day.name.toUpperCase()}
+                            day={d.day}
                             isLast={false}
                             containerRef={isPointer ? activeStepRef : undefined}
                             onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
