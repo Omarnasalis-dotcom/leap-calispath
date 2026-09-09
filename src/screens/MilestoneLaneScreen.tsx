@@ -99,7 +99,7 @@ function pickDayCardImage(day: ProgramDay, seed: string): ImageSourcePropType {
 // BarlowCondensed do), so those are substituted here.
 const ACCENT = '#FF5252';
 const ACCENT_DIM = 'rgba(255, 82, 82, 0.22)';
-const NODE_SIZE = 64;
+const NODE_SIZE = 48;
 
 type NodeState = 'locked' | 'active' | 'complete';
 
@@ -195,7 +195,7 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
   };
 
   if (state === 'complete') {
-    const size = isSideQuest ? 44 : NODE_SIZE;
+    const size = isSideQuest ? 36 : NODE_SIZE;
     return (
       <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View
@@ -212,7 +212,7 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
           ]}
         />
         <Animated.View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }, popStyle]}>
-          <MaterialCommunityIcons name="check" size={isSideQuest ? 18 : 26} color="#FFFFFF" />
+          <MaterialCommunityIcons name="check" size={isSideQuest ? 14 : 20} color="#FFFFFF" />
         </Animated.View>
       </View>
     );
@@ -224,7 +224,7 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
     if (isSideQuest) {
       return (
         <Animated.View style={[styles.nodeCircle, styles.nodeCircleSmall, { borderWidth: 1.5, borderColor: ACCENT, borderStyle: 'dashed' }, popStyle]}>
-          <MaterialCommunityIcons name="compass-outline" size={16} color={ACCENT} />
+          <MaterialCommunityIcons name="compass-outline" size={13} color={ACCENT} />
         </Animated.View>
       );
     }
@@ -242,7 +242,7 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
   }
   return (
     <View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
-      <MaterialCommunityIcons name="lock-outline" size={isSideQuest ? 14 : 18} color="rgba(255,255,255,0.3)" />
+      <MaterialCommunityIcons name="lock-outline" size={isSideQuest ? 11 : 14} color="rgba(255,255,255,0.3)" />
     </View>
   );
 }
@@ -1519,14 +1519,14 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   nodeCircleSmall: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
   },
   nodeNumberActive: {
     color: ACCENT,
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 22,
+    fontSize: 17,
   },
   connector: {
     width: 2,
@@ -1606,7 +1606,7 @@ const styles = StyleSheet.create({
   },
   milestoneCard: {
     position: 'relative',
-    height: 150,
+    height: 176,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161616',
