@@ -306,7 +306,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // whatever session happens to already exist (a stale cached session, or the
       // transient USER_UPDATED event fired mid-flow by updateUser() during the reset
       // itself) — otherwise this redirect fires before the reset flow ever completes.
-      if (inAssessmentGroup || inOnboardingJourney || inGoalsEquipment || (inAuthGroup && !isResetPassword) || inOnboarding) {
+      // inGoalsEquipment is deliberately NOT blocked here (unlike inOnboardingJourney/
+      // inAssessmentGroup) — a legacy member's onboarding_completed_at is already set
+      // (backfilled), which puts them in this fully-onboarded branch, but the Journey
+      // tab's own "ADD GOAL" link and legacy milestone 2 still need to reach this
+      // route at any time, not just during the one-time mandatory flow. Without this
+      // exemption, tapping either one bounced straight back to /profile.
+      if (inAssessmentGroup || inOnboardingJourney || (inAuthGroup && !isResetPassword) || inOnboarding) {
         return <Redirect href="/" />;
       }
     }
