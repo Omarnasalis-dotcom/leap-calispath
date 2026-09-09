@@ -43,10 +43,12 @@ const TABS: TabDef[] = [
   // — ChampionsArenaScreen itself gates the "START ARENA TRIAL" button at
   // tier 9, so no separate lock is needed just to view the tab.
   { id: 'champions', label: 'ARENA', icon: 'trophy', unlockTier: 0, route: '/champions-arena', accentColor: WORLD_THEMES.strength.accent },
-  // Journey tab deliberately held out of this build — feature is still being
-  // reworked (see MilestoneLaneScreen WIP) and shouldn't reach App Review or
-  // production yet. Re-add this entry once that work ships for real:
-  // { id: 'journey', label: 'JOURNEY', icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
+  // unlockTier 0: AuthGuard already fully gates pre-onboarding users away
+  // from every tab-bar screen (see app/_layout.tsx), so this tab is only
+  // ever reachable once onboarding is complete — no separate lock needed.
+  // Cross-world/neutral, so it borrows strength's Ember Red rather than
+  // owning a discipline color of its own (same reasoning as champions above).
+  { id: 'journey', label: 'JOURNEY', icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
 ];
 
 interface BottomTabBarProps {
