@@ -699,15 +699,13 @@ function findSequencePointer(
   );
 }
 
-function SideQuestNode({ kind, state, skipped, seed, isLast, staggerIndex, containerRef, onPress, onSkip }: {
+function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRef, onPress, onSkip }: {
   kind: SideQuestKind;
   state: NodeState;
   // Resolved-by-skipping reads differently from resolved-by-completing —
   // still shows the same complete checkmark (it IS resolved, gating-wise),
   // just says so honestly rather than claiming "Done."
   skipped?: boolean;
-  // Stable pick into the random photo pool -- see pickFromPool.
-  seed: string;
   isLast: boolean;
   staggerIndex: number;
   containerRef?: React.Ref<View>;
@@ -730,7 +728,6 @@ function SideQuestNode({ kind, state, skipped, seed, isLast, staggerIndex, conta
       state={state}
       title={def.title}
       desc={desc}
-      image={pickFromPool(RANDOM_IMAGES, seed)}
       ctaLabel={state === 'active' ? 'START' : undefined}
       onPressCta={state === 'active' ? onPress : undefined}
       secondaryCtaLabel={state === 'active' && onSkip ? 'SKIP' : undefined}
@@ -1406,7 +1403,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           kind={item.questKind}
                           state={questState}
                           skipped={skippedQuestSlots.has(slotKey)}
-                          seed={slotKey}
                           isLast={false}
                           staggerIndex={startNumber + item.slotIndex + 1}
                           containerRef={isPointer ? activeStepRef : undefined}
