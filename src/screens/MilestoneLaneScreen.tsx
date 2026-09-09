@@ -388,6 +388,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // user ever having seen it.
   const [legacyAcknowledged, setLegacyAcknowledged] = useState(false);
   const [legacyAckLoaded, setLegacyAckLoaded] = useState(false);
+  const legacyFlowActiveRef = useRef<boolean | null>(null);
 
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id) return;
@@ -612,21 +613,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     );
   }
 
-  // In mandatory onboarding mode, milestone 3 genuinely waits on milestone 2
-  // — that sequence is enforced (unchanged). In the free-roam journey tab,
-  // a legacy/backfilled user (see showLegacyMilestones below) must NOT be
-  // blocked from their own program by a retroactive data-collection step —
-  // milestone 3 opens as soon as they're assessed, milestone 2 just stays
-  // open alongside it, not gating anything.
-  const showLegacyMilestones = mode === 'journey' && legacyAckLoaded && !profile?.primary_goal && !legacyAcknowledged;
+  // "Is this a legacy account" is detected once and locked in for this
+  // screen's lifetime, not re-evaluated every render — otherwise the
+  // instant the user actually completes milestone 2 (primary_goal becomes
+  // non-null), this would flip false immediately and the whole milestone
+  // view would vanish before they ever got to see the now-unlocked
+  // milestone 3, let alone act on it.
+  if (legacyFlowActiveRef.current === null && legacyAckLoaded && profile) {
+    legacyFlowActiveRef.current = !profile.primary_goal && !legacyAcknowledged;
+  }
+  const showLegacyMilestones = mode === 'journey' && legacyFlowActiveRef.current === true && !legacyAcknowledged;
 
+  // Same sequential gating everywhere — milestone 3 always waits on
+  // milestone 2, mandatory onboarding and the legacy journey view alike.
+  // "Keep it open" for legacy members means milestone 2 stays genuinely
+  // available to complete (not skipped/backfilled/hidden), not that
+  // milestone 3 gets to bypass it.
   const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
   const milestone2State: NodeState = profile?.primary_goal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  const milestone3State: NodeState = showLegacyMilestones
-    ? (profile?.assessed_at ? 'active' : 'locked')
-    : profile?.assessed_at && profile?.primary_goal
-    ? 'active'
-    : 'locked';
+  const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
   // Trial/side-quest gating and the week-complete banner only ever look at
