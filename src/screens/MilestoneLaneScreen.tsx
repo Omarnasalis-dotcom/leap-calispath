@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
@@ -11,6 +12,29 @@ import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgram
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
+
+// Cover photos for the milestone/journey list rows' photo cards (assets/Milestone
+// Cards, added for this purpose). require() needs static string literals, so
+// these can't be built from a template — each is named individually and mapped
+// to a specific card below by content (assessment/day/side-quest theme).
+const IMG_SQUAT = require('../../assets/Milestone Cards/Deep squat .png');
+const IMG_INCLINE_PUSHUP = require('../../assets/Milestone Cards/Incline Push ups used.png');
+const IMG_MOBILITY = require('../../assets/Milestone Cards/Mobility.png');
+const IMG_PULLUPS = require('../../assets/Milestone Cards/Pull Ups back view used.png');
+const IMG_LUNGES = require('../../assets/Milestone Cards/RUN lunges used.png');
+const IMG_HANDSTAND = require('../../assets/Milestone Cards/han used.png');
+const IMG_MOUNTAIN_CLIMBER = require('../../assets/Milestone Cards/mountin climper used.png');
+const IMG_PISTOL = require('../../assets/Milestone Cards/pistol side used.png');
+const IMG_SPRINT = require('../../assets/Milestone Cards/sprint used .png');
+
+// Training-day rows cycle through this set by day number so consecutive days
+// don't repeat the same photo.
+const DAY_CARD_IMAGES: ImageSourcePropType[] = [IMG_INCLINE_PUSHUP, IMG_PISTOL, IMG_MOUNTAIN_CLIMBER, IMG_SQUAT];
+const SIDE_QUEST_IMAGES: Record<'1mm' | 'static' | 'power', ImageSourcePropType> = {
+  '1mm': IMG_SPRINT,
+  static: IMG_HANDSTAND,
+  power: IMG_PULLUPS,
+};
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
 // corrections noted in the plan: the handoff's coral (#FC5454) and Oswald
@@ -202,11 +226,129 @@ function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex
   );
 }
 
+// Diagonal sheen sweep across a CTA pill, on loop — needs the pill's real
+// measured width (percentage transforms don't exist in RN) to know how far
+// to travel, so it only starts once onLayout reports one.
+function useCtaSheen(width: number) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (width <= 0) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(anim, { toValue: 1, duration: 1300, easing: Easing.inOut(Easing.ease), useNativeDriver: true }),
+        Animated.delay(900),
+        Animated.timing(anim, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ])
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [width, anim]);
+  return anim;
+}
+
+function MilestoneCardCta({ label, secondary, onPress }: { label: string; secondary?: boolean; onPress: () => void }) {
+  const [width, setWidth] = useState(0);
+  const sheen = useCtaSheen(secondary ? 0 : width);
+  const translateX = sheen.interpolate({ inputRange: [0, 1], outputRange: [-width, width * 1.4] });
+
+  if (secondary) {
+    return (
+      <TouchableOpacity style={styles.ctaPillSecondary} onPress={onPress}>
+        <Text style={styles.ctaPillSecondaryText}>{label}</Text>
+      </TouchableOpacity>
+    );
+  }
+
+  return (
+    <TouchableOpacity
+      style={styles.milestoneCardCta}
+      onPress={onPress}
+      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
+    >
+      {width > 0 && (
+        <Animated.View pointerEvents="none" style={[styles.milestoneCardCtaSheen, { transform: [{ translateX }, { rotate: '20deg' }] }]} />
+      )}
+      <Text style={styles.ctaPillText}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
+// The photo-card treatment for an active/locked row's content, per the
+// design handoff added alongside assets/Milestone Cards — completed rows
+// never get here (NodeRow keeps its own plain checkmark + strikethrough
+// text for those, see below).
+function MilestoneCard({
+  image,
+  locked,
+  title,
+  desc,
+  ctaLabel,
+  onPressCta,
+  secondaryCtaLabel,
+  onPressSecondaryCta,
+  showHereBadge,
+}: {
+  image: ImageSourcePropType;
+  locked: boolean;
+  title: string;
+  desc: string;
+  ctaLabel?: string;
+  onPressCta?: () => void;
+  secondaryCtaLabel?: string;
+  onPressSecondaryCta?: () => void;
+  showHereBadge?: boolean;
+}) {
+  const pulse = usePulse(!locked && !!showHereBadge);
+  const badgeOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
+
+  return (
+    <View style={styles.milestoneCard}>
+      <Image source={image} style={styles.milestoneCardImage} resizeMode="cover" />
+      {/* RN's Image has no CSS-filter equivalent (no grayscale/brightness) —
+          a flat dark scrim is the native approximation for "locked, dimmed
+          photo" the design spec asks for. */}
+      {locked && <View style={styles.milestoneCardLockedScrim} />}
+      <LinearGradient
+        pointerEvents="none"
+        colors={['rgba(22,22,22,0)', 'rgba(22,22,22,0.68)', 'rgba(22,22,22,0.94)']}
+        locations={[0.42, 0.68, 1]}
+        style={StyleSheet.absoluteFill}
+      />
+      {locked ? (
+        <View style={styles.milestoneLockBadge}>
+          <MaterialCommunityIcons name="lock-outline" size={11} color="rgba(255,255,255,0.6)" />
+        </View>
+      ) : showHereBadge ? (
+        <Animated.View style={[styles.milestoneHereBadge, { opacity: badgeOpacity }]}>
+          <Text style={styles.milestoneHereBadgeText}>YOU ARE HERE</Text>
+        </Animated.View>
+      ) : null}
+      <View style={styles.milestoneCardTextWrap}>
+        <Text style={[styles.milestoneCardTitle, locked && styles.milestoneCardTitleLocked]} numberOfLines={2}>
+          {title}
+        </Text>
+        <Text style={[styles.milestoneCardDesc, locked && styles.milestoneCardDescLocked]} numberOfLines={2}>
+          {desc}
+        </Text>
+        {!locked && (ctaLabel || secondaryCtaLabel) && (
+          <View style={styles.ctaRow}>
+            {ctaLabel && onPressCta && <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />}
+            {secondaryCtaLabel && onPressSecondaryCta && (
+              <MilestoneCardCta label={secondaryCtaLabel} secondary onPress={onPressSecondaryCta} />
+            )}
+          </View>
+        )}
+      </View>
+    </View>
+  );
+}
+
 function NodeRow({
   number,
   state,
   title,
   desc,
+  image,
   ctaLabel,
   onPressCta,
   secondaryCtaLabel,
@@ -221,6 +363,10 @@ function NodeRow({
   state: NodeState;
   title: string;
   desc: string;
+  // Active/locked rows render as a photo card (see MilestoneCard) once this
+  // is supplied — complete rows never use it, they keep the plain
+  // checkmark + strikethrough text regardless.
+  image?: ImageSourcePropType;
   ctaLabel?: string;
   onPressCta?: () => void;
   // Side quests only — "SKIP" next to "START", per direct request: a
@@ -234,7 +380,7 @@ function NodeRow({
   containerRef?: React.Ref<View>;
   children?: React.ReactNode;
 }) {
-  const pulse = usePulse(state === 'active' && !isSideQuest);
+  const pulse = usePulse(state === 'active' && !isSideQuest && !image);
   const labelOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
   const dim = state === 'locked';
   // Same one-time mount-pop as NodeCircle (see useMountPop's comment for
@@ -245,6 +391,8 @@ function NodeRow({
   const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
   const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
+  const usesCard = !!image && state !== 'complete';
+
   return (
     <View ref={containerRef} style={[styles.row, isSideQuest && styles.rowSideQuest]}>
       <View style={styles.rowLeft}>
@@ -252,34 +400,53 @@ function NodeRow({
         {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
       </View>
       <Animated.View style={[styles.rowRight, contentPopStyle]}>
-        {state === 'active' && !isSideQuest && (
-          <Animated.Text style={[styles.youAreHere, { opacity: labelOpacity }]}>YOU ARE HERE</Animated.Text>
-        )}
-        <Text
-          style={[
-            styles.nodeTitle,
-            { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.85)' },
-            state === 'complete' && styles.nodeTitleComplete,
-          ]}
-        >
-          {title}
-        </Text>
-        <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)' }]}>{desc}</Text>
-        {state === 'active' && (ctaLabel || secondaryCtaLabel) && (
-          <View style={styles.ctaRow}>
-            {ctaLabel && onPressCta && (
-              <TouchableOpacity style={styles.ctaPill} onPress={onPressCta}>
-                <Text style={styles.ctaPillText}>{ctaLabel}</Text>
-              </TouchableOpacity>
+        {usesCard ? (
+          <>
+            <MilestoneCard
+              image={image!}
+              locked={state === 'locked'}
+              title={title}
+              desc={desc}
+              ctaLabel={ctaLabel}
+              onPressCta={onPressCta}
+              secondaryCtaLabel={secondaryCtaLabel}
+              onPressSecondaryCta={onPressSecondaryCta}
+              showHereBadge={state === 'active' && !isSideQuest}
+            />
+            {state === 'active' && children}
+          </>
+        ) : (
+          <>
+            {state === 'active' && !isSideQuest && (
+              <Animated.Text style={[styles.youAreHere, { opacity: labelOpacity }]}>YOU ARE HERE</Animated.Text>
             )}
-            {secondaryCtaLabel && onPressSecondaryCta && (
-              <TouchableOpacity style={styles.ctaPillSecondary} onPress={onPressSecondaryCta}>
-                <Text style={styles.ctaPillSecondaryText}>{secondaryCtaLabel}</Text>
-              </TouchableOpacity>
+            <Text
+              style={[
+                styles.nodeTitle,
+                { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.85)' },
+                state === 'complete' && styles.nodeTitleComplete,
+              ]}
+            >
+              {title}
+            </Text>
+            <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)' }]}>{desc}</Text>
+            {state === 'active' && (ctaLabel || secondaryCtaLabel) && (
+              <View style={styles.ctaRow}>
+                {ctaLabel && onPressCta && (
+                  <TouchableOpacity style={styles.ctaPill} onPress={onPressCta}>
+                    <Text style={styles.ctaPillText}>{ctaLabel}</Text>
+                  </TouchableOpacity>
+                )}
+                {secondaryCtaLabel && onPressSecondaryCta && (
+                  <TouchableOpacity style={styles.ctaPillSecondary} onPress={onPressSecondaryCta}>
+                    <Text style={styles.ctaPillSecondaryText}>{secondaryCtaLabel}</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
             )}
-          </View>
+            {state === 'active' && children}
+          </>
         )}
-        {state === 'active' && children}
       </Animated.View>
     </View>
   );
@@ -340,6 +507,7 @@ function DayNode({ number, state, title, isLast, containerRef, onPress }: {
         state={state}
         title={title}
         desc={state === 'complete' ? 'Completed.' : 'Up next in your program.'}
+        image={DAY_CARD_IMAGES[(number - 1) % DAY_CARD_IMAGES.length]}
         ctaLabel={state === 'active' ? 'START' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
@@ -451,6 +619,7 @@ function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRe
       state={state}
       title={def.title}
       desc={desc}
+      image={SIDE_QUEST_IMAGES[kind]}
       ctaLabel={state === 'active' ? 'START' : undefined}
       onPressCta={state === 'active' ? onPress : undefined}
       secondaryCtaLabel={state === 'active' && onSkip ? 'SKIP' : undefined}
@@ -951,6 +1120,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               state={milestone1State}
               title="01 ASSESSMENT"
               desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
+              image={IMG_SQUAT}
               ctaLabel="START"
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
@@ -968,6 +1138,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Tell us your goal and equipment.'
                   : 'Unlocks after your assessment.'
               }
+              image={IMG_MOBILITY}
               ctaLabel="START"
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
@@ -985,6 +1156,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Pick up where you left off, or start something new.'
                   : 'Choose how you want to train. This is where onboarding ends.'
               }
+              image={IMG_LUNGES}
               isLast
               staggerIndex={3}
               containerRef={milestone3State === 'active' ? activeStepRef : undefined}
@@ -1130,6 +1302,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           state="active"
                           title="SIDE QUEST · WEEKLY CHALLENGE"
                           desc="This week's community challenge — optional, skip it and move on any time."
+                          image={IMG_MOUNTAIN_CLIMBER}
                           ctaLabel="START"
                           onPressCta={() => router.push('/weekly-challenge')}
                           isLast
@@ -1162,6 +1335,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       ? "Test your current tier now that this week's days are done."
                       : 'Unlocks after every day this week is done.'
                   }
+                  image={IMG_PISTOL}
                   ctaLabel="START"
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
@@ -1358,6 +1532,102 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12,
     letterSpacing: 1.5,
+  },
+  milestoneCard: {
+    position: 'relative',
+    height: 150,
+    borderRadius: 16,
+    overflow: 'hidden',
+    backgroundColor: '#161616',
+  },
+  milestoneCardImage: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
+  },
+  milestoneCardLockedScrim: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(5,5,5,0.55)',
+  },
+  milestoneLockBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: 'rgba(5,5,5,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.18)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  milestoneHereBadge: {
+    position: 'absolute',
+    top: 8,
+    left: 8,
+    backgroundColor: ACCENT,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  milestoneHereBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 8,
+    letterSpacing: 1,
+  },
+  milestoneCardTextWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    paddingHorizontal: 12,
+    paddingBottom: 10,
+  },
+  milestoneCardTitle: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 14,
+    textShadowColor: 'rgba(0,0,0,0.5)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
+  milestoneCardTitleLocked: {
+    color: 'rgba(255,255,255,0.35)',
+  },
+  milestoneCardDesc: {
+    color: 'rgba(255,255,255,0.78)',
+    fontFamily: 'Barlow-Regular',
+    fontSize: 12,
+    marginTop: 3,
+  },
+  milestoneCardDescLocked: {
+    color: 'rgba(255,255,255,0.25)',
+  },
+  milestoneCardCta: {
+    position: 'relative',
+    overflow: 'hidden',
+    alignSelf: 'flex-start',
+    backgroundColor: ACCENT,
+    paddingVertical: 7,
+    paddingHorizontal: 16,
+    borderRadius: 20,
+  },
+  milestoneCardCtaSheen: {
+    position: 'absolute',
+    top: -14,
+    bottom: -14,
+    width: 20,
+    backgroundColor: 'rgba(255,255,255,0.35)',
   },
   ghostCircle: {
     width: NODE_SIZE,
