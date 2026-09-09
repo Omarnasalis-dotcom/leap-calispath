@@ -621,8 +621,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
+      // Skip while the tier-reveal is up — see the loadJourneyProgram
+      // focus effect below for why. showReveal is in the dependency array
+      // so the moment dismissReveal() flips it false, this re-fires
+      // automatically (screen is still focused) and catches up.
+      if (showReveal) return;
       refreshProfile();
-    }, [refreshProfile])
+    }, [refreshProfile, showReveal])
   );
 
   // "My Journey" mode's Day-N section: the same real completion data
@@ -735,8 +740,21 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   useFocusEffect(
     useCallback(() => {
+      // RankUpReveal's animation is JS-thread-driven (useNativeDriver:
+      // false internally, likely because its progress-bar width isn't
+      // native-drivable), so it needs the JS thread free to stay smooth.
+      // loadJourneyProgram is 3 sequential/parallel Supabase queries plus
+      // grouping/parsing on that same thread, and this focus effect fires
+      // at exactly the moment a reveal is often due (returning from the
+      // assessment flow) — reported live as "the rank up modal is heavy
+      // lagging when opening the journey." The data isn't displayed while
+      // the reveal covers the screen anyway, so there's nothing to lose by
+      // deferring the fetch until it's dismissed (see showReveal in the
+      // dependency array below, same pattern as the refreshProfile effect
+      // above).
+      if (showReveal) return;
       loadJourneyProgram();
-    }, [loadJourneyProgram])
+    }, [loadJourneyProgram, showReveal])
   );
 
   // The tier-reveal celebration fires exactly once per assessment result —
