@@ -339,6 +339,7 @@ function SideQuestNode({ kind, state, isLast, staggerIndex, onPress }: {
 }
 
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
+const LEGACY_ACK_KEY_PREFIX = 'milestone_lane_legacy_ack_';
 
 interface JourneyWeekData {
   weekNumber: number;
@@ -376,6 +377,17 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // this is a lightweight gamification signal, not core progress data, so
   // it doesn't need a new table or cross-device sync.
   const [completedQuestSlots, setCompletedQuestSlots] = useState<Set<string>>(new Set());
+  // Existing members from before this feature shipped got onboarding_completed_at
+  // backfilled to unblock them from AuthGuard, but never actually saw
+  // milestones 2/3 — primary_goal is the real signal for that (backfill never
+  // touched it; only the genuine new-flow milestone-2 screen sets it).
+  // Confirmed against prod: 261 accounts match this, 1 has genuinely
+  // completed the new flow. Shown once until acknowledged (picking any
+  // milestone-3 option), then this screen behaves like any other returning
+  // user's — never silently skipped straight to the day path without the
+  // user ever having seen it.
+  const [legacyAcknowledged, setLegacyAcknowledged] = useState(false);
+  const [legacyAckLoaded, setLegacyAckLoaded] = useState(false);
 
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id) return;
@@ -384,6 +396,22 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         if (stored) setCompletedQuestSlots(new Set(JSON.parse(stored)));
       })
       .catch(() => {});
+    AsyncStorage.getItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`)
+      .then((stored) => setLegacyAcknowledged(stored === 'true'))
+      .catch(() => {})
+      .finally(() => setLegacyAckLoaded(true));
+  }, [mode, profile?.id]);
+
+  const acknowledgeLegacyOnboarding = useCallback(() => {
+    // No-op during genuine (mandatory) onboarding — this flag only matters
+    // for the free-roam journey tab's legacy-member view; a real new user
+    // never ends up back in that state (milestone 2 is mandatory for them),
+    // so writing it there would just be dead data.
+    if (mode !== 'journey') return;
+    setLegacyAcknowledged(true);
+    if (profile?.id) {
+      AsyncStorage.setItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`, 'true').catch(() => {});
+    }
   }, [mode, profile?.id]);
 
   // A quest screen navigating back with ?questDone=<slotKey> is the one
@@ -584,9 +612,21 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     );
   }
 
+  // In mandatory onboarding mode, milestone 3 genuinely waits on milestone 2
+  // — that sequence is enforced (unchanged). In the free-roam journey tab,
+  // a legacy/backfilled user (see showLegacyMilestones below) must NOT be
+  // blocked from their own program by a retroactive data-collection step —
+  // milestone 3 opens as soon as they're assessed, milestone 2 just stays
+  // open alongside it, not gating anything.
+  const showLegacyMilestones = mode === 'journey' && legacyAckLoaded && !profile?.primary_goal && !legacyAcknowledged;
+
   const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
   const milestone2State: NodeState = profile?.primary_goal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
+  const milestone3State: NodeState = showLegacyMilestones
+    ? (profile?.assessed_at ? 'active' : 'locked')
+    : profile?.assessed_at && profile?.primary_goal
+    ? 'active'
+    : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
   // Trial/side-quest gating and the week-complete banner only ever look at
@@ -603,7 +643,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       <Text style={styles.header}>MY JOURNEY</Text>
 
       <View style={styles.lane}>
-        {mode === 'onboarding' ? (
+        {mode === 'onboarding' || showLegacyMilestones ? (
           <>
             <NodeRow
               number={1}
@@ -636,31 +676,51 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               state={milestone3State}
               title="03 BUILD YOUR PROGRAM"
               desc={
-                milestone3State === 'active'
-                  ? 'Choose how you want to train. This is where onboarding ends.'
-                  : 'Unlocks after your goals.'
+                milestone3State !== 'active'
+                  ? 'Unlocks after your goals.'
+                  : showLegacyMilestones
+                  ? 'Pick up where you left off, or start something new.'
+                  : 'Choose how you want to train. This is where onboarding ends.'
               }
               isLast
               staggerIndex={3}
             >
               <View style={styles.choiceStack}>
-                <ProgramChoiceCard
-                  icon="creation"
-                  title="AI COACH"
-                  desc="A day-by-day plan that adapts as you progress."
-                  onPress={() => router.push('/coach')}
-                />
+                {showLegacyMilestones && journeyData ? (
+                  <ProgramChoiceCard
+                    icon="map-marker-path"
+                    title="CONTINUE ACTIVE PROGRAM"
+                    desc={`Jump back in — ${journeyData.programName}, Week ${journeyData.currentWeek}.`}
+                    onPress={acknowledgeLegacyOnboarding}
+                  />
+                ) : (
+                  <ProgramChoiceCard
+                    icon="creation"
+                    title="AI COACH"
+                    desc="A day-by-day plan that adapts as you progress."
+                    onPress={() => {
+                      acknowledgeLegacyOnboarding();
+                      router.push('/coach');
+                    }}
+                  />
+                )}
                 <ProgramChoiceCard
                   icon="tune-vertical"
                   title="CUSTOMIZE PROGRAM"
                   desc="Pick your focus, frequency and equipment."
-                  onPress={() => router.push('/customize-program')}
+                  onPress={() => {
+                    acknowledgeLegacyOnboarding();
+                    router.push('/customize-program');
+                  }}
                 />
                 <ProgramChoiceCard
                   icon="view-grid-outline"
                   title="READY TEMPLATE"
                   desc="Start an expert-built program today."
-                  onPress={() => router.push('/program-templates')}
+                  onPress={() => {
+                    acknowledgeLegacyOnboarding();
+                    router.push('/program-templates');
+                  }}
                 />
               </View>
             </NodeRow>
@@ -671,6 +731,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             <View style={styles.onboardingSummary}>
               <MaterialCommunityIcons name="check-circle" size={16} color={ACCENT} />
               <Text style={styles.onboardingSummaryText}>Onboarding complete{goalLabel ? ` · ${goalLabel}` : ''}</Text>
+              {!profile?.primary_goal && (
+                // Legacy member who's already moved past the milestone view
+                // (acknowledged it) — goals/equipment stays genuinely
+                // optional, never forced, but still reachable rather than
+                // disappearing entirely.
+                <TouchableOpacity onPress={() => router.push('/goals-equipment')}>
+                  <Text style={styles.onboardingSummaryLink}>ADD GOAL</Text>
+                </TouchableOpacity>
+              )}
             </View>
 
             {journeyLoading ? (
@@ -950,9 +1019,16 @@ const styles = StyleSheet.create({
     marginBottom: 24,
   },
   onboardingSummaryText: {
+    flex: 1,
     color: 'rgba(255,255,255,0.65)',
     fontFamily: 'PlusJakartaSans-Bold',
     fontSize: 12.5,
+  },
+  onboardingSummaryLink: {
+    color: ACCENT,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 11,
+    letterSpacing: 1,
   },
   journeySectionLabel: {
     color: ACCENT,
