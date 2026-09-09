@@ -209,9 +209,12 @@ function NodeRow({
   desc,
   ctaLabel,
   onPressCta,
+  secondaryCtaLabel,
+  onPressSecondaryCta,
   isLast,
   isSideQuest,
   staggerIndex = 0,
+  containerRef,
   children,
 }: {
   number: number;
@@ -220,9 +223,15 @@ function NodeRow({
   desc: string;
   ctaLabel?: string;
   onPressCta?: () => void;
+  // Side quests only — "SKIP" next to "START", per direct request: a
+  // training day can't be skipped, but a side quest gates the next day
+  // behind either finishing it or explicitly skipping it.
+  secondaryCtaLabel?: string;
+  onPressSecondaryCta?: () => void;
   isLast: boolean;
   isSideQuest?: boolean;
   staggerIndex?: number;
+  containerRef?: React.Ref<View>;
   children?: React.ReactNode;
 }) {
   const pulse = usePulse(state === 'active' && !isSideQuest);
@@ -237,7 +246,7 @@ function NodeRow({
   const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
   return (
-    <View style={[styles.row, isSideQuest && styles.rowSideQuest]}>
+    <View ref={containerRef} style={[styles.row, isSideQuest && styles.rowSideQuest]}>
       <View style={styles.rowLeft}>
         <NodeCircle state={state} number={number} isSideQuest={isSideQuest} staggerIndex={staggerIndex} />
         {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
@@ -256,10 +265,19 @@ function NodeRow({
           {title}
         </Text>
         <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.2)' : 'rgba(255,255,255,0.45)' }]}>{desc}</Text>
-        {state === 'active' && ctaLabel && onPressCta && (
-          <TouchableOpacity style={styles.ctaPill} onPress={onPressCta}>
-            <Text style={styles.ctaPillText}>{ctaLabel}</Text>
-          </TouchableOpacity>
+        {state === 'active' && (ctaLabel || secondaryCtaLabel) && (
+          <View style={styles.ctaRow}>
+            {ctaLabel && onPressCta && (
+              <TouchableOpacity style={styles.ctaPill} onPress={onPressCta}>
+                <Text style={styles.ctaPillText}>{ctaLabel}</Text>
+              </TouchableOpacity>
+            )}
+            {secondaryCtaLabel && onPressSecondaryCta && (
+              <TouchableOpacity style={styles.ctaPillSecondary} onPress={onPressSecondaryCta}>
+                <Text style={styles.ctaPillSecondaryText}>{secondaryCtaLabel}</Text>
+              </TouchableOpacity>
+            )}
+          </View>
         )}
         {state === 'active' && children}
       </Animated.View>
@@ -303,28 +321,27 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
   );
 }
 
-function DayNode({ number, status, title, isNext, isLast, onPress }: {
+function DayNode({ number, state, title, isLast, containerRef, onPress }: {
   number: number;
-  status: 'clean' | 'in_progress' | 'done';
+  // Only ever 'complete' (already resolved, kept visible as history) or
+  // 'active' (the one current pointer position) -- the strict one-step-at-
+  // a-time model below never mounts a DayNode in any other state; there's
+  // nothing "locked" to render since future days aren't in the tree yet.
+  state: NodeState;
   title: string;
-  isNext: boolean;
   isLast: boolean;
+  containerRef?: React.Ref<View>;
   onPress: () => void;
 }) {
-  // Days are never hard-locked (see deriveDayStates' own comment in
-  // warriorProgramDays.ts) — every day stays tappable regardless of visual
-  // state, "next" is emphasis only, not a gate. So unlike the mandatory
-  // milestone nodes above, every DayNode is pressable.
-  const state: NodeState = status === 'done' ? 'complete' : isNext ? 'active' : 'locked';
   return (
-    <TouchableOpacity activeOpacity={0.7} onPress={onPress}>
+    <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress}>
       <NodeRow
         number={number}
         state={state}
         title={title}
-        desc={status === 'done' ? 'Completed.' : isNext ? 'Up next in your program.' : 'Tap to jump in any time.'}
-        ctaLabel={isNext ? 'START' : undefined}
-        onPressCta={isNext ? onPress : undefined}
+        desc={state === 'complete' ? 'Completed.' : 'Up next in your program.'}
+        ctaLabel={state === 'active' ? 'START' : undefined}
+        onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
         staggerIndex={number}
       />
@@ -379,15 +396,55 @@ function getSideQuestForSlot(slotIndex: number, strengthTier: number): SideQuest
   return rotation[slotIndex % rotation.length];
 }
 
-function SideQuestNode({ kind, state, isLast, staggerIndex, onPress }: {
+type SequenceItem = { kind: 'day'; dayIndex: number } | { kind: 'quest'; slotIndex: number };
+
+// The strict one-step-at-a-time flow: Day1 -> Quest -> Day2 -> Quest ->
+// Day3 (quests only between days, never after the last one — that's the
+// weekly challenge's slot). Finds the first unresolved item; a day is
+// resolved by real completion data (workout_logs, via day.status), a quest
+// by either finishing it for real or explicitly skipping it. Everything
+// from this index onward simply isn't rendered yet — the caller cuts the
+// list off here rather than pre-rendering locked placeholders, which is
+// also what keeps the list short enough that landing on it doesn't require
+// scrolling past a wall of not-yet-relevant future steps.
+function buildWeekSequence(days: DayStateEntry[]): SequenceItem[] {
+  const items: SequenceItem[] = [];
+  days.forEach((_, i) => {
+    items.push({ kind: 'day', dayIndex: i });
+    if (i < days.length - 1) items.push({ kind: 'quest', slotIndex: i });
+  });
+  return items;
+}
+
+function findSequencePointer(
+  items: SequenceItem[],
+  days: DayStateEntry[],
+  isSlotResolved: (slotKey: string) => boolean,
+  weekNumber: number
+): number {
+  return items.findIndex((item) =>
+    item.kind === 'day' ? days[item.dayIndex].status !== 'done' : !isSlotResolved(`w${weekNumber}_s${item.slotIndex}`)
+  );
+}
+
+function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRef, onPress, onSkip }: {
   kind: SideQuestKind;
   state: NodeState;
+  // Resolved-by-skipping reads differently from resolved-by-completing —
+  // still shows the same complete checkmark (it IS resolved, gating-wise),
+  // just says so honestly rather than claiming "Done."
+  skipped?: boolean;
   isLast: boolean;
   staggerIndex: number;
+  containerRef?: React.Ref<View>;
   onPress: () => void;
+  // Only ever passed for the current active quest — a training day has no
+  // equivalent, per direct request: side quests gate on finish-or-skip,
+  // days must actually be done.
+  onSkip?: () => void;
 }) {
   const def = SIDE_QUEST_DEFS[kind];
-  const desc = state === 'complete' ? 'Done — nice work.' : state === 'locked' ? 'Unlocks once the day before it is done.' : def.desc;
+  const desc = state === 'complete' ? (skipped ? 'Skipped.' : 'Done — nice work.') : def.desc;
   return (
     <NodeRow
       number={0}
@@ -396,8 +453,11 @@ function SideQuestNode({ kind, state, isLast, staggerIndex, onPress }: {
       desc={desc}
       ctaLabel={state === 'active' ? 'START' : undefined}
       onPressCta={state === 'active' ? onPress : undefined}
+      secondaryCtaLabel={state === 'active' && onSkip ? 'SKIP' : undefined}
+      onPressSecondaryCta={state === 'active' ? onSkip : undefined}
       isLast={isLast}
       staggerIndex={staggerIndex}
+      containerRef={containerRef}
       isSideQuest
     />
   );
@@ -426,6 +486,7 @@ interface JourneyProgramData {
 }
 
 const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
+const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile } = useAuth();
@@ -443,6 +504,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // this is a lightweight gamification signal, not core progress data, so
   // it doesn't need a new table or cross-device sync.
   const [completedQuestSlots, setCompletedQuestSlots] = useState<Set<string>>(new Set());
+  // Side quests explicitly skipped (SKIP button, not a real log) — a
+  // separate set from completedQuestSlots so the UI can still say
+  // "Skipped." honestly rather than "Done." Gating-wise the two are
+  // equivalent (both resolve the slot and unlock the next day); only the
+  // copy differs.
+  const [skippedQuestSlots, setSkippedQuestSlots] = useState<Set<string>>(new Set());
+  // Auto-scroll target: whichever single row is "the current step" gets
+  // this ref attached (only one at a time, across whichever branch is
+  // rendering) so the screen can jump straight to it on load instead of
+  // requiring a manual scroll past however much history exists above it.
+  const scrollViewRef = useRef<ScrollView>(null);
+  const activeStepRef = useRef<View>(null);
   // Existing members from before this feature shipped got onboarding_completed_at
   // backfilled to unblock them from AuthGuard, but never actually saw
   // milestones 2/3 — primary_goal is the real signal for that (backfill never
@@ -476,6 +549,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     AsyncStorage.getItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`)
       .then((stored) => {
         if (stored) setCompletedQuestSlots(new Set(JSON.parse(stored)));
+      })
+      .catch(() => {});
+    AsyncStorage.getItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`)
+      .then((stored) => {
+        if (stored) setSkippedQuestSlots(new Set(JSON.parse(stored)));
       })
       .catch(() => {});
     AsyncStorage.getItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`)
@@ -526,6 +604,20 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       return next;
     });
   }, [questDone, profile?.id]);
+
+  const handleSkipQuest = useCallback(
+    (slotKey: string) => {
+      if (!profile?.id) return;
+      setSkippedQuestSlots((prev) => {
+        if (prev.has(slotKey)) return prev;
+        const next = new Set(prev);
+        next.add(slotKey);
+        AsyncStorage.setItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
+        return next;
+      });
+    },
+    [profile?.id]
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -700,6 +792,31 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
   }, [journeyData, router]);
 
+  // Auto-scroll to whichever row claimed activeStepRef (the current
+  // milestone, day, or quest — exactly one at a time, see the containerRef
+  // assignments below). Placed before the early RankUpReveal return, not
+  // after, so this hook is never called conditionally: showReveal toggles
+  // false->true->false within a single mount (see dismissReveal), and a
+  // hook only present on some of those render passes would violate the
+  // Rules of Hooks. The effect body itself still only touches refs, which
+  // are already attached by the time any effect runs regardless of where
+  // it's declared in the function.
+  useEffect(() => {
+    if (mode === 'journey' && journeyLoading) return;
+    const t = setTimeout(() => {
+      const node = activeStepRef.current as unknown as { measureLayout?: Function } | null;
+      const scrollNode = scrollViewRef.current as any;
+      if (!node?.measureLayout || !scrollNode) return;
+      const relativeTo = scrollNode.getInnerViewNode?.() ?? scrollNode;
+      node.measureLayout(
+        relativeTo,
+        (_x: number, y: number) => scrollNode.scrollTo({ y: Math.max(y - 100, 0), animated: true }),
+        () => {}
+      );
+    }, 400);
+    return () => clearTimeout(t);
+  }, [mode, journeyLoading, journeyData, legacyAcknowledged, legacyFlowActive]);
+
   if (showReveal && profile?.assessed_at) {
     return (
       <RankUpReveal
@@ -723,17 +840,33 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
 
   const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
+  const isQuestSlotResolved = useCallback(
+    (slotKey: string) => completedQuestSlots.has(slotKey) || skippedQuestSlots.has(slotKey),
+    [completedQuestSlots, skippedQuestSlots]
+  );
   // Trial/side-quest gating and the week-complete banner only ever look at
   // the latest (current) week — earlier weeks in the path are already done.
   const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
-  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeek.days.every((d) => d.status === 'done');
+  const latestWeekSequence = latestWeek ? buildWeekSequence(latestWeek.days) : [];
+  const latestWeekPointer = latestWeek
+    ? findSequencePointer(latestWeekSequence, latestWeek.days, isQuestSlotResolved, latestWeek.weekNumber)
+    : -1;
+  // -1 from findSequencePointer means every item resolved — i.e. every day
+  // AND every between-day quest (finished or skipped) for this week. This
+  // is what actually gates the weekly challenge and trial now, not just
+  // "are the days done" — a day can technically be marked done (via
+  // workout_logs) without its preceding quest ever being resolved in the
+  // lane, since WarriorProgramScreen itself doesn't enforce this sequence;
+  // this stays deliberately in agreement with what the lane is currently
+  // showing rather than what the raw data alone would say.
+  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeekPointer === -1;
   // Strength Trial: every 2 weeks, not every week — only odd->even
   // transitions (week 2, 4, 6...) count as a trial week.
   const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 0;
 
   return (
     <View style={styles.screen}>
-    <ScrollView contentContainerStyle={styles.scrollContent}>
+    <ScrollView ref={scrollViewRef} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.header}>MY JOURNEY</Text>
 
       <View style={styles.lane}>
@@ -748,6 +881,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
               staggerIndex={1}
+              containerRef={milestone1State === 'active' ? activeStepRef : undefined}
             />
             <NodeRow
               number={2}
@@ -764,6 +898,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
               staggerIndex={2}
+              containerRef={milestone2State === 'active' ? activeStepRef : undefined}
             />
             <NodeRow
               number={3}
@@ -778,6 +913,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               }
               isLast
               staggerIndex={3}
+              containerRef={milestone3State === 'active' ? activeStepRef : undefined}
             >
               <View style={styles.choiceStack}>
                 {showLegacyMilestones && journeyData ? (
@@ -849,64 +985,85 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   // new week picks the rotation up where it left off.
                   const seedSlot = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + Math.max(w.days.length - 1, 0), 0);
 
-                  const rows: React.ReactNode[] = week.days.flatMap((d, i) => {
-                    const dayRow = (
+                  let rows: React.ReactNode[];
+
+                  if (!isLatestWeek) {
+                    // Past weeks: full history, every day already done —
+                    // no sequence/pointer needed, nothing left to gate.
+                    rows = week.days.map((d, i) => (
                       <DayNode
                         key={`day-${week.weekNumber}-${i}`}
                         number={startNumber + i + 1}
-                        status={d.status}
+                        state="complete"
                         title={d.day.name.toUpperCase()}
-                        isNext={isLatestWeek && week.nextDayIndex === i}
                         isLast={false}
                         onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
                       />
-                    );
-                    // Side quests only make sense for the week still in
-                    // progress — inserted between each pair of days, not
-                    // after the last one (that slot belongs to the weekly
-                    // challenge below).
-                    if (!isLatestWeek || i >= week.days.length - 1) return [dayRow];
-                    const kind = getSideQuestForSlot(seedSlot + i, profile?.strength_tier || 0);
-                    const slotKey = `w${week.weekNumber}_s${i}`;
-                    const questState: NodeState = completedQuestSlots.has(slotKey)
-                      ? 'complete'
-                      : d.status === 'done'
-                      ? 'active'
-                      : 'locked';
-                    const def = SIDE_QUEST_DEFS[kind];
-                    return [
-                      dayRow,
-                      <SideQuestNode
-                        key={`quest-${week.weekNumber}-${i}`}
-                        kind={kind}
-                        state={questState}
-                        isLast={false}
-                        staggerIndex={startNumber + i + 1}
-                        onPress={() =>
-                          router.push({
-                            pathname: def.pathname,
-                            params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
-                          })
-                        }
-                      />,
-                    ];
-                  });
+                    ));
+                  } else {
+                    // Current week: strict one-step-at-a-time. Render every
+                    // resolved item as complete, the pointer item as the
+                    // one active step (with a ref for auto-scroll), and
+                    // stop — nothing after the pointer is in the tree yet,
+                    // which is also what keeps this list short regardless
+                    // of how many days/quests are still ahead.
+                    const visibleCount = latestWeekPointer === -1 ? latestWeekSequence.length : latestWeekPointer + 1;
+                    rows = latestWeekSequence.slice(0, visibleCount).map((item, idx) => {
+                      const isPointer = idx === latestWeekPointer;
+                      if (item.kind === 'day') {
+                        const d = week.days[item.dayIndex];
+                        return (
+                          <DayNode
+                            key={`day-${week.weekNumber}-${item.dayIndex}`}
+                            number={startNumber + item.dayIndex + 1}
+                            state={isPointer ? 'active' : 'complete'}
+                            title={d.day.name.toUpperCase()}
+                            isLast={false}
+                            containerRef={isPointer ? activeStepRef : undefined}
+                            onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                          />
+                        );
+                      }
+                      const kind = getSideQuestForSlot(seedSlot + item.slotIndex, profile?.strength_tier || 0);
+                      const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
+                      const resolved = isQuestSlotResolved(slotKey);
+                      const def = SIDE_QUEST_DEFS[kind];
+                      return (
+                        <SideQuestNode
+                          key={`quest-${week.weekNumber}-${item.slotIndex}`}
+                          kind={kind}
+                          state={resolved ? 'complete' : 'active'}
+                          skipped={skippedQuestSlots.has(slotKey)}
+                          isLast={false}
+                          staggerIndex={startNumber + item.slotIndex + 1}
+                          containerRef={isPointer ? activeStepRef : undefined}
+                          onPress={() =>
+                            router.push({
+                              pathname: def.pathname,
+                              params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
+                            })
+                          }
+                          onSkip={isPointer ? () => handleSkipQuest(slotKey) : undefined}
+                        />
+                      );
+                    });
 
-                  if (isLatestWeek) {
-                    rows.push(
-                      <NodeRow
-                        key={`weekly-challenge-${week.weekNumber}`}
-                        number={0}
-                        state="active"
-                        title="SIDE QUEST · WEEKLY CHALLENGE"
-                        desc="This week's community challenge — optional, skip it and move on any time."
-                        ctaLabel="START"
-                        onPressCta={() => router.push('/weekly-challenge')}
-                        isLast
-                        staggerIndex={startNumber + week.days.length + 1}
-                        isSideQuest
-                      />
-                    );
+                    if (weekComplete) {
+                      rows.push(
+                        <NodeRow
+                          key={`weekly-challenge-${week.weekNumber}`}
+                          number={0}
+                          state="active"
+                          title="SIDE QUEST · WEEKLY CHALLENGE"
+                          desc="This week's community challenge — optional, skip it and move on any time."
+                          ctaLabel="START"
+                          onPressCta={() => router.push('/weekly-challenge')}
+                          isLast
+                          staggerIndex={startNumber + week.days.length + 1}
+                          isSideQuest
+                        />
+                      );
+                    }
                   }
 
                   return (
@@ -935,6 +1092,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
                   staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
+                  // Once the day/quest sequence is exhausted, none of those
+                  // rows claim the auto-scroll ref (their pointer is -1) —
+                  // this becomes "the next thing" instead, trial week or not.
+                  containerRef={weekComplete ? activeStepRef : undefined}
                 />
 
                 {weekComplete && (
@@ -1085,8 +1246,12 @@ const styles = StyleSheet.create({
     marginTop: 4,
     lineHeight: 17,
   },
-  ctaPill: {
+  ctaRow: {
+    flexDirection: 'row',
+    gap: 10,
     marginTop: 12,
+  },
+  ctaPill: {
     alignSelf: 'flex-start',
     backgroundColor: ACCENT,
     paddingVertical: 10,
@@ -1095,6 +1260,21 @@ const styles = StyleSheet.create({
   },
   ctaPillText: {
     color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 12,
+    letterSpacing: 1.5,
+  },
+  ctaPillSecondary: {
+    alignSelf: 'flex-start',
+    backgroundColor: 'transparent',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 24,
+  },
+  ctaPillSecondaryText: {
+    color: 'rgba(255,255,255,0.55)',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12,
     letterSpacing: 1.5,
