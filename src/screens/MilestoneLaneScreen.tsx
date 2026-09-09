@@ -59,13 +59,37 @@ function usePulse(enabled: boolean) {
 // coming alive when you land back on it.
 // staggerIndex < 0 means "don't animate this one" (e.g. locked nodes,
 // still-dashed connectors) — settles at fully visible immediately.
+//
+// Deliberately slow and springy rather than snappy — per direct feedback,
+// the first pass ("boring... should be more like an achievement") read as
+// too quick to actually register. Longer per-step stagger so the cascade
+// reads as a deliberate reveal instead of a blink, and a lower-friction
+// spring for a real, visible overshoot bounce rather than a quick settle.
 function useMountPop(staggerIndex: number) {
   const anim = useRef(new Animated.Value(staggerIndex < 0 ? 1 : 0)).current;
   useEffect(() => {
     if (staggerIndex < 0) return;
-    const delay = Math.min(staggerIndex * 70, 600);
+    const delay = Math.min(staggerIndex * 140, 1100);
     const t = setTimeout(() => {
-      Animated.spring(anim, { toValue: 1, friction: 6, tension: 70, useNativeDriver: true }).start();
+      Animated.spring(anim, { toValue: 1, friction: 4.5, tension: 45, useNativeDriver: true }).start();
+    }, delay);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return anim;
+}
+
+// A one-time radial glow burst behind a node the moment it pops in as
+// 'complete' — the actual "achievement unlocked" beat, distinct from the
+// plain scale-in every active/complete node gets. staggerIndex < 0 (locked)
+// never fires.
+function useAchievementBurst(staggerIndex: number) {
+  const anim = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (staggerIndex < 0) return;
+    const delay = Math.min(staggerIndex * 140, 1100);
+    const t = setTimeout(() => {
+      Animated.timing(anim, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     }, delay);
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -81,16 +105,35 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
   // deliberate per the design handoff, it's what draws the eye to what's
   // actually active. Only active/complete ever animate in.
   const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
+  const burst = useAchievementBurst(state === 'complete' ? staggerIndex : -1);
   const popStyle = {
     opacity: pop,
-    transform: [{ scale: pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.4, 1.15, 1] }) }],
+    // Bigger overshoot than a plain UI pop (was 1.15x) — this is meant to
+    // read as a small win, not just a state toggle.
+    transform: [{ scale: pop.interpolate({ inputRange: [0, 0.6, 1], outputRange: [0.3, 1.3, 1] }) }],
   };
 
   if (state === 'complete') {
+    const size = isSideQuest ? 44 : NODE_SIZE;
     return (
-      <Animated.View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }, popStyle]}>
-        <MaterialCommunityIcons name="check" size={isSideQuest ? 18 : 26} color="#FFFFFF" />
-      </Animated.View>
+      <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.achievementBurst,
+            {
+              width: size * 2.2,
+              height: size * 2.2,
+              borderRadius: size * 1.1,
+              opacity: burst.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 0.55, 0] }),
+              transform: [{ scale: burst.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }],
+            },
+          ]}
+        />
+        <Animated.View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }, popStyle]}>
+          <MaterialCommunityIcons name="check" size={isSideQuest ? 18 : 26} color="#FFFFFF" />
+        </Animated.View>
+      </View>
     );
   }
   if (state === 'active') {
@@ -191,7 +234,7 @@ function NodeRow({
   // rather than the circle animating while the copy next to it just snaps
   // into place.
   const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
-  const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] };
+  const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
   return (
     <View style={[styles.row, isSideQuest && styles.rowSideQuest]}>
@@ -977,6 +1020,10 @@ const styles = StyleSheet.create({
     bottom: -6,
     borderRadius: (NODE_SIZE + 12) / 2,
     backgroundColor: 'rgba(255,82,82,0.35)',
+  },
+  achievementBurst: {
+    position: 'absolute',
+    backgroundColor: 'rgba(255,82,82,0.4)',
   },
   nodeCircle: {
     width: NODE_SIZE,
