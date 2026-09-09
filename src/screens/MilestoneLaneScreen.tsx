@@ -362,6 +362,7 @@ function SideQuestNode({ kind, state, isLast, staggerIndex, onPress }: {
 
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
 const LEGACY_ACK_KEY_PREFIX = 'milestone_lane_legacy_ack_';
+const LEGACY_FLOW_KEY_PREFIX = 'milestone_lane_legacy_flow_';
 
 interface JourneyWeekData {
   weekNumber: number;
@@ -409,8 +410,23 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // user's — never silently skipped straight to the day path without the
   // user ever having seen it.
   const [legacyAcknowledged, setLegacyAcknowledged] = useState(false);
-  const [legacyAckLoaded, setLegacyAckLoaded] = useState(false);
-  const legacyFlowActiveRef = useRef<boolean | null>(null);
+  // Whether this account was ever a "legacy" one (needs the catch-up
+  // milestone view at all) — null until loaded. Deliberately NOT derived
+  // live from profile.primary_goal on every mount: that field legitimately
+  // flips from null to set the moment the user completes milestone 2, and
+  // a ref-scoped "decide once" only protected against re-evaluating within
+  // a single mount — this screen has no persistent tab navigator, so it
+  // remounts fresh every time the user leaves and returns, wiping any ref.
+  // Reported live: fill in milestone 2, leave, come back — milestone 3
+  // (never yet used) had vanished because the re-mounted screen re-derived
+  // "is legacy" from primary_goal being set now and got a different answer.
+  // Persisting the decision to AsyncStorage the first time it's ever made
+  // fixes this: it stays fixed for this account regardless of what
+  // primary_goal does afterward, until the user actually acknowledges
+  // milestone 3 (or reinstalls/switches devices, at which point re-deriving
+  // from current profile state is a reasonable fallback — this is
+  // deliberately local/lightweight bookkeeping, not core progress data).
+  const [legacyFlowActive, setLegacyFlowActive] = useState<boolean | null>(null);
 
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id) return;
@@ -421,8 +437,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       .catch(() => {});
     AsyncStorage.getItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`)
       .then((stored) => setLegacyAcknowledged(stored === 'true'))
-      .catch(() => {})
-      .finally(() => setLegacyAckLoaded(true));
+      .catch(() => {});
+
+    const flowKey = `${LEGACY_FLOW_KEY_PREFIX}${profile.id}`;
+    AsyncStorage.getItem(flowKey)
+      .then((stored) => {
+        if (stored === 'true' || stored === 'false') {
+          setLegacyFlowActive(stored === 'true');
+          return;
+        }
+        // First time this has ever been decided for this account — lock it
+        // in permanently now.
+        const decided = !profile.primary_goal;
+        setLegacyFlowActive(decided);
+        AsyncStorage.setItem(flowKey, decided ? 'true' : 'false').catch(() => {});
+      })
+      .catch(() => setLegacyFlowActive(!profile.primary_goal));
+    // Deliberately excludes profile.primary_goal — this must only run once
+    // per (mode, profile.id), not re-run when the goal is later filled in.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mode, profile?.id]);
 
   const acknowledgeLegacyOnboarding = useCallback(() => {
@@ -635,16 +668,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     );
   }
 
-  // "Is this a legacy account" is detected once and locked in for this
-  // screen's lifetime, not re-evaluated every render — otherwise the
-  // instant the user actually completes milestone 2 (primary_goal becomes
-  // non-null), this would flip false immediately and the whole milestone
-  // view would vanish before they ever got to see the now-unlocked
-  // milestone 3, let alone act on it.
-  if (legacyFlowActiveRef.current === null && legacyAckLoaded && profile) {
-    legacyFlowActiveRef.current = !profile.primary_goal && !legacyAcknowledged;
-  }
-  const showLegacyMilestones = mode === 'journey' && legacyFlowActiveRef.current === true && !legacyAcknowledged;
+  const showLegacyMilestones = mode === 'journey' && legacyFlowActive === true && !legacyAcknowledged;
 
   // Same sequential gating everywhere — milestone 3 always waits on
   // milestone 2, mandatory onboarding and the legacy journey view alike.
