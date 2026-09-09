@@ -582,13 +582,15 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   );
 }
 
-type SideQuestKind = '1mm' | 'static' | 'power';
+type SideQuestKind = '1mm' | 'static' | 'power' | 'weekly';
 
 // pathname/params build the deep link; questSlotKey (this slot's unique id,
 // e.g. "w2_s0") rides along as a route param so the destination screen can
 // hand it straight back once the user actually logs something there —
 // that's the one signal MilestoneLaneScreen needs to mark this specific
-// slot complete, no new table or polling required.
+// slot complete, no new table or polling required. 'weekly' is the one
+// exception: WeeklyChallengeScreen doesn't yet wire up that return signal
+// (see its own note below), so that slot only ever resolves via SKIP today.
 const SIDE_QUEST_DEFS: Record<SideQuestKind, {
   icon: string;
   title: string;
@@ -617,6 +619,13 @@ const SIDE_QUEST_DEFS: Record<SideQuestKind, {
     pathname: '/power-world',
     params: {},
   },
+  weekly: {
+    icon: 'trophy-outline',
+    title: 'SIDE QUEST · WEEKLY CHALLENGE',
+    desc: "This week's community challenge — optional, skip it and move on any time.",
+    pathname: '/weekly-challenge',
+    params: {},
+  },
 };
 
 // Rotation the user asked for: 1MM -> Static -> Power, but Power only if
@@ -624,28 +633,55 @@ const SIDE_QUEST_DEFS: Record<SideQuestKind, {
 // rotation just alternates 1MM/Static. slotIndex runs continuously across
 // the whole path (not reset per week) so progressing into a new week picks
 // up the rotation where it left off rather than always starting at 1MM.
-function getSideQuestForSlot(slotIndex: number, strengthTier: number): SideQuestKind {
-  const rotation: SideQuestKind[] = isPowerWorldUnlocked(strengthTier) ? ['1mm', 'static', 'power'] : ['1mm', 'static'];
+// Never used for the fixed 'weekly' slot -- that one's assignment isn't
+// rotated, see buildWeekSequence.
+function getSideQuestForSlot(slotIndex: number, strengthTier: number): '1mm' | 'static' | 'power' {
+  const rotation: Array<'1mm' | 'static' | 'power'> = isPowerWorldUnlocked(strengthTier) ? ['1mm', 'static', 'power'] : ['1mm', 'static'];
   return rotation[slotIndex % rotation.length];
 }
 
-type SequenceItem = { kind: 'day'; dayIndex: number } | { kind: 'quest'; slotIndex: number };
+// How many rotation-pool ticks (see getSideQuestForSlot) a week of this
+// shape consumes, without needing to actually build its sequence -- used to
+// seed the rotation counter for the current week from every earlier week's
+// count. The first between-day gap is always the fixed weekly-challenge
+// slot (not part of the rotation); every other between-day gap rotates, and
+// so does the end-of-week slot on a non-trial week (a trial week's
+// end-of-week slot is the strength trial itself, outside the rotation).
+function rotationSlotsUsed(dayCount: number, isTrialWeek: boolean): number {
+  const midWeekRotating = Math.max(dayCount - 2, 0);
+  return midWeekRotating + (isTrialWeek ? 0 : 1);
+}
 
-// The strict one-step-at-a-time flow: Day1 -> Quest -> Day2 -> Quest ->
-// Day3 (quests only between days, never after the last one — that's the
-// weekly challenge's slot). Finds the first unresolved item; a day is
-// resolved by real completion data (workout_logs, via day.status), a quest
-// by either finishing it for real or explicitly skipping it. Everything
-// from this index onward simply isn't rendered yet — the caller cuts the
-// list off here rather than pre-rendering locked placeholders, which is
-// also what keeps the list short enough that landing on it doesn't require
-// scrolling past a wall of not-yet-relevant future steps.
-function buildWeekSequence(days: DayStateEntry[]): SequenceItem[] {
+type SequenceItem = { kind: 'day'; dayIndex: number } | { kind: 'quest'; slotIndex: number; questKind: SideQuestKind };
+
+// The one-step-at-a-time flow, per direct spec: Day1 -> Weekly Challenge
+// (always, fixed) -> Day2 -> a rotating quest -> Day3 (last day) -> another
+// rotating quest, UNLESS this is a trial week, in which case that
+// end-of-week slot is skipped here entirely -- the strength trial takes it
+// instead, rendered separately outside this sequence (see the render code)
+// since it's a bonus checkpoint, not another gate: it was never required to
+// resolve for the week to count as complete, and that stays true here so a
+// user is never blocked from starting next week just because they haven't
+// tested their tier yet.
+//
+// A day is resolved by real completion data (workout_logs, via day.status);
+// a quest (weekly-challenge or rotating alike) by finishing it for real or
+// explicitly skipping it -- see findSequencePointer.
+function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strengthTier: number, rotationSeed: number): SequenceItem[] {
   const items: SequenceItem[] = [];
+  let rotationCounter = rotationSeed;
+  let slotIndex = 0;
   days.forEach((_, i) => {
     items.push({ kind: 'day', dayIndex: i });
-    if (i < days.length - 1) items.push({ kind: 'quest', slotIndex: i });
+    const isLastDay = i === days.length - 1;
+    if (!isLastDay) {
+      const questKind: SideQuestKind = i === 0 ? 'weekly' : getSideQuestForSlot(rotationCounter++, strengthTier);
+      items.push({ kind: 'quest', slotIndex: slotIndex++, questKind });
+    }
   });
+  if (!isTrialWeek) {
+    items.push({ kind: 'quest', slotIndex: slotIndex++, questKind: getSideQuestForSlot(rotationCounter++, strengthTier) });
+  }
   return items;
 }
 
@@ -1162,7 +1198,21 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Trial/side-quest gating and the week-complete banner only ever look at
   // the latest (current) week — earlier weeks in the path are already done.
   const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
-  const latestWeekSequence = latestWeek ? buildWeekSequence(latestWeek.days) : [];
+  // Strength Trial: every 2 weeks, starting from week 1 -- odd weeks (1, 3,
+  // 5...) are trial weeks, per direct spec.
+  const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
+  // Rotation continues across the whole path, not reset per week (see
+  // getSideQuestForSlot) -- seed it with how many rotation slots every
+  // earlier week already consumed (rotationSlotsUsed), so the latest week
+  // picks the rotation up where it left off rather than always starting at
+  // 1MM. Past weeks never render their quests, but they still occupied
+  // rotation slots when they were the current week.
+  const latestWeekRotationSeed = journeyData
+    ? journeyData.weeks.slice(0, -1).reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
+    : 0;
+  const latestWeekSequence = latestWeek
+    ? buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed)
+    : [];
   const latestWeekPointer = latestWeek
     ? findSequencePointer(latestWeekSequence, latestWeek.days, isQuestSlotResolved, latestWeek.weekNumber)
     : -1;
@@ -1173,11 +1223,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // workout_logs) without its preceding quest ever being resolved in the
   // lane, since WarriorProgramScreen itself doesn't enforce this sequence;
   // this stays deliberately in agreement with what the lane is currently
-  // showing rather than what the raw data alone would say.
+  // showing rather than what the raw data alone would say. The strength
+  // trial itself is deliberately NOT part of this sequence (see
+  // buildWeekSequence) -- it never blocks reaching weekComplete.
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestWeekPointer === -1;
-  // Strength Trial: every 2 weeks, not every week — only odd->even
-  // transitions (week 2, 4, 6...) count as a trial week.
-  const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 0;
 
   return (
     <View style={styles.screen}>
@@ -1297,11 +1346,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 {journeyData.weeks.map((week, weekIdx) => {
                   const isLatestWeek = weekIdx === journeyData.weeks.length - 1;
                   const startNumber = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + w.days.length, 0);
-                  // Side-quest rotation runs continuously across the whole
-                  // path, not reset per week — seed it with how many
-                  // between-day gaps happened in every earlier week so a
-                  // new week picks the rotation up where it left off.
-                  const seedSlot = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + Math.max(w.days.length - 1, 0), 0);
 
                   let rows: React.ReactNode[];
 
@@ -1349,15 +1393,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           />
                         );
                       }
-                      const kind = getSideQuestForSlot(seedSlot + item.slotIndex, profile?.strength_tier || 0);
                       const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
                       const resolved = isQuestSlotResolved(slotKey);
-                      const def = SIDE_QUEST_DEFS[kind];
+                      const def = SIDE_QUEST_DEFS[item.questKind];
                       const questState: NodeState = resolved ? 'complete' : isPointer ? 'active' : 'locked';
                       return (
                         <SideQuestNode
                           key={`quest-${week.weekNumber}-${item.slotIndex}`}
-                          kind={kind}
+                          kind={item.questKind}
                           state={questState}
                           skipped={skippedQuestSlots.has(slotKey)}
                           seed={slotKey}
@@ -1374,26 +1417,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         />
                       );
                     });
-
-                    rows.push(
-                      <NodeRow
-                        key={`weekly-challenge-${week.weekNumber}`}
-                        number={0}
-                        state={weekComplete ? 'active' : 'locked'}
-                        title="SIDE QUEST · WEEKLY CHALLENGE"
-                        desc={
-                          weekComplete
-                            ? "This week's community challenge — optional, skip it and move on any time."
-                            : 'Unlocks after every day this week is done.'
-                        }
-                        image={pickFromPool(RANDOM_IMAGES, `weekly-challenge-${week.weekNumber}`)}
-                        ctaLabel="START"
-                        onPressCta={() => router.push('/weekly-challenge')}
-                        isLast={false}
-                        staggerIndex={startNumber + week.days.length + 1}
-                        isSideQuest
-                      />
-                    );
                   }
 
                   return (
@@ -1413,7 +1436,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   title="STRENGTH TRIAL"
                   desc={
                     !isTrialWeek
-                      ? `Every 2 weeks — next available Week ${journeyData.currentWeek % 2 === 0 ? journeyData.currentWeek : journeyData.currentWeek + 1}.`
+                      ? `Every 2 weeks — next available Week ${journeyData.currentWeek + 1}.`
                       : weekComplete
                       ? "Test your current tier now that this week's days are done."
                       : 'Unlocks after every day this week is done.'
