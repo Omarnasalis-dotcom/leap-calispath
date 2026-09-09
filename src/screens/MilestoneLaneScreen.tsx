@@ -478,6 +478,15 @@ interface JourneyProgramData {
   programName: string;
   currentWeek: number;
   hasNextWeek: boolean;
+  // Whether this program is eligible for the self-service "ADD NEW WEEK"
+  // RPC (add_week_to_own_program) once hasNextWeek is false — true only
+  // for LEAP-system-owned programs (Customize Program, Ready Template),
+  // never a real coach's program, matching that RPC's own server-side
+  // check (coach_id = LEAP_SYSTEM_PROFILE_ID). A customized program is
+  // structurally always a single week (create_custom_program_from_workouts
+  // hardcodes week_number = 1), so this is what actually lets someone keep
+  // training past the one week they built instead of hitting a dead end.
+  canAddWeek: boolean;
   // Every week from 1 through currentWeek, in order — the full path so
   // far, not just "this week". Past weeks are already fully done (that's
   // how currentWeek got here), so only the last entry ever has an active
@@ -487,6 +496,11 @@ interface JourneyProgramData {
 
 const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
 const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
+// Matches the constant of the same name used server-side (e.g.
+// select_library_template, add_week_to_own_program) — the system profile
+// that owns Customize Program / Ready Template programs, as opposed to a
+// real coach or the AI coach profile.
+const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile } = useAuth();
@@ -641,7 +655,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     try {
       const { data: program } = await supabase
         .from('warrior_programs')
-        .select('id, template_id, current_week, program_templates:template_id ( name )')
+        .select('id, template_id, current_week, coach_id, program_templates:template_id ( name )')
         .eq('warrior_id', profile.id)
         .eq('status', 'active')
         .maybeSingle();
@@ -728,6 +742,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         programName: programName || 'Your Program',
         currentWeek: rawCurrentWeek,
         hasNextWeek,
+        canAddWeek: (program as any).coach_id === LEAP_SYSTEM_PROFILE_ID,
         weeks,
       });
     } catch (err) {
@@ -794,11 +809,37 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // explicit "I'm ready to move on" tap, never automatically.
   const [advancingWeek, setAdvancingWeek] = useState(false);
   const handleContinueProgram = useCallback(async () => {
-    if (!journeyData?.hasNextWeek) {
+    if (!journeyData) return;
+
+    // No more pre-built weeks and this program isn't eligible for
+    // self-service extension (a real coach's program, or the AI coach's
+    // own -- it has its own append mechanism) -- same "just go look at
+    // it" behavior as before.
+    if (!journeyData.hasNextWeek && !journeyData.canAddWeek) {
       router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
       return;
     }
+
     setAdvancingWeek(true);
+
+    // Customize Program always creates exactly one week
+    // (create_custom_program_from_workouts hardcodes week_number = 1) --
+    // reported live as "after finishing the week he customized he can't
+    // add a new week." add_week_to_own_program clones the current week's
+    // blocks forward as the next one; the current_week bump below (shared
+    // with the hasNextWeek path) is what actually makes it the active week.
+    if (!journeyData.hasNextWeek && journeyData.canAddWeek) {
+      const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
+        p_warrior_program_id: journeyData.warriorProgramId,
+      });
+      if (addWeekError) {
+        console.error('Failed to add a new week:', addWeekError);
+        setAdvancingWeek(false);
+        router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
+        return;
+      }
+    }
+
     const { error } = await supabase
       .from('warrior_programs')
       .update({ current_week: journeyData.currentWeek + 1 })
@@ -1135,7 +1176,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   <View style={styles.weekCompleteBanner}>
                     <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
                     <Text style={styles.weekCompleteText}>
-                      {journeyData.hasNextWeek
+                      {journeyData.hasNextWeek || journeyData.canAddWeek
                         ? 'Week complete — nice work.'
                         : "Week complete — that's every week in this program."}
                     </Text>
@@ -1145,7 +1186,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       disabled={advancingWeek}
                     >
                       <Text style={styles.weekCompletePillText}>
-                        {advancingWeek ? 'STARTING NEXT WEEK…' : journeyData.hasNextWeek ? 'START WEEK ' + (journeyData.currentWeek + 1) : 'VIEW PROGRAM'}
+                        {advancingWeek
+                          ? (journeyData.hasNextWeek ? 'STARTING NEXT WEEK…' : journeyData.canAddWeek ? 'ADDING WEEK…' : 'STARTING NEXT WEEK…')
+                          : journeyData.hasNextWeek
+                          ? 'START WEEK ' + (journeyData.currentWeek + 1)
+                          : journeyData.canAddWeek
+                          ? 'ADD NEW WEEK'
+                          : 'VIEW PROGRAM'}
                       </Text>
                     </TouchableOpacity>
                   </View>
