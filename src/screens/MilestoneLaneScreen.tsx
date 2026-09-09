@@ -13,49 +13,52 @@ import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 
-// Cover photos for the milestone/journey list rows' photo cards (assets/Milestone
-// Cards, added for this purpose). require() needs static string literals, so
-// these can't be built from a template — each is named individually and mapped
-// to a specific card below by content (assessment/day/side-quest theme).
+// Cover photos for the milestone/journey list rows' photo cards, organized
+// as one pool per category under assets/Milestone Cards/{push,pull,lower
+// body,random}. require() needs static string literals, so a real directory
+// scan isn't possible -- each file is listed individually here; adding a
+// future photo is: drop a space-free file into the right folder, add one
+// require() line to the matching array below.
 //
-// Filenames here are deliberately space-free: React Native's on-device asset
-// URL is built by AssetSourceResolver.js via plain string concatenation of
-// `asset.name` (never encodeURIComponent'd), so a literal space in the
-// filename produces a URI with an unencoded space in it -- which
-// NSURL(string:) on iOS fails to parse at all, silently, so the Image never
-// even fires a request. That's what "cards is empty" was: every one of
-// these files originally had a space in its base name (only Mobility.png
-// didn't), so only that one card was ever rendering a photo.
-const IMG_SQUAT = require('../../assets/Milestone Cards/deep-squat.png');
-const IMG_INCLINE_PUSHUP = require('../../assets/Milestone Cards/incline-pushup.png');
-const IMG_MOBILITY = require('../../assets/Milestone Cards/mobility.png');
-const IMG_PULLUPS = require('../../assets/Milestone Cards/pull-ups.png');
-const IMG_LUNGES = require('../../assets/Milestone Cards/lunges.png');
-const IMG_HANDSTAND = require('../../assets/Milestone Cards/handstand.png');
-const IMG_MOUNTAIN_CLIMBER = require('../../assets/Milestone Cards/mountain-climber.png');
-const IMG_PISTOL = require('../../assets/Milestone Cards/pistol-squat.png');
-const IMG_SPRINT = require('../../assets/Milestone Cards/sprint.png');
-
-const SIDE_QUEST_IMAGES: Record<'1mm' | 'static' | 'power', ImageSourcePropType> = {
-  '1mm': IMG_SPRINT,
-  static: IMG_HANDSTAND,
-  power: IMG_PULLUPS,
-};
-
-// Training-day photo picked from what the day is actually made of, not a
-// blind rotation: program_blocks/exercises carry no structured muscle-group
-// category by the time they reach the client (that only exists upstream, on
-// workout_library rows, at pick time in CustomizeProgramScreen) -- so this
-// reads the day's real block/exercise names for push/pull/lower-body
-// keywords instead. Falls back to a stable, per-day pick (hashed off the day
-// name, not Math.random()) when nothing matches, since this screen remounts
-// on every nav and a re-rolled random pick would flicker the photo on every
-// visit -- see useMountPop's comment for why this screen has no persistent
-// tab navigator to rely on for "only compute once."
-const PUSH_KEYWORDS = /push[\s-]?up|\bpush\b|\bdip\b|\bpress\b/i;
-const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\bleg\b|\bcalf|\bglute|\bnordic|step[\s-]?up/i;
-const PULL_KEYWORDS = /pull[\s-]?up|\bpull\b|\brow\b|chin[\s-]?up|\blat\b|muscle[\s-]?up/i;
-const DAY_FALLBACK_IMAGES: ImageSourcePropType[] = [IMG_INCLINE_PUSHUP, IMG_PISTOL, IMG_SQUAT, IMG_PULLUPS];
+// Filenames must be space-free: React Native's on-device asset URL is built
+// by AssetSourceResolver.js via plain string concatenation of `asset.name`
+// (never encodeURIComponent'd), so a literal space in the filename produces
+// a URI with an unencoded space in it -- which NSURL(string:) on iOS fails
+// to parse at all, silently, so the Image never even fires a request.
+// That's what "cards is empty" was the first time this shipped: every file
+// had a space in its base name except one, so only that one card ever
+// rendered a photo. (Folder names are fine with spaces -- httpServerLocation
+// is percent-encoded server-side at bundle time; only the runtime-
+// concatenated filename portion is the risk.)
+const PUSH_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/push/incline-pushup.png'),
+  require('../../assets/Milestone Cards/push/push-01.png'),
+  require('../../assets/Milestone Cards/push/push-02.png'),
+  require('../../assets/Milestone Cards/push/push-03.png'),
+  require('../../assets/Milestone Cards/push/push-04.png'),
+  require('../../assets/Milestone Cards/push/push-05.png'),
+  require('../../assets/Milestone Cards/push/push-06.png'),
+  require('../../assets/Milestone Cards/push/push-07.png'),
+];
+const PULL_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/pull/pull-ups.png'),
+  require('../../assets/Milestone Cards/pull/front-lever.jpeg'),
+  require('../../assets/Milestone Cards/pull/muscle-up.jpeg'),
+  require('../../assets/Milestone Cards/pull/pull-01.png'),
+];
+const LEGS_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/lower body/deep-squat.png'),
+  require('../../assets/Milestone Cards/lower body/lunges.png'),
+  require('../../assets/Milestone Cards/lower body/pistol-squat.png'),
+  require('../../assets/Milestone Cards/lower body/pistol-squat-2.jpeg'),
+  require('../../assets/Milestone Cards/lower body/sprint.png'),
+];
+const RANDOM_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/random/mobility.png'),
+  require('../../assets/Milestone Cards/random/handstand.png'),
+  require('../../assets/Milestone Cards/random/mountain-climber.png'),
+  require('../../assets/Milestone Cards/random/random-01.png'),
+];
 
 function hashString(s: string): number {
   let h = 0;
@@ -63,12 +66,31 @@ function hashString(s: string): number {
   return Math.abs(h);
 }
 
-function pickDayCardImage(day: ProgramDay): ImageSourcePropType {
+// Deterministic per `seed`, not Math.random() -- this screen fully remounts
+// on every nav (no persistent tab navigator, see useMountPop's comment
+// below), so a re-rolled random pick would visibly flicker the photo on
+// every visit.
+function pickFromPool(pool: ImageSourcePropType[], seed: string): ImageSourcePropType {
+  return pool[hashString(seed) % pool.length];
+}
+
+// Training-day photo picked from what the day is actually made of, not a
+// blind rotation: program_blocks/exercises carry no structured muscle-group
+// category by the time they reach the client (that only exists upstream, on
+// workout_library rows, at pick time in CustomizeProgramScreen) -- so this
+// reads the day's real block/exercise names for push/pull/lower-body
+// keywords instead, then picks a stable photo from that category's pool.
+// Full-body/unmatched days fall through to the random pool.
+const PUSH_KEYWORDS = /push[\s-]?up|\bpush\b|\bdip\b|\bpress\b/i;
+const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\bleg\b|\bcalf|\bglute|\bnordic|step[\s-]?up/i;
+const PULL_KEYWORDS = /pull[\s-]?up|\bpull\b|\brow\b|chin[\s-]?up|\blat\b|muscle[\s-]?up/i;
+
+function pickDayCardImage(day: ProgramDay, seed: string): ImageSourcePropType {
   const text = day.blocks.map((b) => `${b.name} ${b.exercises.map((e) => e.name).join(' ')}`).join(' ');
-  if (PUSH_KEYWORDS.test(text)) return IMG_INCLINE_PUSHUP;
-  if (LOWER_BODY_KEYWORDS.test(text)) return hashString(day.name) % 2 === 0 ? IMG_PISTOL : IMG_SQUAT;
-  if (PULL_KEYWORDS.test(text)) return IMG_PULLUPS;
-  return DAY_FALLBACK_IMAGES[hashString(day.name) % DAY_FALLBACK_IMAGES.length];
+  if (PUSH_KEYWORDS.test(text)) return pickFromPool(PUSH_IMAGES, seed);
+  if (LOWER_BODY_KEYWORDS.test(text)) return pickFromPool(LEGS_IMAGES, seed);
+  if (PULL_KEYWORDS.test(text)) return pickFromPool(PULL_IMAGES, seed);
+  return pickFromPool(RANDOM_IMAGES, seed);
 }
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
@@ -523,7 +545,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
   );
 }
 
-function DayNode({ number, state, title, day, isLast, containerRef, onPress }: {
+function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress }: {
   number: number;
   // Only ever 'complete' (already resolved, kept visible as history) or
   // 'active' (the one current pointer position) -- the strict one-step-at-
@@ -534,6 +556,10 @@ function DayNode({ number, state, title, day, isLast, containerRef, onPress }: {
   // Real block/exercise data for this day, used to pick a push/pull/lower-
   // body photo (see pickDayCardImage) -- not just for display.
   day: ProgramDay;
+  // Distinguishes this day from others sharing the same day.name across
+  // different weeks (e.g. every week's "DAY 1"), so they don't all land on
+  // the same pool index -- see pickFromPool.
+  seed: string;
   isLast: boolean;
   containerRef?: React.Ref<View>;
   onPress: () => void;
@@ -545,7 +571,7 @@ function DayNode({ number, state, title, day, isLast, containerRef, onPress }: {
         state={state}
         title={title}
         desc={state === 'complete' ? 'Completed.' : 'Up next in your program.'}
-        image={pickDayCardImage(day)}
+        image={pickDayCardImage(day, seed)}
         ctaLabel={state === 'active' ? 'START' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
@@ -633,13 +659,15 @@ function findSequencePointer(
   );
 }
 
-function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRef, onPress, onSkip }: {
+function SideQuestNode({ kind, state, skipped, seed, isLast, staggerIndex, containerRef, onPress, onSkip }: {
   kind: SideQuestKind;
   state: NodeState;
   // Resolved-by-skipping reads differently from resolved-by-completing —
   // still shows the same complete checkmark (it IS resolved, gating-wise),
   // just says so honestly rather than claiming "Done."
   skipped?: boolean;
+  // Stable pick into the random photo pool -- see pickFromPool.
+  seed: string;
   isLast: boolean;
   staggerIndex: number;
   containerRef?: React.Ref<View>;
@@ -657,7 +685,7 @@ function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRe
       state={state}
       title={def.title}
       desc={desc}
-      image={SIDE_QUEST_IMAGES[kind]}
+      image={pickFromPool(RANDOM_IMAGES, seed)}
       ctaLabel={state === 'active' ? 'START' : undefined}
       onPressCta={state === 'active' ? onPress : undefined}
       secondaryCtaLabel={state === 'active' && onSkip ? 'SKIP' : undefined}
@@ -1158,7 +1186,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               state={milestone1State}
               title="01 ASSESSMENT"
               desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
-              image={IMG_SQUAT}
+              image={pickFromPool(RANDOM_IMAGES, 'milestone-1')}
               ctaLabel="START"
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
@@ -1176,7 +1204,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Tell us your goal and equipment.'
                   : 'Unlocks after your assessment.'
               }
-              image={IMG_MOBILITY}
+              image={pickFromPool(RANDOM_IMAGES, 'milestone-2')}
               ctaLabel="START"
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
@@ -1194,7 +1222,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Pick up where you left off, or start something new.'
                   : 'Choose how you want to train. This is where onboarding ends.'
               }
-              image={IMG_LUNGES}
+              image={pickFromPool(RANDOM_IMAGES, 'milestone-3')}
               isLast
               staggerIndex={3}
               containerRef={milestone3State === 'active' ? activeStepRef : undefined}
@@ -1281,6 +1309,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         state="complete"
                         title={d.day.name.toUpperCase()}
                         day={d.day}
+                        seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
                         isLast={false}
                         onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
                       />
@@ -1304,6 +1333,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                             state={isPointer ? 'active' : 'complete'}
                             title={d.day.name.toUpperCase()}
                             day={d.day}
+                            seed={`w${week.weekNumber}-d${item.dayIndex}-${d.day.name}`}
                             isLast={false}
                             containerRef={isPointer ? activeStepRef : undefined}
                             onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
@@ -1320,6 +1350,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           kind={kind}
                           state={resolved ? 'complete' : 'active'}
                           skipped={skippedQuestSlots.has(slotKey)}
+                          seed={slotKey}
                           isLast={false}
                           staggerIndex={startNumber + item.slotIndex + 1}
                           containerRef={isPointer ? activeStepRef : undefined}
@@ -1342,7 +1373,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           state="active"
                           title="SIDE QUEST · WEEKLY CHALLENGE"
                           desc="This week's community challenge — optional, skip it and move on any time."
-                          image={IMG_MOUNTAIN_CLIMBER}
+                          image={pickFromPool(RANDOM_IMAGES, `weekly-challenge-${week.weekNumber}`)}
                           ctaLabel="START"
                           onPressCta={() => router.push('/weekly-challenge')}
                           isLast
@@ -1375,7 +1406,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       ? "Test your current tier now that this week's days are done."
                       : 'Unlocks after every day this week is done.'
                   }
-                  image={IMG_PISTOL}
+                  image={pickFromPool(RANDOM_IMAGES, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel="START"
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
                   isLast
