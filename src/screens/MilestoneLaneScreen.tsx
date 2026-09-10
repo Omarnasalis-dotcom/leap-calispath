@@ -359,10 +359,10 @@ function JourneyCard({
   showHereBadge,
 }: {
   state: NodeState;
-  // Only used for active/locked -- complete never renders a photo, even if
-  // one is passed (callers compute it unconditionally for seed-stability
-  // elsewhere, e.g. pickDayCardImage, so it's simplest to just ignore it here
-  // rather than have every call site conditionally omit it).
+  // Active/locked render it full-bleed; complete renders a small rounded
+  // thumbnail instead (see finishedCardThumb) -- callers already compute
+  // this unconditionally for seed-stability elsewhere (pickDayCardImage),
+  // so it's simplest to just always pass it through.
   image?: ImageSourcePropType;
   title: string;
   desc: string;
@@ -381,6 +381,7 @@ function JourneyCard({
   if (state === 'complete') {
     return (
       <View style={styles.finishedCard}>
+        {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
         <View style={{ flex: 1 }}>
           <Text style={styles.finishedCardTitle} numberOfLines={2}>
             {title}
@@ -403,7 +404,7 @@ function JourneyCard({
   }
 
   return (
-    <View style={styles.milestoneCard}>
+    <View style={[styles.milestoneCard, locked && styles.milestoneCardLocked]}>
       <Image source={image} style={styles.milestoneCardImage} resizeMode="cover" />
       {/* RN's Image has no CSS-filter equivalent (no grayscale/brightness) —
           a flat dark scrim is the native approximation for "locked, dimmed
@@ -799,15 +800,13 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
   const def = SIDE_QUEST_DEFS[kind];
   return (
     <View style={styles.questBranchRow}>
-      <Svg width={36} height={50} style={styles.questBranchCurve}>
-        <Path
-          d="M2,0 C2,20 34,20 34,44"
-          stroke={ACCENT}
-          strokeWidth={2}
-          strokeDasharray="4,5"
-          strokeLinecap="round"
-          fill="none"
-        />
+      {/* Box height matches QuestNode's own size (34) exactly -- with the
+          row's alignItems:'flex-start', the node's vertical center sits at
+          y=17, so the curve has to end there too or it visibly misses the
+          node (the original height=50/y=44 endpoint was well past the
+          node's actual bottom edge). */}
+      <Svg width={30} height={34} style={styles.questBranchCurve}>
+        <Path d="M4,0 Q28,0 28,17" stroke={ACCENT} strokeWidth={2} strokeDasharray="4,5" strokeLinecap="round" fill="none" />
       </Svg>
       <QuestNode />
       <View style={styles.questBubble}>
@@ -815,10 +814,18 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
         <Text style={styles.questBubbleTitle} numberOfLines={1}>
           {def.title.replace('SIDE QUEST · ', '')}
         </Text>
-        <Text style={styles.questBubbleDesc}>{def.desc}</Text>
-        <View style={styles.ctaRow}>
-          <MilestoneCardCta label="START" onPress={onPress} />
-          {onSkip && <MilestoneCardCta label="SKIP" secondary onPress={onSkip} />}
+        <Text style={styles.questBubbleDesc} numberOfLines={2}>
+          {def.desc}
+        </Text>
+        <View style={styles.questBubbleCtaRow}>
+          <TouchableOpacity style={styles.questBubbleCta} onPress={onPress}>
+            <Text style={styles.questBubbleCtaText}>START</Text>
+          </TouchableOpacity>
+          {onSkip && (
+            <TouchableOpacity style={styles.questBubbleCtaSecondary} onPress={onSkip}>
+              <Text style={styles.questBubbleCtaSecondaryText}>SKIP</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </View>
     </View>
@@ -1687,6 +1694,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     gap: 12,
   },
+  finishedCardThumb: {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+  },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
     fontFamily: 'PlusJakartaSans-SemiBold',
@@ -1786,7 +1798,7 @@ const styles = StyleSheet.create({
   questBranchRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
-    marginTop: -6,
+    marginTop: 6,
   },
   questBranchCurve: {
     marginTop: 0,
@@ -1796,27 +1808,57 @@ const styles = StyleSheet.create({
     backgroundColor: '#161616',
     borderWidth: 1,
     borderColor: ACCENT_DIM,
-    borderRadius: 14,
-    padding: 12,
-    marginLeft: -4,
+    borderRadius: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
   },
   questBubbleLabel: {
     color: ACCENT,
     fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 9,
+    fontSize: 8,
     letterSpacing: 1,
   },
   questBubbleTitle: {
     color: '#FFFFFF',
     fontFamily: 'PlusJakartaSans-SemiBold',
-    fontSize: 13,
-    marginTop: 2,
+    fontSize: 12,
+    marginTop: 1,
   },
   questBubbleDesc: {
     color: 'rgba(255,255,255,0.55)',
     fontFamily: 'PlusJakartaSans-Light',
-    fontSize: 11.5,
-    marginTop: 2,
+    fontSize: 10.5,
+    marginTop: 1,
+  },
+  questBubbleCtaRow: {
+    flexDirection: 'row',
+    gap: 6,
+    marginTop: 6,
+  },
+  questBubbleCta: {
+    backgroundColor: ACCENT,
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  questBubbleCtaText: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 10,
+    letterSpacing: 1,
+  },
+  questBubbleCtaSecondary: {
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 5,
+    paddingHorizontal: 12,
+    borderRadius: 16,
+  },
+  questBubbleCtaSecondaryText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 10,
+    letterSpacing: 1,
   },
   milestoneCard: {
     position: 'relative',
@@ -1824,6 +1866,12 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161616',
+  },
+  milestoneCardLocked: {
+    // Shorter than the active/current-day size -- a locked "next up"
+    // preview doesn't need the same real estate; it grows back to the full
+    // 176 the moment it becomes the active card (see JourneyCard).
+    height: 100,
   },
   milestoneCardImage: {
     position: 'absolute',
