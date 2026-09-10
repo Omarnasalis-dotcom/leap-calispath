@@ -12,7 +12,8 @@ const ACCENT = '#FF5252';
 const OTHER_GOAL_MAX_LEN = 200;
 
 export const GOALS = [
-  { id: 'learn_skills', label: 'Learn Skills & Master Basics', icon: 'school-outline' },
+  { id: 'learn_skills', label: 'Learn Skills', icon: 'school-outline' },
+  { id: 'master_basics', label: 'Master Basics', icon: 'checkbox-marked-circle-outline' },
   { id: 'weight_loss', label: 'Lose Weight', icon: 'fire' },
   { id: 'strength', label: 'Increase Strength', icon: 'arm-flex-outline' },
   { id: 'compete', label: 'Compete', icon: 'trophy-outline' },
