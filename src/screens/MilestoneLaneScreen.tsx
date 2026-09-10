@@ -248,7 +248,17 @@ function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number:
   );
 }
 
-function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex: number }) {
+function Connector({
+  complete,
+  staggerIndex,
+  style,
+}: {
+  complete: boolean;
+  staggerIndex: number;
+  // Absolute top/bottom/height overrides -- see NodeRow, which positions
+  // this against a measured card height rather than letting it flex-fill.
+  style?: object;
+}) {
   const fillOpacity = useMountPop(complete ? staggerIndex : -1);
   // The actual "route lights up and moves to the next step" ask — a small
   // glowing dot travels the length of the connector as it fills, matching
@@ -269,6 +279,7 @@ function Connector({ complete, staggerIndex }: { complete: boolean; staggerIndex
         // is the only segment that gets the lit/glowing + traveling-dot
         // treatment below.
         complete ? { backgroundColor: ACCENT, opacity: fillOpacity } : { backgroundColor: 'rgba(255,255,255,0.08)' },
+        style,
       ]}
     >
       {complete && height > 0 && (
@@ -534,34 +545,55 @@ function NodeRow({
   const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
   const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
+  // The circle has to center against the CARD's own height, not whatever
+  // else shares this row (the attached quest below it can add a lot more
+  // height, especially the branching one on the active day) -- rowLeft
+  // still stretches to match the row's full height via flex (so a
+  // continuous line can still run all the way down through the quest
+  // area), but the circle/connector split point is computed from this
+  // separately-measured card height, not the full stretched height.
+  // Defaults to a same top-pinned position pre-measurement (first paint),
+  // matching what this looked like before centering existed at all.
+  const [cardHeight, setCardHeight] = useState(0);
+  const circleTop = Math.max(cardHeight / 2 - NODE_SIZE / 2, 0);
+
   return (
     <View ref={containerRef} style={styles.row}>
       <View style={styles.rowLeft}>
-        {/* Two flex:1 segments splitting the space equally above/below the
-            fixed-size circle is what centers it against the card's real
-            height instead of pinning it to the row's top -- the "above"
-            piece is this same gap's tail end as seen from the row below,
-            which is why it uses "have we reached this row at all" (active
-            counts) rather than "below," which only lights up once this row
-            is fully done and the path visibly continues past it. */}
-        {!isFirst && <Connector complete={state !== 'locked'} staggerIndex={staggerIndex} />}
-        <NodeCircle state={state} number={number} staggerIndex={staggerIndex} />
-        {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
+        {!isFirst && (
+          <Connector
+            complete={state !== 'locked'}
+            staggerIndex={staggerIndex}
+            style={{ position: 'absolute', top: 0, height: circleTop, marginTop: 0 }}
+          />
+        )}
+        <View style={[styles.nodeCircleAbsolute, { top: circleTop }]}>
+          <NodeCircle state={state} number={number} staggerIndex={staggerIndex} />
+        </View>
+        {!isLast && (
+          <Connector
+            complete={state === 'complete'}
+            staggerIndex={staggerIndex}
+            style={{ position: 'absolute', top: circleTop + NODE_SIZE, bottom: 0, marginTop: 0 }}
+          />
+        )}
       </View>
       <Animated.View style={[styles.rowRight, contentPopStyle]}>
-        <JourneyCard
-          state={state}
-          image={image}
-          title={title}
-          desc={desc}
-          stats={stats}
-          ctaLabel={ctaLabel}
-          onPressCta={onPressCta}
-          secondaryCtaLabel={secondaryCtaLabel}
-          onPressSecondaryCta={onPressSecondaryCta}
-          showHereBadge={state === 'active'}
-        />
-        {state === 'active' && children}
+        <View onLayout={(e) => setCardHeight(e.nativeEvent.layout.height)}>
+          <JourneyCard
+            state={state}
+            image={image}
+            title={title}
+            desc={desc}
+            stats={stats}
+            ctaLabel={ctaLabel}
+            onPressCta={onPressCta}
+            secondaryCtaLabel={secondaryCtaLabel}
+            onPressSecondaryCta={onPressSecondaryCta}
+            showHereBadge={state === 'active'}
+          />
+          {state === 'active' && children}
+        </View>
         {attachedQuest &&
           (attachedQuest.state === 'active' ? (
             <QuestBranch kind={attachedQuest.kind} onPress={attachedQuest.onPress} onSkip={attachedQuest.onSkip} />
@@ -1689,6 +1721,12 @@ const styles = StyleSheet.create({
   },
   rowLeft: {
     alignItems: 'center',
+    width: NODE_SIZE,
+    position: 'relative',
+  },
+  nodeCircleAbsolute: {
+    position: 'absolute',
+    left: 0,
     width: NODE_SIZE,
   },
   rowRight: {
