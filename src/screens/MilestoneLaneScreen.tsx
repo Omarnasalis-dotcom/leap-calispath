@@ -101,6 +101,11 @@ function pickDayCardImage(day: ProgramDay, seed: string): ImageSourcePropType {
 const ACCENT = '#FF5252';
 const ACCENT_DIM = 'rgba(255, 82, 82, 0.22)';
 const NODE_SIZE = 48;
+// The active day's quest-branch curve+node box (see QuestBranch) -- fixed
+// dimensions so the SVG path's endpoint and the node's pinned position are
+// computed from the same numbers and can never drift apart.
+const QUEST_NODE_SIZE = 34;
+const QUEST_BRANCH_WRAP_WIDTH = 46;
 
 type NodeState = 'locked' | 'active' | 'complete';
 
@@ -356,6 +361,8 @@ function JourneyCard({
   stats,
   ctaLabel,
   onPressCta,
+  secondaryCtaLabel,
+  onPressSecondaryCta,
   showHereBadge,
 }: {
   state: NodeState;
@@ -367,11 +374,17 @@ function JourneyCard({
   title: string;
   desc: string;
   // Duration/movement-count pills -- day cards only (see estimateSessionMinutes/
-  // countMovements at the call site). Milestones, the Strength Trial, and
-  // anything else pass nothing and the pills row doesn't render.
+  // countMovements at the call site), active/locked states only -- the
+  // Finished card dropped them per direct feedback (the thumbnail took
+  // their old spot on the right instead).
   stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
+  // Strength Trial only, today -- "can be skipped" (see the call site's
+  // reuse of the same skippedQuestSlots/handleSkipQuest plumbing quests
+  // already use).
+  secondaryCtaLabel?: string;
+  onPressSecondaryCta?: () => void;
   showHereBadge?: boolean;
 }) {
   const locked = state === 'locked';
@@ -381,7 +394,6 @@ function JourneyCard({
   if (state === 'complete') {
     return (
       <View style={styles.finishedCard}>
-        {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
         <View style={{ flex: 1 }}>
           <Text style={styles.finishedCardTitle} numberOfLines={2}>
             {title}
@@ -392,13 +404,7 @@ function JourneyCard({
             </Text>
           )}
         </View>
-        {!!stats?.length && (
-          <View style={styles.statPillColumn}>
-            {stats.map((s) => (
-              <StatPill key={s.icon} icon={s.icon} label={s.label} />
-            ))}
-          </View>
-        )}
+        {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
       </View>
     );
   }
@@ -439,9 +445,12 @@ function JourneyCard({
             ))}
           </View>
         )}
-        {!locked && ctaLabel && onPressCta && (
+        {!locked && (ctaLabel || secondaryCtaLabel) && (
           <View style={styles.ctaRow}>
-            <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />
+            {ctaLabel && onPressCta && <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />}
+            {secondaryCtaLabel && onPressSecondaryCta && (
+              <MilestoneCardCta label={secondaryCtaLabel} secondary onPress={onPressSecondaryCta} />
+            )}
           </View>
         )}
       </View>
@@ -458,6 +467,8 @@ function NodeRow({
   stats,
   ctaLabel,
   onPressCta,
+  secondaryCtaLabel,
+  onPressSecondaryCta,
   isLast,
   staggerIndex = 0,
   containerRef,
@@ -475,6 +486,8 @@ function NodeRow({
   stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
+  secondaryCtaLabel?: string;
+  onPressSecondaryCta?: () => void;
   isLast: boolean;
   staggerIndex?: number;
   containerRef?: React.Ref<View>;
@@ -507,6 +520,8 @@ function NodeRow({
           stats={stats}
           ctaLabel={ctaLabel}
           onPressCta={onPressCta}
+          secondaryCtaLabel={secondaryCtaLabel}
+          onPressSecondaryCta={onPressSecondaryCta}
           showHereBadge={state === 'active'}
         />
         {state === 'active' && children}
@@ -739,7 +754,7 @@ interface AttachedQuestData {
 // The dashed-ring + compass circle -- shared between here (the branch's
 // floating node) and, previously, NodeCircle's side-quest variant, which no
 // longer exists now that quests are never their own left-rail row.
-function QuestNode({ size = 34 }: { size?: number }) {
+function QuestNode({ size = QUEST_NODE_SIZE }: { size?: number }) {
   const pulse = usePulse(true);
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] });
   return (
@@ -800,21 +815,33 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
   const def = SIDE_QUEST_DEFS[kind];
   return (
     <View style={styles.questBranchRow}>
-      {/* Box height matches QuestNode's own size (34) exactly -- with the
-          row's alignItems:'flex-start', the node's vertical center sits at
-          y=17, so the curve has to end there too or it visibly misses the
-          node (the original height=50/y=44 endpoint was well past the
-          node's actual bottom edge). */}
-      <Svg width={30} height={34} style={styles.questBranchCurve}>
-        <Path d="M4,0 Q28,0 28,17" stroke={ACCENT} strokeWidth={2} strokeDasharray="4,5" strokeLinecap="round" fill="none" />
-      </Svg>
-      <QuestNode />
+      {/* Curve + node are one fixed-size, self-contained box instead of two
+          separate flex siblings that have to happen to land on each other's
+          edges -- the node is pinned to the box's right edge (absolute,
+          top:0) and the curve's own path endpoint is computed from that same
+          box's dimensions, so the two can never drift apart regardless of
+          what else changes in this row's layout. */}
+      <View style={styles.questBranchNodeWrap}>
+        <Svg width={QUEST_BRANCH_WRAP_WIDTH} height={QUEST_NODE_SIZE} style={StyleSheet.absoluteFill}>
+          <Path
+            d={`M4,2 Q${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},2 ${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},${QUEST_NODE_SIZE / 2}`}
+            stroke={ACCENT}
+            strokeWidth={2}
+            strokeDasharray="4,5"
+            strokeLinecap="round"
+            fill="none"
+          />
+        </Svg>
+        <View style={styles.questBranchNode}>
+          <QuestNode />
+        </View>
+      </View>
       <View style={styles.questBubble}>
         <Text style={styles.questBubbleLabel}>SIDE QUEST</Text>
         <Text style={styles.questBubbleTitle} numberOfLines={1}>
           {def.title.replace('SIDE QUEST · ', '')}
         </Text>
-        <Text style={styles.questBubbleDesc} numberOfLines={2}>
+        <Text style={styles.questBubbleDesc} numberOfLines={1}>
           {def.desc}
         </Text>
         <View style={styles.questBubbleCtaRow}>
@@ -1303,6 +1330,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // The strength trial is the one exception that keeps a real gate: it
   // only unlocks once every day this week is done, same as before.
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
+  // "Strength trial card can be skipped" -- reuses the exact same
+  // skippedQuestSlots/handleSkipQuest plumbing quests already use, with a
+  // synthetic per-week slot key rather than a new tracking mechanism.
+  const trialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
+  const trialSkipped = skippedQuestSlots.has(trialSlotKey);
 
   return (
     <View style={styles.screen}>
@@ -1513,10 +1545,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
-                  state={weekComplete && isTrialWeek ? 'active' : 'locked'}
+                  state={trialSkipped ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
                   desc={
-                    !isTrialWeek
+                    trialSkipped
+                      ? 'Skipped.'
+                      : !isTrialWeek
                       ? `Every 2 weeks — next available Week ${journeyData.currentWeek + 1}.`
                       : weekComplete
                       ? "Test your current tier now that this week's days are done."
@@ -1525,12 +1559,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   image={pickFromPool(RANDOM_IMAGES, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel="START"
                   onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
+                  secondaryCtaLabel={!trialSkipped ? 'SKIP' : undefined}
+                  onPressSecondaryCta={!trialSkipped ? () => handleSkipQuest(trialSlotKey) : undefined}
                   isLast
                   staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   // Once the day/quest sequence is exhausted, none of those
                   // rows claim the auto-scroll ref (their pointer is -1) —
-                  // this becomes "the next thing" instead, trial week or not.
-                  containerRef={weekComplete ? activeStepRef : undefined}
+                  // this becomes "the next thing" instead, trial week or not
+                  // (unless it's already been skipped, in which case there's
+                  // nothing left here to scroll to).
+                  containerRef={weekComplete && !trialSkipped ? activeStepRef : undefined}
                 />
 
                 {weekComplete && (
@@ -1596,7 +1634,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: 16,
+    gap: 12,
   },
   rowLeft: {
     alignItems: 'center',
@@ -1605,7 +1643,7 @@ const styles = StyleSheet.create({
   rowRight: {
     flex: 1,
     paddingTop: 6,
-    paddingBottom: 34,
+    paddingBottom: 18,
   },
   nodeCircleWrap: {
     width: NODE_SIZE,
@@ -1718,10 +1756,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 8,
   },
-  statPillColumn: {
-    gap: 6,
-    alignItems: 'flex-end',
-  },
   statPill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1800,8 +1834,14 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start',
     marginTop: 6,
   },
-  questBranchCurve: {
-    marginTop: 0,
+  questBranchNodeWrap: {
+    width: QUEST_BRANCH_WRAP_WIDTH,
+    height: QUEST_NODE_SIZE,
+  },
+  questBranchNode: {
+    position: 'absolute',
+    top: 0,
+    right: 0,
   },
   questBubble: {
     flex: 1,
@@ -1825,9 +1865,9 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   questBubbleDesc: {
-    color: 'rgba(255,255,255,0.55)',
+    color: 'rgba(255,255,255,0.5)',
     fontFamily: 'PlusJakartaSans-Light',
-    fontSize: 10.5,
+    fontSize: 9.5,
     marginTop: 1,
   },
   questBubbleCtaRow: {
