@@ -394,7 +394,7 @@ function JourneyCard({
   if (state === 'complete') {
     return (
       <View style={styles.finishedCard}>
-        <View style={styles.finishedCardBody}>
+        <View style={{ flex: 1 }}>
           <Text style={styles.finishedCardTitle} numberOfLines={2}>
             {title}
           </Text>
@@ -404,11 +404,6 @@ function JourneyCard({
             </Text>
           )}
         </View>
-        {/* Flush against the card's own right/top/bottom edges (no padding
-            of its own) so the card's overflow:hidden + borderRadius clips
-            its outer corners to match, instead of sitting as a small inset
-            square -- alignSelf:'stretch' matches whatever height the text
-            side ends up needing, no fixed card height to coordinate with. */}
         {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
       </View>
     );
@@ -1741,27 +1736,19 @@ const styles = StyleSheet.create({
   },
   finishedCard: {
     flexDirection: 'row',
-    alignItems: 'stretch',
+    alignItems: 'flex-start',
     backgroundColor: '#111111',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
-    overflow: 'hidden',
-    minHeight: 76,
-  },
-  finishedCardBody: {
-    flex: 1,
-    justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
+    gap: 12,
   },
   finishedCardThumb: {
-    // A square that matches whatever height the card ends up being
-    // (minHeight 76, but text content can push it taller) -- aspectRatio:1
-    // on a stretched item makes width track height dynamically, rather than
-    // a fixed width that stops matching once the card's real height varies.
-    aspectRatio: 1,
-    alignSelf: 'stretch',
+    width: 44,
+    height: 44,
+    borderRadius: 10,
   },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
