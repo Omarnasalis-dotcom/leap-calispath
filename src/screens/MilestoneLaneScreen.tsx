@@ -61,6 +61,12 @@ const RANDOM_IMAGES: ImageSourcePropType[] = [
   require('../../assets/Milestone Cards/random/random-01.png'),
 ];
 
+// Dedicated (not pooled) covers for the 3 onboarding milestone cards --
+// each one specific to its own step rather than picked from RANDOM_IMAGES.
+const ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/assessment.png');
+const GOALS_EQUIPMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/goals-equipment.png');
+const BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/build-your-program.png');
+
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -1420,7 +1426,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               state={milestone1State}
               title="01 ASSESSMENT"
               desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
-              image={pickFromPool(RANDOM_IMAGES, 'milestone-1')}
+              image={ASSESSMENT_IMAGE}
               ctaLabel="START"
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
@@ -1439,7 +1445,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Tell us your goal and equipment.'
                   : 'Unlocks after your assessment.'
               }
-              image={pickFromPool(RANDOM_IMAGES, 'milestone-2')}
+              image={GOALS_EQUIPMENT_IMAGE}
               ctaLabel="START"
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
@@ -1457,7 +1463,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? 'Pick up where you left off, or start something new.'
                   : 'Choose how you want to train. This is where onboarding ends.'
               }
-              image={pickFromPool(RANDOM_IMAGES, 'milestone-3')}
+              image={BUILD_PROGRAM_IMAGE}
               isLast
               staggerIndex={3}
               containerRef={milestone3State === 'active' ? activeStepRef : undefined}
