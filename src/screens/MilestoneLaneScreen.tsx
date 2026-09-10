@@ -425,6 +425,9 @@ function JourneyCard({
               end={{ x: 0.5, y: 0.5 }}
               style={StyleSheet.absoluteFill}
             />
+            <View style={styles.finishedCardThumbBadge}>
+              <MaterialCommunityIcons name="check" size={11} color="#FFFFFF" />
+            </View>
           </View>
         )}
       </View>
@@ -1669,7 +1672,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: 10,
+    gap: 8,
   },
   rowLeft: {
     alignItems: 'center',
@@ -1677,8 +1680,8 @@ const styles = StyleSheet.create({
   },
   rowRight: {
     flex: 1,
-    paddingTop: 4,
-    paddingBottom: 10,
+    paddingTop: 3,
+    paddingBottom: 6,
   },
   nodeCircleWrap: {
     width: NODE_SIZE,
@@ -1793,6 +1796,17 @@ const styles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+  },
+  finishedCardThumbBadge: {
+    position: 'absolute',
+    top: 6,
+    right: 6,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
