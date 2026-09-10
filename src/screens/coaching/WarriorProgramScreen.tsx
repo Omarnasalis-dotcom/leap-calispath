@@ -152,10 +152,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const pendingPaywallNavRef = useRef(false);
   // loadWarriorProgram() reloads on every mutation (block toggles, add-week,
   // etc.), not just the initial mount -- autoStartDayIndex should only ever
-  // jump into the running view once, the first time data loads, not shove
-  // the user back into it after they've already navigated elsewhere within
-  // this screen.
-  const autoStartAppliedRef = useRef(false);
+  // jump into the running view once per distinct index, not shove the user
+  // back into it after they've already navigated elsewhere within this
+  // screen. Tracks the last-applied index (not just a boolean) because expo
+  // router reuses this screen instance across pushes with a new startDay
+  // param (e.g. Journey lane day 1 -> back -> day 2) -- a plain "already
+  // applied" flag would ignore the new day entirely and re-land on the old one.
+  const autoStartAppliedRef = useRef<number | null>(null);
   const requestPaywallAfterModalCloses = () => {
     if (Platform.OS === 'ios') {
       pendingPaywallNavRef.current = true;
@@ -789,15 +792,15 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
       const targetWeekDays = newWeeksMap[targetWeek] || [];
       if (
-        !autoStartAppliedRef.current &&
         autoStartDayIndex != null &&
         autoStartDayIndex >= 0 &&
-        autoStartDayIndex < targetWeekDays.length
+        autoStartDayIndex < targetWeekDays.length &&
+        autoStartAppliedRef.current !== autoStartDayIndex
       ) {
-        autoStartAppliedRef.current = true;
+        autoStartAppliedRef.current = autoStartDayIndex;
         setActiveDayIndex(autoStartDayIndex);
         setScreenPhase('running');
-      } else {
+      } else if (autoStartDayIndex == null) {
         setActiveDayIndex(0);
       }
 
