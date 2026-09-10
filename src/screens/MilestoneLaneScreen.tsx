@@ -1369,16 +1369,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // Lands the current card in the middle of the screen, not just
       // scrolled into view at the top -- centers the node's own vertical
       // midpoint against the screen's, using its real measured height
-      // rather than a guessed fixed offset. Jumps there instantly
-      // (animated: false) rather than visibly scrolling down from the top
-      // of the journey on every open -- per direct request, opening the
-      // screen should land straight on the current card, not play a
-      // scroll-through-the-whole-path animation first.
+      // rather than a guessed fixed offset. animated: true per direct
+      // request (reverting the brief animated:false experiment) -- opening
+      // the screen plays a real scroll from the top of the journey down to
+      // the current card instead of snapping there instantly.
       scrollNode.measureInWindow((_svX, svY) => {
         node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
           const screenHeight = Dimensions.get('window').height;
           const target = nY + nHeight / 2 - svY - screenHeight / 2;
-          scrollNode.scrollTo({ y: Math.max(target, 0), animated: false });
+          scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
         });
       });
     }, 400);
