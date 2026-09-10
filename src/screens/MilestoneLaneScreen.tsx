@@ -963,6 +963,24 @@ interface JourneyProgramData {
   weeks: JourneyWeekData[];
 }
 
+// Module-level, NOT React state/ref -- this screen has no persistent tab
+// navigator (see this file's own architecture notes elsewhere): every
+// "return to the journey" is router.replace('/my-journey'), a genuine
+// fresh mount, not a focus-regain on an already-alive instance. A
+// useRef-based "have we loaded before" guard resets to its initial value
+// on every single one of those remounts, so it can never actually prevent
+// the full-lane blank-to-"Loading your program..." flash it was meant to
+// -- confirmed live: "finish day 1, click done, navigates back starting
+// from step one, hang for a sec then scroll to current, no reveal." A
+// plain module variable survives exactly because it lives outside the
+// component instance entirely (only a full app restart clears it), so a
+// fresh mount can render the last-known-good cards on its very first
+// paint via a lazy useState initializer below, instead of blanking first
+// and re-fetching before showing anything. Keyed by profile id so a
+// shared module value never leaks a previous account's data after
+// switching users on the same device.
+let journeyDataCache: { profileId: string; data: JourneyProgramData } | null = null;
+
 const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
 const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
 // Matches the constant of the same name used server-side (e.g.
@@ -990,8 +1008,17 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // either by its own auto-dismiss timer or a tap (see RankUpToast).
   const [showRankToast, setShowRankToast] = useState(false);
   const revealCheckedRef = useRef(false);
-  const [journeyData, setJourneyData] = useState<JourneyProgramData | null>(null);
-  const [journeyLoading, setJourneyLoading] = useState(mode === 'journey');
+  // Lazy initializers read the module-level cache synchronously on this
+  // instance's very first render -- if this profile already has a cached
+  // journey (from before this mount, e.g. the instance this remount
+  // replaced), it paints immediately instead of blanking to "Loading your
+  // program..." first. See journeyDataCache's own comment above.
+  const [journeyData, setJourneyData] = useState<JourneyProgramData | null>(() =>
+    journeyDataCache && journeyDataCache.profileId === profile?.id ? journeyDataCache.data : null
+  );
+  const [journeyLoading, setJourneyLoading] = useState(
+    () => mode === 'journey' && journeyDataCache?.profileId !== profile?.id
+  );
   // Which side-quest slots (keyed "w{week}_s{index}") the user has actually
   // completed — set only when a quest screen hands a matching questSlotKey
   // back on a real successful log, never just from visiting. Local/per-
@@ -1134,19 +1161,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // status sourced from a real workout_logs join), not a separate tracker —
   // consistent with how every other milestone state here is derived rather
   // than stored.
-  const journeyLoadedOnceRef = useRef(false);
   const loadJourneyProgram = useCallback(async () => {
     if (mode !== 'journey' || !profile?.id) return;
-    // Only blank the whole lane to "Loading your program..." on the true
-    // first load. This fetch re-runs on every focus (see the useFocusEffect
-    // below), including every return from finishing a day or a side quest
-    // -- blanking already-cached cards to a loading state each time, then
-    // re-populating and re-scrolling once it returns, is what read live as
-    // "navigates back to the top of the lane" before the day-cheer/auto-
-    // scroll reveal ever gets a chance to show. Keep showing the last-known
-    // cards during a background refetch instead; only genuinely fresh data
-    // (a completed day, a resolved quest) triggers those reveal effects.
-    if (!journeyLoadedOnceRef.current) setJourneyLoading(true);
+    // Only blank the whole lane to "Loading your program..." when this
+    // profile has no cached data at all yet. Checked against the module
+    // cache, not a ref -- see journeyDataCache's own comment for why a
+    // ref can't survive this screen's remount-on-every-return navigation.
+    const hasCache = journeyDataCache?.profileId === profile.id;
+    if (!hasCache) setJourneyLoading(true);
     try {
       const { data: program } = await supabase
         .from('warrior_programs')
@@ -1157,6 +1179,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
       if (!program) {
         setJourneyData(null);
+        journeyDataCache = null;
         return;
       }
 
@@ -1232,23 +1255,24 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       const programName = Array.isArray(templateRel) ? templateRel[0]?.name : templateRel?.name;
       const hasNextWeek = (blocks ?? []).some((b: any) => (b.week_number || 1) === rawCurrentWeek + 1);
 
-      setJourneyData({
+      const freshData: JourneyProgramData = {
         warriorProgramId: (program as any).id,
         programName: programName || 'Your Program',
         currentWeek: rawCurrentWeek,
         hasNextWeek,
         canAddWeek: (program as any).coach_id === LEAP_SYSTEM_PROFILE_ID,
         weeks,
-      });
+      };
+      setJourneyData(freshData);
+      journeyDataCache = { profileId: profile.id, data: freshData };
     } catch (err) {
       console.error('Failed to load journey program:', err);
       // Only wipe to null on a true first-load failure -- a background
       // refetch failing (e.g. a flaky connection right after finishing a
       // day) shouldn't throw away perfectly good cached cards.
-      if (!journeyLoadedOnceRef.current) setJourneyData(null);
+      if (!hasCache) setJourneyData(null);
     } finally {
       setJourneyLoading(false);
-      journeyLoadedOnceRef.current = true;
     }
   }, [mode, profile?.id]);
 
