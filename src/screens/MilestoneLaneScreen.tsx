@@ -1756,7 +1756,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   finishedCardThumb: {
-    width: 84,
+    // A square that matches whatever height the card ends up being
+    // (minHeight 76, but text content can push it taller) -- aspectRatio:1
+    // on a stretched item makes width track height dynamically, rather than
+    // a fixed width that stops matching once the card's real height varies.
+    aspectRatio: 1,
     alignSelf: 'stretch',
   },
   finishedCardTitle: {
