@@ -495,6 +495,7 @@ function NodeRow({
   secondaryCtaLabel,
   onPressSecondaryCta,
   isLast,
+  isFirst = false,
   staggerIndex = 0,
   containerRef,
   attachedQuest,
@@ -514,6 +515,9 @@ function NodeRow({
   secondaryCtaLabel?: string;
   onPressSecondaryCta?: () => void;
   isLast: boolean;
+  // Skips the connector segment above the circle -- only the very first
+  // row in the whole lane (milestone 1) has nothing above it to connect to.
+  isFirst?: boolean;
   staggerIndex?: number;
   containerRef?: React.Ref<View>;
   // The one paired quest a day card can have -- rendered below the card as
@@ -533,6 +537,14 @@ function NodeRow({
   return (
     <View ref={containerRef} style={styles.row}>
       <View style={styles.rowLeft}>
+        {/* Two flex:1 segments splitting the space equally above/below the
+            fixed-size circle is what centers it against the card's real
+            height instead of pinning it to the row's top -- the "above"
+            piece is this same gap's tail end as seen from the row below,
+            which is why it uses "have we reached this row at all" (active
+            counts) rather than "below," which only lights up once this row
+            is fully done and the path visibly continues past it. */}
+        {!isFirst && <Connector complete={state !== 'locked'} staggerIndex={staggerIndex} />}
         <NodeCircle state={state} number={number} staggerIndex={staggerIndex} />
         {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
       </View>
@@ -1392,6 +1404,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               ctaLabel="START"
               onPressCta={() => router.push('/assessment-gate')}
               isLast={false}
+              isFirst
               staggerIndex={1}
               containerRef={milestone1State === 'active' ? activeStepRef : undefined}
             />
@@ -1672,10 +1685,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    // Smaller circles (NODE_SIZE) freed up room to widen this back out --
-    // the previous, tighter gap was reads as the rail touching the card
-    // next to it rather than sitting beside it with real breathing room.
-    gap: 14,
+    gap: 20,
   },
   rowLeft: {
     alignItems: 'center',
@@ -1684,7 +1694,7 @@ const styles = StyleSheet.create({
   rowRight: {
     flex: 1,
     paddingTop: 4,
-    paddingBottom: 12,
+    paddingBottom: 20,
   },
   nodeCircleWrap: {
     width: NODE_SIZE,
@@ -1718,7 +1728,12 @@ const styles = StyleSheet.create({
   connector: {
     width: 2,
     flex: 1,
-    minHeight: 34,
+    // Small floor, not the old 34 -- now that a connector segment renders
+    // both above and below the circle (splitting rowLeft's height evenly to
+    // center it), a bigger floor risked inflating the shortest card
+    // (Finished, 84px total minus the 38px circle leaves only ~23px per
+    // segment) past its own real height.
+    minHeight: 14,
     marginTop: 4,
     position: 'relative',
   },
