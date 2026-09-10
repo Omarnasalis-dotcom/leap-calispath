@@ -52,56 +52,50 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
   const milestoneCaption =
     tier === 6 ? 'POWER WORLD UNLOCKED' : tier === maxTier ? 'ETERNITY REACHED' : 'RANK SECURED';
 
-  // Two clocks, driven in lockstep (same duration/easing, started together
-  // via Animated.parallel) rather than one shared clock. T runs on the
-  // native thread (useNativeDriver: true) and backs every opacity/transform
-  // interpolation below -- the vast majority of this file. Tjs is the one
-  // JS-driven clock, reserved only for the two style properties that
-  // genuinely can't be native-driven: progressFill's width and rankName's
-  // color pulse. Splitting these apart is the fix for "the rank up modal
-  // is heavy lagging" -- previously everything shared a single JS-driven
-  // clock, so every opacity/transform interpolation (20+ animated views:
-  // badge rings, sparks, confetti, text enters, CTA pop) was recomputed
-  // and rebridged from JS every frame for the full 5s, even though almost
-  // none of them needed to be.
+  // Single master clock (0→1 over TOTAL_MS) — every beat below derives its
+  // opacity/scale/position from this one value so skip-to-end is just
+  // stopping this one Animated.Value and snapping it to 1.
+  //
+  // A two-clock split (native-driven T for transforms/opacity + a separate
+  // JS-driven Tjs for the two properties that can't be native-driven --
+  // progressFill's width and rankName's color pulse) was tried here to fix
+  // a reported lag, but crashed live on-device the instant this screen
+  // mounted: "Attempting to run JS driven animation on animated node that
+  // has been moved to 'native' earlier by starting an animation with
+  // `useNativeDriver: true`" (confirmed via real device logs, right after
+  // finishing the assessment). Classic RN Animated doesn't safely support
+  // mixing native- and JS-driven clocks like that within one component
+  // tree. Reverted back to this single JS-driven clock -- slower than it
+  // could be, but proven stable. Revisit the lag separately if it recurs,
+  // verified live before shipping again rather than by static reasoning.
   const T = useRef(new Animated.Value(0)).current;
-  const Tjs = useRef(new Animated.Value(0)).current;
   const [ctaReady, setCtaReady] = useState(false);
 
   useEffect(() => {
-    const anim = Animated.parallel([
-      Animated.timing(T, { toValue: 1, duration: TOTAL_MS, easing: Easing.linear, useNativeDriver: true }),
-      Animated.timing(Tjs, { toValue: 1, duration: TOTAL_MS, easing: Easing.linear, useNativeDriver: false }),
-    ]);
+    const anim = Animated.timing(T, {
+      toValue: 1,
+      duration: TOTAL_MS,
+      easing: Easing.linear,
+      useNativeDriver: false,
+    });
     anim.start();
     const ctaTimer = setTimeout(() => setCtaReady(true), CUE.hold);
     return () => {
       anim.stop();
       clearTimeout(ctaTimer);
     };
-  }, [T, Tjs]);
+  }, [T]);
 
   function handleSkip() {
     if (ctaReady) return;
     T.stopAnimation();
-    Tjs.stopAnimation();
     T.setValue(1);
-    Tjs.setValue(1);
     setCtaReady(true);
   }
 
   // 0→1 progress clamped to a [startMs, endMs] window of the master clock.
   const beat = (startMs: number, endMs: number) =>
     T.interpolate({
-      inputRange: [0, Math.max(startMs, 0) / TOTAL_MS, endMs / TOTAL_MS, 1],
-      outputRange: [0, 0, 1, 1],
-      extrapolate: 'clamp',
-    });
-
-  // Same shape as beat(), but off the JS-driven clock -- only for the two
-  // spots below (barP, rankColor) that can't be native-driven.
-  const beatJs = (startMs: number, endMs: number) =>
-    Tjs.interpolate({
       inputRange: [0, Math.max(startMs, 0) / TOTAL_MS, endMs / TOTAL_MS, 1],
       outputRange: [0, 0, 1, 1],
       extrapolate: 'clamp',
@@ -181,7 +175,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
 
   // Rank name: rises in with a brief color pulse standing in for the design's shimmer sweep
   const rankEnter = enter(CUE.reveal, CUE.reveal + 450, 16);
-  const rankColor = Tjs.interpolate({
+  const rankColor = T.interpolate({
     inputRange: [0, CUE.reveal / TOTAL_MS, (CUE.reveal + 350) / TOTAL_MS, (CUE.reveal + 700) / TOTAL_MS, 1],
     outputRange: [palette.ink, palette.ink, ACCENT, palette.ink, palette.ink],
     extrapolate: 'clamp',
@@ -194,7 +188,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
   // Decorative fill — purely celebratory, no real per-tier progress metric exists.
   const barStart = CUE.stats + 200;
   const barDur = 600;
-  const barP = beatJs(barStart, barStart + barDur);
+  const barP = beat(barStart, barStart + barDur);
   const burstP = beat(barStart + barDur, barStart + barDur + 400);
   const barLabel = enter(barStart + barDur, barStart + barDur + 300, 6);
 
