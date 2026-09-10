@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -394,7 +394,7 @@ function JourneyCard({
   if (state === 'complete') {
     return (
       <View style={styles.finishedCard}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.finishedCardBody}>
           <Text style={styles.finishedCardTitle} numberOfLines={2}>
             {title}
           </Text>
@@ -404,6 +404,11 @@ function JourneyCard({
             </Text>
           )}
         </View>
+        {/* Flush against the card's own right/top/bottom edges (no padding
+            of its own) so the card's overflow:hidden + borderRadius clips
+            its outer corners to match, instead of sitting as a small inset
+            square -- alignSelf:'stretch' matches whatever height the text
+            side ends up needing, no fixed card height to coordinate with. */}
         {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
       </View>
     );
@@ -822,9 +827,13 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
           box's dimensions, so the two can never drift apart regardless of
           what else changes in this row's layout. */}
       <View style={styles.questBranchNodeWrap}>
+        {/* Drops straight down from the day card above, then bends right
+            into the node -- flipped from the first version, which bulged
+            the opposite way (right first, then down) and read as curving
+            away from the node instead of into it. */}
         <Svg width={QUEST_BRANCH_WRAP_WIDTH} height={QUEST_NODE_SIZE} style={StyleSheet.absoluteFill}>
           <Path
-            d={`M4,2 Q${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},2 ${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},${QUEST_NODE_SIZE / 2}`}
+            d={`M4,2 Q4,${QUEST_NODE_SIZE / 2} ${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},${QUEST_NODE_SIZE / 2}`}
             stroke={ACCENT}
             strokeWidth={2}
             strokeDasharray="4,5"
@@ -1259,8 +1268,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   useEffect(() => {
     if (mode === 'journey' && journeyLoading) return;
     const t = setTimeout(() => {
-      const node = activeStepRef.current as unknown as { measureInWindow?: (cb: (x: number, y: number) => void) => void } | null;
-      const scrollNode = scrollViewRef.current as unknown as { measureInWindow?: (cb: (x: number, y: number) => void) => void; scrollTo: (o: { y: number; animated: boolean }) => void } | null;
+      const node = activeStepRef.current as unknown as {
+        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
+      } | null;
+      const scrollNode = scrollViewRef.current as unknown as {
+        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
+        scrollTo: (o: { y: number; animated: boolean }) => void;
+      } | null;
       if (!node?.measureInWindow || !scrollNode?.measureInWindow) return;
       // measureLayout's relativeTo-node approach silently failed here
       // (likely a New Architecture/Fabric ref quirk — this project has
@@ -1272,9 +1286,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // mount, before any user scrolling) the ScrollView's own offset is
       // still 0, so the difference between the two window positions is
       // already the target scroll offset, no relative-node argument needed.
+      // Lands the current card in the middle of the screen, not just
+      // scrolled into view at the top -- centers the node's own vertical
+      // midpoint against the screen's, using its real measured height
+      // rather than a guessed fixed offset.
       scrollNode.measureInWindow((_svX, svY) => {
-        node.measureInWindow!((_nX, nY) => {
-          scrollNode.scrollTo({ y: Math.max(nY - svY - 100, 0), animated: true });
+        node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
+          const screenHeight = Dimensions.get('window').height;
+          const target = nY + nHeight / 2 - svY - screenHeight / 2;
+          scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
         });
       });
     }, 400);
@@ -1342,8 +1362,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       <Text style={styles.header}>MY JOURNEY</Text>
 
       <View style={styles.lane}>
-        {mode === 'onboarding' || showLegacyMilestones ? (
-          <>
+        <>
             <NodeRow
               number={1}
               state={milestone1State}
@@ -1429,25 +1448,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 />
               </View>
             </NodeRow>
-            <GhostNode />
-          </>
-        ) : (
-          <>
-            <View style={styles.onboardingSummary}>
-              <MaterialCommunityIcons name="check-circle" size={16} color={ACCENT} />
-              <Text style={styles.onboardingSummaryText}>Onboarding complete{goalLabel ? ` · ${goalLabel}` : ''}</Text>
-              {!profile?.primary_goal && (
-                // Legacy member who's already moved past the milestone view
-                // (acknowledged it) — goals/equipment stays genuinely
-                // optional, never forced, but still reachable rather than
-                // disappearing entirely.
-                <TouchableOpacity onPress={() => router.push('/goals-equipment')}>
-                  <Text style={styles.onboardingSummaryLink}>ADD GOAL</Text>
-                </TouchableOpacity>
-              )}
-            </View>
 
-            {journeyLoading ? (
+            {/* Per direct request: keep the onboarding steps (Assessment/
+                Goals/Build Program) permanently visible as the first few
+                steps of the lane, rather than collapsing them into a one-
+                line summary once done -- milestone 2's own Finished card
+                already shows the saved goal, so the old summary banner's
+                job is redundant now. */}
+            {mode === 'journey' && (journeyLoading ? (
               <Text style={styles.journeyMuted}>Loading your program…</Text>
             ) : journeyData ? (
               <>
@@ -1526,7 +1534,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
                         isLast={false}
                         containerRef={isDayPointer ? activeStepRef : undefined}
-                        onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                        onPress={() =>
+                          router.push({
+                            pathname: '/warrior-program',
+                            // startDay only makes sense for the current
+                            // week -- WarriorProgramScreen lands on
+                            // current_week by default, so a past week's day
+                            // index wouldn't refer to the right day there.
+                            params: isLatestWeek
+                              ? { returnTo: 'journey', startDay: String(i) }
+                              : { returnTo: 'journey' },
+                          })
+                        }
                         attachedQuest={attachedQuestFor(i, dayState)}
                       />
                     );
@@ -1599,11 +1618,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               </>
             ) : (
               <Text style={styles.journeyMuted}>No active program yet — build one above to see your daily journey here.</Text>
-            )}
+            ))}
 
             <GhostNode />
-          </>
-        )}
+        </>
       </View>
     </ScrollView>
     {mode === 'journey' && <BottomTabBar activeTab="journey" strengthTier={profile?.strength_tier || 0} />}
@@ -1634,7 +1652,7 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 10,
   },
   rowLeft: {
     alignItems: 'center',
@@ -1642,8 +1660,8 @@ const styles = StyleSheet.create({
   },
   rowRight: {
     flex: 1,
-    paddingTop: 6,
-    paddingBottom: 18,
+    paddingTop: 4,
+    paddingBottom: 10,
   },
   nodeCircleWrap: {
     width: NODE_SIZE,
@@ -1723,19 +1741,23 @@ const styles = StyleSheet.create({
   },
   finishedCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     backgroundColor: '#111111',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
+    overflow: 'hidden',
+    minHeight: 76,
+  },
+  finishedCardBody: {
+    flex: 1,
+    justifyContent: 'center',
     paddingVertical: 14,
     paddingHorizontal: 16,
-    gap: 12,
   },
   finishedCardThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    width: 84,
+    alignSelf: 'stretch',
   },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
@@ -1902,7 +1924,7 @@ const styles = StyleSheet.create({
   },
   milestoneCard: {
     position: 'relative',
-    height: 176,
+    height: 188,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161616',
@@ -1910,7 +1932,7 @@ const styles = StyleSheet.create({
   milestoneCardLocked: {
     // Shorter than the active/current-day size -- a locked "next up"
     // preview doesn't need the same real estate; it grows back to the full
-    // 176 the moment it becomes the active card (see JourneyCard).
+    // 188 the moment it becomes the active card (see JourneyCard).
     height: 100,
   },
   milestoneCardImage: {
@@ -2023,28 +2045,6 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginBottom: 16,
     lineHeight: 18,
-  },
-  onboardingSummary: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: 'rgba(255,255,255,0.04)',
-    borderRadius: 12,
-    paddingVertical: 12,
-    paddingHorizontal: 14,
-    marginBottom: 24,
-  },
-  onboardingSummaryText: {
-    flex: 1,
-    color: 'rgba(255,255,255,0.85)',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 12.5,
-  },
-  onboardingSummaryLink: {
-    color: ACCENT,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 11,
-    letterSpacing: 1,
   },
   journeySectionLabel: {
     color: ACCENT,

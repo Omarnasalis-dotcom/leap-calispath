@@ -56,6 +56,17 @@ function getStartOfIsoWeek(date: Date): Date {
 interface WarriorProgramScreenProps {
   warriorId?: string;
   onClose?: () => void;
+  // Set from the Journey lane's "START NOW" (see app/warrior-program.tsx) --
+  // jumps straight into that day's exercise-logging UI on load instead of
+  // landing on the day list first. Index is within the current week (the
+  // one current_week resolves to), since that's the only week whose
+  // active/locked states the lane's day cards can actually reflect.
+  autoStartDayIndex?: number;
+  // Also from the lane: overrides what SessionCompleteScreen's own "DONE"
+  // does. Default behavior (screen entered normally) is to drop back to
+  // this screen's own day list; entered from the journey route, DONE
+  // should return to the lane instead.
+  onSessionDone?: () => void;
 }
 
 // Customize Program / Ready Template flows both assign warrior_programs
@@ -109,7 +120,7 @@ const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
   },
 };
 
-export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScreenProps) {
+export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, onSessionDone }: WarriorProgramScreenProps) {
   const { theme, mode } = useTheme();
   const { profile, paywallEnabled, refreshProfile } = useAuth();
   const bronzeGold = '#C8A040';
@@ -139,6 +150,12 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
   const [upgrading, setUpgrading] = useState(false);
   const upgradingRef = useRef(false);
   const pendingPaywallNavRef = useRef(false);
+  // loadWarriorProgram() reloads on every mutation (block toggles, add-week,
+  // etc.), not just the initial mount -- autoStartDayIndex should only ever
+  // jump into the running view once, the first time data loads, not shove
+  // the user back into it after they've already navigated elsewhere within
+  // this screen.
+  const autoStartAppliedRef = useRef(false);
   const requestPaywallAfterModalCloses = () => {
     if (Platform.OS === 'ios') {
       pendingPaywallNavRef.current = true;
@@ -769,7 +786,20 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
       const rawCurrentWeek = actualAssignment.current_week || 1;
       const targetWeek = rawToDisplayWeek.get(rawCurrentWeek) ?? maxWeek;
       setActiveWeek(targetWeek);
-      setActiveDayIndex(0);
+
+      const targetWeekDays = newWeeksMap[targetWeek] || [];
+      if (
+        !autoStartAppliedRef.current &&
+        autoStartDayIndex != null &&
+        autoStartDayIndex >= 0 &&
+        autoStartDayIndex < targetWeekDays.length
+      ) {
+        autoStartAppliedRef.current = true;
+        setActiveDayIndex(autoStartDayIndex);
+        setScreenPhase('running');
+      } else {
+        setActiveDayIndex(0);
+      }
 
     } catch (err: any) {
       setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD ACTIVE PROGRAM.');
@@ -1639,7 +1669,11 @@ export function WarriorProgramScreen({ warriorId, onClose }: WarriorProgramScree
         sessionSeconds={Math.floor((Date.now() - sessionStartRef.current) / 1000)}
         onClose={() => {
           setShowSessionComplete(false);
-          setScreenPhase('list');
+          if (onSessionDone) {
+            onSessionDone();
+          } else {
+            setScreenPhase('list');
+          }
         }}
       />
 
