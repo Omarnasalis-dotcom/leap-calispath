@@ -8,6 +8,8 @@ import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
+import { RankUpToast } from '../components/trial/RankUpToast';
+import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
 import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
@@ -944,6 +946,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { questDone } = useLocalSearchParams<{ questDone?: string }>();
   const { theme } = useTheme();
   const [showReveal, setShowReveal] = useState(false);
+  // Shown once the lane reappears after RankUpReveal is dismissed -- ties
+  // the rank just earned to milestone 2 unlocking underneath it. Cleared
+  // either by its own auto-dismiss timer or a tap (see RankUpToast).
+  const [showRankToast, setShowRankToast] = useState(false);
   const revealCheckedRef = useRef(false);
   const [journeyData, setJourneyData] = useState<JourneyProgramData | null>(null);
   const [journeyLoading, setJourneyLoading] = useState(mode === 'journey');
@@ -1236,6 +1242,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       AsyncStorage.setItem(`${REVEAL_SHOWN_KEY_PREFIX}${profile.id}`, profile.assessed_at).catch(() => {});
     }
     setShowReveal(false);
+    setShowRankToast(true);
   }, [profile?.id, profile?.assessed_at]);
 
   // The one warrior-driven write of current_week in the app — everywhere
@@ -1416,6 +1423,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   return (
     <View style={styles.screen}>
+    {showRankToast && (
+      <RankUpToast
+        tierName={TIER_NAMES[profile?.strength_tier ?? 0] ?? `Tier ${profile?.strength_tier ?? 0}`}
+        onDismiss={() => setShowRankToast(false)}
+      />
+    )}
     <ScrollView ref={scrollViewRef} contentContainerStyle={styles.scrollContent}>
       <Text style={styles.header}>MY JOURNEY</Text>
 
