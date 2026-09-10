@@ -292,34 +292,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     setSessionTotalReps(0);
   }, [activeDayIndex, activeWeek]);
 
-  // Milestone Lane onboarding, milestone 3 ("Build Your Program") completes
-  // the instant a program actually exists — and every path that creates one
-  // (AI Coach confirm, CustomizeProgramScreen, ProgramTemplatesScreen) already
-  // redirects straight here on success, bypassing the lane entirely. So this
-  // is the one real place to detect "onboarding just finished" and write
-  // onboarding_completed_at, rather than relying on the lane regaining focus
-  // (it won't — the user never goes back to it). Guarded to the warrior's own
-  // view only (never fires for a coach viewing a client's program) and to
-  // fire at most once per mount via the ref.
-  const onboardingCompletionWrittenRef = useRef(false);
-  useEffect(() => {
-    if (onboardingCompletionWrittenRef.current) return;
-    if (!warriorProgramId || !profile || profile.id !== warriorId) return;
-    if (profile.onboarding_completed_at) return;
-    onboardingCompletionWrittenRef.current = true;
-    supabase
-      .from('profiles')
-      .update({ onboarding_completed_at: new Date().toISOString() })
-      .eq('id', profile.id)
-      .then(({ error }) => {
-        if (error) {
-          onboardingCompletionWrittenRef.current = false;
-          console.error('Failed to mark onboarding complete:', error);
-          return;
-        }
-        refreshProfile();
-      });
-  }, [warriorProgramId, profile, warriorId, refreshProfile]);
 
   const loggableBlocks = (days[activeDayIndex]?.blocks || []).filter(b => !b.metadata?.is_tier_trial);
   // "Addressed" = every block has some status (completed or missed) — this is

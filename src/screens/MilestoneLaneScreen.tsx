@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions, Alert } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -9,6 +9,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
 import { RankUpToast } from '../components/trial/RankUpToast';
+import { ProgramReadyReveal } from '../components/trial/ProgramReadyReveal';
+import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
 import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
@@ -944,9 +946,17 @@ const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile } = useAuth();
   const router = useRouter();
-  const { questDone } = useLocalSearchParams<{ questDone?: string }>();
+  const { questDone, programReady } = useLocalSearchParams<{ questDone?: string; programReady?: string }>();
   const { theme } = useTheme();
   const [showReveal, setShowReveal] = useState(false);
+  // Set once by any of the 3 "Build Your Program" flows (AI Coach/Customize
+  // Program/Ready Template) finishing -- see ProgramReadyReveal below and
+  // its handlers for how this gets acted on and cleared.
+  const [showProgramReady, setShowProgramReady] = useState(false);
+  const [submittingProgramReady, setSubmittingProgramReady] = useState(false);
+  useEffect(() => {
+    if (programReady === '1') setShowProgramReady(true);
+  }, [programReady]);
   // Shown once the lane reappears after RankUpReveal is dismissed -- ties
   // the rank just earned to milestone 2 unlocking underneath it. Cleared
   // either by its own auto-dismiss timer or a tap (see RankUpToast).
@@ -1250,6 +1260,33 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     setShowRankToast(true);
   }, [profile?.id, profile?.assessed_at]);
 
+  // Writes onboarding_completed_at once the user picks either option on
+  // ProgramReadyReveal -- the single, correct write site for this flag now
+  // (previously WarriorProgramScreen wrote it the instant it mounted, which
+  // is what caused "back from the training center lands on Profile" --
+  // removed there, see its own comment). Deliberately does NOT call
+  // router.replace() itself afterward -- see postOnboardingDestination.ts
+  // for why an explicit navigate here would race AuthGuard's own redirect.
+  const handleProgramReadyChoice = useCallback(
+    async (dest: 'profile' | 'my-journey') => {
+      if (!profile?.id || submittingProgramReady) return;
+      setSubmittingProgramReady(true);
+      if (dest === 'my-journey') setPostOnboardingDestination('/my-journey');
+      const { error } = await supabase
+        .from('profiles')
+        .update({ onboarding_completed_at: new Date().toISOString() })
+        .eq('id', profile.id);
+      if (error) {
+        setPostOnboardingDestination(null);
+        setSubmittingProgramReady(false);
+        Alert.alert('SOMETHING WENT WRONG', 'Please try again.');
+        return;
+      }
+      await refreshProfile();
+    },
+    [profile?.id, submittingProgramReady, refreshProfile]
+  );
+
   // The one warrior-driven write of current_week in the app — everywhere
   // else it only ever moves via coach/AI-coach week management (append/
   // archive). Scoped to a plain guarded UPDATE (RLS already allows
@@ -1355,6 +1392,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         trialName="Assessment"
         timeSeconds={0}
         onContinue={dismissReveal}
+      />
+    );
+  }
+
+  if (showProgramReady) {
+    return (
+      <ProgramReadyReveal
+        submitting={submittingProgramReady}
+        onExplore={() => handleProgramReadyChoice('profile')}
+        onStartProgram={() => handleProgramReadyChoice('my-journey')}
       />
     );
   }

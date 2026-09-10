@@ -664,8 +664,15 @@ export function CustomizeProgramScreen() {
       setBuildSummaryVisible(false);
       setSelectedDayWorkouts([]);
       setDaySlots([]);
+      // Mid-onboarding (milestone 3, "Build Your Program"), route back to
+      // the lane's Program Ready celebration instead of straight into the
+      // training center -- see ProgramReadyReveal/MilestoneLaneScreen.
       requestAnimationFrame(() => {
-        router.replace('/warrior-program');
+        if (!profile?.onboarding_completed_at) {
+          router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
+        } else {
+          router.replace('/warrior-program');
+        }
       });
     } catch (err: any) {
       if (isProRequiredError(err)) { goToPaywallAfterClosingSummary(workouts); return; }

@@ -4,6 +4,7 @@ import { Redirect } from 'expo-router';
 import { useAuth } from '../src/contexts/AuthContext';
 import { LeapLogo } from '../src/components/LeapLogo';
 import { useTheme } from '../src/contexts/ThemeContext';
+import { consumePostOnboardingDestination } from '../src/lib/postOnboardingDestination';
 
 export default function Index() {
   const { user, profile } = useAuth();
@@ -27,5 +28,11 @@ export default function Index() {
     return <Redirect href="/onboarding-journey" />;
   }
 
-  return <Redirect href="/profile" />;
+  // Almost always null (the default/normal case) -- only set, briefly, by
+  // the Program Ready celebration's Start Program choice, right before it
+  // flips onboarding_completed_at. See postOnboardingDestination.ts for why
+  // this is a synchronous in-memory signal rather than an imperative
+  // router.replace() or an AsyncStorage flag.
+  const dest = consumePostOnboardingDestination();
+  return <Redirect href={dest ?? '/profile'} />;
 }

@@ -366,9 +366,18 @@ export function ProgramTemplatesScreen() {
       setPreviewWeek1([]);
       // Same deferred-navigation pattern as the other Training Center
       // screens — see CustomizeProgramScreen's handleCreateCustomProgram
-      // comment for why the extra frame matters.
+      // comment for why the extra frame matters. Mid-onboarding (milestone
+      // 3, "Build Your Program"), this routes back to the lane's Program
+      // Ready celebration instead of straight into the training center --
+      // see ProgramReadyReveal/MilestoneLaneScreen for why (this used to
+      // land on /warrior-program directly, whose own onboarding-completion
+      // write is what caused "back from here lands on Profile").
       requestAnimationFrame(() => {
-        router.replace('/warrior-program');
+        if (!profile?.onboarding_completed_at) {
+          router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
+        } else {
+          router.replace('/warrior-program');
+        }
       });
     } catch (err: any) {
       if (isProRequiredError(err)) {

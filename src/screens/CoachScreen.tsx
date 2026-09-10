@@ -438,6 +438,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     if (!pendingProgramAction || confirmingAction) return;
     if (!canAccessPro(profile, paywallEnabled)) { router.push('/paywall'); return; }
     setConfirmingAction(true);
+    // Only 'create'/'create_from_workouts' below represent a new program --
+    // used to route mid-onboarding (milestone 3, "Build Your Program") back
+    // to the lane's Program Ready celebration afterward. delete_week/end
+    // never should. profile here is intentionally the closure value from
+    // before this action ran -- creating a program never itself changes
+    // onboarding_completed_at, so it's exactly the right thing to check.
+    let createdProgram = false;
     try {
       if (pendingProgramAction.type === 'create') {
         if (!pendingProgramAction.payload || !('blocks' in pendingProgramAction.payload)) {
@@ -449,6 +456,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_blocks: pendingProgramAction.payload.blocks,
         });
         if (error) throw error;
+        createdProgram = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `**${pendingProgramAction.payload!.name}** is live — check your Workout Program to see it.`,
@@ -474,6 +482,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_workout_ids: pendingProgramAction.payload.workoutIds,
         });
         if (error) throw error;
+        createdProgram = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `**${pendingProgramAction.payload!.name}** is live — check your Workout Program to see it.`,
@@ -488,6 +497,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       }
       setPendingProgramAction(null);
       await refreshProfile();
+      if (createdProgram && !profile?.onboarding_completed_at) {
+        requestAnimationFrame(() => {
+          router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
+        });
+      }
     } catch (error: any) {
       if (isProRequiredError(error)) { router.push('/paywall'); return; }
       Alert.alert('COULD NOT COMPLETE THIS', friendlyActionError(error.message ?? '').toUpperCase());

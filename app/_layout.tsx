@@ -241,19 +241,16 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // block-list below).
   const inOnboardingJourney = segments[0] === 'onboarding-journey';
   const inGoalsEquipment = segments[0] === 'goals-equipment';
-  // 'warrior-program' MUST be included here: it's where a newly-created
-  // program lands on success (CustomizeProgramScreen/ProgramTemplatesScreen/
-  // AI Coach all redirect there), and it's also the one place that writes
-  // onboarding_completed_at (see WarriorProgramScreen.tsx). Omitting it
-  // creates a deadlock -- AuthGuard bounces the redirect back to
-  // /onboarding-journey before that screen ever mounts to record completion,
-  // so the user never leaves milestone 3 no matter how many programs they
-  // successfully create.
+  // 'warrior-program' deliberately NOT included here (was previously, back
+  // when this screen wrote onboarding_completed_at on mount -- see its own
+  // git history): all 3 build flows now redirect mid-onboarding to
+  // /onboarding-journey with ?programReady=1 (the Program Ready
+  // celebration) instead of straight into the training center, so nobody
+  // should reach /warrior-program before onboarding is actually complete.
   const inBuildProgramRoute =
     segments[0] === 'coach' ||
     segments[0] === 'customize-program' ||
-    segments[0] === 'program-templates' ||
-    segments[0] === 'warrior-program';
+    segments[0] === 'program-templates';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
