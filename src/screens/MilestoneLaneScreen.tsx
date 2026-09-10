@@ -100,7 +100,7 @@ function pickDayCardImage(day: ProgramDay, seed: string): ImageSourcePropType {
 // BarlowCondensed do), so those are substituted here.
 const ACCENT = '#FF5252';
 const ACCENT_DIM = 'rgba(255, 82, 82, 0.22)';
-const NODE_SIZE = 48;
+const NODE_SIZE = 38;
 // The active day's quest-branch curve+node box (see QuestBranch) -- fixed
 // dimensions so the SVG path's endpoint and the node's pinned position are
 // computed from the same numbers and can never drift apart.
@@ -223,7 +223,7 @@ function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number:
           ]}
         />
         <Animated.View style={[styles.nodeCircle, { backgroundColor: ACCENT }, popStyle]}>
-          <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" />
+          <MaterialCommunityIcons name="check" size={16} color="#FFFFFF" />
         </Animated.View>
       </View>
     );
@@ -243,7 +243,7 @@ function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number:
   }
   return (
     <View style={[styles.nodeCircle, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
-      <MaterialCommunityIcons name="lock-outline" size={14} color="rgba(255,255,255,0.3)" />
+      <MaterialCommunityIcons name="lock-outline" size={11} color="rgba(255,255,255,0.3)" />
     </View>
   );
 }
@@ -1672,7 +1672,10 @@ const styles = StyleSheet.create({
   },
   row: {
     flexDirection: 'row',
-    gap: 8,
+    // Smaller circles (NODE_SIZE) freed up room to widen this back out --
+    // the previous, tighter gap was reads as the rail touching the card
+    // next to it rather than sitting beside it with real breathing room.
+    gap: 14,
   },
   rowLeft: {
     alignItems: 'center',
@@ -1680,8 +1683,8 @@ const styles = StyleSheet.create({
   },
   rowRight: {
     flex: 1,
-    paddingTop: 3,
-    paddingBottom: 6,
+    paddingTop: 4,
+    paddingBottom: 12,
   },
   nodeCircleWrap: {
     width: NODE_SIZE,
@@ -1710,7 +1713,7 @@ const styles = StyleSheet.create({
   nodeNumberActive: {
     color: ACCENT,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 16,
+    fontSize: 13,
   },
   connector: {
     width: 2,
