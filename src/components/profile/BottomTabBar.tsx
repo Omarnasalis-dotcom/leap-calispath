@@ -77,13 +77,20 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   const insets = useSafeAreaInsets();
   const { ref: barRef, onLayout: onBarLayout } = useTutorialTarget('bottomTab.bar');
   const [worldsMenuOpen, setWorldsMenuOpen] = useState(false);
-  const worldsMenuAnim = useRef(new Animated.Value(0)).current;
+  // One value per world circle, started in a stagger rather than all
+  // together — reads as a small "fan out" pop rather than one flat card
+  // fading in (per direct feedback: the vertical list-card popup didn't
+  // feel premium).
+  const worldAnims = useRef(WORLD_TABS.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
     if (!worldsMenuOpen) return;
-    worldsMenuAnim.setValue(0);
-    Animated.spring(worldsMenuAnim, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 7 }).start();
-  }, [worldsMenuOpen, worldsMenuAnim]);
+    worldAnims.forEach((a) => a.setValue(0));
+    Animated.stagger(
+      70,
+      worldAnims.map((a) => Animated.spring(a, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 9 }))
+    ).start();
+  }, [worldsMenuOpen, worldAnims]);
 
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
@@ -145,44 +152,58 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
 
         <View style={styles.worldsAnchor}>
           {worldsMenuOpen && (
-            <Animated.View
-              style={[
-                styles.worldsPopup,
-                {
-                  backgroundColor: theme.card.background,
-                  borderColor: theme.card.border,
-                  opacity: worldsMenuAnim,
-                  transform: [{ scale: worldsMenuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
-                },
-              ]}
-            >
-              {WORLD_TABS.map((tab) => {
+            <View style={styles.worldsRow} pointerEvents="box-none">
+              {WORLD_TABS.map((tab, i) => {
                 const unlocked = strengthTier >= tab.unlockTier;
+                const anim = worldAnims[i];
                 return (
-                  <TouchableOpacity
+                  <Animated.View
                     key={tab.id}
-                    style={styles.worldsPopupRow}
-                    activeOpacity={0.7}
-                    onPress={() => {
-                      setWorldsMenuOpen(false);
-                      handlePress(tab);
-                    }}
+                    style={[
+                      styles.worldCircleWrap,
+                      {
+                        opacity: anim,
+                        transform: [
+                          { scale: anim },
+                          { translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) },
+                        ],
+                      },
+                    ]}
                   >
-                    <View style={styles.iconWrap}>
-                      <MaterialCommunityIcons name={tab.icon} size={20} color={unlocked ? tab.accentColor : theme.text.secondary} style={{ opacity: unlocked ? 1 : 0.3 }} />
+                    <TouchableOpacity
+                      style={[
+                        styles.worldCircle,
+                        {
+                          backgroundColor: unlocked ? tab.accentColor : theme.card.background,
+                          borderColor: unlocked ? tab.accentColor : theme.card.border,
+                          shadowColor: unlocked ? tab.accentColor : '#000000',
+                        },
+                      ]}
+                      activeOpacity={0.8}
+                      onPress={() => {
+                        setWorldsMenuOpen(false);
+                        handlePress(tab);
+                      }}
+                    >
+                      <MaterialCommunityIcons
+                        name={tab.icon}
+                        size={22}
+                        color={unlocked ? '#FFFFFF' : theme.text.secondary}
+                        style={{ opacity: unlocked ? 1 : 0.35 }}
+                      />
                       {!unlocked && (
                         <View style={[styles.lockBadge, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
                           <MaterialCommunityIcons name="lock" size={9} color={theme.text.secondary} />
                         </View>
                       )}
-                    </View>
-                    <Text style={[styles.worldsPopupLabel, { color: unlocked ? theme.text.primary : theme.text.secondary, opacity: unlocked ? 1 : 0.5 }]}>
+                    </TouchableOpacity>
+                    <Text style={[styles.worldCircleLabel, { color: unlocked ? theme.text.primary : theme.text.secondary, opacity: unlocked ? 1 : 0.5 }]}>
                       {tab.label}
                     </Text>
-                  </TouchableOpacity>
+                  </Animated.View>
                 );
               })}
-            </Animated.View>
+            </View>
           )}
           <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={() => setWorldsMenuOpen((o) => !o)}>
             {isWorldActive && <View style={[styles.activeIndicator, { backgroundColor: worldsColor }]} />}
@@ -277,9 +298,6 @@ const styles = StyleSheet.create({
     gap: 3,
     position: 'relative',
   },
-  iconWrap: {
-    position: 'relative',
-  },
   // Soft accent-tinted pill behind the active tab's icon -- the "premium"
   // pass: previously just a bare icon + a thin top indicator bar.
   iconWrapPremium: {
@@ -322,31 +340,34 @@ const styles = StyleSheet.create({
     position: 'relative',
     alignItems: 'center',
   },
-  worldsPopup: {
+  worldsRow: {
     position: 'absolute',
     bottom: '100%',
     alignSelf: 'center',
-    marginBottom: 10,
-    width: 190,
-    borderWidth: 1,
-    borderRadius: 14,
-    paddingVertical: 6,
-    shadowColor: '#000',
+    marginBottom: 14,
+    flexDirection: 'row',
+    gap: 18,
+  },
+  worldCircleWrap: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  worldCircle: {
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    borderWidth: 1.5,
+    alignItems: 'center',
+    justifyContent: 'center',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
+    shadowOpacity: 0.35,
+    shadowRadius: 10,
     elevation: 8,
   },
-  worldsPopupRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    height: 48,
-    paddingHorizontal: 14,
-  },
-  worldsPopupLabel: {
-    fontSize: 13,
-    fontFamily: 'PlusJakartaSans-Bold',
+  worldCircleLabel: {
+    fontSize: 9,
+    fontWeight: '900',
     letterSpacing: 0.5,
+    fontFamily: 'PlusJakartaSans-ExtraBold',
   },
 });
