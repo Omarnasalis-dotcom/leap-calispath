@@ -156,16 +156,6 @@
           "iosUrlScheme": "com.googleusercontent.apps.752787345607-2sjec1b1lt3qjm5qvdgnrddjgeh4muok"
         }
       ],
-      [
-        "expo-font",
-        {
-          "fonts": [
-            "./assets/fonts/PlusJakartaSans-Regular.ttf",
-            "./assets/fonts/PlusJakartaSans-Bold.ttf",
-            "./assets/fonts/PlusJakartaSans-ExtraBold.ttf"
-          ]
-        }
-      ],
       "expo-router",
       "expo-video",
       [
