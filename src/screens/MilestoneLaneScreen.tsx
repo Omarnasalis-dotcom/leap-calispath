@@ -1428,7 +1428,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
               image={ASSESSMENT_IMAGE}
               ctaLabel="START"
-              onPressCta={() => router.push('/assessment-gate')}
+              onPressCta={() => router.push('/assessment')}
               isLast={false}
               isFirst
               staggerIndex={1}

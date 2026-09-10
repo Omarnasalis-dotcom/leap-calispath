@@ -231,7 +231,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 
   const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
   const inOnboarding = segments[0] === 'onboarding';
-  const inAssessmentGroup = segments[0] === 'assessment' || segments[0] === 'assessment-gate';
+  const inAssessmentGroup = segments[0] === 'assessment';
   const inCompleteProfile = segments[0] === 'complete-profile';
   const isResetPassword = segments[0] === 'reset-password';
   // Milestone Lane onboarding (post-assessment, pre-onboarding_completed_at):
