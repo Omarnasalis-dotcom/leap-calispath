@@ -9,7 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
 import { supabase } from '../lib/supabase';
-import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, estimateSessionMinutes, countMovements, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
@@ -108,11 +108,6 @@ const QUEST_NODE_SIZE = 34;
 const QUEST_BRANCH_WRAP_WIDTH = 46;
 
 type NodeState = 'locked' | 'active' | 'complete';
-
-interface StatPillDatum {
-  icon: string;
-  label: string;
-}
 
 interface MilestoneLaneScreenProps {
   mode: 'onboarding' | 'journey';
@@ -345,19 +340,6 @@ function MilestoneCardCta({ label, secondary, onPress }: { label: string; second
   );
 }
 
-// The photo-card treatment for an active/locked row's content, per the
-// design handoff added alongside assets/Milestone Cards — completed rows
-// never get here (NodeRow keeps its own plain checkmark + strikethrough
-// text for those, see below).
-function StatPill({ icon, label, dim }: { icon: string; label: string; dim?: boolean }) {
-  return (
-    <View style={[styles.statPill, dim && styles.statPillDim]}>
-      <MaterialCommunityIcons name={icon as any} size={11} color={dim ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)'} />
-      <Text style={[styles.statPillText, dim && styles.statPillTextDim]}>{label}</Text>
-    </View>
-  );
-}
-
 // The card content for every row in the lane -- three states, per the design
 // spec: 'complete' ("Finished") is a plain dark card with a struck-through
 // title, never a photo; 'active'/'locked' share the photo-card shell (cover
@@ -369,7 +351,6 @@ function JourneyCard({
   image,
   title,
   desc,
-  stats,
   ctaLabel,
   onPressCta,
   secondaryCtaLabel,
@@ -384,11 +365,6 @@ function JourneyCard({
   image?: ImageSourcePropType;
   title: string;
   desc: string;
-  // Duration/movement-count pills -- day cards only (see estimateSessionMinutes/
-  // countMovements at the call site), active/locked states only -- the
-  // Finished card dropped them per direct feedback (the thumbnail took
-  // their old spot on the right instead).
-  stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
   // Strength Trial only, today -- "can be skipped" (see the call site's
@@ -474,13 +450,6 @@ function JourneyCard({
         <Text style={[styles.milestoneCardDesc, locked && styles.milestoneCardDescLocked]} numberOfLines={2}>
           {desc}
         </Text>
-        {!!stats?.length && (
-          <View style={styles.statPillRow}>
-            {stats.map((s) => (
-              <StatPill key={s.icon} icon={s.icon} label={s.label} dim={locked} />
-            ))}
-          </View>
-        )}
         {!locked && (ctaLabel || secondaryCtaLabel) && (
           <View style={styles.ctaRow}>
             {ctaLabel && onPressCta && <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />}
@@ -500,7 +469,6 @@ function NodeRow({
   title,
   desc,
   image,
-  stats,
   ctaLabel,
   onPressCta,
   secondaryCtaLabel,
@@ -520,7 +488,6 @@ function NodeRow({
   // plain dark "Finished" card instead and never show a photo, even if one
   // is passed (see JourneyCard).
   image?: ImageSourcePropType;
-  stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
   secondaryCtaLabel?: string;
@@ -585,7 +552,6 @@ function NodeRow({
             image={image}
             title={title}
             desc={desc}
-            stats={stats}
             ctaLabel={ctaLabel}
             onPressCta={onPressCta}
             secondaryCtaLabel={secondaryCtaLabel}
@@ -678,10 +644,6 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
         title={title}
         desc={state === 'complete' ? 'Completed.' : state === 'active' ? 'Up next in your program.' : 'Unlocks once the step before it is done.'}
         image={pickDayCardImage(day, seed)}
-        stats={[
-          { icon: 'clock-outline', label: `${estimateSessionMinutes(day)} MIN` },
-          { icon: 'dumbbell', label: `${countMovements(day)} MOVEMENTS` },
-        ]}
         ctaLabel={state === 'active' ? 'START NOW' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
@@ -1910,32 +1872,6 @@ const styles = StyleSheet.create({
     fontSize: 12.5,
     marginTop: 3,
   },
-  statPillRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 6,
-    marginTop: 8,
-  },
-  statPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    backgroundColor: 'rgba(255,255,255,0.08)',
-    borderRadius: 10,
-    paddingVertical: 3,
-    paddingHorizontal: 8,
-  },
-  statPillDim: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
-  },
-  statPillText: {
-    color: 'rgba(255,255,255,0.75)',
-    fontFamily: 'PlusJakartaSans-Bold',
-    fontSize: 10,
-  },
-  statPillTextDim: {
-    color: 'rgba(255,255,255,0.35)',
-  },
   attachedQuestRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -2062,16 +1998,24 @@ const styles = StyleSheet.create({
   },
   milestoneCard: {
     position: 'relative',
-    height: 188,
+    // Shorter than before (was 188) -- dropping the MIN/MOVEMENTS stat-pill
+    // row freed up real content height, so the fixed card height came down
+    // with it instead of leaving dead space above the CTA.
+    height: 168,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161616',
+    // Matches the Finished card's subtle border -- previously only the
+    // Finished card had a defined edge; the photo card just relied on the
+    // gradient scrim to read as a boundary against the screen background.
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.08)',
   },
   milestoneCardLocked: {
     // Shorter than the active/current-day size -- a locked "next up"
     // preview doesn't need the same real estate; it grows back to the full
-    // 188 the moment it becomes the active card (see JourneyCard).
-    height: 100,
+    // 168 the moment it becomes the active card (see JourneyCard).
+    height: 84,
   },
   milestoneCardImage: {
     position: 'absolute',
