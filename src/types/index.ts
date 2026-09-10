@@ -46,6 +46,8 @@ export interface Profile {
   onboarding_completed_at?: string | null;
   primary_goal?: string | null;
   available_equipment?: string[] | null;
+  goals?: string[] | null;
+  goal_other_text?: string | null;
 }
 
 export type TierRank =

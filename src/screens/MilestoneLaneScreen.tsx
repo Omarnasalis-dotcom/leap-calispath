@@ -15,6 +15,7 @@ import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgram
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
+import { GOALS } from './GoalsEquipmentScreen';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
 // as one pool per category under assets/Milestone Cards/{push,pull,lower
@@ -597,13 +598,13 @@ function GhostNode() {
   );
 }
 
-const GOAL_LABELS: Record<string, string> = {
-  strength: 'Build Strength',
-  muscle: 'Build Muscle',
-  weight_loss: 'Lose Weight',
-  endurance: 'Improve Endurance',
-  general_fitness: 'General Fitness',
-};
+// Built from GoalsEquipmentScreen's own GOALS list rather than duplicating
+// the id->label mapping -- 'other' is deliberately absent here since its
+// display text comes from the athlete's own goal_other_text, not a fixed
+// label (see goalLabel below).
+const GOAL_LABELS: Record<string, string> = Object.fromEntries(
+  GOALS.filter((g) => g.id !== 'other').map((g) => [g.id, g.label])
+);
 
 function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title: string; desc: string; onPress: () => void }) {
   return (
@@ -1024,12 +1025,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
           return;
         }
         // First time this has ever been decided for this account — lock it
-        // in permanently now.
-        const decided = !profile.primary_goal;
+        // in permanently now. Checks both the legacy single-value field and
+        // the newer multi-select goals array so an account that completed
+        // milestone 2 through either version of this screen isn't
+        // misclassified as legacy.
+        const hasGoal = !!profile.primary_goal || !!(profile.goals && profile.goals.length);
+        const decided = !hasGoal;
         setLegacyFlowActive(decided);
         AsyncStorage.setItem(flowKey, decided ? 'true' : 'false').catch(() => {});
       })
-      .catch(() => setLegacyFlowActive(!profile.primary_goal));
+      .catch(() => setLegacyFlowActive(!profile.primary_goal && !(profile.goals && profile.goals.length)));
     // Deliberately excludes profile.primary_goal — this must only run once
     // per (mode, profile.id), not re-run when the goal is later filled in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1361,11 +1366,23 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // "Keep it open" for legacy members means milestone 2 stays genuinely
   // available to complete (not skipped/backfilled/hidden), not that
   // milestone 3 gets to bypass it.
+  // OR'd with the legacy single-value field so an account that saved its
+  // goal through the old single-select screen still reads as complete.
+  const hasGoal = !!(profile?.goals && profile.goals.length) || !!profile?.primary_goal;
   const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
-  const milestone2State: NodeState = profile?.primary_goal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  const milestone3State: NodeState = profile?.assessed_at && profile?.primary_goal ? 'active' : 'locked';
+  const milestone2State: NodeState = hasGoal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
+  const milestone3State: NodeState = profile?.assessed_at && hasGoal ? 'active' : 'locked';
 
-  const goalLabel = profile?.primary_goal ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal : null;
+  // Multi-select goals joined for display, 'other' substituted with the
+  // athlete's own free text; falls back to the legacy single-value field
+  // for accounts that only ever set that one.
+  const goalLabel = profile?.goals?.length
+    ? profile.goals
+        .map((g) => (g === 'other' ? profile.goal_other_text?.trim() || 'Other' : GOAL_LABELS[g] ?? g))
+        .join(', ')
+    : profile?.primary_goal
+    ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
+    : null;
   // Plain function, not useCallback -- it's only ever called directly below
   // in the same render, never passed down as a memoized prop or referenced
   // in another hook's dependency array, so memoizing it bought nothing. A

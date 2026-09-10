@@ -12,7 +12,7 @@ import { getNextTrial } from "./trialData.ts";
 export const getUserContext: ToolDefinition = {
   name: "get_user_context",
   description:
-    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program).",
+    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids, e.g. weight_loss/strength/learn_skills/other — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program).",
   input_schema: { type: "object", properties: {} },
   handler: async (userClient) => {
     const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
@@ -57,6 +57,17 @@ export const getUserContext: ToolDefinition = {
         best_times: profile?.best_times ?? {},
         assessed_at: profile?.assessed_at ?? null,
         assessment_raw: profile?.assessment_raw ?? null,
+        // From the onboarding Goals & Equipment step (Milestone Lane) --
+        // raw id arrays, same convention as static_pbs below (no label-
+        // resolution layer). goal folds in the legacy single-value
+        // primary_goal column so accounts that only ever set that one
+        // aren't invisible here either. goal_other_text is the athlete's
+        // own free text when goal includes 'other'. Treat these as already
+        // answered per this file's own "skip anything stated" rule — see
+        // system-prompt.ts.
+        goal: profile?.goals?.length ? profile.goals : (profile?.primary_goal ? [profile.primary_goal] : []),
+        goal_other_text: profile?.goal_other_text ?? null,
+        equipment: profile?.available_equipment ?? [],
         power_assessed_at: profile?.power_assessed_at ?? null,
         statics_assessed_at: profile?.statics_assessed_at ?? null,
         trials_attempted: profile?.trials_attempted ?? 0,
