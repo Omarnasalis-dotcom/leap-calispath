@@ -416,6 +416,15 @@ function JourneyCard({
         {!!image && (
           <View style={styles.finishedCardThumbWrap}>
             <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />
+            {/* Fades the photo's left edge into the card's own background
+                instead of a hard vertical cut where it meets the text. */}
+            <LinearGradient
+              pointerEvents="none"
+              colors={['#111111', 'rgba(17,17,17,0)']}
+              start={{ x: 0, y: 0.5 }}
+              end={{ x: 0.5, y: 0.5 }}
+              style={StyleSheet.absoluteFill}
+            />
           </View>
         )}
       </View>
