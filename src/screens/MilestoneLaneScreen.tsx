@@ -1746,7 +1746,12 @@ const styles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     overflow: 'hidden',
-    minHeight: 84,
+    // A real fixed height, not minHeight -- the thumbnail (width set, no
+    // height/aspectRatio) needs a bounded cross-axis to stretch against.
+    // minHeight left the row's height effectively undetermined, and the
+    // stretched Image blew up to fill whatever that resolved to, dragging
+    // the whole card to nearly full screen height (seen live on device).
+    height: 84,
   },
   finishedCardBody: {
     flex: 1,
