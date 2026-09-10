@@ -814,6 +814,33 @@ function QuestNode({ size = QUEST_NODE_SIZE }: { size?: number }) {
 // the day's own card area -- no branch, no left-rail circle of its own (that
 // was SideQuestNode's old job; quests are never a separate list row anymore,
 // see buildWeekSequence's afterDayIndex and the render loop below).
+const DAY_CHEER_MESSAGES = [
+  'Nice work! Keep the momentum going.',
+  "Crushing it — on to the next one.",
+  "Great job! You're building real consistency.",
+  "Solid work. Let's keep this streak alive.",
+  "That's the way! Next step unlocked.",
+];
+
+// Shown inline between the just-finished card and the newly-unlocked one
+// for 10s (see the detection effect above) -- deterministic message pick
+// via hashString so it doesn't flicker to a different line on re-render.
+function DayCheerBanner({ seed }: { seed: string }) {
+  const pop = useMountPop(0);
+  const message = DAY_CHEER_MESSAGES[hashString(seed) % DAY_CHEER_MESSAGES.length];
+  return (
+    <Animated.View
+      style={[
+        styles.dayCheerWrap,
+        { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }] },
+      ]}
+    >
+      <MaterialCommunityIcons name="party-popper" size={16} color={ACCENT} />
+      <Text style={styles.dayCheerText}>{message}</Text>
+    </Animated.View>
+  );
+}
+
 function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
   const def = SIDE_QUEST_DEFS[kind];
   const resolved = state === 'complete';
@@ -907,6 +934,7 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
 const LEGACY_ACK_KEY_PREFIX = 'milestone_lane_legacy_ack_';
 const LEGACY_FLOW_KEY_PREFIX = 'milestone_lane_legacy_flow_';
+const SEEN_ACTIVE_DAY_KEY_PREFIX = 'milestone_lane_seen_active_day_';
 
 interface JourneyWeekData {
   weekNumber: number;
@@ -1384,6 +1412,86 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     return () => clearTimeout(t);
   }, [mode, journeyLoading, journeyData, legacyAcknowledged, legacyFlowActive]);
 
+  // Plain function, not useCallback -- it's only ever called directly below
+  // in the same render, never passed down as a memoized prop or referenced
+  // in another hook's dependency array, so memoizing it bought nothing.
+  const isQuestSlotResolved = (slotKey: string) => completedQuestSlots.has(slotKey) || skippedQuestSlots.has(slotKey);
+  // Trial/side-quest gating and the week-complete banner only ever look at
+  // the latest (current) week — earlier weeks in the path are already done.
+  const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
+  // Strength Trial: every 2 weeks, starting from week 1 -- odd weeks (1, 3,
+  // 5...) are trial weeks, per direct spec.
+  const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
+  // Days gate days -- the first not-yet-done day is the one active step.
+  // -1 means every day this week is already done.
+  const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
+  // Per direct request, a day's quest now DOES gate the day after it: the
+  // next day stays locked until the previous day's attached quest is
+  // finished or skipped too, not just the workout itself. Recomputes the
+  // same weekSequence/slotKey the render loop below builds per week
+  // (rotation seed included) so this lookup matches exactly, just for the
+  // one previous day that matters for gating.
+  const latestWeekRotationSeed = journeyData
+    ? journeyData.weeks
+        .slice(0, journeyData.weeks.length - 1)
+        .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
+    : 0;
+  const latestWeekQuestByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
+  if (latestWeek) {
+    buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed).forEach(
+      (item) => {
+        if (item.kind === 'quest') latestWeekQuestByDayIndex.set(item.afterDayIndex, item);
+      }
+    );
+  }
+  let dayGateBlockedByQuest = false;
+  if (latestWeek && latestDayPointer > 0) {
+    const prevQuestItem = latestWeekQuestByDayIndex.get(latestDayPointer - 1);
+    if (prevQuestItem) {
+      const slotKey = `w${journeyData!.currentWeek}_s${prevQuestItem.slotIndex}`;
+      dayGateBlockedByQuest = !isQuestSlotResolved(slotKey);
+    }
+  }
+  // These 6 consts above moved here (were previously computed after the
+  // showReveal/showProgramReady early returns, safe for plain consts but
+  // not for the hook right below, which must run unconditionally on every
+  // render -- see the Rules-of-Hooks incident this file's git history
+  // already documents for the exact same "hook placed after a conditional
+  // return" mistake).
+  //
+  // Detects "a day just got completed and the next one just unlocked"
+  // (latestDayPointer advanced since the last time this device recorded
+  // it, for the current week) and, if so, shows a cheering banner between
+  // the two cards for 10s -- per direct request, a small reveal moment on
+  // every day-to-day step, not just the bigger milestone transitions.
+  // Recorded per week (not globally) so entering a new week never
+  // accidentally cheers on its first-ever render, and skips entirely while
+  // dayGateBlockedByQuest is true (nothing new actually unlocked yet).
+  const [justUnlockedDayIndex, setJustUnlockedDayIndex] = useState<number | null>(null);
+  const dayCheerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (mode !== 'journey' || !profile?.id || !journeyData || !latestWeek) return;
+    if (dayGateBlockedByQuest || latestDayPointer <= 0) return;
+    const key = `${SEEN_ACTIVE_DAY_KEY_PREFIX}${profile.id}_w${journeyData.currentWeek}`;
+    let cancelled = false;
+    AsyncStorage.getItem(key)
+      .then((stored) => {
+        if (cancelled) return;
+        const storedIndex = stored ? parseInt(stored, 10) : null;
+        if (storedIndex !== null && latestDayPointer > storedIndex) {
+          setJustUnlockedDayIndex(latestDayPointer);
+          if (dayCheerTimerRef.current) clearTimeout(dayCheerTimerRef.current);
+          dayCheerTimerRef.current = setTimeout(() => setJustUnlockedDayIndex(null), 10000);
+        }
+        AsyncStorage.setItem(key, String(latestDayPointer)).catch(() => {});
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+      if (dayCheerTimerRef.current) clearTimeout(dayCheerTimerRef.current);
+    };
+  }, [mode, profile?.id, journeyData?.currentWeek, latestWeek, latestDayPointer, dayGateBlockedByQuest]);
+
   if (showReveal && profile?.assessed_at) {
     return (
       <RankUpReveal
@@ -1429,52 +1537,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     : profile?.primary_goal
     ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
     : null;
-  // Plain function, not useCallback -- it's only ever called directly below
-  // in the same render, never passed down as a memoized prop or referenced
-  // in another hook's dependency array, so memoizing it bought nothing. A
-  // useCallback here was also the actual bug just reported live ("Rendered
-  // fewer hooks than expected"): it sat after the early RankUpReveal return
-  // above, so the render pass where showReveal is true skipped this hook
-  // call entirely while the very next render (showReveal now false) called
-  // it -- a genuine Rules-of-Hooks violation, not the earlier auto-scroll
-  // effect (which was already correctly placed before that return).
-  const isQuestSlotResolved = (slotKey: string) => completedQuestSlots.has(slotKey) || skippedQuestSlots.has(slotKey);
-  // Trial/side-quest gating and the week-complete banner only ever look at
-  // the latest (current) week — earlier weeks in the path are already done.
-  const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
-  // Strength Trial: every 2 weeks, starting from week 1 -- odd weeks (1, 3,
-  // 5...) are trial weeks, per direct spec.
-  const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
-  // Days gate days -- the first not-yet-done day is the one active step.
-  // -1 means every day this week is already done.
-  const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
-  // Per direct request, a day's quest now DOES gate the day after it: the
-  // next day stays locked until the previous day's attached quest is
-  // finished or skipped too, not just the workout itself. Recomputes the
-  // same weekSequence/slotKey the render loop below builds per week
-  // (rotation seed included) so this lookup matches exactly, just for the
-  // one previous day that matters for gating.
-  const latestWeekRotationSeed = journeyData
-    ? journeyData.weeks
-        .slice(0, journeyData.weeks.length - 1)
-        .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
-    : 0;
-  const latestWeekQuestByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
-  if (latestWeek) {
-    buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed).forEach(
-      (item) => {
-        if (item.kind === 'quest') latestWeekQuestByDayIndex.set(item.afterDayIndex, item);
-      }
-    );
-  }
-  let dayGateBlockedByQuest = false;
-  if (latestWeek && latestDayPointer > 0) {
-    const prevQuestItem = latestWeekQuestByDayIndex.get(latestDayPointer - 1);
-    if (prevQuestItem) {
-      const slotKey = `w${journeyData!.currentWeek}_s${prevQuestItem.slotIndex}`;
-      dayGateBlockedByQuest = !isQuestSlotResolved(slotKey);
-    }
-  }
   // The strength trial is the one exception that keeps a real gate: it
   // only unlocks once every day this week is done, same as before.
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
@@ -1667,29 +1729,33 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       isLatestWeek &&
                       i === (dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer);
                     return (
-                      <DayNode
-                        key={`day-${week.weekNumber}-${i}`}
-                        number={startNumber + i + 1}
-                        state={dayState}
-                        title={d.day.name.toUpperCase()}
-                        day={d.day}
-                        seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
-                        isLast={false}
-                        containerRef={isDayPointer ? activeStepRef : undefined}
-                        onPress={() =>
-                          router.push({
-                            pathname: '/warrior-program',
-                            // startDay only makes sense for the current
-                            // week -- WarriorProgramScreen lands on
-                            // current_week by default, so a past week's day
-                            // index wouldn't refer to the right day there.
-                            params: isLatestWeek
-                              ? { returnTo: 'journey', startDay: String(i) }
-                              : { returnTo: 'journey' },
-                          })
-                        }
-                        attachedQuest={attachedQuestFor(i, dayState)}
-                      />
+                      <React.Fragment key={`day-${week.weekNumber}-${i}`}>
+                        {isLatestWeek && i === justUnlockedDayIndex && (
+                          <DayCheerBanner seed={`w${week.weekNumber}-d${i}-cheer`} />
+                        )}
+                        <DayNode
+                          number={startNumber + i + 1}
+                          state={dayState}
+                          title={d.day.name.toUpperCase()}
+                          day={d.day}
+                          seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
+                          isLast={false}
+                          containerRef={isDayPointer ? activeStepRef : undefined}
+                          onPress={() =>
+                            router.push({
+                              pathname: '/warrior-program',
+                              // startDay only makes sense for the current
+                              // week -- WarriorProgramScreen lands on
+                              // current_week by default, so a past week's day
+                              // index wouldn't refer to the right day there.
+                              params: isLatestWeek
+                                ? { returnTo: 'journey', startDay: String(i) }
+                                : { returnTo: 'journey' },
+                            })
+                          }
+                          attachedQuest={attachedQuestFor(i, dayState)}
+                        />
+                      </React.Fragment>
                     );
                   });
 
@@ -1953,6 +2019,25 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-Light',
     fontSize: 12.5,
     marginTop: 3,
+  },
+  dayCheerWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    alignSelf: 'flex-start',
+    marginLeft: NODE_SIZE + 20,
+    marginVertical: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,82,82,0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,82,82,0.25)',
+  },
+  dayCheerText: {
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 12.5,
   },
   attachedQuestRow: {
     flexDirection: 'row',
