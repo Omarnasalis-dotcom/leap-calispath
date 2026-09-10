@@ -1,11 +1,11 @@
-import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, Pressable, StyleSheet, Alert, Platform, Animated } from 'react-native';
 import { router } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
 import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
-import { WORLD_THEMES } from '../../../constants/worldThemes';
+import { WORLD_THEMES, worldRgba, WorldKey } from '../../../constants/worldThemes';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TargetId } from '../../types/tutorial';
 
@@ -51,6 +51,15 @@ const TABS: TabDef[] = [
   { id: 'journey', label: 'JOURNEY', icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
 ];
 
+// The 3 "world" tabs collapse into a single WORLDS button in the bar (was 7
+// buttons total, felt crowded) — tapping it pops these 3 up directly above
+// the bar instead. WORLD_TAB_IDS doubles as the WorldKey lookup into
+// WORLD_THEMES for the pill-background treatment below (strength/power/
+// static are all valid WorldKey values).
+const WORLD_TAB_IDS: ProfileTab[] = ['strength', 'power', 'static'];
+const WORLD_TABS = TABS.filter((t) => WORLD_TAB_IDS.includes(t.id));
+const MAIN_TABS = TABS.filter((t) => !WORLD_TAB_IDS.includes(t.id));
+
 interface BottomTabBarProps {
   activeTab: ProfileTab;
   strengthTier: number;
@@ -63,6 +72,14 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { ref: barRef, onLayout: onBarLayout } = useTutorialTarget('bottomTab.bar');
+  const [worldsMenuOpen, setWorldsMenuOpen] = useState(false);
+  const worldsMenuAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!worldsMenuOpen) return;
+    worldsMenuAnim.setValue(0);
+    Animated.spring(worldsMenuAnim, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 7 }).start();
+  }, [worldsMenuOpen, worldsMenuAnim]);
 
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
@@ -87,37 +104,100 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
     router.replace(tab.route as any);
   };
 
+  const activeWorldTab = WORLD_TABS.find((t) => t.id === activeTab);
+  const isWorldActive = !!activeWorldTab;
+  const worldsIcon = activeWorldTab?.icon ?? 'view-grid-outline';
+  const worldsColor = activeWorldTab ? activeWorldTab.accentColor : theme.text.secondary;
+
   return (
-    <View
-      ref={barRef}
-      onLayout={onBarLayout}
-      style={[
-        styles.bar,
-        {
-          backgroundColor: theme.card.background,
-          borderTopColor: theme.card.border,
-          // Extends the bar's own background through the Home Indicator
-          // inset so it reads as one continuous surface flush with the
-          // bottom edge, instead of floating 8pt above a gap that shows
-          // whatever's behind it (the screen/root background).
-          paddingBottom: 8 + insets.bottom,
-        },
-      ]}
-    >
-      {TABS.map((tab) => {
-        const isActive = tab.id === activeTab;
-        const isUnlocked = strengthTier >= tab.unlockTier;
-        return (
-          <TabButton
-            key={tab.id}
-            tab={tab}
-            isActive={isActive}
-            isUnlocked={isUnlocked}
-            onPress={() => handlePress(tab)}
-          />
-        );
-      })}
-    </View>
+    <>
+      {/* Sibling of the bar itself (not nested inside the worlds anchor)
+          so it covers the whole screen, not just that one flex column --
+          same speed-dial backdrop pattern as FloatingGamesButton.tsx. */}
+      {worldsMenuOpen && <Pressable style={StyleSheet.absoluteFill} onPress={() => setWorldsMenuOpen(false)} />}
+      <View
+        ref={barRef}
+        onLayout={onBarLayout}
+        style={[
+          styles.bar,
+          {
+            backgroundColor: theme.card.background,
+            borderTopColor: theme.card.border,
+            // Extends the bar's own background through the Home Indicator
+            // inset so it reads as one continuous surface flush with the
+            // bottom edge, instead of floating 8pt above a gap that shows
+            // whatever's behind it (the screen/root background).
+            paddingBottom: 8 + insets.bottom,
+          },
+        ]}
+      >
+        <TabButton tab={MAIN_TABS[0]} isActive={MAIN_TABS[0].id === activeTab} isUnlocked={strengthTier >= MAIN_TABS[0].unlockTier} onPress={() => handlePress(MAIN_TABS[0])} />
+
+        <View style={styles.worldsAnchor}>
+          {worldsMenuOpen && (
+            <Animated.View
+              style={[
+                styles.worldsPopup,
+                {
+                  backgroundColor: theme.card.background,
+                  borderColor: theme.card.border,
+                  opacity: worldsMenuAnim,
+                  transform: [{ scale: worldsMenuAnim.interpolate({ inputRange: [0, 1], outputRange: [0.85, 1] }) }],
+                },
+              ]}
+            >
+              {WORLD_TABS.map((tab) => {
+                const unlocked = strengthTier >= tab.unlockTier;
+                return (
+                  <TouchableOpacity
+                    key={tab.id}
+                    style={styles.worldsPopupRow}
+                    activeOpacity={0.7}
+                    onPress={() => {
+                      setWorldsMenuOpen(false);
+                      handlePress(tab);
+                    }}
+                  >
+                    <View style={styles.iconWrap}>
+                      <MaterialCommunityIcons name={tab.icon} size={20} color={unlocked ? tab.accentColor : theme.text.secondary} style={{ opacity: unlocked ? 1 : 0.3 }} />
+                      {!unlocked && (
+                        <View style={[styles.lockBadge, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
+                          <MaterialCommunityIcons name="lock" size={9} color={theme.text.secondary} />
+                        </View>
+                      )}
+                    </View>
+                    <Text style={[styles.worldsPopupLabel, { color: unlocked ? theme.text.primary : theme.text.secondary, opacity: unlocked ? 1 : 0.5 }]}>
+                      {tab.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </Animated.View>
+          )}
+          <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={() => setWorldsMenuOpen((o) => !o)}>
+            {isWorldActive && <View style={[styles.activeIndicator, { backgroundColor: worldsColor }]} />}
+            <View
+              style={[
+                styles.iconWrapPremium,
+                isWorldActive && {
+                  backgroundColor: WORLD_THEMES[activeWorldTab!.id as WorldKey]?.cardFill ?? worldRgba(worldsColor, 0.06),
+                  borderColor: WORLD_THEMES[activeWorldTab!.id as WorldKey]?.cardBorder ?? worldRgba(worldsColor, 0.32),
+                },
+              ]}
+            >
+              <MaterialCommunityIcons name={worldsIcon} size={22} color={worldsColor} style={{ opacity: isWorldActive || worldsMenuOpen ? 1 : 0.85 }} />
+            </View>
+            <Text style={[styles.label, { color: worldsColor }]} numberOfLines={1}>
+              WORLDS
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {MAIN_TABS.slice(1).map((tab) => (
+          <TabButton key={tab.id} tab={tab} isActive={tab.id === activeTab} isUnlocked={strengthTier >= tab.unlockTier} onPress={() => handlePress(tab)} />
+        ))}
+      </View>
+    </>
   );
 }
 
@@ -147,10 +227,10 @@ function TabButton({ tab, isActive, isUnlocked, onPress }: TabButtonProps) {
       activeOpacity={0.7}
     >
       {isActive && <View style={[styles.activeIndicator, { backgroundColor: tab.accentColor }]} />}
-      <View style={styles.iconWrap}>
+      <View style={[styles.iconWrapPremium, isActive && { backgroundColor: worldRgba(tab.accentColor, 0.06), borderColor: worldRgba(tab.accentColor, 0.32) }]}>
         <MaterialCommunityIcons
           name={tab.icon}
-          size={18}
+          size={22}
           color={isActive ? tab.accentColor : theme.text.secondary}
           style={{ opacity: isUnlocked ? 1 : 0.3 }}
         />
@@ -190,6 +270,18 @@ const styles = StyleSheet.create({
   iconWrap: {
     position: 'relative',
   },
+  // Soft accent-tinted pill behind the active tab's icon -- the "premium"
+  // pass: previously just a bare icon + a thin top indicator bar.
+  iconWrapPremium: {
+    position: 'relative',
+    width: 40,
+    height: 32,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'transparent',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   lockBadge: {
     position: 'absolute',
     bottom: -4,
@@ -214,5 +306,37 @@ const styles = StyleSheet.create({
     height: 2,
     borderRadius: 1,
     alignSelf: 'center',
+  },
+  worldsAnchor: {
+    flex: 1,
+    position: 'relative',
+    alignItems: 'center',
+  },
+  worldsPopup: {
+    position: 'absolute',
+    bottom: '100%',
+    alignSelf: 'center',
+    marginBottom: 10,
+    width: 190,
+    borderWidth: 1,
+    borderRadius: 14,
+    paddingVertical: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  worldsPopupRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    height: 48,
+    paddingHorizontal: 14,
+  },
+  worldsPopupLabel: {
+    fontSize: 13,
+    fontFamily: 'PlusJakartaSans-Bold',
+    letterSpacing: 0.5,
   },
 });
