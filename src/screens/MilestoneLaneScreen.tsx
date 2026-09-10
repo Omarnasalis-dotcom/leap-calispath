@@ -407,8 +407,17 @@ function JourneyCard({
         {/* Flush against the card's own right/top/bottom edges, no padding
             or radius of its own -- the card is overflow:hidden with its own
             16px radius, so it clips the image's outer corners to match
-            instead of the image needing to know the card's radius itself. */}
-        {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
+            instead of the image needing to know the card's radius itself.
+            Image is absolutely positioned inside a plain, reliably-stretched
+            View rather than stretched directly -- an Image leaf doesn't
+            resolve flex-stretch cross-axis sizing reliably on its own (seen
+            live: the photo didn't fill/crop correctly), the same reason
+            milestoneCardImage below uses this exact technique already. */}
+        {!!image && (
+          <View style={styles.finishedCardThumbWrap}>
+            <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />
+          </View>
+        )}
       </View>
     );
   }
@@ -1759,13 +1768,22 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 16,
   },
-  finishedCardThumb: {
-    // Fixed, deliberately wide-ish panel rather than a small inset square
-    // or an exact aspect-ratio match -- fills the card's full height
-    // (alignSelf:'stretch') flush to the right edge, reading as a real
-    // cover photo rather than a tiny icon.
+  finishedCardThumbWrap: {
+    // Fixed, deliberately wide-ish panel rather than a small inset square --
+    // fills the card's full height (alignSelf:'stretch') flush to the right
+    // edge, reading as a real cover photo rather than a tiny icon. A plain
+    // View, not the Image itself -- see finishedCardThumb.
     width: 100,
     alignSelf: 'stretch',
+  },
+  finishedCardThumb: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '100%',
   },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
