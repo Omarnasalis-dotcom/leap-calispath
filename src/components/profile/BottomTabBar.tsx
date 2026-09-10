@@ -53,12 +53,16 @@ const TABS: TabDef[] = [
 
 // The 3 "world" tabs collapse into a single WORLDS button in the bar (was 7
 // buttons total, felt crowded) — tapping it pops these 3 up directly above
-// the bar instead. WORLD_TAB_IDS doubles as the WorldKey lookup into
-// WORLD_THEMES for the pill-background treatment below (strength/power/
-// static are all valid WorldKey values).
-const WORLD_TAB_IDS: ProfileTab[] = ['strength', 'power', 'static'];
+// the bar instead. Strength stays a top-level tab (it's really just
+// Profile's own strength-world view, same route, switched via
+// onSelectProfileTab below — not one of the 3 grouped here) — Power,
+// Static, and 1MM are the actual gated "worlds" that group together.
+const WORLD_TAB_IDS: ProfileTab[] = ['power', 'static', '1mm'];
 const WORLD_TABS = TABS.filter((t) => WORLD_TAB_IDS.includes(t.id));
 const MAIN_TABS = TABS.filter((t) => !WORLD_TAB_IDS.includes(t.id));
+// tab.id -> the WorldKey WORLD_THEMES is actually keyed by (only '1mm'
+// differs: its WorldKey is 'onemm', everything else matches its own id).
+const WORLD_THEME_KEY: Partial<Record<ProfileTab, WorldKey>> = { power: 'power', static: 'static', '1mm': 'onemm' };
 
 interface BottomTabBarProps {
   activeTab: ProfileTab;
@@ -131,7 +135,13 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
           },
         ]}
       >
-        <TabButton tab={MAIN_TABS[0]} isActive={MAIN_TABS[0].id === activeTab} isUnlocked={strengthTier >= MAIN_TABS[0].unlockTier} onPress={() => handlePress(MAIN_TABS[0])} />
+        {/* profile, strength: MAIN_TABS[0]/[1] -- Strength stays a top-level
+            tab (see WORLD_TAB_IDS comment above), rendered before the
+            merged WORLDS button so the bar reads profile, strength,
+            worlds, champions, journey. */}
+        {MAIN_TABS.slice(0, 2).map((tab) => (
+          <TabButton key={tab.id} tab={tab} isActive={tab.id === activeTab} isUnlocked={strengthTier >= tab.unlockTier} onPress={() => handlePress(tab)} />
+        ))}
 
         <View style={styles.worldsAnchor}>
           {worldsMenuOpen && (
@@ -180,8 +190,8 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
               style={[
                 styles.iconWrapPremium,
                 isWorldActive && {
-                  backgroundColor: WORLD_THEMES[activeWorldTab!.id as WorldKey]?.cardFill ?? worldRgba(worldsColor, 0.06),
-                  borderColor: WORLD_THEMES[activeWorldTab!.id as WorldKey]?.cardBorder ?? worldRgba(worldsColor, 0.32),
+                  backgroundColor: WORLD_THEMES[WORLD_THEME_KEY[activeWorldTab!.id]!]?.cardFill ?? worldRgba(worldsColor, 0.06),
+                  borderColor: WORLD_THEMES[WORLD_THEME_KEY[activeWorldTab!.id]!]?.cardBorder ?? worldRgba(worldsColor, 0.32),
                 },
               ]}
             >
@@ -193,7 +203,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
           </TouchableOpacity>
         </View>
 
-        {MAIN_TABS.slice(1).map((tab) => (
+        {MAIN_TABS.slice(2).map((tab) => (
           <TabButton key={tab.id} tab={tab} isActive={tab.id === activeTab} isUnlocked={strengthTier >= tab.unlockTier} onPress={() => handlePress(tab)} />
         ))}
       </View>
