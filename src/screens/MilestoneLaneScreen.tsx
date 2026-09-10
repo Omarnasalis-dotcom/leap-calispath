@@ -4,11 +4,12 @@ import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
+import Svg, { Path } from 'react-native-svg';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
 import { supabase } from '../lib/supabase';
-import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, estimateSessionMinutes, countMovements, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
@@ -103,6 +104,11 @@ const NODE_SIZE = 48;
 
 type NodeState = 'locked' | 'active' | 'complete';
 
+interface StatPillDatum {
+  icon: string;
+  label: string;
+}
+
 interface MilestoneLaneScreenProps {
   mode: 'onboarding' | 'journey';
 }
@@ -178,7 +184,7 @@ function useAchievementBurst(staggerIndex: number) {
   return anim;
 }
 
-function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeState; number: number; isSideQuest?: boolean; staggerIndex: number }) {
+function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number: number; staggerIndex: number }) {
   const pulse = usePulse(state === 'active');
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
@@ -195,7 +201,7 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
   };
 
   if (state === 'complete') {
-    const size = isSideQuest ? 36 : NODE_SIZE;
+    const size = NODE_SIZE;
     return (
       <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
         <Animated.View
@@ -211,23 +217,13 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
             },
           ]}
         />
-        <Animated.View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { backgroundColor: ACCENT }, popStyle]}>
-          <MaterialCommunityIcons name="check" size={isSideQuest ? 14 : 20} color="#FFFFFF" />
+        <Animated.View style={[styles.nodeCircle, { backgroundColor: ACCENT }, popStyle]}>
+          <MaterialCommunityIcons name="check" size={20} color="#FFFFFF" />
         </Animated.View>
       </View>
     );
   }
   if (state === 'active') {
-    // Side quests are optional extras, not "you are here" path milestones —
-    // a smaller dashed ring with a compass icon instead of a number and no
-    // ambient glow, so they read as a fork off the main path, not part of it.
-    if (isSideQuest) {
-      return (
-        <Animated.View style={[styles.nodeCircle, styles.nodeCircleSmall, { borderWidth: 1.5, borderColor: ACCENT, borderStyle: 'dashed' }, popStyle]}>
-          <MaterialCommunityIcons name="compass-outline" size={13} color={ACCENT} />
-        </Animated.View>
-      );
-    }
     return (
       <View style={styles.nodeCircleWrap}>
         <Animated.View
@@ -241,8 +237,8 @@ function NodeCircle({ state, number, isSideQuest, staggerIndex }: { state: NodeS
     );
   }
   return (
-    <View style={[styles.nodeCircle, isSideQuest && styles.nodeCircleSmall, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
-      <MaterialCommunityIcons name="lock-outline" size={isSideQuest ? 11 : 14} color="rgba(255,255,255,0.3)" />
+    <View style={[styles.nodeCircle, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
+      <MaterialCommunityIcons name="lock-outline" size={14} color="rgba(255,255,255,0.3)" />
     </View>
   );
 }
@@ -337,29 +333,74 @@ function MilestoneCardCta({ label, secondary, onPress }: { label: string; second
 // design handoff added alongside assets/Milestone Cards — completed rows
 // never get here (NodeRow keeps its own plain checkmark + strikethrough
 // text for those, see below).
-function MilestoneCard({
+function StatPill({ icon, label, dim }: { icon: string; label: string; dim?: boolean }) {
+  return (
+    <View style={[styles.statPill, dim && styles.statPillDim]}>
+      <MaterialCommunityIcons name={icon as any} size={11} color={dim ? 'rgba(255,255,255,0.35)' : 'rgba(255,255,255,0.75)'} />
+      <Text style={[styles.statPillText, dim && styles.statPillTextDim]}>{label}</Text>
+    </View>
+  );
+}
+
+// The card content for every row in the lane -- three states, per the design
+// spec: 'complete' ("Finished") is a plain dark card with a struck-through
+// title, never a photo; 'active'/'locked' share the photo-card shell (cover
+// image, dark gradient scrim, badge top-left) that this used to be the only
+// treatment for, back when complete rows had no card at all (just plain
+// text -- see git history on NodeRow if that's ever worth comparing again).
+function JourneyCard({
+  state,
   image,
-  locked,
   title,
   desc,
+  stats,
   ctaLabel,
   onPressCta,
-  secondaryCtaLabel,
-  onPressSecondaryCta,
   showHereBadge,
 }: {
-  image: ImageSourcePropType;
-  locked: boolean;
+  state: NodeState;
+  // Only used for active/locked -- complete never renders a photo, even if
+  // one is passed (callers compute it unconditionally for seed-stability
+  // elsewhere, e.g. pickDayCardImage, so it's simplest to just ignore it here
+  // rather than have every call site conditionally omit it).
+  image?: ImageSourcePropType;
   title: string;
   desc: string;
+  // Duration/movement-count pills -- day cards only (see estimateSessionMinutes/
+  // countMovements at the call site). Milestones, the Strength Trial, and
+  // anything else pass nothing and the pills row doesn't render.
+  stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
-  secondaryCtaLabel?: string;
-  onPressSecondaryCta?: () => void;
   showHereBadge?: boolean;
 }) {
-  const pulse = usePulse(!locked && !!showHereBadge);
+  const locked = state === 'locked';
+  const pulse = usePulse(state === 'active' && !!showHereBadge);
   const badgeOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
+
+  if (state === 'complete') {
+    return (
+      <View style={styles.finishedCard}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.finishedCardTitle} numberOfLines={2}>
+            {title}
+          </Text>
+          {!!desc && (
+            <Text style={styles.finishedCardDesc} numberOfLines={2}>
+              {desc}
+            </Text>
+          )}
+        </View>
+        {!!stats?.length && (
+          <View style={styles.statPillColumn}>
+            {stats.map((s) => (
+              <StatPill key={s.icon} icon={s.icon} label={s.label} />
+            ))}
+          </View>
+        )}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.milestoneCard}>
@@ -390,12 +431,16 @@ function MilestoneCard({
         <Text style={[styles.milestoneCardDesc, locked && styles.milestoneCardDescLocked]} numberOfLines={2}>
           {desc}
         </Text>
-        {!locked && (ctaLabel || secondaryCtaLabel) && (
+        {!!stats?.length && (
+          <View style={styles.statPillRow}>
+            {stats.map((s) => (
+              <StatPill key={s.icon} icon={s.icon} label={s.label} dim={locked} />
+            ))}
+          </View>
+        )}
+        {!locked && ctaLabel && onPressCta && (
           <View style={styles.ctaRow}>
-            {ctaLabel && onPressCta && <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />}
-            {secondaryCtaLabel && onPressSecondaryCta && (
-              <MilestoneCardCta label={secondaryCtaLabel} secondary onPress={onPressSecondaryCta} />
-            )}
+            <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />
           </View>
         )}
       </View>
@@ -409,104 +454,72 @@ function NodeRow({
   title,
   desc,
   image,
+  stats,
   ctaLabel,
   onPressCta,
-  secondaryCtaLabel,
-  onPressSecondaryCta,
   isLast,
-  isSideQuest,
   staggerIndex = 0,
   containerRef,
+  attachedQuest,
   children,
 }: {
   number: number;
   state: NodeState;
   title: string;
   desc: string;
-  // Active/locked rows render as a photo card (see MilestoneCard) once this
-  // is supplied — complete rows never use it, they keep the plain
-  // checkmark + strikethrough text regardless.
+  // Active/locked rows render as a photo card; complete rows render the
+  // plain dark "Finished" card instead and never show a photo, even if one
+  // is passed (see JourneyCard).
   image?: ImageSourcePropType;
+  stats?: StatPillDatum[];
   ctaLabel?: string;
   onPressCta?: () => void;
-  // Side quests only — "SKIP" next to "START", per direct request: a
-  // training day can't be skipped, but a side quest gates the next day
-  // behind either finishing it or explicitly skipping it.
-  secondaryCtaLabel?: string;
-  onPressSecondaryCta?: () => void;
   isLast: boolean;
-  isSideQuest?: boolean;
   staggerIndex?: number;
   containerRef?: React.Ref<View>;
+  // The one paired quest a day card can have -- rendered below the card as
+  // AttachedQuest (complete/locked) or QuestBranch (active). Never passed
+  // for milestones/Strength Trial, which have no paired quest.
+  attachedQuest?: AttachedQuestData;
   children?: React.ReactNode;
 }) {
-  const pulse = usePulse(state === 'active' && !isSideQuest && !image);
-  const labelOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
-  const dim = state === 'locked';
   // Same one-time mount-pop as NodeCircle (see useMountPop's comment for
   // why this animates on mount rather than on a state-change diff),
-  // applied to the text/CTA side so the whole row visibly arrives together
-  // rather than the circle animating while the copy next to it just snaps
+  // applied to the card side so the whole row visibly arrives together
+  // rather than the circle animating while the card next to it just snaps
   // into place.
   const pop = useMountPop(state === 'locked' ? -1 : staggerIndex);
   const contentPopStyle = { opacity: pop, transform: [{ translateY: pop.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] };
 
-  const usesCard = !!image && state !== 'complete';
-
   return (
-    <View ref={containerRef} style={[styles.row, isSideQuest && styles.rowSideQuest]}>
+    <View ref={containerRef} style={styles.row}>
       <View style={styles.rowLeft}>
-        <NodeCircle state={state} number={number} isSideQuest={isSideQuest} staggerIndex={staggerIndex} />
+        <NodeCircle state={state} number={number} staggerIndex={staggerIndex} />
         {!isLast && <Connector complete={state === 'complete'} staggerIndex={staggerIndex} />}
       </View>
       <Animated.View style={[styles.rowRight, contentPopStyle]}>
-        {usesCard ? (
-          <>
-            <MilestoneCard
-              image={image!}
-              locked={state === 'locked'}
-              title={title}
-              desc={desc}
-              ctaLabel={ctaLabel}
-              onPressCta={onPressCta}
-              secondaryCtaLabel={secondaryCtaLabel}
-              onPressSecondaryCta={onPressSecondaryCta}
-              showHereBadge={state === 'active' && !isSideQuest}
+        <JourneyCard
+          state={state}
+          image={image}
+          title={title}
+          desc={desc}
+          stats={stats}
+          ctaLabel={ctaLabel}
+          onPressCta={onPressCta}
+          showHereBadge={state === 'active'}
+        />
+        {state === 'active' && children}
+        {attachedQuest &&
+          (attachedQuest.state === 'active' ? (
+            <QuestBranch kind={attachedQuest.kind} onPress={attachedQuest.onPress} onSkip={attachedQuest.onSkip} />
+          ) : (
+            <AttachedQuest
+              kind={attachedQuest.kind}
+              state={attachedQuest.state}
+              skipped={attachedQuest.skipped}
+              onPress={attachedQuest.onPress}
             />
-            {state === 'active' && children}
-          </>
-        ) : (
-          <>
-            {state === 'active' && !isSideQuest && (
-              <Animated.Text style={[styles.youAreHere, { opacity: labelOpacity }]}>YOU ARE HERE</Animated.Text>
-            )}
-            <Text
-              style={[
-                styles.nodeTitle,
-                { color: dim ? 'rgba(255,255,255,0.25)' : '#FFFFFF' },
-                state === 'complete' && styles.nodeTitleComplete,
-              ]}
-            >
-              {title}
-            </Text>
-            <Text style={[styles.nodeDesc, { color: dim ? 'rgba(255,255,255,0.25)' : 'rgba(255,255,255,0.68)' }]}>{desc}</Text>
-            {state === 'active' && (ctaLabel || secondaryCtaLabel) && (
-              <View style={styles.ctaRow}>
-                {ctaLabel && onPressCta && (
-                  <TouchableOpacity style={styles.ctaPill} onPress={onPressCta}>
-                    <Text style={styles.ctaPillText}>{ctaLabel}</Text>
-                  </TouchableOpacity>
-                )}
-                {secondaryCtaLabel && onPressSecondaryCta && (
-                  <TouchableOpacity style={styles.ctaPillSecondary} onPress={onPressSecondaryCta}>
-                    <Text style={styles.ctaPillSecondaryText}>{secondaryCtaLabel}</Text>
-                  </TouchableOpacity>
-                )}
-              </View>
-            )}
-            {state === 'active' && children}
-          </>
-        )}
+          ))}
       </Animated.View>
     </View>
   );
@@ -548,7 +561,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title
   );
 }
 
-function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress }: {
+function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress, attachedQuest }: {
   number: number;
   // 'complete' (already resolved, kept visible as history), 'active' (the
   // one current pointer position — the only one actually startable), or
@@ -558,7 +571,8 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   state: NodeState;
   title: string;
   // Real block/exercise data for this day, used to pick a push/pull/lower-
-  // body photo (see pickDayCardImage) -- not just for display.
+  // body photo (see pickDayCardImage) and the stat pills (duration/movement
+  // count) -- not just for display.
   day: ProgramDay;
   // Distinguishes this day from others sharing the same day.name across
   // different weeks (e.g. every week's "DAY 1"), so they don't all land on
@@ -567,6 +581,9 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   isLast: boolean;
   containerRef?: React.Ref<View>;
   onPress: () => void;
+  // The quest paired with this day, if any -- see buildWeekSequence's
+  // afterDayIndex. Rendered below the card by NodeRow.
+  attachedQuest?: AttachedQuestData;
 }) {
   return (
     <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress} disabled={state === 'locked'}>
@@ -576,10 +593,15 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
         title={title}
         desc={state === 'complete' ? 'Completed.' : state === 'active' ? 'Up next in your program.' : 'Unlocks once the step before it is done.'}
         image={pickDayCardImage(day, seed)}
-        ctaLabel={state === 'active' ? 'START' : undefined}
+        stats={[
+          { icon: 'clock-outline', label: `${estimateSessionMinutes(day)} MIN` },
+          { icon: 'dumbbell', label: `${countMovements(day)} MOVEMENTS` },
+        ]}
+        ctaLabel={state === 'active' ? 'START NOW' : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
         staggerIndex={number}
+        attachedQuest={attachedQuest}
       />
     </TouchableOpacity>
   );
@@ -701,44 +723,105 @@ function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strength
   return items;
 }
 
-function SideQuestNode({ kind, state, skipped, isLast, staggerIndex, containerRef, onPress, onSkip }: {
+// Data a day's row needs to render its paired quest -- either as the plain
+// AttachedQuest row (complete/locked) or, when the day itself is active, the
+// branching QuestBranch instead. Built by the render loop from
+// SequenceItem's 'quest' entries (see buildWeekSequence's afterDayIndex).
+interface AttachedQuestData {
   kind: SideQuestKind;
   state: NodeState;
-  // Resolved-by-skipping reads differently from resolved-by-completing —
-  // still shows the same complete checkmark (it IS resolved, gating-wise),
-  // just says so honestly rather than claiming "Done."
   skipped?: boolean;
-  isLast: boolean;
-  staggerIndex: number;
-  containerRef?: React.Ref<View>;
   onPress: () => void;
-  // Only ever passed for the current active quest — a training day has no
-  // equivalent, per direct request: side quests gate on finish-or-skip,
-  // days must actually be done.
   onSkip?: () => void;
-}) {
-  const def = SIDE_QUEST_DEFS[kind];
-  const desc =
-    state === 'complete'
-      ? (skipped ? 'Skipped.' : 'Done — nice work.')
-      : state === 'active'
-      ? def.desc
-      : 'Unlocks once the step before it is done.';
+}
+
+// The dashed-ring + compass circle -- shared between here (the branch's
+// floating node) and, previously, NodeCircle's side-quest variant, which no
+// longer exists now that quests are never their own left-rail row.
+function QuestNode({ size = 34 }: { size?: number }) {
+  const pulse = usePulse(true);
+  const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] });
   return (
-    <NodeRow
-      number={0}
-      state={state}
-      title={def.title}
-      desc={desc}
-      ctaLabel={state === 'active' ? 'START' : undefined}
-      onPressCta={state === 'active' ? onPress : undefined}
-      secondaryCtaLabel={state === 'active' && onSkip ? 'SKIP' : undefined}
-      onPressSecondaryCta={state === 'active' ? onSkip : undefined}
-      isLast={isLast}
-      staggerIndex={staggerIndex}
-      containerRef={containerRef}
-      isSideQuest
-    />
+    <Animated.View
+      style={[
+        styles.questNode,
+        { width: size, height: size, borderRadius: size / 2, opacity },
+      ]}
+    >
+      <MaterialCommunityIcons name="compass-outline" size={14} color={ACCENT} />
+    </Animated.View>
+  );
+}
+
+// Finished/locked days: a plain, non-interactive-when-locked row folded into
+// the day's own card area -- no branch, no left-rail circle of its own (that
+// was SideQuestNode's old job; quests are never a separate list row anymore,
+// see buildWeekSequence's afterDayIndex and the render loop below).
+function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
+  const def = SIDE_QUEST_DEFS[kind];
+  const resolved = state === 'complete';
+  const locked = state === 'locked';
+  return (
+    <TouchableOpacity
+      style={styles.attachedQuestRow}
+      onPress={onPress}
+      disabled={locked}
+      activeOpacity={0.7}
+    >
+      <View style={[styles.attachedQuestIcon, locked && styles.attachedQuestIconLocked]}>
+        <MaterialCommunityIcons
+          name={locked ? 'lock-outline' : 'check'}
+          size={11}
+          color={locked ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
+        />
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={[styles.attachedQuestLabel, locked && styles.attachedQuestLabelLocked]}>SIDE QUEST</Text>
+        <Text
+          style={[styles.attachedQuestTitle, locked && styles.attachedQuestTitleLocked, resolved && styles.attachedQuestTitleResolved]}
+          numberOfLines={1}
+        >
+          {def.title.replace('SIDE QUEST · ', '')}
+        </Text>
+        {resolved && <Text style={styles.attachedQuestDesc}>{skipped ? 'Skipped.' : 'Done — nice work.'}</Text>}
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+// The one active day's paired quest: a short dashed curve leaving the card's
+// bottom-left, landing on a pulsing node, connected to a floating callout
+// bubble with its own START/SKIP. Normal document flow below the day's
+// card (not absolutely positioned against it) -- deliberately avoids the
+// measureInWindow-style dependency chain that caused real bugs earlier this
+// session (see the auto-scroll effect's own comment on why).
+function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: () => void; onSkip?: () => void }) {
+  const def = SIDE_QUEST_DEFS[kind];
+  return (
+    <View style={styles.questBranchRow}>
+      <Svg width={36} height={50} style={styles.questBranchCurve}>
+        <Path
+          d="M2,0 C2,20 34,20 34,44"
+          stroke={ACCENT}
+          strokeWidth={2}
+          strokeDasharray="4,5"
+          strokeLinecap="round"
+          fill="none"
+        />
+      </Svg>
+      <QuestNode />
+      <View style={styles.questBubble}>
+        <Text style={styles.questBubbleLabel}>SIDE QUEST</Text>
+        <Text style={styles.questBubbleTitle} numberOfLines={1}>
+          {def.title.replace('SIDE QUEST · ', '')}
+        </Text>
+        <Text style={styles.questBubbleDesc}>{def.desc}</Text>
+        <View style={styles.ctaRow}>
+          <MilestoneCardCta label="START" onPress={onPress} />
+          {onSkip && <MilestoneCardCta label="SKIP" secondary onPress={onSkip} />}
+        </View>
+      </View>
+    </View>
   );
 }
 
@@ -1203,18 +1286,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Strength Trial: every 2 weeks, starting from week 1 -- odd weeks (1, 3,
   // 5...) are trial weeks, per direct spec.
   const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
-  // Rotation continues across the whole path, not reset per week (see
-  // getSideQuestForSlot) -- seed it with how many rotation slots every
-  // earlier week already consumed (rotationSlotsUsed), so the latest week
-  // picks the rotation up where it left off rather than always starting at
-  // 1MM. Past weeks never render their quests, but they still occupied
-  // rotation slots when they were the current week.
-  const latestWeekRotationSeed = journeyData
-    ? journeyData.weeks.slice(0, -1).reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
-    : 0;
-  const latestWeekSequence = latestWeek
-    ? buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed)
-    : [];
   // Days gate days -- the first not-yet-done day is the one active step.
   // Quests are deliberately decoupled from this (see the render loop
   // below): a quest opens alongside the day it's paired with, the moment
@@ -1345,81 +1416,82 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   const isLatestWeek = weekIdx === journeyData.weeks.length - 1;
                   const startNumber = journeyData.weeks.slice(0, weekIdx).reduce((sum, w) => sum + w.days.length, 0);
 
-                  let rows: React.ReactNode[];
+                  // A quest is never its own row anymore -- it's paired with
+                  // exactly one day (afterDayIndex, see buildWeekSequence) and
+                  // rendered attached to that day's card instead. Rebuilding
+                  // this week's own sequence (not just the latest week's) is
+                  // what lets a past week's Finished cards show what quest
+                  // was attached and whether it was done/skipped, instead of
+                  // silently dropping that info the way the old history view
+                  // did.
+                  const weekIsTrialWeek = week.weekNumber % 2 === 1;
+                  const weekRotationSeed = journeyData.weeks
+                    .slice(0, weekIdx)
+                    .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0);
+                  const weekSequence = buildWeekSequence(week.days, weekIsTrialWeek, profile?.strength_tier || 0, weekRotationSeed);
+                  const questByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
+                  weekSequence.forEach((item) => {
+                    if (item.kind === 'quest') questByDayIndex.set(item.afterDayIndex, item);
+                  });
 
-                  if (!isLatestWeek) {
-                    // Past weeks: full history, every day already done —
-                    // no sequence/pointer needed, nothing left to gate.
-                    rows = week.days.map((d, i) => (
+                  const attachedQuestFor = (dayIndex: number, dayState: NodeState): AttachedQuestData | undefined => {
+                    const questItem = questByDayIndex.get(dayIndex);
+                    if (!questItem) return undefined;
+                    const slotKey = `w${week.weekNumber}_s${questItem.slotIndex}`;
+                    const resolved = isQuestSlotResolved(slotKey);
+                    const def = SIDE_QUEST_DEFS[questItem.questKind];
+                    // Opens alongside its day -- the moment that day is
+                    // reached (active or done), never gated behind the day
+                    // being *finished*. Never blocks the day after it either
+                    // (unlike the strength trial, which still waits for the
+                    // whole week) -- it's "part of the day before," not its
+                    // own gate.
+                    return {
+                      kind: questItem.questKind,
+                      state: resolved ? 'complete' : dayState !== 'locked' ? 'active' : 'locked',
+                      skipped: skippedQuestSlots.has(slotKey),
+                      onPress: () =>
+                        router.push({
+                          pathname: def.pathname,
+                          params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
+                        }),
+                      onSkip: () => handleSkipQuest(slotKey),
+                    };
+                  };
+
+                  // Past weeks: full history, every day already done -- no
+                  // pointer needed, only the quest resolution can vary.
+                  // Current week: the full week is always visible (per direct
+                  // request — "can i see the full week instead of showing me
+                  // next step and next trial strength only"). Gating itself
+                  // is unchanged: only the pointer day is 'active'
+                  // (startable), everything after it renders 'locked' (no
+                  // CTA, dimmed, not tappable) so the whole week's shape is
+                  // visible without letting anyone skip ahead out of order.
+                  const rows = week.days.map((d, i) => {
+                    const dayState: NodeState = !isLatestWeek
+                      ? 'complete'
+                      : latestDayPointer === -1 || i < latestDayPointer
+                      ? 'complete'
+                      : i === latestDayPointer
+                      ? 'active'
+                      : 'locked';
+                    const isDayPointer = isLatestWeek && i === latestDayPointer;
+                    return (
                       <DayNode
                         key={`day-${week.weekNumber}-${i}`}
                         number={startNumber + i + 1}
-                        state="complete"
+                        state={dayState}
                         title={d.day.name.toUpperCase()}
                         day={d.day}
                         seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
                         isLast={false}
+                        containerRef={isDayPointer ? activeStepRef : undefined}
                         onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
+                        attachedQuest={attachedQuestFor(i, dayState)}
                       />
-                    ));
-                  } else {
-                    // Current week: the full week is always visible (per
-                    // direct request — "can i see the full week instead of
-                    // showing me next step and next trial strength only").
-                    // Gating itself is unchanged: only the pointer item is
-                    // 'active' (startable), everything after it renders
-                    // 'locked' (no CTA, dimmed, not tappable) so the whole
-                    // week's shape is visible without letting anyone skip
-                    // ahead out of order.
-                    rows = latestWeekSequence.map((item) => {
-                      if (item.kind === 'day') {
-                        const d = week.days[item.dayIndex];
-                        const isDayPointer = item.dayIndex === latestDayPointer;
-                        const dayState: NodeState =
-                          latestDayPointer === -1 || item.dayIndex < latestDayPointer ? 'complete' : isDayPointer ? 'active' : 'locked';
-                        return (
-                          <DayNode
-                            key={`day-${week.weekNumber}-${item.dayIndex}`}
-                            number={startNumber + item.dayIndex + 1}
-                            state={dayState}
-                            title={d.day.name.toUpperCase()}
-                            day={d.day}
-                            seed={`w${week.weekNumber}-d${item.dayIndex}-${d.day.name}`}
-                            isLast={false}
-                            containerRef={isDayPointer ? activeStepRef : undefined}
-                            onPress={() => router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } })}
-                          />
-                        );
-                      }
-                      // Opens alongside the day it's paired with -- the
-                      // moment that day becomes the current step (not once
-                      // it's finished), and never blocks the day after it
-                      // (unlike the strength trial, which still waits for
-                      // the whole week).
-                      const dayReached = latestDayPointer === -1 || item.afterDayIndex <= latestDayPointer;
-                      const slotKey = `w${week.weekNumber}_s${item.slotIndex}`;
-                      const resolved = isQuestSlotResolved(slotKey);
-                      const def = SIDE_QUEST_DEFS[item.questKind];
-                      const questState: NodeState = resolved ? 'complete' : dayReached ? 'active' : 'locked';
-                      return (
-                        <SideQuestNode
-                          key={`quest-${week.weekNumber}-${item.slotIndex}`}
-                          kind={item.questKind}
-                          state={questState}
-                          skipped={skippedQuestSlots.has(slotKey)}
-                          isLast={false}
-                          staggerIndex={startNumber + item.slotIndex + 1}
-                          onPress={() =>
-                            router.push({
-                              pathname: def.pathname,
-                              params: { ...def.params, returnTo: 'journey', questSlotKey: slotKey },
-                            })
-                          }
-                          onSkip={questState === 'active' ? () => handleSkipQuest(slotKey) : undefined}
-                        />
-                      );
-                    });
-                  }
+                    );
+                  });
 
                   return (
                     <View key={week.weekNumber}>
@@ -1519,9 +1591,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
   },
-  rowSideQuest: {
-    opacity: 0.95,
-  },
   rowLeft: {
     alignItems: 'center',
     width: NODE_SIZE,
@@ -1555,11 +1624,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  nodeCircleSmall: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-  },
   nodeNumberActive: {
     color: ACCENT,
     fontFamily: 'PlusJakartaSans-ExtraBold',
@@ -1586,39 +1650,10 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
-  youAreHere: {
-    color: ACCENT,
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 10,
-    letterSpacing: 2,
-    marginBottom: 4,
-  },
-  nodeTitle: {
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 15,
-    letterSpacing: 0.3,
-  },
-  nodeTitleComplete: {
-    textDecorationLine: 'line-through',
-    textDecorationColor: 'rgba(255,255,255,0.25)',
-  },
-  nodeDesc: {
-    fontFamily: 'PlusJakartaSans-Regular',
-    fontSize: 12.5,
-    marginTop: 4,
-    lineHeight: 17,
-  },
   ctaRow: {
     flexDirection: 'row',
     gap: 10,
     marginTop: 12,
-  },
-  ctaPill: {
-    alignSelf: 'flex-start',
-    backgroundColor: ACCENT,
-    paddingVertical: 10,
-    paddingHorizontal: 20,
-    borderRadius: 24,
   },
   ctaPillText: {
     color: '#FFFFFF',
@@ -1640,6 +1675,148 @@ const styles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12,
     letterSpacing: 1.5,
+  },
+  finishedCard: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    backgroundColor: '#111111',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
+    borderRadius: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    gap: 12,
+  },
+  finishedCardTitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 15,
+    textDecorationLine: 'line-through',
+    textDecorationColor: 'rgba(255,255,255,0.4)',
+  },
+  finishedCardDesc: {
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: 'PlusJakartaSans-Light',
+    fontSize: 12.5,
+    marginTop: 3,
+  },
+  statPillRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginTop: 8,
+  },
+  statPillColumn: {
+    gap: 6,
+    alignItems: 'flex-end',
+  },
+  statPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: 'rgba(255,255,255,0.08)',
+    borderRadius: 10,
+    paddingVertical: 3,
+    paddingHorizontal: 8,
+  },
+  statPillDim: {
+    backgroundColor: 'rgba(255,255,255,0.05)',
+  },
+  statPillText: {
+    color: 'rgba(255,255,255,0.75)',
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 10,
+  },
+  statPillTextDim: {
+    color: 'rgba(255,255,255,0.35)',
+  },
+  attachedQuestRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    marginTop: 10,
+    paddingHorizontal: 4,
+  },
+  attachedQuestIcon: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: ACCENT,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attachedQuestIconLocked: {
+    backgroundColor: 'rgba(255,255,255,0.06)',
+  },
+  attachedQuestLabel: {
+    color: ACCENT,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  attachedQuestLabelLocked: {
+    color: 'rgba(255,255,255,0.25)',
+  },
+  attachedQuestTitle: {
+    color: 'rgba(255,255,255,0.85)',
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 12.5,
+    marginTop: 1,
+  },
+  attachedQuestTitleLocked: {
+    color: 'rgba(255,255,255,0.3)',
+  },
+  attachedQuestTitleResolved: {
+    textDecorationLine: 'line-through',
+    textDecorationColor: 'rgba(255,255,255,0.4)',
+  },
+  attachedQuestDesc: {
+    color: 'rgba(255,255,255,0.4)',
+    fontFamily: 'PlusJakartaSans-Light',
+    fontSize: 11.5,
+    marginTop: 1,
+  },
+  questNode: {
+    borderWidth: 1.5,
+    borderColor: ACCENT,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  questBranchRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    marginTop: -6,
+  },
+  questBranchCurve: {
+    marginTop: 0,
+  },
+  questBubble: {
+    flex: 1,
+    backgroundColor: '#161616',
+    borderWidth: 1,
+    borderColor: ACCENT_DIM,
+    borderRadius: 14,
+    padding: 12,
+    marginLeft: -4,
+  },
+  questBubbleLabel: {
+    color: ACCENT,
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 9,
+    letterSpacing: 1,
+  },
+  questBubbleTitle: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-SemiBold',
+    fontSize: 13,
+    marginTop: 2,
+  },
+  questBubbleDesc: {
+    color: 'rgba(255,255,255,0.55)',
+    fontFamily: 'PlusJakartaSans-Light',
+    fontSize: 11.5,
+    marginTop: 2,
   },
   milestoneCard: {
     position: 'relative',
@@ -1663,7 +1840,7 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(5,5,5,0.55)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
   },
   milestoneLockBadge: {
     position: 'absolute',

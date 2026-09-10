@@ -13,6 +13,7 @@ import {
 } from '@expo-google-fonts/barlow-condensed';
 import { Barlow_400Regular } from '@expo-google-fonts/barlow';
 import {
+  PlusJakartaSans_300Light,
   PlusJakartaSans_400Regular,
   PlusJakartaSans_500Medium,
   PlusJakartaSans_600SemiBold,
@@ -38,6 +39,7 @@ export const useStealthFonts = () => {
     // falling back to the system font this whole time. Loaded here instead
     // via real, verified Google Fonts binaries, same mechanism already
     // proven for Barlow/BarlowCondensed/Orbitron above.
+    'PlusJakartaSans-Light': PlusJakartaSans_300Light,
     'PlusJakartaSans-Regular': PlusJakartaSans_400Regular,
     'PlusJakartaSans-Medium': PlusJakartaSans_500Medium,
     'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
