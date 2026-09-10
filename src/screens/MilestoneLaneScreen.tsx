@@ -454,7 +454,7 @@ function JourneyCard({
       {locked && <View style={styles.milestoneCardLockedScrim} />}
       <LinearGradient
         pointerEvents="none"
-        colors={['rgba(22,22,22,0)', 'rgba(22,22,22,0.68)', 'rgba(22,22,22,0.94)']}
+        colors={['rgba(22,22,22,0)', 'rgba(22,22,22,0.45)', 'rgba(22,22,22,0.72)']}
         locations={[0.42, 0.68, 1]}
         style={StyleSheet.absoluteFill}
       />
@@ -781,10 +781,9 @@ type SequenceItem =
 // A quest (weekly-challenge or rotating alike) opens alongside the day it's
 // paired with -- the moment that day becomes the current step, not once
 // it's finished -- and resolves by finishing it for real or explicitly
-// skipping it. Per direct request, a quest is "part of the day before," not
-// its own gate: it never blocks the day after it (see the render loop,
-// which derives each item's state independently rather than from a single
-// shared pointer).
+// skipping it. Per direct request, a quest DOES gate the day after it: the
+// next day stays locked until both the day itself and its attached quest
+// are resolved (see dayGateBlockedByQuest near latestDayPointer).
 function buildWeekSequence(days: DayStateEntry[], isTrialWeek: boolean, strengthTier: number, rotationSeed: number): SequenceItem[] {
   const items: SequenceItem[] = [];
   let rotationCounter = rotationSeed;
@@ -1353,12 +1352,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // Lands the current card in the middle of the screen, not just
       // scrolled into view at the top -- centers the node's own vertical
       // midpoint against the screen's, using its real measured height
-      // rather than a guessed fixed offset.
+      // rather than a guessed fixed offset. Jumps there instantly
+      // (animated: false) rather than visibly scrolling down from the top
+      // of the journey on every open -- per direct request, opening the
+      // screen should land straight on the current card, not play a
+      // scroll-through-the-whole-path animation first.
       scrollNode.measureInWindow((_svX, svY) => {
         node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
           const screenHeight = Dimensions.get('window').height;
           const target = nY + nHeight / 2 - svY - screenHeight / 2;
-          scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
+          scrollNode.scrollTo({ y: Math.max(target, 0), animated: false });
         });
       });
     }, 400);
@@ -1405,12 +1408,35 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // 5...) are trial weeks, per direct spec.
   const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
   // Days gate days -- the first not-yet-done day is the one active step.
-  // Quests are deliberately decoupled from this (see the render loop
-  // below): a quest opens alongside the day it's paired with, the moment
-  // that day becomes current, but never blocks the day after it -- it's
-  // "part of the day before," not its own gate. -1 means every day this
-  // week is already done.
+  // -1 means every day this week is already done.
   const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
+  // Per direct request, a day's quest now DOES gate the day after it: the
+  // next day stays locked until the previous day's attached quest is
+  // finished or skipped too, not just the workout itself. Recomputes the
+  // same weekSequence/slotKey the render loop below builds per week
+  // (rotation seed included) so this lookup matches exactly, just for the
+  // one previous day that matters for gating.
+  const latestWeekRotationSeed = journeyData
+    ? journeyData.weeks
+        .slice(0, journeyData.weeks.length - 1)
+        .reduce((sum, w) => sum + rotationSlotsUsed(w.days.length, w.weekNumber % 2 === 1), 0)
+    : 0;
+  const latestWeekQuestByDayIndex = new Map<number, Extract<SequenceItem, { kind: 'quest' }>>();
+  if (latestWeek) {
+    buildWeekSequence(latestWeek.days, isTrialWeek, profile?.strength_tier || 0, latestWeekRotationSeed).forEach(
+      (item) => {
+        if (item.kind === 'quest') latestWeekQuestByDayIndex.set(item.afterDayIndex, item);
+      }
+    );
+  }
+  let dayGateBlockedByQuest = false;
+  if (latestWeek && latestDayPointer > 0) {
+    const prevQuestItem = latestWeekQuestByDayIndex.get(latestDayPointer - 1);
+    if (prevQuestItem) {
+      const slotKey = `w${journeyData!.currentWeek}_s${prevQuestItem.slotIndex}`;
+      dayGateBlockedByQuest = !isQuestSlotResolved(slotKey);
+    }
+  }
   // The strength trial is the one exception that keeps a real gate: it
   // only unlocks once every day this week is done, same as before.
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
@@ -1554,10 +1580,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     const def = SIDE_QUEST_DEFS[questItem.questKind];
                     // Opens alongside its day -- the moment that day is
                     // reached (active or done), never gated behind the day
-                    // being *finished*. Never blocks the day after it either
-                    // (unlike the strength trial, which still waits for the
-                    // whole week) -- it's "part of the day before," not its
-                    // own gate.
+                    // being *finished*. This quest's own state (complete
+                    // once resolved, active while its day isn't locked) is
+                    // independent of the NEXT day's gate -- that gate lives
+                    // in dayGateBlockedByQuest above, which locks the day
+                    // after this one until this quest resolves too.
                     return {
                       kind: questItem.questKind,
                       state: resolved ? 'complete' : dayState !== 'locked' ? 'active' : 'locked',
@@ -1586,9 +1613,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       : latestDayPointer === -1 || i < latestDayPointer
                       ? 'complete'
                       : i === latestDayPointer
-                      ? 'active'
+                      ? (dayGateBlockedByQuest ? 'locked' : 'active')
                       : 'locked';
-                    const isDayPointer = isLatestWeek && i === latestDayPointer;
+                    // While blocked, the pointer day itself is 'locked' (not
+                    // startable yet), so the auto-scroll target shifts back
+                    // one day to the still-'complete' card whose attached
+                    // quest is the actual thing blocking progress.
+                    const isDayPointer =
+                      isLatestWeek &&
+                      i === (dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer);
                     return (
                       <DayNode
                         key={`day-${week.weekNumber}-${i}`}
