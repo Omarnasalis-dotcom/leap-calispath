@@ -671,9 +671,9 @@ type SideQuestKind = '1mm' | 'static' | 'power' | 'weekly';
 // e.g. "w2_s0") rides along as a route param so the destination screen can
 // hand it straight back once the user actually logs something there —
 // that's the one signal MilestoneLaneScreen needs to mark this specific
-// slot complete, no new table or polling required. 'weekly' is the one
-// exception: WeeklyChallengeScreen doesn't yet wire up that return signal
-// (see its own note below), so that slot only ever resolves via SKIP today.
+// slot complete, no new table or polling required. All 4 kinds (including
+// 'weekly', via WeeklyChallengeScreen's own completeQuestAndReturn call)
+// wire this up the same way now.
 const SIDE_QUEST_DEFS: Record<SideQuestKind, {
   icon: string;
   title: string;
@@ -1134,9 +1134,19 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // status sourced from a real workout_logs join), not a separate tracker —
   // consistent with how every other milestone state here is derived rather
   // than stored.
+  const journeyLoadedOnceRef = useRef(false);
   const loadJourneyProgram = useCallback(async () => {
     if (mode !== 'journey' || !profile?.id) return;
-    setJourneyLoading(true);
+    // Only blank the whole lane to "Loading your program..." on the true
+    // first load. This fetch re-runs on every focus (see the useFocusEffect
+    // below), including every return from finishing a day or a side quest
+    // -- blanking already-cached cards to a loading state each time, then
+    // re-populating and re-scrolling once it returns, is what read live as
+    // "navigates back to the top of the lane" before the day-cheer/auto-
+    // scroll reveal ever gets a chance to show. Keep showing the last-known
+    // cards during a background refetch instead; only genuinely fresh data
+    // (a completed day, a resolved quest) triggers those reveal effects.
+    if (!journeyLoadedOnceRef.current) setJourneyLoading(true);
     try {
       const { data: program } = await supabase
         .from('warrior_programs')
@@ -1232,9 +1242,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       });
     } catch (err) {
       console.error('Failed to load journey program:', err);
-      setJourneyData(null);
+      // Only wipe to null on a true first-load failure -- a background
+      // refetch failing (e.g. a flaky connection right after finishing a
+      // day) shouldn't throw away perfectly good cached cards.
+      if (!journeyLoadedOnceRef.current) setJourneyData(null);
     } finally {
       setJourneyLoading(false);
+      journeyLoadedOnceRef.current = true;
     }
   }, [mode, profile?.id]);
 
@@ -1360,9 +1374,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     setAdvancingWeek(false);
     if (error) {
       console.error('Failed to advance to next week:', error);
+      router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
+      return;
     }
-    router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
-  }, [journeyData, router]);
+    // Per direct request: reveal the new week's cards right here in the
+    // lane (reload journeyData in place) instead of navigating into the
+    // training center's day list -- the whole point of "start next week"
+    // is to see the new week open up, not to jump straight into day 1.
+    await loadJourneyProgram();
+  }, [journeyData, router, loadJourneyProgram]);
 
   // Auto-scroll to whichever row claimed activeStepRef (the current
   // milestone, day, or quest — exactly one at a time, see the containerRef

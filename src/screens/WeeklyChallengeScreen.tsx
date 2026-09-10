@@ -20,6 +20,7 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { NotificationService } from '../services/NotificationService';
+import { useReturnTo } from '../hooks/useReturnTo';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -636,6 +637,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
   onSubmitSuccess,
 }) => {
   const isMounted = useMountedRef();
+  const { completeQuestAndReturn } = useReturnTo();
   const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
   const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
   const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer, setSeconds: setTimerSeconds } = useTimer(timerInitial, timerMode);
@@ -789,6 +791,14 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
         }
         await onSubmitSuccess();
         onClose();
+        // Came from a My Journey side quest — head back and mark this slot
+        // complete (no-op if not), same pattern as StaticWorldScreen/
+        // PowerWorldScreen/OneMinMaxScreen. A brief pause first so the
+        // NEW BEST!/Not a PB alert is actually visible rather than the
+        // screen getting yanked away underneath it.
+        setTimeout(() => {
+          if (isMounted.current) completeQuestAndReturn();
+        }, 1500);
       }
     });
   }
