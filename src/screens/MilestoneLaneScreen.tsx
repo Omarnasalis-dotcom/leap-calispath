@@ -394,7 +394,7 @@ function JourneyCard({
   if (state === 'complete') {
     return (
       <View style={styles.finishedCard}>
-        <View style={{ flex: 1 }}>
+        <View style={styles.finishedCardBody}>
           <Text style={styles.finishedCardTitle} numberOfLines={2}>
             {title}
           </Text>
@@ -404,6 +404,10 @@ function JourneyCard({
             </Text>
           )}
         </View>
+        {/* Flush against the card's own right/top/bottom edges, no padding
+            or radius of its own -- the card is overflow:hidden with its own
+            16px radius, so it clips the image's outer corners to match
+            instead of the image needing to know the card's radius itself. */}
         {!!image && <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />}
       </View>
     );
@@ -1736,19 +1740,27 @@ const styles = StyleSheet.create({
   },
   finishedCard: {
     flexDirection: 'row',
-    alignItems: 'flex-start',
+    alignItems: 'stretch',
     backgroundColor: '#111111',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
-    paddingVertical: 14,
+    overflow: 'hidden',
+    minHeight: 84,
+  },
+  finishedCardBody: {
+    flex: 1,
+    justifyContent: 'center',
+    paddingVertical: 12,
     paddingHorizontal: 16,
-    gap: 12,
   },
   finishedCardThumb: {
-    width: 44,
-    height: 44,
-    borderRadius: 10,
+    // Fixed, deliberately wide-ish panel rather than a small inset square
+    // or an exact aspect-ratio match -- fills the card's full height
+    // (alignSelf:'stretch') flush to the right edge, reading as a real
+    // cover photo rather than a tiny icon.
+    width: 100,
+    alignSelf: 'stretch',
   },
   finishedCardTitle: {
     color: 'rgba(255,255,255,0.85)',
