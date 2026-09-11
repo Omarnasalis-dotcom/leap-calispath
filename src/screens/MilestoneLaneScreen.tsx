@@ -1507,54 +1507,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     await loadJourneyProgram();
   }, [journeyData, router, loadJourneyProgram]);
 
-  // Auto-scroll to whichever row claimed activeStepRef (the current
-  // milestone, day, or quest — exactly one at a time, see the containerRef
-  // assignments below). Placed before the early RankUpReveal return, not
-  // after, so this hook is never called conditionally: showReveal toggles
-  // false->true->false within a single mount (see dismissReveal), and a
-  // hook only present on some of those render passes would violate the
-  // Rules of Hooks. The effect body itself still only touches refs, which
-  // are already attached by the time any effect runs regardless of where
-  // it's declared in the function.
-  useEffect(() => {
-    if (mode === 'journey' && journeyLoading) return;
-    const t = setTimeout(() => {
-      const node = activeStepRef.current as unknown as {
-        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
-      } | null;
-      const scrollNode = scrollViewRef.current as unknown as {
-        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
-        scrollTo: (o: { y: number; animated: boolean }) => void;
-      } | null;
-      if (!node?.measureInWindow || !scrollNode?.measureInWindow) return;
-      // measureLayout's relativeTo-node approach silently failed here
-      // (likely a New Architecture/Fabric ref quirk — this project has
-      // newArchEnabled: true) and swallowing that failure meant it just
-      // did nothing, landing on the default top-of-list position instead
-      // of scrolling — reported live as "still navigates to the first
-      // step." measureInWindow on both nodes and subtracting is a simpler,
-      // more universally reliable alternative: at this point (right after
-      // mount, before any user scrolling) the ScrollView's own offset is
-      // still 0, so the difference between the two window positions is
-      // already the target scroll offset, no relative-node argument needed.
-      // Lands the current card in the middle of the screen, not just
-      // scrolled into view at the top -- centers the node's own vertical
-      // midpoint against the screen's, using its real measured height
-      // rather than a guessed fixed offset. animated: true per direct
-      // request (reverting the brief animated:false experiment) -- opening
-      // the screen plays a real scroll from the top of the journey down to
-      // the current card instead of snapping there instantly.
-      scrollNode.measureInWindow((_svX, svY) => {
-        node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
-          const screenHeight = Dimensions.get('window').height;
-          const target = nY + nHeight / 2 - svY - screenHeight / 2;
-          scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
-        });
-      });
-    }, 400);
-    return () => clearTimeout(t);
-  }, [mode, journeyLoading, journeyData, legacyAcknowledged, legacyFlowActive]);
-
   // Plain function, not useCallback -- it's only ever called directly below
   // in the same render, never passed down as a memoized prop or referenced
   // in another hook's dependency array, so memoizing it bought nothing.
@@ -1595,12 +1547,150 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       dayGateBlockedByQuest = !isQuestSlotResolved(slotKey);
     }
   }
-  // These 6 consts above moved here (were previously computed after the
-  // showReveal/showProgramReady early returns, safe for plain consts but
-  // not for the hook right below, which must run unconditionally on every
-  // render -- see the Rules-of-Hooks incident this file's git history
-  // already documents for the exact same "hook placed after a conditional
-  // return" mistake).
+
+  // Same sequential gating everywhere — milestone 3 always waits on
+  // milestone 2, mandatory onboarding and the legacy journey view alike.
+  // "Keep it open" for legacy members means milestone 2 stays genuinely
+  // available to complete (not skipped/backfilled/hidden), not that
+  // milestone 3 gets to bypass it.
+  // OR'd with the legacy single-value field so an account that saved its
+  // goal through the old single-select screen still reads as complete.
+  const hasGoal = !!(profile?.goals && profile.goals.length) || !!profile?.primary_goal;
+  const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
+  const milestone2State: NodeState = hasGoal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
+  // Was 'active' forever once assessed+goaled, with no 'complete' branch at
+  // all -- meaning it never actually reflected "you already have a
+  // program," even weeks into one, and (since 'active' is exactly what
+  // claims the auto-scroll ref below) it permanently contested that ref
+  // against the real current day row on every single render. Confirmed via
+  // journeyData?.warriorProgramId -- the same signal an active program
+  // really exists that the rest of this screen already uses.
+  const milestone3State: NodeState = journeyData?.warriorProgramId
+    ? 'complete'
+    : profile?.assessed_at && hasGoal
+    ? 'active'
+    : 'locked';
+  // The strength trial is the one exception that keeps a real gate: it
+  // only unlocks once every day this week is done, same as before.
+  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
+  // "Strength trial card can be skipped" -- reuses the exact same
+  // skippedQuestSlots/handleSkipQuest plumbing quests already use, with a
+  // synthetic per-week slot key rather than a new tracking mechanism.
+  const trialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
+  const trialSkipped = skippedQuestSlots.has(trialSlotKey);
+
+  // Single source of truth for "which row is the current step" -- the auto-
+  // scroll ref used to be independently claimed at ~5 different render
+  // sites (each milestone, the day rows, the trial row), which only stayed
+  // mutually exclusive by coincidence: milestone3State being permanently
+  // 'active' (see its own comment above, now fixed) meant it and the real
+  // current day row briefly both matched at once, and whichever one's ref
+  // callback committed last (normally the day row, by JSX order) won by
+  // luck rather than by construction. Computing one explicit value here and
+  // having every row just compare against it makes two rows matching at
+  // once structurally impossible, not just unlikely.
+  type CurrentTarget =
+    | { kind: 'milestone'; n: 1 | 2 | 3 }
+    | { kind: 'day'; weekNumber: number; dayIndex: number }
+    | { kind: 'trial' }
+    | null;
+  const currentTarget: CurrentTarget =
+    milestone1State === 'active'
+      ? { kind: 'milestone', n: 1 }
+      : milestone2State === 'active'
+      ? { kind: 'milestone', n: 2 }
+      : milestone3State === 'active'
+      ? { kind: 'milestone', n: 3 }
+      : mode === 'journey' && journeyData && latestWeek && !weekComplete
+      ? { kind: 'day', weekNumber: latestWeek.weekNumber, dayIndex: dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer }
+      : mode === 'journey' && journeyData && weekComplete && !trialSkipped
+      ? { kind: 'trial' }
+      : null;
+  // Stable primitive derived from currentTarget -- see the auto-scroll
+  // effect just below for why this (not the currentTarget object itself,
+  // and definitely not journeyData) is what that effect should key off.
+  const currentTargetKey = currentTarget
+    ? currentTarget.kind === 'milestone'
+      ? `milestone:${currentTarget.n}`
+      : currentTarget.kind === 'day'
+      ? `day:${currentTarget.weekNumber}:${currentTarget.dayIndex}`
+      : 'trial'
+    : null;
+
+  // Auto-scroll to whichever row claimed activeStepRef (currentTarget,
+  // computed just above). Placed before the early RankUpReveal return, not
+  // after, so this hook is never called conditionally: showReveal toggles
+  // false->true->false within a single mount (see dismissReveal), and a
+  // hook only present on some of those render passes would violate the
+  // Rules of Hooks. The effect body itself still only touches refs, which
+  // are already attached by the time any effect runs regardless of where
+  // it's declared in the function.
+  //
+  // Keyed on currentTargetKey, NOT journeyData -- this used to depend on
+  // journeyData directly, which changes on every background refetch
+  // (loadJourneyProgram always produces a new object reference, even when
+  // nothing about the target actually changed) including the one that
+  // fires on literally every mount now that journeyDataCache lets this
+  // screen paint from cache first and refresh in the background. The
+  // measurement math below assumes the ScrollView's offset is still 0 --
+  // true only the FIRST time this effect's timer fires after mount. A
+  // second, spurious firing (same target, just a new journeyData
+  // reference) re-measures after the FIRST scroll has already moved the
+  // ScrollView off 0, so nY/svY now reflect the current (already-centered)
+  // on-screen position instead of the pre-scroll one -- the math then
+  // computes a target near 0 and scrolls back to the literal top.
+  // Confirmed live: "opens correct on the current card, then after
+  // milliseconds scrolls up to the first step" -- on every one of "start
+  // new week," finish a day, and even just switching tabs and back, all of
+  // which produce a fresh journeyData reference shortly after mount without
+  // the real target changing. currentTargetKey only changes when the
+  // logical target actually does, so this effect (and the scroll it does)
+  // now only ever fires once per genuine transition.
+  useEffect(() => {
+    if (mode === 'journey' && journeyLoading) return;
+    const t = setTimeout(() => {
+      const node = activeStepRef.current as unknown as {
+        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
+      } | null;
+      const scrollNode = scrollViewRef.current as unknown as {
+        measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
+        scrollTo: (o: { y: number; animated: boolean }) => void;
+      } | null;
+      if (!node?.measureInWindow || !scrollNode?.measureInWindow) return;
+      // measureLayout's relativeTo-node approach silently failed here
+      // (likely a New Architecture/Fabric ref quirk — this project has
+      // newArchEnabled: true) and swallowing that failure meant it just
+      // did nothing, landing on the default top-of-list position instead
+      // of scrolling — reported live as "still navigates to the first
+      // step." measureInWindow on both nodes and subtracting is a simpler,
+      // more universally reliable alternative: at this point (right after
+      // mount, before any user scrolling) the ScrollView's own offset is
+      // still 0, so the difference between the two window positions is
+      // already the target scroll offset, no relative-node argument needed.
+      // Lands the current card in the middle of the screen, not just
+      // scrolled into view at the top -- centers the node's own vertical
+      // midpoint against the screen's, using its real measured height
+      // rather than a guessed fixed offset. animated: true per direct
+      // request (reverting the brief animated:false experiment) -- opening
+      // the screen plays a real scroll from the top of the journey down to
+      // the current card instead of snapping there instantly.
+      scrollNode.measureInWindow((_svX, svY) => {
+        node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
+          const screenHeight = Dimensions.get('window').height;
+          const target = nY + nHeight / 2 - svY - screenHeight / 2;
+          scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
+        });
+      });
+    }, 400);
+    return () => clearTimeout(t);
+  }, [mode, journeyLoading, currentTargetKey]);
+
+  // All of the consts above (and the auto-scroll effect) live here, before
+  // the showReveal/showProgramReady early returns, rather than down by the
+  // JSX where they're consumed -- safe for plain consts to sit after a
+  // conditional return, but not for a hook, which must run unconditionally
+  // on every render (see the Rules-of-Hooks incident this file's git
+  // history already documents for the exact same mistake).
   //
   // Detects "a day just got completed and the next one just unlocked"
   // (latestDayPointer advanced since the last time this device recorded
@@ -1664,29 +1754,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   const showLegacyMilestones = mode === 'journey' && legacyFlowActive === true && !legacyAcknowledged;
 
-  // Same sequential gating everywhere — milestone 3 always waits on
-  // milestone 2, mandatory onboarding and the legacy journey view alike.
-  // "Keep it open" for legacy members means milestone 2 stays genuinely
-  // available to complete (not skipped/backfilled/hidden), not that
-  // milestone 3 gets to bypass it.
-  // OR'd with the legacy single-value field so an account that saved its
-  // goal through the old single-select screen still reads as complete.
-  const hasGoal = !!(profile?.goals && profile.goals.length) || !!profile?.primary_goal;
-  const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
-  const milestone2State: NodeState = hasGoal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  // Was 'active' forever once assessed+goaled, with no 'complete' branch at
-  // all -- meaning it never actually reflected "you already have a
-  // program," even weeks into one, and (since 'active' is exactly what
-  // claims the auto-scroll ref below) it permanently contested that ref
-  // against the real current day row on every single render. Confirmed via
-  // journeyData?.warriorProgramId -- the same signal an active program
-  // really exists that the rest of this screen already uses.
-  const milestone3State: NodeState = journeyData?.warriorProgramId
-    ? 'complete'
-    : profile?.assessed_at && hasGoal
-    ? 'active'
-    : 'locked';
-
   // Multi-select goals joined for display, 'other' substituted with the
   // athlete's own free text; falls back to the legacy single-value field
   // for accounts that only ever set that one.
@@ -1697,42 +1764,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     : profile?.primary_goal
     ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
     : null;
-  // The strength trial is the one exception that keeps a real gate: it
-  // only unlocks once every day this week is done, same as before.
-  const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
-  // "Strength trial card can be skipped" -- reuses the exact same
-  // skippedQuestSlots/handleSkipQuest plumbing quests already use, with a
-  // synthetic per-week slot key rather than a new tracking mechanism.
-  const trialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
-  const trialSkipped = skippedQuestSlots.has(trialSlotKey);
-
-  // Single source of truth for "which row is the current step" -- the auto-
-  // scroll ref used to be independently claimed at ~5 different render
-  // sites (each milestone, the day rows, the trial row), which only stayed
-  // mutually exclusive by coincidence: milestone3State being permanently
-  // 'active' (see its own comment above, now fixed) meant it and the real
-  // current day row briefly both matched at once, and whichever one's ref
-  // callback committed last (normally the day row, by JSX order) won by
-  // luck rather than by construction. Computing one explicit value here and
-  // having every row just compare against it makes two rows matching at
-  // once structurally impossible, not just unlikely.
-  type CurrentTarget =
-    | { kind: 'milestone'; n: 1 | 2 | 3 }
-    | { kind: 'day'; weekNumber: number; dayIndex: number }
-    | { kind: 'trial' }
-    | null;
-  const currentTarget: CurrentTarget =
-    milestone1State === 'active'
-      ? { kind: 'milestone', n: 1 }
-      : milestone2State === 'active'
-      ? { kind: 'milestone', n: 2 }
-      : milestone3State === 'active'
-      ? { kind: 'milestone', n: 3 }
-      : mode === 'journey' && journeyData && latestWeek && !weekComplete
-      ? { kind: 'day', weekNumber: latestWeek.weekNumber, dayIndex: dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer }
-      : mode === 'journey' && journeyData && weekComplete && !trialSkipped
-      ? { kind: 'trial' }
-      : null;
 
   return (
     <View style={styles.screen}>
