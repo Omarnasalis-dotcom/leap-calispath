@@ -251,6 +251,15 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     segments[0] === 'coach' ||
     segments[0] === 'customize-program' ||
     segments[0] === 'program-templates';
+  // The paywall itself must stay reachable from any of the above: AI Coach,
+  // Customize Program, and Ready Template all push here for a non-pro user
+  // mid-onboarding (onboarding_completed_at still null). Without this
+  // exemption, rule 5b below fires the instant router.push('/paywall') lands
+  // (segments[0] becomes 'paywall', matching none of the exemptions), and its
+  // synchronous <Redirect> back to /onboarding-journey wins the race against
+  // the paywall ever presenting -- reported live as "fails to open paywall,
+  // navigates back to journey screen" for all 3 build-program tools.
+  const inPaywall = segments[0] === 'paywall';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
@@ -294,7 +303,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // point, so finishing it must bounce the user back to the lane for
       // the tier-reveal, not strand them on the now-finished assessment
       // screen — that screen relies entirely on this redirect to leave.
-      if (!inOnboardingJourney && !inGoalsEquipment && !inBuildProgramRoute) {
+      if (!inOnboardingJourney && !inGoalsEquipment && !inBuildProgramRoute && !inPaywall) {
         return <Redirect href="/onboarding-journey" />;
       }
     } else {
