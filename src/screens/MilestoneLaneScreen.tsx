@@ -1462,8 +1462,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // The one warrior-driven write of current_week in the app — everywhere
   // else it only ever moves via coach/AI-coach week management (append/
   // archive). Scoped to a plain guarded UPDATE (RLS already allows
-  // warrior_id = auth.uid()) rather than a new RPC; only fires on this one
-  // explicit "I'm ready to move on" tap, never automatically.
+  // warrior_id = auth.uid()) rather than a new RPC when there's nothing to
+  // clone (hasNextWeek path); only fires on this one explicit "I'm ready to
+  // move on" tap, never automatically.
   const [advancingWeek, setAdvancingWeek] = useState(false);
   const handleContinueProgram = useCallback(async () => {
     if (!journeyData) return;
@@ -1483,8 +1484,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     // (create_custom_program_from_workouts hardcodes week_number = 1) --
     // reported live as "after finishing the week he customized he can't
     // add a new week." add_week_to_own_program clones the current week's
-    // blocks forward as the next one; the current_week bump below (shared
-    // with the hasNextWeek path) is what actually makes it the active week.
+    // blocks forward as the next one, AND bumps current_week itself in the
+    // same call now (see its own migration) -- this used to be a separate
+    // client round trip after the RPC returned; reported live as "start
+    // new week is slowing the app," and three sequential round trips
+    // (RPC, update, then the full reload below) added up to a genuinely
+    // long, fully-blocked wait. Folding the bump into the RPC removes one
+    // of the three.
     if (!journeyData.hasNextWeek && journeyData.canAddWeek) {
       const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
         p_warrior_program_id: journeyData.warriorProgramId,
@@ -1495,23 +1501,31 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
         return;
       }
+    } else {
+      // hasNextWeek path: a pre-built week already exists, nothing to
+      // clone -- just bump current_week directly, same as before.
+      const { error } = await supabase
+        .from('warrior_programs')
+        .update({ current_week: journeyData.currentWeek + 1 })
+        .eq('id', journeyData.warriorProgramId);
+      if (error) {
+        console.error('Failed to advance to next week:', error);
+        setAdvancingWeek(false);
+        router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
+        return;
+      }
     }
 
-    const { error } = await supabase
-      .from('warrior_programs')
-      .update({ current_week: journeyData.currentWeek + 1 })
-      .eq('id', journeyData.warriorProgramId);
+    // Re-enable the banner/button now -- the write that actually matters
+    // (advancing the week) already succeeded. Per direct request: reveal
+    // the new week's cards right here in the lane instead of navigating
+    // into the training center's day list -- the whole point of "start
+    // next week" is to see the new week open up, not to jump straight
+    // into day 1. loadJourneyProgram manages its own loading state and,
+    // thanks to journeyDataCache, won't blank the lane either -- no need
+    // to keep the whole banner blocked on it too, so this isn't awaited.
     setAdvancingWeek(false);
-    if (error) {
-      console.error('Failed to advance to next week:', error);
-      router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
-      return;
-    }
-    // Per direct request: reveal the new week's cards right here in the
-    // lane (reload journeyData in place) instead of navigating into the
-    // training center's day list -- the whole point of "start next week"
-    // is to see the new week open up, not to jump straight into day 1.
-    await loadJourneyProgram();
+    loadJourneyProgram();
   }, [journeyData, router, loadJourneyProgram]);
 
   // Plain function, not useCallback -- it's only ever called directly below
