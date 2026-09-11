@@ -612,19 +612,28 @@ const GOAL_LABELS: Record<string, string> = Object.fromEntries(
 function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean }) {
   return (
     <TouchableOpacity style={styles.choiceCard} onPress={onPress}>
+      {/* Corner ribbon, not an inline chip -- gold metallic gradient (same
+          gold as the profile header's "First" tier badge/crown-outline
+          upgrade chip, SUBSCRIPTION_TIER_COLORS.first) rather than the flat
+          coral "PRO" pill used on Program Templates, so this reads as its
+          own premium cue instead of a same-color restyle of the app's
+          generic locked/gated badge. */}
+      {showProBadge && (
+        <LinearGradient
+          colors={['#F3D477', '#C9A227', '#8F7415']}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.proBadgeCorner}
+        >
+          <MaterialCommunityIcons name="crown" size={9} color="#2B2000" />
+          <Text style={styles.proBadgeCornerText}>PRO</Text>
+        </LinearGradient>
+      )}
       <View style={styles.choiceIconWrap}>
         <MaterialCommunityIcons name={icon as any} size={22} color={ACCENT} />
       </View>
       <View style={{ flex: 1 }}>
-        <View style={styles.choiceTitleRow}>
-          <Text style={styles.choiceTitle}>{title}</Text>
-          {showProBadge && (
-            <View style={styles.proBadge}>
-              <MaterialCommunityIcons name="crown" size={9} color="#FFFFFF" />
-              <Text style={styles.proBadgeText}>PRO</Text>
-            </View>
-          )}
-        </View>
+        <Text style={styles.choiceTitle}>{title}</Text>
         <Text style={styles.choiceDesc}>{desc}</Text>
       </View>
       <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.2)" />
@@ -2623,7 +2632,11 @@ const styles = StyleSheet.create({
     letterSpacing: 1.5,
   },
   choiceStack: {
-    marginTop: 12,
+    // Extra headroom vs. the plain 12px other lane sections use -- the gold
+    // corner ribbon on a gated card pokes 8px above its own card top edge,
+    // so the first card needs enough clearance from the "03 BUILD YOUR
+    // PROGRAM" copy above it not to crowd the ribbon.
+    marginTop: 18,
   },
   choiceCard: {
     flexDirection: 'row',
@@ -2644,31 +2657,36 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  choiceTitleRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
   choiceTitle: {
     color: '#FFFFFF',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 13,
     letterSpacing: 1,
   },
-  proBadge: {
+  proBadgeCorner: {
+    position: 'absolute',
+    top: -8,
+    left: 14,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    backgroundColor: '#FF5252',
-    borderRadius: 6,
-    paddingHorizontal: 7,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    shadowColor: '#C9A227',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 5,
+    zIndex: 2,
   },
-  proBadgeText: {
-    color: '#FFFFFF',
+  proBadgeCornerText: {
+    color: '#2B2000',
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 8,
-    letterSpacing: 0.4,
+    letterSpacing: 0.6,
   },
   choiceDesc: {
     color: 'rgba(255,255,255,0.65)',
