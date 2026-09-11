@@ -36,7 +36,7 @@ export function describeSubmitError(error: any, fallback: string): string {
  * where the first request after a period of socket inactivity fails outright
  * and an immediate retry succeeds — not a real connectivity problem.
  */
-function isTransientNetworkError(error: any): boolean {
+export function isTransientNetworkError(error: any): boolean {
   if (!error || error.name === 'AbortError') return false;
   const message = String(error?.message || '').toLowerCase();
   return message.includes('network request failed') || message.includes('network error');

@@ -16,6 +16,7 @@ import {
 } from '@react-native-google-signin/google-signin';
 import Purchases from 'react-native-purchases';
 import { checkPaywallEnabled } from '../lib/appVersion';
+import { withNetworkRetry, isTransientNetworkError } from '../lib/submitErrors';
 
 let googleSigninConfigured = false;
 function ensureGoogleSigninConfigured() {
@@ -274,8 +275,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // request timeout. AuthGuard's `user && !profile` check has no escape
       // hatch of its own, so that hang shows up as an infinite splash-screen
       // spin with no way to recover short of force-quitting the app.
+      // The plain (unwrapped) rpc call used to surface a "TypeError: Network
+      // request failed" console error on the well-known RN flake this
+      // codebase already has a fix for elsewhere (see withNetworkRetry) --
+      // the first request after a period of socket inactivity fails outright
+      // and an immediate retry succeeds. Every other network call in the app
+      // is wrapped in it already; this was the one gap, and profile reads
+      // are inherently safe to retry (no side effects). Postgrest resolves a
+      // transport failure as {error} rather than rejecting, so it has to be
+      // re-thrown here for withNetworkRetry's catch to see it as retryable;
+      // any other error (including PGRST116, "no rows") passes through
+      // untouched for the handling below.
       const { data, error } = await Promise.race([
-        supabase.rpc('get_my_profile').single(),
+        withNetworkRetry(async () => {
+          const result = await supabase.rpc('get_my_profile').single();
+          if (result.error && isTransientNetworkError(result.error)) {
+            throw result.error;
+          }
+          return result;
+        }),
         new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('fetchProfile timed out')), 10000)
         ),
