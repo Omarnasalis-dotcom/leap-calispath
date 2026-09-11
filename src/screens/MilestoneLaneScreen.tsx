@@ -1477,6 +1477,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     [profile?.id, submittingProgramReady, refreshProfile]
   );
 
+  // Milestone 3's 4th, low-emphasis option -- lets a new user finish
+  // onboarding without picking a build tool at all, landing on Profile to
+  // build one later (already a fully handled state: TrainingCenterScreen,
+  // WarriorProgramScreen and ProfileScreen all treat "onboarded, no active
+  // program" as a real, existing case for legacy/ended-program members, not
+  // just a hypothetical). Reuses handleProgramReadyChoice's own write --
+  // ProgramReadyReveal itself is skipped, not reused, since its copy
+  // ("YOUR PROGRAM IS READY") would be false here. A legacy member revisiting
+  // this card from the free-roam Journey tab already has
+  // onboarding_completed_at set, so there's nothing to write -- just leave.
+  const handleSkipProgramForLater = useCallback(() => {
+    acknowledgeLegacyOnboarding();
+    if (profile?.onboarding_completed_at) {
+      router.replace('/profile');
+      return;
+    }
+    handleProgramReadyChoice('profile');
+  }, [acknowledgeLegacyOnboarding, profile?.onboarding_completed_at, handleProgramReadyChoice, router]);
+
   // The one warrior-driven write of current_week in the app — everywhere
   // else it only ever moves via coach/AI-coach week management (append/
   // archive). Scoped to a plain guarded UPDATE (RLS already allows
@@ -1932,6 +1951,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     router.push('/program-templates');
                   }}
                 />
+                {/* Deliberately not a 4th ProgramChoiceCard -- same low-
+                    emphasis outlined-pill treatment as the quest bubble's
+                    own SKIP action (questBubbleCtaSecondary), so it reads as
+                    an opt-out, not a 4th equal path competing with the 3
+                    real build tools. */}
+                <TouchableOpacity
+                  style={styles.skipProgramBtn}
+                  disabled={submittingProgramReady}
+                  onPress={handleSkipProgramForLater}
+                >
+                  <Text style={styles.skipProgramBtnText}>SKIP FOR LATER</Text>
+                </TouchableOpacity>
               </View>
             </NodeRow>
 
@@ -2694,5 +2725,20 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: 3,
     lineHeight: 16,
+  },
+  skipProgramBtn: {
+    alignSelf: 'center',
+    marginTop: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
+    paddingVertical: 8,
+    paddingHorizontal: 18,
+    borderRadius: 18,
+  },
+  skipProgramBtnText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 11,
+    letterSpacing: 1,
   },
 });
