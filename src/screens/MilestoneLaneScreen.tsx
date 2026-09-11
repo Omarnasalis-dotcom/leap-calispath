@@ -1585,6 +1585,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // synthetic per-week slot key rather than a new tracking mechanism.
   const trialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
   const trialSkipped = skippedQuestSlots.has(trialSlotKey);
+  // A real pass wasn't tracked at all before -- app/trial.tsx never
+  // signalled it back to this screen (no questSlotKey param, no
+  // completeQuestAndReturn), so the trial card stayed 'active' forever
+  // even after actually completing it. Confirmed live: "strength trial
+  // still opened after completing the trial." Reuses the exact same
+  // questDone/completedQuestSlots plumbing regular side quests already use
+  // (see the trial's onPressCta below, which now passes questSlotKey).
+  const trialResolved = isQuestSlotResolved(trialSlotKey);
 
   // Single source of truth for "which row is the current step" -- the auto-
   // scroll ref used to be independently claimed at ~5 different render
@@ -1610,7 +1618,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       ? { kind: 'milestone', n: 3 }
       : mode === 'journey' && journeyData && latestWeek && !weekComplete
       ? { kind: 'day', weekNumber: latestWeek.weekNumber, dayIndex: dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer }
-      : mode === 'journey' && journeyData && weekComplete && !trialSkipped
+      : mode === 'journey' && journeyData && weekComplete && !trialResolved
       ? { kind: 'trial' }
       : null;
   // Stable primitive derived from currentTarget -- see the auto-scroll
@@ -2021,11 +2029,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
-                  state={trialSkipped ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
+                  state={trialResolved ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
                   title="STRENGTH TRIAL"
                   desc={
                     trialSkipped
                       ? 'Skipped.'
+                      : trialResolved
+                      ? 'Done — nice work.'
                       : !isTrialWeek
                       ? `Every 2 weeks — next available Week ${journeyData.currentWeek + 1}.`
                       : weekComplete
@@ -2034,9 +2044,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   }
                   image={pickFromPool(RANDOM_IMAGES, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel="START"
-                  onPressCta={() => router.push({ pathname: '/trial', params: { mode: 'progression', returnTo: 'journey' } })}
-                  secondaryCtaLabel={!trialSkipped ? 'SKIP' : undefined}
-                  onPressSecondaryCta={!trialSkipped ? () => handleSkipQuest(trialSlotKey) : undefined}
+                  onPressCta={() =>
+                    router.push({
+                      pathname: '/trial',
+                      params: { mode: 'progression', returnTo: 'journey', questSlotKey: trialSlotKey },
+                    })
+                  }
+                  secondaryCtaLabel={!trialResolved ? 'SKIP' : undefined}
+                  onPressSecondaryCta={!trialResolved ? () => handleSkipQuest(trialSlotKey) : undefined}
                   isLast
                   staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   // Once the day/quest sequence is exhausted, none of those

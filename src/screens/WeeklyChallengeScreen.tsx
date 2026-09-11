@@ -636,7 +636,6 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
   selectedWeekStart,
   onSubmitSuccess,
 }) => {
-  const isMounted = useMountedRef();
   const { completeQuestAndReturn } = useReturnTo();
   const timerInitial = challenge?.scoring_type === 'reps' ? (challenge.time_limit || 10) * 60 : 0;
   const timerMode = challenge?.scoring_type === 'reps' ? 'down' : 'up';
@@ -794,10 +793,21 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
         // Came from a My Journey side quest — head back and mark this slot
         // complete (no-op if not), same pattern as StaticWorldScreen/
         // PowerWorldScreen/OneMinMaxScreen. A brief pause first so the
-        // NEW BEST!/Not a PB alert is actually visible rather than the
+        // NEW BEST!/Not a PB alert (a native dialog, independent of this
+        // component's own mount state) is actually visible rather than the
         // screen getting yanked away underneath it.
+        //
+        // Deliberately NOT gated on isMounted here -- onClose() just above
+        // sets showSubmitModal=false on the parent, which conditionally
+        // un-renders this whole component (WeeklyChallengeScreen:394) almost
+        // immediately, so isMounted.current was always false by the time
+        // this timeout fired and silently skipped the call every time.
+        // Confirmed live: "doesn't navigate back, side quest still shows
+        // not completed." completeQuestAndReturn() only calls
+        // router.replace(), which is safe regardless of whether the
+        // component that scheduled it is still mounted.
         setTimeout(() => {
-          if (isMounted.current) completeQuestAndReturn();
+          completeQuestAndReturn();
         }, 1500);
       }
     });
