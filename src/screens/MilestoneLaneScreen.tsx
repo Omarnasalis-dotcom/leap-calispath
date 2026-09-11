@@ -1851,6 +1851,28 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onDismiss={() => setShowRankToast(false)}
       />
     )}
+    {/* Floating, not inside the ScrollView -- a user who's just reached step
+        3 and doesn't want to build a program right now has no other way
+        out: mode='onboarding' never shows BottomTabBar (see below), so
+        without this they're stuck until they pick one of the 3 build
+        tools. Sits above the scroll content at a fixed screen position so
+        it's visible immediately on arrival, not just after scrolling down
+        to step 3's cards (and stays put through this screen's own
+        auto-scroll-to-current-step behavior). Only shown during real
+        onboarding, once step 3 is actually reachable (assessed + goal set,
+        no program yet) -- a returning journey-tab user isn't stuck (they
+        already have the tab bar), so it'd be a redundant, confusing
+        duplicate action for them. */}
+    {mode === 'onboarding' && milestone3State === 'active' && (
+      <TouchableOpacity
+        style={styles.skipOnboardingBtn}
+        disabled={submittingProgramReady}
+        onPress={handleSkipProgramForLater}
+      >
+        <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
+        <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.6)" />
+      </TouchableOpacity>
+    )}
     <ScrollView
       ref={scrollViewRef}
       contentContainerStyle={styles.scrollContent}
@@ -1951,18 +1973,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     router.push('/program-templates');
                   }}
                 />
-                {/* Deliberately not a 4th ProgramChoiceCard -- same low-
-                    emphasis outlined-pill treatment as the quest bubble's
-                    own SKIP action (questBubbleCtaSecondary), so it reads as
-                    an opt-out, not a 4th equal path competing with the 3
-                    real build tools. */}
-                <TouchableOpacity
-                  style={styles.skipProgramBtn}
-                  disabled={submittingProgramReady}
-                  onPress={handleSkipProgramForLater}
-                >
-                  <Text style={styles.skipProgramBtnText}>SKIP FOR LATER</Text>
-                </TouchableOpacity>
               </View>
             </NodeRow>
 
@@ -2726,17 +2736,23 @@ const styles = StyleSheet.create({
     marginTop: 3,
     lineHeight: 16,
   },
-  skipProgramBtn: {
-    alignSelf: 'center',
-    marginTop: 4,
+  skipOnboardingBtn: {
+    position: 'absolute',
+    top: 14,
+    right: 16,
+    zIndex: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+    backgroundColor: 'rgba(17,17,17,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    borderRadius: 18,
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 16,
   },
-  skipProgramBtnText: {
-    color: 'rgba(255,255,255,0.6)',
+  skipOnboardingBtnText: {
+    color: 'rgba(255,255,255,0.75)',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 11,
     letterSpacing: 1,
