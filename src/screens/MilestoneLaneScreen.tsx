@@ -1087,6 +1087,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // requiring a manual scroll past however much history exists above it.
   const scrollViewRef = useRef<ScrollView>(null);
   const activeStepRef = useRef<View>(null);
+  // Real, currently-known scroll offset, updated on every onScroll event
+  // (including the frames of this screen's own animated auto-scroll --
+  // animated scrollTo genuinely fires onScroll per frame on both
+  // platforms). See the auto-scroll effect below for why this replaced an
+  // "assume the offset is still 0" shortcut that broke the second time the
+  // effect ever had to scroll within one mount.
+  const scrollOffsetRef = useRef(0);
   // Existing members from before this feature shipped got onboarding_completed_at
   // backfilled to unblock them from AuthGuard, but never actually saw
   // milestones 2/3 — primary_goal is the real signal for that (backfill never
@@ -1663,21 +1670,33 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // did nothing, landing on the default top-of-list position instead
       // of scrolling — reported live as "still navigates to the first
       // step." measureInWindow on both nodes and subtracting is a simpler,
-      // more universally reliable alternative: at this point (right after
-      // mount, before any user scrolling) the ScrollView's own offset is
-      // still 0, so the difference between the two window positions is
-      // already the target scroll offset, no relative-node argument needed.
-      // Lands the current card in the middle of the screen, not just
-      // scrolled into view at the top -- centers the node's own vertical
-      // midpoint against the screen's, using its real measured height
-      // rather than a guessed fixed offset. animated: true per direct
-      // request (reverting the brief animated:false experiment) -- opening
-      // the screen plays a real scroll from the top of the journey down to
-      // the current card instead of snapping there instantly.
+      // more universally reliable alternative.
+      //
+      // nY/svY are CURRENT on-screen (window) positions -- not absolute
+      // content offsets -- so (nY - svY) alone only equals the correct
+      // target when the ScrollView's own offset happens to be 0 at
+      // measurement time. That's true the very first time this effect
+      // ever scrolls within a mount, but not the second: currentTargetKey
+      // (this effect's dependency) can legitimately change twice in one
+      // mount -- e.g. finishing a day: the first render paints from
+      // journeyDataCache's stale (pre-workout) target, gets scrolled to,
+      // then the background refetch lands with the real (post-workout)
+      // target and this effect runs again -- and by then the ScrollView is
+      // already sitting wherever the first scroll left it, not 0.
+      // Re-adding scrollOffsetRef.current (kept live via onScroll,
+      // including during this effect's own animated scrolls) converts the
+      // on-screen delta back into a real absolute content offset
+      // regardless of how many times this has already run. Confirmed live
+      // this was still wrong even after currentTargetKey stopped the
+      // no-op-transition case: "finish day card... scroll back" and
+      // "hit start new week... scroll back" both genuinely change the
+      // target twice in one mount, which currentTargetKey alone doesn't
+      // protect against -- only tracking the real offset does.
       scrollNode.measureInWindow((_svX, svY) => {
         node.measureInWindow!((_nX, nY, _nWidth, nHeight) => {
           const screenHeight = Dimensions.get('window').height;
-          const target = nY + nHeight / 2 - svY - screenHeight / 2;
+          const nodeAbsoluteY = scrollOffsetRef.current + (nY - svY);
+          const target = nodeAbsoluteY - screenHeight / 2 + nHeight / 2;
           scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
         });
       });
@@ -1773,7 +1792,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onDismiss={() => setShowRankToast(false)}
       />
     )}
-    <ScrollView ref={scrollViewRef} contentContainerStyle={styles.scrollContent}>
+    <ScrollView
+      ref={scrollViewRef}
+      contentContainerStyle={styles.scrollContent}
+      onScroll={(e) => {
+        scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
+      }}
+      scrollEventThrottle={16}
+    >
       <Text style={styles.header}>MY JOURNEY</Text>
 
       <View style={styles.lane}>
