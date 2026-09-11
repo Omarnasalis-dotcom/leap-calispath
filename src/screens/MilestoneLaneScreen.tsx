@@ -981,6 +981,39 @@ interface JourneyProgramData {
 // switching users on the same device.
 let journeyDataCache: { profileId: string; data: JourneyProgramData } | null = null;
 
+// Same remount-survival reasoning as journeyDataCache, applied to the other
+// pieces of state this screen hydrates from AsyncStorage on every fresh
+// mount (completedQuestSlots/skippedQuestSlots/legacyAcknowledged/
+// legacyFlowActive) -- without this, all four reset to their defaults
+// (empty Sets, false, null) on every remount and only repopulate a tick
+// later once the AsyncStorage reads resolve, so anything derived from them
+// (dayGateBlockedByQuest, showLegacyMilestones) is transiently wrong right
+// after every remount. Kept as one object since all four are hydrated
+// together in one effect; updated incrementally as each async read (or
+// user action) resolves via updateLocalFlagsCache below.
+interface LocalFlagsCache {
+  profileId: string;
+  completedQuestSlots: Set<string>;
+  skippedQuestSlots: Set<string>;
+  legacyAcknowledged: boolean;
+  legacyFlowActive: boolean | null;
+}
+let localFlagsCache: LocalFlagsCache | null = null;
+function updateLocalFlagsCache(profileId: string, patch: Partial<Omit<LocalFlagsCache, 'profileId'>>) {
+  const base: LocalFlagsCache =
+    localFlagsCache?.profileId === profileId
+      ? localFlagsCache
+      : { profileId, completedQuestSlots: new Set(), skippedQuestSlots: new Set(), legacyAcknowledged: false, legacyFlowActive: null };
+  localFlagsCache = { ...base, ...patch };
+}
+
+// Same pattern again, for the assessment tier-reveal's "already shown"
+// check -- see the showReveal detection effect for how this closes a real
+// race (loadJourneyProgram's heavy fetch starting before the async
+// AsyncStorage check had a chance to defer it, on exactly the first-time
+// case that deferral exists for).
+let revealShownCache: { profileId: string; shownForAssessedAt: string } | null = null;
+
 const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
 const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
 // Matches the constant of the same name used server-side (e.g.
@@ -1007,7 +1040,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // the rank just earned to milestone 2 unlocking underneath it. Cleared
   // either by its own auto-dismiss timer or a tap (see RankUpToast).
   const [showRankToast, setShowRankToast] = useState(false);
-  const revealCheckedRef = useRef(false);
+  // Whether we've determined (sync from revealShownCache, or async via
+  // AsyncStorage) if the tier-reveal is due. Starts true only when the
+  // module cache already confirms it was shown for this exact assessed_at
+  // earlier this session -- see the detection effect and loadJourneyProgram's
+  // focus effect below for why this (not a ref) is what actually closes the
+  // race that let the heavy fetch start before showReveal had a chance to
+  // become true on the very first time it mattered.
+  const [revealChecked, setRevealChecked] = useState(
+    () => !profile?.assessed_at || (revealShownCache?.profileId === profile?.id && revealShownCache.shownForAssessedAt === profile.assessed_at)
+  );
   // Lazy initializers read the module-level cache synchronously on this
   // instance's very first render -- if this profile already has a cached
   // journey (from before this mount, e.g. the instance this remount
@@ -1025,13 +1067,20 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // device by design (AsyncStorage, same pattern as the tier-reveal flag):
   // this is a lightweight gamification signal, not core progress data, so
   // it doesn't need a new table or cross-device sync.
-  const [completedQuestSlots, setCompletedQuestSlots] = useState<Set<string>>(new Set());
+  // Lazy initializers read localFlagsCache the same way journeyData does --
+  // correct from this remount's very first render instead of resetting to
+  // empty and repopulating a tick later. See localFlagsCache's own comment.
+  const [completedQuestSlots, setCompletedQuestSlots] = useState<Set<string>>(() =>
+    localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.completedQuestSlots : new Set()
+  );
   // Side quests explicitly skipped (SKIP button, not a real log) — a
   // separate set from completedQuestSlots so the UI can still say
   // "Skipped." honestly rather than "Done." Gating-wise the two are
   // equivalent (both resolve the slot and unlock the next day); only the
   // copy differs.
-  const [skippedQuestSlots, setSkippedQuestSlots] = useState<Set<string>>(new Set());
+  const [skippedQuestSlots, setSkippedQuestSlots] = useState<Set<string>>(() =>
+    localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.skippedQuestSlots : new Set()
+  );
   // Auto-scroll target: whichever single row is "the current step" gets
   // this ref attached (only one at a time, across whichever branch is
   // rendering) so the screen can jump straight to it on load instead of
@@ -1047,7 +1096,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // milestone-3 option), then this screen behaves like any other returning
   // user's — never silently skipped straight to the day path without the
   // user ever having seen it.
-  const [legacyAcknowledged, setLegacyAcknowledged] = useState(false);
+  const [legacyAcknowledged, setLegacyAcknowledged] = useState(() =>
+    localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.legacyAcknowledged : false
+  );
   // Whether this account was ever a "legacy" one (needs the catch-up
   // milestone view at all) — null until loaded. Deliberately NOT derived
   // live from profile.primary_goal on every mount: that field legitimately
@@ -1064,29 +1115,45 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // milestone 3 (or reinstalls/switches devices, at which point re-deriving
   // from current profile state is a reasonable fallback — this is
   // deliberately local/lightweight bookkeeping, not core progress data).
-  const [legacyFlowActive, setLegacyFlowActive] = useState<boolean | null>(null);
+  const [legacyFlowActive, setLegacyFlowActive] = useState<boolean | null>(() =>
+    localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.legacyFlowActive : null
+  );
 
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id) return;
     AsyncStorage.getItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`)
       .then((stored) => {
-        if (stored) setCompletedQuestSlots(new Set(JSON.parse(stored)));
+        if (stored) {
+          const parsed = new Set<string>(JSON.parse(stored));
+          setCompletedQuestSlots(parsed);
+          updateLocalFlagsCache(profile.id, { completedQuestSlots: parsed });
+        }
       })
       .catch(() => {});
     AsyncStorage.getItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`)
       .then((stored) => {
-        if (stored) setSkippedQuestSlots(new Set(JSON.parse(stored)));
+        if (stored) {
+          const parsed = new Set<string>(JSON.parse(stored));
+          setSkippedQuestSlots(parsed);
+          updateLocalFlagsCache(profile.id, { skippedQuestSlots: parsed });
+        }
       })
       .catch(() => {});
     AsyncStorage.getItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`)
-      .then((stored) => setLegacyAcknowledged(stored === 'true'))
+      .then((stored) => {
+        const acknowledged = stored === 'true';
+        setLegacyAcknowledged(acknowledged);
+        updateLocalFlagsCache(profile.id, { legacyAcknowledged: acknowledged });
+      })
       .catch(() => {});
 
     const flowKey = `${LEGACY_FLOW_KEY_PREFIX}${profile.id}`;
     AsyncStorage.getItem(flowKey)
       .then((stored) => {
         if (stored === 'true' || stored === 'false') {
-          setLegacyFlowActive(stored === 'true');
+          const flowActive = stored === 'true';
+          setLegacyFlowActive(flowActive);
+          updateLocalFlagsCache(profile.id, { legacyFlowActive: flowActive });
           return;
         }
         // First time this has ever been decided for this account — lock it
@@ -1097,9 +1164,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         const hasGoal = !!profile.primary_goal || !!(profile.goals && profile.goals.length);
         const decided = !hasGoal;
         setLegacyFlowActive(decided);
+        updateLocalFlagsCache(profile.id, { legacyFlowActive: decided });
         AsyncStorage.setItem(flowKey, decided ? 'true' : 'false').catch(() => {});
       })
-      .catch(() => setLegacyFlowActive(!profile.primary_goal && !(profile.goals && profile.goals.length)));
+      .catch(() => {
+        const fallback = !profile.primary_goal && !(profile.goals && profile.goals.length);
+        setLegacyFlowActive(fallback);
+        updateLocalFlagsCache(profile.id, { legacyFlowActive: fallback });
+      });
     // Deliberately excludes profile.primary_goal — this must only run once
     // per (mode, profile.id), not re-run when the goal is later filled in.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1113,6 +1185,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     if (mode !== 'journey') return;
     setLegacyAcknowledged(true);
     if (profile?.id) {
+      updateLocalFlagsCache(profile.id, { legacyAcknowledged: true });
       AsyncStorage.setItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`, 'true').catch(() => {});
     }
   }, [mode, profile?.id]);
@@ -1126,6 +1199,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (prev.has(questDone)) return prev;
       const next = new Set(prev);
       next.add(questDone);
+      updateLocalFlagsCache(profile.id, { completedQuestSlots: next });
       AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
       return next;
     });
@@ -1138,6 +1212,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         if (prev.has(slotKey)) return prev;
         const next = new Set(prev);
         next.add(slotKey);
+        updateLocalFlagsCache(profile.id, { skippedQuestSlots: next });
         AsyncStorage.setItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
         return next;
       });
@@ -1287,31 +1362,54 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // assessment flow) — reported live as "the rank up modal is heavy
       // lagging when opening the journey." The data isn't displayed while
       // the reveal covers the screen anyway, so there's nothing to lose by
-      // deferring the fetch until it's dismissed (see showReveal in the
-      // dependency array below, same pattern as the refreshProfile effect
-      // above).
-      if (showReveal) return;
+      // deferring the fetch until it's dismissed.
+      //
+      // Gating on showReveal alone had a real race: showReveal is only set
+      // true by an async AsyncStorage check (see the detection effect),
+      // and effect bodies across one commit all run synchronously before
+      // any of their own .then() callbacks -- so on the exact first-time
+      // case this comment is about, this effect's body always ran (and
+      // started the fetch) before that check had a chance to flip
+      // showReveal true. revealChecked closes that: it starts false
+      // (blocking) unless revealShownCache already confirms synchronously
+      // that no reveal is due, so the fetch stays blocked until we
+      // actually know one way or the other.
+      if (!revealChecked || showReveal) return;
       loadJourneyProgram();
-    }, [loadJourneyProgram, showReveal])
+    }, [loadJourneyProgram, showReveal, revealChecked])
   );
 
   // The tier-reveal celebration fires exactly once per assessment result —
   // AsyncStorage remembers the assessed_at timestamp it was last shown for,
   // so re-focusing this screen (e.g. after Goals & Equipment) doesn't replay it.
   useEffect(() => {
-    if (!profile?.assessed_at || !profile?.id) return;
+    const assessedAt = profile?.assessed_at;
+    const profileId = profile?.id;
+    if (!assessedAt || !profileId) {
+      setRevealChecked(true);
+      return;
+    }
+    // Already confirmed shown for this exact assessed_at earlier this
+    // session -- no need to even ask AsyncStorage, and critically, no need
+    // to keep loadJourneyProgram's focus effect blocked either.
+    if (revealShownCache?.profileId === profileId && revealShownCache.shownForAssessedAt === assessedAt) {
+      setRevealChecked(true);
+      return;
+    }
     let cancelled = false;
-    const key = `${REVEAL_SHOWN_KEY_PREFIX}${profile.id}`;
+    const key = `${REVEAL_SHOWN_KEY_PREFIX}${profileId}`;
     AsyncStorage.getItem(key)
       .then((shownFor) => {
         if (cancelled) return;
-        if (shownFor !== profile.assessed_at) {
+        if (shownFor !== assessedAt) {
           setShowReveal(true);
+        } else {
+          revealShownCache = { profileId, shownForAssessedAt: assessedAt };
         }
-        revealCheckedRef.current = true;
+        setRevealChecked(true);
       })
       .catch(() => {
-        revealCheckedRef.current = true;
+        setRevealChecked(true);
       });
     return () => {
       cancelled = true;
@@ -1320,6 +1418,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   const dismissReveal = useCallback(() => {
     if (profile?.id && profile?.assessed_at) {
+      revealShownCache = { profileId: profile.id, shownForAssessedAt: profile.assessed_at };
       AsyncStorage.setItem(`${REVEAL_SHOWN_KEY_PREFIX}${profile.id}`, profile.assessed_at).catch(() => {});
     }
     setShowReveal(false);
@@ -1509,13 +1608,19 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // the two cards for 10s -- per direct request, a small reveal moment on
   // every day-to-day step, not just the bigger milestone transitions.
   // Recorded per week (not globally) so entering a new week never
-  // accidentally cheers on its first-ever render, and skips entirely while
-  // dayGateBlockedByQuest is true (nothing new actually unlocked yet).
+  // accidentally cheers on its first-ever render (storedIndex === null
+  // below already covers that -- see the audit note this replaced: the
+  // guard used to also skip whenever latestDayPointer <= 0, which meant
+  // day 1's baseline was NEVER recorded while day 1 was active, so
+  // finishing a week's first day could never find a baseline to compare
+  // against and never fired the cheer -- confirmed live). Still skips
+  // entirely while dayGateBlockedByQuest is true (nothing new actually
+  // unlocked yet).
   const [justUnlockedDayIndex, setJustUnlockedDayIndex] = useState<number | null>(null);
   const dayCheerTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id || !journeyData || !latestWeek) return;
-    if (dayGateBlockedByQuest || latestDayPointer <= 0) return;
+    if (dayGateBlockedByQuest) return;
     const key = `${SEEN_ACTIVE_DAY_KEY_PREFIX}${profile.id}_w${journeyData.currentWeek}`;
     let cancelled = false;
     AsyncStorage.getItem(key)
@@ -1569,7 +1674,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const hasGoal = !!(profile?.goals && profile.goals.length) || !!profile?.primary_goal;
   const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
   const milestone2State: NodeState = hasGoal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  const milestone3State: NodeState = profile?.assessed_at && hasGoal ? 'active' : 'locked';
+  // Was 'active' forever once assessed+goaled, with no 'complete' branch at
+  // all -- meaning it never actually reflected "you already have a
+  // program," even weeks into one, and (since 'active' is exactly what
+  // claims the auto-scroll ref below) it permanently contested that ref
+  // against the real current day row on every single render. Confirmed via
+  // journeyData?.warriorProgramId -- the same signal an active program
+  // really exists that the rest of this screen already uses.
+  const milestone3State: NodeState = journeyData?.warriorProgramId
+    ? 'complete'
+    : profile?.assessed_at && hasGoal
+    ? 'active'
+    : 'locked';
 
   // Multi-select goals joined for display, 'other' substituted with the
   // athlete's own free text; falls back to the legacy single-value field
@@ -1589,6 +1705,34 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // synthetic per-week slot key rather than a new tracking mechanism.
   const trialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
   const trialSkipped = skippedQuestSlots.has(trialSlotKey);
+
+  // Single source of truth for "which row is the current step" -- the auto-
+  // scroll ref used to be independently claimed at ~5 different render
+  // sites (each milestone, the day rows, the trial row), which only stayed
+  // mutually exclusive by coincidence: milestone3State being permanently
+  // 'active' (see its own comment above, now fixed) meant it and the real
+  // current day row briefly both matched at once, and whichever one's ref
+  // callback committed last (normally the day row, by JSX order) won by
+  // luck rather than by construction. Computing one explicit value here and
+  // having every row just compare against it makes two rows matching at
+  // once structurally impossible, not just unlikely.
+  type CurrentTarget =
+    | { kind: 'milestone'; n: 1 | 2 | 3 }
+    | { kind: 'day'; weekNumber: number; dayIndex: number }
+    | { kind: 'trial' }
+    | null;
+  const currentTarget: CurrentTarget =
+    milestone1State === 'active'
+      ? { kind: 'milestone', n: 1 }
+      : milestone2State === 'active'
+      ? { kind: 'milestone', n: 2 }
+      : milestone3State === 'active'
+      ? { kind: 'milestone', n: 3 }
+      : mode === 'journey' && journeyData && latestWeek && !weekComplete
+      ? { kind: 'day', weekNumber: latestWeek.weekNumber, dayIndex: dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer }
+      : mode === 'journey' && journeyData && weekComplete && !trialSkipped
+      ? { kind: 'trial' }
+      : null;
 
   return (
     <View style={styles.screen}>
@@ -1614,7 +1758,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               isLast={false}
               isFirst
               staggerIndex={1}
-              containerRef={milestone1State === 'active' ? activeStepRef : undefined}
+              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 1 ? activeStepRef : undefined}
             />
             <NodeRow
               number={2}
@@ -1632,14 +1776,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
               staggerIndex={2}
-              containerRef={milestone2State === 'active' ? activeStepRef : undefined}
+              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 2 ? activeStepRef : undefined}
             />
             <NodeRow
               number={3}
               state={milestone3State}
               title="03 BUILD YOUR PROGRAM"
               desc={
-                milestone3State !== 'active'
+                milestone3State === 'complete'
+                  ? `${journeyData?.programName ?? 'Your program'} — underway.`
+                  : milestone3State !== 'active'
                   ? 'Unlocks after your goals.'
                   : showLegacyMilestones
                   ? 'Pick up where you left off, or start something new.'
@@ -1648,7 +1794,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               image={BUILD_PROGRAM_IMAGE}
               isLast
               staggerIndex={3}
-              containerRef={milestone3State === 'active' ? activeStepRef : undefined}
+              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 3 ? activeStepRef : undefined}
             >
               <View style={styles.choiceStack}>
                 {showLegacyMilestones && journeyData ? (
@@ -1768,10 +1914,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     // While blocked, the pointer day itself is 'locked' (not
                     // startable yet), so the auto-scroll target shifts back
                     // one day to the still-'complete' card whose attached
-                    // quest is the actual thing blocking progress.
+                    // quest is the actual thing blocking progress -- already
+                    // baked into currentTarget's own dayIndex above, so this
+                    // is just a direct comparison against that one value
+                    // (see currentTarget's own comment for why).
                     const isDayPointer =
-                      isLatestWeek &&
-                      i === (dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer);
+                      currentTarget?.kind === 'day' && currentTarget.weekNumber === week.weekNumber && currentTarget.dayIndex === i;
                     return (
                       <React.Fragment key={`day-${week.weekNumber}-${i}`}>
                         {isLatestWeek && i === justUnlockedDayIndex && (
@@ -1835,11 +1983,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   isLast
                   staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   // Once the day/quest sequence is exhausted, none of those
-                  // rows claim the auto-scroll ref (their pointer is -1) —
-                  // this becomes "the next thing" instead, trial week or not
-                  // (unless it's already been skipped, in which case there's
-                  // nothing left here to scroll to).
-                  containerRef={weekComplete && !trialSkipped ? activeStepRef : undefined}
+                  // rows are currentTarget's 'day' branch any more (weekComplete
+                  // routes it to 'trial' instead, see currentTarget's own
+                  // comment) — this becomes "the next thing" instead, trial
+                  // week or not (unless it's already been skipped, in which
+                  // case there's nothing left here to scroll to).
+                  containerRef={currentTarget?.kind === 'trial' ? activeStepRef : undefined}
                 />
 
                 {weekComplete && (
