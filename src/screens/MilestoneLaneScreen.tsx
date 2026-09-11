@@ -17,6 +17,7 @@ import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgram
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
+import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
@@ -608,14 +609,22 @@ const GOAL_LABELS: Record<string, string> = Object.fromEntries(
   GOALS.filter((g) => g.id !== 'other').map((g) => [g.id, g.label])
 );
 
-function ProgramChoiceCard({ icon, title, desc, onPress }: { icon: string; title: string; desc: string; onPress: () => void }) {
+function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean }) {
   return (
     <TouchableOpacity style={styles.choiceCard} onPress={onPress}>
       <View style={styles.choiceIconWrap}>
         <MaterialCommunityIcons name={icon as any} size={22} color={ACCENT} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={styles.choiceTitle}>{title}</Text>
+        <View style={styles.choiceTitleRow}>
+          <Text style={styles.choiceTitle}>{title}</Text>
+          {showProBadge && (
+            <View style={styles.proBadge}>
+              <MaterialCommunityIcons name="crown" size={9} color="#FFFFFF" />
+              <Text style={styles.proBadgeText}>PRO</Text>
+            </View>
+          )}
+        </View>
         <Text style={styles.choiceDesc}>{desc}</Text>
       </View>
       <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.2)" />
@@ -1023,7 +1032,7 @@ const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
 const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
-  const { profile, refreshProfile } = useAuth();
+  const { profile, refreshProfile, paywallEnabled } = useAuth();
   const router = useRouter();
   const { questDone, programReady } = useLocalSearchParams<{ questDone?: string; programReady?: string }>();
   const { theme } = useTheme();
@@ -1888,6 +1897,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     icon="creation"
                     title="AI COACH"
                     desc="A day-by-day plan that adapts as you progress."
+                    showProBadge={!canAccessPro(profile, paywallEnabled)}
                     onPress={() => {
                       acknowledgeLegacyOnboarding();
                       router.push('/coach');
@@ -1898,6 +1908,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   icon="tune-vertical"
                   title="CUSTOMIZE PROGRAM"
                   desc="Pick your focus, frequency and equipment."
+                  showProBadge={!canAccessCustomizeProgram(profile, paywallEnabled)}
                   onPress={() => {
                     acknowledgeLegacyOnboarding();
                     router.push('/customize-program');
@@ -2633,11 +2644,31 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  choiceTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   choiceTitle: {
     color: '#FFFFFF',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 13,
     letterSpacing: 1,
+  },
+  proBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#FF5252',
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 3,
+  },
+  proBadgeText: {
+    color: '#FFFFFF',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 8,
+    letterSpacing: 0.4,
   },
   choiceDesc: {
     color: 'rgba(255,255,255,0.65)',
