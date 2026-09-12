@@ -1866,28 +1866,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onDismiss={() => setShowRankToast(false)}
       />
     )}
-    {/* Floating, not inside the ScrollView -- a user who's just reached step
-        3 and doesn't want to build a program right now has no other way
-        out: mode='onboarding' never shows BottomTabBar (see below), so
-        without this they're stuck until they pick one of the 3 build
-        tools. Sits above the scroll content at a fixed screen position so
-        it's visible immediately on arrival, not just after scrolling down
-        to step 3's cards (and stays put through this screen's own
-        auto-scroll-to-current-step behavior). Only shown during real
-        onboarding, once step 3 is actually reachable (assessed + goal set,
-        no program yet) -- a returning journey-tab user isn't stuck (they
-        already have the tab bar), so it'd be a redundant, confusing
-        duplicate action for them. */}
-    {mode === 'onboarding' && milestone3State === 'active' && (
-      <TouchableOpacity
-        style={styles.skipOnboardingBtn}
-        disabled={submittingProgramReady}
-        onPress={handleSkipProgramForLater}
-      >
-        <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
-        <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.6)" />
-      </TouchableOpacity>
-    )}
     <ScrollView
       ref={scrollViewRef}
       contentContainerStyle={styles.scrollContent}
@@ -1988,6 +1966,28 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     router.push('/program-templates');
                   }}
                 />
+                {/* A user who's just reached step 3 and doesn't want to build
+                    a program right now has no other way out: mode='onboarding'
+                    never shows BottomTabBar, so without this they're stuck
+                    until they pick one of the 3 build tools above. Sits below
+                    those 3 as a quieter 4th option (not another full card) --
+                    this screen's own auto-scroll-to-current-step effect
+                    already lands the viewport here on arrival, so it doesn't
+                    need to float to stay visible. Only shown during real
+                    onboarding, once step 3 is actually reachable (assessed +
+                    goal set, no program yet) -- a returning journey-tab user
+                    isn't stuck (they already have the tab bar), so it'd be a
+                    redundant, confusing duplicate action for them. */}
+                {mode === 'onboarding' && milestone3State === 'active' && (
+                  <TouchableOpacity
+                    style={styles.skipOnboardingBtn}
+                    disabled={submittingProgramReady}
+                    onPress={handleSkipProgramForLater}
+                  >
+                    <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
+                    <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.6)" />
+                  </TouchableOpacity>
+                )}
               </View>
             </NodeRow>
 
@@ -2755,10 +2755,8 @@ const styles = StyleSheet.create({
     lineHeight: 16,
   },
   skipOnboardingBtn: {
-    position: 'absolute',
-    top: 14,
-    right: 16,
-    zIndex: 10,
+    alignSelf: 'center',
+    marginTop: 12,
     flexDirection: 'row',
     alignItems: 'center',
     gap: 2,
