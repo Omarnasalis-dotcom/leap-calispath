@@ -37,33 +37,33 @@ import { GOALS } from './GoalsEquipmentScreen';
 // is percent-encoded server-side at bundle time; only the runtime-
 // concatenated filename portion is the risk.)
 const PUSH_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/push/incline-pushup.png'),
-  require('../../assets/Milestone Cards/push/push-01.png'),
-  require('../../assets/Milestone Cards/push/push-02.png'),
-  require('../../assets/Milestone Cards/push/push-03.png'),
-  require('../../assets/Milestone Cards/push/push-04.png'),
-  require('../../assets/Milestone Cards/push/push-05.png'),
-  require('../../assets/Milestone Cards/push/push-06.png'),
-  require('../../assets/Milestone Cards/push/push-07.png'),
+  require('../../assets/Milestone Cards/push/incline-pushup.jpg'),
+  require('../../assets/Milestone Cards/push/push-01.jpg'),
+  require('../../assets/Milestone Cards/push/push-02.jpg'),
+  require('../../assets/Milestone Cards/push/push-03.jpg'),
+  require('../../assets/Milestone Cards/push/push-04.jpg'),
+  require('../../assets/Milestone Cards/push/push-05.jpg'),
+  require('../../assets/Milestone Cards/push/push-06.jpg'),
+  require('../../assets/Milestone Cards/push/push-07.jpg'),
 ];
 const PULL_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/pull/pull-ups.png'),
+  require('../../assets/Milestone Cards/pull/pull-ups.jpg'),
   require('../../assets/Milestone Cards/pull/front-lever.jpeg'),
   require('../../assets/Milestone Cards/pull/muscle-up.jpeg'),
   require('../../assets/Milestone Cards/pull/pull-01.png'),
 ];
 const LEGS_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/lower body/deep-squat.png'),
-  require('../../assets/Milestone Cards/lower body/lunges.png'),
-  require('../../assets/Milestone Cards/lower body/pistol-squat.png'),
+  require('../../assets/Milestone Cards/lower body/deep-squat.jpg'),
+  require('../../assets/Milestone Cards/lower body/lunges.jpg'),
+  require('../../assets/Milestone Cards/lower body/pistol-squat.jpg'),
   require('../../assets/Milestone Cards/lower body/pistol-squat-2.jpeg'),
-  require('../../assets/Milestone Cards/lower body/sprint.png'),
+  require('../../assets/Milestone Cards/lower body/sprint.jpg'),
 ];
 const RANDOM_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/random/mobility.png'),
-  require('../../assets/Milestone Cards/random/handstand.png'),
-  require('../../assets/Milestone Cards/random/mountain-climber.png'),
-  require('../../assets/Milestone Cards/random/random-01.png'),
+  require('../../assets/Milestone Cards/random/mobility.jpg'),
+  require('../../assets/Milestone Cards/random/handstand.jpg'),
+  require('../../assets/Milestone Cards/random/mountain-climber.jpg'),
+  require('../../assets/Milestone Cards/random/random-01.jpg'),
 ];
 
 // Dedicated (not pooled) covers for the 3 onboarding milestone cards --
