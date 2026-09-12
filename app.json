@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leap Arena",
     "slug": "leap-calispath",
-    "version": "1.2.2",
+    "version": "1.2.3",
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leap.calispath",
-      "buildNumber": "19",
+      "buildNumber": "20",
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.applesignin": [
