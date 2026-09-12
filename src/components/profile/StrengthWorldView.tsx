@@ -82,19 +82,16 @@ export function StrengthWorldView({
     <>
 
 
-      {/* Next Challenge card (design handoff): caption + a headline stating
-          the actual target + a 52px solid-accent CTA with dark text. */}
+      {/* Next Challenge card: caption + a 52px solid-accent CTA with dark
+          text. The design handoff (design_handoff_world_screens/README.md)
+          also specifies a headline sentence here ("Complete the X trial to
+          reach Y") between the two -- dropped per direct feedback: it was
+          redundant with the CTA button's own text right below it and made
+          the card feel oversized for what it says. */}
       {category === 'strength' && !isLocked && (
         <View style={[styles.challengeCard, { backgroundColor: W.cardFill, borderColor: W.cardBorder }]}>
           <Text style={[styles.challengeCaption, { color: neutrals.textCaption }]}>
             {isLowerTier ? 'PRACTICE MODE' : 'NEXT CHALLENGE'}
-          </Text>
-          <Text style={[styles.challengeHeadline, { color: neutrals.textPrimary }]}>
-            {isLowerTier
-              ? `Sharpen your ${TIER_NAMES[selectedTier]} time`
-              : (profile?.strength_tier ?? 0) < 9
-                ? `Complete the ${TIER_NAMES[profile?.strength_tier ?? 0]} trial to reach ${TIER_NAMES[(profile?.strength_tier ?? 0) + 1]}`
-                : 'Defend your place in Eternity'}
           </Text>
           <TouchableOpacity
             ref={trialButtonRef}
@@ -286,19 +283,15 @@ const styles = StyleSheet.create({
   challengeCard: {
     marginHorizontal: 20,
     marginBottom: 16,
-    borderRadius: 24,
+    borderRadius: 20,
     borderWidth: 1.5,
-    padding: 20,
-    gap: 6,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
   },
   challengeCaption: {
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 11,
     letterSpacing: 2,
-  },
-  challengeHeadline: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 19,
   },
   challengeCta: {
     height: 52,

@@ -34,6 +34,16 @@ const rgba = (hex: string, alpha: number) => {
   return `rgba(${r},${g},${b},${alpha})`;
 };
 
+/** Mixes `hex` toward white by `amount` (0-1) -- used for a subtle glossy
+ * highlight stop on a gradient-filled badge, not for text/decorative gradients. */
+const lighten = (hex: string, amount: number) => {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  const mix = (c: number) => Math.round(c + (255 - c) * amount);
+  return `rgb(${mix(r)},${mix(g)},${mix(b)})`;
+};
+
 const makeWorldTheme = (accent: string, pageBg: string, ctaText: string): WorldTheme => ({
   accent,
   pageBg,
@@ -98,4 +108,4 @@ export function getWorldNeutrals(mode: ThemeMode): typeof WORLD_NEUTRALS {
   return mode === 'dark' ? WORLD_NEUTRALS : WORLD_NEUTRALS_LIGHT;
 }
 
-export { rgba as worldRgba };
+export { rgba as worldRgba, lighten as worldLighten };

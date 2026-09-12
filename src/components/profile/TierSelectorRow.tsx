@@ -13,8 +13,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
-import { getWorldTheme, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
+import { getWorldTheme, getWorldNeutrals, worldRgba, worldLighten } from '../../../constants/worldThemes';
 import { useTheme } from '../../contexts/ThemeContext';
+
+const BADGE_SIZE = 30;
 
 interface TierSelectorRowProps {
   scrollRef?: React.RefObject<ScrollView | null>;
@@ -26,7 +28,7 @@ interface TierSelectorRowProps {
   onSelectTier: (tier: number) => void;
 }
 
-const CHIP_WIDTH = 92;
+const CHIP_WIDTH = 96;
 const CHIP_GAP = 10;
 const FADE_WIDTH = 36;
 
@@ -48,8 +50,11 @@ export function TierSelectorRow({
   const { mode } = useTheme();
   const W = getWorldTheme('strength', mode);
   const neutrals = getWorldNeutrals(mode);
-  const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
-  const lockedBorder = mode === 'dark' ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)';
+  // Matches the design handoff's documented "inactive UI border" token
+  // (rgba(255,255,255,0.14–0.16)) — a lower value here previously made the
+  // resting/locked chips read as barely-there and "maybe not tappable"
+  // against the near-black page background.
+  const lockedBorder = mode === 'dark' ? 'rgba(255,255,255,0.16)' : 'rgba(0,0,0,0.14)';
   // Position the row at the user's current tier on first layout instead of
   // starting at tier 0 and animating over — avoids a visible flash of tier 0
   // before the (delayed, animated) scroll-to-current-tier effect fires.
@@ -111,28 +116,53 @@ export function TierSelectorRow({
             const isComplete = tierIndex < activeCurrentTier;
             const isLockedItem = tierIndex > activeCurrentTier;
 
+            // The card itself is a real tonal surface (theme.card.background,
+            // the app's own "Surface" token) rather than a translucent
+            // overlay on the page background -- flat alpha-blends read thin;
+            // an actual elevated surface color reads considered. Border
+            // color is what shifts per state.
+            //
+            // Badge fill is a subtle top-left highlight -> base color
+            // gradient (a glossy "coin/medallion" treatment), not a flat
+            // fill -- this is the one deliberately decorative gradient in
+            // the system, reserved for a small functional badge rather than
+            // text or a whole card (still respects the "no gradient hero
+            // cards" rule). Current is the one state allowed a colored
+            // background + glow on the card too, per DESIGN.md's "earn the
+            // drama" rule: reserve bold color for the one moment that
+            // matters (where the user actually is), not decoration on every chip.
+            const badgeColors: [string, string] = isComplete
+              ? [worldLighten(neutrals.complete, 0.35), neutrals.complete]
+              : isCurrent
+                ? [worldLighten(W.accent, 0.3), W.accent]
+                : [lockedBorder, lockedBorder];
+            const badgeTextColor = isComplete ? '#0A0A0A' : isCurrent ? W.ctaText : neutrals.textMuted;
+
             return (
               <TouchableOpacity
                 key={index}
+                activeOpacity={0.75}
                 onPress={() => {
                   onSelectTier(tierIndex);
                   reportInteraction();
                 }}
                 style={[
                   styles.chip,
-                  { borderColor: neutrals.border, backgroundColor: subtleOverlay },
-                  isComplete && [styles.chipComplete, { borderColor: worldRgba(neutrals.complete, 0.4), backgroundColor: worldRgba(neutrals.complete, 0.08) }],
-                  isCurrent && [styles.chipCurrent, { borderColor: W.accent, backgroundColor: worldRgba(W.accent, 0.16), shadowColor: W.accent }],
-                  isLockedItem && [styles.chipLocked, { borderColor: lockedBorder, backgroundColor: subtleOverlay }],
+                  { borderColor: neutrals.border, backgroundColor: theme.card.background },
+                  isComplete && [styles.chipComplete, { borderColor: worldRgba(neutrals.complete, 0.5) }],
+                  isCurrent && [styles.chipCurrent, { borderColor: W.accent, backgroundColor: worldRgba(W.accent, 0.1), shadowColor: W.accent }],
+                  isLockedItem && [styles.chipLocked, { borderColor: lockedBorder }],
                   isSelected && !isCurrent && { borderColor: neutrals.textPrimary },
                 ]}
               >
-                {isComplete && (
-                  <MaterialCommunityIcons name="check" size={13} color={neutrals.complete} />
-                )}
-                {isLockedItem && (
-                  <MaterialCommunityIcons name="lock" size={12} color={neutrals.textMuted} />
-                )}
+                <LinearGradient
+                  colors={badgeColors}
+                  start={{ x: 0.2, y: 0 }}
+                  end={{ x: 0.8, y: 1 }}
+                  style={[styles.badge, isLockedItem && { borderWidth: 1, borderColor: lockedBorder }]}
+                >
+                  <Text style={[styles.badgeNumber, { color: badgeTextColor }]}>{tierIndex}</Text>
+                </LinearGradient>
                 <Text
                   style={[
                     styles.chipName,
@@ -154,7 +184,7 @@ export function TierSelectorRow({
                   ]}
                   numberOfLines={1}
                 >
-                  {isComplete ? 'COMPLETE' : isCurrent ? 'CURRENT' : `AT TIER ${tierIndex}`}
+                  {isComplete ? 'COMPLETE' : isCurrent ? 'CURRENT' : 'LOCKED'}
                 </Text>
               </TouchableOpacity>
             );
@@ -195,13 +225,13 @@ const styles = StyleSheet.create({
   },
   chip: {
     width: CHIP_WIDTH,
-    borderRadius: 14,
+    borderRadius: 18,
     borderWidth: 1.5,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 10,
+    paddingVertical: 12,
     paddingHorizontal: 6,
-    gap: 2,
+    gap: 4,
   },
   chipComplete: {},
   chipCurrent: {
@@ -212,6 +242,18 @@ const styles = StyleSheet.create({
   },
   chipLocked: {
     opacity: 0.55,
+  },
+  badge: {
+    width: BADGE_SIZE,
+    height: BADGE_SIZE,
+    borderRadius: BADGE_SIZE / 2,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  badgeNumber: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 15,
   },
   chipName: {
     fontFamily: 'BarlowCondensed-Bold',
