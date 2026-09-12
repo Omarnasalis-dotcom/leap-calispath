@@ -287,7 +287,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         }
       }
 
-      if (status === 403 && code === 'PRO_REQUIRED') {
+      // Matched on status alone, not `code === 'PRO_REQUIRED'` too — the
+      // edge function only ever returns 403 for this case
+      // (isProRequired ? 403 : isRateLimit ? 429 : 500, see
+      // supabase/functions/ai-coach/index.ts), so requiring the body to
+      // have also parsed as JSON and matched an exact string was one more
+      // way this could silently miss and fall through to the generic
+      // "temporarily unreachable" message below for what's actually a real
+      // entitlement wall, not a network problem.
+      if (status === 403) {
         router.push('/paywall');
         return null;
       }
@@ -376,7 +384,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // id) rendered straight into the chat bubble.
       console.error('Coach Session Error:', error);
       setConnectionStatus('offline');
-      setMessages([{ role: 'assistant', content: 'Coach is temporarily unreachable. Please check your connection and try again.' }]);
+      // Was "check your connection" -- misleading once a 403/PRO_REQUIRED
+      // never reaches here (handled above in callAiCoach). By this point
+      // it's usually a real, if rare, server-side hiccup rather than the
+      // athlete's own connection, so don't point the finger at their Wi-Fi.
+      setMessages([{ role: 'assistant', content: 'Something went wrong reaching your coach. Try again in a moment.' }]);
     } finally {
       setLoading(false);
       setStages([]);
@@ -421,9 +433,10 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // never show it.
       console.error('Coach Send Error:', error);
       setConnectionStatus('offline');
+      // Same reasoning as the reworded startSession fallback above.
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: 'Coach is temporarily unreachable. Check your connection and try again.',
+        content: 'Something went wrong reaching your coach. Try again in a moment.',
       }]);
     } finally {
       setLoading(false);
