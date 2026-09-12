@@ -1,5 +1,5 @@
-import { useRouter } from 'expo-router';
-import React, { useState, useEffect, useRef } from 'react';
+import { useRouter, useFocusEffect } from 'expo-router';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
   Dimensions, Vibration, AppState, Keyboard } from 'react-native';
@@ -23,7 +23,6 @@ import { LeapLogo } from '../components/LeapLogo';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
-import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { DismissKeyboardOnOutsideTap } from '../components/DismissKeyboardOnOutsideTap';
@@ -78,6 +77,7 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
+  const isLoadingAllDataRef = useRef(false);
   const { runAsync: runSafeSave } = useSafeAsync();
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('static.scoreCircle');
   const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('static.movementRow');
@@ -124,13 +124,22 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
-  useEffect(() => {
-    loadAllData();
-  }, [user]);
+  // useFocusEffect (not a plain mount-only useEffect): this screen now lives
+  // in a persistent tab navigator (app/(tabs)/_layout.tsx) and stays mounted
+  // across tab switches instead of remounting, so a mount-only effect would
+  // only ever fetch once per session — this refetches every time the tab
+  // regains focus, same as ProfileScreen/MilestoneLaneScreen already do.
+  useFocusEffect(
+    useCallback(() => {
+      loadAllData();
+    }, [user])
+  );
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [leaderboardTab, selectedLevel, staticScope]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchLeaderboard();
+    }, [leaderboardTab, selectedLevel, staticScope])
+  );
 
   useEffect(() => {
     if (selectedLevel) {
@@ -145,7 +154,13 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
   }, [selectedMovement, showLogModal, staticScope]);
 
   async function loadAllData() {
-    if (!user) return;
+    // Refetching on every focus (not just mount, see the useFocusEffect
+    // below) means a quick tab-flip can start a second loadAllData() before
+    // the first resolves; without this guard a slower earlier response
+    // could resolve after a newer one and overwrite fresher state with
+    // stale data.
+    if (!user || isLoadingAllDataRef.current) return;
+    isLoadingAllDataRef.current = true;
     setLoading(true);
     try {
       const holds = await StaticService.getUserHolds(user.id);
@@ -161,6 +176,7 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
     } catch (error) {
       console.error('[StaticWorld] Error loading data:', error);
     } finally {
+      isLoadingAllDataRef.current = false;
       if (isMounted.current) setLoading(false);
     }
   }
@@ -608,7 +624,7 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
         </View>
       </ScrollView>
 
-      <BottomTabBar activeTab="static" strengthTier={profile?.strength_tier || 0} />
+      {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
 
       <Modal visible={showGlobalMastery} transparent animationType="fade">
         <View style={styles.modalOverlay}>

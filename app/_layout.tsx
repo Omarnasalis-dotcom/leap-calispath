@@ -335,7 +335,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
     // actual workout route stays hard-gated.
     'arena-workout': 9
   };
-  const currentRoute = segments[0];
+  // static-world/power-world now live inside the (tabs) group
+  // (app/(tabs)/_layout.tsx), which adds a leading '(tabs)' segment ahead of
+  // the actual route name — resolve past it so these tier locks keep working.
+  // Cast past useSegments()'s generated tuple type: it's only as wide as the
+  // deepest route expo-router's typegen has seen, which doesn't guarantee an
+  // index-1 element exists for every possible path shape.
+  const allSegments = segments as readonly string[];
+  const currentRoute = allSegments[0] === '(tabs)' ? allSegments[1] : allSegments[0];
   if (user && profile?.assessed_at && currentRoute && tierLocks[currentRoute] !== undefined) {
     if (strengthTier < tierLocks[currentRoute]) {
       return <Redirect href="/" />;
@@ -439,10 +446,11 @@ function RootLayout() {
                     <AuthGuard>
                       <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: 'transparent' } }}>
                         <Stack.Screen name="trial" options={{ gestureEnabled: false, fullScreenGestureEnabled: false }} />
-                        <Stack.Screen name="profile" options={{ animation: 'none' }} />
-                        <Stack.Screen name="power-world" options={{ animation: 'none' }} />
-                        <Stack.Screen name="static-world" options={{ animation: 'none' }} />
-                        <Stack.Screen name="one-min-max" options={{ animation: 'none' }} />
+                        {/* profile/power-world/static-world/one-min-max/training-center/my-journey
+                            now live inside this one group (see app/(tabs)/_layout.tsx), which is
+                            what actually gives them a real, persistent tab navigator instead of
+                            each being its own Stack screen that remounts on every switch. */}
+                        <Stack.Screen name="(tabs)" options={{ animation: 'none' }} />
                       </Stack>
                     </AuthGuard>
                     <TutorialOverlay />

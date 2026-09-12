@@ -24,7 +24,7 @@ import { TierRankCard } from '../components/profile/TierRankCard';
 import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
-import { BottomTabBar } from '../components/profile/BottomTabBar';
+import { useProfileSubTab } from '../contexts/ProfileSubTabContext';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
 import { TierSelectorRow } from '../components/profile/TierSelectorRow';
 import { StrengthWorldView } from '../components/profile/StrengthWorldView';
@@ -134,8 +134,34 @@ export function ProfileScreen({
   const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
   const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
-  const [activeTab, setActiveTab] = useState<'profile' | 'strength'>(
-    initialActiveTab === 'strength' ? 'strength' : 'profile'
+  // Profile/Strength state now lives in ProfileSubTabContext (provided by
+  // app/(tabs)/_layout.tsx) instead of local state, since BottomTabBar was
+  // hoisted up to that layout so it persists across tab switches — this
+  // screen no longer owns the only place that state can live. The 4
+  // standalone screens outside the tab group (ChampionsArenaScreen etc.)
+  // still navigate here via a `?activeTab=` param, so keep seeding the
+  // shared context from it whenever it's explicitly present.
+  const { subTab: activeTab, setSubTab: setActiveTab } = useProfileSubTab();
+  // useFocusEffect, not a plain useEffect keyed on initialActiveTab: a
+  // dependency-array effect only re-fires when the param's primitive value
+  // actually changes, which misses the case where it's requested again
+  // unchanged. E.g. tap STRENGTH locally (no param change, bypasses
+  // navigation entirely), leave, tap PROFILE from another tab (param goes
+  // undefined -> 'profile', effect fires, syncs correctly), tap STRENGTH
+  // locally again, leave, tap PROFILE again -- the param is already
+  // 'profile' from the first round trip, so its value doesn't change on the
+  // second, and a dependency-array effect would never re-fire, leaving the
+  // context stuck on 'strength' while the PROFILE tab renders as active.
+  // useFocusEffect re-runs on every focus gain regardless of whether the
+  // param's value differs from last time, so a real navigation into this
+  // screen always resyncs; a same-screen local switch (no navigation, no
+  // refocus) correctly leaves it alone.
+  useFocusEffect(
+    useCallback(() => {
+      if (initialActiveTab === 'strength' || initialActiveTab === 'profile') {
+        setActiveTab(initialActiveTab);
+      }
+    }, [initialActiveTab, setActiveTab])
   );
   const [showSettings, setShowSettings] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
@@ -571,11 +597,9 @@ export function ProfileScreen({
           )}
         </ScrollView>
 
-        <BottomTabBar
-          activeTab={activeTab}
-          strengthTier={profile?.strength_tier || 0}
-          onSelectProfileTab={setActiveTab}
-        />
+        {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx, above
+            this screen, so it persists across tab switches instead of
+            remounting with this screen. */}
 
         {(profile?.is_admin || profile?.is_coach) && <FloatingGamesButton />}
 

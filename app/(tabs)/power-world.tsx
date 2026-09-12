@@ -1,7 +1,7 @@
 import React from 'react';
 import { useLocalSearchParams } from 'expo-router';
-import { PowerWorldScreen } from '../src/screens/PowerWorldScreen';
-import { SpartanLayout } from '../src/components/SpartanLayout';
+import { PowerWorldScreen } from '../../src/screens/PowerWorldScreen';
+import { SpartanLayout } from '../../src/components/SpartanLayout';
 
 export default function Route() {
   const params = useLocalSearchParams();

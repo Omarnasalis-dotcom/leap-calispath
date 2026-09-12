@@ -14,12 +14,11 @@ import {
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { canAccessCustomizeProgram } from '../lib/entitlement';
-import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
 import { getStandaloneWorkouts } from '../lib/workoutLibrary';
@@ -358,10 +357,26 @@ export function TrainingCenterScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<HubData | null>(null);
+  // Tracks whether we've ever successfully loaded data, independent of
+  // React state so it's readable synchronously inside load() itself. This
+  // screen now lives in a persistent tab navigator and refetches on every
+  // focus (see the useFocusEffect below) instead of only once per mount —
+  // without this, setLoading(true) firing unconditionally on every one of
+  // those refetches flashed the full skeleton on every return visit, which
+  // reads as a reload even though the screen never actually remounted.
+  // Once we have real data to show, later refreshes happen quietly instead.
+  const hasLoadedData = useRef(false);
+  // Refetching on every focus (not just mount) means rapid tab-flipping can
+  // start a second load() while the first (up to 7 Supabase queries across
+  // 3 sequential stages) hasn't resolved yet -- without this guard, an
+  // earlier, slower call resolving after a newer one starts could overwrite
+  // fresher data with stale data, on top of just wasting the round trips.
+  const isLoadingRef = useRef(false);
 
   const load = useCallback(async () => {
-    if (!user?.id) return;
-    setLoading(true);
+    if (!user?.id || isLoadingRef.current) return;
+    isLoadingRef.current = true;
+    if (!hasLoadedData.current) setLoading(true);
     setErrorMsg(null);
     try {
       const [assignmentRes, templatesRes, movementsCount, quickWorkouts, streakStats] = await Promise.all([
@@ -402,6 +417,7 @@ export function TrainingCenterScreen() {
           quickMin,
           quickMax,
         });
+        hasLoadedData.current = true;
         return;
       }
 
@@ -451,17 +467,26 @@ export function TrainingCenterScreen() {
         quickMin,
         quickMax,
       });
+      hasLoadedData.current = true;
     } catch (err: any) {
       console.error('TrainingCenterScreen load failed:', err);
       setErrorMsg('COULD NOT LOAD YOUR TRAINING CENTER.');
     } finally {
       setLoading(false);
+      isLoadingRef.current = false;
     }
   }, [user?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  // useFocusEffect (not a plain mount-only useEffect): this screen now lives
+  // in a persistent tab navigator (app/(tabs)/_layout.tsx) and stays mounted
+  // across tab switches instead of remounting, so a mount-only effect would
+  // only ever fetch once per session — this refetches every time the tab
+  // regains focus, same as ProfileScreen/MilestoneLaneScreen already do.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+    }, [load])
+  );
 
   const tiles: PathTileDef[] = data
     ? [
@@ -621,7 +646,7 @@ export function TrainingCenterScreen() {
         </ScrollView>
       )}
 
-      <BottomTabBar activeTab="profile" strengthTier={profile?.strength_tier || 0} />
+      {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
     </View>
   );
 }

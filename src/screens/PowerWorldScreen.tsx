@@ -1,5 +1,5 @@
-import { useRouter, useLocalSearchParams , router } from 'expo-router';
-import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter, useLocalSearchParams, useFocusEffect, router } from 'expo-router';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Alert, Platform, Modal,
   Dimensions, RefreshControl, Image, Keyboard } from 'react-native';
@@ -22,7 +22,6 @@ import { getCountryFlag } from '../constants/countries';
 import { LeapLogo } from '../components/LeapLogo';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
-import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { DismissKeyboardOnOutsideTap } from '../components/DismissKeyboardOnOutsideTap';
@@ -92,8 +91,14 @@ export function PowerWorldScreen() {
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationProps, setCelebrationProps] = useState<any>({});
 
+  // Refetching on every focus (not just mount, see the useFocusEffect below)
+  // means a quick tab-flip can start a second fetchData() before the first
+  // resolves; without this guard a slower earlier response could resolve
+  // after a newer one and overwrite fresher state with stale data.
+  const isFetchingDataRef = useRef(false);
   const fetchData = useCallback(async () => {
-    if (!user) return;
+    if (!user || isFetchingDataRef.current) return;
+    isFetchingDataRef.current = true;
     try {
       const s = await PowerService.getUserStats(user.id);
       if (!isMounted.current) return;
@@ -103,6 +108,7 @@ export function PowerWorldScreen() {
       if (!isMounted.current) return;
       Alert.alert('Error', 'Failed to load power stats. Please check your connection.');
     } finally {
+      isFetchingDataRef.current = false;
       if (isMounted.current) {
         setLoading(false);
         setRefreshing(false);
@@ -157,9 +163,16 @@ export function PowerWorldScreen() {
     }
   }, [isMounted]);
 
-  useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+  // useFocusEffect (not a plain mount-only useEffect): this screen now lives
+  // in a persistent tab navigator (app/(tabs)/_layout.tsx) and stays mounted
+  // across tab switches instead of remounting, so a mount-only effect would
+  // only ever fetch once per session — this refetches every time the tab
+  // regains focus, same as ProfileScreen/MilestoneLaneScreen already do.
+  useFocusEffect(
+    useCallback(() => {
+      fetchData();
+    }, [fetchData])
+  );
 
   useEffect(() => {
     if (stats) {
@@ -167,9 +180,11 @@ export function PowerWorldScreen() {
     }
   }, [stats]);
 
-  useEffect(() => {
-    fetchLeaderboard();
-  }, [fetchLeaderboard]);
+  useFocusEffect(
+    useCallback(() => {
+      fetchLeaderboard();
+    }, [fetchLeaderboard])
+  );
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -509,7 +524,7 @@ export function PowerWorldScreen() {
         {loading || !stats ? renderSkeleton() : renderDashboard()}
       </ScrollView>
 
-      <BottomTabBar activeTab="power" strengthTier={profile?.strength_tier || 0} />
+      {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
 
       {/* LOG MODAL */}
       <Modal visible={showLogModal} transparent animationType="fade">

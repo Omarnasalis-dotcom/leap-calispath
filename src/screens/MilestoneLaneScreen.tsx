@@ -15,7 +15,6 @@ import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
 import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
-import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
@@ -79,10 +78,8 @@ function hashString(s: string): number {
   return Math.abs(h);
 }
 
-// Deterministic per `seed`, not Math.random() -- this screen fully remounts
-// on every nav (no persistent tab navigator, see useMountPop's comment
-// below), so a re-rolled random pick would visibly flicker the photo on
-// every visit.
+// Deterministic per `seed`, not Math.random() -- a re-rolled random pick
+// would visibly flicker the photo on every re-render otherwise.
 function pickFromPool(pool: ImageSourcePropType[], seed: string): ImageSourcePropType {
   return pool[hashString(seed) % pool.length];
 }
@@ -145,17 +142,18 @@ function usePulse(enabled: boolean) {
 // + spring pop, ~1.2s in the reference) — RN Animated rather than the
 // file's CSS keyframes (reference-only per its own README).
 //
-// This deliberately animates on every mount, not on a state *change* — an
-// earlier version tried to diff previous-vs-current state and only animate
-// real transitions, but this screen has no persistent tab navigator behind
-// it (BottomTabBar does router.replace between plain stack routes, not a
-// React Navigation Tabs navigator), so it genuinely unmounts and remounts
-// fresh every time the user navigates back from finishing something. A
-// "did the state change since last render" check never fires in that case
-// — the freshly mounted screen only ever sees the final, already-complete
-// state, so nothing ever appeared to move. Animating on mount, staggered by
-// each node's position in the list, is what actually reads as the lane
-// coming alive when you land back on it.
+// Fires once per genuine reveal (staggerIndex going from <0/"locked" to
+// >=0/"unlocked or complete"), tracked via a ref rather than every mount.
+// This screen now lives in a persistent tab navigator (app/(tabs)/_layout.tsx)
+// and stays mounted across tab switches instead of remounting, so NodeCircle/
+// Connector/NodeRow instances persist too — a plain mount-only effect would
+// only ever animate once per app session, and a diff on every render would
+// replay it on every unrelated re-render (e.g. a focus refetch that changed
+// nothing). The `hasPopped` ref survives re-renders without itself causing
+// one, so a node that's already popped in just snaps straight to the settled
+// value on subsequent renders, and only animates again if it's reset by
+// genuinely going back to locked first (not expected in practice, but keeps
+// the hook correct rather than one-shot-forever).
 // staggerIndex < 0 means "don't animate this one" (e.g. locked nodes,
 // still-dashed connectors) — settles at fully visible immediately.
 //
@@ -166,33 +164,50 @@ function usePulse(enabled: boolean) {
 // spring for a real, visible overshoot bounce rather than a quick settle.
 function useMountPop(staggerIndex: number) {
   const anim = useRef(new Animated.Value(staggerIndex < 0 ? 1 : 0)).current;
+  const hasPopped = useRef(false);
   useEffect(() => {
-    if (staggerIndex < 0) return;
+    if (staggerIndex < 0) {
+      hasPopped.current = false;
+      return;
+    }
+    if (hasPopped.current) {
+      anim.setValue(1);
+      return;
+    }
+    hasPopped.current = true;
     const delay = Math.min(staggerIndex * 140, 1100);
     const t = setTimeout(() => {
       Animated.spring(anim, { toValue: 1, friction: 4.5, tension: 45, useNativeDriver: true }).start();
     }, delay);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [staggerIndex, anim]);
   return anim;
 }
 
 // A one-time radial glow burst behind a node the moment it pops in as
 // 'complete' — the actual "achievement unlocked" beat, distinct from the
 // plain scale-in every active/complete node gets. staggerIndex < 0 (locked)
-// never fires.
+// never fires. Same "fire once per genuine reveal, not per mount" reasoning
+// as useMountPop above.
 function useAchievementBurst(staggerIndex: number) {
   const anim = useRef(new Animated.Value(0)).current;
+  const hasBurst = useRef(false);
   useEffect(() => {
-    if (staggerIndex < 0) return;
+    if (staggerIndex < 0) {
+      hasBurst.current = false;
+      return;
+    }
+    if (hasBurst.current) {
+      anim.setValue(1);
+      return;
+    }
+    hasBurst.current = true;
     const delay = Math.min(staggerIndex * 140, 1100);
     const t = setTimeout(() => {
       Animated.timing(anim, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     }, delay);
     return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [staggerIndex, anim]);
   return anim;
 }
 
@@ -1126,16 +1141,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   );
   // Whether this account was ever a "legacy" one (needs the catch-up
   // milestone view at all) — null until loaded. Deliberately NOT derived
-  // live from profile.primary_goal on every mount: that field legitimately
+  // live from profile.primary_goal on every render: that field legitimately
   // flips from null to set the moment the user completes milestone 2, and
-  // a ref-scoped "decide once" only protected against re-evaluating within
-  // a single mount — this screen has no persistent tab navigator, so it
-  // remounts fresh every time the user leaves and returns, wiping any ref.
-  // Reported live: fill in milestone 2, leave, come back — milestone 3
-  // (never yet used) had vanished because the re-mounted screen re-derived
-  // "is legacy" from primary_goal being set now and got a different answer.
-  // Persisting the decision to AsyncStorage the first time it's ever made
-  // fixes this: it stays fixed for this account regardless of what
+  // a ref-scoped "decide once" would only protect against re-evaluating
+  // within a single component lifetime, not across an app restart. Reported
+  // live (back when this screen still remounted on every nav, before it
+  // moved into a persistent tab navigator): fill in milestone 2, leave, come
+  // back — milestone 3 (never yet used) had vanished because the re-mounted
+  // screen re-derived "is legacy" from primary_goal being set now and got a
+  // different answer. Persisting the decision to AsyncStorage the first time
+  // it's ever made fixes this: it stays fixed for this account regardless of what
   // primary_goal does afterward, until the user actually acknowledges
   // milestone 3 (or reinstalls/switches devices, at which point re-deriving
   // from current profile state is a reasonable fallback — this is
@@ -2172,7 +2187,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         </>
       </View>
     </ScrollView>
-    {mode === 'journey' && <BottomTabBar activeTab="journey" strengthTier={profile?.strength_tier || 0} />}
+    {/* mode='journey' used to render its own BottomTabBar here; it now
+        renders once in app/(tabs)/_layout.tsx instead, since that route
+        (/my-journey) is one of the screens in that persistent tab group.
+        mode='onboarding' (a separate, non-tab-group route) never showed one. */}
     </View>
   );
 }
