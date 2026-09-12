@@ -8,8 +8,13 @@ import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
 import { WORLD_THEMES, worldRgba, WorldKey } from '../../../constants/worldThemes';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TargetId } from '../../types/tutorial';
+import { WorldsIcon } from './WorldsIcon';
 
-export type ProfileTab = 'profile' | 'strength' | 'power' | 'static' | '1mm' | 'champions' | 'journey';
+// 'champions' kept alive (not rendered as a tab below) so ChampionsArenaScreen's
+// own BottomTabBar usage still type-checks — same "leave the screen intact,
+// just remove its entry point" treatment as the Tournament/Clash screens,
+// which stay reachable by direct route but have no visible nav entry.
+export type ProfileTab = 'profile' | 'strength' | 'power' | 'static' | '1mm' | 'champions' | 'trainingCenter' | 'journey';
 
 const TAB_TARGET_IDS: Partial<Record<ProfileTab, TargetId>> = {
   profile: 'bottomTab.profile',
@@ -17,7 +22,7 @@ const TAB_TARGET_IDS: Partial<Record<ProfileTab, TargetId>> = {
   power: 'bottomTab.power',
   static: 'bottomTab.static',
   '1mm': 'bottomTab.1mm',
-  champions: 'bottomTab.champions',
+  trainingCenter: 'bottomTab.trainingCenter',
   journey: 'bottomTab.journey',
 };
 
@@ -39,15 +44,17 @@ const TABS: TabDef[] = [
   { id: 'power', label: 'POWER', icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
   { id: 'static', label: 'STATIC', icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
   { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
-  // unlockTier 0: open to everyone as a spectator (leaderboard/phase preview)
-  // — ChampionsArenaScreen itself gates the "START ARENA TRIAL" button at
-  // tier 9, so no separate lock is needed just to view the tab.
-  { id: 'champions', label: 'ARENA', icon: 'trophy', unlockTier: 0, route: '/champions-arena', accentColor: WORLD_THEMES.strength.accent },
+  // Champions Arena's tab entry is held back for the next release (same
+  // treatment as Tournament/Clash — see ProfileScreen.tsx's showV2Popup):
+  // ChampionsArenaScreen and /champions-arena stay in the codebase, just
+  // reachable by nothing in the nav. This slot now points at Training Center
+  // instead. unlockTier 0 / Ember Red: same reasoning as journey below.
+  { id: 'trainingCenter', label: 'TRAIN', icon: 'dumbbell', unlockTier: 0, route: '/training-center', accentColor: WORLD_THEMES.strength.accent },
   // unlockTier 0: AuthGuard already fully gates pre-onboarding users away
   // from every tab-bar screen (see app/_layout.tsx), so this tab is only
   // ever reachable once onboarding is complete — no separate lock needed.
   // Cross-world/neutral, so it borrows strength's Ember Red rather than
-  // owning a discipline color of its own (same reasoning as champions above).
+  // owning a discipline color of its own (same reasoning as training center above).
   { id: 'journey', label: 'JOURNEY', icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
 ];
 
@@ -117,7 +124,6 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
 
   const activeWorldTab = WORLD_TABS.find((t) => t.id === activeTab);
   const isWorldActive = !!activeWorldTab;
-  const worldsIcon = activeWorldTab?.icon ?? 'view-grid-outline';
   const worldsColor = activeWorldTab ? activeWorldTab.accentColor : theme.text.secondary;
 
   return (
@@ -145,7 +151,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
         {/* profile, strength: MAIN_TABS[0]/[1] -- Strength stays a top-level
             tab (see WORLD_TAB_IDS comment above), rendered before the
             merged WORLDS button so the bar reads profile, strength,
-            worlds, champions, journey. */}
+            worlds, train, journey. */}
         {MAIN_TABS.slice(0, 2).map((tab) => (
           <TabButton key={tab.id} tab={tab} isActive={tab.id === activeTab} isUnlocked={strengthTier >= tab.unlockTier} onPress={() => handlePress(tab)} />
         ))}
@@ -216,7 +222,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
                 },
               ]}
             >
-              <MaterialCommunityIcons name={worldsIcon} size={22} color={worldsColor} style={{ opacity: isWorldActive || worldsMenuOpen ? 1 : 0.85 }} />
+              <WorldsIcon size={22} activeKey={activeWorldTab ? WORLD_THEME_KEY[activeWorldTab.id] : undefined} />
             </View>
             <Text style={[styles.label, { color: worldsColor }]} numberOfLines={1}>
               WORLDS

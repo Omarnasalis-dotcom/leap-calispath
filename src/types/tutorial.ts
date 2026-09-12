@@ -15,7 +15,7 @@ export type TargetId =
   | 'bottomTab.power'
   | 'bottomTab.static'
   | 'bottomTab.1mm'
-  | 'bottomTab.champions'
+  | 'bottomTab.trainingCenter'
   | 'bottomTab.journey'
   | 'strength.trialButton'
   | 'strength.tierChips'
