@@ -511,6 +511,39 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
+  it("REGRESSION (2026-09-16): never applies the floor check to a WEIGHTED instance of a tracked pattern", () => {
+    // The real live bug, found on the very next test after fixing the
+    // checkpointExercise crash: 6 reps of WEIGHTED Pull Ups (Normal Grip)
+    // was rejected as "well below" a 30-rep BODYWEIGHT tested max — but
+    // bodyweight max-rep testing has no bearing on what's reasonable once
+    // external load changes the whole stimulus. 6 reps of a heavily
+    // weighted pull-up is completely normal programming.
+    const block = makeBlock({
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "6", is_weighted: true, notes: "start around 20kg added, adjust from feel" }],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
+    ).not.toThrow();
+  });
+
+  it("REGRESSION (2026-09-16): never applies the ceiling check to a WEIGHTED instance of a tracked pattern either", () => {
+    const block = makeBlock({
+      exercises: [{ name: "Dips", sets: "3", reps: "40", is_weighted: true, notes: "start around 20kg added, adjust from feel" }],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, dipsMax: 40 })
+    ).not.toThrow();
+  });
+
+  it("still applies the floor check to an UNWEIGHTED instance of the same pattern in the same program", () => {
+    const block = makeBlock({
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "6" }],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
+    ).toThrow(/well below this athlete's tested max of 30/);
+  });
+
   it("rejects weighted work with a known logged weight but no number written anywhere", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
     expect(() =>

@@ -411,12 +411,22 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
   // legitimate lighter accessory/technique work — and only applies outside
   // Warm-Up/Cool-Down, which legitimately use low-rep activation work
   // under exercise names this loop would otherwise misjudge as "too easy."
+  // Real live bug, found 2026-09-16 on the very next test after fixing the
+  // checkpointExercise crash: this fired on 6-rep WEIGHTED Pull Ups/Dips,
+  // comparing them against the athlete's BODYWEIGHT tested max (30/40) as
+  // if that ceiling/floor still applied once external load changes the
+  // whole stimulus — 6 reps of a heavily weighted pull-up is completely
+  // normal programming, not a sign of the wrong level band. Bodyweight
+  // max-rep testing has no bearing on what's reasonable once is_weighted
+  // is true; skip these entirely, the same way Warm-Up/Cool-Down already
+  // are for the floor half of this check.
   const MIN_FRACTION_OF_TESTED_MAX = 0.5;
   for (const { key, exerciseName } of TRACKED_PATTERNS) {
     const max = fit[key] as number | null;
     if (max === null || max === undefined || max <= 0) continue;
     for (const { ex, day, phase } of all) {
       if (!nameIs(ex.name, exerciseName)) continue;
+      if (ex.is_weighted) continue;
       const repsVal = toNumberOrNull(ex.reps);
       if (repsVal === null) continue;
       if (repsVal >= max) {

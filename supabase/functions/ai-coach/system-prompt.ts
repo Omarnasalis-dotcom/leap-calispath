@@ -245,6 +245,24 @@
 // buildProgramAction for the client payload) — an extra DB query, not a
 // correctness issue, not touched here to avoid unnecessary risk right
 // before the next real test.
+//
+// ROUND 5, next real test after the crash fix: the crash is confirmed
+// GONE (no TypeError anywhere in the new logs) — real progress. But a
+// NEW bug of my own surfaced: the reps floor/ceiling check (ROUND 2)
+// compared WEIGHTED Pull Ups/Dips against the athlete's BODYWEIGHT tested
+// max (30/40) and rejected 6 reps as "well below" it — 6 reps of a
+// heavily weighted pull-up or dip is completely normal programming;
+// bodyweight max-rep testing has no bearing once external load changes
+// the whole stimulus. This cost 2 full wasted retry round-trips in the
+// live test (turns 7-9, ~13s) on top of one LEGITIMATE retry (a real
+// rounds/sets mismatch the model made and correctly self-corrected,
+// turns 2-3) — the request ran 117s across 12 turns before being killed
+// with no final reply, consistent with the same platform-timeout theory
+// from earlier rounds, just no longer masked by the crash. Fix: skip any
+// exercise with is_weighted:true in that check entirely, both floor and
+// ceiling — same as the existing Warm-Up/Cool-Down exemption. 3 new
+// regression tests, verified by hand against the pre-fix code (fails
+// with the exact log's error message) and the fix (passes).
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
