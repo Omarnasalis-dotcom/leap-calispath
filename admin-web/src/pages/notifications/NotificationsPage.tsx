@@ -3,8 +3,10 @@ import { fetchNotifications, markAllRead, markRead, type NotificationRow } from 
 import { ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 
-// Types this inbox currently receives: client_workout_logged
-// (notify-coach-workout-logged), client_achievement (data.kind:
+// Types this inbox currently receives: client_workout_logged /
+// client_day_complete / client_week_complete (all notify-coach-workout-logged
+// — day/week-complete only for a real human coach's own clients, never the
+// AI Coach or self-service system profiles), client_achievement (data.kind:
 // tier_promotion | power_pb | static_pb | one_mm_pb | arena_pb, from the
 // five submission RPCs), client_program_update (assign/append/overwrite),
 // client_needs_attention (send-client-attention-alerts, cron). Anything
@@ -13,15 +15,23 @@ import { formatDateTime } from '@/shared/constants';
 const TONE_BY_TYPE: Record<string, 'accent' | 'ok' | 'warn'> = {
   client_achievement: 'ok',
   client_workout_logged: 'accent',
+  client_day_complete: 'accent',
+  client_week_complete: 'ok',
   client_program_update: 'accent',
   client_needs_attention: 'warn',
+  new_signup: 'accent',
+  new_subscription: 'ok',
 };
 
 const ICON_BY_TYPE: Record<string, string> = {
   client_achievement: '🏆',
   client_needs_attention: '⚠️',
   client_workout_logged: '📋',
+  client_day_complete: '✅',
+  client_week_complete: '🗓️',
   client_program_update: '📦',
+  new_signup: '👋',
+  new_subscription: '💳',
 };
 
 function NotificationIcon({ type }: { type: string }) {
