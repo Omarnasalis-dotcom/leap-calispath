@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { BLOCKS_SCHEMA, getBlockParts, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
+import { BLOCKS_SCHEMA, getBlockParts, levelBandForTier, normalizeBlockStructure, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
 // Direct Build incremental staging (2026-09-16): closes the real cost/
 // timeout failure two live 4-day/2-skill builds hit — propose_new_program
@@ -63,10 +63,22 @@ export const addProgramDay: ToolDefinition = {
       );
     }
 
+    // Auto-repair trivial structure gaps before validating (blockHelpers.ts's
+    // normalizeBlockStructure) — needs the athlete's real tier to pick a
+    // sane amrap/fortime time cap, so this is the one extra read this tool
+    // now does beyond what it already needed for resolveExerciseIds.
+    const { data: profile } = await userClient.rpc("get_my_profile").single();
+    const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
+    const autoFixed = normalizeBlockStructure(blocks, levelBand);
+
     validateBlockStructure(blocks, { requireDayPhases: true });
     await resolveExerciseIds(userClient, blocks);
 
     context.programDraft.days.set(dayName, blocks);
-    return { day_accepted: true, days_staged: [...context.programDraft.days.keys()] };
+    return {
+      day_accepted: true,
+      days_staged: [...context.programDraft.days.keys()],
+      ...(autoFixed.length > 0 ? { auto_fixed: autoFixed } : {}),
+    };
   },
 };

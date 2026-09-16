@@ -416,14 +416,20 @@ serve(async (req: Request) => {
         // program from scratch, not just the bad field. "medium" is
         // Anthropic's own recommended step for exactly this shape ("agentic
         // tasks that require a balance of speed, cost, and performance").
-        // Re-verify cost/success on a real 4-day build before trusting this
-        // fixed it — if builds still fail this often, the validation
-        // surface itself (not the effort level) needs revisiting.
+        // Reverted back to "low" 2026-09-17: the live 150s-timeout kill
+        // (boot->shutdown exactly 150s) showed turns 2-3 spending ~37s and
+        // 3,000+ output tokens each on a single read tool call (get_user_context,
+        // search_exercises) — "medium" effort spending that much on a plain
+        // tool call, not on the actual program content, is the bigger cost
+        // than whatever validation-retry problem it was raised to fix on
+        // 2026-09-16 (see the removed comment above / git history), and that
+        // retry problem turned out to be the real crash bug in
+        // validateBuildBrief (fixed same day), not an effort/token shortage.
         // Sonnet 5 doesn't support per-message effort switching (only
         // Fable 5.1/Mythos 5.1/Opus 5 do per Anthropic's docs), so this is
         // a global change, not build-calls-only — no beta header needed for
         // a static top-level value like this either way.
-        output_config: { effort: "medium" },
+        output_config: { effort: "low" },
       }),
     });
     if (!response.ok) {
@@ -441,12 +447,17 @@ serve(async (req: Request) => {
   // big program build is dominated by generation, not by prompt size or DB
   // lookups. This logs it per turn instead of leaving it to inference — read
   // it in Dashboard > Edge Functions > ai-coach > Logs.
-  function logTurn(turn: number, ms: number, r: { stop_reason?: string; usage?: Record<string, number>; content?: Array<{ type: string; name?: string }> }) {
+  // elapsedMs is time since this whole request started (not just this
+  // turn) — added 2026-09-17 after a live 150s-platform-timeout kill: the
+  // per-turn `ms` alone couldn't show how close a given turn was to the
+  // wall-clock limit when it was cut off mid-stream, only how long that one
+  // turn itself took.
+  function logTurn(turn: number, ms: number, elapsedMs: number, r: { stop_reason?: string; usage?: Record<string, number>; content?: Array<{ type: string; name?: string }> }) {
     const u = r.usage ?? {};
     const tools = (r.content ?? []).filter((b) => b.type === "tool_use").map((b) => b.name).join(",") || "-";
     const out = u.output_tokens ?? 0;
     console.log(
-      `[ai-coach] turn=${turn} ${ms}ms stop=${r.stop_reason} tools=${tools} ` +
+      `[ai-coach] turn=${turn} ${ms}ms elapsed=${elapsedMs}ms stop=${r.stop_reason} tools=${tools} ` +
       `in=${u.input_tokens ?? 0} cache_read=${u.cache_read_input_tokens ?? 0} ` +
       `cache_write=${u.cache_creation_input_tokens ?? 0} out=${out} ` +
       `(${ms > 0 ? Math.round((out / ms) * 1000) : 0} out-tok/s)`
@@ -529,7 +540,7 @@ serve(async (req: Request) => {
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
       const turnStart = Date.now();
       const claudeResponse = await callClaude(messages);
-      logTurn(turn, Date.now() - turnStart, claudeResponse);
+      logTurn(turn, Date.now() - turnStart, Date.now() - startedAt, claudeResponse);
       totalUsage = addUsage(totalUsage, (claudeResponse.usage ?? {}) as ClaudeUsage);
 
       const turnText = (claudeResponse.content ?? [])

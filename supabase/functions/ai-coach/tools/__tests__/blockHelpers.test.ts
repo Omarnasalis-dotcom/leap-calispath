@@ -20,6 +20,8 @@ import {
   resolveProgramBlocks,
   getBlockParts,
   parseConceptNotes,
+  normalizeBlockStructure,
+  levelBandForTier,
 } from "../blockHelpers";
 
 // Minimal always-valid block, overridable per test. Real shape mirrors what
@@ -138,6 +140,100 @@ describe("validateBlockStructure — conditional metadata (added 2026-09-16)", (
     expect(() =>
       validateBlockStructure([makeBlock({ metadata: { structure: "single" } })] as never, { requireDayPhases: false })
     ).not.toThrow();
+  });
+});
+
+describe("levelBandForTier (added 2026-09-17, auto-repair)", () => {
+  it("maps tiers 0-2 to beginner, 3-5 to intermediate, 6-9 to advanced", () => {
+    expect(levelBandForTier(0)).toBe("beginner");
+    expect(levelBandForTier(2)).toBe("beginner");
+    expect(levelBandForTier(3)).toBe("intermediate");
+    expect(levelBandForTier(5)).toBe("intermediate");
+    expect(levelBandForTier(6)).toBe("advanced");
+    expect(levelBandForTier(9)).toBe("advanced");
+  });
+
+  it("defaults to beginner for a missing/non-numeric tier", () => {
+    expect(levelBandForTier(undefined)).toBe("beginner");
+    expect(levelBandForTier(null)).toBe("beginner");
+  });
+});
+
+describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial structure gaps instead of rejecting", () => {
+  it("defaults a circuit block's missing rounds to \"3\" and forces every exercise's sets to \"1\"", () => {
+    const block = makeBlock({
+      metadata: { structure: "circuit" },
+      exercises: [
+        { name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" },
+        { name: "Dips", sets: "3", reps: "10" },
+      ],
+    });
+    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    expect((block.metadata as Record<string, unknown>).rounds).toBe("3");
+    expect(block.exercises.every((ex) => ex.sets === "1")).toBe(true);
+    expect(fixes).toEqual([expect.stringContaining("no rounds set")]);
+    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).not.toThrow();
+  });
+
+  it("leaves an already-specified rounds value untouched", () => {
+    const block = makeBlock({
+      metadata: { structure: "superset", rounds: "5" },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "8" }],
+    });
+    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    expect((block.metadata as Record<string, unknown>).rounds).toBe("5");
+    expect(fixes).toEqual([]);
+  });
+
+  it("defaults amrap/fortime time_cap_min by level band", () => {
+    const beginnerBlock = makeBlock({ metadata: { timing_system: "amrap" } });
+    normalizeBlockStructure([beginnerBlock] as never, "beginner");
+    expect((beginnerBlock.metadata as Record<string, unknown>).time_cap_min).toBe(6);
+
+    const intermediateBlock = makeBlock({ metadata: { timing_system: "fortime" } });
+    normalizeBlockStructure([intermediateBlock] as never, "intermediate");
+    expect((intermediateBlock.metadata as Record<string, unknown>).time_cap_min).toBe(10);
+
+    const advancedBlock = makeBlock({ metadata: { timing_system: "amrap" } });
+    normalizeBlockStructure([advancedBlock] as never, "advanced");
+    expect((advancedBlock.metadata as Record<string, unknown>).time_cap_min).toBe(12);
+  });
+
+  it("does not override an already-specified time_cap_min", () => {
+    const block = makeBlock({ metadata: { timing_system: "amrap", time_cap_min: 20 } });
+    const fixes = normalizeBlockStructure([block] as never, "beginner");
+    expect((block.metadata as Record<string, unknown>).time_cap_min).toBe(20);
+    expect(fixes).toEqual([]);
+  });
+
+  it("defaults a ladder block's missing ladder_sub/ladder_direction, leaving ladder_start alone", () => {
+    const block = makeBlock({
+      metadata: { structure: "ladder", rounds: "3", ladder_start: 10 },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "10" }],
+    });
+    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    const meta = block.metadata as Record<string, unknown>;
+    expect(meta.ladder_sub).toBe(2);
+    expect(meta.ladder_direction).toBe("down");
+    expect(meta.ladder_start).toBe(10);
+    expect(fixes).toEqual([
+      expect.stringContaining("no ladder_sub"),
+      expect.stringContaining("no ladder_direction"),
+    ]);
+    // Still rejects for real: ladder_start was never auto-filled by this pass.
+    expect(() =>
+      validateBlockStructure(
+        [makeBlock({ metadata: { structure: "ladder", rounds: "3" }, exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "10" }] })] as never,
+        { requireDayPhases: false }
+      )
+    ).toThrow(/missing ladder_start/);
+  });
+
+  it("does not touch a genuinely empty Warm-Up/Cool-Down — still a hard reject, not auto-padded", () => {
+    const block = makeBlock({ name: "PULL DAY 1 | Cool-Down", exercises: [{ name: "Pull Ups (Normal Grip)" }, { name: "Dips" }] });
+    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    expect(fixes).toEqual([]);
+    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).toThrow(/only 2 exercise/);
   });
 });
 

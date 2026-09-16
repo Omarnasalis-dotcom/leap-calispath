@@ -92,6 +92,72 @@ export function validateExerciseList(
   });
 }
 
+export type LevelBand = "beginner" | "intermediate" | "advanced";
+
+// system-prompt.ts §7's own level-band tier ranges (beginner 0-2,
+// intermediate 3-5, advanced 6-9) — duplicated here rather than imported
+// since the prompt states this in prose, not a shared constant.
+export function levelBandForTier(tier: unknown): LevelBand {
+  const t = typeof tier === "number" ? tier : 0;
+  if (t >= 6) return "advanced";
+  if (t >= 3) return "intermediate";
+  return "beginner";
+}
+
+const AMRAP_FORTIME_DEFAULT_TIME_CAP_MIN: Record<LevelBand, number> = {
+  beginner: 6,
+  intermediate: 10,
+  advanced: 12,
+};
+
+// Auto-repair pass (2026-09-17): the live 150s-timeout failure that killed
+// an entire build showed add_program_day rejecting 3 of 4 staged days on
+// trivial, mechanically-fixable metadata gaps (a circuit with no rounds, a
+// 2-exercise Cool-Down) rather than anything actually wrong with the
+// athlete's numbers or exercise choices — each rejection cost a full extra
+// ~35-40s turn the athlete never needed to pay for. This fills in the same
+// defaults a coach would reach for by reflex and reports what it changed,
+// instead of failing the call. It never touches anything that reflects a
+// real judgment call: an unknown exercise name, an over-max prescription, a
+// missing split day, a missing brief field, or a genuinely empty/near-empty
+// Warm-Up or Cool-Down (padding that with invented exercise names would
+// risk shipping content that was never a real library entry — left as a
+// hard reject on purpose; see validateBlockStructure below).
+export function normalizeBlockStructure(blocks: ClaudeBlock[], levelBand: LevelBand): string[] {
+  const fixes: string[] = [];
+  const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+
+  for (const block of blocks ?? []) {
+    if (!block.metadata) block.metadata = {};
+    const meta = block.metadata as Record<string, unknown>;
+    const { day, phase } = getBlockParts(block);
+
+    if ((meta.structure === "circuit" || meta.structure === "superset" || meta.structure === "ladder") && isBlank(meta.rounds)) {
+      meta.rounds = "3";
+      for (const ex of block.exercises ?? []) ex.sets = "1";
+      fixes.push(`"${day} | ${phase}": no rounds set for a ${meta.structure} block — defaulted rounds to "3" and every exercise's sets to "1".`);
+    }
+
+    if ((meta.timing_system === "fortime" || meta.timing_system === "amrap") && isBlank(meta.time_cap_min)) {
+      meta.time_cap_min = AMRAP_FORTIME_DEFAULT_TIME_CAP_MIN[levelBand];
+      fixes.push(`"${day} | ${phase}": no time_cap_min for a ${meta.timing_system} block — defaulted to ${meta.time_cap_min} min (${levelBand} band).`);
+    }
+
+    if (meta.structure === "ladder") {
+      if (isBlank(meta.ladder_sub)) {
+        meta.ladder_sub = 2;
+        fixes.push(`"${day} | ${phase}": no ladder_sub — defaulted to 2.`);
+      }
+      if (isBlank(meta.ladder_direction)) {
+        meta.ladder_direction = "down";
+        fixes.push(`"${day} | ${phase}": no ladder_direction — defaulted to "down".`);
+      }
+    }
+  }
+
+  return fixes;
+}
+
 export function validateBlockStructure(
   blocks: ClaudeBlock[],
   opts: { requireDayPhases: boolean }

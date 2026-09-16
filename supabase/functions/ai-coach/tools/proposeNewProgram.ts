@@ -4,6 +4,8 @@ import {
   BLOCKS_SCHEMA,
   BUILD_BRIEF_SCHEMA,
   AthleteFitContext,
+  levelBandForTier,
+  normalizeBlockStructure,
   resolveExerciseIds,
   resolveProgramBlocks,
   validateBlockStructure,
@@ -32,10 +34,10 @@ import {
 // false pass here; only what's actually in assessment_raw can.
 async function fetchAthleteFitContext(
   userClient: SupabaseClient,
-  brief: { skills: AthleteFitContext["skills"] }
+  brief: { skills: AthleteFitContext["skills"] },
+  profile: { assessment_raw?: Record<string, unknown> } | null
 ): Promise<AthleteFitContext> {
-  const { data: profile } = await userClient.rpc("get_my_profile").single();
-  const raw = (profile as { assessment_raw?: Record<string, unknown> } | null)?.assessment_raw ?? {};
+  const raw = profile?.assessment_raw ?? {};
 
   // Only a strict/standard variant confirms real unassisted capability —
   // an assisted/banded/inverted-row number at any rep count doesn't mean
@@ -100,6 +102,13 @@ export const proposeNewProgram: ToolDefinition = {
     const brief = validateBuildBrief(input.brief);
     const blocks = resolveProgramBlocks(input.blocks, context.programDraft.days);
 
+    // Fetched once, reused below for both the auto-repair level band and
+    // fetchAthleteFitContext's real numbers — avoids a second get_my_profile
+    // round trip for the same row.
+    const { data: profile } = await userClient.rpc("get_my_profile").single();
+    const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
+    const autoFixed = normalizeBlockStructure(blocks as never[], levelBand);
+
     // Structural ceiling, not a prompt hope: writing week 2+ upfront for a
     // program that hasn't been trained yet has no real performance data
     // behind it — the prompt already discourages this, but under enough
@@ -122,13 +131,13 @@ export const proposeNewProgram: ToolDefinition = {
     validateBlockStructure(blocks as never[], { requireDayPhases: true });
     validateSplitCoverage(blocks as never[], brief.days_per_week);
 
-    const fitContext = await fetchAthleteFitContext(userClient, brief);
+    const fitContext = await fetchAthleteFitContext(userClient, brief, profile as { assessment_raw?: Record<string, unknown> } | null);
     validateAthleteFit(blocks as never[], fitContext);
 
     // Resolve here so an unknown exercise name comes back as a tool error the
     // model can fix in this same turn, rather than surfacing after the athlete
     // has already tapped Start on a card that looked complete.
     await resolveExerciseIds(userClient, blocks as never[]);
-    return { proposed: true };
+    return { proposed: true, ...(autoFixed.length > 0 ? { auto_fixed: autoFixed } : {}) };
   },
 };
