@@ -634,6 +634,31 @@ export async function resolveExerciseIds(
   return resolved;
 }
 
+// Direct Build incremental staging (2026-09-16, see tools/addProgramDay.ts):
+// propose_new_program's `blocks` is optional now — when omitted, the whole
+// program is assembled from whatever add_program_day already staged this
+// request. Shared by proposeNewProgram.ts's handler AND index.ts's
+// buildProgramAction (which builds the athlete-facing card payload
+// separately from the handler's own validation pass) — both need the exact
+// same resolved blocks, so this is the one place that decides where they
+// come from.
+//
+// Takes the draft's `days` Map directly, not the whole ProgramDraft/
+// RequestContext type from tools/types.ts — importing that here would pull
+// in types.ts's own SupabaseClient import (a Deno-URL module Jest can't
+// resolve), breaking this file's zero-import Jest-testability.
+export function resolveProgramBlocks(inputBlocks: unknown, draftDays: Map<string, unknown[]>): unknown[] {
+  if (Array.isArray(inputBlocks) && inputBlocks.length > 0) {
+    return inputBlocks;
+  }
+  if (draftDays.size === 0) {
+    throw new Error(
+      `No "blocks" provided and nothing staged yet via add_program_day. Either pass blocks directly, or call add_program_day once per day first, then call this again with no blocks.`
+    );
+  }
+  return [...draftDays.values()].flat();
+}
+
 // Every numeric field here reaches Postgres through a raw cast in
 // _insert_client_program_blocks — `(v_exercise->>'hold_seconds')::int` and
 // friends. An empty string is the app's own stored convention for "not

@@ -17,6 +17,7 @@ import {
   validateSplitCoverage,
   validateAthleteFit,
   validateBuildBrief,
+  resolveProgramBlocks,
   parseConceptNotes,
 } from "../blockHelpers";
 
@@ -600,5 +601,39 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
     const brief = validBrief() as unknown as Record<string, unknown>;
     brief.days_per_week = 9;
     expect(() => validateBuildBrief(brief)).toThrow(/days_per_week must be a real number between 1 and 7/);
+  });
+});
+
+describe("resolveProgramBlocks (added 2026-09-16, Direct Build incremental staging)", () => {
+  it("uses input.blocks directly when a non-empty array is provided", () => {
+    const inputBlocks = [{ name: "PULL DAY 1 | Strength - 1" }];
+    expect(resolveProgramBlocks(inputBlocks, new Map())).toBe(inputBlocks);
+  });
+
+  it("ignores a populated draft when blocks are provided directly", () => {
+    const inputBlocks = [{ name: "from input" }];
+    const draft = new Map([["PULL DAY 1", [{ name: "from draft" }]]]);
+    expect(resolveProgramBlocks(inputBlocks, draft)).toBe(inputBlocks);
+  });
+
+  it("assembles from the draft when blocks is omitted", () => {
+    const draft = new Map([
+      ["PULL DAY 1", [{ name: "PULL DAY 1 | Warm-Up" }, { name: "PULL DAY 1 | Strength - 1" }]],
+      ["LEGS DAY 2", [{ name: "LEGS DAY 2 | Warm-Up" }]],
+    ]);
+    expect(resolveProgramBlocks(undefined, draft)).toEqual([
+      { name: "PULL DAY 1 | Warm-Up" },
+      { name: "PULL DAY 1 | Strength - 1" },
+      { name: "LEGS DAY 2 | Warm-Up" },
+    ]);
+  });
+
+  it("assembles from the draft when blocks is an empty array", () => {
+    const draft = new Map([["PULL DAY 1", [{ name: "PULL DAY 1 | Warm-Up" }]]]);
+    expect(resolveProgramBlocks([], draft)).toEqual([{ name: "PULL DAY 1 | Warm-Up" }]);
+  });
+
+  it("throws a clear error when blocks is omitted and nothing was staged", () => {
+    expect(() => resolveProgramBlocks(undefined, new Map())).toThrow(/nothing staged yet via add_program_day/);
   });
 });

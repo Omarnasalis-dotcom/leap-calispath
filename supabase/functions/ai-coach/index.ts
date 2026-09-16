@@ -2,7 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
-import { transformBlocksForInsert, resolveExerciseIds } from "./tools/blockHelpers.ts";
+import { transformBlocksForInsert, resolveExerciseIds, resolveProgramBlocks } from "./tools/blockHelpers.ts";
+import { RequestContext } from "./tools/types.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
@@ -39,7 +40,8 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 async function buildProgramAction(
   userClient: SupabaseClient,
   toolName: string,
-  input: Record<string, unknown>
+  input: Record<string, unknown>,
+  context: RequestContext
 ) {
   const { data: active } = await userClient
     .from("warrior_programs")
@@ -53,14 +55,19 @@ async function buildProgramAction(
   };
 
   if (toolName === "propose_new_program") {
-    const idMap = await resolveExerciseIds(userClient, (input.blocks as never[]) ?? []);
+    // Same resolution as proposeNewProgram.ts's own handler — `blocks` may
+    // be omitted when every day was staged via add_program_day instead (see
+    // resolveProgramBlocks's own comment for why this lives in
+    // blockHelpers.ts rather than being duplicated here).
+    const blocks = resolveProgramBlocks(input.blocks, context.programDraft.days) as never[];
+    const idMap = await resolveExerciseIds(userClient, blocks);
     return {
       type: "create",
       reason: input.reason,
       payload: {
         name: input.name,
         description: input.description ?? "",
-        blocks: transformBlocksForInsert((input.blocks as never[]) ?? [], idMap),
+        blocks: transformBlocksForInsert(blocks, idMap),
       },
       ...base,
     };
@@ -170,6 +177,8 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
       return { verb: "READING", label: "Reading your current program" };
     case "search_exercises":
       return { verb: "SEARCHING", label: "Looking up exercises in the library" };
+    case "add_program_day":
+      return { verb: "BUILDING", label: "Writing that day" };
     case "propose_new_program":
     case "propose_program_from_workouts":
       return { verb: "BUILDING", label: "Putting your program together" };
@@ -470,6 +479,13 @@ serve(async (req: Request) => {
     // once per request so a model that fails it twice doesn't loop forever.
     const calledWriteTools = new Set<string>();
     let correctionAttempted = false;
+    // Direct Build incremental staging (2026-09-16, see tools/addProgramDay.ts
+    // and tools/types.ts's RequestContext) — a fresh, empty draft per
+    // request, passed to every tool handler; only add_program_day and
+    // propose_new_program actually read/write it. Never persisted, never
+    // shared across requests — garbage-collected with everything else once
+    // this request ends, same as messages/recommendations/programAction above.
+    const requestContext: RequestContext = { programDraft: { days: new Map() } };
 
     // A single chat turn (one call to this function) can span multiple
     // Claude API calls — every tool_use iteration below calls callClaude()
@@ -625,7 +641,7 @@ serve(async (req: Request) => {
         try {
           send("stage", stageForTool(block.name, (block.input as Record<string, unknown>) ?? {}));
           const toolStart = Date.now();
-          const result = await tool.handler(userClient, block.input ?? {});
+          const result = await tool.handler(userClient, block.input ?? {}, requestContext);
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
           if (WRITE_TOOL_NAMES.has(block.name)) calledWriteTools.add(block.name);
           if (block.name === "recommend_test") recommendations.push(result);
@@ -637,7 +653,7 @@ serve(async (req: Request) => {
             block.name === "propose_delete_week" ||
             block.name === "propose_program_from_workouts"
           ) {
-            programAction = await buildProgramAction(userClient, block.name, block.input ?? {});
+            programAction = await buildProgramAction(userClient, block.name, block.input ?? {}, requestContext);
           }
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {

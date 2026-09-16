@@ -4,6 +4,7 @@ import { searchExercises } from "./searchExercises.ts";
 import { getWorkoutLogs } from "./getWorkoutLogs.ts";
 import { proposeNewProgram } from "./proposeNewProgram.ts";
 import { saveBuildBrief } from "./saveBuildBrief.ts";
+import { addProgramDay } from "./addProgramDay.ts";
 import { proposeEndProgram } from "./proposeEndProgram.ts";
 import { proposeDeleteWeek } from "./proposeDeleteWeek.ts";
 import { appendWeek } from "./appendWeek.ts";
@@ -38,6 +39,7 @@ export const TOOLS: ToolDefinition[] = [
   getWorkoutLogs,
   proposeNewProgram,
   saveBuildBrief,
+  addProgramDay,
   proposeEndProgram,
   proposeDeleteWeek,
   appendWeek,

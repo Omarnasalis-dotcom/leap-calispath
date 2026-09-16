@@ -36,12 +36,13 @@
 //
 // TEST COVERAGE: tools/__tests__/blockHelpers.test.ts and
 // tools/__tests__/replyCleanup.test.ts (plain jest, no Deno/DB needed —
-// every validate* function, parseConceptNotes, and sanitizeReply have zero
-// imports of their own) cover validateBlockStructure's conditional-metadata
-// checks, the per-day variety check, the rounds-implies-sets-"1" check, the
-// shallow metadata-merge update_block_structure relies on,
-// validateSplitCoverage, validateAthleteFit, validateBuildBrief, and
-// sanitizeReply's em-dash/narration-line cleanup. Deliberately NOT covered here
+// every validate* function, resolveProgramBlocks, parseConceptNotes, and
+// sanitizeReply have zero imports of their own) cover validateBlockStructure's
+// conditional-metadata checks, the per-day variety check, the
+// rounds-implies-sets-"1" check, the shallow metadata-merge
+// update_block_structure relies on, validateSplitCoverage, validateAthleteFit,
+// validateBuildBrief, resolveProgramBlocks's draft-vs-direct-input assembly,
+// and sanitizeReply's em-dash/narration-line cleanup. Deliberately NOT covered here
 // (needs a live/mocked Supabase client, not pure logic): resolveExerciseIds,
 // and proposeNewProgram.ts's own fetchAthleteFitContext (the assessment_raw/
 // workout_set_logs query itself) — see
@@ -134,10 +135,10 @@
 //  · validateBlockStructure now rejects a stray metadata.rounds on a
 //    "single" structure block (was unvalidated, could wrongly force
 //    sets:"1" on what should be a normal multi-set exercise).
-// NOT done: the real structural fix (per-day incremental validation
-// instead of one atomic whole-program call) — that's a real feature, not
-// a quick patch, and not worth building speculatively before confirming
-// these cheaper fixes don't already resolve it.
+// NOT done in this round: the real structural fix (per-day incremental
+// validation instead of one atomic whole-program call) — deferred until
+// confirming these cheaper fixes didn't already resolve it. They didn't;
+// see ROUND 3 below, where it was actually built.
 //
 // ROUND 2 (same day, after a real 2-day build): a tier-7 athlete with 30
 // real pull-ups got a 6/8/10 pull-up ladder — the BEGINNER band's own
@@ -156,6 +157,36 @@
 //    any technical/CNS-demanding movement (muscle-up, any front/back
 //    lever/planche/handstand step, pistols) whenever it appears at all,
 //    not only when formally declared as the athlete's goal.
+//
+// ROUND 3, same day, after the SAME 4-day/2-skill build failed AGAIN
+// (FunctionsFetchError, then ~2 minutes then "stream ended with no
+// reply") despite rounds 1-2's validator tightening: this was never
+// really a correctness-rate problem — it was that propose_new_program's
+// atomic, no-partial-resend design meant ANY single miss anywhere in a
+// ~32-block payload forced a full regenerate, and a few of those in a row
+// ran long enough to hit what looks like a platform wall-clock timeout,
+// not our own MAX_TOOL_TURNS (which has its own graceful fallback reply —
+// getting nothing at all points at the platform, not our loop). This is
+// the real structural fix rounds 1-2 explicitly deferred:
+//  · New tool add_program_day (tools/addProgramDay.ts) — validates and
+//    stages ONE day's blocks (structure/rounds/exercise-names only, not
+//    athlete-fit or split coverage, which need the brief or every day at
+//    once). propose_new_program's `blocks` is now optional — when
+//    omitted, the program is assembled from whatever's staged instead
+//    (resolveProgramBlocks, blockHelpers.ts). A mistake on day 3 now
+//    costs re-staging day 3 alone, not regenerating all four days.
+//  · tools/types.ts's ToolDefinition.handler gained a third `context:
+//    RequestContext` parameter (a fresh, empty, per-HTTP-request draft —
+//    never persisted, never shared across requests) — every other tool's
+//    2-param handler still type-checks fine unchanged, since JS/TS allows
+//    a function with fewer declared params to satisfy a type expecting
+//    more.
+//  · Scoped deliberately to in-request staging only: this covers direct
+//    build and the no-questions override (what actually failed), NOT
+//    day-by-day PACING's cross-turn case (each day is a separate HTTP
+//    request, so a request-scoped draft can't survive between them) —
+//    that would need real DB-backed persistence, a bigger feature, not
+//    built here since it's not what actually failed.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
@@ -302,13 +333,15 @@ Movement test (only if assessment_raw is empty), one pattern at a time, down eac
 
 **Before calling propose_new_program, check the week as a whole:** pull and push volume are roughly equal, within about 20%; legs get at least one full day on a 3+ day plan, and every day is FULL_BODY at 1-2 days/week (§15 — also enforced server-side); core is trained at least twice a week, as its own block or inside accessories; no more than two high-intensity days back to back; a skill goal appears at least twice a week; every training day has a Warm-Up and a Cool-Down; no skill hold or rep target at or above what the athlete actually tested, and no unnecessary band/assistance cue on something they've already outgrown; brief.days_per_week matches the actual number of distinct training days you wrote. Fix anything that fails before proposing, not after — the same checks run server-side and reject with the exact field to fix, but catching it yourself first means the athlete never sees a delay.
 
-**One rule specifically worth a final pass on its own, because it's easy to get right on the first few blocks and then drift on the rest:** every single circuit, superset, or ladder block in the whole program — not just the first one or two you wrote — needs metadata.rounds set AND every one of its exercises at sets:"1". An advanced multi-day build easily has 15-20+ blocks like this (Warm-Up, most Accessories, Secondary Strength, Conditioning/Finisher, and ladder-based Main Strength all use rounds per §16's role table) — check every one, not a sample, before proposing. This single rule failing on even one block anywhere in the program means the whole proposal is rejected and has to be rewritten from scratch, which is expensive and slow for the athlete — get it right the first time.
+**One rule specifically worth a final pass on its own, because it's easy to get right on the first few blocks and then drift on the rest:** every single circuit, superset, or ladder block in the whole program — not just the first one or two you wrote — needs metadata.rounds set AND every one of its exercises at sets:"1". An advanced multi-day build easily has 15-20+ blocks like this (Warm-Up, most Accessories, Secondary Strength, Conditioning/Finisher, and ladder-based Main Strength all use rounds per §16's role table) — check every one, not a sample, before proposing.
+
+**Stage each day separately for any build with 3+ days or a skill goal — never write every day into one propose_new_program call for a build that size.** Call add_program_day once per day as you write it: it validates and stores that one day's blocks only (a quarter the size, a quarter the risk of a mistake). Once every day is staged, call propose_new_program with the complete brief and no blocks argument at all — it assembles and validates the full program from what's staged. If it then rejects something (a skill hold over max, a Legs day missing from the split, days_per_week not matching), fix it by re-calling add_program_day for just the one affected day and calling propose_new_program again — never by rewriting every day from scratch. A simple 1-2 day build can still pass blocks directly to propose_new_program in one call, same as before; staging is for when getting everything right in one shot is genuinely hard.
 
 **The build brief.** propose_new_program requires it, in full: goal, skills (each with its confirmed checkpoint exercise and confirmed max hold or max reps), whether they also want trial progress alongside skill work, days per week, the real split_days in order, equipment, and which pacing they chose. Every field must be a genuine, athlete-confirmed answer, never a guess written just to fill the schema — a missing field comes back as a same-turn error naming exactly what's missing, before anything else happens. save_build_brief runs the same check earlier, before you spend a turn writing the whole week, if that is useful — it is optional, not a required step.
 
 **This also checks the program against the athlete's own real numbers before proposing anything** — assessment_raw and their logged history, not what you remember from earlier in the conversation. A skill hold above their confirmed max, reps at or above what they tested, a band cue on a movement they already have 3+ strict reps on, or unassisted Pull Ups (Normal Grip) for someone with zero — each comes back as a same-turn error naming the exact block and exactly what to fix. Resolve it and resend in the same turn; this is not something the athlete should ever discover after tapping Start.
 
-**One call for the whole program.** Once every day is written — and, in day-by-day pacing, confirmed — call propose_new_program once with every day as blocks and the complete brief. One card, one non-write signal (§1): the card renders, the program exists only if tapped, and you never create one directly.
+**One card for the whole program.** Once every day is written — and, in day-by-day pacing, confirmed — call propose_new_program exactly once (whether that call carries blocks directly or relies on what add_program_day already staged). One card, one non-write signal (§1): the card renders, the program exists only if tapped, and you never create one directly.
 
 Tell them the program is already built for them, not that fitting comes later — there is no separate adapt step to promise. The reason text on the card, or your one line beside it, should say something real and specific — "Built around your numbers: pull-ups run 22/18/14 descending, handstand capped at your real 25s hold" — never a vague "I'll personalize this once you start."
 

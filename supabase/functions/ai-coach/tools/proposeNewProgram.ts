@@ -5,6 +5,7 @@ import {
   BUILD_BRIEF_SCHEMA,
   AthleteFitContext,
   resolveExerciseIds,
+  resolveProgramBlocks,
   validateBlockStructure,
   validateBuildBrief,
   validateSplitCoverage,
@@ -83,7 +84,7 @@ async function fetchAthleteFitContext(
 export const proposeNewProgram: ToolDefinition = {
   name: "propose_new_program",
   description:
-    "Propose a brand-new training program to the athlete — this does NOT create anything. It shows the athlete a confirmation card in the chat; the program is only actually created if they explicitly tap it. Requires the full build brief (see `brief`) — every field must already be a real, athlete-confirmed answer, not a guess. This checks the program you wrote against the athlete's own real numbers (assessment_raw, logged weights) before it will propose anything — an unrealistic block (a hold above their max, reps at or above what they tested, a band cue they no longer need) comes back as an error naming exactly what to fix, not a card the athlete sees unadapted.",
+    "Propose a brand-new training program to the athlete — this does NOT create anything. It shows the athlete a confirmation card in the chat; the program is only actually created if they explicitly tap it. Requires the full build brief (see `brief`) — every field must already be a real, athlete-confirmed answer, not a guess. This checks the program you wrote against the athlete's own real numbers (assessment_raw, logged weights) before it will propose anything — an unrealistic block (a hold above their max, reps at or above what they tested, a band cue they no longer need) comes back as an error naming exactly what to fix, not a card the athlete sees unadapted. `blocks` is optional: omit it once every day has been staged with add_program_day, and the full program is assembled from that instead — do this for any build with 3+ days or a skill goal, so a mistake only costs re-staging one day, not rewriting everything.",
   input_schema: {
     type: "object",
     properties: {
@@ -91,12 +92,13 @@ export const proposeNewProgram: ToolDefinition = {
       description: { type: "string" },
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this." },
       brief: BUILD_BRIEF_SCHEMA,
-      blocks: BLOCKS_SCHEMA,
+      blocks: { ...BLOCKS_SCHEMA, description: "Omit this if every day was already staged with add_program_day — the program is assembled from that instead. Only send this directly for a simple 1-2 day build with no staging." },
     },
-    required: ["name", "brief", "blocks", "reason"],
+    required: ["name", "brief", "reason"],
   },
-  handler: async (userClient, input) => {
+  handler: async (userClient, input, context) => {
     const brief = validateBuildBrief(input.brief);
+    const blocks = resolveProgramBlocks(input.blocks, context.programDraft.days);
 
     // Structural ceiling, not a prompt hope: writing week 2+ upfront for a
     // program that hasn't been trained yet has no real performance data
@@ -107,8 +109,7 @@ export const proposeNewProgram: ToolDefinition = {
     // below — surfaced as a tool result the model must react to in this
     // turn, never silently truncated later by hitting max_tokens on an
     // oversized blocks array.
-    const blocks = (input.blocks as Array<{ week_number?: number }>) ?? [];
-    const weekNumbers = new Set(blocks.map((b) => b.week_number ?? 1));
+    const weekNumbers = new Set((blocks as Array<{ week_number?: number }>).map((b) => b.week_number ?? 1));
     if (weekNumbers.size > 2) {
       throw new Error(
         `This proposes ${weekNumbers.size} weeks in one call, but at most 2 can be built at once. Programming further weeks before any training has actually happened isn't coaching, it's a guess. Resend with only weeks ${[...weekNumbers].sort((a, b) => a - b).slice(0, 2).join(" and ")} — the rest comes from append_week once the athlete has logged real training.`
@@ -118,16 +119,16 @@ export const proposeNewProgram: ToolDefinition = {
     // Same reasoning as resolveExerciseIds below: reject here, as a tool
     // error the model can see and fix in this same turn, rather than
     // surfacing after the athlete already tapped Start on an incomplete card.
-    validateBlockStructure((input.blocks as never[]) ?? [], { requireDayPhases: true });
-    validateSplitCoverage((input.blocks as never[]) ?? [], brief.days_per_week);
+    validateBlockStructure(blocks as never[], { requireDayPhases: true });
+    validateSplitCoverage(blocks as never[], brief.days_per_week);
 
     const fitContext = await fetchAthleteFitContext(userClient, brief);
-    validateAthleteFit((input.blocks as never[]) ?? [], fitContext);
+    validateAthleteFit(blocks as never[], fitContext);
 
     // Resolve here so an unknown exercise name comes back as a tool error the
     // model can fix in this same turn, rather than surfacing after the athlete
     // has already tapped Start on a card that looked complete.
-    await resolveExerciseIds(userClient, (input.blocks as never[]) ?? []);
+    await resolveExerciseIds(userClient, blocks as never[]);
     return { proposed: true };
   },
 };
