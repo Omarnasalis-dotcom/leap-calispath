@@ -380,8 +380,15 @@ serve(async (req: Request) => {
         // tool call", kept only text blocks (there were none), and returned
         // an empty reply — which CoachScreen's `if (result?.content)` then
         // dropped silently. The athlete paid for thousands of tokens and saw
-        // nothing at all appear. Sized for the largest realistic program.
-        max_tokens: 16000,
+        // nothing at all appear.
+        // Raised again, 16000 -> 32000, 2026-09-16: Direct Build's
+        // propose_new_program now also carries the build brief and can span
+        // a 4-day/~32-block advanced program (~5-8K tokens of pure JSON) —
+        // plus, raising effort to "medium" the same day (see output_config
+        // below) may spend more tokens per turn than "low" did. This costs
+        // nothing extra unless actually used; it's headroom against the
+        // exact silent-truncation failure above recurring at a larger scale.
+        max_tokens: 32000,
         system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages,
         tools: CACHED_TOOLS,

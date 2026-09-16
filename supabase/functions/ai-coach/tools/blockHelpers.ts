@@ -146,6 +146,14 @@ export function validateBlockStructure(
       if ((meta.structure === "circuit" || meta.structure === "superset" || meta.structure === "ladder") && isBlank(meta.rounds)) {
         throw new Error(`"${day} | ${phase}" has structure "${meta.structure}" but no metadata.rounds — required for circuit/superset/ladder blocks (the round count, as a string, e.g. "3").`);
       }
+      // Inverse of the check above, found while auditing Direct Build
+      // (2026-09-16): nothing stopped a "single" structure block from also
+      // carrying a stray metadata.rounds — which would then wrongly trip
+      // the rounds-implies-sets-"1" check below on what should be a normal
+      // multi-set exercise (e.g. 4 sets of 8 reps).
+      if (meta.structure === "single" && !isBlank(meta.rounds)) {
+        throw new Error(`"${day} | ${phase}" has structure "single" but also metadata.rounds set to "${meta.rounds}" — rounds only applies to circuit/superset/ladder. Remove rounds, or use a real multi-exercise structure if repetition across a group is what's intended.`);
+      }
       if ((meta.timing_system === "fortime" || meta.timing_system === "amrap") && isBlank(meta.time_cap_min)) {
         throw new Error(`"${day} | ${phase}" has timing_system "${meta.timing_system}" but no metadata.time_cap_min — required for fortime/amrap blocks (the time cap in minutes).`);
       }
@@ -243,6 +251,16 @@ export function validateSplitCoverage(blocks: ClaudeBlock[], daysPerWeek: number
   }
   const days = [...dayFocusTags.keys()];
   if (days.length === 0) return;
+
+  // Found while auditing Direct Build (2026-09-16): brief.days_per_week and
+  // the actual distinct day count in blocks were never cross-checked —
+  // nothing stopped a brief claiming 4 while the program itself had 3 or 5
+  // real training days.
+  if (days.length !== daysPerWeek) {
+    throw new Error(
+      `brief.days_per_week says ${daysPerWeek}, but the program actually has ${days.length} distinct training day(s) (${days.join(", ")}). These must match — fix whichever one is wrong.`
+    );
+  }
 
   if (daysPerWeek <= 2) {
     for (const day of days) {

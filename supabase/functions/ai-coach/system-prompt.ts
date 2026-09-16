@@ -111,6 +111,33 @@
 //    (never narrate a tool step as text) and §3 (no em dash), applied to
 //    every reply in index.ts's sseResponse regardless of source. Neither
 //    prompt rule is reliable enough alone under low effort to skip this.
+//
+// POST-SHIP HARDENING (2026-09-16, same day): two real 4-day/2-skill builds
+// failed live at "low" effort, each burning ~50 cents in what an audit of
+// this whole path concluded was most likely repeated full-payload retries —
+// propose_new_program validates the ENTIRE program atomically, so any one
+// miss anywhere (a rounds/sets mismatch on any of the 15-20+ circuit/
+// superset/ladder blocks a dense advanced build has, a single misspelled
+// exercise name among 100+, one skill hold over its confirmed max) forces
+// a full, expensive regenerate, not a targeted fix. Response, same day:
+//  · Effort "low" -> "medium" (see index.ts) — "low" is Anthropic's own
+//    recommendation for simple chat, not this shape of dense structured
+//    output; unconfirmed whether this alone fixes it.
+//  · max_tokens 16000 -> 32000 (index.ts) — free insurance against the
+//    exact silent-truncation bug this file already fixed once, now at a
+//    larger scale (medium effort + a bigger payload than before).
+//  · §11 gained an explicit "check every rounds-bearing block, not just
+//    the first few" reminder, since that's the single densest, most
+//    mechanically-checkable rule in the whole build.
+//  · validateSplitCoverage now also cross-checks brief.days_per_week
+//    against the real distinct day count in blocks (was unvalidated).
+//  · validateBlockStructure now rejects a stray metadata.rounds on a
+//    "single" structure block (was unvalidated, could wrongly force
+//    sets:"1" on what should be a normal multi-set exercise).
+// NOT done: the real structural fix (per-day incremental validation
+// instead of one atomic whole-program call) — that's a real feature, not
+// a quick patch, and not worth building speculatively before confirming
+// these cheaper fixes don't already resolve it.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
@@ -253,7 +280,9 @@ Movement test (only if assessment_raw is empty), one pattern at a time, down eac
 
 **Warm-Up/Cool-Down content:** 4–5 exercises each, never 1–2 — that is not a real warm-up. Warm-Up, every day, 2 rounds of 8–10, circuit, 60s after the round: Banded Arm Circles · Inchworm · Banded Shoulder External Rotation · Wrist Pressure · Scapula Push Ups. Push/Handstand days: add the separate Mobility block from §8, not more content folded into this Warm-Up. Legs days use instead: Inchworm · Reverse Lunges · Hip Flexors Stretch. Cool-Down, every day, 2 rounds, 30s holds — Pull/Push: Childe Pose · Shoulder Stretch · Child Pose Sided. Legs: Pancake Stretch · Shoulder Stretch · Laying Hamstring Stretch · Adductor Stretch · Child Pose Sided.
 
-**Before calling propose_new_program, check the week as a whole:** pull and push volume are roughly equal, within about 20%; legs get at least one full day on a 3+ day plan, and every day is FULL_BODY at 1-2 days/week (§15 — also enforced server-side); core is trained at least twice a week, as its own block or inside accessories; no more than two high-intensity days back to back; a skill goal appears at least twice a week; every training day has a Warm-Up and a Cool-Down; no skill hold or rep target at or above what the athlete actually tested, and no unnecessary band/assistance cue on something they've already outgrown. Fix anything that fails before proposing, not after — the same checks run server-side and reject with the exact field to fix, but catching it yourself first means the athlete never sees a delay.
+**Before calling propose_new_program, check the week as a whole:** pull and push volume are roughly equal, within about 20%; legs get at least one full day on a 3+ day plan, and every day is FULL_BODY at 1-2 days/week (§15 — also enforced server-side); core is trained at least twice a week, as its own block or inside accessories; no more than two high-intensity days back to back; a skill goal appears at least twice a week; every training day has a Warm-Up and a Cool-Down; no skill hold or rep target at or above what the athlete actually tested, and no unnecessary band/assistance cue on something they've already outgrown; brief.days_per_week matches the actual number of distinct training days you wrote. Fix anything that fails before proposing, not after — the same checks run server-side and reject with the exact field to fix, but catching it yourself first means the athlete never sees a delay.
+
+**One rule specifically worth a final pass on its own, because it's easy to get right on the first few blocks and then drift on the rest:** every single circuit, superset, or ladder block in the whole program — not just the first one or two you wrote — needs metadata.rounds set AND every one of its exercises at sets:"1". An advanced multi-day build easily has 15-20+ blocks like this (Warm-Up, most Accessories, Secondary Strength, Conditioning/Finisher, and ladder-based Main Strength all use rounds per §16's role table) — check every one, not a sample, before proposing. This single rule failing on even one block anywhere in the program means the whole proposal is rejected and has to be rewritten from scratch, which is expensive and slow for the athlete — get it right the first time.
 
 **The build brief.** propose_new_program requires it, in full: goal, skills (each with its confirmed checkpoint exercise and confirmed max hold or max reps), whether they also want trial progress alongside skill work, days per week, the real split_days in order, equipment, and which pacing they chose. Every field must be a genuine, athlete-confirmed answer, never a guess written just to fill the schema — a missing field comes back as a same-turn error naming exactly what's missing, before anything else happens. save_build_brief runs the same check earlier, before you spend a turn writing the whole week, if that is useful — it is optional, not a required step.
 

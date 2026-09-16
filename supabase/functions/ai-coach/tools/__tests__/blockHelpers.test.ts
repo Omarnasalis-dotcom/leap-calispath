@@ -125,6 +125,18 @@ describe("validateBlockStructure — conditional metadata (added 2026-09-16)", (
       )
     ).not.toThrow();
   });
+
+  it("rejects a \"single\" structure block that also carries a stray metadata.rounds (added 2026-09-16)", () => {
+    expect(() =>
+      validateBlockStructure([makeBlock({ metadata: { structure: "single", rounds: "3" } })] as never, { requireDayPhases: false })
+    ).toThrow(/structure "single" but also metadata\.rounds/);
+  });
+
+  it("accepts a \"single\" structure block with no rounds at all", () => {
+    expect(() =>
+      validateBlockStructure([makeBlock({ metadata: { structure: "single" } })] as never, { requireDayPhases: false })
+    ).not.toThrow();
+  });
 });
 
 describe("validateBlockStructure — rounds implies sets \"1\" (added 2026-09-16, direct build)", () => {
@@ -332,7 +344,7 @@ describe("validateSplitCoverage (added 2026-09-16, direct build)", () => {
 
   it("accepts a 1-2 day split where every day is FULL_BODY", () => {
     expect(() =>
-      validateSplitCoverage([day("DAY 1", "FULL_BODY"), day("DAY 2", "FULL_BODY")] as never, 1)
+      validateSplitCoverage([day("DAY 1", "FULL_BODY"), day("DAY 2", "FULL_BODY")] as never, 2)
     ).not.toThrow();
   });
 
@@ -363,11 +375,17 @@ describe("validateSplitCoverage (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("ignores REST blocks entirely", () => {
-    const restDay = makeBlock({ name: "DAY 3 | Rest", metadata: { focus_tag: "REST" }, exercises: [] });
+  it("ignores REST blocks entirely — for coverage AND for the day-count check below", () => {
+    const restDay = makeBlock({ name: "REST DAY | Rest", metadata: { focus_tag: "REST" }, exercises: [] });
     expect(() =>
-      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), restDay] as never, 3)
+      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH"), restDay] as never, 3)
     ).not.toThrow();
+  });
+
+  it("rejects brief.days_per_week not matching the real distinct day count (added 2026-09-16)", () => {
+    expect(() =>
+      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH")] as never, 4)
+    ).toThrow(/brief\.days_per_week says 4, but the program actually has 3/);
   });
 });
 
