@@ -329,10 +329,11 @@ const TRACKED_PATTERNS: Array<{ key: keyof AthleteFitContext; exerciseName: stri
 ];
 
 export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext): void {
-  const all: Array<{ ex: ClaudeBlock["exercises"][number]; day: string; phase: string }> = [];
+  const all: Array<{ ex: ClaudeBlock["exercises"][number]; day: string; phase: string; blockIsWeighted: boolean }> = [];
   for (const block of blocks ?? []) {
     const { day, phase } = getBlockParts(block);
-    for (const ex of block.exercises ?? []) all.push({ ex, day, phase });
+    const blockIsWeighted = block.metadata?.is_weighted === true;
+    for (const ex of block.exercises ?? []) all.push({ ex, day, phase, blockIsWeighted });
   }
   // Defensive on BOTH sides, not just `name` — an undefined/malformed
   // `target` used to crash this whole request (see validateBuildBrief's
@@ -420,13 +421,24 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
   // max-rep testing has no bearing on what's reasonable once is_weighted
   // is true; skip these entirely, the same way Warm-Up/Cool-Down already
   // are for the floor half of this check.
+  //
+  // Belt-and-suspenders (same day, before the next real test): also exempt
+  // when the BLOCK is marked is_weighted, not just the exercise. §19 says
+  // exercise-level is_weighted is the real source of truth for one
+  // exercise, and that's still checked first — but the live failure this
+  // was found on happened on a block literally named "WEIGHTED STRENGTH
+  // DAY," so trusting only the exercise-level flag leaves this exposed to
+  // the exact kind of model-compliance slip that keeps causing real
+  // failures. Under-flagging (missing a genuinely too-low bodyweight
+  // exercise inside an otherwise-weighted block) is a far cheaper mistake
+  // than another false-positive rejection burning two more retries.
   const MIN_FRACTION_OF_TESTED_MAX = 0.5;
   for (const { key, exerciseName } of TRACKED_PATTERNS) {
     const max = fit[key] as number | null;
     if (max === null || max === undefined || max <= 0) continue;
-    for (const { ex, day, phase } of all) {
+    for (const { ex, day, phase, blockIsWeighted } of all) {
       if (!nameIs(ex.name, exerciseName)) continue;
-      if (ex.is_weighted) continue;
+      if (ex.is_weighted || blockIsWeighted) continue;
       const repsVal = toNumberOrNull(ex.reps);
       if (repsVal === null) continue;
       if (repsVal >= max) {

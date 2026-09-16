@@ -544,6 +544,19 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).toThrow(/well below this athlete's tested max of 30/);
   });
 
+  it("REGRESSION (2026-09-16): also exempts via the BLOCK-level is_weighted flag, not just the exercise-level one", () => {
+    // Belt-and-suspenders: the live failure happened on a block literally
+    // named "WEIGHTED STRENGTH DAY" — trusting only the exercise-level flag
+    // leaves this exposed to the model forgetting to also set it there.
+    const block = makeBlock({
+      metadata: { is_weighted: true },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "6" }],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
+    ).not.toThrow();
+  });
+
   it("rejects weighted work with a known logged weight but no number written anywhere", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
     expect(() =>
@@ -728,5 +741,157 @@ describe("getBlockParts (exported 2026-09-16 for addProgramDay.ts's day_name cro
 
   it("falls back to \"?\" for a block with no name info at all — a real, if unlikely, edge case", () => {
     expect(getBlockParts({ exercises: [] })).toEqual({ day: "?", phase: "" });
+  });
+});
+
+describe("INTEGRATION (2026-09-16): the full validation pipeline against the exact real test case", () => {
+  // Tier 7, 10 strict muscle-ups, full equipment, 4 days, goal handstand +
+  // front lever + trial — the primary worked case this whole session's
+  // fixes were chasing. Runs everything propose_new_program's handler runs
+  // except the two DB-touching calls (fetchAthleteFitContext's own query,
+  // resolveExerciseIds) — those need a live/mocked Supabase client and stay
+  // out of Jest's reach by design (see this file's header comment); this
+  // still exercises every pure check with realistic content shaped like
+  // what a 4-day advanced build with a Weighted Strength day actually
+  // looks like, including the exact "WEIGHTED STRENGTH DAY" pattern the
+  // live failure was found on.
+  const fit = {
+    pullUpsMax: 30, dipsMax: 40, pushUpsMax: null, muscleUpsMax: 10,
+    skills: [
+      { skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 25, maxReps: null },
+      { skill: "front_lever", checkpointExercise: "Tuck Front Lever Hold", maxHoldSeconds: 15, maxReps: null },
+    ],
+  };
+
+  const pullDay = [
+    makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Warm-Up",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", rounds: "2" },
+      exercises: ["Banded Arm Circles", "Inchworm", "Banded Shoulder External Rotation", "Wrist Pressure"].map((name) => ({ name, sets: "1" })),
+    }),
+    makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Skills",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "SKILLS", is_weighted: false },
+      exercises: [
+        { name: "Muscle Up", sets: "3", reps: "6", notes: "" },
+        { name: "Tuck Front Lever Hold", sets: "3", hold_seconds: "10" },
+      ],
+    }),
+    makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Strength - 1",
+      metadata: {
+        structure: "ladder", timing_system: "fortime", focus_tag: "PULL", is_weighted: false,
+        rounds: "3", time_cap_min: 12, ladder_start: 22, ladder_sub: 4, ladder_direction: "down",
+      },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "22" }],
+    }),
+    makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Childe Pose", hold_seconds: "30" }, { name: "Shoulder Stretch", hold_seconds: "30" }, { name: "Child Pose Sided", hold_seconds: "30" }],
+    }),
+  ];
+
+  const legsDay = [
+    makeBlock({
+      name: "LEGS DAY | Warm-Up",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "LEGS", rounds: "2" },
+      exercises: ["Inchworm", "Reverse Lunges", "Hip Flexors Stretch"].map((name) => ({ name, sets: "1" })),
+    }),
+    makeBlock({
+      name: "LEGS DAY | Strength - 1",
+      metadata: { structure: "circuit", timing_system: "fortime", focus_tag: "LEGS", is_weighted: false, rounds: "4", time_cap_min: 15 },
+      exercises: [{ name: "Air Squat", sets: "1", reps: "20" }, { name: "Reverse Lunges", sets: "1", reps: "16" }],
+    }),
+    makeBlock({
+      name: "LEGS DAY | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "LEGS" },
+      exercises: [{ name: "Pancake Stretch", hold_seconds: "30" }, { name: "Laying Hamstring Stretch", hold_seconds: "30" }, { name: "Adductor Stretch", hold_seconds: "30" }],
+    }),
+  ];
+
+  const pushDay = [
+    makeBlock({
+      name: "PUSH & HANDSTAND DAY | Warm-Up",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PUSH", rounds: "2" },
+      exercises: ["Banded Arm Circles", "Inchworm", "Banded Shoulder External Rotation", "Wrist Pressure"].map((name) => ({ name, sets: "1" })),
+    }),
+    makeBlock({
+      name: "PUSH & HANDSTAND DAY | Mobility",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PUSH", rounds: "2" },
+      exercises: ["Tuck Overhead Reach Foam Roller", "Prone Shoulder Opener", "Pike Walk Out"].map((name) => ({ name, sets: "1" })),
+    }),
+    makeBlock({
+      name: "PUSH & HANDSTAND DAY | Skills",
+      metadata: { structure: "single", timing_system: "tabata", focus_tag: "SKILLS", is_weighted: false, tabata_work_seconds: 20, tabata_rest_seconds: 40, tabata_rounds: 6 },
+      exercises: [{ name: "Free Handstand", sets: "1", hold_seconds: "20" }],
+    }),
+    makeBlock({
+      name: "PUSH & HANDSTAND DAY | Strength - 1",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PUSH", is_weighted: false },
+      exercises: [{ name: "Dips", sets: "4", reps: "22" }],
+    }),
+    makeBlock({
+      name: "PUSH & HANDSTAND DAY | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PUSH" },
+      exercises: [{ name: "Childe Pose", hold_seconds: "30" }, { name: "Shoulder Stretch", hold_seconds: "30" }, { name: "Child Pose Sided", hold_seconds: "30" }],
+    }),
+  ];
+
+  // The exact block name the live failure happened on — is_weighted at
+  // BOTH the block level (metadata) and the exercise level, matching what
+  // a compliant model send should look like now that either one exempts
+  // the reps floor/ceiling check.
+  const weightedDay = [
+    makeBlock({
+      name: "WEIGHTED STRENGTH DAY | Warm-Up",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", rounds: "2" },
+      exercises: ["Banded Arm Circles", "Inchworm", "Banded Shoulder External Rotation", "Wrist Pressure"].map((name) => ({ name, sets: "1" })),
+    }),
+    makeBlock({
+      name: "WEIGHTED STRENGTH DAY | Strength - 1",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL", is_weighted: true },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "6", is_weighted: true, notes: "start around 20kg added, adjust from feel" }],
+    }),
+    makeBlock({
+      name: "WEIGHTED STRENGTH DAY | Accessories",
+      metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", is_weighted: true, rounds: "3" },
+      exercises: [{ name: "Dips", sets: "1", reps: "6", is_weighted: true, notes: "start around 15kg added, adjust from feel" }],
+    }),
+    makeBlock({
+      name: "WEIGHTED STRENGTH DAY | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Childe Pose", hold_seconds: "30" }, { name: "Shoulder Stretch", hold_seconds: "30" }, { name: "Child Pose Sided", hold_seconds: "30" }],
+    }),
+  ];
+
+  const fullProgram = [...pullDay, ...legsDay, ...pushDay, ...weightedDay];
+
+  it("passes validateBlockStructure for the whole 4-day program", () => {
+    expect(() => validateBlockStructure(fullProgram as never, { requireDayPhases: true })).not.toThrow();
+  });
+
+  it("passes validateSplitCoverage for the whole 4-day program", () => {
+    expect(() => validateSplitCoverage(fullProgram as never, 4)).not.toThrow();
+  });
+
+  it("passes validateAthleteFit for the whole 4-day program, including the weighted day", () => {
+    expect(() => validateAthleteFit(fullProgram as never, fit as never)).not.toThrow();
+  });
+
+  it("passes validateBuildBrief for the matching brief", () => {
+    const brief = {
+      goal: "handstand and front lever, keep progressing to the trial",
+      skills: [
+        { skill: "handstand", checkpoint_exercise: "Free Handstand", max_hold_seconds: 25 },
+        { skill: "front_lever", checkpoint_exercise: "Tuck Front Lever Hold", max_hold_seconds: 15 },
+      ],
+      trial_focus: true,
+      days_per_week: 4,
+      split_days: ["PULL", "LEGS", "PUSH", "PULL"],
+      equipment: ["bar", "rings", "bands", "weights"],
+      pacing: "direct" as const,
+    };
+    expect(() => validateBuildBrief(brief)).not.toThrow();
   });
 });

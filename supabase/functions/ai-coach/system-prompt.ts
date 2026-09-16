@@ -260,9 +260,31 @@
 // with no final reply, consistent with the same platform-timeout theory
 // from earlier rounds, just no longer masked by the crash. Fix: skip any
 // exercise with is_weighted:true in that check entirely, both floor and
-// ceiling — same as the existing Warm-Up/Cool-Down exemption. 3 new
-// regression tests, verified by hand against the pre-fix code (fails
-// with the exact log's error message) and the fix (passes).
+// ceiling — same as the existing Warm-Up/Cool-Down exemption. Also exempt
+// via the BLOCK-level metadata.is_weighted, not just the exercise-level
+// flag — the live failure happened on a block literally named "WEIGHTED
+// STRENGTH DAY," so trusting only the exercise-level flag leaves this
+// exposed to the same kind of model-compliance slip that's caused every
+// failure so far. 4 new regression tests, verified by hand against the
+// pre-fix code (fails with the exact log's error message) and the fix
+// (passes).
+//
+// Before the next test (last one before considering a rebuild from
+// scratch): built a full 4-day INTEGRATION test in
+// blockHelpers.test.ts matching this exact primary case byte-for-byte —
+// real Warm-Up/Skills/Strength/Accessories/Cool-Down blocks for Pull &
+// Muscle-Up, Legs, Push & Handstand, and Weighted Strength days, both
+// skills' checkpoints present, the weighted day marked is_weighted at
+// both block and exercise level — run through validateBlockStructure,
+// validateSplitCoverage, validateAthleteFit, and validateBuildBrief
+// together, not in isolation. Caught one thing immediately: the first
+// draft of that fixture declared front_lever as a skill but never
+// actually included Tuck Front Lever Hold anywhere in the 4 days —
+// validateAthleteFit correctly rejected it. Real confirmation the
+// checkpoint-must-appear check works as intended, not a code bug; fixed
+// by completing the fixture. All four pass cleanly now — the closest
+// thing to an end-to-end confirmation Jest can give without a live
+// Supabase client or Anthropic call.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
