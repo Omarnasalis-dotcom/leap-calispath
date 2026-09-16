@@ -44,6 +44,7 @@ import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 import { useTutorial } from '../contexts/TutorialContext';
+import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
 
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
@@ -94,7 +95,21 @@ export function ProfileScreen({
     router.push(category ? { pathname: '/one-min-max', params: { category } } : '/one-min-max');
   const onStartTrial = (tier?: number) => {
     const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
-    router.push({ pathname: '/trial', params: { tier, mode } });
+    // A progression trial IS the athlete's real next-tier trial, the same
+    // one the Milestone Lane's own trial card gates on — passing it here
+    // (this tier grid, not the lane's embedded card) used to leave that
+    // card stuck showing "open" forever, since nothing told the lane a
+    // trial was resolved. returnTo/questSlotKey (via the shared sentinel —
+    // this screen has no idea what the lane's current week is) closes that
+    // gap and lands the athlete on My Journey to see it reflected. Practice
+    // trials don't advance tier and aren't "the" journey trial, so they
+    // keep today's behavior (back to Profile) untouched.
+    router.push({
+      pathname: '/trial',
+      params: mode === 'progression'
+        ? { tier, mode, returnTo: 'journey', questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL }
+        : { tier, mode },
+    });
   };
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
@@ -701,7 +716,12 @@ export function ProfileScreen({
             }
           }
           const nextTier = Math.min((profile?.strength_tier ?? 0) + 1, 9);
-          router.push({ pathname: '/trial', params: { mode: 'progression', tier: String(nextTier) } });
+          // Same fix as onStartTrial above — this is also always a real
+          // progression trial.
+          router.push({
+            pathname: '/trial',
+            params: { mode: 'progression', tier: String(nextTier), returnTo: 'journey', questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL },
+          });
         }}
         onSkip={async () => {
           setShowOnboarding(false);

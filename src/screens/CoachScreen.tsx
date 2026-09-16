@@ -39,6 +39,7 @@ import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
 import { canAccessPro, isProRequiredError } from '../lib/entitlement';
+import { FreeCoachIntake } from '../components/coach/FreeCoachIntake';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -208,6 +209,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   const [pendingProgramAction, setPendingProgramAction] = useState<ProgramAction | null>(null);
   const [confirmingAction, setConfirmingAction] = useState(false);
+  // Shown after a successful program creation for an already-onboarded
+  // athlete — the onboarding funnel (createdProgram && !onboarding_completed_at
+  // below) has its own dedicated celebration screen and is untouched; this
+  // covers the steady-state case, which used to just silently do nothing.
+  const [justStartedProgram, setJustStartedProgram] = useState<{ name: string } | null>(null);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -218,6 +224,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const scrollViewRef = useRef<ScrollView>(null);
 
   const STORAGE_KEY = `coach_v15_${profile?.id}`;
+  // pendingProgramAction used to be plain useState with no persistence —
+  // chat text survived an app restart/reopen (via STORAGE_KEY above) but a
+  // not-yet-acted-on Start Program card was silently lost, forcing the
+  // athlete to ask the AI to rebuild/resend it. Persisted the same way
+  // messages already are.
+  const PROGRAM_ACTION_STORAGE_KEY = `coach_pending_action_v1_${profile?.id}`;
 
   const isDark = mode === 'dark';
   const c = isDark ? COACH_COLORS.dark : COACH_COLORS.light;
@@ -241,10 +253,20 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         console.warn('Failed to load saved coach messages:', e.message);
       }
 
+      try {
+        const savedAction = await AsyncStorage.getItem(PROGRAM_ACTION_STORAGE_KEY);
+        if (savedAction) setPendingProgramAction(JSON.parse(savedAction));
+      } catch (e: any) {
+        console.warn('Failed to load saved pending program action:', e.message);
+      }
+
       // Set by CoachFab when a starter prompt chip is tapped — sends it as
       // the athlete's first message instead of showing the empty welcome
-      // screen. Never overrides a real, already-ongoing conversation.
-      if (!hadSavedHistory && initialPrompt) {
+      // screen. Never overrides a real, already-ongoing conversation. Free
+      // tier never sends a live message here at all — FreeCoachIntake picks
+      // up initialPrompt as Step 1's free-text prefill instead (see render
+      // below), since free accounts don't get chat until they upgrade.
+      if (!hadSavedHistory && initialPrompt && canAccessPro(profile, paywallEnabled)) {
         sendMessage(initialPrompt);
       }
     };
@@ -256,6 +278,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     }
   }, [messages]);
+
+  useEffect(() => {
+    if (pendingProgramAction) {
+      AsyncStorage.setItem(PROGRAM_ACTION_STORAGE_KEY, JSON.stringify(pendingProgramAction));
+    } else {
+      AsyncStorage.removeItem(PROGRAM_ACTION_STORAGE_KEY);
+    }
+  }, [pendingProgramAction]);
 
   // Sends the running message history to ai-coach and applies whatever
   // comes back. The function now streams over SSE — event: stage fires as
@@ -414,6 +444,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     setMessages(newMsgs);
     setRecommendations([]);
     setSuggestedReplies([]);
+    setJustStartedProgram(null);
     setStages([]);
     // Deliberately NOT clearing pendingProgramAction here. Sending a message
     // is not the same as dismissing a proposal — asking "what's in day 3?"
@@ -508,12 +539,20 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         if (error) throw error;
         setMessages(prev => [...prev, { role: 'assistant', content: 'Your program has been ended.' }]);
       }
+      // Captured before pendingProgramAction is cleared below — needed for
+      // the steady-state "Go to Program" card's title.
+      const programName =
+        (pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.payload && 'name' in pendingProgramAction.payload
+          ? pendingProgramAction.payload.name
+          : null;
       setPendingProgramAction(null);
       await refreshProfile();
       if (createdProgram && !profile?.onboarding_completed_at) {
         requestAnimationFrame(() => {
           router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
         });
+      } else if (createdProgram && programName) {
+        setJustStartedProgram({ name: programName });
       }
     } catch (error: any) {
       if (isProRequiredError(error)) { router.push('/paywall'); return; }
@@ -533,6 +572,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       setRecommendations([]);
       setSuggestedReplies([]);
       setPendingProgramAction(null);
+      setJustStartedProgram(null);
       await AsyncStorage.removeItem(STORAGE_KEY);
       startSession();
     };
@@ -609,11 +649,19 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <Text style={[styles.headerSub, { color: theme.accent }]}>{statusLine}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              <TouchableOpacity onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
-              <TouchableOpacity onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
+              {canAccessPro(profile, paywallEnabled) && (
+                <>
+                  <TouchableOpacity onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
+                  <TouchableOpacity onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
+                </>
+              )}
             </View>
           </View>
 
+          {!canAccessPro(profile, paywallEnabled) ? (
+            <FreeCoachIntake theme={theme} c={c} initialPrompt={initialPrompt} />
+          ) : (
+          <>
           <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>
             {messages.length === 0 && !loading && (
               <View style={styles.welcomeContainer}>
@@ -762,6 +810,33 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                 </View>
               </View>
             )}
+
+            {justStartedProgram && (
+              <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
+                <View style={styles.actionCardHeader}>
+                  <MaterialCommunityIcons name="check-circle-outline" size={18} color={theme.accent} />
+                  <Text style={[styles.actionCardTitle, { color: '#fff' }]}>"{justStartedProgram.name}" is ready</Text>
+                </View>
+                <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>Keep chatting with your coach, or jump straight into Day 1.</Text>
+                <View style={styles.actionCardButtons}>
+                  <TouchableOpacity
+                    style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
+                    onPress={() => setJustStartedProgram(null)}
+                  >
+                    <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>CONTINUE CHAT</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent }]}
+                    onPress={() => {
+                      setJustStartedProgram(null);
+                      router.replace('/my-journey');
+                    }}
+                  >
+                    <Text style={styles.actionCardConfirmText}>GO TO PROGRAM</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            )}
           </ScrollView>
 
           {!rateLimited ? (
@@ -809,6 +884,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <MaterialCommunityIcons name={inputText.trim() ? 'send' : 'microphone'} size={18} color="#fff" />
             </TouchableOpacity>
           </View>
+          </>
+          )}
         </View>
       </KeyboardAvoidingView>
     </View>

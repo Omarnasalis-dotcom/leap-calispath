@@ -1,3 +1,4 @@
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
 import { getNextTrial } from "./trialData.ts";
 
@@ -12,7 +13,7 @@ import { getNextTrial } from "./trialData.ts";
 export const getUserContext: ToolDefinition = {
   name: "get_user_context",
   description:
-    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids, e.g. weight_loss/strength/learn_skills/other — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program).",
+    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids, e.g. weight_loss/strength/learn_skills/other — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), training_days_per_week (integer 1-7, or null if never given — same already-answered convention as goal/equipment: a real number here means don't ask for days per week again), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by append_week or adjust_program) and current_week_complete (every real block in current_week already has a log, completed or missed — see system-prompt.ts §6 for what to do with this on an AI-owned program).",
   input_schema: { type: "object", properties: {} },
   handler: async (userClient) => {
     const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
@@ -68,6 +69,10 @@ export const getUserContext: ToolDefinition = {
         goal: profile?.goals?.length ? profile.goals : (profile?.primary_goal ? [profile.primary_goal] : []),
         goal_other_text: profile?.goal_other_text ?? null,
         equipment: profile?.available_equipment ?? [],
+        // From the free-tier AI Coach intake stepper's Days/Week step (or
+        // set directly). Same "treat as already answered" convention as
+        // goal/equipment above — see system-prompt.ts §10/§11.
+        training_days_per_week: profile?.training_days_per_week ?? null,
         power_assessed_at: profile?.power_assessed_at ?? null,
         statics_assessed_at: profile?.statics_assessed_at ?? null,
         trials_attempted: profile?.trials_attempted ?? 0,
@@ -99,8 +104,50 @@ export const getUserContext: ToolDefinition = {
               .program_templates?.name ?? null,
             current_week: activeProgram.current_week,
             is_ai_coach_owned: activeProgram.coach_id === AI_COACH_SYSTEM_PROFILE_ID,
+            current_week_complete: await isCurrentWeekComplete(userClient, activeProgram),
           }
         : null,
     };
   },
 };
+
+// Mirrors the same day/week-completion grouping logic
+// notify-coach-workout-logged/index.ts uses (no shared server-side "week
+// complete" concept exists elsewhere — see that function's own comment):
+// a week counts as complete once every one of its real (non-empty) blocks
+// has ANY workout_logs row, completed or missed. Surfaced here so the AI
+// itself can notice a just-finished week on an AI-owned program (2026-09-16
+// — "For AI Coach, he can see the user finished his first week") without
+// needing a push notification, which only fires for a real human coach.
+async function isCurrentWeekComplete(
+  userClient: SupabaseClient,
+  activeProgram: { id: string; template_id: string | null; current_week: number | null }
+): Promise<boolean> {
+  if (!activeProgram.template_id || activeProgram.current_week == null) return false;
+
+  const { data: weekBlocks } = await userClient
+    .from("program_blocks")
+    .select("id")
+    .eq("template_id", activeProgram.template_id)
+    .eq("week_number", activeProgram.current_week);
+
+  const allBlockIds = (weekBlocks ?? []).map((b: { id: string }) => b.id);
+  if (allBlockIds.length === 0) return false;
+
+  const { data: exerciseRows } = await userClient
+    .from("block_exercises")
+    .select("block_id")
+    .in("block_id", allBlockIds);
+  const blocksWithExercises = new Set((exerciseRows ?? []).map((r: { block_id: string }) => r.block_id));
+  const realBlockIds = allBlockIds.filter((id: string) => blocksWithExercises.has(id));
+  if (realBlockIds.length === 0) return false;
+
+  const { data: loggedRows } = await userClient
+    .from("workout_logs")
+    .select("block_id")
+    .eq("warrior_program_id", activeProgram.id)
+    .in("block_id", realBlockIds);
+  const loggedBlockIds = new Set((loggedRows ?? []).map((r: { block_id: string }) => r.block_id));
+
+  return realBlockIds.every((id: string) => loggedBlockIds.has(id));
+}

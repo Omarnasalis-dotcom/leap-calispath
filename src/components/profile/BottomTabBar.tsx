@@ -102,6 +102,14 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
 
+    // The bar is persistent across navigation (see PersistentTabBar in
+    // app/(tabs)/_layout.tsx), so worldsMenuOpen never got reset by
+    // navigating away on its own — only the backdrop tap and tapping a
+    // world circle itself closed it (both below). Pressing any other main
+    // tab (Profile/Strength/Train/Journey) left the fan-out open and
+    // stacked behind whatever screen just loaded.
+    setWorldsMenuOpen(false);
+
     const isUnlocked = strengthTier >= tab.unlockTier;
     if (!isUnlocked) {
       const message = `Reach Tier ${tab.unlockTier} to unlock ${tab.label}.`;

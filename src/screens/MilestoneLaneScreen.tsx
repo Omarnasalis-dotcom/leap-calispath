@@ -18,6 +18,7 @@ import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
+import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
 // as one pool per category under assets/Milestone Cards/{push,pull,lower
@@ -1233,17 +1234,32 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // A quest screen navigating back with ?questDone=<slotKey> is the one
   // signal that a real log happened there (not just a visit) — persist it
   // and reflect it immediately without waiting for a re-fetch.
+  //
+  // CURRENT_TRIAL_QUEST_SENTINEL is a special case: a progression trial
+  // launched from outside this lane (ProfileScreen's tier grid, the
+  // onboarding tutorial's "Begin Trial") has no way to know this lane's
+  // current week, so it can't send the real `w{N}_trial` key — it sends
+  // this fixed sentinel instead, resolved here the same way trialSlotKey
+  // (declared further below) is computed, rather than being added to the
+  // set literally. Inlined against journeyData directly rather than
+  // referencing trialSlotKey itself — that const isn't initialized yet at
+  // this point in the component body, and this effect's dependency array
+  // (unlike its deferred callback) evaluates immediately. Bails out until
+  // journeyData is actually loaded instead of resolving nothing.
   useEffect(() => {
     if (!questDone || !profile?.id) return;
+    const currentTrialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
+    const resolvedSlotKey = questDone === CURRENT_TRIAL_QUEST_SENTINEL ? currentTrialSlotKey : questDone;
+    if (!resolvedSlotKey) return;
     setCompletedQuestSlots((prev) => {
-      if (prev.has(questDone)) return prev;
+      if (prev.has(resolvedSlotKey)) return prev;
       const next = new Set(prev);
-      next.add(questDone);
+      next.add(resolvedSlotKey);
       updateLocalFlagsCache(profile.id, { completedQuestSlots: next });
       AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
       return next;
     });
-  }, [questDone, profile?.id]);
+  }, [questDone, profile?.id, journeyData]);
 
   const handleSkipQuest = useCallback(
     (slotKey: string) => {

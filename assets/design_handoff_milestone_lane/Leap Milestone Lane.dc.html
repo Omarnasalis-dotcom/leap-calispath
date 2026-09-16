@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#050505;}
+a{color:#FC5454;}
+a:hover{color:#ff7a7a;}
+@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap');
+@keyframes mlRingDraw{from{stroke-dashoffset:340}to{stroke-dashoffset:0}}
+@keyframes mlPop{0%{transform:scale(0);opacity:0}70%{transform:scale(1.12);opacity:1}100%{transform:scale(1);opacity:1}}
+@keyframes mlFlash{0%{opacity:.45}100%{opacity:0}}
+@keyframes mlSpark{0%{transform:translate(0,0) scale(1);opacity:1}100%{transform:translate(var(--dx),var(--dy)) scale(.2);opacity:0}}
+@keyframes mlShimmer{0%{background-position:-160% 0}60%,100%{background-position:220% 0}}
+@keyframes mlConfetti{0%{transform:translateY(0) rotate(0deg);opacity:1}100%{transform:translateY(-130px) rotate(260deg);opacity:0}}
+@keyframes mlPulse{0%,100%{opacity:1}50%{opacity:.4}}
+@keyframes mlFadeUp{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mlRingThrow{0%{transform:rotate(-140deg) scale(.3);opacity:0}70%{transform:rotate(8deg) scale(1.06);opacity:1}100%{transform:rotate(0deg) scale(1);opacity:1}}
+@keyframes mlGlowPulse{0%,100%{box-shadow:0 0 22px rgba(252,84,84,.45)}50%{box-shadow:0 0 40px rgba(252,84,84,.75)}}
+@keyframes mlFadeOut{0%{opacity:1}100%{opacity:0}}
+@keyframes mlLineDraw{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+@keyframes mlDotTravel{0%{transform:translateY(0);opacity:1}85%{opacity:1}100%{transform:translateY(34px);opacity:0}}
+@keyframes mlBurst{0%{transform:scale(.3);opacity:.7}100%{transform:scale(1.6);opacity:0}}
+@keyframes mlCardIn{from{opacity:0;transform:translateY(18px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mlNodeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+@keyframes mlSheen{0%{transform:translateX(-140%) skewX(-15deg)}100%{transform:translateX(260%) skewX(-15deg)}}
+.ml-artboard{animation:mlCardIn .55s cubic-bezier(.2,.8,.2,1) both;}
+.ml-artboard:nth-child(1){animation-delay:0s}
+.ml-artboard:nth-child(2){animation-delay:.08s}
+.ml-artboard:nth-child(3){animation-delay:.16s}
+.ml-artboard:nth-child(4){animation-delay:.24s}
+.ml-artboard:nth-child(5){animation-delay:.32s}
+.ml-node{animation:mlNodeIn .4s ease-out both;}
+.ml-choice{animation:mlCardIn .45s ease-out both;}
+.ml-choice:nth-child(1){animation-delay:.05s}
+.ml-choice:nth-child(2){animation-delay:.13s}
+.ml-choice:nth-child(3){animation-delay:.21s}
+.ml-replay{transition:filter .15s ease, transform .15s ease;}
+@keyframes mlGlowPulse2{0%,100%{opacity:.45;transform:scale(1)}50%{opacity:1;transform:scale(1.18)}}
+@keyframes mlLineShimmer{0%{transform:translateY(-16px)}100%{transform:translateY(50px)}}
+</style>
+</helmet>
+
+<div style="min-height:100vh;background:#050505;padding:40px 24px 80px;box-sizing:border-box;font-family:'Oswald',sans-serif;">
+
+  <div style="max-width:1400px;margin:0 auto 36px;">
+    <div style="color:#FC5454;font-size:12px;font-weight:600;letter-spacing:4px;">LEAP · ONBOARDING</div>
+    <div style="color:rgba(255,255,255,.85);font-size:30px;font-weight:700;letter-spacing:.5px;margin-top:6px;">Milestone Lane</div>
+    <div style="color:rgba(255,255,255,.45);font-size:14px;font-weight:300;margin-top:6px;max-width:640px;line-height:1.5;">Five key states of the onboarding path: start, tier-reveal celebration, mid-progress, program choice, and the exit into Training Center. Each node uses the app's concentric-ring tier motif; the lane is Ember-Red only — no world colors before a world is picked.</div>
+  </div>
+
+  <div style="display:flex;gap:28px;overflow-x:auto;padding-bottom:12px;max-width:1400px;margin:0 auto;">
+
+    <sc-for list="{{ artboards }}" as="board" hint-placeholder-count="5">
+      <div style="flex:0 0 402px;" class="ml-artboard">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+          <div style="background:#111;border:1px solid rgba(255,255,255,.08);color:#FC5454;font-size:11px;font-weight:600;letter-spacing:2px;padding:4px 10px;border-radius:20px;">{{ board.tag }}</div>
+          <div style="color:rgba(255,255,255,.85);font-size:13px;font-weight:500;">{{ board.label }}</div>
+        </div>
+
+        <x-import component-from-global-scope="IOSDevice" from="./ios-frame.jsx" dark="{{ true }}" hint-size="402,874">
+          {{ board.content }}
+        </x-import>
+
+        <sc-if value="{{ board.replay }}" hint-placeholder-val="{{ false }}">
+          <button onClick="{{ board.replay }}" class="ml-replay" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;background:#FC5454;color:#fff;border:none;font-family:'Oswald',sans-serif;font-size:12px;font-weight:600;letter-spacing:2px;padding:12px 0;border-radius:10px;cursor:pointer;box-shadow:0 8px 18px rgba(252,84,84,.25);" style-hover="filter:brightness(1.12);transform:translateY(-1px);">↻ {{ board.replayLabel }}</button>
+        </sc-if>
+
+        <div style="background:#111111;border:1px solid rgba(255,255,255,.06);border-radius:12px;padding:14px 16px;margin-top:12px;">
+          <div style="color:#FC5454;font-size:10px;font-weight:600;letter-spacing:2px;margin-bottom:5px;">▶ MOTION NOTE</div>
+          <div style="color:rgba(255,255,255,.45);font-size:12.5px;font-weight:300;line-height:1.55;">{{ board.motion }}</div>
+        </div>
+      </div>
+    </sc-for>
+
+  </div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+const CORAL = "#FC5454";
+const DIM = "#4A2020";
+
+function ring(size, seg, dim) {
+  const r = size/2 - 6;
+  const c = 2*Math.PI*r;
+  return React.createElement('svg', {width:size, height:size, viewBox:`0 0 ${size} ${size}`, style:{transform:'rotate(-90deg)'}},
+    React.createElement('circle',{cx:size/2,cy:size/2,r,fill:'none',stroke:dim?DIM:'rgba(255,255,255,.08)',strokeWidth:seg?3:2}),
+    seg && React.createElement('circle',{cx:size/2,cy:size/2,r,fill:'none',stroke:CORAL,strokeWidth:3,strokeLinecap:'round',strokeDasharray:c,strokeDashoffset:c*0.22,style:{animation:'mlRingDraw 1s cubic-bezier(.2,.8,.2,1) both'}})
+  );
+}
+
+function lockIcon(op){
+  return React.createElement('svg',{width:16,height:16,viewBox:'0 0 24 24',style:{opacity:op}},
+    React.createElement('rect',{x:5,y:11,width:14,height:10,rx:2,fill:'none',stroke:'#fff',strokeWidth:2}),
+    React.createElement('path',{d:'M8 11V7a4 4 0 0 1 8 0v4',fill:'none',stroke:'#fff',strokeWidth:2})
+  );
+}
+function checkIcon(){
+  return React.createElement('svg',{width:18,height:18,viewBox:'0 0 24 24'},
+    React.createElement('path',{d:'M5 13l4 4L19 7',fill:'none',stroke:'#fff',strokeWidth:3,strokeLinecap:'round',strokeLinejoin:'round'})
+  );
+}
+
+function nodeCircle(state, num) {
+  const size = 64;
+  if (state === 'complete') {
+    return React.createElement('div',{style:{width:size,height:size,borderRadius:'50%',background:CORAL,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 18px rgba(252,84,84,.35)',flexShrink:0}}, checkIcon());
+  }
+  if (state === 'active') {
+    return React.createElement('div',{style:{width:size,height:size,position:'relative',flexShrink:0}},
+      React.createElement('div',{style:{position:'absolute',inset:-6,borderRadius:'50%',background:'radial-gradient(circle, rgba(252,84,84,.4), transparent 70%)',animation:'mlGlowPulse2 2.4s ease-in-out infinite'}}),
+      ring(size, true, false),
+      React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:CORAL,fontSize:22,fontWeight:700}}, num)
+    );
+  }
+  return React.createElement('div',{style:{width:size,height:size,position:'relative',flexShrink:0}},
+    ring(size,false,true),
+    React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}, lockIcon(0.3))
+  );
+}
+
+function sheenOverlay(delay) {
+  return React.createElement('div',{key:'sheen',style:{position:'absolute',top:0,bottom:0,left:0,width:'30%',background:'linear-gradient(100deg, transparent, rgba(255,255,255,.4), transparent)',animation:`mlSheen 3s ${delay||1.4}s ease-in-out infinite`,pointerEvents:'none'}});
+}
+
+function nodeRow({state, title, desc, cta, num, isLast}) {
+  const dim = state === 'locked';
+  return React.createElement('div',{className:'ml-node',style:{display:'flex',gap:16,position:'relative',paddingBottom: isLast ? 0 : 34}},
+    !isLast && React.createElement('div',{style:{position:'absolute',left:31,top:64,bottom:0,width:2,overflow:'hidden',background: state==='complete' ? CORAL : 'repeating-linear-gradient(to bottom, rgba(255,255,255,.12) 0 4px, transparent 4px 9px)'}},
+      state==='complete' && React.createElement('div',{style:{position:'absolute',left:0,top:-16,width:2,height:16,background:'linear-gradient(to bottom, transparent, rgba(255,255,255,.9), transparent)',animation:'mlLineShimmer 2.6s linear infinite'}})
+    ),
+    nodeCircle(state, num),
+    React.createElement('div',{style:{flex:1,paddingTop:6}},
+      state==='active' && React.createElement('div',{style:{color:CORAL,fontSize:10,fontWeight:600,letterSpacing:2,marginBottom:4,animation:'mlPulse 1.8s ease-in-out infinite'}}, 'YOU ARE HERE'),
+      React.createElement('div',{style:{color: dim ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.85)', fontSize:15,fontWeight:600,letterSpacing:.5, textDecoration: state==='complete' ? 'line-through' : 'none', textDecorationColor:'rgba(255,255,255,.25)'}}, title),
+      React.createElement('div',{style:{color: dim ? 'rgba(255,255,255,.2)' : 'rgba(255,255,255,.45)', fontSize:12.5,fontWeight:300,marginTop:4,lineHeight:1.4}}, desc),
+      cta && React.createElement('div',{style:{marginTop:12,position:'relative',overflow:'hidden',display:'inline-flex',alignItems:'center',gap:8,background:CORAL,color:'#fff',fontSize:12,fontWeight:600,letterSpacing:1.5,padding:'10px 20px',borderRadius:24,boxShadow:'0 6px 16px rgba(252,84,84,.3)'}}, sheenOverlay(), cta)
+    )
+  );
+}
+
+function ghostNode() {
+  return React.createElement('div',{style:{display:'flex',gap:16,marginTop:6}},
+    React.createElement('div',{style:{width:64,height:64,borderRadius:'50%',border:'1.5px dashed rgba(255,255,255,.12)',flexShrink:0}}),
+    React.createElement('div',{style:{flex:1,paddingTop:20,color:'rgba(255,255,255,.2)',fontSize:11,fontWeight:500,letterSpacing:2}}, 'YOUR JOURNEY CONTINUES')
+  );
+}
+
+function laneScreen(nodes, headerLabel) {
+  return React.createElement('div',{style:{background:'#000',minHeight:'100%',padding:'68px 24px 60px',boxSizing:'border-box'}},
+    React.createElement('div',{style:{textAlign:'center',color:CORAL,fontSize:11,fontWeight:600,letterSpacing:3,marginBottom:26}}, headerLabel),
+    React.createElement('div',{style:{padding:'0 4px'}}, ...nodes.map((n,i)=>nodeRow({...n, isLast:false, num:i+1})), ghostNode())
+  );
+}
+
+function ringStack() {
+  const radii = [40,54,68,82,96];
+  return radii.map((r,i)=> React.createElement('div',{key:i,style:{
+    position:'absolute', top:110-r, left:110-r, width:r*2, height:r*2, borderRadius:'50%', boxSizing:'border-box',
+    border: i===radii.length-1 ? `3px solid ${CORAL}` : `2px solid ${DIM}`,
+    animation: `mlRingThrow .6s ${(0.4+i*0.16).toFixed(2)}s cubic-bezier(.22,1.6,.4,1) both${i===radii.length-1 ? ', mlGlowPulse 2.2s 1.6s ease-in-out infinite' : ''}`
+  }}));
+}
+
+function tierRevealScreen(replayKey) {
+  const sparks = [0,45,90,135,180,225,270,315].map((a,i)=>{
+    const rad = a*Math.PI/180, d=150+((i%3)*13);
+    return React.createElement('div',{key:i,style:{position:'absolute',left:'50%',top:110,width:4,height:4,borderRadius:'50%',background:CORAL,'--dx':`${Math.cos(rad)*d}px`,'--dy':`${Math.sin(rad)*d}px`,animation:`mlSpark .9s ${(0.9+0.05*i).toFixed(2)}s ease-out both`}});
+  });
+  const confetti = Array.from({length:9}).map((_,i)=>
+    React.createElement('div',{key:i,style:{position:'absolute',left:`${8+i*10}%`,bottom:130,width:6,height:10,borderRadius:2,background: i%3===0? '#fff' : (i%3===1? CORAL: DIM),animation:`mlConfetti 1.4s ${(3.0+0.13*i).toFixed(2)}s ease-out both`}})
+  );
+  return React.createElement('div',{key:`tier-${replayKey||0}`,style:{background:'#000',minHeight:'100%',display:'flex',flexDirection:'column',alignItems:'center',padding:'0 0 50px',boxSizing:'border-box'}},
+    React.createElement('div',{style:{height:68,flexShrink:0}}),
+    React.createElement('div',{style:{position:'relative',width:'100%',flex:1,overflow:'hidden',display:'flex',flexDirection:'column',alignItems:'center'}},
+    React.createElement('div',{style:{position:'absolute',inset:0,background:'radial-gradient(circle at 50% 190px, rgba(252,84,84,.18), transparent 60%)',animation:'mlFlash .6s ease-out both'}}),
+    React.createElement('div',{style:{color:'rgba(255,255,255,.45)',fontSize:11,fontWeight:400,letterSpacing:2,marginTop:6,zIndex:1}}, 'MILESTONE 1 · ASSESSMENT'),
+    React.createElement('div',{style:{color:CORAL,fontSize:12,fontWeight:600,letterSpacing:5,marginTop:6,zIndex:1}}, 'STARTING TIER'),
+    React.createElement('div',{style:{position:'relative',width:220,height:220,marginTop:30}},
+      sparks, ringStack(),
+      React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:CORAL,fontSize:64,fontWeight:700,animation:'mlPop .5s 1.5s cubic-bezier(.2,1.4,.4,1) both'}}, '3')
+    ),
+    React.createElement('div',{style:{color:'#fff',fontSize:32,fontWeight:700,letterSpacing:2,marginTop:28,zIndex:1,backgroundImage:`linear-gradient(100deg, #fff 40%, ${CORAL} 50%, #fff 60%)`,backgroundSize:'250% 100%',WebkitBackgroundClip:'text',color:'transparent',animation:'mlShimmer 1s 2s ease-out both, mlFadeUp .5s 2s ease-out both'}}, 'EPHEBE'),
+    React.createElement('div',{style:{color:CORAL,fontSize:13,fontWeight:500,letterSpacing:2,marginTop:8,animation:'mlFadeUp .5s 2.2s ease-out both'}}, 'TIER 3 OF 9'),
+    React.createElement('div',{style:{color:'rgba(255,255,255,.45)',fontSize:13,fontWeight:300,marginTop:16,animation:'mlFadeUp .5s 2.7s ease-out both'}}, 'Milestone 1 of 3 complete'),
+    React.createElement('div',{style:{position:'relative',width:'70%',height:8,background:DIM,borderRadius:4,marginTop:26,overflow:'hidden',animation:'mlFadeUp .5s 2.9s ease-out both'}},
+      React.createElement('div',{style:{position:'absolute',inset:0,width:'33%',background:CORAL,borderRadius:4,boxShadow:'0 0 10px rgba(252,84,84,.5)'}})
+    ),
+    confetti,
+    React.createElement('div',{style:{marginTop:'auto',background:CORAL,color:'#fff',fontSize:13,fontWeight:600,letterSpacing:2,padding:'15px 46px',borderRadius:16,overflow:'hidden',boxShadow:'0 10px 22px rgba(252,84,84,.28)',position:'absolute',bottom:40,opacity:0,animation:'mlPop .4s 4.6s cubic-bezier(.2,1.4,.4,1) both'}}, sheenOverlay(5.4), 'CONTINUE')
+    )
+  );
+}
+
+function unlockTransitionScreen(key) {
+  return React.createElement('div',{key:`unlock-${key||0}`, style:{background:'#000',minHeight:'100%',padding:'68px 24px 60px',boxSizing:'border-box'}},
+    React.createElement('div',{style:{textAlign:'center',color:CORAL,fontSize:11,fontWeight:600,letterSpacing:3,marginBottom:26}}, 'MY JOURNEY'),
+    React.createElement('div',{style:{padding:'0 4px'}},
+      React.createElement('div',{style:{position:'relative',width:64,height:64}},
+        React.createElement('div',{style:{position:'absolute',inset:0,animation:'mlFadeOut .3s .05s ease-in both'}},
+          ring(64,true,false),
+          React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:CORAL,fontSize:22,fontWeight:700}}, '1')
+        ),
+        React.createElement('div',{style:{position:'absolute',inset:0,borderRadius:'50%',background:CORAL,display:'flex',alignItems:'center',justifyContent:'center',boxShadow:'0 0 18px rgba(252,84,84,.4)',opacity:0,animation:'mlPop .4s .2s cubic-bezier(.2,1.5,.4,1) both'}}, checkIcon())
+      ),
+      React.createElement('div',{style:{position:'relative',height:34,marginLeft:31}},
+        React.createElement('div',{style:{position:'absolute',left:-1,top:0,width:2,height:'100%',background:'rgba(255,255,255,.12)'}}),
+        React.createElement('div',{style:{position:'absolute',left:-1,top:0,width:2,height:'100%',background:CORAL,transform:'scaleY(0)',transformOrigin:'top',animation:'mlLineDraw .4s .25s ease-out both'}}),
+        React.createElement('div',{style:{position:'absolute',left:-4,top:0,width:8,height:8,borderRadius:'50%',background:CORAL,boxShadow:'0 0 10px 3px rgba(252,84,84,.7)',animation:'mlDotTravel .45s .25s linear both'}})
+      ),
+      React.createElement('div',{style:{display:'flex',gap:16,position:'relative',paddingBottom:34}},
+        React.createElement('div',{style:{position:'absolute',left:31,top:64,bottom:0,width:2,background:'repeating-linear-gradient(to bottom, rgba(255,255,255,.12) 0 4px, transparent 4px 9px)'}}),
+        React.createElement('div',{style:{width:64,height:64,position:'relative',flexShrink:0}},
+          React.createElement('div',{style:{position:'absolute',left:-8,top:-8,width:80,height:80,borderRadius:'50%',background:'radial-gradient(circle, rgba(252,84,84,.5), transparent 70%)',opacity:0,animation:'mlBurst .6s .55s ease-out both'}}),
+          React.createElement('div',{style:{position:'absolute',inset:0,animation:'mlFadeOut .25s .5s ease-in both'}},
+            ring(64,false,true),
+            React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center'}}, lockIcon(.3))
+          ),
+          React.createElement('div',{style:{position:'absolute',inset:0,opacity:0,animation:'mlPop .45s .58s cubic-bezier(.2,1.5,.4,1) both'}},
+            ring(64,true,false),
+            React.createElement('div',{style:{position:'absolute',inset:0,display:'flex',alignItems:'center',justifyContent:'center',color:CORAL,fontSize:22,fontWeight:700}}, '2')
+          )
+        ),
+        React.createElement('div',{style:{flex:1,position:'relative',minHeight:100}},
+          React.createElement('div',{style:{position:'absolute',inset:0,paddingTop:6,animation:'mlFadeOut .25s .5s ease-in both'}},
+            React.createElement('div',{style:{color:'rgba(255,255,255,.2)',fontSize:15,fontWeight:600,letterSpacing:.5}}, '02 GOALS & EQUIPMENT'),
+            React.createElement('div',{style:{color:'rgba(255,255,255,.2)',fontSize:12.5,fontWeight:300,marginTop:4}}, 'Unlocks after your assessment.')
+          ),
+          React.createElement('div',{style:{position:'absolute',inset:0,paddingTop:6,opacity:0,animation:'mlFadeUp .4s .65s ease-out both'}},
+            React.createElement('div',{style:{color:CORAL,fontSize:10,fontWeight:600,letterSpacing:2,marginBottom:4,animation:'mlPulse 1.8s .9s ease-in-out infinite'}}, 'YOU ARE HERE'),
+            React.createElement('div',{style:{color:'rgba(255,255,255,.85)',fontSize:15,fontWeight:600,letterSpacing:.5}}, '02 GOALS & EQUIPMENT'),
+            React.createElement('div',{style:{color:'rgba(255,255,255,.45)',fontSize:12.5,fontWeight:300,marginTop:4,lineHeight:1.4}}, 'Tell us your goal and equipment.'),
+            React.createElement('div',{style:{marginTop:12,position:'relative',overflow:'hidden',display:'inline-flex',alignItems:'center',gap:8,background:CORAL,color:'#fff',fontSize:12,fontWeight:600,letterSpacing:1.5,padding:'10px 20px',borderRadius:24,boxShadow:'0 6px 16px rgba(252,84,84,.3)'}}, sheenOverlay(1.6), 'START')
+          )
+        )
+      ),
+      nodeRow({state:'locked', title:'03 BUILD YOUR PROGRAM', desc:'Unlocks after your goals.', isLast:true, num:3}),
+      ghostNode()
+    )
+  );
+}
+
+function choiceCard(icon, title, desc) {
+  return React.createElement('div',{className:'ml-choice',style:{display:'flex',alignItems:'center',gap:14,background:'#111',border:'1px solid rgba(255,255,255,.08)',borderRadius:16,padding:'18px 16px',marginBottom:14}},
+    React.createElement('div',{style:{width:44,height:44,borderRadius:12,background:'rgba(252,84,84,.12)',display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}}, icon),
+    React.createElement('div',{style:{flex:1}},
+      React.createElement('div',{style:{color:'rgba(255,255,255,.85)',fontSize:14,fontWeight:600,letterSpacing:1}}, title),
+      React.createElement('div',{style:{color:'rgba(255,255,255,.45)',fontSize:12,fontWeight:300,marginTop:3,lineHeight:1.4}}, desc)
+    ),
+    React.createElement('div',{style:{color:'rgba(255,255,255,.2)',fontSize:18}}, '›')
+  );
+}
+
+function programChoiceScreen() {
+  const spark = React.createElement('svg',{width:20,height:20,viewBox:'0 0 24 24'}, React.createElement('path',{d:'M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8z',fill:CORAL}));
+  const sliders = React.createElement('svg',{width:20,height:20,viewBox:'0 0 24 24'},
+    React.createElement('line',{x1:4,y1:6,x2:20,y2:6,stroke:CORAL,strokeWidth:2}),
+    React.createElement('circle',{cx:14,cy:6,r:3,fill:CORAL}),
+    React.createElement('line',{x1:4,y1:14,x2:20,y2:14,stroke:CORAL,strokeWidth:2}),
+    React.createElement('circle',{cx:9,cy:14,r:3,fill:CORAL})
+  );
+  const template = React.createElement('svg',{width:20,height:20,viewBox:'0 0 24 24'},
+    React.createElement('rect',{x:4,y:4,width:16,height:16,rx:2,fill:'none',stroke:CORAL,strokeWidth:2}),
+    React.createElement('line',{x1:8,y1:10,x2:16,y2:10,stroke:CORAL,strokeWidth:2}),
+    React.createElement('line',{x1:8,y1:14,x2:16,y2:14,stroke:CORAL,strokeWidth:2})
+  );
+  return React.createElement('div',{style:{background:'#000',minHeight:'100%',padding:'68px 20px 60px',boxSizing:'border-box'}},
+    React.createElement('div',{style:{color:CORAL,fontSize:11,fontWeight:600,letterSpacing:2,marginBottom:8}}, 'MILESTONE 3'),
+    React.createElement('div',{style:{color:'rgba(255,255,255,.85)',fontSize:24,fontWeight:700,letterSpacing:.5,marginBottom:6}}, 'Build Your Program'),
+    React.createElement('div',{style:{color:'rgba(255,255,255,.45)',fontSize:13,fontWeight:300,marginBottom:26,lineHeight:1.4}}, 'Choose how you want to train. This is where onboarding ends.'),
+    choiceCard(spark, 'AI COACH', 'A day-by-day plan that adapts as you progress.'),
+    choiceCard(sliders, 'CUSTOMIZE PROGRAM', 'Pick your focus, frequency and equipment.'),
+    choiceCard(template, 'READY TEMPLATE', 'Start an expert-built program today.')
+  );
+}
+
+function exitTransitionScreen() {
+  return React.createElement('div',{style:{background:'#000',minHeight:'100%',position:'relative',overflow:'hidden'}},
+    React.createElement('div',{style:{padding:'68px 24px 0',opacity:.25,transform:'scale(.94) translateY(-14px)',filter:'blur(1px)'}},
+      React.createElement('div',{style:{color:CORAL,fontSize:11,fontWeight:600,letterSpacing:3,textAlign:'center',marginBottom:20}}, 'ONBOARDING COMPLETE'),
+      nodeRow({state:'complete', title:'01 ASSESSMENT', desc:'', isLast:false, num:1}),
+      nodeRow({state:'complete', title:'02 GOALS & EQUIPMENT', desc:'', isLast:false, num:2}),
+      nodeRow({state:'complete', title:'03 BUILD YOUR PROGRAM', desc:'', isLast:true, num:3})
+    ),
+    React.createElement('div',{style:{position:'absolute',inset:0,background:'radial-gradient(circle at 50% 55%, rgba(252,84,84,.22), transparent 55%)'}}),
+    React.createElement('div',{style:{position:'absolute',left:0,right:0,bottom:0,top:'42%',background:'#050505',borderTop:'1px solid rgba(255,255,255,.06)',padding:'22px 24px',boxSizing:'border-box'}},
+      React.createElement('div',{style:{color:CORAL,fontSize:11,fontWeight:600,letterSpacing:2,marginBottom:10}}, 'ENTERING'),
+      React.createElement('div',{style:{color:'rgba(255,255,255,.85)',fontSize:22,fontWeight:700,letterSpacing:.5,marginBottom:16}}, 'Training Center'),
+      React.createElement('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:10}},
+        ['MY ACTIVE PROGRAM','PROGRAM TEMPLATES','CUSTOMIZE','QUICK WORKOUT'].map((t,i)=>
+          React.createElement('div',{key:i,style:{background:'#111',border:'1px solid rgba(255,255,255,.08)',borderRadius:12,padding:'16px 10px',color:'rgba(255,255,255,.65)',fontSize:11,fontWeight:600,letterSpacing:1,textAlign:'center'}}, t)
+        )
+      )
+    )
+  );
+}
+
+class Component extends DCLogic {
+  state = { replayB: 0, replayC: 0 };
+  renderVals() {
+    const laneStart = [
+      {state:'active', title:'01 ASSESSMENT', desc:'Find your starting tier.', cta:'START'},
+      {state:'locked', title:'02 GOALS & EQUIPMENT', desc:'Unlocks after your assessment.'},
+      {state:'locked', title:'03 BUILD YOUR PROGRAM', desc:'Unlocks after your goals.'},
+    ];
+    return {
+      artboards: [
+        { tag:'A', label:'Lane Start', content: laneScreen(laneStart, 'MY JOURNEY'),
+          motion: 'Node 1 pulses subtly (opacity 1↔0.4, 1.8s loop) to draw the eye. Tapping START exits with a quick scale-down + fade (180ms) before handing off to the assessment flow. Locked nodes and the ghost node beneath sit at fixed 20%/12% opacity — no motion until unlocked.' },
+        { tag:'B', label:'Tier Reveal', content: tierRevealScreen(this.state.replayB), replay: () => this.setState(s=>({replayB: s.replayB+1})), replayLabel: 'REPLAY CELEBRATION',
+          motion: 'Beat-for-beat rank-up choreography, ~5.4s: flash+glow (0–0.6s) → 5-ring tier stack throws into place one-by-one with overshoot spring, outermost coral ring settling into a slow glow-pulse loop (0.4–1.6s) → 8-point spark burst as the number lands (0.9–1.8s) → tier number pops with overshoot spring (1.5–2s) → rank name shimmer sweep (2–3s) → tier line + progress fill (2.2–3.5s) → 9-piece confetti drifts up staggered 130ms (3–4.7s) → CONTINUE pops in with spring overshoot (4.6s). Tier number/name are dynamic — placeholders shown. Use the REPLAY button below to watch it.' },
+        { tag:'C', label:'Node Unlock: 1 → 2', content: unlockTransitionScreen(this.state.replayC), replay: () => this.setState(s=>({replayC: s.replayC+1})), replayLabel: 'REPLAY UNLOCK',
+          motion: 'On returning from the assessment, node 1 crosses-fades ring→filled coral check with a spring pop (~0.2–0.6s). A glowing dot travels down the connector as it draws solid coral (~0.25–0.7s), arriving at node 2. Node 2\'s dim lock-ring bursts into a coral radial glow (~0.55–1.15s) while its ring and number spring in and the lock icon fades away; its copy brightens and a pulsing "YOU ARE HERE" + START CTA fade/rise in last (~0.65–1.05s). Total ~1.2s, snappier than the milestone-1 celebration — a satisfying unlock, not a full reveal. Node 3 stays locked and unaffected.' },
+        { tag:'D', label:'Program Choice', content: programChoiceScreen(),
+          motion: 'Cards stagger in on entry (60ms apart, fade+rise 220ms). Tap gives a 96% scale press-state (100ms) then the card outline sweeps to full coral border (150ms) before the screen transitions to Training Center — no return to the lane; this is the terminus.' },
+        { tag:'E', label:'Exit → Training Center', content: exitTransitionScreen(),
+          motion: 'Composited transition frame: lane recedes (scale 0.94, −14px, blur 1px, 60% dim) as a coral radial wipe expands from the milestone-3 node center over ~450ms (ease-in-out), Training Center content crossfades in beneath it starting at 200ms. Total transition ~600ms, single continuous motion, no hard cut.' },
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

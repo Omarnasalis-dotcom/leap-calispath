@@ -4,6 +4,24 @@ import { SYSTEM_PROMPT } from "./system-prompt.ts";
 import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
 import { transformBlocksForInsert, resolveExerciseIds } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
+import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
+
+// Every tool whose call IS the write/propose action — system-prompt §1's
+// list, exactly. If a terminal (non-tool-use) turn's text claims one of
+// these happened but none of them were actually called anywhere in this
+// request, that's the narrate-without-acting failure (see
+// actionClaimGuard.ts's header for the Haiku history behind this).
+const WRITE_TOOL_NAMES = new Set([
+  "propose_new_program",
+  "propose_program_from_workouts",
+  "propose_end_program",
+  "propose_delete_week",
+  "append_week",
+  "adjust_program",
+  "replace_block_exercises",
+  "update_block_structure",
+  "add_block_to_week",
+]);
 
 const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 
@@ -195,9 +213,21 @@ const MAX_TOOL_TURNS = 16;
 // behind it (athlete checked, nothing was added) — the exact narrate-
 // without-acting failure this was reverted for on 2026-08-23, reproduced
 // on the very first live multi-turn test. Two independent occurrences now.
-// Do not re-attempt Haiku for this flow again without a real architectural
-// change (e.g. forcing tool-call-or-explicit-refusal instead of free text),
-// not just another prompt tweak — the prior attempt already tried that.
+// Re-attempted 2026-09-16 with the real architectural change the comment
+// above asked for: WRITE_TOOL_NAMES + detectUnactedClaim() (see
+// actionClaimGuard.ts) now catch a terminal turn that claims a write action
+// happened with no matching tool call anywhere in the request, force one
+// corrective round-trip, and fall back to an honest "I described that but
+// didn't actually do it" reply rather than shipping a false claim if the
+// correction itself fails. This is independent of Haiku's own prompt
+// compliance — it doesn't rely on the model getting it right a second time.
+// Switched back to Sonnet the same day. The actionClaimGuard backstop and
+// the per-model pricing lookup both stay regardless of which model runs
+// here — neither is Haiku-specific, and the guard is a harmless no-op if
+// Sonnet's own §1 compliance never trips it.
+// Cost-per-token is model-specific (see pricing.ts's PRICING_BY_MODEL) —
+// changing this constant again means adding that model's real rates there
+// too, not just here, or the paid-tier $ budget cap silently mis-enforces.
 const ANTHROPIC_MODEL = "claude-sonnet-5";
 
 // Prompt caching: the system prompt (~5-6k tokens) and the 7 tool schemas
@@ -347,6 +377,13 @@ serve(async (req: Request) => {
         system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages,
         tools: CACHED_TOOLS,
+        // Sonnet 5 defaults to "high" effort, tuned for coding/agentic work.
+        // This is a chat + tool-use flow, not that — Anthropic's own
+        // guidance for Sonnet 5 names "low" for exactly this shape ("chat
+        // and non-coding use cases where faster turnaround is prioritized").
+        // No beta header needed for a static top-level value like this one;
+        // that's only required for switching effort mid-conversation.
+        output_config: { effort: "low" },
       }),
     });
     if (!response.ok) {
@@ -396,6 +433,12 @@ serve(async (req: Request) => {
     // §1 already forbids narrating ("checking your profile...") separately
     // from real content, so concatenating turns in order is safe.
     const replyParts: string[] = [];
+    // See WRITE_TOOL_NAMES/actionClaimGuard.ts above — populated as write
+    // tools actually run, checked against a terminal turn's own claimed
+    // action below. correctionAttempted bounds the self-correction nudge to
+    // once per request so a model that fails it twice doesn't loop forever.
+    const calledWriteTools = new Set<string>();
+    let correctionAttempted = false;
 
     // A single chat turn (one call to this function) can span multiple
     // Claude API calls — every tool_use iteration below calls callClaude()
@@ -411,7 +454,7 @@ serve(async (req: Request) => {
     };
     async function recordCost() {
       if (!chatRequestId) return;
-      const costUsd = usageCostUsd(totalUsage);
+      const costUsd = usageCostUsd(totalUsage, ANTHROPIC_MODEL);
       if (!serviceClient) {
         // Never let cost bookkeeping break a reply that's already been
         // generated — but this is a real gap when it happens: this turn's
@@ -491,6 +534,42 @@ serve(async (req: Request) => {
           return;
         }
 
+        // Narrate-without-acting guard (see actionClaimGuard.ts) — checked
+        // against THIS turn's own text only (turnText), never the joined
+        // `text`, since an earlier turn's claim in the same request would
+        // have had its own real tool call attached (that's what stop_reason
+        // "tool_use" means) and joining would dilute the signal. Only fires
+        // when no write tool has run anywhere in this request yet.
+        const looksUnacted = calledWriteTools.size === 0 && detectUnactedClaim(turnText);
+        if (looksUnacted && !correctionAttempted) {
+          correctionAttempted = true;
+          console.error(`[ai-coach] SUSPECTED NARRATE-WITHOUT-ACTING (turn ${turn}), forcing one correction: "${turnText.slice(0, 300)}"`);
+          // Drop the false claim from replyParts (pushed unconditionally
+          // above) — if the correction succeeds, the athlete should see the
+          // corrected turn's text, never the discarded lie alongside it.
+          replyParts.pop();
+          messages.push({ role: "assistant", content: claudeResponse.content });
+          messages.push({
+            role: "user",
+            content:
+              "[System check] Your last reply described an action (building, adding, ending, deleting, or adjusting a program, week, or day) but no matching tool was called. If you meant to do that, call the correct tool now, in this response. If you were only describing an option or something not yet done, reply again without implying it already happened.",
+          });
+          continue;
+        }
+        if (looksUnacted && correctionAttempted) {
+          // The corrected turn narrated an unacted claim again. Never ship
+          // it — substitute an honest reply instead of a false success
+          // claim. Strictly safer than the original bug even when the
+          // model fails the same way twice.
+          console.error(`[ai-coach] Narrate-without-acting persisted after correction (turn ${turn}) — substituting a safe reply instead of the claim.`);
+          await recordCost();
+          send("final", {
+            reply: "I described that but didn't actually do it — want me to go ahead and make that change now? Say yes and I'll do it in the same message.",
+            recommendations, programAction, blocks, suggestedReplies,
+          });
+          return;
+        }
+
         console.log(`[ai-coach] DONE in ${Date.now() - startedAt}ms after ${turn + 1} turn(s)`);
         await recordCost();
         send("final", { reply: text, recommendations, programAction, blocks, suggestedReplies });
@@ -517,6 +596,7 @@ serve(async (req: Request) => {
           const toolStart = Date.now();
           const result = await tool.handler(userClient, block.input ?? {});
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
+          if (WRITE_TOOL_NAMES.has(block.name)) calledWriteTools.add(block.name);
           if (block.name === "recommend_test") recommendations.push(result);
           if (block.name === "attach_stat_bars" || block.name === "attach_steps") blocks.push(result);
           if (block.name === "suggest_replies") suggestedReplies = (result as { replies: string[] }).replies;

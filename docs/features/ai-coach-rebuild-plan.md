@@ -1,6 +1,6 @@
 # Leap AI Coach — Rebuild Plan (v3, step-by-step)
 
-**Status:** proposal. Nothing here is implemented.
+**Status:** implemented 2026-08-26 — Match→Clone→Adapt is the live architecture in `supabase/functions/ai-coach/system-prompt.ts` §11. Kept here as historical record of the phased plan; the prompt itself is the current source of truth for how it actually works.
 **Revised:** 2026-08-23 — v1 (build an assembler) withdrawn after auditing the Workout Library.
 **Audience:** Omar + the external coaching-methodology agent, for audit before any code is written.
 

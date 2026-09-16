@@ -1,4 +1,5 @@
 import { ToolDefinition } from "./types.ts";
+import { parseConceptNotes } from "./blockHelpers.ts";
 
 // Fills a real, pre-existing gap found while writing the rebuild's prompt
 // (docs/features/ai-coach-rebuild-plan.md, PHASE 6/9.1 step 12): both
@@ -14,7 +15,7 @@ import { ToolDefinition } from "./types.ts";
 export const getProgramStructure: ToolDefinition = {
   name: "get_program_structure",
   description:
-    "Get the real block_id and block_exercise_id values for one week of the athlete's active program — this is the ONLY source for the ids adjust_program and replace_block_exercises require. Call this before either of those, every time: right after cloning a program from the library (the ids do not exist until the clone is created), and before any exercise-level edit to an already-written week. Never guess, remember, or reuse an id from an earlier turn without re-fetching — a week can have been edited since.",
+    "Get the real block_id and block_exercise_id values for one week of the athlete's active program — this is the ONLY source for the ids adjust_program, replace_block_exercises, and update_block_structure require. Call this before any of those, every time: right after cloning a program from the library (the ids do not exist until the clone is created), and before any edit to an already-written week. Never guess, remember, or reuse an id from an earlier turn without re-fetching — a week can have been edited since. Each block also carries its current metadata (timing_system, structure, rounds, time_cap_min, ladder_*/tabata_* fields) — check this after every clone: a block stuck at timing_system straight_set + structure single for an athlete whose numbers call for something else (§16's role table) needs update_block_structure, not just adjust_program on its exercises.",
   input_schema: {
     type: "object",
     properties: {
@@ -39,7 +40,7 @@ export const getProgramStructure: ToolDefinition = {
     const { data: blockRows, error } = await userClient
       .from("program_blocks")
       .select(
-        "id, name, order_index, week_number, block_exercises(id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index, exercise_library(name))"
+        "id, name, notes, order_index, week_number, block_exercises(id, exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index, exercise_library(name))"
       )
       .eq("template_id", wp.template_id)
       .eq("week_number", weekNumber);
@@ -51,6 +52,7 @@ export const getProgramStructure: ToolDefinition = {
       .map((block: any) => ({
         block_id: block.id,
         name: block.name,
+        metadata: parseConceptNotes(block.notes).metadata,
         exercises: (Array.isArray(block.block_exercises) ? block.block_exercises : [])
           .slice()
           .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))

@@ -291,5 +291,34 @@ Deno.serve(async (req) => {
     return json({ error: "Failed to apply entitlement" }, 500);
   }
 
+  // Admin notification for a genuinely new subscriber only (2026-09-16 —
+  // "Notify admin when a new user subscribes") — RENEWAL/PRODUCT_CHANGE
+  // deliberately excluded, those are routine recurring billing, not a new
+  // subscriber. Never lets a notification failure turn an already-applied,
+  // already-successful entitlement into a 500 — RevenueCat retries on any
+  // non-2xx, and re-applying the same entitlement is harmless but a missed
+  // admin ping is not worth risking a retry storm over.
+  if (event.type === "INITIAL_PURCHASE") {
+    try {
+      const { data: profile } = await admin
+        .from("profiles")
+        .select("display_name, email")
+        .eq("id", event.app_user_id)
+        .maybeSingle();
+      const label = (profile as { display_name?: string; email?: string } | null)?.display_name
+        || (profile as { display_name?: string; email?: string } | null)?.email
+        || "A user";
+      const tierLabel = mapped?.tier ? mapped.tier.toUpperCase() : "a";
+      await admin.rpc("notify_admins", {
+        p_type: "new_subscription",
+        p_title: "New Subscription",
+        p_body: `${label} just subscribed to ${tierLabel} plan.`,
+        p_data: { user_id: event.app_user_id, product_id: resolvedProductId ?? null },
+      });
+    } catch (notifyErr) {
+      console.error("[revenuecat-webhook] notify_admins failed for INITIAL_PURCHASE:", notifyErr);
+    }
+  }
+
   return json({ success: true });
 });

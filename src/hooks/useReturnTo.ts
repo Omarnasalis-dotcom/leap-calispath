@@ -1,5 +1,18 @@
 import { useLocalSearchParams, useRouter } from 'expo-router';
 
+// A progression (real, tier-advancing) trial can be launched from several
+// places that have no idea what the Milestone Lane's current week is —
+// ProfileScreen's Strength World tier grid and the onboarding tutorial's
+// "Begin Trial" CTA, at minimum — so they can't compute the exact
+// `w{N}_trial` slot key the journey-embedded trial card uses (see
+// MilestoneLaneScreen.tsx's trialSlotKey). Passing this fixed sentinel as
+// questSlotKey instead lets MilestoneLaneScreen resolve it against whatever
+// IT currently considers "the" trial slot, without every caller needing to
+// know or duplicate that computation. Real bug this closes: a trial passed
+// from anywhere other than the lane's own card left that card showing
+// "open" forever, since nothing ever told the lane a trial was resolved.
+export const CURRENT_TRIAL_QUEST_SENTINEL = 'current_trial';
+
 // Generalizes the `canGoBack() ? router.back() : router.replace(fallback)`
 // defensive pattern already used by ~9 screens' own back/exit handlers (e.g.
 // app/trial.tsx's onBack) with one new branch: a screen entered from the

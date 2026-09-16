@@ -125,16 +125,59 @@ export function validateBlockStructure(
         );
       }
     }
+
+    // BLOCKS_SCHEMA's own field descriptions document several
+    // conditionally-required metadata fields (rounds/time_cap_min/tabata_*/
+    // ladder_*), but a description is only prose the model has to notice and
+    // follow — the JSON schema's `required` array only covers the four
+    // always-required fields, so nothing actually stopped a block from
+    // omitting them. That mattered in practice: BlockConceptParser.ts (the
+    // client's own reader of this data) doesn't error on a missing one —
+    // it silently falls back to generic defaults (`tabata_work_seconds || 20`
+    // and friends) or returns an empty ladder preview — so a dropped field
+    // never surfaced as a visible bug, just a quietly wrong or blank
+    // prescription. Enforced here the same way the ladder-reps check above
+    // is, so a smaller model dropping one of these under a dense schema gets
+    // a same-turn retry instead of shipping a silently generic block.
+    if (!isRest) {
+      const meta = (block.metadata ?? {}) as Record<string, unknown>;
+      const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+
+      if ((meta.structure === "circuit" || meta.structure === "superset" || meta.structure === "ladder") && isBlank(meta.rounds)) {
+        throw new Error(`"${day} | ${phase}" has structure "${meta.structure}" but no metadata.rounds — required for circuit/superset/ladder blocks (the round count, as a string, e.g. "3").`);
+      }
+      if ((meta.timing_system === "fortime" || meta.timing_system === "amrap") && isBlank(meta.time_cap_min)) {
+        throw new Error(`"${day} | ${phase}" has timing_system "${meta.timing_system}" but no metadata.time_cap_min — required for fortime/amrap blocks (the time cap in minutes).`);
+      }
+      if (meta.timing_system === "tabata") {
+        const missingTabata = (["tabata_work_seconds", "tabata_rest_seconds", "tabata_rounds"] as const).filter((k) => isBlank(meta[k]));
+        if (missingTabata.length > 0) {
+          throw new Error(`"${day} | ${phase}" is a tabata block missing ${missingTabata.join(", ")} — all three are required for tabata timing.`);
+        }
+      }
+      if (meta.structure === "ladder") {
+        const missingLadder = (["ladder_start", "ladder_sub", "ladder_direction"] as const).filter((k) => isBlank(meta[k]));
+        if (missingLadder.length > 0) {
+          throw new Error(`"${day} | ${phase}" is a ladder block missing ${missingLadder.join(", ")} — all three are required for a ladder structure.`);
+        }
+      }
+    }
   }
 
   if (!opts.requireDayPhases) return;
 
-  const byDay = new Map<string, { phases: Set<string>; allRest: boolean }>();
+  const byDay = new Map<string, { phases: Set<string>; allRest: boolean; nonRestBlockCount: number; allStraightSetSingle: boolean }>();
   for (const block of blocks ?? []) {
     const { day, phase } = getBlockParts(block);
-    const entry = byDay.get(day) ?? { phases: new Set<string>(), allRest: true };
+    const entry = byDay.get(day) ?? { phases: new Set<string>(), allRest: true, nonRestBlockCount: 0, allStraightSetSingle: true };
     entry.phases.add(phase.toLowerCase());
-    entry.allRest = entry.allRest && block.metadata?.focus_tag === "REST";
+    const isRestBlock = block.metadata?.focus_tag === "REST";
+    entry.allRest = entry.allRest && isRestBlock;
+    if (!isRestBlock) {
+      entry.nonRestBlockCount += 1;
+      const isStraightSetSingle = block.metadata?.timing_system === "straight_set" && block.metadata?.structure === "single";
+      entry.allStraightSetSingle = entry.allStraightSetSingle && isStraightSetSingle;
+    }
     byDay.set(day, entry);
   }
   for (const [day, entry] of byDay) {
@@ -143,6 +186,16 @@ export function validateBlockStructure(
     if (missing.length > 0) {
       throw new Error(
         `"${day}" is missing a ${missing.map((m) => (m === "warm-up" ? "Warm-Up" : "Cool-Down")).join(" and ")} block — every day needs both, non-negotiable. Add it and resend the whole program.`
+      );
+    }
+    // Found live (2026-09-16): a from-scratch day with zero structural
+    // variety — every block straight_set + single — is a sign the role
+    // table (system-prompt.ts §16) was never actually consulted, not a
+    // valid minimalist day. Only fires with 2+ non-rest blocks: a single-
+    // block day has nothing to vary against, so it's not a real violation.
+    if (entry.nonRestBlockCount >= 2 && entry.allStraightSetSingle) {
+      throw new Error(
+        `"${day}" has every block set to timing_system straight_set + structure single — no real variety across the day. Vary by block role (system-prompt.ts §16's role table): a Warm-Up circuit, a superset or circuit somewhere in Strength/Accessories, or an amrap/fortime finisher are the usual fixes.`
       );
     }
   }
@@ -283,6 +336,28 @@ export function transformExercisesForInsert(
     notes: ex.notes,
     order_index: toIntOrNull(ex.order_index) ?? 0,
   }));
+}
+
+// Inverse of transformBlocksForInsert's CONCEPT-tag construction below —
+// parses a stored block's `notes` column back into the same
+// {metadata, coach_notes} shape BLOCKS_SCHEMA uses, so get_workout_detail
+// can hand the AI back exactly the structure it would have written itself
+// (timing_system/structure/etc, never previously surfaced — see
+// getWorkoutDetail.ts). Mirrors BlockConceptParser.parse
+// (src/lib/BlockConceptParser.ts) rather than importing it: that file lives
+// in the RN app, this runs in a Deno edge function, different runtimes,
+// same stored string format.
+export function parseConceptNotes(rawNotes: string | null | undefined): { metadata: Record<string, unknown>; coach_notes: string } {
+  if (!rawNotes) return { metadata: {}, coach_notes: "" };
+  const match = rawNotes.match(/^\[CONCEPT:(.*?)\](.*)$/s);
+  if (!match) return { metadata: {}, coach_notes: rawNotes.trim() };
+  try {
+    const parsed = JSON.parse(match[1]);
+    const metadata = parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : {};
+    return { metadata, coach_notes: match[2] ? match[2].trim() : "" };
+  } catch {
+    return { metadata: {}, coach_notes: rawNotes.replace(/^\[CONCEPT:.*?\]/, "").trim() };
+  }
 }
 
 export function transformBlocksForInsert(

@@ -48,6 +48,7 @@ export interface Profile {
   available_equipment?: string[] | null;
   goals?: string[] | null;
   goal_other_text?: string | null;
+  training_days_per_week?: number | null;
 }
 
 export type TierRank =

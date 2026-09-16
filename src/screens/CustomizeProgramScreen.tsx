@@ -471,7 +471,10 @@ export function CustomizeProgramScreen() {
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [columns, setColumns] = useState<1 | 2>(1);
+  // Default changed from 1 to 2 per the shorter-card/2-per-row request —
+  // the toggle (view-agenda vs view-grid, ~line 885) still lets an athlete
+  // switch back to the wide 1-column layout.
+  const [columns, setColumns] = useState<1 | 2>(2);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyBand | 'all'>('all');
   const [currentProgramName, setCurrentProgramName] = useState<string | null>(null);
@@ -1204,9 +1207,11 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   },
 
   daySlotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  daySlotOuter: { width: '31%', aspectRatio: 1 },
+  // 2 per row (was 3 at 31%) — 47%*2 + one 10px gap fits within the row
+  // width; aspect ratio stays 1:1, unchanged, these were already square.
+  daySlotOuter: { width: '47%', aspectRatio: 1 },
   daySlotEmpty: {
-    width: '31%', aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
+    width: '47%', aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
     backgroundColor: c.cardFlat, alignItems: 'center', justifyContent: 'center', gap: 4,
   },
   daySlotEmptyLabel: { color: c.textFaint2, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1 },
@@ -1232,7 +1237,8 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   gridTwoUp: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 14, columnGap: 0 },
   cardWrap: { borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
   cardWrapWide: { width: '100%', aspectRatio: 16 / 9 },
-  cardWrapGrid: { width: '48%', aspectRatio: 3 / 4 },
+  // Was 3/4 (taller than wide) — 1:1 per the shorter-card request.
+  cardWrapGrid: { width: '48%', aspectRatio: 1 },
   card: { flex: 1, justifyContent: 'space-between' },
   cardTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: 10 },
   dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },

@@ -1,4 +1,5 @@
 import { ToolDefinition } from "./types.ts";
+import { parseConceptNotes } from "./blockHelpers.ts";
 
 // Rebuild plan Phase 4.2: the second step of Match->Clone->Adapt — once
 // search_workouts has narrowed to a candidate, this pulls its real blocks
@@ -34,7 +35,7 @@ export const getWorkoutDetail: ToolDefinition = {
     const { data: blockRows, error: blocksError } = await userClient
       .from("standalone_workout_blocks")
       .select(
-        "id, name, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index, exercise_library(name))"
+        "id, name, notes, order_index, standalone_workout_exercises(exercise_id, sets, reps, rest_seconds, hold_seconds, is_weighted, notes, order_index, exercise_library(name))"
       )
       .eq("workout_id", workoutId);
     if (blocksError) throw new Error(`get_workout_detail failed: ${blocksError.message}`);
@@ -42,22 +43,32 @@ export const getWorkoutDetail: ToolDefinition = {
     const blocks = (blockRows ?? [])
       .slice()
       .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
-      .map((block: any) => ({
-        name: block.name,
-        exercises: (Array.isArray(block.standalone_workout_exercises) ? block.standalone_workout_exercises : [])
-          .slice()
-          .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
-          .map((ex: any) => ({
-            exercise_id: ex.exercise_id,
-            name: ex.exercise_library?.name ?? "Unknown exercise",
-            sets: ex.sets,
-            reps: ex.reps,
-            rest_seconds: ex.rest_seconds,
-            hold_seconds: ex.hold_seconds,
-            is_weighted: ex.is_weighted,
-            notes: ex.notes,
-          })),
-      }));
+      .map((block: any) => {
+        const { metadata, coach_notes } = parseConceptNotes(block.notes);
+        return {
+          name: block.name,
+          // Same CONCEPT fields BLOCKS_SCHEMA uses when the AI writes a
+          // block itself (timing_system/structure/etc) — empty object means
+          // this library block predates the admin-web metadata editor
+          // (shipped 2026-09-06) and has never been tagged, not that it's
+          // genuinely a plain straight_set/single day.
+          metadata,
+          coach_notes,
+          exercises: (Array.isArray(block.standalone_workout_exercises) ? block.standalone_workout_exercises : [])
+            .slice()
+            .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
+            .map((ex: any) => ({
+              exercise_id: ex.exercise_id,
+              name: ex.exercise_library?.name ?? "Unknown exercise",
+              sets: ex.sets,
+              reps: ex.reps,
+              rest_seconds: ex.rest_seconds,
+              hold_seconds: ex.hold_seconds,
+              is_weighted: ex.is_weighted,
+              notes: ex.notes,
+            })),
+        };
+      });
 
     return {
       id: workout.id,

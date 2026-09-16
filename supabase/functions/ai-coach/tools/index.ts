@@ -13,6 +13,7 @@ import { searchWorkouts } from "./searchWorkouts.ts";
 import { getWorkoutDetail } from "./getWorkoutDetail.ts";
 import { proposeProgramFromWorkouts } from "./proposeProgramFromWorkouts.ts";
 import { replaceBlockExercises } from "./replaceBlockExercises.ts";
+import { updateBlockStructure } from "./updateBlockStructure.ts";
 import { getProgramStructure } from "./getProgramStructure.ts";
 import { attachStatBars } from "./attachStatBars.ts";
 import { attachSteps } from "./attachSteps.ts";
@@ -45,6 +46,7 @@ export const TOOLS: ToolDefinition[] = [
   getWorkoutDetail,
   proposeProgramFromWorkouts,
   replaceBlockExercises,
+  updateBlockStructure,
   getProgramStructure,
   attachStatBars,
   attachSteps,
