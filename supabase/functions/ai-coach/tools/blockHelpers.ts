@@ -37,8 +37,10 @@ export function isUuid(value: unknown): value is string {
 // Same "DAY {n} | {name}" split every consumer of program_blocks.name uses
 // (see transformBlocksForInsert below) — resolves whichever of
 // name/day_name/block_name the model actually sent into a (day, phase) pair
-// for grouping, without requiring day_name/block_name specifically.
-function getBlockParts(block: ClaudeBlock): { day: string; phase: string } {
+// for grouping, without requiring day_name/block_name specifically. Exported
+// so addProgramDay.ts can cross-check a block's own derived day against the
+// day_name argument it's being staged under (see that file's own comment).
+export function getBlockParts(block: ClaudeBlock): { day: string; phase: string } {
   if (block.day_name) {
     return { day: block.day_name.trim(), phase: (block.block_name ?? block.name ?? "").trim() };
   }

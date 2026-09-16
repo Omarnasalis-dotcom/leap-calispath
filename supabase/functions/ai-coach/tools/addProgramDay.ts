@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
+import { BLOCKS_SCHEMA, getBlockParts, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
 // Direct Build incremental staging (2026-09-16): closes the real cost/
 // timeout failure two live 4-day/2-skill builds hit — propose_new_program
@@ -44,6 +44,23 @@ export const addProgramDay: ToolDefinition = {
     const blocks = (input.blocks as never[]) ?? [];
     if (blocks.length === 0) {
       throw new Error(`"blocks" is empty — a day needs at least its Warm-Up and Cool-Down blocks.`);
+    }
+
+    // Real gap found auditing this file (2026-09-16): nothing previously
+    // checked that every block here actually claims to belong to dayName.
+    // Without this, two separate add_program_day calls whose blocks
+    // internally name the SAME day (a typo, or the model re-sending an
+    // already-staged day under a slightly different day_name argument)
+    // would silently merge at final assembly — validateSplitCoverage/
+    // validateBlockStructure group blocks by each block's OWN day_name/name
+    // (getBlockParts), never by which add_program_day call staged them, so
+    // a mismatch here would only surface later as a confusing validation
+    // error with no clear link back to which staged call caused it.
+    const mismatched = blocks.filter((block) => getBlockParts(block).day !== dayName);
+    if (mismatched.length > 0) {
+      throw new Error(
+        `"day_name" is "${dayName}", but ${mismatched.length} of the blocks you sent claim a different day internally (check each block's day_name/name field). Every block in this call must belong to "${dayName}" — fix the mismatch and resend just this call.`
+      );
     }
 
     validateBlockStructure(blocks, { requireDayPhases: true });

@@ -18,6 +18,7 @@ import {
   validateAthleteFit,
   validateBuildBrief,
   resolveProgramBlocks,
+  getBlockParts,
   parseConceptNotes,
 } from "../blockHelpers";
 
@@ -672,5 +673,27 @@ describe("resolveProgramBlocks (added 2026-09-16, Direct Build incremental stagi
 
   it("throws a clear error when blocks is omitted and nothing was staged", () => {
     expect(() => resolveProgramBlocks(undefined, new Map())).toThrow(/nothing staged yet via add_program_day/);
+  });
+});
+
+describe("getBlockParts (exported 2026-09-16 for addProgramDay.ts's day_name cross-check)", () => {
+  it("derives day/phase from day_name + block_name", () => {
+    expect(getBlockParts({ day_name: "PULL DAY 1", block_name: "Strength - 1", exercises: [] })).toEqual({
+      day: "PULL DAY 1", phase: "Strength - 1",
+    });
+  });
+
+  it("derives day/phase from a combined name split on the pipe", () => {
+    expect(getBlockParts({ name: "PULL DAY 1 | Strength - 1", exercises: [] })).toEqual({
+      day: "PULL DAY 1", phase: "Strength - 1",
+    });
+  });
+
+  it("falls back to the whole trimmed name as both day and phase when there's no pipe", () => {
+    expect(getBlockParts({ name: "Warm-Up", exercises: [] })).toEqual({ day: "Warm-Up", phase: "Warm-Up" });
+  });
+
+  it("falls back to \"?\" for a block with no name info at all — a real, if unlikely, edge case", () => {
+    expect(getBlockParts({ exercises: [] })).toEqual({ day: "?", phase: "" });
   });
 });

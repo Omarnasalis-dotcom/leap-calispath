@@ -218,6 +218,33 @@
 // TypeError bypasses the same-turn tool-error-and-retry pattern entirely.
 // Two regression tests added that fail with this exact error against the
 // pre-fix code (verified by hand) and pass against the fix.
+//
+// DEEP AUDIT (same day, before testing again): re-read every file in the
+// build path end to end specifically hunting for the same bug class (a
+// silent field/type mismatch hidden behind an unsafe cast) plus dead code
+// and duplication. Found and fixed one more real gap: addProgramDay.ts
+// never checked that the blocks it was given actually belonged to the
+// day_name it was staging them under — two add_program_day calls whose
+// blocks internally named the SAME day (a typo, or a re-send under a
+// slightly different day_name argument) would have silently merged at
+// final assembly, since validateSplitCoverage/validateBlockStructure group
+// by each block's OWN day_name/name (getBlockParts), never by which call
+// staged it. getBlockParts exported from blockHelpers.ts so
+// addProgramDay.ts can cross-check against it directly. No other instance
+// of the ROUND 4 bug class (camelCase interface vs. snake_case schema
+// glued together by `as unknown as`) found anywhere else in this file or
+// the tools/ directory — ClaudeBlock (the type every other block-reading
+// function uses) already matches BLOCKS_SCHEMA's field names exactly, so
+// SkillFitCheckpoint/BuildBrief was the one place this pattern existed.
+// Traced the full index.ts tool loop by hand too (WRITE_TOOL_NAMES/
+// calledWriteTools/narrate-guard interaction with add_program_day's
+// non-write status, cost recording, MAX_TOOL_TURNS headroom) — no further
+// bugs found there. One known, pre-existing, harmless inefficiency left
+// alone deliberately: propose_new_program resolves exercise names twice
+// (once in its own handler for validation, again in index.ts's
+// buildProgramAction for the client payload) — an extra DB query, not a
+// correctness issue, not touched here to avoid unnecessary risk right
+// before the next real test.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
