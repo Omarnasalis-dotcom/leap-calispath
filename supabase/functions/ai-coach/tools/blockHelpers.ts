@@ -388,37 +388,64 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     }
   }
 
-  // Reps per set below the athlete's tested max, for every pattern
-  // assessment_raw actually tracks. Mirrors the skill-checkpoint rule
-  // above, generalized to the four core patterns rather than a named goal.
+  // Reps per set below the athlete's tested max (ceiling), and not
+  // absurdly far below it either (floor) — for every pattern assessment_raw
+  // actually tracks. Mirrors the skill-checkpoint rule above, generalized
+  // to the four core patterns rather than a named goal.
+  //
+  // The floor is a real, confirmed live bug (2026-09-16): a tier-7 athlete
+  // with 30 real pull-ups got a 6/8/10 pull-up ladder — the BEGINNER
+  // band's own numbers (§16: "a ladder starting at 6-8 dropping by 2"),
+  // not this athlete's ("advanced... a ladder starting at 20+ dropping by
+  // 4"). Nothing previously stopped the model picking the wrong band's row
+  // wholesale. 50% of tested max is a deliberately generous floor — it
+  // catches a wrong-band mistake like this one without rejecting
+  // legitimate lighter accessory/technique work — and only applies outside
+  // Warm-Up/Cool-Down, which legitimately use low-rep activation work
+  // under exercise names this loop would otherwise misjudge as "too easy."
+  const MIN_FRACTION_OF_TESTED_MAX = 0.5;
   for (const { key, exerciseName } of TRACKED_PATTERNS) {
     const max = fit[key] as number | null;
-    if (max === null || max === undefined) continue;
+    if (max === null || max === undefined || max <= 0) continue;
     for (const { ex, day, phase } of all) {
       if (!nameIs(ex.name, exerciseName)) continue;
       const repsVal = toNumberOrNull(ex.reps);
-      if (repsVal !== null && repsVal >= max) {
+      if (repsVal === null) continue;
+      if (repsVal >= max) {
         throw new Error(
           `"${day} | ${phase}" sets ${exerciseName} to ${repsVal} reps, at or above this athlete's tested max of ${max}. Program below their real max — that's the whole point of testing it.`
+        );
+      }
+      const phaseLower = phase.toLowerCase();
+      if (phaseLower === "warm-up" || phaseLower === "cool-down") continue;
+      if (repsVal < max * MIN_FRACTION_OF_TESTED_MAX) {
+        throw new Error(
+          `"${day} | ${phase}" sets ${exerciseName} to ${repsVal} reps, well below this athlete's tested max of ${max} (under ${Math.round(MIN_FRACTION_OF_TESTED_MAX * 100)}%). This reads like the wrong level band's numbers, not this athlete's — see system-prompt.ts §16's level-band ladder guidance and program near their real level.`
         );
       }
     }
   }
 
-  // Weighted work needs a real number somewhere, once one is known. Only
-  // fires when loggedWeights actually has this exact exercise — a
-  // brand-new weighted exercise with no logged history is the prompt's
-  // "ask ONE question" case, which no structural check here can verify.
-  if (fit.loggedWeights) {
-    for (const { ex, day, phase } of all) {
-      const key = (ex.name ?? "").trim().toLowerCase();
-      const logged = fit.loggedWeights[key];
-      if (ex.is_weighted && logged !== undefined && !/\d/.test(ex.notes ?? "")) {
-        throw new Error(
-          `"${day} | ${phase}"'s ${ex.name} is weighted and this athlete last logged ${logged}kg, but no weight number appears in its notes. Write the real target weight following system-prompt.ts §18's weighted-progress phrase bank — never a bare "+load".`
-        );
-      }
-    }
+  // Weighted work always needs a real number somewhere — even a first-time
+  // estimate, not just once history exists. Tightened 2026-09-16: this used
+  // to only fire when loggedWeights already had the exact exercise,
+  // deliberately leaving a brand-new weighted prescription unchecked as
+  // "the prompt's ask-one-question case, which no structural check here
+  // can verify." That leniency was the same family of bug as the reps
+  // floor above — nothing stopped is_weighted:true with no real number
+  // attached anywhere, logged history or not. A real coach always gives a
+  // starting number, even an estimate to adjust from ("start around 10kg
+  // added, adjust from feel") — never leaves it as "figure it out."
+  for (const { ex, day, phase } of all) {
+    if (!ex.is_weighted) continue;
+    if (/\d/.test(ex.notes ?? "")) continue;
+    const key = (ex.name ?? "").trim().toLowerCase();
+    const logged = fit.loggedWeights?.[key];
+    throw new Error(
+      logged !== undefined
+        ? `"${day} | ${phase}"'s ${ex.name} is weighted and this athlete last logged ${logged}kg, but no weight number appears in its notes. Write the real target weight following system-prompt.ts §18's weighted-progress phrase bank — never a bare "+load".`
+        : `"${day} | ${phase}"'s ${ex.name} is weighted with no logged history and no weight number in its notes. Write a real starting estimate (e.g. "start around 10kg added, adjust from feel") — never leave it unspecified, even for a first-time prescription.`
+    );
   }
 }
 

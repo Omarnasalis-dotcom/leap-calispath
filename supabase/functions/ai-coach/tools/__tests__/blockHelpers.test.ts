@@ -480,6 +480,35 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
+  it("rejects reps well below the athlete's tested max — the wrong level band's numbers (added 2026-09-16)", () => {
+    // The real live bug: tier 7, 30 real pull-ups, got a 6/8/10 ladder —
+    // the beginner band's own row (§16), not this athlete's.
+    const block = makeBlock({
+      metadata: { structure: "ladder", timing_system: "fortime", rounds: "3", time_cap_min: 10, ladder_start: 6, ladder_sub: 2, ladder_direction: "up" },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "6" }],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
+    ).toThrow(/well below this athlete's tested max of 30/);
+  });
+
+  it("accepts reps right at the 50% floor for a tracked pattern", () => {
+    const block = makeBlock({ exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "15" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
+    ).not.toThrow();
+  });
+
+  it("never applies the floor check inside Warm-Up or Cool-Down", () => {
+    const warmUp = makeBlock({
+      name: "PULL DAY 1 | Warm-Up",
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "3" }],
+    });
+    expect(() =>
+      validateAthleteFit([warmUp] as never, { ...baseFit, pullUpsMax: 30 })
+    ).not.toThrow();
+  });
+
   it("rejects weighted work with a known logged weight but no number written anywhere", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
     expect(() =>
@@ -494,8 +523,15 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("never flags weighted work with no logged history at all — that's the prompt's ask-one-question case", () => {
+  it("rejects weighted work with NO logged history and no number either (tightened 2026-09-16)", () => {
     const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit })
+    ).toThrow(/no logged history and no weight number/);
+  });
+
+  it("accepts weighted work with no logged history once a real starting estimate is written", () => {
+    const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "start around 10kg added, adjust from feel" }] });
     expect(() =>
       validateAthleteFit([block] as never, { ...baseFit })
     ).not.toThrow();

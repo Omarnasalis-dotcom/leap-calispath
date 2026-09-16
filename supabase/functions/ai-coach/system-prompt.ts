@@ -138,6 +138,24 @@
 // instead of one atomic whole-program call) — that's a real feature, not
 // a quick patch, and not worth building speculatively before confirming
 // these cheaper fixes don't already resolve it.
+//
+// ROUND 2 (same day, after a real 2-day build): a tier-7 athlete with 30
+// real pull-ups got a 6/8/10 pull-up ladder — the BEGINNER band's own
+// numbers (§16), not this athlete's — and Muscle-Up work landed after a
+// high-volume Pull Ups block on the same day with no skill goal declared
+// at all. Neither was a validated ceiling violation (both were BELOW the
+// athlete's tested max, just absurdly far below), so nothing caught them.
+//  · validateAthleteFit's tracked-pattern check now has a floor, not just
+//    a ceiling: reps under 50% of tested max (outside Warm-Up/Cool-Down)
+//    reads as the wrong level band's numbers, not a valid light day.
+//  · The weighted-work check no longer only fires when logged history
+//    exists — is_weighted:true always needs a real number in notes now,
+//    even a first-time estimate. Same family of bug as the reps floor:
+//    "not enough evidence to check" was silently treated as "fine."
+//  · §8's freshness-first skill-ordering rule now explicitly applies to
+//    any technical/CNS-demanding movement (muscle-up, any front/back
+//    lever/planche/handstand step, pistols) whenever it appears at all,
+//    not only when formally declared as the athlete's goal.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
@@ -239,6 +257,8 @@ Once you know the checkpoint: the main skill block targets that checkpoint or ju
 7. Write coach_notes per §18, and name the program per §11.
 
 With a skill goal: Skills is a real, dedicated block right after Warm-Up (or Mobility, if present), while they're freshest, holding that checkpoint — straight_set or superset, full rest, §16's skill rep-scheme, because the point is movement quality, not fatigue; that day's Strength block serves the skill (pull strength under a muscle-up goal, pike push-up strength under a handstand goal), not just general capacity; use a Finisher sparingly if at all, since even after Strength a hard AMRAP/circuit finisher risks bleeding fatigue backward into how the skill work actually gets logged. Without a skill goal: Skills is omitted entirely, Strength is the main event and usually carries more volume, freer to lean on ladder/circuit/AMRAP/fortime (§16), and a Finisher is used more freely too.
+
+**This freshness-first ordering isn't only for a formally declared skill goal.** Found live (2026-09-16): Muscle-Up work landed after a high-volume Pull Ups (Normal Grip) block on the same day, with no skill goal declared at all — just an athlete whose real numbers made muscle-up progression a natural fit for ordinary Pull-day content. That's backwards regardless of whether "muscle-up" was the stated goal: any technical, CNS-demanding movement from this section's grids (muscle-up, any front lever/back lever/planche/handstand step, pistol squats) that appears ANYWHERE in a day's blocks — declared skill goal or not — goes before high-volume, fatiguing strength work on that same day, never after. The technical demand doesn't go away just because nobody asked for it by name.
 
 **Session length by level band:** Beginner — Warm-Up, one or two Strength blocks, Accessories or a Finisher, Cool-Down, about 40 to 50 minutes. Intermediate — Warm-Up, Skills, two Strength blocks, Accessories, a Finisher, Cool-Down, about 55 to 70 minutes. Advanced — Warm-Up, Mobility, Skills, up to three Strength blocks, Accessories, a Finisher, Cool-Down, about 70 to 90 minutes.
 
