@@ -14,6 +14,9 @@
 import {
   validateBlockStructure,
   validateExerciseList,
+  validateSplitCoverage,
+  validateAthleteFit,
+  validateBuildBrief,
   parseConceptNotes,
 } from "../blockHelpers";
 
@@ -45,9 +48,12 @@ describe("validateBlockStructure — conditional metadata (added 2026-09-16)", (
     ).toThrow(/no metadata\.rounds/);
   });
 
-  it("accepts a circuit block once rounds is set", () => {
+  it("accepts a circuit block once rounds is set and every exercise's sets is \"1\"", () => {
     expect(() =>
-      validateBlockStructure([makeBlock({ metadata: { structure: "circuit", rounds: "3" } })] as never, { requireDayPhases: false })
+      validateBlockStructure(
+        [makeBlock({ metadata: { structure: "circuit", rounds: "3" }, exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "8" }] })] as never,
+        { requireDayPhases: false }
+      )
     ).not.toThrow();
   });
 
@@ -104,7 +110,7 @@ describe("validateBlockStructure — conditional metadata (added 2026-09-16)", (
             structure: "ladder", timing_system: "fortime", rounds: "3", time_cap_min: 12,
             ladder_start: 22, ladder_sub: 4, ladder_direction: "down",
           },
-          exercises: [{ name: "Pull Ups (Normal Grip)", reps: "22" }],
+          exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "22" }],
         })] as never,
         { requireDayPhases: false }
       )
@@ -119,17 +125,40 @@ describe("validateBlockStructure — conditional metadata (added 2026-09-16)", (
       )
     ).not.toThrow();
   });
+});
 
-  // Confirmed gap, not a regression: BLOCKS_SCHEMA's own description says
-  // "when rounds is set, every exercise's sets is '1'", but nothing in this
-  // function actually checks it — schema prose only. Documenting the real
-  // current behavior (accepts it) rather than a rule that doesn't exist,
-  // so this test breaks loudly the day someone adds that check without
-  // updating this comment.
-  it("does NOT currently reject a rounds-based block whose exercise sets isn't \"1\" (known gap)", () => {
+describe("validateBlockStructure — rounds implies sets \"1\" (added 2026-09-16, direct build)", () => {
+  it("rejects a rounds-based block whose exercise sets isn't \"1\"", () => {
     expect(() =>
       validateBlockStructure(
         [makeBlock({ metadata: { structure: "circuit", rounds: "3" }, exercises: [{ name: "Push Ups", sets: "3", reps: "10" }] })] as never,
+        { requireDayPhases: false }
+      )
+    ).toThrow(/every exercise's own sets must be exactly "1"/);
+  });
+
+  it("rejects a rounds-based block whose exercise has no sets field at all", () => {
+    expect(() =>
+      validateBlockStructure(
+        [makeBlock({ metadata: { structure: "circuit", rounds: "3" }, exercises: [{ name: "Push Ups", reps: "10" }] })] as never,
+        { requireDayPhases: false }
+      )
+    ).toThrow(/every exercise's own sets must be exactly "1"/);
+  });
+
+  it("accepts a rounds-based block once every exercise's sets is \"1\"", () => {
+    expect(() =>
+      validateBlockStructure(
+        [makeBlock({ metadata: { structure: "circuit", rounds: "3" }, exercises: [{ name: "Push Ups", sets: "1", reps: "10" }] })] as never,
+        { requireDayPhases: false }
+      )
+    ).not.toThrow();
+  });
+
+  it("never fires when rounds isn't set — sets can be anything", () => {
+    expect(() =>
+      validateBlockStructure(
+        [makeBlock({ metadata: { structure: "single" }, exercises: [{ name: "Push Ups", sets: "4", reps: "10" }] })] as never,
         { requireDayPhases: false }
       )
     ).not.toThrow();
@@ -141,7 +170,12 @@ describe("validateBlockStructure — per-day variety (requireDayPhases only, add
   const warmUp = () => makeBlock({
     name: `${dayName} | Warm-Up`,
     metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", rounds: "2" },
-    exercises: [{ name: "Banded Arm Circles" }, { name: "Inchworm" }, { name: "Scapula Push Ups" }, { name: "Wrist Pressure" }],
+    exercises: [
+      { name: "Banded Arm Circles", sets: "1" },
+      { name: "Inchworm", sets: "1" },
+      { name: "Scapula Push Ups", sets: "1" },
+      { name: "Wrist Pressure", sets: "1" },
+    ],
   });
   const coolDown = () => makeBlock({
     name: `${dayName} | Cool-Down`,
@@ -156,7 +190,7 @@ describe("validateBlockStructure — per-day variety (requireDayPhases only, add
         structure: "ladder", timing_system: "fortime", rounds: "3", time_cap_min: 12,
         ladder_start: 22, ladder_sub: 4, ladder_direction: "down",
       },
-      exercises: [{ name: "Pull Ups (Normal Grip)", reps: "22" }],
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "22" }],
     });
     expect(() =>
       validateBlockStructure([warmUp(), strength, coolDown()] as never, { requireDayPhases: true })
@@ -280,9 +314,237 @@ describe("parseConceptNotes — the metadata-merge logic update_block_structure 
     // pre-flight check update_block_structure's handler actually runs.
     expect(() =>
       validateBlockStructure(
-        [{ name: "PULL DAY 1 | Strength - 1", metadata: merged, exercises: [{ reps: "22" }] }] as never,
+        [{ name: "PULL DAY 1 | Strength - 1", metadata: merged, exercises: [{ sets: "1", reps: "22" }] }] as never,
         { requireDayPhases: false }
       )
     ).not.toThrow();
+  });
+});
+
+describe("validateSplitCoverage (added 2026-09-16, direct build)", () => {
+  const day = (name: string, focusTag: string) => makeBlock({ name: `${name} | Strength - 1`, metadata: { focus_tag: focusTag } });
+
+  it("rejects a 1-2 day split where a day isn't FULL_BODY", () => {
+    expect(() =>
+      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "PUSH")] as never, 2)
+    ).toThrow(/no FULL_BODY block/);
+  });
+
+  it("accepts a 1-2 day split where every day is FULL_BODY", () => {
+    expect(() =>
+      validateSplitCoverage([day("DAY 1", "FULL_BODY"), day("DAY 2", "FULL_BODY")] as never, 1)
+    ).not.toThrow();
+  });
+
+  it("rejects a 4-day split with no Legs day", () => {
+    expect(() =>
+      validateSplitCoverage(
+        [day("DAY 1", "PULL"), day("DAY 2", "PUSH"), day("DAY 3", "PULL"), day("DAY 4", "PUSH")] as never,
+        4
+      )
+    ).toThrow(/No day in this 4-day split trains Legs/);
+  });
+
+  it("accepts a 4-day split with a real Legs day", () => {
+    expect(() =>
+      validateSplitCoverage(
+        [day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH"), day("DAY 4", "FULL_BODY")] as never,
+        4
+      )
+    ).not.toThrow();
+  });
+
+  it("also accepts a Legs day recognized by name alone, e.g. \"Lower Body\"", () => {
+    expect(() =>
+      validateSplitCoverage(
+        [day("DAY 1", "PULL"), day("Lower Body", "FULL_BODY"), day("DAY 3", "PUSH")] as never,
+        3
+      )
+    ).not.toThrow();
+  });
+
+  it("ignores REST blocks entirely", () => {
+    const restDay = makeBlock({ name: "DAY 3 | Rest", metadata: { focus_tag: "REST" }, exercises: [] });
+    expect(() =>
+      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), restDay] as never, 3)
+    ).not.toThrow();
+  });
+});
+
+describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
+  const baseFit = {
+    pullUpsMax: null as number | null,
+    dipsMax: null as number | null,
+    pushUpsMax: null as number | null,
+    muscleUpsMax: null as number | null,
+    skills: [] as Array<{ skill: string; checkpointExercise: string; maxHoldSeconds?: number | null; maxReps?: number | null }>,
+  };
+
+  it("rejects a band cue on Muscle Up when the athlete already has 3+ strict reps", () => {
+    const block = makeBlock({ exercises: [{ name: "Muscle Up", sets: "3", reps: "5", notes: "use a light band to assist" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, muscleUpsMax: 10 })
+    ).toThrow(/cues a band on Muscle Up/);
+  });
+
+  it("allows a band cue on Muscle Up when the athlete has fewer than 3 strict reps", () => {
+    const block = makeBlock({ exercises: [{ name: "Muscle Up", sets: "3", reps: "1", notes: "use a light band to assist" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, muscleUpsMax: 2 })
+    ).not.toThrow();
+  });
+
+  it("rejects unassisted Pull Ups (Normal Grip) when the athlete has 0 strict pull-ups", () => {
+    const block = makeBlock({ exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "5" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 0 })
+    ).toThrow(/0 strict pull-ups/);
+  });
+
+  it("allows Pull Ups (Normal Grip) once the athlete has at least 1", () => {
+    const block = makeBlock({ exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "5" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 8 })
+    ).not.toThrow();
+  });
+
+  it("rejects a program that never uses the confirmed skill checkpoint exercise", () => {
+    const block = makeBlock({ exercises: [{ name: "Wall Handstand hold", sets: "3", hold_seconds: "20" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, {
+        ...baseFit,
+        skills: [{ skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 30 }],
+      })
+    ).toThrow(/No block uses "Free Handstand"/);
+  });
+
+  it("rejects a skill hold target above the athlete's confirmed max hold", () => {
+    const block = makeBlock({ exercises: [{ name: "Free Handstand", sets: "3", hold_seconds: "45" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, {
+        ...baseFit,
+        skills: [{ skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 30 }],
+      })
+    ).toThrow(/above this athlete's confirmed max of 30s/);
+  });
+
+  it("accepts a skill hold target at or below the athlete's confirmed max hold", () => {
+    const block = makeBlock({ exercises: [{ name: "Free Handstand", sets: "3", hold_seconds: "25" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, {
+        ...baseFit,
+        skills: [{ skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 30 }],
+      })
+    ).not.toThrow();
+  });
+
+  it("rejects a skill rep target at or above the athlete's confirmed max reps", () => {
+    const block = makeBlock({ exercises: [{ name: "Tuck Front Lever Hold", sets: "3", reps: "8" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, {
+        ...baseFit,
+        skills: [{ skill: "front_lever", checkpointExercise: "Tuck Front Lever Hold", maxReps: 8 }],
+      })
+    ).toThrow(/at or above this athlete's confirmed max of 8/);
+  });
+
+  it("rejects reps at or above the athlete's tested max for a tracked pattern", () => {
+    const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "10" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, dipsMax: 10 })
+    ).toThrow(/at or above this athlete's tested max of 10/);
+  });
+
+  it("accepts reps below the athlete's tested max for a tracked pattern", () => {
+    const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, dipsMax: 10 })
+    ).not.toThrow();
+  });
+
+  it("rejects weighted work with a known logged weight but no number written anywhere", () => {
+    const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } })
+    ).toThrow(/no weight number appears/);
+  });
+
+  it("accepts weighted work once a real number is written", () => {
+    const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "last week 20kg felt good, hold at 20kg" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } })
+    ).not.toThrow();
+  });
+
+  it("never flags weighted work with no logged history at all — that's the prompt's ask-one-question case", () => {
+    const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "" }] });
+    expect(() =>
+      validateAthleteFit([block] as never, { ...baseFit })
+    ).not.toThrow();
+  });
+});
+
+describe("validateBuildBrief (added 2026-09-16, direct build — this is the real gate, not save_build_brief)", () => {
+  const validBrief = () => ({
+    goal: "handstand and front lever, keep progressing to the trial",
+    skills: [
+      { skill: "handstand", checkpoint_exercise: "Free Handstand", max_hold_seconds: 25 },
+      { skill: "front_lever", checkpoint_exercise: "Tuck Front Lever Hold", max_hold_seconds: 15 },
+    ],
+    trial_focus: true,
+    days_per_week: 4,
+    split_days: ["PULL", "LEGS", "PUSH", "FULL_BODY"],
+    equipment: ["bar", "rings"],
+    pacing: "day_by_day" as const,
+  });
+
+  it("rejects a missing brief entirely, naming what's required", () => {
+    expect(() => validateBuildBrief(undefined)).toThrow(/Missing "brief"/);
+  });
+
+  it("names every missing top-level field at once", () => {
+    expect(() => validateBuildBrief({ goal: "strength" })).toThrow(
+      /skills, trial_focus, days_per_week, split_days, equipment, pacing/
+    );
+  });
+
+  it("accepts a fully-specified brief", () => {
+    expect(() => validateBuildBrief(validBrief())).not.toThrow();
+  });
+
+  it("rejects a skill entry missing checkpoint_exercise", () => {
+    const brief = validBrief();
+    brief.skills = [{ skill: "handstand", checkpoint_exercise: "", max_hold_seconds: 25 }];
+    expect(() => validateBuildBrief(brief)).toThrow(/skills\[0\] is missing "skill" or "checkpoint_exercise"/);
+  });
+
+  it("rejects a skill entry with neither max_hold_seconds nor max_reps", () => {
+    const brief = validBrief();
+    brief.skills = [{ skill: "handstand", checkpoint_exercise: "Free Handstand" }] as never;
+    expect(() => validateBuildBrief(brief)).toThrow(/no max_hold_seconds or max_reps/);
+  });
+
+  it("accepts an empty skills array when no skill goal was named", () => {
+    const brief = validBrief();
+    brief.skills = [];
+    expect(() => validateBuildBrief(brief)).not.toThrow();
+  });
+
+  it("rejects an empty split_days array", () => {
+    const brief = validBrief();
+    brief.split_days = [];
+    expect(() => validateBuildBrief(brief)).toThrow(/split_days must be a non-empty array/);
+  });
+
+  it("rejects an invalid pacing value", () => {
+    const brief = validBrief() as unknown as Record<string, unknown>;
+    brief.pacing = "sometimes";
+    expect(() => validateBuildBrief(brief)).toThrow(/pacing must be "day_by_day" or "direct"/);
+  });
+
+  it("rejects days_per_week out of the 1-7 range", () => {
+    const brief = validBrief() as unknown as Record<string, unknown>;
+    brief.days_per_week = 9;
+    expect(() => validateBuildBrief(brief)).toThrow(/days_per_week must be a real number between 1 and 7/);
   });
 });

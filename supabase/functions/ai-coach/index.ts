@@ -5,6 +5,7 @@ import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
 import { transformBlocksForInsert, resolveExerciseIds } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
+import { sanitizeReply } from "./tools/replyCleanup.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -119,6 +120,13 @@ function sseResponse(run: (send: (event: "stage" | "final" | "error", data: unkn
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
       const send = (event: "stage" | "final" | "error", data: unknown) => {
+        // Single enforcement point for every "final" event, model-generated
+        // or one of the hardcoded fallback messages above — see
+        // replyCleanup.ts. Applied here rather than at each call site so a
+        // future one can't forget it.
+        if (event === "final" && data && typeof (data as { reply?: unknown }).reply === "string") {
+          (data as { reply: string }).reply = sanitizeReply((data as { reply: string }).reply);
+        }
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
       try {

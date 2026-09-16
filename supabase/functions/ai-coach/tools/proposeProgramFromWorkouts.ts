@@ -7,10 +7,17 @@ import { ToolDefinition } from "./types.ts";
 // CoachScreen.tsx calls ai_coach_create_program_from_workouts (3.1)
 // directly if the athlete taps confirm. Existence/publish-status/paywall
 // are re-verified there, not here — this tool only ever proposes.
+//
+// Direct build (2026-09-16): no longer the main build path — propose_new_program
+// is (system-prompt.ts §11). This clones a library day verbatim, with no
+// adaptation to the athlete's level, numbers, or skill hold times, so it's
+// now scoped to an athlete explicitly asking for one specific, named
+// library workout as-is. Kept because it's a real, working escape hatch
+// for that case, not because it's the default.
 export const proposeProgramFromWorkouts: ToolDefinition = {
   name: "propose_program_from_workouts",
   description:
-    "Propose assembling a program from real Workout Library days you've already found with search_workouts and inspected with get_workout_detail — this does NOT create anything. It shows the athlete a confirmation card in the chat; the program is only actually created if they explicitly tap it. Only call this after the athlete has confirmed in the conversation which day(s) they want, in order — never guess an order they haven't agreed to.",
+    "Propose assembling a program from real Workout Library days you've already found with search_workouts and inspected with get_workout_detail — this does NOT create anything, and it clones the day exactly as written, with no adaptation to this athlete. Only call this when the athlete explicitly asked for a specific, named library workout as-is (system-prompt.ts §11) — propose_new_program is the main path for everything else. It shows the athlete a confirmation card in the chat; the program is only actually created if they explicitly tap it. Only call this after the athlete has confirmed in the conversation which day(s) they want, in order — never guess an order they haven't agreed to.",
   input_schema: {
     type: "object",
     properties: {

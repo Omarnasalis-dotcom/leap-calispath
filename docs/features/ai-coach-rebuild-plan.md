@@ -1,6 +1,6 @@
 # Leap AI Coach — Rebuild Plan (v3, step-by-step)
 
-**Status:** implemented 2026-08-26 — Match→Clone→Adapt is the live architecture in `supabase/functions/ai-coach/system-prompt.ts` §11. Kept here as historical record of the phased plan; the prompt itself is the current source of truth for how it actually works.
+**Status:** SUPERSEDED 2026-09-16. Match→Clone→Adapt (implemented 2026-08-26, described below) is no longer the live architecture — replaced by Direct Build (`propose_new_program` as the main path, every block written and adapted to the athlete from the first draft, `propose_program_from_workouts` narrowed to an athlete explicitly naming a specific library workout as-is). Reason: the required Adapt pass after a clone kept not running reliably in practice — a cloned library day reached the athlete unadapted (wrong level, wrong numbers, skill holds above what they could do) often enough that the control-flow bet (trusting the model to run two more tool calls on its own judgment, every time) stopped being worth it. See `supabase/functions/ai-coach/system-prompt.ts`'s own header comment (DIRECT BUILD, 2026-09-16) for the current architecture — the prompt is the source of truth for how it actually works. Kept here as historical record of the phased plan and of Match→Clone→Adapt's own reasoning, not as current instructions.
 **Revised:** 2026-08-23 — v1 (build an assembler) withdrawn after auditing the Workout Library.
 **Audience:** Omar + the external coaching-methodology agent, for audit before any code is written.
 
@@ -100,9 +100,11 @@ month" requests, is unresolved — see decision 3.
 
 ---
 
-## PHASE 2 — Author the library *(the long pole — not engineering)*
+## PHASE 2 — Author the library *(no longer the long pole — see note below)*
 
-- [ ] **2.1** Define the matrix. **Correction (found writing Phase 6):** `category` has no DB CHECK
+**2026-09-16 note:** Direct Build (see Status above) made this phase secondary — the library is now a style reference for the AI, not its primary content source, and `propose_program_from_workouts` (the only tool that still clones a library day verbatim) is scoped to an athlete explicitly naming a specific workout. Numbers below corrected against a live query, run while auditing the stale "3 workouts" figure this doc previously carried:
+
+- [x] **2.1** Define the matrix. **Correction (found writing Phase 6):** `category` has no DB CHECK
       constraint — the real, enforced set is defined only by admin-web's `CATEGORY_VALUES` and the
       browsing UI's filter chips (confirmed against real screenshots): `PULL`, `PUSH`, `LEGS`,
       `CORE`, `FULL_BODY`. The table below originally listed `SKILLS`/`CONDITIONING` as if they were
@@ -110,26 +112,29 @@ month" requests, is unresolved — see decision 3.
       stops it) but invisible to every filter chip AND to `search_workouts` (`CATEGORIES` in
       `tools/searchWorkouts.ts` only accepts the real 5). Skill/conditioning focus is expressed via
       `goal_tags` (`muscle_up`/`handstand`/etc./`conditioning`) on a real category, never as the
-      category itself. Minimum coverage, corrected:
+      category itself. Minimum coverage, corrected — **and now real** (confirmed live, 2026-09-16,
+      `SELECT category, difficulty, count(*) FROM standalone_workouts WHERE status='published' AND
+      kind='workout' GROUP BY 1,2`):
 
   | Focus | beginner | intermediate | advanced |
   |---|---|---|---|
-  | PULL | ✓ | ✓ | ✓ |
-  | PUSH | ✓ | ✓ | ✓ |
-  | LEGS | ✓ | ✓ | ✓ |
-  | CORE | ✓ | ✓ | ✓ |
-  | FULL_BODY | ✓ | ✓ | ✓ |
+  | PULL | ✓ (2) | ✓ (2) | ✓ (4) |
+  | PUSH | ✓ (2) | ✓ (2) | ✓ (4) |
+  | LEGS | ✓ (2) | ✓ (2) | ✓ (4) |
+  | CORE | ✓ (1) | ✓ (1) | ✓ (2) |
+  | FULL_BODY | ✓ (1) | ✓ (1) | ✓ (2) |
 
-  **15 minimum.** Plus goal-tagged variants (muscle-up/handstand/front-lever/back-lever/pistol,
-  each on the real category its skill line lives under per §8) ≈ **20-22 to launch**, ~35 to feel
-  rich. Currently: **3** (all three PUSH-focused — one cell out of fifteen has real coverage).
-
+  **15 minimum, all 15 cells filled — 32 published workouts total**, not the "3, all PUSH-focused"
+  this doc previously said. Plus goal-tagged variants: `muscle_up` 3, `handstand` 3, `front_lever` 3,
+  `pistol` 3, `conditioning` 9 (a workout can carry more than one tag, so these overlap with the 32
+  above, not additional rows).
 - [ ] **2.2** Every workout must be a complete day — Warm-Up → (Mobility) → (Skills) → Strength →
-      Accessories → (Finisher) → Cool-Down. A day missing a cool-down will be prescribed as-is.
-- [ ] **2.3** Tag every one with `goal_tags` + tier range
-- [ ] **2.4** QA: assign each one manually from the Library UI and train it once
-- [ ] **2.5** Decide `is_free` per workout — free athletes must have a viable path in every cell of
-      the matrix, or matching fails for them (see 4.1)
+      Accessories → (Finisher) → Cool-Down. A day missing a cool-down will be prescribed as-is. Not
+      verified this pass — the count above confirms coverage breadth, not per-workout completeness.
+- [x] **2.3** Tag every one with `goal_tags` + tier range — confirmed live, see the goal-tag counts
+      above; `tier_min`/`tier_max` were part of the same 2026-08-25 migration and backfill.
+- [ ] **2.4** QA: assign each one manually from the Library UI and train it once — not verified.
+- [ ] **2.5** Decide `is_free` per workout — not re-checked this pass.
 
 ---
 

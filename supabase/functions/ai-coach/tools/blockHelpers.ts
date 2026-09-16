@@ -161,6 +161,29 @@ export function validateBlockStructure(
           throw new Error(`"${day} | ${phase}" is a ladder block missing ${missingLadder.join(", ")} — all three are required for a ladder structure.`);
         }
       }
+
+      // Direct build (2026-09-16): every block is now freshly authored, so
+      // BLOCKS_SCHEMA's own long-standing rule — "when rounds is set, each
+      // exercise's own sets is '1'" — is finally enforced, not just
+      // documented prose. Previously a known, confirmed gap (see this
+      // file's test suite before this change). A block with rounds:"3" AND
+      // an exercise at sets:"3" double-counts the repetition: the block
+      // structure already repeats the whole thing 3 times, so 3 sets on
+      // top of that is 9x, not 3x, and BlockConceptParser's UI has no way
+      // to show that mismatch to the athlete — it just renders both
+      // numbers as if they were independent.
+      if (!isBlank(meta.rounds)) {
+        const badSets = exercises.filter((ex) => {
+          const setsVal = ex.sets;
+          return isBlank(setsVal) || String(setsVal).trim() !== "1";
+        });
+        if (badSets.length > 0) {
+          const names = badSets.map((ex) => ex.name ?? "?").join(", ");
+          throw new Error(
+            `"${day} | ${phase}" has metadata.rounds set to "${meta.rounds}", so every exercise's own sets must be exactly "1" — the block's rounds field drives the repetition, not each exercise's sets. Fix: ${names}.`
+          );
+        }
+      }
     }
   }
 
@@ -199,6 +222,282 @@ export function validateBlockStructure(
       );
     }
   }
+}
+
+// Direct build (2026-09-16): propose_new_program-only, mirroring
+// system-prompt.ts §15's two hard rules rather than its whole per-day-count
+// table (replicating every band's exact category list here would risk
+// rejecting legitimate variation the prompt already handles — e.g. §15's
+// 5/6-day splits name skill-combined days like "Push & Handstand", whose
+// focus_tag is still PUSH). The two rules below are the ones with a real,
+// live-reproduced failure behind them (§15: "Push+Pull, or Pull alone, both
+// silently drop Legs for the whole week").
+export function validateSplitCoverage(blocks: ClaudeBlock[], daysPerWeek: number): void {
+  const dayFocusTags = new Map<string, Set<string>>();
+  for (const block of blocks ?? []) {
+    if ((block.metadata?.focus_tag as string | undefined) === "REST") continue;
+    const { day } = getBlockParts(block);
+    const tags = dayFocusTags.get(day) ?? new Set<string>();
+    if (block.metadata?.focus_tag) tags.add(block.metadata.focus_tag as string);
+    dayFocusTags.set(day, tags);
+  }
+  const days = [...dayFocusTags.keys()];
+  if (days.length === 0) return;
+
+  if (daysPerWeek <= 2) {
+    for (const day of days) {
+      if (!dayFocusTags.get(day)!.has("FULL_BODY")) {
+        throw new Error(
+          `"${day}" has no FULL_BODY block. At ${daysPerWeek} day(s)/week, system-prompt.ts §15 requires every session to be FULL_BODY — an isolated split at this frequency silently drops whole patterns for the week (a real bug this caused live).`
+        );
+      }
+    }
+    return;
+  }
+
+  const hasLegs = days.some((day) => {
+    const tags = dayFocusTags.get(day)!;
+    return tags.has("LEGS") || /\bleg|lower body/i.test(day);
+  });
+  if (!hasLegs) {
+    throw new Error(
+      `No day in this ${daysPerWeek}-day split trains Legs. Per system-prompt.ts §15, every split of 3+ days/week includes a real Legs day (folded into Pull day at 3 days/week is the one exception, still present as content, not skipped) — this program silently drops the whole pattern.`
+    );
+  }
+}
+
+// Direct build (2026-09-16): the athlete-fit checks that only make sense
+// once every block is freshly authored rather than cloned. These take the
+// athlete's REAL numbers as an argument rather than fetching them —
+// deliberately: the caller (proposeNewProgram.ts's handler) fetches
+// assessment_raw/get_workout_logs itself via userClient, the authoritative
+// source, and never trusts a model-reported number for these checks. That
+// split is also what keeps this function pure and Jest-testable without a
+// database, same as everything else in this file.
+export interface SkillFitCheckpoint {
+  skill: string;
+  checkpointExercise: string;
+  maxHoldSeconds?: number | null;
+  maxReps?: number | null;
+}
+
+export interface AthleteFitContext {
+  pullUpsMax: number | null;
+  dipsMax: number | null;
+  pushUpsMax: number | null;
+  muscleUpsMax: number | null;
+  skills: SkillFitCheckpoint[];
+  // Lowercase exercise name -> last logged weight_used. Only exercises with
+  // real logged history appear here — a brand-new athlete's map is empty,
+  // which is exactly why this check only fires when a real number exists to
+  // compare against (see below); "no history yet" is the prompt's "ask ONE
+  // question" case, which nothing here can verify mechanically.
+  loggedWeights?: Record<string, number>;
+}
+
+function toNumberOrNull(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const n = typeof value === "number" ? value : parseFloat(String(value));
+  return Number.isFinite(n) ? n : null;
+}
+
+const TRACKED_PATTERNS: Array<{ key: keyof AthleteFitContext; exerciseName: string }> = [
+  { key: "pullUpsMax", exerciseName: "Pull Ups (Normal Grip)" },
+  { key: "dipsMax", exerciseName: "Dips" },
+  { key: "pushUpsMax", exerciseName: "Push Ups" },
+  { key: "muscleUpsMax", exerciseName: "Muscle Up" },
+];
+
+export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext): void {
+  const all: Array<{ ex: ClaudeBlock["exercises"][number]; day: string; phase: string }> = [];
+  for (const block of blocks ?? []) {
+    const { day, phase } = getBlockParts(block);
+    for (const ex of block.exercises ?? []) all.push({ ex, day, phase });
+  }
+  const nameIs = (name: string | undefined, target: string) => (name ?? "").trim().toLowerCase() === target.toLowerCase();
+
+  // muscle_ups >= 3: no band cue on Muscle Up. §8: band assistance is
+  // "Muscle Up" plus a note, never a separate exercise name — so the cue
+  // lives in the exercise's own notes field, checked as free text here.
+  if (fit.muscleUpsMax !== null && fit.muscleUpsMax >= 3) {
+    for (const { ex, day, phase } of all) {
+      if (nameIs(ex.name, "Muscle Up") && /\bband\b/i.test(ex.notes ?? "")) {
+        throw new Error(
+          `"${day} | ${phase}" cues a band on Muscle Up, but this athlete's assessment_raw shows ${fit.muscleUpsMax} strict muscle-ups — band assistance is for someone who can't yet do the movement unassisted. Remove the band cue.`
+        );
+      }
+    }
+  }
+
+  // pull_ups = 0: no unassisted Pull Ups (Normal Grip) as programmed work
+  // anywhere — they can't do the movement yet, full stop.
+  if (fit.pullUpsMax === 0) {
+    for (const { ex, day, phase } of all) {
+      if (nameIs(ex.name, "Pull Ups (Normal Grip)")) {
+        throw new Error(
+          `"${day} | ${phase}" programs Pull Ups (Normal Grip), but this athlete's assessment_raw shows 0 strict pull-ups. Use Banded Pull Ups or another step from system-prompt.ts §9's ladder instead.`
+        );
+      }
+    }
+  }
+
+  // Skill checkpoints: the confirmed checkpoint exercise must actually
+  // appear, and its own hold/reps target must respect the confirmed max.
+  for (const skill of fit.skills ?? []) {
+    const matches = all.filter(({ ex }) => nameIs(ex.name, skill.checkpointExercise));
+    if (matches.length === 0) {
+      throw new Error(
+        `No block uses "${skill.checkpointExercise}", the confirmed checkpoint for the ${skill.skill} goal. Use the exact checkpoint the athlete confirmed, not a different step in that skill line.`
+      );
+    }
+    for (const { ex, day, phase } of matches) {
+      if (skill.maxHoldSeconds != null) {
+        const holdVal = toNumberOrNull(ex.hold_seconds);
+        if (holdVal !== null && holdVal > skill.maxHoldSeconds) {
+          throw new Error(
+            `"${day} | ${phase}" sets ${skill.checkpointExercise} to a ${holdVal}s hold, above this athlete's confirmed max of ${skill.maxHoldSeconds}s. Start at or below their real max, never above it.`
+          );
+        }
+      }
+      if (skill.maxReps != null) {
+        const repsVal = toNumberOrNull(ex.reps);
+        if (repsVal !== null && repsVal >= skill.maxReps) {
+          throw new Error(
+            `"${day} | ${phase}" sets ${skill.checkpointExercise} to ${repsVal} reps, at or above this athlete's confirmed max of ${skill.maxReps}. Program below their tested max, never at or above it.`
+          );
+        }
+      }
+    }
+  }
+
+  // Reps per set below the athlete's tested max, for every pattern
+  // assessment_raw actually tracks. Mirrors the skill-checkpoint rule
+  // above, generalized to the four core patterns rather than a named goal.
+  for (const { key, exerciseName } of TRACKED_PATTERNS) {
+    const max = fit[key] as number | null;
+    if (max === null || max === undefined) continue;
+    for (const { ex, day, phase } of all) {
+      if (!nameIs(ex.name, exerciseName)) continue;
+      const repsVal = toNumberOrNull(ex.reps);
+      if (repsVal !== null && repsVal >= max) {
+        throw new Error(
+          `"${day} | ${phase}" sets ${exerciseName} to ${repsVal} reps, at or above this athlete's tested max of ${max}. Program below their real max — that's the whole point of testing it.`
+        );
+      }
+    }
+  }
+
+  // Weighted work needs a real number somewhere, once one is known. Only
+  // fires when loggedWeights actually has this exact exercise — a
+  // brand-new weighted exercise with no logged history is the prompt's
+  // "ask ONE question" case, which no structural check here can verify.
+  if (fit.loggedWeights) {
+    for (const { ex, day, phase } of all) {
+      const key = (ex.name ?? "").trim().toLowerCase();
+      const logged = fit.loggedWeights[key];
+      if (ex.is_weighted && logged !== undefined && !/\d/.test(ex.notes ?? "")) {
+        throw new Error(
+          `"${day} | ${phase}"'s ${ex.name} is weighted and this athlete last logged ${logged}kg, but no weight number appears in its notes. Write the real target weight following system-prompt.ts §18's weighted-progress phrase bank — never a bare "+load".`
+        );
+      }
+    }
+  }
+}
+
+// Direct build (2026-09-16): the build brief propose_new_program requires
+// before it will write anything. Shared between propose_new_program.ts
+// (the real gate — every field re-checked there, every time) and the
+// optional save_build_brief.ts (a "here's what I'll build" confirmation
+// step, NOT itself the gate — see that file's own comment for why a
+// separate tool call can't be trusted as the enforcement point under
+// system-prompt.ts §2's "each turn is fresh" rule).
+export interface BuildBrief {
+  goal: string;
+  skills: SkillFitCheckpoint[];
+  trial_focus: boolean;
+  days_per_week: number;
+  split_days: string[];
+  equipment: string[];
+  pacing: "day_by_day" | "direct";
+}
+
+export const BUILD_BRIEF_SCHEMA = {
+  type: "object" as const,
+  description:
+    "The confirmed build brief. Required, in full, before this will build anything — every field here must already be a real, athlete-confirmed answer (system-prompt.ts §11), never a guess written just to satisfy this schema. If something genuinely isn't known yet, go ask for it first; don't call this tool until it is.",
+  properties: {
+    goal: { type: "string", description: 'The athlete\'s stated goal for this program, in their own terms, e.g. "handstand and front lever, keep progressing to the trial".' },
+    skills: {
+      type: "array",
+      description: "One entry per named skill goal. Empty array if no skill goal was named.",
+      items: {
+        type: "object",
+        properties: {
+          skill: { type: "string", description: 'e.g. "handstand", "front_lever".' },
+          checkpoint_exercise: { type: "string", description: "The exact library exercise name confirmed as this athlete's current checkpoint in that skill line (system-prompt.ts §8). Pre-fill your own guess from get_user_context's static_pbs, but only send it here after the athlete has actually confirmed it." },
+          max_hold_seconds: { type: "integer", description: "The athlete's confirmed real max hold, for a hold-based checkpoint." },
+          max_reps: { type: "integer", description: "The athlete's confirmed real max reps, for a rep-based checkpoint." },
+        },
+        required: ["skill", "checkpoint_exercise"],
+      },
+    },
+    trial_focus: { type: "boolean", description: "Whether the athlete also wants to keep progressing toward their tier trial alongside any skill work (system-prompt.ts §8)." },
+    days_per_week: { type: "integer", description: "Confirmed training days per week." },
+    split_days: { type: "array", items: { type: "string" }, description: 'The real category per day, in order, e.g. ["PULL", "LEGS", "PUSH", "FULL_BODY"] — system-prompt.ts §15.' },
+    equipment: { type: "array", items: { type: "string" }, description: 'Confirmed equipment, e.g. ["bar", "rings", "bands"].' },
+    pacing: { type: "string", enum: ["day_by_day", "direct"], description: "Which pacing the athlete chose (system-prompt.ts §11)." },
+  },
+  required: ["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment", "pacing"],
+};
+
+// Manual, runtime enforcement of BUILD_BRIEF_SCHEMA's `required` list.
+// JSON-schema `required` shapes what the model is prompted to send; it is
+// not a guarantee about what actually arrives in `input` — this codebase's
+// established pattern (validateBlockStructure, resolveExerciseIds) is to
+// never trust that alone, so this re-checks every field itself and names
+// the exact one missing, same-turn, same as everywhere else in this file.
+export function validateBuildBrief(brief: unknown): BuildBrief {
+  if (!brief || typeof brief !== "object" || Array.isArray(brief)) {
+    throw new Error(
+      `Missing "brief" — propose_new_program requires the full build brief (goal, skills, trial_focus, days_per_week, split_days, equipment, pacing) before it will build anything. See system-prompt.ts §11.`
+    );
+  }
+  const b = brief as Record<string, unknown>;
+  const missing = (["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment", "pacing"] as const).filter(
+    (field) => b[field] === undefined || b[field] === null
+  );
+  if (missing.length > 0) {
+    throw new Error(`brief is missing: ${missing.join(", ")}. Ask the athlete for whatever you genuinely don't have yet (system-prompt.ts §11) — never guess a value just to fill this schema.`);
+  }
+
+  const skills = b.skills;
+  if (!Array.isArray(skills)) {
+    throw new Error(`brief.skills must be an array (empty if no skill goal was named).`);
+  }
+  for (const [i, raw] of skills.entries()) {
+    const skill = (raw ?? {}) as Record<string, unknown>;
+    if (!skill.skill || !skill.checkpoint_exercise) {
+      throw new Error(`brief.skills[${i}] is missing "skill" or "checkpoint_exercise" — every named skill needs both, confirmed with the athlete.`);
+    }
+    if (skill.max_hold_seconds == null && skill.max_reps == null) {
+      throw new Error(`brief.skills[${i}] ("${skill.skill}") has no max_hold_seconds or max_reps — every named skill needs a confirmed real max (pre-fill from static_pbs, then confirm with the athlete; never omit it).`);
+    }
+  }
+
+  if (!Array.isArray(b.split_days) || (b.split_days as unknown[]).length === 0) {
+    throw new Error(`brief.split_days must be a non-empty array of the real category per day (system-prompt.ts §15).`);
+  }
+  if (!Array.isArray(b.equipment)) {
+    throw new Error(`brief.equipment must be an array (can be empty for bodyweight-only).`);
+  }
+  if (b.pacing !== "day_by_day" && b.pacing !== "direct") {
+    throw new Error(`brief.pacing must be "day_by_day" or "direct" — whichever the athlete actually chose (system-prompt.ts §11).`);
+  }
+  if (typeof b.days_per_week !== "number" || b.days_per_week < 1 || b.days_per_week > 7) {
+    throw new Error(`brief.days_per_week must be a real number between 1 and 7.`);
+  }
+
+  return b as unknown as BuildBrief;
 }
 
 // Resolve exercise NAMES to real library ids, server-side.
