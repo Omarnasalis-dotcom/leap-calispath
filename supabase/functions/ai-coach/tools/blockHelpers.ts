@@ -332,7 +332,13 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     const { day, phase } = getBlockParts(block);
     for (const ex of block.exercises ?? []) all.push({ ex, day, phase });
   }
-  const nameIs = (name: string | undefined, target: string) => (name ?? "").trim().toLowerCase() === target.toLowerCase();
+  // Defensive on BOTH sides, not just `name` — an undefined/malformed
+  // `target` used to crash this whole request (see validateBuildBrief's
+  // comment on the real bug this was). A tool crashing here is far worse
+  // than a false "no match": a thrown TypeError bypasses the same-turn
+  // tool-error-and-retry pattern entirely, since it's not a message the
+  // model can act on, just a dead end it repeats forever.
+  const nameIs = (name: string | undefined, target: string | undefined) => (name ?? "").trim().toLowerCase() === (target ?? "").trim().toLowerCase();
 
   // muscle_ups >= 3: no band cue on Muscle Up. §8: band assistance is
   // "Muscle Up" plus a note, never a separate exercise name — so the cue
@@ -519,6 +525,23 @@ export function validateBuildBrief(brief: unknown): BuildBrief {
   if (!Array.isArray(skills)) {
     throw new Error(`brief.skills must be an array (empty if no skill goal was named).`);
   }
+  // Real crash bug, found live (2026-09-16) via Edge Function logs after
+  // three rounds of unrelated fixes didn't touch it: this used to just
+  // validate the model's snake_case fields (matching BUILD_BRIEF_SCHEMA
+  // above: checkpoint_exercise/max_hold_seconds/max_reps) and then
+  // `return b as unknown as BuildBrief` — a type cast, not a real
+  // transformation. SkillFitCheckpoint's own interface declares camelCase
+  // (checkpointExercise/maxHoldSeconds/maxReps), which never actually
+  // existed on the real object — validateAthleteFit's skill.checkpointExercise
+  // was silently `undefined` on every call, and nameIs(ex.name, undefined)
+  // crashed on undefined.toLowerCase(). This fired on the FIRST
+  // propose_new_program attempt for ANY build with a skill goal, every
+  // single time, and every retry hit the identical crash again — the model
+  // has no way to "fix" a raw TypeError, so it just kept trying until
+  // MAX_TOOL_TURNS or a platform timeout killed the request. Explains
+  // every one of the live build failures this session chased with
+  // effort/max_tokens/validator changes that could never have touched it.
+  const transformedSkills: SkillFitCheckpoint[] = [];
   for (const [i, raw] of skills.entries()) {
     const skill = (raw ?? {}) as Record<string, unknown>;
     if (!skill.skill || !skill.checkpoint_exercise) {
@@ -527,6 +550,12 @@ export function validateBuildBrief(brief: unknown): BuildBrief {
     if (skill.max_hold_seconds == null && skill.max_reps == null) {
       throw new Error(`brief.skills[${i}] ("${skill.skill}") has no max_hold_seconds or max_reps — every named skill needs a confirmed real max (pre-fill from static_pbs, then confirm with the athlete; never omit it).`);
     }
+    transformedSkills.push({
+      skill: skill.skill as string,
+      checkpointExercise: skill.checkpoint_exercise as string,
+      maxHoldSeconds: (skill.max_hold_seconds as number | null | undefined) ?? null,
+      maxReps: (skill.max_reps as number | null | undefined) ?? null,
+    });
   }
 
   if (!Array.isArray(b.split_days) || (b.split_days as unknown[]).length === 0) {
@@ -542,7 +571,7 @@ export function validateBuildBrief(brief: unknown): BuildBrief {
     throw new Error(`brief.days_per_week must be a real number between 1 and 7.`);
   }
 
-  return b as unknown as BuildBrief;
+  return { ...b, skills: transformedSkills } as unknown as BuildBrief;
 }
 
 // Resolve exercise NAMES to real library ids, server-side.

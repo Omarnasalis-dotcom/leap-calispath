@@ -567,6 +567,43 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
     expect(() => validateBuildBrief(validBrief())).not.toThrow();
   });
 
+  it("REGRESSION (2026-09-16): returned skills actually have camelCase fields the rest of the code reads, not just the raw snake_case input", () => {
+    // The real live bug: validateBuildBrief used to `return b as unknown as
+    // BuildBrief` — a type cast, not a transformation. skill.checkpointExercise
+    // was silently undefined on every call (only skill.checkpoint_exercise,
+    // the raw snake_case field, ever existed), and validateAthleteFit's
+    // nameIs(ex.name, skill.checkpointExercise) crashed on undefined.toLowerCase()
+    // on the FIRST propose_new_program attempt for any build with a skill
+    // goal — every time, no exceptions. This test fails loudly if that
+    // transformation is ever lost again.
+    const brief = validateBuildBrief(validBrief());
+    expect(brief.skills[0].checkpointExercise).toBe("Free Handstand");
+    expect(brief.skills[0].maxHoldSeconds).toBe(25);
+    expect(brief.skills[1].checkpointExercise).toBe("Tuck Front Lever Hold");
+    expect(brief.skills[1].maxHoldSeconds).toBe(15);
+  });
+
+  it("REGRESSION (2026-09-16): the full validateBuildBrief -> validateAthleteFit path never crashes for a skill-goal build", () => {
+    // The exact end-to-end path that crashed in production, reproduced
+    // here without needing a live Supabase client or Anthropic call. Both
+    // checkpoints from validBrief()'s two skills must appear, or the
+    // (separate, legitimate) "no block uses this checkpoint" check fires
+    // instead of exercising the crash path this test is actually for.
+    const brief = validateBuildBrief(validBrief());
+    const block = makeBlock({
+      exercises: [
+        { name: "Free Handstand", sets: "1", hold_seconds: "20" },
+        { name: "Tuck Front Lever Hold", sets: "1", hold_seconds: "10" },
+      ],
+    });
+    expect(() =>
+      validateAthleteFit([block] as never, {
+        pullUpsMax: null, dipsMax: null, pushUpsMax: null, muscleUpsMax: null,
+        skills: brief.skills,
+      })
+    ).not.toThrow();
+  });
+
   it("rejects a skill entry missing checkpoint_exercise", () => {
     const brief = validBrief();
     brief.skills = [{ skill: "handstand", checkpoint_exercise: "", max_hold_seconds: 25 }];

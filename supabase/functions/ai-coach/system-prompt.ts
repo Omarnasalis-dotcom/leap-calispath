@@ -187,6 +187,37 @@
 //    request, so a request-scoped draft can't survive between them) —
 //    that would need real DB-backed persistence, a bigger feature, not
 //    built here since it's not what actually failed.
+//
+// ROUND 4, same day, the ACTUAL root cause: ROUND 3's staging fix deployed
+// and the same build failed a THIRD time, slightly slower, not faster —
+// proof the "reduce retry cost" theory behind rounds 1-3 was wrong. Pulled
+// the real Edge Function logs (Dashboard > Edge Functions > ai-coach >
+// Logs) instead of guessing again, and found this repeating on every
+// single propose_new_program attempt across every failed execution:
+// `TypeError: Cannot read properties of undefined (reading 'toLowerCase')`
+// at nameIs, called from validateAthleteFit's skill-checkpoint filter.
+// Root cause: validateBuildBrief validated the model's real snake_case
+// fields (checkpoint_exercise/max_hold_seconds/max_reps, matching
+// BUILD_BRIEF_SCHEMA) but then did `return b as unknown as BuildBrief` —
+// a type CAST, not a transformation. SkillFitCheckpoint's own interface
+// declares camelCase (checkpointExercise/maxHoldSeconds/maxReps), which
+// never existed on the real object — skill.checkpointExercise was
+// silently undefined on every call, and nameIs(ex.name, undefined)
+// crashed. This fired on the FIRST propose_new_program attempt for ANY
+// build with a skill goal (the primary test case has two), every single
+// time, with zero chance of ever succeeding — a raw TypeError isn't
+// something the model can act on like a normal tool error, so it just
+// kept trying until MAX_TOOL_TURNS or a platform timeout killed the
+// request. This is what rounds 1-3's effort/max_tokens/validator changes
+// were chasing without ever being able to touch it — none of them were
+// wrong on their own merits, they just weren't the actual bug.
+// Fix: validateBuildBrief now actually transforms each skill entry into
+// SkillFitCheckpoint's real shape instead of casting. nameIs also
+// hardened defensively on both arguments (blockHelpers.ts) — a tool
+// crashing outright is worse than a false non-match, since a thrown
+// TypeError bypasses the same-turn tool-error-and-retry pattern entirely.
+// Two regression tests added that fail with this exact error against the
+// pre-fix code (verified by hand) and pass against the fix.
 // Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
 // "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
 // the full 5x3 category/difficulty matrix, plus goal-tagged variants
