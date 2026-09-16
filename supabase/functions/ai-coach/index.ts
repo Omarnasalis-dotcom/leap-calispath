@@ -385,13 +385,29 @@ serve(async (req: Request) => {
         system: [{ type: "text", text: SYSTEM_PROMPT, cache_control: { type: "ephemeral" } }],
         messages,
         tools: CACHED_TOOLS,
-        // Sonnet 5 defaults to "high" effort, tuned for coding/agentic work.
-        // This is a chat + tool-use flow, not that — Anthropic's own
-        // guidance for Sonnet 5 names "low" for exactly this shape ("chat
-        // and non-coding use cases where faster turnaround is prioritized").
-        // No beta header needed for a static top-level value like this one;
-        // that's only required for switching effort mid-conversation.
-        output_config: { effort: "low" },
+        // Raised from "low" to "medium" 2026-09-16, same day as Direct
+        // Build: at "low", a real 4-day-program build failed twice against
+        // propose_new_program's validation (build brief + athlete-fit +
+        // split coverage + block-structure checks, all against the FULL
+        // blocks array with no partial resend) and burned ~50 cents in
+        // repeated full-payload retries each time — no confirmed root cause
+        // yet (couldn't pull the live logTurn lines to see whether it was
+        // the same check failing repeatedly or genuine turn exhaustion),
+        // but "low" is Anthropic's own recommendation for simple chat, not
+        // structured multi-constraint output like this, so it's the prime
+        // suspect: less internal effort per turn means more failed
+        // validation passes, and every failure here regenerates the whole
+        // program from scratch, not just the bad field. "medium" is
+        // Anthropic's own recommended step for exactly this shape ("agentic
+        // tasks that require a balance of speed, cost, and performance").
+        // Re-verify cost/success on a real 4-day build before trusting this
+        // fixed it — if builds still fail this often, the validation
+        // surface itself (not the effort level) needs revisiting.
+        // Sonnet 5 doesn't support per-message effort switching (only
+        // Fable 5.1/Mythos 5.1/Opus 5 do per Anthropic's docs), so this is
+        // a global change, not build-calls-only — no beta header needed for
+        // a static top-level value like this either way.
+        output_config: { effort: "medium" },
       }),
     });
     if (!response.ok) {

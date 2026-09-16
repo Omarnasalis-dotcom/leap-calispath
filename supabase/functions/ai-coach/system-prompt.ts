@@ -1,7 +1,9 @@
 // Leap AI Coach — athlete-facing system prompt. Runs on claude-sonnet-5 via
-// index.ts, at "low" effort (see index.ts's callClaude — output_config.effort;
-// ANTHROPIC_MODEL there is the single source of truth for the model —
-// update this line if that ever changes). ~15,300 estimated tokens (2026-09-16,
+// index.ts, at "medium" effort (see index.ts's callClaude — output_config.effort,
+// raised from "low" 2026-09-16 after real 4-day builds failed/burned ~50 cents
+// each against Direct Build's validation surface; ANTHROPIC_MODEL there is the
+// single source of truth for the model — update this line if that ever
+// changes). ~15,300 estimated tokens (2026-09-16,
 // ~4 chars/token) — this is the cached system block (index.ts's CACHED_TOOLS/
 // system cache_control), so a growing prompt raises cache-write cost more than
 // per-turn cost, but it's still worth keeping an eye on.
