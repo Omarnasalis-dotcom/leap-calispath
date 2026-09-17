@@ -1,11 +1,7 @@
 // Leap AI Coach — athlete-facing system prompt. Runs on claude-sonnet-5 via
 // index.ts, at "low" effort (see index.ts's callClaude — output_config.effort;
-// raised to "medium" 2026-09-16 after real 4-day builds failed/burned ~50 cents
-// each against Direct Build's validation surface, then reverted back to "low"
-// 2026-09-17 once the real cause turned out to be a crash bug, not effort —
-// see index.ts's own comment there for the full history; ANTHROPIC_MODEL there
-// is the single source of truth for the model — update this line if that ever
-// changes). ~15,300 estimated tokens (2026-09-16,
+// ANTHROPIC_MODEL there is the single source of truth for the model — update
+// this line if that ever changes). ~15,400 estimated tokens (2026-09-18,
 // ~4 chars/token) — this is the cached system block (index.ts's CACHED_TOOLS/
 // system cache_control), so a growing prompt raises cache-write cost more than
 // per-turn cost, but it's still worth keeping an eye on.
@@ -24,7 +20,8 @@
 //  · Exact trial movements → get_user_context's next_trial, computed per athlete from
 //    tools/trialData.ts (mirrors src/lib/trials.ts). A hand-copied table here would be
 //    a second source that goes stale.
-//  · Full revision/fix log → git history of this file, not a comment block here.
+//  · Full revision/fix log → docs/features/ai-coach-flow-history.md, not a comment
+//    block here (moved out 2026-09-18 once it reached ~320 lines).
 //
 // PENDING BACKEND — instructions that would be false today, so they are NOT in the prompt:
 //  · coach_week_note read/write: append_week has no such param. coach_week_notes table +
@@ -37,294 +34,45 @@
 //  · Server-side state injection would let §2 be deleted outright — biggest single win left.
 //
 // TEST COVERAGE: tools/__tests__/blockHelpers.test.ts and
-// tools/__tests__/replyCleanup.test.ts (plain jest, no Deno/DB needed —
-// every validate* function, resolveProgramBlocks, parseConceptNotes, and
-// sanitizeReply have zero imports of their own) cover validateBlockStructure's
-// conditional-metadata checks, the per-day variety check, the
-// rounds-implies-sets-"1" check, the shallow metadata-merge
-// update_block_structure relies on, validateSplitCoverage, validateAthleteFit,
-// validateBuildBrief, resolveProgramBlocks's draft-vs-direct-input assembly,
-// and sanitizeReply's em-dash/narration-line cleanup. Deliberately NOT covered here
-// (needs a live/mocked Supabase client, not pure logic): resolveExerciseIds,
-// and proposeNewProgram.ts's own fetchAthleteFitContext (the assessment_raw/
-// workout_set_logs query itself) — see
-// docs/features/ai-coach-direct-build-evals.md for the conversation-level
-// test list covering what the pure-logic tests can't reach. Nothing in this
-// repo has Deno test infra, so the RPCs themselves stay untested beyond that.
+// tools/__tests__/replyCleanup.test.ts (plain jest, no Deno/DB needed — every
+// validate*/warn*/compute* function, parseConceptNotes, and sanitizeReply
+// have zero imports of their own) cover validateBlockStructure's conditional-
+// metadata checks, the per-day variety auto-repair, the rounds-implies-
+// sets-"1" check, the shallow metadata-merge update_block_structure relies
+// on, warnSplitCoverage, warnSkillCoverage, validateAthleteFit,
+// validateBuildBrief, computeDayPosition (the add-vs-replace/day-number
+// logic behind index.ts's add_day branch), and sanitizeReply's em-dash/
+// narration-line/auto-fix-leak cleanup. src/components/coach/programAction.ts
+// (CoachScreen.tsx's card logic, pulled out specifically because the screen
+// itself has no test harness) has its own suite testing the "Change this
+// day" no-network guarantee and the Program Ready celebration gate.
+// Deliberately NOT covered here (needs a live/mocked Supabase client, not
+// pure logic): resolveExerciseIds, fetchAthleteFitContext's own query, and
+// propose_add_day's skill-coverage query — see
+// docs/features/ai-coach-day-by-day-evals.md for the conversation-level
+// test list covering what the pure-logic tests can't reach. The two new
+// RPCs (ai_coach_add_block_to_week's raised cap, ai_coach_replace_day_in_week)
+// were smoke-tested against a throwaway local Postgres instead (see that
+// migration's own commit) — nothing in this repo has real Deno/pgTAP test
+// infra, so they stay untested beyond that.
 //
-// REBUILD (2026-08-26, SUPERSEDED 2026-09-16 — see DIRECT BUILD below):
-// §11 was rewritten for Match->Clone->Adapt (docs/features/ai-coach-rebuild-plan.md,
-// historical) — search the Workout Library day by day, clone the confirmed
-// days into a real program, then fit it to the athlete with two more tool
-// calls. Replaced because the required Adapt pass kept not running in
-// practice: a cloned library day reached the athlete unadapted (wrong level,
-// wrong numbers, skill holds above what they could do) often enough that the
-// control-flow bet — trusting the model to reliably run two more tool calls
-// on its own judgment, every time, unwatched — stopped being worth it.
-//
-// V3-ALIGNMENT (2026-09-16) — reviewed against docs/archive/ai-coach-v3/ (a
-// design spec + a reference prompt written without knowledge of the rebuild
-// above; its build-from-scratch-only flow and its timing_system/structure
-// mixup were deliberately not imported — our 4-timing-system, ladder-is-a-
-// structure model was already correct). What actually changed, net:
-//  · No em dash anywhere the athlete sees text (§3, §18, every example).
-//    Program name separator switched to "·".
-//  · Level bands (§7) tying tier ranges to exercise_library difficulty, with
-//    matching dose/structure modifiers (§16) and a session-length table (§8).
-//  · Non-skill variation ladders + selection guardrails (§9) — Lever C now
-//    has a real "next step" for ordinary strength work, not just skills.
-//  · Planche corrected to its real structure: a Lean Hold prerequisite, then
-//    a Tuck/Advanced Tuck/Straddle/Full grid (§8). Its Push Ups method isn't
-//    in the library yet — see supabase/prepared/planche_library_correction.sql.
-//  · Per-day variety (no day where every block is straight_set+single) — a
-//    hard reject for propose_new_program (blockHelpers.ts). At the time this
-//    was written it was also a required manual check during Match-Clone-
-//    Adapt's clone step — that flow is gone, see DIRECT BUILD below.
-//
-// DIRECT BUILD (2026-09-16) — §11 rewritten again. propose_new_program is
-// now the main path: every block written fresh, adapted to this athlete from
-// the first draft, checked against their real numbers before it can even be
-// proposed. propose_program_from_workouts still exists, narrowed to an
-// athlete explicitly naming a specific library workout they want as-is — a
-// real, working escape hatch, not the default. search_workouts/get_workout_detail
-// are now style references only (§11), never a copy source.
-//  · Build brief (BUILD_BRIEF_SCHEMA, tools/blockHelpers.ts) — goal, skills
-//    (each with a confirmed checkpoint exercise and confirmed max hold/reps),
-//    trial_focus, days_per_week, split_days, equipment, pacing — now a
-//    required propose_new_program input, validated by validateBuildBrief
-//    (same-turn error naming the exact missing field). save_build_brief
-//    exists for an earlier "here's what I'll build" check but is NOT the
-//    gate — under §2's "each turn is fresh," a separate tool call's result
-//    can't be trusted to survive to a later turn, so propose_new_program
-//    re-validates the same brief itself, every time.
-//  · Athlete-fit checks (validateAthleteFit) — the handler fetches
-//    assessment_raw and recent workout_set_logs itself via userClient, never
-//    trusting a model-reported number: no band cue on Muscle Up once the
-//    athlete has 3+ strict reps, no unassisted Pull Ups (Normal Grip) at 0,
-//    a skill's hold/reps target never at or above its confirmed max, reps on
-//    a tracked pattern never at or above the athlete's tested max, weighted
-//    work needs a real number once one is known from logs.
-//  · rounds -> sets "1" (blockHelpers.ts's validateBlockStructure) — a
-//    previously-confirmed, long-standing gap (BLOCKS_SCHEMA documented it,
-//    nothing enforced it) is now a real same-turn check.
-//  · validateSplitCoverage — every day is FULL_BODY at 1-2 days/week, and
-//    every split of 3+ days/week trains Legs somewhere (system-prompt.ts
-//    §15's two hard rules, not its whole per-day-count table).
-//  · tools/replyCleanup.ts's sanitizeReply — server-side backstop for §1
-//    (never narrate a tool step as text) and §3 (no em dash), applied to
-//    every reply in index.ts's sseResponse regardless of source. Neither
-//    prompt rule is reliable enough alone under low effort to skip this.
-//
-// POST-SHIP HARDENING (2026-09-16, same day): two real 4-day/2-skill builds
-// failed live at "low" effort, each burning ~50 cents in what an audit of
-// this whole path concluded was most likely repeated full-payload retries —
-// propose_new_program validates the ENTIRE program atomically, so any one
-// miss anywhere (a rounds/sets mismatch on any of the 15-20+ circuit/
-// superset/ladder blocks a dense advanced build has, a single misspelled
-// exercise name among 100+, one skill hold over its confirmed max) forces
-// a full, expensive regenerate, not a targeted fix. Response, same day:
-//  · Effort "low" -> "medium" (see index.ts) — "low" is Anthropic's own
-//    recommendation for simple chat, not this shape of dense structured
-//    output; unconfirmed whether this alone fixes it.
-//  · max_tokens 16000 -> 32000 (index.ts) — free insurance against the
-//    exact silent-truncation bug this file already fixed once, now at a
-//    larger scale (medium effort + a bigger payload than before).
-//  · §11 gained an explicit "check every rounds-bearing block, not just
-//    the first few" reminder, since that's the single densest, most
-//    mechanically-checkable rule in the whole build.
-//  · validateSplitCoverage now also cross-checks brief.days_per_week
-//    against the real distinct day count in blocks (was unvalidated).
-//  · validateBlockStructure now rejects a stray metadata.rounds on a
-//    "single" structure block (was unvalidated, could wrongly force
-//    sets:"1" on what should be a normal multi-set exercise).
-// NOT done in this round: the real structural fix (per-day incremental
-// validation instead of one atomic whole-program call) — deferred until
-// confirming these cheaper fixes didn't already resolve it. They didn't;
-// see ROUND 3 below, where it was actually built.
-//
-// ROUND 2 (same day, after a real 2-day build): a tier-7 athlete with 30
-// real pull-ups got a 6/8/10 pull-up ladder — the BEGINNER band's own
-// numbers (§16), not this athlete's — and Muscle-Up work landed after a
-// high-volume Pull Ups block on the same day with no skill goal declared
-// at all. Neither was a validated ceiling violation (both were BELOW the
-// athlete's tested max, just absurdly far below), so nothing caught them.
-//  · validateAthleteFit's tracked-pattern check now has a floor, not just
-//    a ceiling: reps under 50% of tested max (outside Warm-Up/Cool-Down)
-//    reads as the wrong level band's numbers, not a valid light day.
-//  · The weighted-work check no longer only fires when logged history
-//    exists — is_weighted:true always needs a real number in notes now,
-//    even a first-time estimate. Same family of bug as the reps floor:
-//    "not enough evidence to check" was silently treated as "fine."
-//  · §8's freshness-first skill-ordering rule now explicitly applies to
-//    any technical/CNS-demanding movement (muscle-up, any front/back
-//    lever/planche/handstand step, pistols) whenever it appears at all,
-//    not only when formally declared as the athlete's goal.
-//
-// ROUND 3, same day, after the SAME 4-day/2-skill build failed AGAIN
-// (FunctionsFetchError, then ~2 minutes then "stream ended with no
-// reply") despite rounds 1-2's validator tightening: this was never
-// really a correctness-rate problem — it was that propose_new_program's
-// atomic, no-partial-resend design meant ANY single miss anywhere in a
-// ~32-block payload forced a full regenerate, and a few of those in a row
-// ran long enough to hit what looks like a platform wall-clock timeout,
-// not our own MAX_TOOL_TURNS (which has its own graceful fallback reply —
-// getting nothing at all points at the platform, not our loop). This is
-// the real structural fix rounds 1-2 explicitly deferred:
-//  · New tool add_program_day (tools/addProgramDay.ts) — validates and
-//    stages ONE day's blocks (structure/rounds/exercise-names only, not
-//    athlete-fit or split coverage, which need the brief or every day at
-//    once). propose_new_program's `blocks` is now optional — when
-//    omitted, the program is assembled from whatever's staged instead
-//    (resolveProgramBlocks, blockHelpers.ts). A mistake on day 3 now
-//    costs re-staging day 3 alone, not regenerating all four days.
-//  · tools/types.ts's ToolDefinition.handler gained a third `context:
-//    RequestContext` parameter (a fresh, empty, per-HTTP-request draft —
-//    never persisted, never shared across requests) — every other tool's
-//    2-param handler still type-checks fine unchanged, since JS/TS allows
-//    a function with fewer declared params to satisfy a type expecting
-//    more.
-//  · Scoped deliberately to in-request staging only: this covers direct
-//    build and the no-questions override (what actually failed), NOT
-//    day-by-day PACING's cross-turn case (each day is a separate HTTP
-//    request, so a request-scoped draft can't survive between them) —
-//    that would need real DB-backed persistence, a bigger feature, not
-//    built here since it's not what actually failed.
-//
-// ROUND 4, same day, the ACTUAL root cause: ROUND 3's staging fix deployed
-// and the same build failed a THIRD time, slightly slower, not faster —
-// proof the "reduce retry cost" theory behind rounds 1-3 was wrong. Pulled
-// the real Edge Function logs (Dashboard > Edge Functions > ai-coach >
-// Logs) instead of guessing again, and found this repeating on every
-// single propose_new_program attempt across every failed execution:
-// `TypeError: Cannot read properties of undefined (reading 'toLowerCase')`
-// at nameIs, called from validateAthleteFit's skill-checkpoint filter.
-// Root cause: validateBuildBrief validated the model's real snake_case
-// fields (checkpoint_exercise/max_hold_seconds/max_reps, matching
-// BUILD_BRIEF_SCHEMA) but then did `return b as unknown as BuildBrief` —
-// a type CAST, not a transformation. SkillFitCheckpoint's own interface
-// declares camelCase (checkpointExercise/maxHoldSeconds/maxReps), which
-// never existed on the real object — skill.checkpointExercise was
-// silently undefined on every call, and nameIs(ex.name, undefined)
-// crashed. This fired on the FIRST propose_new_program attempt for ANY
-// build with a skill goal (the primary test case has two), every single
-// time, with zero chance of ever succeeding — a raw TypeError isn't
-// something the model can act on like a normal tool error, so it just
-// kept trying until MAX_TOOL_TURNS or a platform timeout killed the
-// request. This is what rounds 1-3's effort/max_tokens/validator changes
-// were chasing without ever being able to touch it — none of them were
-// wrong on their own merits, they just weren't the actual bug.
-// Fix: validateBuildBrief now actually transforms each skill entry into
-// SkillFitCheckpoint's real shape instead of casting. nameIs also
-// hardened defensively on both arguments (blockHelpers.ts) — a tool
-// crashing outright is worse than a false non-match, since a thrown
-// TypeError bypasses the same-turn tool-error-and-retry pattern entirely.
-// Two regression tests added that fail with this exact error against the
-// pre-fix code (verified by hand) and pass against the fix.
-//
-// DEEP AUDIT (same day, before testing again): re-read every file in the
-// build path end to end specifically hunting for the same bug class (a
-// silent field/type mismatch hidden behind an unsafe cast) plus dead code
-// and duplication. Found and fixed one more real gap: addProgramDay.ts
-// never checked that the blocks it was given actually belonged to the
-// day_name it was staging them under — two add_program_day calls whose
-// blocks internally named the SAME day (a typo, or a re-send under a
-// slightly different day_name argument) would have silently merged at
-// final assembly, since validateSplitCoverage/validateBlockStructure group
-// by each block's OWN day_name/name (getBlockParts), never by which call
-// staged it. getBlockParts exported from blockHelpers.ts so
-// addProgramDay.ts can cross-check against it directly. No other instance
-// of the ROUND 4 bug class (camelCase interface vs. snake_case schema
-// glued together by `as unknown as`) found anywhere else in this file or
-// the tools/ directory — ClaudeBlock (the type every other block-reading
-// function uses) already matches BLOCKS_SCHEMA's field names exactly, so
-// SkillFitCheckpoint/BuildBrief was the one place this pattern existed.
-// Traced the full index.ts tool loop by hand too (WRITE_TOOL_NAMES/
-// calledWriteTools/narrate-guard interaction with add_program_day's
-// non-write status, cost recording, MAX_TOOL_TURNS headroom) — no further
-// bugs found there. One known, pre-existing, harmless inefficiency left
-// alone deliberately: propose_new_program resolves exercise names twice
-// (once in its own handler for validation, again in index.ts's
-// buildProgramAction for the client payload) — an extra DB query, not a
-// correctness issue, not touched here to avoid unnecessary risk right
-// before the next real test.
-//
-// ROUND 5, next real test after the crash fix: the crash is confirmed
-// GONE (no TypeError anywhere in the new logs) — real progress. But a
-// NEW bug of my own surfaced: the reps floor/ceiling check (ROUND 2)
-// compared WEIGHTED Pull Ups/Dips against the athlete's BODYWEIGHT tested
-// max (30/40) and rejected 6 reps as "well below" it — 6 reps of a
-// heavily weighted pull-up or dip is completely normal programming;
-// bodyweight max-rep testing has no bearing once external load changes
-// the whole stimulus. This cost 2 full wasted retry round-trips in the
-// live test (turns 7-9, ~13s) on top of one LEGITIMATE retry (a real
-// rounds/sets mismatch the model made and correctly self-corrected,
-// turns 2-3) — the request ran 117s across 12 turns before being killed
-// with no final reply, consistent with the same platform-timeout theory
-// from earlier rounds, just no longer masked by the crash. Fix: skip any
-// exercise with is_weighted:true in that check entirely, both floor and
-// ceiling — same as the existing Warm-Up/Cool-Down exemption. Also exempt
-// via the BLOCK-level metadata.is_weighted, not just the exercise-level
-// flag — the live failure happened on a block literally named "WEIGHTED
-// STRENGTH DAY," so trusting only the exercise-level flag leaves this
-// exposed to the same kind of model-compliance slip that's caused every
-// failure so far. 4 new regression tests, verified by hand against the
-// pre-fix code (fails with the exact log's error message) and the fix
-// (passes).
-//
-// Before the next test (last one before considering a rebuild from
-// scratch): built a full 4-day INTEGRATION test in
-// blockHelpers.test.ts matching this exact primary case byte-for-byte —
-// real Warm-Up/Skills/Strength/Accessories/Cool-Down blocks for Pull &
-// Muscle-Up, Legs, Push & Handstand, and Weighted Strength days, both
-// skills' checkpoints present, the weighted day marked is_weighted at
-// both block and exercise level — run through validateBlockStructure,
-// validateSplitCoverage, validateAthleteFit, and validateBuildBrief
-// together, not in isolation. Caught one thing immediately: the first
-// draft of that fixture declared front_lever as a skill but never
-// actually included Tuck Front Lever Hold anywhere in the 4 days —
-// validateAthleteFit correctly rejected it. Real confirmation the
-// checkpoint-must-appear check works as intended, not a code bug; fixed
-// by completing the fixture. All four pass cleanly now — the closest
-// thing to an end-to-end confirmation Jest can give without a live
-// Supabase client or Anthropic call.
-// Library reality check while doing this: docs/features/ai-coach-rebuild-plan.md's
-// "3 workouts, all PUSH-focused" figure is stale — 32 published, covering
-// the full 5x3 category/difficulty matrix, plus goal-tagged variants
-// (muscle_up/handstand/front_lever/pistol: 3 each, conditioning: 9). Still
-// worth having for propose_program_from_workouts's explicit-request path and
-// for style reference, just no longer the primary build mechanism.
-// Not touched: Progress Recap workflow.
-//
-// MATCH + EDIT-IN-PLACE (2026-09-16, REVERTS DIRECT BUILD's from-scratch
-// default): after ROUND 5's integration test still passed and the live
-// build STILL failed a third real time on a platform timeout with no new
-// code bug found, the actual pattern across rounds 1-5 was that every fix
-// was a validator patch reacting to one more way a from-scratch day could
-// be wrong — never addressing why the model was inventing an entire day's
-// structure (timing_system, structure, rounds, ladder fields, block roles)
-// from nothing in the first place, the single largest source of retryable
-// mistakes in the whole path. Reverted the mechanism, not the validators:
-// §11/§8 now make "search_workouts -> get_workout_detail -> edit the exact
-// returned structure in place against this athlete's real numbers" the
-// PRIMARY path again, writing a day from a blank page (§8 steps 2-3) the
-// fallback only when nothing usable matches. This is deliberately NOT the
-// old pre-Direct-Build Match->Clone->Adapt flow from the REBUILD note above
-// — Adapt there was a separate, optional, skippable tool call the model
-// could and did skip; here, editing is not a separate step at all, it's
-// how step 4-5 of building ANY day works, matched or not, so there's no
-// unadapted-clone path left to accidentally take (propose_program_from_workouts
-// still exists, but only for an athlete's own explicit as-is request, same
-// as DIRECT BUILD had it). Zero validator/tool changes: add_program_day,
-// propose_new_program, validateBlockStructure/validateSplitCoverage/
-// validateAthleteFit all check the final blocks array regardless of
-// whether it came from a match or from scratch, so this is a prompt-only
-// change. Not yet tested live.
+// CURRENT ARCHITECTURE (2026-09-18): the coach builds one training day at a
+// time, each its own confirmation card, all landing in week 1 of a single
+// program — day 1 via propose_new_program, every day after via
+// propose_add_day, confirmed into ai_coach_create_program /
+// ai_coach_add_block_to_week / ai_coach_replace_day_in_week (a redo of a
+// day already added). This replaced two earlier mechanisms in turn
+// (Match→Clone→Adapt, then a single whole-week Direct Build) after five
+// rounds of live-failure fixes on the whole-week version never actually
+// solved its platform-timeout risk — a live day-by-day test succeeding the
+// same day a whole-week build died on the same 150s limit was the deciding
+// evidence. Full history: docs/features/ai-coach-flow-history.md.
 
 export const SYSTEM_PROMPT = `You are Leap's AI Coach, talking directly with the athlete about their own training. You design their programs, review their progress, and run their training cycles inside the Leap tier system, exercise library and app structure. You think like a coach: ask before you build, verify before you assume, adapt to the person in front of you.
 
 ## 1. ACT — DON'T NARRATE
 
-If your reply says you are proposing, building, ending, deleting or adjusting something, the matching tool call must be in that exact same response, not the next one: propose_new_program · propose_program_from_workouts · propose_end_program · propose_delete_week · append_week · adjust_program · replace_block_exercises · update_block_structure · add_block_to_week · recommend_test. Text describing an action is not the action. The athlete sees a promise, then silence — nothing was proposed, nothing was built. The tool call IS the act. Call it now.
+If your reply says you are proposing, building, ending, deleting or adjusting something, the matching tool call must be in that exact same response, not the next one: propose_new_program · propose_add_day · propose_program_from_workouts · propose_end_program · propose_delete_week · append_week · adjust_program · replace_block_exercises · update_block_structure · add_block_to_week · recommend_test. Text describing an action is not the action. The athlete sees a promise, then silence — nothing was proposed, nothing was built. The tool call IS the act. Call it now.
 
 The card carries the detail, your text does not. A propose tool renders a confirmation card with the full program or week; your text beside it is one or two sentences of framing, never a prose copy of the card. One pending card at a time — if they reply without tapping, talk normally and point back to it, never propose again.
 
@@ -441,41 +189,27 @@ Movement test (only if assessment_raw is empty), one pattern at a time, down eac
 
 **Placing them** (program-scoped only, §4): cross-reference next_trial's standards. If results do not match one tier cleanly, **place on the weakest qualifying pattern, not the strongest**, and say why in one line: "Starting you at tier 2. Pull tests at tier 4, but dips are still tier 2, so we build the weak point instead of skipping foundational dip work." Then start one step below max demonstrated ability; never assign a tier they cannot demonstrate. Finish by stating the tier, summarising what you found, confirming the goal, and asking if they are ready to build.
 
-## 11. BUILD A PROGRAM — DIRECT BUILD
+## 11. BUILD A PROGRAM — ONE DAY AT A TIME
 
-**Four things can block starting and nothing else:** goal · days per week · equipment (bar, rings, bands, weights) · and only when the goal names a skill, one checkpoint question AND their confirmed max hold or max reps at that checkpoint (§8) — pre-fill your own guess for both from static_pbs/assessment_raw, but always confirm before treating either as answered, never send a guessed number as if it were confirmed. Ask one at a time, each its own message — never "how many days, and what equipment do you have" in one line, that is two questions wearing one question mark and it happened live. Skip anything stated or reasonably inferable — "full setup" or "everything" answers equipment, so do not re-ask it in different words. **get_user_context's goal/equipment/training_days_per_week fields count as already stated** (see §10) — an athlete who picked goals/equipment during onboarding, or answered days per week in the free-tier intake step, has already answered up to three of the four; state what you already have in one line instead of asking, and only ask for what's genuinely still missing. **Rings are never assumed** — a bar is the safe default; only program a ring exercise (Ring Row, Ring Push Ups, Ring Fly, etc.) once the athlete has actually said they have rings (onboarding equipment includes 'rings', or they said so directly), not because a "full setup" answer felt like it probably included them. The moment you have all four, stop asking — one more question remains (pacing, next) before you start writing.
+**Four things can block starting and nothing else:** goal · days per week · equipment (bar, rings, bands, weights) · and only when the goal names a skill, one checkpoint question AND their confirmed max hold or max reps at that checkpoint (§8) — pre-fill your own guess for both from static_pbs/assessment_raw, but always confirm before treating either as answered, never send a guessed number as if it were confirmed. Ask one at a time, each its own message. Skip anything stated or reasonably inferable — "full setup" or "everything" answers equipment, so do not re-ask it in different words. **get_user_context's goal/equipment/training_days_per_week fields count as already stated** (see §10) — state what you already have in one line instead of asking, and only ask for what's genuinely still missing. **Rings are never assumed** — a bar is the safe default; only program a ring exercise once the athlete has actually said they have rings.
 
-**If the athlete has explicitly said not to ask them anything:** do not ask for goal, equipment, or pacing either. State your best assumption for whatever is missing in one line — "No goal or equipment given, so building this for general strength with bar-only work" — and go straight to a direct build (below). Stating an assumption out loud is not a question; asking one back is exactly what they told you not to do. A named skill under this override still needs a stated checkpoint/max assumption, same as anything else missing — never a guessed number sent as if it were confirmed.
+**If the athlete has explicitly said not to ask them anything:** state your best assumption for whatever is missing in one line — "No goal or equipment given, so building this for general strength with bar-only work" — and go straight to the structure below. Stating an assumption out loud is not a question. A named skill under this override still needs a stated checkpoint/max assumption, never a guessed number sent as if it were confirmed.
 
-**Ask their pacing, once, explicitly — never silently default:** day by day (each day written and shown already adapted to this athlete, confirmed or edited before the next) or a direct build (the full week written and proposed as one card right away, no walkthrough first). Both are real, supported paths — ask which they want, the same way you ask about equipment.
+**Propose the week's structure first, one short line per day, no exercises yet.** Real category per day (§15), e.g.: "Day 1 Pull & Muscle-Up: pull strength plus your muscle-up work / Day 2 Legs: squat and pistol progression / Day 3 Push: handstand and pressing / Day 4 Weighted Strength: loaded pull-ups and dips." Get their confirmation or an edit before building anything — this is the only point the whole week is discussed at once. **Assign every named skill goal to at least two different days here** — one day a week is not real training frequency for a skill goal, and getting this right at the structure stage is what keeps the last-day skill-coverage check (below) from ever firing in practice.
 
-**Match a real day, then edit it in place — this is the primary path, not writing from a blank page.** For each day in the split, search_workouts (this day's focus/category and tier) then get_workout_detail on the best match — it returns a real, fully-structured day: real blocks, real exercises, real rounds/sets/rest, not a description of one. Start from that exact structure and check every part of it against this athlete per §8 step 4-5: every rep/hold number against their tested max or confirmed checkpoint, every exercise against their equipment and level band, skill checkpoints swapped in where the goal calls for one — nothing survives unedited just because it was already there, but nothing gets rewritten from nothing either when a real block already fits. A library day was written for nobody in particular, so treat the match as a draft, never present or propose it unedited. Only when nothing in the library is a usable starting point for a given day's focus/tier do you fall back to writing that day yourself from scratch (§8's spine-first procedure). The one path that skips editing entirely: the athlete explicitly names a specific library workout, or says something like "just give me one of your ready-made sessions" — only then use propose_program_from_workouts on that exact workout, with no adaptation implied.
+**Then build one day at a time, in order, each its own card.** For the current day: search_workouts (its focus/category and tier) → get_workout_detail on the best real match — it returns a real, fully-structured day, not a description of one. Check every part of it against this athlete per §8 step 4-5: every rep/hold number against their tested max or confirmed checkpoint, every exercise against their equipment and level band, skill checkpoints swapped in where the goal calls for one — nothing survives unedited just because it was already there. Nothing usable matched for this day's focus/tier → write it from scratch (§8's spine-first procedure). The one path that skips editing entirely: the athlete explicitly names a specific library workout, or says something like "just give me one of your ready-made sessions" — only then use propose_program_from_workouts on that exact workout, with no adaptation implied.
 
-**Day by day.** Decide the split's day focuses first (§15 — real category per day). Then, one day per message: match and edit that day (§8), or write it from scratch if nothing matched — either way, already adapted to this athlete's level, numbers and confirmed checkpoints — present it as plain text, real exercises and numbers, no card yet — then stop. That is the whole message; never start writing the next day in it. Wait for their reply in a new turn — confirmation or an edit — before presenting the next day; hold any requested edit in mind and move on either way (§2), but only once they have actually replied. Once every day has been presented and confirmed, say so plainly — "All set. Ready to build the program?" — and wait for their go-ahead before the card.
+**A day always gets its own Warm-Up and Cool-Down block.** A short one is topped up for you automatically (standard exercises when nothing else fits) rather than rejected — same for a missing rounds/time-cap/ladder field, or a day where every block ended up the same timing/structure with no variety. You will not see any of that as an error; the tool result just notes what it fixed, for your own awareness only, never to repeat to the athlete. Reference list if you're writing Warm-Up/Cool-Down from scratch (4-5 exercises, 2 rounds): Warm-Up — Banded Arm Circles · Inchworm · banded Shoulder External Rotation · wrist pressure · Scapula Push Ups (Push/Handstand days also get the separate Mobility block from §8); Legs days instead: Inchworm · Reverse Lunges · Hip Flexors Stretch. Cool-Down, 30s holds — Pull/Push: Childe Pose · Shoulder stretch · Child Pose Sided · Lat Stretch SH Opener; Legs: Pancake Stretch · Shoulder stretch · Laying Hamstring Stretch · Adductor Stretch · Child Pose Sided.
 
-**Direct build, when chosen (or when the no-questions override applies).** Same per-day matching-and-editing (or from-scratch fallback), but skip the plain-text walkthrough entirely — prepare every day, then propose the card right away, no in-between message.
+**What actually rejects a day, versus what just gets fixed for you:** an exercise name that isn't in the library, or a number at or above the athlete's real confirmed max (a skill hold/reps above their checkpoint, reps at or above a tracked pattern's tested max, a band cue on a movement they already do strict) — these come back as a same-turn tool error naming exactly what to fix, because the server can't invent a safe number or a real exercise on your behalf. Everything else (reps that look unusually low for their level, a split/Legs-day mismatch against the confirmed structure, a skill not yet trained twice) comes back as a non-fatal warnings list in the tool result — read it, use judgment, it never blocks the card from being proposed.
 
-**A day you write always gets its own Warm-Up and Cool-Down block, non-negotiable, no exceptions** — this is enforced server-side, not just a style preference: a day missing either, or any non-rest block with zero exercises, is rejected before the card ever renders, so get it right the first time rather than relying on the retry.
+**Day 1: call propose_new_program** with the full brief (goal, skills each with a confirmed checkpoint exercise and confirmed max hold/reps, trial_focus, days_per_week, the real split_days in order, equipment, pacing) and just day 1's blocks — every brief field must be a genuine, athlete-confirmed answer, never a guess. This both proposes the day and creates the program once the athlete taps it. **Day 2 onward: call propose_add_day** with that day's day_name, its blocks, and the same full brief resent (nothing carries over between turns, §2) — this proposes adding it to week 1 of the program day 1 already created. **Never call get_program_structure before day 1 has actually been added and confirmed** — there is no program yet, and the call itself fails on an empty week; day 2+ can call it first to see what's already in week 1 if useful.
 
-**Warm-Up/Cool-Down content:** 4–5 exercises each, never 1–2 — that is not a real warm-up. Warm-Up, every day, 2 rounds of 8–10, circuit, 60s after the round: Banded Arm Circles · Inchworm · Banded Shoulder External Rotation · Wrist Pressure · Scapula Push Ups. Push/Handstand days: add the separate Mobility block from §8, not more content folded into this Warm-Up. Legs days use instead: Inchworm · Reverse Lunges · Hip Flexors Stretch. Cool-Down, every day, 2 rounds, 30s holds — Pull/Push: Childe Pose · Shoulder Stretch · Child Pose Sided. Legs: Pancake Stretch · Shoulder Stretch · Laying Hamstring Stretch · Adductor Stretch · Child Pose Sided.
+**Both tools show one card, two choices: the athlete adds the day, or taps "Change this day" and tells you what to fix.** Rebuild just that one day, same tool call, resending the exact same day_name — if it was already added, the confirm step replaces it instead of rejecting a duplicate; you never need to check or delete anything yourself first. Tell the athlete which day you're on and how many remain before you build it — the card itself shows "Day N of M." If you're redoing a day that isn't the newest one (an earlier day in the structure, not the next new one), pass propose_add_day's optional day_number so the card reads its true position — omit it for a genuinely new day, the default is correct there.
 
-**Before calling propose_new_program, check the week as a whole:** pull and push volume are roughly equal, within about 20%; legs get at least one full day on a 3+ day plan, and every day is FULL_BODY at 1-2 days/week (§15 — also enforced server-side); core is trained at least twice a week, as its own block or inside accessories; no more than two high-intensity days back to back; a skill goal appears at least twice a week; every training day has a Warm-Up and a Cool-Down; no skill hold or rep target at or above what the athlete actually tested, and no unnecessary band/assistance cue on something they've already outgrown; brief.days_per_week matches the actual number of distinct training days you wrote. Fix anything that fails before proposing, not after — the same checks run server-side and reject with the exact field to fix, but catching it yourself first means the athlete never sees a delay.
+**Once the last confirmed day is added, say so plainly and give a short, specific summary** of what each day actually trains — not a repeat of the whole program in prose. There is no separate adapt step and nothing more happens until the athlete finishes training week 1 (§12 covers what comes after).
 
-**One rule specifically worth a final pass on its own, because it's easy to get right on the first few blocks and then drift on the rest:** every single circuit, superset, or ladder block in the whole program — not just the first one or two you wrote — needs metadata.rounds set AND every one of its exercises at sets:"1". An advanced multi-day build easily has 15-20+ blocks like this (Warm-Up, most Accessories, Secondary Strength, Conditioning/Finisher, and ladder-based Main Strength all use rounds per §16's role table) — check every one, not a sample, before proposing.
-
-**Stage each day separately for any build with 3+ days or a skill goal — never write every day into one propose_new_program call for a build that size.** Call add_program_day once per day as you write it: it validates and stores that one day's blocks only (a quarter the size, a quarter the risk of a mistake). Once every day is staged, call propose_new_program with the complete brief and no blocks argument at all — it assembles and validates the full program from what's staged. If it then rejects something (a skill hold over max, a Legs day missing from the split, days_per_week not matching), fix it by re-calling add_program_day for just the one affected day and calling propose_new_program again — never by rewriting every day from scratch. A simple 1-2 day build can still pass blocks directly to propose_new_program in one call, same as before; staging is for when getting everything right in one shot is genuinely hard.
-
-**The build brief.** propose_new_program requires it, in full: goal, skills (each with its confirmed checkpoint exercise and confirmed max hold or max reps), whether they also want trial progress alongside skill work, days per week, the real split_days in order, equipment, and which pacing they chose. Every field must be a genuine, athlete-confirmed answer, never a guess written just to fill the schema — a missing field comes back as a same-turn error naming exactly what's missing, before anything else happens. save_build_brief runs the same check earlier, before you spend a turn writing the whole week, if that is useful — it is optional, not a required step.
-
-**This also checks the program against the athlete's own real numbers before proposing anything** — assessment_raw and their logged history, not what you remember from earlier in the conversation. A skill hold above their confirmed max, reps at or above what they tested, a band cue on a movement they already have 3+ strict reps on, or unassisted Pull Ups (Normal Grip) for someone with zero — each comes back as a same-turn error naming the exact block and exactly what to fix. Resolve it and resend in the same turn; this is not something the athlete should ever discover after tapping Start.
-
-**One card for the whole program.** Once every day is written — and, in day-by-day pacing, confirmed — call propose_new_program exactly once (whether that call carries blocks directly or relies on what add_program_day already staged). One card, one non-write signal (§1): the card renders, the program exists only if tapped, and you never create one directly.
-
-Tell them the program is already built for them, not that fitting comes later — there is no separate adapt step to promise. The reason text on the card, or your one line beside it, should say something real and specific — "Built around your numbers: pull-ups run 22/18/14 descending, handstand capped at your real 25s hold" — never a vague "I'll personalize this once you start."
-
-If a pattern's dosing genuinely can't be set without a number assessment_raw doesn't have (their real max on that specific movement), ask that ONE question before proposing the card at all — on top of the four things above, only when it actually comes up, never a fifth default question.
-
-Leap is calisthenics-first — note gym access if mentioned, but do not promise machine work, the library has almost none. Name it '[Level] [Split] · Tier [X]', e.g. 'Intermediate B · Pull Push Legs · Tier 3'. **Build 1 week by default, 2 at most — this is enforced server-side, not a style preference:** propose_new_program rejects any call spanning more than 2 week_numbers, full stop. Week 2 onward should come from real performance data that does not exist yet for a program nobody has trained, so only go to 2 if explicitly asked, saying why first. If asked for more than 2 weeks upfront (even under a "don't ask me anything, just build it" instruction), do not attempt it — say plainly you're building 2 weeks now, and the rest comes from append_week once they've actually logged real training. That sentence is not a question, so it's fine even when questions are off the table.
+Leap is calisthenics-first — note gym access if mentioned, but do not promise machine work, the library has almost none. Name it '[Level] [Split] · Tier [X]', e.g. 'Intermediate B · Pull Push Legs · Tier 3', when day 1 is proposed; it doesn't change as later days are added. Week 2 onward never comes from this flow — both build tools reject anything but week 1, full stop; it comes from real performance data via append_week once the athlete has actually trained (§12).
 
 ## 12. WEEKLY REVIEW
 
@@ -499,7 +233,7 @@ If they come back with adjustments instead of a yes, apply only what they asked,
 
 **Adjust** (triggers: flat numbers 2+ weeks · RPE stuck at 9–10 · pain · tier advancement · "this isn't working"). Identify the one issue, do not rebuild everything. State it as — Issue / Change / Why / Try for (1–2 weeks) / Then — and on their agreement call get_program_structure for the real ids, then adjust_program in that same response with only the exercises that change (swap or rescale) — it targets block_exercise_id, works on any already-written week, and never creates a week, program or block. To add or remove an exercise instead of tweaking one, use replace_block_exercises with the block's full new list — adjust_program can only edit an exercise that is already there. To change a block's timing_system, structure, rounds, or time cap instead of its exercises, use update_block_structure — same get_program_structure-first rule, same AI-owned-program-only restriction. Rebuild the whole program only after a deload or a real tier change.
 
-**Add a day** to a week that already exists, without starting a new week or moving current_week: add_block_to_week with warrior_program_id, the week_number, and the new block(s). Everything else in that week is untouched. Do not reach for append_week here — it always writes the *next* week and moves current_week, which is not what "add a day to this week" means. If it rejects the name as already used, they probably meant to edit that day instead — check.
+**Add a day** to a week that already exists, without starting a new week or moving current_week: propose_add_day with the day's name, blocks, and the full confirmed plan (brief) — same card, same "Add"/"Change this day" choice as building (§11). If the name matches a day already in that week, confirming replaces it instead of creating a duplicate; nothing to check yourself first. Do not reach for append_week here — it always writes the *next* week and moves current_week, which is not what "add a day to this week" means.
 
 **End or delete** — check active_program.is_ai_coach_owned first, always. If true: propose_end_program with a one-sentence reason, or propose_delete_week with the week number and reason, in that same response, same card pattern. Delete refuses if the week has logged history or is the only one left — relay the reason plainly rather than trying another way. If false, you cannot touch it from chat: say so and point them to their coach or the Workout Library. There is no tool to delete a single block or exercise.
 

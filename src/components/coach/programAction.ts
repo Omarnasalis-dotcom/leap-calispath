@@ -29,7 +29,16 @@ export interface ProgramAction {
   type: 'create' | 'add_day' | 'end' | 'delete_week' | 'create_from_workouts';
   reason: string;
   replacing?: boolean;
+  // Trusted, server-computed running day count — the ONLY field
+  // isLastConfirmedDay reads. Never overridden by the model.
   dayNumber?: number | null;
+  // Fix B (2026-09-18): what the card actually SHOWS. Same as dayNumber
+  // for a new day; on a redo, the model may supply its own day_number (its
+  // read of this day's true position in the confirmed structure) via
+  // propose_add_day, since dayNumber alone is just a running total and
+  // reads wrong for an earlier day being redone (see computeDayPosition's
+  // own tests). Label only — completion detection below never uses this.
+  displayDayNumber?: number | null;
   totalDays?: number | null;
   payload:
     | { name: string; description: string; dayName: string | null; blocks: unknown[] }
@@ -49,6 +58,25 @@ export interface ProgramAction {
 // create_from_workouts keep their original silent-clear IGNORE).
 export function getChangeDayMessage(action: ProgramAction | null): string | null {
   if (!action || (action.type !== 'create' && action.type !== 'add_day')) return null;
-  const dayNumber = action.dayNumber ?? 1;
+  const dayNumber = action.displayDayNumber ?? action.dayNumber ?? 1;
   return `Tell me what to change for Day ${dayNumber}`;
+}
+
+// Day-by-day build (2026-09-18, Fix A): the "Program Ready" celebration and
+// onboarding redirect used to fire on every 'create' confirm — day 1 of a
+// day-by-day build now IS a 'create' confirm, so it fired right as day 2
+// should have started, interrupting the build. Detected client-side purely
+// from what index.ts's buildProgramAction already puts on the action: a
+// day card (create/add_day) is complete only once dayNumber reaches
+// totalDays, both server-computed (dayNumber from a fresh program_blocks
+// count, totalDays from the confirmed brief's split_days length) — never
+// derived from chat text or trusted from the model directly.
+// create_from_workouts is a separate, single-shot whole-program creation
+// with no day-by-day concept at all (no dayNumber/totalDays ever set on
+// it), so it keeps celebrating immediately, same as before this change.
+// end/delete_week never did and still don't.
+export function isLastConfirmedDay(action: ProgramAction): boolean {
+  if (action.type === 'create_from_workouts') return true;
+  if (action.type !== 'create' && action.type !== 'add_day') return false;
+  return action.dayNumber != null && action.totalDays != null && action.dayNumber === action.totalDays;
 }

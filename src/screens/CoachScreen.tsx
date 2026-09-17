@@ -35,7 +35,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { ActivityBubble, Stage } from '../components/coach/ActivityBubble';
 import { ResponseBlockView, ResponseBlock } from '../components/coach/RichBlocks';
 import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
-import { ProgramAction, getChangeDayMessage } from '../components/coach/programAction';
+import { ProgramAction, getChangeDayMessage, isLastConfirmedDay } from '../components/coach/programAction';
 
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
@@ -198,6 +198,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // below) has its own dedicated celebration screen and is untouched; this
   // covers the steady-state case, which used to just silently do nothing.
   const [justStartedProgram, setJustStartedProgram] = useState<{ name: string } | null>(null);
+  // Day-by-day build (2026-09-18): day 1's 'create' confirm knows the
+  // program name; a later day's 'add_day' confirm doesn't (its payload only
+  // ever carries a day name). Remembered here purely so the celebration
+  // card, once it's actually earned on the LAST day, can still show a real
+  // name — not persisted across an app restart on purpose, same as an
+  // abandoned build losing its in-progress state is already fine (see
+  // isLastConfirmedDay's own comment).
+  const builtProgramNameRef = useRef<string | null>(null);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -466,13 +474,18 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     if (!pendingProgramAction || confirmingAction) return;
     if (!canAccessPro(profile, paywallEnabled)) { router.push('/paywall'); return; }
     setConfirmingAction(true);
-    // Only 'create'/'create_from_workouts' below represent a new program --
-    // used to route mid-onboarding (milestone 3, "Build Your Program") back
-    // to the lane's Program Ready celebration afterward. delete_week/end
-    // never should. profile here is intentionally the closure value from
-    // before this action ran -- creating a program never itself changes
-    // onboarding_completed_at, so it's exactly the right thing to check.
-    let createdProgram = false;
+    // Day-by-day build (2026-09-18, Fix A): 'create'/'create_from_workouts'
+    // used to unconditionally mean "route to the Program Ready celebration
+    // afterward" — but 'create' is now always day 1 of a build that isn't
+    // done yet. buildComplete (below, after the RPC) is the real gate now:
+    // isLastConfirmedDay checks dayNumber===totalDays for a day card, or is
+    // unconditionally true for create_from_workouts (a real single-shot
+    // whole-program creation, no day-by-day concept). delete_week/end never
+    // trigger it either way. profile here is intentionally the closure
+    // value from before this action ran -- creating a program never itself
+    // changes onboarding_completed_at, so it's exactly the right thing to
+    // check.
+    let buildComplete = false;
     try {
       if (pendingProgramAction.type === 'create') {
         // Cast, not a re-check of shape: `payload`'s TS union can't be
@@ -490,10 +503,18 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_blocks: payload.blocks,
         });
         if (error) throw error;
-        createdProgram = true;
+        builtProgramNameRef.current = payload.name;
+        buildComplete = isLastConfirmedDay(pendingProgramAction);
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${payload.name}** is live — check your Workout Program to see it.`,
+          // Only claims the program is "live" once the build is actually
+          // done (a 1-day build, or create_from_workouts) — a multi-day
+          // build's day 1 gets the same "day added" phrasing add_day uses,
+          // since the program isn't really ready for the athlete to look
+          // at yet with 3 more days still coming.
+          content: buildComplete
+            ? `**${payload.name}** is live — check your Workout Program to see it.`
+            : `**${payload.dayName ?? 'Day 1'}** added.`,
         }]);
       } else if (pendingProgramAction.type === 'delete_week') {
         if (!pendingProgramAction.warriorProgramId || pendingProgramAction.weekNumber == null) {
@@ -517,7 +538,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_workout_ids: payload.workoutIds,
         });
         if (error) throw error;
-        createdProgram = true;
+        buildComplete = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `**${payload.name}** is live — check your Workout Program to see it.`,
@@ -545,6 +566,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               p_blocks: payload.blocks,
             });
         if (error) throw error;
+        buildComplete = isLastConfirmedDay(pendingProgramAction);
         setMessages(prev => [...prev, {
           role: 'assistant',
           content: `**${payload.dayName}** ${pendingProgramAction.replacing ? 'updated' : 'added'}.`,
@@ -558,18 +580,23 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         setMessages(prev => [...prev, { role: 'assistant', content: 'Your program has been ended.' }]);
       }
       // Captured before pendingProgramAction is cleared below — needed for
-      // the steady-state "Go to Program" card's title.
+      // the steady-state "Go to Program" card's title. Falls back to
+      // builtProgramNameRef for the LAST add_day of a multi-day build,
+      // since that confirm's own payload only ever carries a day name, not
+      // the program name day 1 established.
       const programName =
         (pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.payload && 'name' in pendingProgramAction.payload
           ? pendingProgramAction.payload.name
+          : pendingProgramAction.type === 'add_day'
+          ? builtProgramNameRef.current
           : null;
       setPendingProgramAction(null);
       await refreshProfile();
-      if (createdProgram && !profile?.onboarding_completed_at) {
+      if (buildComplete && !profile?.onboarding_completed_at) {
         requestAnimationFrame(() => {
           router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
         });
-      } else if (createdProgram && programName) {
+      } else if (buildComplete && programName) {
         setJustStartedProgram({ name: programName });
       }
     } catch (error: any) {
@@ -793,7 +820,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                 pendingProgramAction.payload && 'dayName' in pendingProgramAction.payload
                   ? pendingProgramAction.payload.dayName
                   : null;
-              const dayNumber = pendingProgramAction.dayNumber ?? 1;
+              // displayDayNumber, not the trusted dayNumber — this is what
+              // the athlete sees. On a redo, the model may have supplied
+              // its own read of this day's true position (Fix B); the
+              // trusted dayNumber is only ever used internally, for
+              // isLastConfirmedDay's completion check.
+              const dayNumber = pendingProgramAction.displayDayNumber ?? pendingProgramAction.dayNumber ?? 1;
               const totalDays = pendingProgramAction.totalDays;
               const dayVerb = pendingProgramAction.replacing ? 'Redo' : 'Add';
 

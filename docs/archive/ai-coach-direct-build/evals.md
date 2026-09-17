@@ -1,5 +1,13 @@
 # AI Coach — Direct Build evals
 
+**ARCHIVED 2026-09-18.** Direct Build (a single whole-week `propose_new_program`
+call) was replaced by the day-by-day-into-one-program flow — see
+`docs/features/ai-coach-day-by-day-evals.md` for the current eval list and
+`docs/features/ai-coach-flow-history.md` for why. Kept here for reference
+only; several of these cases (DB-02's "direct pacing, all 4 days on one
+card," DB-14 onward's whole-program balance checks) describe a mechanism
+that no longer exists — `propose_new_program` now only ever builds one day.
+
 **Status:** written test list, not automated. These are conversation-level
 behaviors (what the model actually does across a real multi-turn chat) —
 Jest can't drive a live Anthropic conversation, and this repo has no Deno

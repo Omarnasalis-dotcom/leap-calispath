@@ -45,6 +45,7 @@ export const proposeAddDay: ToolDefinition = {
     type: "object",
     properties: {
       day_name: { type: "string", description: 'e.g. "LEGS DAY" — must exactly match what every block in `blocks` claims as its own day (day_name field or the part before "|" in a combined name).' },
+      day_number: { type: "integer", description: "This day's position in the confirmed structure (e.g. 2, if this is the second day the athlete agreed to). Only affects the card's label — never whether this adds a new day or redoes one already added, which is always decided server-side from the real program state. Fill it in from the confirmed structure when you know it, e.g. when redoing an earlier day so the card still reads its real position instead of the current total day count. Omit it if genuinely unsure; the label falls back to a day count." },
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
       blocks: { ...BLOCKS_SCHEMA, description: "Exactly this one day's blocks." },

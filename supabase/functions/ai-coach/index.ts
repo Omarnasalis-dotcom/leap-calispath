@@ -75,6 +75,7 @@ async function buildProgramAction(
       type: "create",
       reason: input.reason,
       dayNumber: 1,
+      displayDayNumber: 1,
       totalDays,
       payload: {
         name: input.name,
@@ -108,11 +109,23 @@ async function buildProgramAction(
     const totalDays = Array.isArray((input.brief as { split_days?: unknown[] } | undefined)?.split_days)
       ? ((input.brief as { split_days: unknown[] }).split_days.length)
       : null;
+    // Fix B (2026-09-18): the model MAY supply day_number — its own read of
+    // this day's true position in the confirmed structure, which matters
+    // on a redo (computeDayPosition's dayNumber is just a running total, so
+    // redoing an earlier day shows the wrong number — see that function's
+    // own comment/tests). Label only: `dayNumber` above (the trusted,
+    // server-computed one) is what CoachScreen.tsx's isLastConfirmedDay
+    // uses to decide whether the build is actually done and the
+    // celebration should fire — never this. A wrong or dishonest
+    // day_number from the model can misname a card; it can never trigger
+    // the wrong RPC or a premature/missed celebration.
+    const modelDayNumber = typeof input.day_number === "number" && Number.isFinite(input.day_number) ? input.day_number : null;
     return {
       type: "add_day",
       reason: input.reason,
       replacing,
       dayNumber,
+      displayDayNumber: modelDayNumber ?? dayNumber,
       totalDays,
       payload: {
         dayName,
