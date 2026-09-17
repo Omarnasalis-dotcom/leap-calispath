@@ -110,6 +110,22 @@ const AMRAP_FORTIME_DEFAULT_TIME_CAP_MIN: Record<LevelBand, number> = {
   advanced: 12,
 };
 
+// Warm-Up/Cool-Down padding lists (2026-09-17) — real, athlete-confirmed
+// library names, in reflex order (most-generic/most-useful first). LEGS has
+// its own list on both ends; every other focus_tag shares the standard one.
+// Never invented: every name here was verified against exercise_library
+// (production, read-only SELECT) before being hardcoded, but that was a
+// point-in-time check, not a guarantee — normalizeBlockStructure re-verifies
+// live against exercise_library below, every call, and silently drops any
+// name that no longer resolves rather than trusting this list blindly. Same
+// distrust-of-hardcoded-content principle resolveExerciseIds already applies
+// to model-written names.
+const WARMUP_PAD_STANDARD = ["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"];
+const WARMUP_PAD_LEGS = ["Inchworm", "Reverse Lunges", "Hip Flexors Stretch", "Banded Arm Circles", "wrist pressure"];
+const COOLDOWN_PAD_STANDARD = ["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"];
+const COOLDOWN_PAD_LEGS = ["Pancake Stretch", "Shoulder stretch", "Laying Hamstring Stretch", "Adductor Stretch", "Child Pose Sided"];
+const COOLDOWN_PAD_TARGET = 4;
+
 // Auto-repair pass (2026-09-17): the live 150s-timeout failure that killed
 // an entire build showed add_program_day rejecting 3 of 4 staged days on
 // trivial, mechanically-fixable metadata gaps (a circuit with no rounds, a
@@ -119,11 +135,22 @@ const AMRAP_FORTIME_DEFAULT_TIME_CAP_MIN: Record<LevelBand, number> = {
 // defaults a coach would reach for by reflex and reports what it changed,
 // instead of failing the call. It never touches anything that reflects a
 // real judgment call: an unknown exercise name, an over-max prescription, a
-// missing split day, a missing brief field, or a genuinely empty/near-empty
-// Warm-Up or Cool-Down (padding that with invented exercise names would
-// risk shipping content that was never a real library entry — left as a
-// hard reject on purpose; see validateBlockStructure below).
-export function normalizeBlockStructure(blocks: ClaudeBlock[], levelBand: LevelBand): string[] {
+// missing split day, a missing brief field — those still hard-reject
+// exactly as before, unrelated to anything here.
+//
+// Async now (2026-09-17, was sync): Warm-Up/Cool-Down padding needs to
+// verify its candidate names are still real library rows before using them
+// — a name that resolved when this list was written is not a guarantee it
+// resolves today (see WARMUP_PAD_STANDARD's own comment). `userClient` is
+// the same duck-typed shape resolveExerciseIds below already accepts, so
+// this needs no new import. If fewer than MIN_WARMUP_COOLDOWN_EXERCISES
+// candidates actually resolve, the block is left exactly as sent —
+// validateBlockStructure's existing hard reject still fires, on purpose.
+export async function normalizeBlockStructure(
+  blocks: ClaudeBlock[],
+  levelBand: LevelBand,
+  userClient: { from: (t: string) => any }
+): Promise<string[]> {
   const fixes: string[] = [];
   const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
 
@@ -152,6 +179,59 @@ export function normalizeBlockStructure(blocks: ClaudeBlock[], levelBand: LevelB
         meta.ladder_direction = "down";
         fixes.push(`"${day} | ${phase}": no ladder_direction — defaulted to "down".`);
       }
+    }
+  }
+
+  // Warm-Up/Cool-Down padding — one batched exercise_library lookup for
+  // every candidate name across every block that might need one, rather
+  // than a round trip per block.
+  const needsPadding = (blocks ?? []).filter((block) => {
+    const phase = getBlockParts(block).phase.toLowerCase();
+    const isRest = block.metadata?.focus_tag === "REST";
+    return !isRest && (phase === "warm-up" || phase === "cool-down") && (block.exercises ?? []).length < MIN_WARMUP_COOLDOWN_EXERCISES;
+  });
+
+  if (needsPadding.length > 0) {
+    const candidateNames = new Set<string>();
+    for (const list of [WARMUP_PAD_STANDARD, WARMUP_PAD_LEGS, COOLDOWN_PAD_STANDARD, COOLDOWN_PAD_LEGS]) {
+      for (const n of list) candidateNames.add(n);
+    }
+    const { data } = await userClient
+      .from("exercise_library")
+      .select("name")
+      .in("name", [...candidateNames]);
+    const resolvable = new Set((data ?? []).map((r: { name: string }) => r.name));
+
+    for (const block of needsPadding) {
+      const { day, phase } = getBlockParts(block);
+      const isLegs = block.metadata?.focus_tag === "LEGS";
+      const isWarmup = phase.toLowerCase() === "warm-up";
+      const candidates = isWarmup ? (isLegs ? WARMUP_PAD_LEGS : WARMUP_PAD_STANDARD) : (isLegs ? COOLDOWN_PAD_LEGS : COOLDOWN_PAD_STANDARD);
+      const target = isWarmup ? MIN_WARMUP_COOLDOWN_EXERCISES : COOLDOWN_PAD_TARGET;
+
+      block.exercises = block.exercises ?? [];
+      const existingNames = new Set(block.exercises.map((ex) => (ex.name ?? "").trim().toLowerCase()));
+      const added: string[] = [];
+
+      for (const name of candidates) {
+        if (block.exercises.length >= target) break;
+        if (!resolvable.has(name)) continue; // never resolved live — skip, don't invent
+        if (existingNames.has(name.toLowerCase())) continue; // never duplicate
+        const padded = isWarmup
+          ? { name, sets: "1", reps: "10", rest_seconds: "0" }
+          : { name, sets: "1", hold_seconds: "30", rest_seconds: "0" };
+        block.exercises.push(padded);
+        existingNames.add(name.toLowerCase());
+        added.push(name);
+      }
+
+      if (added.length > 0) {
+        fixes.push(`"${day} | ${phase}": had only ${block.exercises.length - added.length} exercise(s) — topped up with ${added.join(", ")}.`);
+      }
+      // If it's still under MIN_WARMUP_COOLDOWN_EXERCISES here (padding list
+      // exhausted or none resolved live), deliberately leave it short —
+      // validateBlockStructure's existing check rejects it, same as before
+      // this pass existed.
     }
   }
 

@@ -159,8 +159,32 @@ describe("levelBandForTier (added 2026-09-17, auto-repair)", () => {
   });
 });
 
+// Minimal stub of the duck-typed client normalizeBlockStructure/
+// resolveExerciseIds expect — real shape is `.from(table).select(cols).in(col, values)`
+// resolving `{ data }`. `resolvableNames` simulates exercise_library's real
+// rows; anything not listed behaves exactly like a name that doesn't
+// resolve live, same as a stale/renamed library row would.
+function makeMockClient(resolvableNames: string[]) {
+  return {
+    from: (_table: string) => ({
+      select: (_cols: string) => ({
+        in: (_col: string, values: string[]) =>
+          Promise.resolve({ data: values.filter((v) => resolvableNames.includes(v)).map((name) => ({ name })) }),
+      }),
+    }),
+  };
+}
+
+const ALL_PAD_NAMES_RESOLVABLE = [
+  "Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups",
+  "Reverse Lunges", "Hip Flexors Stretch",
+  "Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener",
+  "Pancake Stretch", "Laying Hamstring Stretch", "Adductor Stretch",
+];
+const REAL_CLIENT = makeMockClient(ALL_PAD_NAMES_RESOLVABLE);
+
 describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial structure gaps instead of rejecting", () => {
-  it("defaults a circuit block's missing rounds to \"3\" and forces every exercise's sets to \"1\"", () => {
+  it("defaults a circuit block's missing rounds to \"3\" and forces every exercise's sets to \"1\"", async () => {
     const block = makeBlock({
       metadata: { structure: "circuit" },
       exercises: [
@@ -168,50 +192,50 @@ describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial struc
         { name: "Dips", sets: "3", reps: "10" },
       ],
     });
-    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     expect((block.metadata as Record<string, unknown>).rounds).toBe("3");
     expect(block.exercises.every((ex) => ex.sets === "1")).toBe(true);
     expect(fixes).toEqual([expect.stringContaining("no rounds set")]);
     expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).not.toThrow();
   });
 
-  it("leaves an already-specified rounds value untouched", () => {
+  it("leaves an already-specified rounds value untouched", async () => {
     const block = makeBlock({
       metadata: { structure: "superset", rounds: "5" },
       exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "8" }],
     });
-    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     expect((block.metadata as Record<string, unknown>).rounds).toBe("5");
     expect(fixes).toEqual([]);
   });
 
-  it("defaults amrap/fortime time_cap_min by level band", () => {
+  it("defaults amrap/fortime time_cap_min by level band", async () => {
     const beginnerBlock = makeBlock({ metadata: { timing_system: "amrap" } });
-    normalizeBlockStructure([beginnerBlock] as never, "beginner");
+    await normalizeBlockStructure([beginnerBlock] as never, "beginner", REAL_CLIENT);
     expect((beginnerBlock.metadata as Record<string, unknown>).time_cap_min).toBe(6);
 
     const intermediateBlock = makeBlock({ metadata: { timing_system: "fortime" } });
-    normalizeBlockStructure([intermediateBlock] as never, "intermediate");
+    await normalizeBlockStructure([intermediateBlock] as never, "intermediate", REAL_CLIENT);
     expect((intermediateBlock.metadata as Record<string, unknown>).time_cap_min).toBe(10);
 
     const advancedBlock = makeBlock({ metadata: { timing_system: "amrap" } });
-    normalizeBlockStructure([advancedBlock] as never, "advanced");
+    await normalizeBlockStructure([advancedBlock] as never, "advanced", REAL_CLIENT);
     expect((advancedBlock.metadata as Record<string, unknown>).time_cap_min).toBe(12);
   });
 
-  it("does not override an already-specified time_cap_min", () => {
+  it("does not override an already-specified time_cap_min", async () => {
     const block = makeBlock({ metadata: { timing_system: "amrap", time_cap_min: 20 } });
-    const fixes = normalizeBlockStructure([block] as never, "beginner");
+    const fixes = await normalizeBlockStructure([block] as never, "beginner", REAL_CLIENT);
     expect((block.metadata as Record<string, unknown>).time_cap_min).toBe(20);
     expect(fixes).toEqual([]);
   });
 
-  it("defaults a ladder block's missing ladder_sub/ladder_direction, leaving ladder_start alone", () => {
+  it("defaults a ladder block's missing ladder_sub/ladder_direction, leaving ladder_start alone", async () => {
     const block = makeBlock({
       metadata: { structure: "ladder", rounds: "3", ladder_start: 10 },
       exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "10" }],
     });
-    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     const meta = block.metadata as Record<string, unknown>;
     expect(meta.ladder_sub).toBe(2);
     expect(meta.ladder_direction).toBe("down");
@@ -229,11 +253,43 @@ describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial struc
     ).toThrow(/missing ladder_start/);
   });
 
-  it("does not touch a genuinely empty Warm-Up/Cool-Down — still a hard reject, not auto-padded", () => {
-    const block = makeBlock({ name: "PULL DAY 1 | Cool-Down", exercises: [{ name: "Pull Ups (Normal Grip)" }, { name: "Dips" }] });
-    const fixes = normalizeBlockStructure([block] as never, "intermediate");
+  it("tops up a non-LEGS Cool-Down with only 2 exercises to 4, using the standard pad list, no duplicates", async () => {
+    const block = makeBlock({
+      name: "PULL DAY 1 | Cool-Down",
+      metadata: { focus_tag: "PULL" },
+      exercises: [{ name: "Lat Stretch SH Opener", hold_seconds: "30" }, { name: "Dips" }],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
+    // Lat Stretch SH Opener is already present — must not be added twice.
+    const names = block.exercises.map((ex) => ex.name);
+    expect(names.filter((n) => n === "Lat Stretch SH Opener")).toHaveLength(1);
+    expect(block.exercises.length).toBe(4); // COOLDOWN_PAD_TARGET
+    expect(names).toEqual(["Lat Stretch SH Opener", "Dips", "Childe Pose", "Shoulder stretch"]);
+    expect(block.exercises.slice(2).every((ex) => ex.hold_seconds === "30" && ex.sets === "1")).toBe(true);
+    expect(fixes).toEqual([expect.stringContaining("topped up with")]);
+    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).not.toThrow();
+  });
+
+  it("tops up a LEGS Warm-Up using the LEGS-specific pad list, reps-based", async () => {
+    const block = makeBlock({
+      name: "LEGS DAY | Warm-Up",
+      metadata: { focus_tag: "LEGS" },
+      exercises: [{ name: "Jump Rope", sets: "1", reps: "30" }],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
+    const names = block.exercises.map((ex) => ex.name);
+    expect(names).toEqual(["Jump Rope", "Inchworm", "Reverse Lunges"]);
+    expect(block.exercises.slice(1).every((ex) => ex.reps === "10" && ex.sets === "1" && ex.rest_seconds === "0")).toBe(true);
+    expect(fixes).toEqual([expect.stringContaining("topped up with")]);
+  });
+
+  it("still hard-rejects when the pad list's names don't resolve live (stale/renamed library rows)", async () => {
+    const emptyClient = makeMockClient([]); // nothing resolves
+    const block = makeBlock({ name: "PULL DAY 1 | Cool-Down", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Dips" }] });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", emptyClient);
     expect(fixes).toEqual([]);
-    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).toThrow(/only 2 exercise/);
+    expect(block.exercises.length).toBe(1);
+    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).toThrow(/only 1 exercise/);
   });
 });
 

@@ -71,6 +71,35 @@ describe("sanitizeReply — tool-narration line removal", () => {
   });
 });
 
+describe("sanitizeReply — auto-fix/validation leak removal (added 2026-09-17)", () => {
+  it("strips a line mentioning an auto-fix", () => {
+    expect(sanitizeReply("Auto-fixed: defaulted rounds to 3.\nYour Legs day is ready.")).toBe(
+      "Your Legs day is ready."
+    );
+  });
+
+  it("strips a line mentioning an auto-repair, case-insensitive", () => {
+    expect(sanitizeReply("I auto-repaired the finisher block for you.\nAll set.")).toBe("All set.");
+  });
+
+  it("strips a line mentioning a validation error", () => {
+    expect(sanitizeReply("There was a validation error on that block.\nHere's the fixed version.")).toBe(
+      "Here's the fixed version."
+    );
+  });
+
+  it("strips a line that leaks a raw metadata field name", () => {
+    expect(sanitizeReply("metadata.rounds was missing so I set it to 3.\nReady when you are.")).toBe(
+      "Ready when you are."
+    );
+  });
+
+  it("does NOT strip an unrelated line that just contains the word \"fixed\" in normal use", () => {
+    const text = "Fixed that typo in your split, all good now.";
+    expect(sanitizeReply(text)).toBe(text);
+  });
+});
+
 describe("sanitizeReply — combined and edge cases", () => {
   it("handles both an em dash and a narration line in the same reply", () => {
     const input = "Let me pull your data.\nBoth days matched — adjusted for your pull-up count.";

@@ -107,7 +107,7 @@ export const proposeNewProgram: ToolDefinition = {
     // round trip for the same row.
     const { data: profile } = await userClient.rpc("get_my_profile").single();
     const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
-    const autoFixed = normalizeBlockStructure(blocks as never[], levelBand);
+    const autoFixed = await normalizeBlockStructure(blocks as never[], levelBand, userClient);
 
     // Structural ceiling, not a prompt hope: writing week 2+ upfront for a
     // program that hasn't been trained yet has no real performance data

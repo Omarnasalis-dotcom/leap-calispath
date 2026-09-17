@@ -19,6 +19,15 @@ const EM_DASH_RE = /\s*—\s*/g;
 const NARRATION_LINE_RE =
   /^(now\s+)?(let me|let's|i'll|i will)\s+(search|check|pull|grab|fetch|look|verify|confirm|get|call|run|see)\b[^.!?:]*\.{0,3}$/i;
 
+// Backstop for the auto-repair pass (blockHelpers.ts's normalizeBlockStructure)
+// and its tool-internal "auto_fixed"/rejection-message vocabulary — §1 of the
+// prompt now tells the model never to relay this, but that is prose, same as
+// "ACT — DON'T NARRATE" was prose before this file existed. Same
+// belt-and-suspenders reasoning: catches a whole line built around
+// "auto-fixed"/"auto-repaired"/validation-error language even if the model
+// slips, in either language mentioned in the prompt's own examples.
+const AUTO_FIX_LEAK_RE = /auto[- ]?(fixed|repaired|corrected)|validation error|metadata\.\w+/i;
+
 export function sanitizeReply(text: string): string {
   if (!text) return text;
 
@@ -26,7 +35,7 @@ export function sanitizeReply(text: string): string {
 
   cleaned = cleaned
     .split("\n")
-    .filter((line) => !NARRATION_LINE_RE.test(line.trim()))
+    .filter((line) => !NARRATION_LINE_RE.test(line.trim()) && !AUTO_FIX_LEAK_RE.test(line))
     .join("\n");
 
   // Collapse any run of blank lines the filter above left behind.

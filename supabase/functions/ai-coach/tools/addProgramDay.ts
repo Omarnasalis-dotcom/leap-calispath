@@ -69,7 +69,7 @@ export const addProgramDay: ToolDefinition = {
     // now does beyond what it already needed for resolveExerciseIds.
     const { data: profile } = await userClient.rpc("get_my_profile").single();
     const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
-    const autoFixed = normalizeBlockStructure(blocks, levelBand);
+    const autoFixed = await normalizeBlockStructure(blocks, levelBand, userClient);
 
     validateBlockStructure(blocks, { requireDayPhases: true });
     await resolveExerciseIds(userClient, blocks);
