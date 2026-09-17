@@ -14,11 +14,12 @@
 import {
   validateBlockStructure,
   validateExerciseList,
-  validateSplitCoverage,
+  warnSplitCoverage,
+  warnSkillCoverage,
   validateAthleteFit,
   validateBuildBrief,
-  resolveProgramBlocks,
   getBlockParts,
+  computeDayPosition,
   parseConceptNotes,
   normalizeBlockStructure,
   levelBandForTier,
@@ -291,6 +292,102 @@ describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial struc
     expect(block.exercises.length).toBe(1);
     expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).toThrow(/only 1 exercise/);
   });
+
+  it("day-variety repair (2026-09-17): converts the Accessories block to superset when every block on a day is straight_set + single", async () => {
+    const warmUp = makeBlock({
+      name: "PULL DAY 1 | Warm-Up",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Banded Arm Circles" }, { name: "Inchworm" }, { name: "Scapula Push Ups" }],
+    });
+    const strength = makeBlock({
+      name: "PULL DAY 1 | Strength",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }],
+    });
+    const accessories = makeBlock({
+      name: "PULL DAY 1 | Accessories",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Dips", sets: "3", reps: "10" }, { name: "High Pull Ups", sets: "3", reps: "10" }],
+    });
+    const coolDown = makeBlock({
+      name: "PULL DAY 1 | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Childe Pose", hold_seconds: "30" }, { name: "Shoulder stretch", hold_seconds: "30" }, { name: "Child Pose Sided", hold_seconds: "30" }],
+    });
+    const blocks = [warmUp, strength, accessories, coolDown];
+    const fixes = await normalizeBlockStructure(blocks as never, "intermediate", REAL_CLIENT);
+    expect((accessories.metadata as Record<string, unknown>).structure).toBe("superset");
+    // Warm-Up/Strength untouched — only the Accessories block was varied.
+    expect((warmUp.metadata as Record<string, unknown>).structure).toBe("single");
+    expect((strength.metadata as Record<string, unknown>).structure).toBe("single");
+    expect(fixes).toEqual(expect.arrayContaining([expect.stringContaining("converted this one to a superset")]));
+    // The superset conversion left rounds missing — the very next repair
+    // pass in the same call must catch that too, same call, same result.
+    expect(fixes).toEqual(expect.arrayContaining([expect.stringContaining("no rounds set for a superset block")]));
+    expect(() => validateBlockStructure(blocks as never, { requireDayPhases: true })).not.toThrow();
+  });
+
+  it("day-variety repair: falls back to the last non-Warm-Up/Cool-Down block when there's no block literally named Accessories", async () => {
+    const warmUp = makeBlock({
+      name: "PUSH DAY | Warm-Up",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PUSH" },
+      exercises: [{ name: "Banded Arm Circles" }, { name: "Inchworm" }, { name: "Scapula Push Ups" }],
+    });
+    const strength = makeBlock({
+      name: "PUSH DAY | Strength",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PUSH" },
+      exercises: [{ name: "Pike Push Ups", sets: "4", reps: "8" }],
+    });
+    const blocks = [warmUp, strength];
+    await normalizeBlockStructure(blocks as never, "intermediate", REAL_CLIENT);
+    expect((strength.metadata as Record<string, unknown>).structure).toBe("superset");
+  });
+
+  it("day-variety repair: leaves a single-block day alone — nothing to vary against, falls to validateBlockStructure's own backstop only if ever reached another way", async () => {
+    const onlyBlock = makeBlock({
+      name: "REST DAY | Rest",
+      metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+      exercises: [{ name: "Pull Ups (Normal Grip)" }],
+    });
+    const fixes = await normalizeBlockStructure([onlyBlock] as never, "intermediate", REAL_CLIENT);
+    expect(fixes.some((f) => f.includes("converted"))).toBe(false);
+    expect((onlyBlock.metadata as Record<string, unknown>).structure).toBe("single");
+  });
+});
+
+describe("Day-by-day build offline fixtures (2026-09-17): day 1 alone must not misfire whole-plan checks", () => {
+  it("warnSplitCoverage sees no problem building only day 1's blocks, as long as the FULL declared split_days still has a Legs day elsewhere", () => {
+    // This is the exact bug the old validateSplitCoverage would have hit:
+    // fed only day 1's blocks, "distinct day count" would be 1 against a
+    // brief of 4, and "no Legs day" would fire on every non-Legs day 1.
+    // warnSplitCoverage is fed the DECLARED plan (brief.split_days), never
+    // the current call's blocks, so it doesn't have that problem.
+    const fullyDeclaredSplit = ["PULL", "LEGS", "PUSH", "FULL_BODY"];
+    expect(warnSplitCoverage(fullyDeclaredSplit, 4)).toEqual([]);
+  });
+
+  it("validateBlockStructure and validateAthleteFit both pass for a single day's blocks even though the brief describes a 4-day plan", () => {
+    const day1Blocks = [
+      makeBlock({
+        name: "PULL & MUSCLE-UP DAY | Warm-Up",
+        metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+        exercises: [{ name: "Banded Arm Circles" }, { name: "Inchworm" }, { name: "Scapula Push Ups" }],
+      }),
+      makeBlock({
+        name: "PULL & MUSCLE-UP DAY | Strength",
+        metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", rounds: "3" },
+        exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "20" }],
+      }),
+      makeBlock({
+        name: "PULL & MUSCLE-UP DAY | Cool-Down",
+        metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL" },
+        exercises: [{ name: "Childe Pose", hold_seconds: "30" }, { name: "Shoulder stretch", hold_seconds: "30" }, { name: "Child Pose Sided", hold_seconds: "30" }],
+      }),
+    ];
+    expect(() => validateBlockStructure(day1Blocks as never, { requireDayPhases: true })).not.toThrow();
+    const fit = { pullUpsMax: 30, dipsMax: null, pushUpsMax: null, muscleUpsMax: null, skills: [], loggedWeights: {} };
+    expect(validateAthleteFit(day1Blocks as never, fit as never)).toEqual([]);
+  });
 });
 
 describe("validateBlockStructure — rounds implies sets \"1\" (added 2026-09-16, direct build)", () => {
@@ -487,59 +584,67 @@ describe("parseConceptNotes — the metadata-merge logic update_block_structure 
   });
 });
 
-describe("validateSplitCoverage (added 2026-09-16, direct build)", () => {
-  const day = (name: string, focusTag: string) => makeBlock({ name: `${name} | Strength - 1`, metadata: { focus_tag: focusTag } });
-
-  it("rejects a 1-2 day split where a day isn't FULL_BODY", () => {
-    expect(() =>
-      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "PUSH")] as never, 2)
-    ).toThrow(/no FULL_BODY block/);
+describe("warnSplitCoverage (rewritten 2026-09-17, day-by-day build): non-throwing, checks declared categories not blocks", () => {
+  it("warns on a 1-2 day split where a day isn't FULL_BODY", () => {
+    const warnings = warnSplitCoverage(["PULL", "PUSH"], 2);
+    expect(warnings).toEqual([expect.stringContaining("FULL_BODY")]);
   });
 
-  it("accepts a 1-2 day split where every day is FULL_BODY", () => {
-    expect(() =>
-      validateSplitCoverage([day("DAY 1", "FULL_BODY"), day("DAY 2", "FULL_BODY")] as never, 2)
-    ).not.toThrow();
+  it("no warning for a 1-2 day split where every day is FULL_BODY", () => {
+    expect(warnSplitCoverage(["FULL_BODY", "FULL_BODY"], 2)).toEqual([]);
   });
 
-  it("rejects a 4-day split with no Legs day", () => {
-    expect(() =>
-      validateSplitCoverage(
-        [day("DAY 1", "PULL"), day("DAY 2", "PUSH"), day("DAY 3", "PULL"), day("DAY 4", "PUSH")] as never,
-        4
-      )
-    ).toThrow(/No day in this 4-day split trains Legs/);
+  it("warns on a 4-day split with no Legs day", () => {
+    const warnings = warnSplitCoverage(["PULL", "PUSH", "PULL", "PUSH"], 4);
+    expect(warnings).toEqual([expect.stringContaining("No day in this 4-day split trains Legs")]);
   });
 
-  it("accepts a 4-day split with a real Legs day", () => {
-    expect(() =>
-      validateSplitCoverage(
-        [day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH"), day("DAY 4", "FULL_BODY")] as never,
-        4
-      )
-    ).not.toThrow();
+  it("no warning for a 4-day split with a real Legs day", () => {
+    expect(warnSplitCoverage(["PULL", "LEGS", "PUSH", "FULL_BODY"], 4)).toEqual([]);
   });
 
   it("also accepts a Legs day recognized by name alone, e.g. \"Lower Body\"", () => {
-    expect(() =>
-      validateSplitCoverage(
-        [day("DAY 1", "PULL"), day("Lower Body", "FULL_BODY"), day("DAY 3", "PUSH")] as never,
-        3
-      )
-    ).not.toThrow();
+    expect(warnSplitCoverage(["PULL", "Lower Body", "PUSH"], 3)).toEqual([]);
   });
 
-  it("ignores REST blocks entirely — for coverage AND for the day-count check below", () => {
-    const restDay = makeBlock({ name: "REST DAY | Rest", metadata: { focus_tag: "REST" }, exercises: [] });
-    expect(() =>
-      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH"), restDay] as never, 3)
-    ).not.toThrow();
+  it("warns when brief.days_per_week doesn't match split_days' own length", () => {
+    const warnings = warnSplitCoverage(["PULL", "LEGS", "PUSH"], 4);
+    expect(warnings).toEqual([expect.stringContaining("brief.days_per_week says 4, but split_days lists 3")]);
   });
 
-  it("rejects brief.days_per_week not matching the real distinct day count (added 2026-09-16)", () => {
-    expect(() =>
-      validateSplitCoverage([day("DAY 1", "PULL"), day("DAY 2", "LEGS"), day("DAY 3", "PUSH")] as never, 4)
-    ).toThrow(/brief\.days_per_week says 4, but the program actually has 3/);
+  it("returns no warnings for an empty split_days (nothing declared yet)", () => {
+    expect(warnSplitCoverage([], 4)).toEqual([]);
+  });
+});
+
+describe("warnSkillCoverage (added 2026-09-17): non-fatal, checked only on the last day", () => {
+  const skills = [
+    { skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 25, maxReps: null },
+    { skill: "front_lever", checkpointExercise: "Tuck Front Lever Hold", maxHoldSeconds: 15, maxReps: null },
+  ];
+
+  it("warns for a skill trained on only one day", () => {
+    const daySkillNames = new Map<string, Set<string>>([
+      ["PUSH DAY", new Set(["free handstand", "pike push ups"])],
+      ["LEGS DAY", new Set(["goblet squat"])],
+    ]);
+    const warnings = warnSkillCoverage(daySkillNames, skills);
+    expect(warnings).toEqual([
+      expect.stringContaining('"handstand" (checkpoint "Free Handstand") only appears in 1 day'),
+      expect.stringContaining('"front_lever" (checkpoint "Tuck Front Lever Hold") only appears in 0 day'),
+    ]);
+  });
+
+  it("no warning once a skill is trained on 2+ days, case-insensitively", () => {
+    const daySkillNames = new Map<string, Set<string>>([
+      ["PUSH DAY", new Set(["free handstand"])],
+      ["PULL DAY", new Set(["free handstand", "pull ups (normal grip)"])],
+    ]);
+    expect(warnSkillCoverage(daySkillNames, [skills[0]])).toEqual([]);
+  });
+
+  it("returns no warnings when no skills were named", () => {
+    expect(warnSkillCoverage(new Map(), [])).toEqual([]);
   });
 });
 
@@ -580,14 +685,14 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("rejects a program that never uses the confirmed skill checkpoint exercise", () => {
+  it("day-by-day build (2026-09-17): a day that doesn't use a confirmed skill's checkpoint is fine, not an error — a Legs day legitimately has no handstand content", () => {
     const block = makeBlock({ exercises: [{ name: "Wall Handstand hold", sets: "3", hold_seconds: "20" }] });
-    expect(() =>
+    expect(
       validateAthleteFit([block] as never, {
         ...baseFit,
         skills: [{ skill: "handstand", checkpointExercise: "Free Handstand", maxHoldSeconds: 30 }],
       })
-    ).toThrow(/No block uses "Free Handstand"/);
+    ).toEqual([]);
   });
 
   it("rejects a skill hold target above the athlete's confirmed max hold", () => {
@@ -634,16 +739,17 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("rejects reps well below the athlete's tested max — the wrong level band's numbers (added 2026-09-16)", () => {
-    // The real live bug: tier 7, 30 real pull-ups, got a 6/8/10 ladder —
-    // the beginner band's own row (§16), not this athlete's.
+  it("warns (does not reject) on reps well below the athlete's tested max — demoted 2026-09-17 after real false positives against legitimate low-rep skill/trial/weighted-adjacent work", () => {
+    // The real live bug this originally caught: tier 7, 30 real pull-ups,
+    // got a 6/8/10 ladder — the beginner band's own row (§16), not this
+    // athlete's. Still surfaced, just as a warning the model can act on
+    // rather than a hard reject that costs a whole retry.
     const block = makeBlock({
       metadata: { structure: "ladder", timing_system: "fortime", rounds: "3", time_cap_min: 10, ladder_start: 6, ladder_sub: 2, ladder_direction: "up" },
       exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "6" }],
     });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
-    ).toThrow(/well below this athlete's tested max of 30/);
+    const warnings = validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 });
+    expect(warnings).toEqual([expect.stringContaining("well below this athlete's tested max of 30")]);
   });
 
   it("accepts reps right at the 50% floor for a tracked pattern", () => {
@@ -687,13 +793,12 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("still applies the floor check to an UNWEIGHTED instance of the same pattern in the same program", () => {
+  it("still warns for the floor case on an UNWEIGHTED instance of the same pattern in the same program", () => {
     const block = makeBlock({
       exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "6" }],
     });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 })
-    ).toThrow(/well below this athlete's tested max of 30/);
+    const warnings = validateAthleteFit([block] as never, { ...baseFit, pullUpsMax: 30 });
+    expect(warnings).toEqual([expect.stringContaining("well below this athlete's tested max of 30")]);
   });
 
   it("REGRESSION (2026-09-16): also exempts via the BLOCK-level is_weighted flag, not just the exercise-level one", () => {
@@ -840,39 +945,6 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
   });
 });
 
-describe("resolveProgramBlocks (added 2026-09-16, Direct Build incremental staging)", () => {
-  it("uses input.blocks directly when a non-empty array is provided", () => {
-    const inputBlocks = [{ name: "PULL DAY 1 | Strength - 1" }];
-    expect(resolveProgramBlocks(inputBlocks, new Map())).toBe(inputBlocks);
-  });
-
-  it("ignores a populated draft when blocks are provided directly", () => {
-    const inputBlocks = [{ name: "from input" }];
-    const draft = new Map([["PULL DAY 1", [{ name: "from draft" }]]]);
-    expect(resolveProgramBlocks(inputBlocks, draft)).toBe(inputBlocks);
-  });
-
-  it("assembles from the draft when blocks is omitted", () => {
-    const draft = new Map([
-      ["PULL DAY 1", [{ name: "PULL DAY 1 | Warm-Up" }, { name: "PULL DAY 1 | Strength - 1" }]],
-      ["LEGS DAY 2", [{ name: "LEGS DAY 2 | Warm-Up" }]],
-    ]);
-    expect(resolveProgramBlocks(undefined, draft)).toEqual([
-      { name: "PULL DAY 1 | Warm-Up" },
-      { name: "PULL DAY 1 | Strength - 1" },
-      { name: "LEGS DAY 2 | Warm-Up" },
-    ]);
-  });
-
-  it("assembles from the draft when blocks is an empty array", () => {
-    const draft = new Map([["PULL DAY 1", [{ name: "PULL DAY 1 | Warm-Up" }]]]);
-    expect(resolveProgramBlocks([], draft)).toEqual([{ name: "PULL DAY 1 | Warm-Up" }]);
-  });
-
-  it("throws a clear error when blocks is omitted and nothing was staged", () => {
-    expect(() => resolveProgramBlocks(undefined, new Map())).toThrow(/nothing staged yet via add_program_day/);
-  });
-});
 
 describe("getBlockParts (exported 2026-09-16 for addProgramDay.ts's day_name cross-check)", () => {
   it("derives day/phase from day_name + block_name", () => {
@@ -893,6 +965,37 @@ describe("getBlockParts (exported 2026-09-16 for addProgramDay.ts's day_name cro
 
   it("falls back to \"?\" for a block with no name info at all — a real, if unlikely, edge case", () => {
     expect(getBlockParts({ exercises: [] })).toEqual({ day: "?", phase: "" });
+  });
+});
+
+describe("computeDayPosition (added 2026-09-17): the trusted collision/position check behind index.ts's add_day branch", () => {
+  const existingNames = (days: string[]) => days.flatMap((d) => [`${d} | Warm-Up`, `${d} | Strength`, `${d} | Cool-Down`]);
+
+  it("a genuinely new day: not replacing, gets the next number", () => {
+    const week1 = existingNames(["PULL & MUSCLE-UP DAY"]); // day 1 already added
+    expect(computeDayPosition(week1, "LEGS DAY")).toEqual({ replacing: false, dayNumber: 2 });
+  });
+
+  it("redoing an already-added day: replacing, dayNumber stays the current total day count, never bumps past it", () => {
+    const week1 = existingNames(["PULL & MUSCLE-UP DAY", "LEGS DAY", "PUSH DAY"]);
+    // dayNumber here is "how many distinct days exist so far, this one
+    // included" — NOT this day's structural position in the confirmed
+    // split. Redoing LEGS DAY (added 2nd) still reports dayNumber 3
+    // (the current total), not 2 — a known, deliberate simplification:
+    // getting the true ordinal right on a redo would need brief.split_days
+    // (categories like "LEGS") matched against athlete-facing day names
+    // like "LEGS DAY", which isn't a reliable string match. Flagged in the
+    // Step 2 report rather than silently assumed correct.
+    expect(computeDayPosition(week1, "LEGS DAY")).toEqual({ replacing: true, dayNumber: 3 });
+  });
+
+  it("first day ever (empty week): not replacing, day 1", () => {
+    expect(computeDayPosition([], "PULL & MUSCLE-UP DAY")).toEqual({ replacing: false, dayNumber: 1 });
+  });
+
+  it("matches on the day prefix even when block names carry different phases, not exact block-name equality", () => {
+    const week1 = ["LEGS DAY | Warm-Up", "LEGS DAY | Finisher"]; // no "Strength" block this time
+    expect(computeDayPosition(week1, "LEGS DAY")).toEqual({ replacing: true, dayNumber: 1 });
   });
 });
 
@@ -1023,12 +1126,12 @@ describe("INTEGRATION (2026-09-16): the full validation pipeline against the exa
     expect(() => validateBlockStructure(fullProgram as never, { requireDayPhases: true })).not.toThrow();
   });
 
-  it("passes validateSplitCoverage for the whole 4-day program", () => {
-    expect(() => validateSplitCoverage(fullProgram as never, 4)).not.toThrow();
+  it("warnSplitCoverage: no warnings for the matching declared split (PULL/LEGS/PUSH/PULL, 4 days)", () => {
+    expect(warnSplitCoverage(["PULL", "LEGS", "PUSH", "PULL"], 4)).toEqual([]);
   });
 
-  it("passes validateAthleteFit for the whole 4-day program, including the weighted day", () => {
-    expect(() => validateAthleteFit(fullProgram as never, fit as never)).not.toThrow();
+  it("passes validateAthleteFit for the whole 4-day program, including the weighted day (no warnings either)", () => {
+    expect(validateAthleteFit(fullProgram as never, fit as never)).toEqual([]);
   });
 
   it("passes validateBuildBrief for the matching brief", () => {

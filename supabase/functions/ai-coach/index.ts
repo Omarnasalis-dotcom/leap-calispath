@@ -2,8 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient, SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { SYSTEM_PROMPT } from "./system-prompt.ts";
 import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
-import { transformBlocksForInsert, resolveExerciseIds, resolveProgramBlocks } from "./tools/blockHelpers.ts";
-import { RequestContext } from "./tools/types.ts";
+import { computeDayPosition, getBlockParts } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
@@ -15,6 +14,7 @@ import { sanitizeReply } from "./tools/replyCleanup.ts";
 // actionClaimGuard.ts's header for the Haiku history behind this).
 const WRITE_TOOL_NAMES = new Set([
   "propose_new_program",
+  "propose_add_day",
   "propose_program_from_workouts",
   "propose_end_program",
   "propose_delete_week",
@@ -27,25 +27,32 @@ const WRITE_TOOL_NAMES = new Set([
 
 const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 
-// propose_new_program/propose_end_program are non-write "signal" tools —
-// this builds the response's programAction field from the AI's proposal,
-// with a trusted server-side lookup of the current active program (never
-// trust an AI-relayed warrior_program_id/ownership flag for something
-// CoachScreen.tsx will use to decide which RPC to call and what warning to
-// show). Mirrors how `recommendations` already gets built from
-// recommend_test calls, just one level more involved since this also needs
-// the blocks transformed into the exact shape ai_coach_create_program
-// expects (same transform createProgram.ts used to run before it was
-// retired in favor of this propose-then-confirm flow).
+// propose_new_program/propose_add_day/propose_end_program are non-write
+// "signal" tools — this builds the response's programAction field from the
+// AI's proposal, with a trusted server-side lookup of the current active
+// program (never trust an AI-relayed warrior_program_id/ownership flag for
+// something CoachScreen.tsx will use to decide which RPC to call and what
+// warning to show). Mirrors how `recommendations` already gets built from
+// recommend_test calls, just one level more involved.
+//
+// `result` is the tool's OWN return value (from tool.handler above), not
+// just its input — day-by-day build (2026-09-17): propose_new_program and
+// propose_add_day both already resolve exercise names and transform blocks
+// for insert themselves (they have to, to validate athlete-fit against real
+// ids), so this reuses `result.resolved_blocks` instead of paying for a
+// second resolveExerciseIds pass over the same names. That duplication
+// used to be real and deliberate ("an extra DB query, not a correctness
+// issue, not touched" — see git history); collapsing it was one of the
+// approved Step 1/2 cleanup items.
 async function buildProgramAction(
   userClient: SupabaseClient,
   toolName: string,
   input: Record<string, unknown>,
-  context: RequestContext
+  result: Record<string, unknown>
 ) {
   const { data: active } = await userClient
     .from("warrior_programs")
-    .select("id, coach_id")
+    .select("id, template_id, coach_id")
     .eq("status", "active")
     .maybeSingle();
 
@@ -55,19 +62,61 @@ async function buildProgramAction(
   };
 
   if (toolName === "propose_new_program") {
-    // Same resolution as proposeNewProgram.ts's own handler — `blocks` may
-    // be omitted when every day was staged via add_program_day instead (see
-    // resolveProgramBlocks's own comment for why this lives in
-    // blockHelpers.ts rather than being duplicated here).
-    const blocks = resolveProgramBlocks(input.blocks, context.programDraft.days) as never[];
-    const idMap = await resolveExerciseIds(userClient, blocks);
+    const resolvedBlocks = (result.resolved_blocks as Array<{ name: string }> | undefined) ?? [];
+    // Day 1's own day name, for the same "Add Day 1 of M: <name>?" card
+    // add_day's days use — derived from the already-resolved blocks rather
+    // than trusting a separate model-supplied field, since propose_new_program
+    // never asked for one (its schema only ever had a program `name`).
+    const dayName = resolvedBlocks.length > 0 ? getBlockParts({ name: resolvedBlocks[0].name, exercises: [] }).day : null;
+    const totalDays = Array.isArray((input.brief as { split_days?: unknown[] } | undefined)?.split_days)
+      ? (input.brief as { split_days: unknown[] }).split_days.length
+      : null;
     return {
       type: "create",
       reason: input.reason,
+      dayNumber: 1,
+      totalDays,
       payload: {
         name: input.name,
         description: input.description ?? "",
-        blocks: transformBlocksForInsert(blocks, idMap),
+        dayName,
+        blocks: resolvedBlocks,
+      },
+      ...base,
+    };
+  }
+  if (toolName === "propose_add_day") {
+    const dayName = typeof input.day_name === "string" ? input.day_name.trim() : "";
+    // Trusted, fresh check — never the model's own claim about what's
+    // already in week 1 — of whether this day_name already exists there.
+    // Decides which RPC CoachScreen.tsx's confirm tap calls: a genuinely
+    // new day (ai_coach_add_block_to_week) or a redo of one already added
+    // (ai_coach_replace_day_in_week, which deletes then re-inserts instead
+    // of hard-rejecting the name collision add_block_to_week would raise).
+    let replacing = false;
+    let dayNumber: number | null = null;
+    if (active?.template_id && dayName) {
+      const { data: existingBlocks } = await userClient
+        .from("program_blocks")
+        .select("name")
+        .eq("template_id", active.template_id)
+        .eq("week_number", 1);
+      const position = computeDayPosition((existingBlocks ?? []).map((row: { name: string }) => row.name), dayName);
+      replacing = position.replacing;
+      dayNumber = position.dayNumber;
+    }
+    const totalDays = Array.isArray((input.brief as { split_days?: unknown[] } | undefined)?.split_days)
+      ? ((input.brief as { split_days: unknown[] }).split_days.length)
+      : null;
+    return {
+      type: "add_day",
+      reason: input.reason,
+      replacing,
+      dayNumber,
+      totalDays,
+      payload: {
+        dayName,
+        blocks: result.resolved_blocks ?? [],
       },
       ...base,
     };
@@ -177,9 +226,10 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
       return { verb: "READING", label: "Reading your current program" };
     case "search_exercises":
       return { verb: "SEARCHING", label: "Looking up exercises in the library" };
-    case "add_program_day":
-      return { verb: "BUILDING", label: "Writing that day" };
     case "propose_new_program":
+      return { verb: "BUILDING", label: "Putting your program together" };
+    case "propose_add_day":
+      return { verb: "BUILDING", label: "Putting that day together" };
     case "propose_program_from_workouts":
       return { verb: "BUILDING", label: "Putting your program together" };
     case "append_week":
@@ -490,13 +540,6 @@ serve(async (req: Request) => {
     // once per request so a model that fails it twice doesn't loop forever.
     const calledWriteTools = new Set<string>();
     let correctionAttempted = false;
-    // Direct Build incremental staging (2026-09-16, see tools/addProgramDay.ts
-    // and tools/types.ts's RequestContext) — a fresh, empty draft per
-    // request, passed to every tool handler; only add_program_day and
-    // propose_new_program actually read/write it. Never persisted, never
-    // shared across requests — garbage-collected with everything else once
-    // this request ends, same as messages/recommendations/programAction above.
-    const requestContext: RequestContext = { programDraft: { days: new Map() } };
 
     // A single chat turn (one call to this function) can span multiple
     // Claude API calls — every tool_use iteration below calls callClaude()
@@ -652,7 +695,7 @@ serve(async (req: Request) => {
         try {
           send("stage", stageForTool(block.name, (block.input as Record<string, unknown>) ?? {}));
           const toolStart = Date.now();
-          const result = await tool.handler(userClient, block.input ?? {}, requestContext);
+          const result = await tool.handler(userClient, block.input ?? {});
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
           if (WRITE_TOOL_NAMES.has(block.name)) calledWriteTools.add(block.name);
           if (block.name === "recommend_test") recommendations.push(result);
@@ -660,11 +703,12 @@ serve(async (req: Request) => {
           if (block.name === "suggest_replies") suggestedReplies = (result as { replies: string[] }).replies;
           if (
             block.name === "propose_new_program" ||
+            block.name === "propose_add_day" ||
             block.name === "propose_end_program" ||
             block.name === "propose_delete_week" ||
             block.name === "propose_program_from_workouts"
           ) {
-            programAction = await buildProgramAction(userClient, block.name, block.input ?? {}, requestContext);
+            programAction = await buildProgramAction(userClient, block.name, block.input ?? {}, result as Record<string, unknown>);
           }
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {

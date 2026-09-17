@@ -1,106 +1,64 @@
-import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
 import {
   BLOCKS_SCHEMA,
   BUILD_BRIEF_SCHEMA,
-  AthleteFitContext,
+  fetchAthleteFitContext,
   levelBandForTier,
   normalizeBlockStructure,
   resolveExerciseIds,
-  resolveProgramBlocks,
+  transformBlocksForInsert,
   validateBlockStructure,
   validateBuildBrief,
-  validateSplitCoverage,
   validateAthleteFit,
+  warnSplitCoverage,
 } from "./blockHelpers.ts";
 
-// Direct build (2026-09-16): this replaced Match-Clone-Adapt as the main
-// program-build path. propose_program_from_workouts still exists for an
-// athlete who explicitly asks for one specific library workout as-is
-// (system-prompt.ts §11) — everything else now goes through here, built
-// fresh from the athlete's own data rather than cloned and patched after
-// the fact. Real failure that motivated this: cloned library days kept
-// reaching the athlete unadapted (wrong level, wrong numbers, skill holds
-// above what they can actually do) because the required Adapt pass after
-// confirm depended on the model reliably running two more tool calls on
-// its own judgment — a control-flow bet that kept losing. A single
-// same-call gate the athlete never sees content before it passes is safer
-// than a promise to fix it after the fact.
+// Day-by-day build (2026-09-17): proposes DAY 1 ONLY of a brand-new
+// program — never a whole week. `blocks` always carries exactly one day's
+// worth of blocks; `brief` still carries the FULL planned split (goal,
+// skills, days_per_week, split_days, equipment, pacing) so warnSplitCoverage
+// can sanity-check the declared plan and the athlete's confirmed intent
+// survives to append_week/weekly-review later. Day 2 onward goes through
+// propose_add_day instead, once this call's confirm has created the program
+// — see that file's own comment for why it's a separate tool rather than
+// this one reused with an existing warrior_program_id.
 //
-// Fetches the athlete's real numbers itself (assessmentRaw + recent
-// workout_set_logs) rather than trusting whatever the model reports in the
-// brief — same principle as resolveExerciseIds not trusting a model-typed
-// exercise id. A hallucinated "10 pull-ups" in the brief cannot become a
-// false pass here; only what's actually in assessment_raw can.
-async function fetchAthleteFitContext(
-  userClient: SupabaseClient,
-  brief: { skills: AthleteFitContext["skills"] },
-  profile: { assessment_raw?: Record<string, unknown> } | null
-): Promise<AthleteFitContext> {
-  const raw = profile?.assessment_raw ?? {};
-
-  // Only a strict/standard variant confirms real unassisted capability —
-  // an assisted/banded/inverted-row number at any rep count doesn't mean
-  // the athlete can do the unassisted movement at all (see spartanLogic.ts's
-  // MovementVariant enum: strict_pullup vs assisted_pullup/inverted_row,
-  // standard_dip vs bench_dip, standard_pushup vs knee_pushup, strict_mu vs
-  // banded_mu/jumping_mu). Getting this wrong in the lenient direction
-  // (crediting an assisted number as unassisted) is exactly the failure
-  // mode these checks exist to prevent.
-  const pullUpsMax = raw.pullup_variant === "strict_pullup" ? (raw.pullup_reps as number) ?? null : null;
-  const dipsMax = raw.dip_variant === "standard_dip" ? (raw.dip_reps as number) ?? null : null;
-  const pushUpsMax = raw.pushup_variant === "standard_pushup" ? (raw.pushup_reps as number) ?? null : null;
-  const muscleUpsMax = raw.mu_variant === "strict_mu" ? (raw.mu_reps as number) ?? null : null;
-
-  // Most-recent logged weight per exercise, across all history — not
-  // scoped to one program, since a brand-new build may have no active
-  // program yet and a prior, now-ended one still tells us what they lifted.
-  // RLS ("Warriors manage own set logs") already scopes this to the caller.
-  const { data: weightRows } = await userClient
-    .from("workout_set_logs")
-    .select("weight_used, created_at, block_exercises(exercise_library(name))")
-    .not("weight_used", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(300);
-
-  const loggedWeights: Record<string, number> = {};
-  for (const row of (weightRows ?? []) as Array<{ weight_used: number; block_exercises?: { exercise_library?: { name?: string } } }>) {
-    const name = row.block_exercises?.exercise_library?.name;
-    if (!name) continue;
-    const key = name.trim().toLowerCase();
-    // First hit wins — rows are ordered most-recent-first.
-    if (loggedWeights[key] === undefined) loggedWeights[key] = row.weight_used;
-  }
-
-  return { pullUpsMax, dipsMax, pushUpsMax, muscleUpsMax, skills: brief.skills, loggedWeights };
-}
-
-// Replaces the old create_program entirely — there is no tool left that
-// writes a new program directly. This only signals a proposed action back
-// to the client (same non-write "signal" pattern recommend_test already
-// uses); index.ts captures the full input into the response's
-// programAction field, transformed into the exact shape
-// ai_coach_create_program expects, so CoachScreen.tsx can call that RPC
-// directly once the athlete taps confirm — the AI never triggers the
-// write itself.
+// Non-write "signal" tool, same pattern as recommend_test/propose_end_program:
+// index.ts captures the input into the response's programAction field,
+// transformed into the exact shape ai_coach_create_program expects, so
+// CoachScreen.tsx can call that RPC directly once the athlete taps confirm —
+// the AI never triggers the write itself.
 export const proposeNewProgram: ToolDefinition = {
   name: "propose_new_program",
   description:
-    "Propose a brand-new training program to the athlete — this does NOT create anything. It shows the athlete a confirmation card in the chat; the program is only actually created if they explicitly tap it. Requires the full build brief (see `brief`) — every field must already be a real, athlete-confirmed answer, not a guess. This checks the program you wrote against the athlete's own real numbers (assessment_raw, logged weights) before it will propose anything — an unrealistic block (a hold above their max, reps at or above what they tested, a band cue they no longer need) comes back as an error naming exactly what to fix, not a card the athlete sees unadapted. `blocks` is optional: omit it once every day has been staged with add_program_day, and the full program is assembled from that instead — do this for any build with 3+ days or a skill goal, so a mistake only costs re-staging one day, not rewriting everything.",
+    "Propose DAY 1 of a brand-new training program — this does NOT create anything until the athlete taps the card. `blocks` is exactly one day's blocks (the first day of the confirmed week structure); every day after this one goes through propose_add_day instead, once this day is added. `brief` carries the FULL confirmed plan (goal, skills, days_per_week, the real split_days in order, equipment, pacing), even though blocks here is just day 1 — the rest of the plan is what propose_add_day's later days build toward. Requires every brief field to already be a real, athlete-confirmed answer, never a guess. Checks this day against the athlete's own real numbers (assessment_raw, logged weights) before proposing — some issues (a hold or reps at/above their confirmed max, a band cue they no longer need, a missing checkpoint) are hard errors naming exactly what to fix; others (reps that look low for their level, a split-structure mismatch) come back as non-fatal `warnings` in the result — read those and use judgment, they don't block the card.",
   input_schema: {
     type: "object",
     properties: {
       name: { type: "string", description: "Short program name, e.g. 'Muscle-Up Focus B4'" },
       description: { type: "string" },
-      reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this." },
+      reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
-      blocks: { ...BLOCKS_SCHEMA, description: "Omit this if every day was already staged with add_program_day — the program is assembled from that instead. Only send this directly for a simple 1-2 day build with no staging." },
+      blocks: { ...BLOCKS_SCHEMA, description: "Exactly one day's blocks — day 1 of the confirmed structure. Never more than one day; propose_add_day builds every day after this." },
     },
-    required: ["name", "brief", "reason"],
+    required: ["name", "brief", "blocks", "reason"],
   },
-  handler: async (userClient, input, context) => {
+  handler: async (userClient, input) => {
     const brief = validateBuildBrief(input.brief);
-    const blocks = resolveProgramBlocks(input.blocks, context.programDraft.days);
+    const blocks = input.blocks;
+    if (!Array.isArray(blocks) || blocks.length === 0) {
+      throw new Error(`"blocks" is required and must be day 1's blocks — propose_new_program builds one day at a time now, never a whole week.`);
+    }
+
+    // Trivial safety net (2026-09-17, kept deliberately even though every
+    // call is day 1 of week 1 today): reject anything but week_number 1 or
+    // omitted, rather than silently accepting a stray week_number a future
+    // change or a confused model might send. Not the old 2-week ceiling —
+    // there is no multi-week case left in this tool at all.
+    const badWeek = (blocks as Array<{ week_number?: number }>).find((b) => b.week_number !== undefined && b.week_number !== 1);
+    if (badWeek) {
+      throw new Error(`propose_new_program only ever builds week 1 — got week_number ${badWeek.week_number}. Omit week_number or set it to 1.`);
+    }
 
     // Fetched once, reused below for both the auto-repair level band and
     // fetchAthleteFitContext's real numbers — avoids a second get_my_profile
@@ -109,35 +67,29 @@ export const proposeNewProgram: ToolDefinition = {
     const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
     const autoFixed = await normalizeBlockStructure(blocks as never[], levelBand, userClient);
 
-    // Structural ceiling, not a prompt hope: writing week 2+ upfront for a
-    // program that hasn't been trained yet has no real performance data
-    // behind it — the prompt already discourages this, but under enough
-    // pressure ("just build all 10 weeks, don't ask questions") a model can
-    // be talked past prose guidance. This makes the ceiling a hard tool
-    // error instead, same pattern as resolveExerciseIds/validateBlockStructure
-    // below — surfaced as a tool result the model must react to in this
-    // turn, never silently truncated later by hitting max_tokens on an
-    // oversized blocks array.
-    const weekNumbers = new Set((blocks as Array<{ week_number?: number }>).map((b) => b.week_number ?? 1));
-    if (weekNumbers.size > 2) {
-      throw new Error(
-        `This proposes ${weekNumbers.size} weeks in one call, but at most 2 can be built at once. Programming further weeks before any training has actually happened isn't coaching, it's a guess. Resend with only weeks ${[...weekNumbers].sort((a, b) => a - b).slice(0, 2).join(" and ")} — the rest comes from append_week once the athlete has logged real training.`
-      );
-    }
-
     // Same reasoning as resolveExerciseIds below: reject here, as a tool
     // error the model can see and fix in this same turn, rather than
-    // surfacing after the athlete already tapped Start on an incomplete card.
+    // surfacing after the athlete already tapped Add on an incomplete card.
     validateBlockStructure(blocks as never[], { requireDayPhases: true });
-    validateSplitCoverage(blocks as never[], brief.days_per_week);
+
+    const warnings = warnSplitCoverage(brief.split_days, brief.days_per_week);
 
     const fitContext = await fetchAthleteFitContext(userClient, brief, profile as { assessment_raw?: Record<string, unknown> } | null);
-    validateAthleteFit(blocks as never[], fitContext);
+    warnings.push(...validateAthleteFit(blocks as never[], fitContext));
 
     // Resolve here so an unknown exercise name comes back as a tool error the
     // model can fix in this same turn, rather than surfacing after the athlete
-    // has already tapped Start on a card that looked complete.
-    await resolveExerciseIds(userClient, blocks as never[]);
-    return { proposed: true, ...(autoFixed.length > 0 ? { auto_fixed: autoFixed } : {}) };
+    // has already tapped Add on a card that looked complete. Returned as
+    // resolved_blocks (2026-09-17) so index.ts's card-payload builder can
+    // reuse this exact resolution instead of re-querying exercise_library a
+    // second time for the same names — the old double-resolution this
+    // collapses is called out in this file's git history.
+    const idMap = await resolveExerciseIds(userClient, blocks as never[]);
+    return {
+      proposed: true,
+      resolved_blocks: transformBlocksForInsert(blocks as never[], idMap),
+      ...(autoFixed.length > 0 ? { auto_fixed: autoFixed } : {}),
+      ...(warnings.length > 0 ? { warnings } : {}),
+    };
   },
 };

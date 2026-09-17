@@ -50,6 +50,26 @@ export function getBlockParts(block: ClaudeBlock): { day: string; phase: string 
   return { day: combined.slice(0, pipeIndex).trim(), phase: combined.slice(pipeIndex + 1).trim() };
 }
 
+// Day-by-day build (2026-09-17): pure logic behind index.ts's buildProgramAction
+// "add_day" branch — extracted so the trusted collision/position check
+// (never the model's own claim about what's already in week 1) is
+// Jest-testable without a Deno/Supabase client, same reasoning as every
+// other pure function in this file. `existingBlockNames` is the raw `name`
+// column from a fresh program_blocks query for week 1 of the athlete's
+// active program; `dayName` is the day currently being proposed.
+// `replacing` tells CoachScreen.tsx which RPC the confirm tap should call;
+// `dayNumber` is a stable "Day N of M" position — a new day gets the next
+// number, a redo keeps the number it already had, because adding `dayName`
+// to a set that already contains it doesn't change the set's size.
+export function computeDayPosition(existingBlockNames: string[], dayName: string): { replacing: boolean; dayNumber: number } {
+  const existingDayNames = new Set(
+    (existingBlockNames ?? []).map((name) => getBlockParts({ name, exercises: [] }).day)
+  );
+  const replacing = existingDayNames.has(dayName);
+  existingDayNames.add(dayName);
+  return { replacing, dayNumber: existingDayNames.size };
+}
+
 // Real bug found live (2026-08-26): the model left blocks with zero
 // exercises and whole days missing Warm-Up/Cool-Down. Prompt wording alone
 // did not hold up in practice, so this is enforced here — same
@@ -153,6 +173,43 @@ export async function normalizeBlockStructure(
 ): Promise<string[]> {
   const fixes: string[] = [];
   const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+
+  // Day-variety repair, run FIRST so a block this converts to "superset"
+  // still gets its missing-rounds default from the per-block loop right
+  // below, in the same pass — no day-by-day build would otherwise need a
+  // separate second call. Mirrors validateBlockStructure's own
+  // allStraightSetSingle detection (same grouping, same threshold), but
+  // fixes it instead of throwing: prefers a block literally named
+  // "Accessories" (or "Accessories - N"-style variants) as the one to vary,
+  // falling back to the day's last non-Warm-Up/Cool-Down block if there
+  // isn't one. validateBlockStructure's own throw for this case stays in
+  // place as a defensive backstop — reachable only if a day has no
+  // non-Warm-Up/Cool-Down block to convert at all (a single-block day),
+  // which this repair correctly leaves alone (nothing to vary against).
+  const byDayForVariety = new Map<string, ClaudeBlock[]>();
+  for (const block of blocks ?? []) {
+    const isRest = block.metadata?.focus_tag === "REST";
+    if (isRest) continue;
+    const { day } = getBlockParts(block);
+    const list = byDayForVariety.get(day) ?? [];
+    list.push(block);
+    byDayForVariety.set(day, list);
+  }
+  for (const [day, dayBlocks] of byDayForVariety) {
+    if (dayBlocks.length < 2) continue; // nothing to vary against
+    const allStraightSetSingle = dayBlocks.every(
+      (b) => b.metadata?.timing_system === "straight_set" && b.metadata?.structure === "single"
+    );
+    if (!allStraightSetSingle) continue;
+    const target =
+      dayBlocks.find((b) => getBlockParts(b).phase.toLowerCase().startsWith("accessories")) ??
+      dayBlocks.filter((b) => !["warm-up", "cool-down"].includes(getBlockParts(b).phase.toLowerCase())).pop();
+    if (!target) continue; // e.g. a single-block day — leave for the hard-reject backstop
+    if (!target.metadata) target.metadata = {};
+    (target.metadata as Record<string, unknown>).structure = "superset";
+    const { phase: targetPhase } = getBlockParts(target);
+    fixes.push(`"${day} | ${targetPhase}": every block on this day was straight_set + single (no variety) — converted this one to a superset.`);
+  }
 
   for (const block of blocks ?? []) {
     if (!block.metadata) block.metadata = {};
@@ -380,56 +437,75 @@ export function validateBlockStructure(
   }
 }
 
-// Direct build (2026-09-16): propose_new_program-only, mirroring
+// Day-by-day build (2026-09-17): rewritten as a non-throwing warning check
+// against the DECLARED split categories (brief.split_days, from the step-2
+// week-structure proposal) rather than the day's actual blocks — the old
+// block-scanning version fundamentally can't run per-day, since with only
+// one day's blocks ever present at a time it would see "1 distinct day"
+// against a 4-day brief and always fail, and would see "no Legs day" on
+// every single call where the current day isn't the Legs day itself. Called
+// once per propose_new_program/propose_add_day call (both always carry the
+// full brief, even though blocks is just the one day being built), so it's
+// still checked every time, just never blocks the call — mirrors
 // system-prompt.ts §15's two hard rules rather than its whole per-day-count
-// table (replicating every band's exact category list here would risk
-// rejecting legitimate variation the prompt already handles — e.g. §15's
-// 5/6-day splits name skill-combined days like "Push & Handstand", whose
-// focus_tag is still PUSH). The two rules below are the ones with a real,
-// live-reproduced failure behind them (§15: "Push+Pull, or Pull alone, both
-// silently drop Legs for the whole week").
-export function validateSplitCoverage(blocks: ClaudeBlock[], daysPerWeek: number): void {
-  const dayFocusTags = new Map<string, Set<string>>();
-  for (const block of blocks ?? []) {
-    if ((block.metadata?.focus_tag as string | undefined) === "REST") continue;
-    const { day } = getBlockParts(block);
-    const tags = dayFocusTags.get(day) ?? new Set<string>();
-    if (block.metadata?.focus_tag) tags.add(block.metadata.focus_tag as string);
-    dayFocusTags.set(day, tags);
-  }
-  const days = [...dayFocusTags.keys()];
-  if (days.length === 0) return;
+// table, same reasoning as before: the two rules below are the ones with a
+// real, live-reproduced failure behind them.
+export function warnSplitCoverage(splitDays: string[], daysPerWeek: number): string[] {
+  const warnings: string[] = [];
+  const days = splitDays ?? [];
+  if (days.length === 0) return warnings;
 
-  // Found while auditing Direct Build (2026-09-16): brief.days_per_week and
-  // the actual distinct day count in blocks were never cross-checked —
-  // nothing stopped a brief claiming 4 while the program itself had 3 or 5
-  // real training days.
   if (days.length !== daysPerWeek) {
-    throw new Error(
-      `brief.days_per_week says ${daysPerWeek}, but the program actually has ${days.length} distinct training day(s) (${days.join(", ")}). These must match — fix whichever one is wrong.`
+    warnings.push(
+      `brief.days_per_week says ${daysPerWeek}, but split_days lists ${days.length} day(s) (${days.join(", ")}) — worth confirming these actually match before finishing the build.`
     );
   }
 
   if (daysPerWeek <= 2) {
-    for (const day of days) {
-      if (!dayFocusTags.get(day)!.has("FULL_BODY")) {
-        throw new Error(
-          `"${day}" has no FULL_BODY block. At ${daysPerWeek} day(s)/week, system-prompt.ts §15 requires every session to be FULL_BODY — an isolated split at this frequency silently drops whole patterns for the week (a real bug this caused live).`
-        );
-      }
+    const nonFullBody = days.filter((d) => d.toUpperCase() !== "FULL_BODY");
+    if (nonFullBody.length > 0) {
+      warnings.push(
+        `At ${daysPerWeek} day(s)/week, system-prompt.ts §15 wants every session to be FULL_BODY — split_days has ${nonFullBody.join(", ")} instead, which risks silently dropping whole patterns for the week (a real bug this caused live).`
+      );
     }
-    return;
+    return warnings;
   }
 
-  const hasLegs = days.some((day) => {
-    const tags = dayFocusTags.get(day)!;
-    return tags.has("LEGS") || /\bleg|lower body/i.test(day);
-  });
+  const hasLegs = days.some((day) => day.toUpperCase() === "LEGS" || /\bleg|lower body/i.test(day));
   if (!hasLegs) {
-    throw new Error(
-      `No day in this ${daysPerWeek}-day split trains Legs. Per system-prompt.ts §15, every split of 3+ days/week includes a real Legs day (folded into Pull day at 3 days/week is the one exception, still present as content, not skipped) — this program silently drops the whole pattern.`
+    warnings.push(
+      `No day in this ${daysPerWeek}-day split trains Legs (split_days: ${days.join(", ")}). Per system-prompt.ts §15, every split of 3+ days/week includes a real Legs day (folded into Pull day at 3 days/week is the one exception, still present as content, not skipped).`
     );
   }
+  return warnings;
+}
+
+// Day-by-day build (2026-09-17): checked only once, when propose_add_day is
+// proposing what looks like the LAST day of the confirmed structure (the
+// caller already knows this from its own day-count query — see
+// proposeAddDay.ts) — a per-day check would be meaningless here, since a
+// skill goal legitimately doesn't appear on every day, only warns once the
+// whole week is about to be locked in. Non-fatal, same reasoning as every
+// other warning here: the model can fold the skill into this last day, or
+// tell the athlete, rather than a hard reject forcing a rebuild.
+// `daySkillNames` maps each day name (including the day currently being
+// proposed) to the set of lowercased exercise names trained that day.
+export function warnSkillCoverage(daySkillNames: Map<string, Set<string>>, skills: SkillFitCheckpoint[]): string[] {
+  const warnings: string[] = [];
+  for (const skill of skills ?? []) {
+    const target = (skill.checkpointExercise ?? "").trim().toLowerCase();
+    if (!target) continue;
+    let dayCount = 0;
+    for (const names of daySkillNames.values()) {
+      if (names.has(target)) dayCount += 1;
+    }
+    if (dayCount < 2) {
+      warnings.push(
+        `Skill goal "${skill.skill}" (checkpoint "${skill.checkpointExercise}") only appears in ${dayCount} day this week so far, including this one — system-prompt.ts §11 wants every named skill trained at least twice a week. Fold it into this last day if it isn't already there, or tell the athlete it's only getting once-a-week work.`
+      );
+    }
+  }
+  return warnings;
 }
 
 // Direct build (2026-09-16): the athlete-fit checks that only make sense
@@ -474,7 +550,73 @@ const TRACKED_PATTERNS: Array<{ key: keyof AthleteFitContext; exerciseName: stri
   { key: "muscleUpsMax", exerciseName: "Muscle Up" },
 ];
 
-export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext): void {
+// Returns non-fatal warnings (currently just the reps-floor check below) —
+// day-by-day build (2026-09-17): demoted from a hard reject after real
+// testing showed it rejecting legitimately low-rep skill/trial-complex/
+// weighted-adjacent work using one of the four TRACKED_PATTERNS names. The
+// ceiling/band-cue/checkpoint/zero-pull-ups/weighted-number checks below
+// stay hard rejects — they have never produced a false positive, they
+// prevent a physically-impossible-for-this-athlete prescription (not a
+// stylistic judgment call the floor check was making), and a one-day flow
+// makes a reject cost ~20s, not a whole program. See blockHelpers.test.ts
+// for the reasoning kept side by side with both behaviors.
+// Shared by propose_new_program (day 1) and propose_add_day (day 2+) —
+// moved here from proposeNewProgram.ts (2026-09-17, day-by-day build) so
+// both tools fetch the athlete's real numbers the exact same way instead of
+// each keeping its own copy. Duck-typed client param, not `SupabaseClient`
+// from esm.sh, same reasoning as resolveExerciseIds below: keeps this file
+// import-free and Jest-testable without Deno.
+//
+// Fetches the athlete's real numbers itself (assessmentRaw + recent
+// workout_set_logs) rather than trusting whatever the model reports in the
+// brief — same principle as resolveExerciseIds not trusting a model-typed
+// exercise id. A hallucinated "10 pull-ups" in the brief cannot become a
+// false pass here; only what's actually in assessment_raw can.
+export async function fetchAthleteFitContext(
+  userClient: { rpc: (fn: string, args?: Record<string, unknown>) => any; from: (t: string) => any },
+  brief: { skills: AthleteFitContext["skills"] },
+  profile: { assessment_raw?: Record<string, unknown> } | null
+): Promise<AthleteFitContext> {
+  const raw = profile?.assessment_raw ?? {};
+
+  // Only a strict/standard variant confirms real unassisted capability —
+  // an assisted/banded/inverted-row number at any rep count doesn't mean
+  // the athlete can do the unassisted movement at all (see spartanLogic.ts's
+  // MovementVariant enum: strict_pullup vs assisted_pullup/inverted_row,
+  // standard_dip vs bench_dip, standard_pushup vs knee_pushup, strict_mu vs
+  // banded_mu/jumping_mu). Getting this wrong in the lenient direction
+  // (crediting an assisted number as unassisted) is exactly the failure
+  // mode these checks exist to prevent.
+  const pullUpsMax = raw.pullup_variant === "strict_pullup" ? (raw.pullup_reps as number) ?? null : null;
+  const dipsMax = raw.dip_variant === "standard_dip" ? (raw.dip_reps as number) ?? null : null;
+  const pushUpsMax = raw.pushup_variant === "standard_pushup" ? (raw.pushup_reps as number) ?? null : null;
+  const muscleUpsMax = raw.mu_variant === "strict_mu" ? (raw.mu_reps as number) ?? null : null;
+
+  // Most-recent logged weight per exercise, across all history — not
+  // scoped to one program, since a brand-new build may have no active
+  // program yet and a prior, now-ended one still tells us what they lifted.
+  // RLS ("Warriors manage own set logs") already scopes this to the caller.
+  const { data: weightRows } = await userClient
+    .from("workout_set_logs")
+    .select("weight_used, created_at, block_exercises(exercise_library(name))")
+    .not("weight_used", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  const loggedWeights: Record<string, number> = {};
+  for (const row of (weightRows ?? []) as Array<{ weight_used: number; block_exercises?: { exercise_library?: { name?: string } } }>) {
+    const name = row.block_exercises?.exercise_library?.name;
+    if (!name) continue;
+    const key = name.trim().toLowerCase();
+    // First hit wins — rows are ordered most-recent-first.
+    if (loggedWeights[key] === undefined) loggedWeights[key] = row.weight_used;
+  }
+
+  return { pullUpsMax, dipsMax, pushUpsMax, muscleUpsMax, skills: brief.skills, loggedWeights };
+}
+
+export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext): string[] {
+  const warnings: string[] = [];
   const all: Array<{ ex: ClaudeBlock["exercises"][number]; day: string; phase: string; blockIsWeighted: boolean }> = [];
   for (const block of blocks ?? []) {
     const { day, phase } = getBlockParts(block);
@@ -514,15 +656,18 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     }
   }
 
-  // Skill checkpoints: the confirmed checkpoint exercise must actually
-  // appear, and its own hold/reps target must respect the confirmed max.
+  // Skill checkpoints: WHERE the confirmed checkpoint exercise appears in
+  // THIS call's blocks, its hold/reps target must respect the confirmed
+  // max. Day-by-day build (2026-09-17): dropped the old "must appear
+  // somewhere or this is an error" requirement — that assumed `blocks` was
+  // the whole program; with one day at a time, a Legs day legitimately has
+  // no handstand/front-lever content, and that is not a mistake. Whether a
+  // named skill actually got covered SOMEWHERE across all the days the
+  // athlete confirms is not something a single day's validation can know;
+  // no per-day check replaces it (a real, deliberate gap — see Step 1's
+  // report).
   for (const skill of fit.skills ?? []) {
     const matches = all.filter(({ ex }) => nameIs(ex.name, skill.checkpointExercise));
-    if (matches.length === 0) {
-      throw new Error(
-        `No block uses "${skill.checkpointExercise}", the confirmed checkpoint for the ${skill.skill} goal. Use the exact checkpoint the athlete confirmed, not a different step in that skill line.`
-      );
-    }
     for (const { ex, day, phase } of matches) {
       if (skill.maxHoldSeconds != null) {
         const holdVal = toNumberOrNull(ex.hold_seconds);
@@ -595,8 +740,8 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
       const phaseLower = phase.toLowerCase();
       if (phaseLower === "warm-up" || phaseLower === "cool-down") continue;
       if (repsVal < max * MIN_FRACTION_OF_TESTED_MAX) {
-        throw new Error(
-          `"${day} | ${phase}" sets ${exerciseName} to ${repsVal} reps, well below this athlete's tested max of ${max} (under ${Math.round(MIN_FRACTION_OF_TESTED_MAX * 100)}%). This reads like the wrong level band's numbers, not this athlete's — see system-prompt.ts §16's level-band ladder guidance and program near their real level.`
+        warnings.push(
+          `"${day} | ${phase}" sets ${exerciseName} to ${repsVal} reps, well below this athlete's tested max of ${max} (under ${Math.round(MIN_FRACTION_OF_TESTED_MAX * 100)}%) — could be the wrong level band's numbers, or could be deliberate (skill work, a trial complex, weighted-adjacent programming). Worth a second look, not necessarily wrong.`
         );
       }
     }
@@ -623,6 +768,8 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
         : `"${day} | ${phase}"'s ${ex.name} is weighted with no logged history and no weight number in its notes. Write a real starting estimate (e.g. "start around 10kg added, adjust from feel") — never leave it unspecified, even for a first-time prescription.`
     );
   }
+
+  return warnings;
 }
 
 // Direct build (2026-09-16): the build brief propose_new_program requires
@@ -831,31 +978,6 @@ export async function resolveExerciseIds(
     );
   }
   return resolved;
-}
-
-// Direct Build incremental staging (2026-09-16, see tools/addProgramDay.ts):
-// propose_new_program's `blocks` is optional now — when omitted, the whole
-// program is assembled from whatever add_program_day already staged this
-// request. Shared by proposeNewProgram.ts's handler AND index.ts's
-// buildProgramAction (which builds the athlete-facing card payload
-// separately from the handler's own validation pass) — both need the exact
-// same resolved blocks, so this is the one place that decides where they
-// come from.
-//
-// Takes the draft's `days` Map directly, not the whole ProgramDraft/
-// RequestContext type from tools/types.ts — importing that here would pull
-// in types.ts's own SupabaseClient import (a Deno-URL module Jest can't
-// resolve), breaking this file's zero-import Jest-testability.
-export function resolveProgramBlocks(inputBlocks: unknown, draftDays: Map<string, unknown[]>): unknown[] {
-  if (Array.isArray(inputBlocks) && inputBlocks.length > 0) {
-    return inputBlocks;
-  }
-  if (draftDays.size === 0) {
-    throw new Error(
-      `No "blocks" provided and nothing staged yet via add_program_day. Either pass blocks directly, or call add_program_day once per day first, then call this again with no blocks.`
-    );
-  }
-  return [...draftDays.values()].flat();
 }
 
 // Every numeric field here reaches Postgres through a raw cast in

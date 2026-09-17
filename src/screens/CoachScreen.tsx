@@ -35,6 +35,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { ActivityBubble, Stage } from '../components/coach/ActivityBubble';
 import { ResponseBlockView, ResponseBlock } from '../components/coach/RichBlocks';
 import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
+import { ProgramAction, getChangeDayMessage } from '../components/coach/programAction';
 
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
@@ -50,23 +51,6 @@ interface Message {
 interface Recommendation {
   world: 'strength_trial' | 'power' | 'static' | 'one_min_max';
   reason: string;
-}
-
-// Mirrors the shape ai-coach's index.ts builds from a propose_new_program/
-// propose_end_program/propose_delete_week/propose_program_from_workouts
-// tool call. None of these ever write anything server-side — the actual
-// RPC only fires from handleConfirmProgramAction below, gated on an
-// explicit tap, never from the AI's own judgment mid-conversation.
-interface ProgramAction {
-  type: 'create' | 'end' | 'delete_week' | 'create_from_workouts';
-  reason: string;
-  payload:
-    | { name: string; description: string; blocks: unknown[] }
-    | { name: string; workoutIds: string[]; dayTitles: string[] }
-    | null;
-  warriorProgramId: string | null;
-  currentProgramIsAiOwned: boolean;
-  weekNumber: number | null;
 }
 
 const RECOMMENDATION_ROUTES: Record<Recommendation['world'], string> = {
@@ -491,19 +475,25 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     let createdProgram = false;
     try {
       if (pendingProgramAction.type === 'create') {
-        if (!pendingProgramAction.payload || !('blocks' in pendingProgramAction.payload)) {
+        // Cast, not a re-check of shape: `payload`'s TS union can't be
+        // narrowed from `type` alone (they're sibling fields, not a real
+        // discriminated union), but the runtime invariant — 'create' always
+        // carries this exact shape — is guaranteed by index.ts's
+        // buildProgramAction, the only place that constructs it.
+        const payload = pendingProgramAction.payload as { name: string; description: string; dayName: string | null; blocks: unknown[] } | null;
+        if (!payload) {
           throw new Error('Nothing to create.');
         }
         const { error } = await supabase.rpc('ai_coach_create_program', {
-          p_name: pendingProgramAction.payload.name,
-          p_description: pendingProgramAction.payload.description,
-          p_blocks: pendingProgramAction.payload.blocks,
+          p_name: payload.name,
+          p_description: payload.description,
+          p_blocks: payload.blocks,
         });
         if (error) throw error;
         createdProgram = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${pendingProgramAction.payload!.name}** is live — check your Workout Program to see it.`,
+          content: `**${payload.name}** is live — check your Workout Program to see it.`,
         }]);
       } else if (pendingProgramAction.type === 'delete_week') {
         if (!pendingProgramAction.warriorProgramId || pendingProgramAction.weekNumber == null) {
@@ -519,17 +509,45 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           content: `Week ${pendingProgramAction.weekNumber} has been deleted.`,
         }]);
       } else if (pendingProgramAction.type === 'create_from_workouts') {
-        if (!pendingProgramAction.payload || !('workoutIds' in pendingProgramAction.payload)) {
+        const payload = pendingProgramAction.payload as { name: string; workoutIds: string[]; dayTitles: string[] } | null;
+        if (!payload) {
           throw new Error('Nothing to create.');
         }
         const { error } = await supabase.rpc('ai_coach_create_program_from_workouts', {
-          p_workout_ids: pendingProgramAction.payload.workoutIds,
+          p_workout_ids: payload.workoutIds,
         });
         if (error) throw error;
         createdProgram = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${pendingProgramAction.payload!.name}** is live — check your Workout Program to see it.`,
+          content: `**${payload.name}** is live — check your Workout Program to see it.`,
+        }]);
+      } else if (pendingProgramAction.type === 'add_day') {
+        const payload = pendingProgramAction.payload as { dayName: string; blocks: unknown[] } | null;
+        if (!payload || !pendingProgramAction.warriorProgramId) {
+          throw new Error('Nothing to add.');
+        }
+        // `replacing` comes from index.ts's own trusted, fresh query — never
+        // the AI's claim — so this is the one place that decision actually
+        // takes effect: a genuinely new day is a plain add, a redo of a day
+        // already added goes through the delete-then-insert RPC instead of
+        // hitting add_block_to_week's hard rejection on the name collision.
+        const { error } = pendingProgramAction.replacing
+          ? await supabase.rpc('ai_coach_replace_day_in_week', {
+              p_warrior_program_id: pendingProgramAction.warriorProgramId,
+              p_week_number: pendingProgramAction.weekNumber ?? 1,
+              p_day_name: payload.dayName,
+              p_blocks: payload.blocks,
+            })
+          : await supabase.rpc('ai_coach_add_block_to_week', {
+              p_warrior_program_id: pendingProgramAction.warriorProgramId,
+              p_week_number: pendingProgramAction.weekNumber ?? 1,
+              p_blocks: payload.blocks,
+            });
+        if (error) throw error;
+        setMessages(prev => [...prev, {
+          role: 'assistant',
+          content: `**${payload.dayName}** ${pendingProgramAction.replacing ? 'updated' : 'added'}.`,
         }]);
       } else {
         if (!pendingProgramAction.warriorProgramId) throw new Error('No active program to end.');
@@ -562,7 +580,22 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     }
   };
 
+  // Day-by-day build (2026-09-17): "Change this day" pushes a canned local
+  // message instead of silently clearing — no server call, no Claude spend,
+  // purely client-side. The athlete's own next real message is what
+  // actually drives the rebuild; this just tells the coach (and the
+  // athlete) which day is being redone. Every other card type (end/
+  // delete_week/create_from_workouts) keeps the original silent-clear
+  // IGNORE behavior, unchanged. Pulled out as a pure function (no side
+  // effects, no network) so this decision is directly unit-testable without
+  // rendering the whole screen — see CoachScreen.test.ts.
   const handleIgnoreProgramAction = () => {
+    const cannedMessage = getChangeDayMessage(pendingProgramAction);
+    if (cannedMessage) {
+      // Phrased as the coach speaking ("tell me what to change"), not the
+      // athlete — matches the approved design's own wording.
+      setMessages(prev => [...prev, { role: 'assistant', content: cannedMessage }]);
+    }
     setPendingProgramAction(null);
   };
 
@@ -747,69 +780,93 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               </TouchableOpacity>
             ))}
 
-            {pendingProgramAction && (
-              <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
-                <View style={styles.actionCardHeader}>
-                  <MaterialCommunityIcons
-                    name={
-                      pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts'
-                        ? 'swap-horizontal'
-                        : pendingProgramAction.type === 'delete_week'
-                        ? 'trash-can-outline'
-                        : 'close-circle-outline'
-                    }
-                    size={18}
-                    color={theme.accent}
-                  />
-                  <Text style={[styles.actionCardTitle, { color: '#fff' }]}>
-                    {pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts'
-                      ? `Start "${pendingProgramAction.payload?.name}"?`
-                      : pendingProgramAction.type === 'delete_week'
-                      ? `Delete Week ${pendingProgramAction.weekNumber}?`
-                      : 'End your current program?'}
-                  </Text>
-                </View>
-                <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{pendingProgramAction.reason}</Text>
-                {pendingProgramAction.type === 'create_from_workouts' && pendingProgramAction.payload && 'dayTitles' in pendingProgramAction.payload && (
-                  <View style={styles.actionCardDayList}>
-                    {pendingProgramAction.payload.dayTitles.map((title, i) => (
-                      <Text key={i} style={[styles.actionCardDayItem, { color: c.secondaryText }]}>
-                        Day {i + 1}: {title}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-                {(pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
-                  <Text style={styles.actionCardWarning}>⚠️ This is currently a program your coach assigned.</Text>
-                )}
-                <View style={styles.actionCardButtons}>
-                  <TouchableOpacity
-                    style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
-                    onPress={handleIgnoreProgramAction}
-                    disabled={confirmingAction}
-                  >
-                    <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>IGNORE</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent, opacity: confirmingAction ? 0.6 : 1 }]}
-                    onPress={handleConfirmProgramAction}
-                    disabled={confirmingAction}
-                  >
-                    {confirmingAction ? (
-                      <LeapLogo size={20} animated />
-                    ) : (
-                      <Text style={styles.actionCardConfirmText}>
-                        {pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts'
-                          ? 'START PROGRAM'
+            {pendingProgramAction && (() => {
+              // Day-by-day build (2026-09-17): 'create' (day 1) and
+              // 'add_day' (day 2+) share one card treatment — "Add Day N"
+              // (or "Redo Day N" when index.ts's trusted `replacing` check
+              // says this day is already in week 1) / "Change this day".
+              // 'create_from_workouts' is a separate, unrelated ask (one
+              // exact ready-made session) and keeps its original Start/
+              // Ignore copy untouched.
+              const isDayCard = pendingProgramAction.type === 'create' || pendingProgramAction.type === 'add_day';
+              const dayName =
+                pendingProgramAction.payload && 'dayName' in pendingProgramAction.payload
+                  ? pendingProgramAction.payload.dayName
+                  : null;
+              const dayNumber = pendingProgramAction.dayNumber ?? 1;
+              const totalDays = pendingProgramAction.totalDays;
+              const dayVerb = pendingProgramAction.replacing ? 'Redo' : 'Add';
+
+              return (
+                <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
+                  <View style={styles.actionCardHeader}>
+                    <MaterialCommunityIcons
+                      name={
+                        isDayCard || pendingProgramAction.type === 'create_from_workouts'
+                          ? 'swap-horizontal'
                           : pendingProgramAction.type === 'delete_week'
-                          ? 'DELETE WEEK'
-                          : 'END PROGRAM'}
+                          ? 'trash-can-outline'
+                          : 'close-circle-outline'
+                      }
+                      size={18}
+                      color={theme.accent}
+                    />
+                    <Text style={[styles.actionCardTitle, { color: '#fff' }]}>
+                      {isDayCard
+                        ? `${dayVerb} Day ${dayNumber}${totalDays ? ` of ${totalDays}` : ''}${dayName ? `: ${dayName}` : ''}?`
+                        : pendingProgramAction.type === 'create_from_workouts'
+                        ? `Start "${(pendingProgramAction.payload as { name?: string } | null)?.name}"?`
+                        : pendingProgramAction.type === 'delete_week'
+                        ? `Delete Week ${pendingProgramAction.weekNumber}?`
+                        : 'End your current program?'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{pendingProgramAction.reason}</Text>
+                  {pendingProgramAction.type === 'create_from_workouts' && pendingProgramAction.payload && 'dayTitles' in pendingProgramAction.payload && (
+                    <View style={styles.actionCardDayList}>
+                      {pendingProgramAction.payload.dayTitles.map((title, i) => (
+                        <Text key={i} style={[styles.actionCardDayItem, { color: c.secondaryText }]}>
+                          Day {i + 1}: {title}
+                        </Text>
+                      ))}
+                    </View>
+                  )}
+                  {(isDayCard || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
+                    <Text style={styles.actionCardWarning}>⚠️ This is currently a program your coach assigned.</Text>
+                  )}
+                  <View style={styles.actionCardButtons}>
+                    <TouchableOpacity
+                      style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
+                      onPress={handleIgnoreProgramAction}
+                      disabled={confirmingAction}
+                    >
+                      <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>
+                        {isDayCard ? 'Change this day' : 'IGNORE'}
                       </Text>
-                    )}
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent, opacity: confirmingAction ? 0.6 : 1 }]}
+                      onPress={handleConfirmProgramAction}
+                      disabled={confirmingAction}
+                    >
+                      {confirmingAction ? (
+                        <LeapLogo size={20} animated />
+                      ) : (
+                        <Text style={styles.actionCardConfirmText}>
+                          {isDayCard
+                            ? `${dayVerb.toUpperCase()} DAY ${dayNumber}`
+                            : pendingProgramAction.type === 'create_from_workouts'
+                            ? 'START PROGRAM'
+                            : pendingProgramAction.type === 'delete_week'
+                            ? 'DELETE WEEK'
+                            : 'END PROGRAM'}
+                        </Text>
+                      )}
+                    </TouchableOpacity>
+                  </View>
                 </View>
-              </View>
-            )}
+              );
+            })()}
 
             {justStartedProgram && (
               <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
