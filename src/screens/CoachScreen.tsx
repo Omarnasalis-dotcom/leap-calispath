@@ -206,6 +206,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // abandoned build losing its in-progress state is already fine (see
   // isLastConfirmedDay's own comment).
   const builtProgramNameRef = useRef<string | null>(null);
+  // Guards the two save-effects below against a real race on every remount:
+  // both fire once immediately on mount with the fresh initial state (`[]`/
+  // `null`), before the load effect's `await refreshProfile()` has had a
+  // chance to finish and restore the real saved value — and the pending-
+  // action effect's `else` branch actively calls AsyncStorage.removeItem,
+  // so it was deleting the very card the load effect was still trying to
+  // read, on every remount. This happened live: the day card was correctly
+  // saved, but gone again after leaving the chat and coming back.
+  const hasLoadedFromStorageRef = useRef(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [stages, setStages] = useState<Stage[]>([]);
@@ -261,17 +270,20 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       if (!hadSavedHistory && initialPrompt && canAccessPro(profile, paywallEnabled)) {
         sendMessage(initialPrompt);
       }
+      hasLoadedFromStorageRef.current = true;
     };
     init();
   }, [profile?.id]);
 
   useEffect(() => {
+    if (!hasLoadedFromStorageRef.current) return;
     if (messages.length > 0) {
       AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
     }
   }, [messages]);
 
   useEffect(() => {
+    if (!hasLoadedFromStorageRef.current) return;
     if (pendingProgramAction) {
       AsyncStorage.setItem(PROGRAM_ACTION_STORAGE_KEY, JSON.stringify(pendingProgramAction));
     } else {
