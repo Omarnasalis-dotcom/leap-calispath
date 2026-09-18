@@ -3,6 +3,7 @@ import {
   BLOCKS_SCHEMA,
   BUILD_BRIEF_SCHEMA,
   fetchAthleteFitContext,
+  fetchSourceWorkoutBlocks,
   getBlockParts,
   levelBandForTier,
   normalizeBlockStructure,
@@ -13,6 +14,8 @@ import {
   validateAthleteFit,
   warnSkillCoverage,
   warnSplitCoverage,
+  warnTimingMismatch,
+  warnUneditedFromSource,
 } from "./blockHelpers.ts";
 
 const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
@@ -49,6 +52,7 @@ export const proposeAddDay: ToolDefinition = {
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
       blocks: { ...BLOCKS_SCHEMA, description: "Exactly this one day's blocks." },
+      source_workout_id: { type: "string", description: "The id of the library workout this day was matched from (from search_workouts/get_workout_detail), if any. Optional — omit for a from-scratch day. When present, the day is checked against that workout's real blocks; if it comes back effectively unedited, the result names what to check before proposing again." },
     },
     required: ["day_name", "brief", "blocks", "reason"],
   },
@@ -87,6 +91,12 @@ export const proposeAddDay: ToolDefinition = {
     validateBlockStructure(blocks as never[], { requireDayPhases: true });
 
     const warnings = warnSplitCoverage(brief.split_days, brief.days_per_week);
+    warnings.push(...warnTimingMismatch(blocks as never[]));
+
+    if (typeof input.source_workout_id === "string" && input.source_workout_id) {
+      const sourceBlocks = await fetchSourceWorkoutBlocks(userClient, input.source_workout_id);
+      warnings.push(...warnUneditedFromSource(blocks as never[], sourceBlocks));
+    }
 
     const fitContext = await fetchAthleteFitContext(userClient, brief, profile as { assessment_raw?: Record<string, unknown> } | null);
     warnings.push(...validateAthleteFit(blocks as never[], fitContext));

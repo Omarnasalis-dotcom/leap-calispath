@@ -508,6 +508,101 @@ export function warnSkillCoverage(daySkillNames: Map<string, Set<string>>, skill
   return warnings;
 }
 
+// Goal-fit checks (2026-09-18): a real live build put a Front Lever hold
+// and Muscle Up reps in the same tabata block, and 8-rep weighted pull-ups
+// under an endurance goal — neither is an unknown-exercise-name or an
+// above-max-number problem, so neither belongs as a hard reject; both are
+// "the model didn't fit the goal/timing system," which a warning can
+// surface without costing a full retry.
+
+// A tabata block's timer runs the hold — an exercise with a rep count and
+// no hold_seconds has nothing for the timer to control, and no real number
+// gets logged. Rep-based work belongs in straight_set (skill dose, real
+// rest) or, for an endurance/conditioning goal, amrap/fortime/ladder —
+// system-prompt.ts §16 states this directly now; this is the code
+// backstop, same reasoning as every other warn* function in this file.
+export function warnTimingMismatch(blocks: ClaudeBlock[]): string[] {
+  const warnings: string[] = [];
+  const isBlank = (v: unknown) => v === undefined || v === null || String(v).trim() === "";
+  for (const block of blocks ?? []) {
+    if (block.metadata?.timing_system !== "tabata") continue;
+    const { day, phase } = getBlockParts(block);
+    for (const ex of block.exercises ?? []) {
+      if (!isBlank(ex.reps) && isBlank(ex.hold_seconds)) {
+        warnings.push(
+          `"${day} | ${phase}" is a tabata block, but "${ex.name ?? "?"}" has reps with no hold_seconds — tabata suits a static hold, the timer runs it. A rep-based exercise usually belongs in straight_set, amrap, fortime, or a ladder instead.`
+        );
+      }
+    }
+  }
+  return warnings;
+}
+
+// Fetches ONE library workout's real blocks/exercises the same way
+// get_workout_detail.ts does (mirrors its query shape exactly) — a
+// separate, minimal read here rather than importing that tool, since this
+// only needs {name, exercises:[{name, sets, reps}]} for a structural diff,
+// not the full athlete-facing shape (metadata, coach_notes, ids) that tool
+// returns. Returns [] (never throws) if the workout is gone/unpublished
+// since the model matched it — a stale source_workout_id degrades to "no
+// check ran," same as omitting the field entirely, never a hard failure.
+export async function fetchSourceWorkoutBlocks(
+  userClient: { from: (t: string) => any },
+  sourceWorkoutId: string
+): Promise<Array<{ name: string; exercises: Array<{ name?: string; sets?: unknown; reps?: unknown }> }>> {
+  const { data: blockRows } = await userClient
+    .from("standalone_workout_blocks")
+    .select("name, order_index, standalone_workout_exercises(sets, reps, order_index, exercise_library(name))")
+    .eq("workout_id", sourceWorkoutId);
+  return ((blockRows ?? []) as Array<{
+    name: string;
+    standalone_workout_exercises?: Array<{ sets?: unknown; reps?: unknown; exercise_library?: { name?: string } }>;
+  }>).map((row) => ({
+    name: row.name,
+    exercises: (row.standalone_workout_exercises ?? []).map((ex) => ({
+      name: ex.exercise_library?.name,
+      sets: ex.sets,
+      reps: ex.reps,
+    })),
+  }));
+}
+
+function sourceCompareSignature(phase: string, exercises: Array<{ name?: string; sets?: unknown; reps?: unknown }>): string {
+  const exSig = (exercises ?? [])
+    .map((ex) => `${(ex.name ?? "").trim().toLowerCase()}:${String(ex.sets ?? "").trim()}:${String(ex.reps ?? "").trim()}`)
+    .sort()
+    .join("|");
+  return `${phase.trim().toLowerCase()}::${exSig}`;
+}
+
+// "Effectively identical to the source" (2026-09-18): the actual live bug
+// was the last two blocks of a proposed day copied straight from the
+// matched library workout, same exercises, same sets/reps — this compares
+// every non-REST proposed block's (phase, exercise-name+sets+reps) against
+// every source block's, order-insensitive within a block (a re-ordered but
+// otherwise untouched block is still unedited). Only warns when ALL of the
+// proposed day's real blocks match a source block this way — a day with at
+// least one genuinely adapted block is not what this is meant to catch.
+export function warnUneditedFromSource(
+  proposedBlocks: ClaudeBlock[],
+  sourceBlocks: Array<{ name: string; exercises: Array<{ name?: string; sets?: unknown; reps?: unknown }> }>
+): string[] {
+  if (!sourceBlocks || sourceBlocks.length === 0) return [];
+  const sourceSignatures = new Set(sourceBlocks.map((b) => sourceCompareSignature(b.name, b.exercises)));
+  const proposedNonRest = (proposedBlocks ?? []).filter((b) => b.metadata?.focus_tag !== "REST");
+  if (proposedNonRest.length === 0) return [];
+  const unedited = proposedNonRest.filter((b) => {
+    const { phase } = getBlockParts(b);
+    return sourceSignatures.has(sourceCompareSignature(phase, b.exercises ?? []));
+  });
+  if (unedited.length === proposedNonRest.length) {
+    return [
+      `This day's blocks are identical to the matched library workout — nothing appears adapted to this athlete. Check: reps against their tested max or confirmed checkpoint, whether the skill checkpoint exercise is actually theirs, and whether the dose fits their stated goal (system-prompt.ts §16) before proposing this as-is.`,
+    ];
+  }
+  return [];
+}
+
 // Direct build (2026-09-16): the athlete-fit checks that only make sense
 // once every block is freshly authored rather than cloned. These take the
 // athlete's REAL numbers as an argument rather than fetching them —

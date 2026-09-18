@@ -16,6 +16,8 @@ import {
   validateExerciseList,
   warnSplitCoverage,
   warnSkillCoverage,
+  warnTimingMismatch,
+  warnUneditedFromSource,
   validateAthleteFit,
   validateBuildBrief,
   getBlockParts,
@@ -996,6 +998,99 @@ describe("computeDayPosition (added 2026-09-17): the trusted collision/position 
   it("matches on the day prefix even when block names carry different phases, not exact block-name equality", () => {
     const week1 = ["LEGS DAY | Warm-Up", "LEGS DAY | Finisher"]; // no "Strength" block this time
     expect(computeDayPosition(week1, "LEGS DAY")).toEqual({ replacing: true, dayNumber: 1 });
+  });
+});
+
+describe("warnTimingMismatch (added 2026-09-18): tabata suits a hold, not reps", () => {
+  it("warns when a tabata block has an exercise with reps and no hold_seconds", () => {
+    const block = makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Skills",
+      metadata: { timing_system: "tabata", structure: "single", focus_tag: "PULL" },
+      exercises: [{ name: "Muscle Up", sets: "1", reps: "5" }],
+    });
+    const warnings = warnTimingMismatch([block] as never);
+    expect(warnings).toEqual([expect.stringContaining('"Muscle Up" has reps with no hold_seconds')]);
+  });
+
+  it("does not warn on a tabata block that's a real static hold (hold_seconds set, no reps)", () => {
+    const block = makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Skills",
+      metadata: { timing_system: "tabata", structure: "single", focus_tag: "CORE" },
+      exercises: [{ name: "Tuck Front Lever Hold", hold_seconds: "20" }],
+    });
+    expect(warnTimingMismatch([block] as never)).toEqual([]);
+  });
+
+  it("catches the exact live bug: a Front Lever hold and Muscle Up reps mixed in one tabata block", () => {
+    const block = makeBlock({
+      name: "PULL & MUSCLE-UP DAY | Skills",
+      metadata: { timing_system: "tabata", structure: "superset", focus_tag: "PULL" },
+      exercises: [
+        { name: "Tuck Front Lever Hold", hold_seconds: "20" },
+        { name: "Muscle Up", sets: "1", reps: "5" },
+      ],
+    });
+    const warnings = warnTimingMismatch([block] as never);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("Muscle Up");
+  });
+
+  it("never warns on a non-tabata block, however it's structured", () => {
+    const block = makeBlock({
+      metadata: { timing_system: "straight_set", structure: "single", focus_tag: "PULL" },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "3", reps: "8" }],
+    });
+    expect(warnTimingMismatch([block] as never)).toEqual([]);
+  });
+});
+
+describe("warnUneditedFromSource (added 2026-09-18): a day identical to the matched library workout", () => {
+  const sourceBlocks = [
+    { name: "Warm-Up", exercises: [{ name: "Inchworm", sets: "1", reps: "10" }] },
+    { name: "Strength - 1", exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] },
+  ];
+
+  it("warns when every real block matches the source exactly", () => {
+    const proposed = [
+      makeBlock({ name: "PULL DAY 1 | Warm-Up", exercises: [{ name: "Inchworm", sets: "1", reps: "10" }] }),
+      makeBlock({ name: "PULL DAY 1 | Strength - 1", exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] }),
+    ];
+    const warnings = warnUneditedFromSource(proposed as never, sourceBlocks);
+    expect(warnings).toEqual([expect.stringContaining("identical to the matched library workout")]);
+  });
+
+  it("does not warn once at least one block was genuinely adapted", () => {
+    const proposed = [
+      makeBlock({ name: "PULL DAY 1 | Warm-Up", exercises: [{ name: "Inchworm", sets: "1", reps: "10" }] }),
+      // Reps changed from the source's 8 to this athlete's real 20.
+      makeBlock({ name: "PULL DAY 1 | Strength - 1", exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "20" }] }),
+    ];
+    expect(warnUneditedFromSource(proposed as never, sourceBlocks)).toEqual([]);
+  });
+
+  it("ignores REST blocks when deciding whether everything matched", () => {
+    const proposed = [
+      makeBlock({ name: "PULL DAY 1 | Warm-Up", exercises: [{ name: "Inchworm", sets: "1", reps: "10" }] }),
+      makeBlock({ name: "PULL DAY 1 | Strength - 1", exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] }),
+      makeBlock({ name: "REST DAY | Rest", metadata: { focus_tag: "REST" }, exercises: [] }),
+    ];
+    const warnings = warnUneditedFromSource(proposed as never, sourceBlocks);
+    expect(warnings).toEqual([expect.stringContaining("identical to the matched library workout")]);
+  });
+
+  it("does not match on exercise order alone — order-insensitive within a block", () => {
+    const reorderedSource = [
+      { name: "Strength - 1", exercises: [{ name: "Dips", sets: "3", reps: "10" }, { name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] },
+    ];
+    const proposed = [
+      makeBlock({ name: "PULL DAY 1 | Strength - 1", exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }, { name: "Dips", sets: "3", reps: "10" }] }),
+    ];
+    expect(warnUneditedFromSource(proposed as never, reorderedSource)).toEqual([expect.stringContaining("identical")]);
+  });
+
+  it("returns no warnings when there's no source (field omitted) — an empty source list is a no-op, not a false positive", () => {
+    const proposed = [makeBlock({ name: "PULL DAY 1 | Warm-Up", exercises: [{ name: "Inchworm" }] })];
+    expect(warnUneditedFromSource(proposed as never, [])).toEqual([]);
   });
 });
 

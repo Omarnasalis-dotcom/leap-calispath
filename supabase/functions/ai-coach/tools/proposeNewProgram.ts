@@ -3,6 +3,7 @@ import {
   BLOCKS_SCHEMA,
   BUILD_BRIEF_SCHEMA,
   fetchAthleteFitContext,
+  fetchSourceWorkoutBlocks,
   levelBandForTier,
   normalizeBlockStructure,
   resolveExerciseIds,
@@ -11,6 +12,8 @@ import {
   validateBuildBrief,
   validateAthleteFit,
   warnSplitCoverage,
+  warnTimingMismatch,
+  warnUneditedFromSource,
 } from "./blockHelpers.ts";
 
 // Day-by-day build (2026-09-17): proposes DAY 1 ONLY of a brand-new
@@ -40,6 +43,7 @@ export const proposeNewProgram: ToolDefinition = {
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
       blocks: { ...BLOCKS_SCHEMA, description: "Exactly one day's blocks — day 1 of the confirmed structure. Never more than one day; propose_add_day builds every day after this." },
+      source_workout_id: { type: "string", description: "The id of the library workout this day was matched from (from search_workouts/get_workout_detail), if any. Optional — omit for a from-scratch day. When present, the day is checked against that workout's real blocks; if it comes back effectively unedited, the result names what to check before proposing again." },
     },
     required: ["name", "brief", "blocks", "reason"],
   },
@@ -73,6 +77,12 @@ export const proposeNewProgram: ToolDefinition = {
     validateBlockStructure(blocks as never[], { requireDayPhases: true });
 
     const warnings = warnSplitCoverage(brief.split_days, brief.days_per_week);
+    warnings.push(...warnTimingMismatch(blocks as never[]));
+
+    if (typeof input.source_workout_id === "string" && input.source_workout_id) {
+      const sourceBlocks = await fetchSourceWorkoutBlocks(userClient, input.source_workout_id);
+      warnings.push(...warnUneditedFromSource(blocks as never[], sourceBlocks));
+    }
 
     const fitContext = await fetchAthleteFitContext(userClient, brief, profile as { assessment_raw?: Record<string, unknown> } | null);
     warnings.push(...validateAthleteFit(blocks as never[], fitContext));

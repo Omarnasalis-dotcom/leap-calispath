@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator, Alert, LayoutChangeEvent, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ImageBackground, ActivityIndicator, Alert, LayoutChangeEvent, Platform, Dimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
@@ -43,6 +43,12 @@ const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'inte
 // Quick Build day-count filter — same MAX_CUSTOM_PROGRAM_DAYS ceiling applies
 // server-side, this is just the UX-recommended quick-pick range.
 const DAY_COUNT_OPTIONS = ['2', '3', '4', '5', '6'] as const;
+
+// Fixed square size for day slots — always sized for a 4-per-row fit
+// (the size that reads best) regardless of how many days are picked;
+// 5-6 days wrap to a second row instead of shrinking every card.
+const DAY_SLOT_GAP = 8;
+const DAY_SLOT_SIZE = (Dimensions.get('window').width - 32 /* quickBuildPanel left+right margin */ - 32 /* quickBuildPanel padding */ - DAY_SLOT_GAP * 3) / 4;
 
 // A free user's build must survive the trip through the paywall.
 // PaywallScreen.goToProfile() calls router.dismissAll() on a successful
@@ -869,15 +875,10 @@ export function CustomizeProgramScreen() {
         </View>
       </View>
 
-      <ScrollView
-        contentContainerStyle={{
-          padding: TC_LAYOUT.screenPadding,
-          // Extra bottom padding whenever a floating element is on screen
-          // (Browse's "create" CTA, or Quick Build's floating trigger/panel)
-          // so the last grid row never sits underneath it.
-          paddingBottom: builderMode === 'quickBuild' ? (quickBuildPanelOpen ? 320 : 140) : selectedDayWorkouts.length > 0 ? 140 : 24,
-        }}
-      >
+      {/* Fixed above the grid (not inside its ScrollView) so filters stay
+          reachable at any scroll position instead of scrolling away with
+          the cards. */}
+      <View style={styles.filtersBar}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
@@ -901,7 +902,18 @@ export function CustomizeProgramScreen() {
         </View>
         <View style={{ height: 8 }} />
         <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
+      </View>
 
+      <ScrollView
+        contentContainerStyle={{
+          paddingHorizontal: TC_LAYOUT.screenPadding,
+          paddingTop: 12,
+          // Extra bottom padding whenever a floating element is on screen
+          // (Browse's "create" CTA, or Quick Build's floating trigger/panel)
+          // so the last grid row never sits underneath it.
+          paddingBottom: builderMode === 'quickBuild' ? (quickBuildPanelOpen ? 240 : 140) : selectedDayWorkouts.length > 0 ? 140 : 24,
+        }}
+      >
         {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
             <ActivityIndicator color={c.coral} />
@@ -1029,7 +1041,7 @@ export function CustomizeProgramScreen() {
                   the main grid: filled slots are drag sources too, and a
                   plain ScrollView doesn't negotiate cleanly with RNGH's
                   separate gesture recognizer for that drag. */}
-              <ScrollView style={{ maxHeight: 220 }} showsVerticalScrollIndicator={false}>
+              <ScrollView style={{ maxHeight: 200 }} showsVerticalScrollIndicator={false}>
                 <View style={styles.daySlotsRow}>
                   {daySlots.map((workout, i) => (
                     <DaySlotCard
@@ -1159,6 +1171,8 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
   headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
+  filtersBar: { paddingHorizontal: TC_LAYOUT.screenPadding, paddingBottom: 10 },
+
   emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: c.cardFlat },
   emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
 
@@ -1184,7 +1198,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   quickBuildPanel: {
     position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset,
     backgroundColor: c.cardRaised, borderRadius: 20, borderWidth: 1, borderColor: c.borderStrong,
-    padding: 16, maxHeight: '70%',
+    padding: 16, maxHeight: '46%',
     shadowColor: '#000', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.7, shadowRadius: 34, elevation: 12,
   },
   quickBuildPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
@@ -1206,12 +1220,12 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 20,
   },
 
-  daySlotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  // 2 per row (was 3 at 31%) — 47%*2 + one 10px gap fits within the row
-  // width; aspect ratio stays 1:1, unchanged, these were already square.
-  daySlotOuter: { width: '47%', aspectRatio: 1 },
+  // Fixed size (DAY_SLOT_SIZE, a 4-per-row fit) — wraps to a second row
+  // for 5-6 days instead of shrinking every card to squeeze them in.
+  daySlotsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: DAY_SLOT_GAP },
+  daySlotOuter: { width: DAY_SLOT_SIZE, height: DAY_SLOT_SIZE },
   daySlotEmpty: {
-    width: '47%', aspectRatio: 1, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
+    width: DAY_SLOT_SIZE, height: DAY_SLOT_SIZE, borderRadius: 14, borderWidth: 1.5, borderStyle: 'dashed', borderColor: c.borderStrong,
     backgroundColor: c.cardFlat, alignItems: 'center', justifyContent: 'center', gap: 4,
   },
   daySlotEmptyLabel: { color: c.textFaint2, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1 },
