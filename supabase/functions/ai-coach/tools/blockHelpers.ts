@@ -146,6 +146,135 @@ const COOLDOWN_PAD_STANDARD = ["Childe Pose", "Shoulder stretch", "Child Pose Si
 const COOLDOWN_PAD_LEGS = ["Pancake Stretch", "Shoulder stretch", "Laying Hamstring Stretch", "Adductor Stretch", "Child Pose Sided"];
 const COOLDOWN_PAD_TARGET = 4;
 
+// Server-built Warm-Up/Cool-Down (2026-09-18, per-day-latency pass): real
+// production names, verified live before being hardcoded — the two
+// non-list names here ("Prone Shoulder opener", "Pike Walk out") had a
+// casing mismatch against §8's own prose ("Prone Shoulder Opener", "Pike
+// Walk Out") that never mattered while the model wrote these itself
+// (resolveExerciseIds' case-insensitive fallback covers it), but matters
+// now that this file writes them directly.
+const MOBILITY_LIST = ["Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out"];
+
+export type WarmUpMarker = "default" | "push" | "legs";
+export type CoolDownMarker = "default" | "legs";
+
+// The one prescription master_template_guidelines.md documents as
+// "consistent across all levels" — never varies by level band or goal,
+// confirmed before building this. Only the exercise LIST varies, by day
+// focus (§11/§16) — that's what the marker (or, if omitted, the day's own
+// other blocks) selects.
+const WARMUP_COOLDOWN_PRESCRIPTION = { rounds: "2", rest_after_round: 60 } as const;
+
+// Builds whichever of Warm-Up/Cool-Down/Mobility the model didn't write
+// itself, from the verified lists above — this is the actual latency win:
+// the model no longer generates these blocks' JSON at all, on the first
+// pass or any retry. `needsWarmUp`/`needsCoolDown` let the caller inject
+// only what's actually missing (the model may have written one and not
+// the other). Live-checks every candidate name against exercise_library
+// before using it (never trusts the hardcoded list blindly, same
+// principle as normalizeBlockStructure's padding) — the hardcoded list IS
+// the fallback source; if a name has been renamed/removed since this was
+// last verified, it's silently dropped from the block rather than
+// breaking the whole call, and if too few survive, the day's own
+// completeness check (§11, validateBlockStructure) still catches it,
+// exactly as if the model had written a too-short block itself.
+export async function buildServerWarmUpCoolDown(
+  userClient: { from: (t: string) => any },
+  dayName: string,
+  focusTag: string,
+  warmUpMarker: WarmUpMarker | undefined,
+  coolDownMarker: CoolDownMarker | undefined,
+  needsWarmUp: boolean,
+  needsCoolDown: boolean
+): Promise<ClaudeBlock[]> {
+  if (!needsWarmUp && !needsCoolDown) return [];
+
+  const effectiveWarmUp: WarmUpMarker = warmUpMarker ?? (focusTag === "LEGS" ? "legs" : focusTag === "PUSH" ? "push" : "default");
+  const effectiveCoolDown: CoolDownMarker = coolDownMarker ?? (focusTag === "LEGS" ? "legs" : "default");
+  const warmList = effectiveWarmUp === "legs" ? WARMUP_PAD_LEGS : WARMUP_PAD_STANDARD;
+  const coolList = effectiveCoolDown === "legs" ? COOLDOWN_PAD_LEGS : COOLDOWN_PAD_STANDARD;
+  const wantMobility = needsWarmUp && effectiveWarmUp === "push";
+
+  const candidateNames = new Set<string>();
+  if (needsWarmUp) for (const n of warmList) candidateNames.add(n);
+  if (needsCoolDown) for (const n of coolList) candidateNames.add(n);
+  if (wantMobility) for (const n of MOBILITY_LIST) candidateNames.add(n);
+
+  const { data } = await userClient.from("exercise_library").select("name").in("name", [...candidateNames]);
+  const resolvable = new Set((data ?? []).map((r: { name: string }) => r.name));
+
+  const blocks: ClaudeBlock[] = [];
+  const baseMeta = { timing_system: "straight_set" as const, structure: "circuit" as const, focus_tag: focusTag, is_weighted: false, ...WARMUP_COOLDOWN_PRESCRIPTION };
+
+  if (needsWarmUp) {
+    const names = warmList.filter((n) => resolvable.has(n));
+    if (names.length > 0) {
+      blocks.push({
+        day_name: dayName,
+        block_name: "Warm-Up",
+        metadata: { ...baseMeta },
+        exercises: names.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
+      });
+    }
+    if (wantMobility) {
+      const mobilityNames = MOBILITY_LIST.filter((n) => resolvable.has(n));
+      if (mobilityNames.length > 0) {
+        blocks.push({
+          day_name: dayName,
+          block_name: "Mobility",
+          metadata: { ...baseMeta },
+          exercises: mobilityNames.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
+        });
+      }
+    }
+  }
+
+  if (needsCoolDown) {
+    const names = coolList.filter((n) => resolvable.has(n));
+    if (names.length > 0) {
+      blocks.push({
+        day_name: dayName,
+        block_name: "Cool-Down",
+        metadata: { ...baseMeta },
+        exercises: names.map((name) => ({ name, sets: "1", hold_seconds: name === "Pancake Stretch" ? "45" : "30", rest_seconds: "0" })),
+      });
+    }
+  }
+
+  return blocks;
+}
+
+// Assembles the day the model sent with whichever Warm-Up/Cool-Down/
+// Mobility blocks it omitted, then renumbers order_index sequentially
+// across the whole result — never trusts the model's own order_index
+// values to have left room for an inserted block, and Warm-Up always
+// lands first / Cool-Down always lands last regardless of where the model
+// put its own blocks, matching §5.2's required phase order.
+export async function assembleDayWithServerBlocks(
+  userClient: { from: (t: string) => any },
+  blocks: ClaudeBlock[],
+  dayName: string,
+  warmUpMarker: WarmUpMarker | undefined,
+  coolDownMarker: CoolDownMarker | undefined
+): Promise<ClaudeBlock[]> {
+  const hasPhase = (phase: string) => blocks.some((b) => getBlockParts(b).phase.toLowerCase() === phase);
+  const needsWarmUp = !hasPhase("warm-up");
+  const needsCoolDown = !hasPhase("cool-down");
+  if (!needsWarmUp && !needsCoolDown) return blocks;
+
+  const focusTag =
+    (blocks.find((b) => b.metadata?.focus_tag && b.metadata.focus_tag !== "REST")?.metadata?.focus_tag as string | undefined) ?? "FULL_BODY";
+  const serverBlocks = await buildServerWarmUpCoolDown(userClient, dayName, focusTag, warmUpMarker, coolDownMarker, needsWarmUp, needsCoolDown);
+
+  const warmUpAndMobility = serverBlocks.filter((b) => getBlockParts(b).phase.toLowerCase() !== "cool-down");
+  const coolDown = serverBlocks.filter((b) => getBlockParts(b).phase.toLowerCase() === "cool-down");
+  const assembled = [...warmUpAndMobility, ...blocks, ...coolDown];
+  assembled.forEach((b, i) => {
+    b.order_index = i;
+  });
+  return assembled;
+}
+
 // Auto-repair pass (2026-09-17): the live 150s-timeout failure that killed
 // an entire build showed add_program_day rejecting 3 of 4 staged days on
 // trivial, mechanically-fixable metadata gaps (a circuit with no rounds, a
@@ -220,6 +349,21 @@ export async function normalizeBlockStructure(
       meta.rounds = "3";
       for (const ex of block.exercises ?? []) ex.sets = "1";
       fixes.push(`"${day} | ${phase}": no rounds set for a ${meta.structure} block — defaulted rounds to "3" and every exercise's sets to "1".`);
+    } else if (!isBlank(meta.rounds)) {
+      // The model supplied rounds itself but got an exercise's own sets
+      // wrong (rounds drives the repetition, not each exercise's sets) —
+      // repaired here instead of left for validateBlockStructure's matching
+      // hard reject to catch, per the 2026-09-18 per-day-latency pass: this
+      // is a same-turn reject-and-retry, and the fix is entirely mechanical
+      // (force "1"), never a judgment call the model needs to make itself.
+      // validateBlockStructure's own check stays in place as a backstop for
+      // append_week/add_block_to_week, which never run this repair pass.
+      const badSets = (block.exercises ?? []).filter((ex) => isBlank(ex.sets) || String(ex.sets).trim() !== "1");
+      if (badSets.length > 0) {
+        const names = badSets.map((ex) => ex.name ?? "?").join(", ");
+        for (const ex of badSets) ex.sets = "1";
+        fixes.push(`"${day} | ${phase}": metadata.rounds is "${meta.rounds}", so every exercise's sets must be "1" — corrected on ${names}.`);
+      }
     }
 
     if ((meta.timing_system === "fortime" || meta.timing_system === "amrap") && isBlank(meta.time_cap_min)) {
@@ -843,21 +987,19 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
   }
 
   // Weighted work always needs a real number somewhere — even a first-time
-  // estimate, not just once history exists. Tightened 2026-09-16: this used
-  // to only fire when loggedWeights already had the exact exercise,
-  // deliberately leaving a brand-new weighted prescription unchecked as
-  // "the prompt's ask-one-question case, which no structural check here
-  // can verify." That leniency was the same family of bug as the reps
-  // floor above — nothing stopped is_weighted:true with no real number
-  // attached anywhere, logged history or not. A real coach always gives a
-  // starting number, even an estimate to adjust from ("start around 10kg
-  // added, adjust from feel") — never leaves it as "figure it out."
+  // estimate, not just once history exists. Demoted to a warning
+  // (2026-09-18, per-day-latency pass): this was a genuinely correct check
+  // (a coach always gives a starting number), but as a hard reject it was
+  // one of the real, measured retry costs in a day's build — the model
+  // gets exactly one more turn to fix it either way, a warning just skips
+  // paying for that turn when the model catches its own note on the first
+  // read instead of after a rejection.
   for (const { ex, day, phase } of all) {
     if (!ex.is_weighted) continue;
     if (/\d/.test(ex.notes ?? "")) continue;
     const key = (ex.name ?? "").trim().toLowerCase();
     const logged = fit.loggedWeights?.[key];
-    throw new Error(
+    warnings.push(
       logged !== undefined
         ? `"${day} | ${phase}"'s ${ex.name} is weighted and this athlete last logged ${logged}kg, but no weight number appears in its notes. Write the real target weight following system-prompt.ts §18's weighted-progress phrase bank — never a bare "+load".`
         : `"${day} | ${phase}"'s ${ex.name} is weighted with no logged history and no weight number in its notes. Write a real starting estimate (e.g. "start around 10kg added, adjust from feel") — never leave it unspecified, even for a first-time prescription.`

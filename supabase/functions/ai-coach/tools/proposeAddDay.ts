@@ -1,7 +1,9 @@
 import { ToolDefinition } from "./types.ts";
 import {
+  assembleDayWithServerBlocks,
   BLOCKS_SCHEMA,
   BUILD_BRIEF_SCHEMA,
+  CoolDownMarker,
   fetchAthleteFitContext,
   fetchSourceWorkoutBlocks,
   getBlockParts,
@@ -16,6 +18,7 @@ import {
   warnSplitCoverage,
   warnTimingMismatch,
   warnUneditedFromSource,
+  WarmUpMarker,
 } from "./blockHelpers.ts";
 
 const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
@@ -43,7 +46,7 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 export const proposeAddDay: ToolDefinition = {
   name: "propose_add_day",
   description:
-    "Propose the NEXT day of a program currently being built, one day at a time — this does NOT write anything until the athlete taps the card. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
+    "Propose the NEXT day of a program currently being built, one day at a time — this does NOT write anything until the athlete taps the card. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). Never write Warm-Up or Cool-Down blocks yourself — send `warm_up`/`cool_down` markers instead (or omit them) and the server builds them from the verified standard lists; only write one yourself if this specific day genuinely needs something different. `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
   input_schema: {
     type: "object",
     properties: {
@@ -51,7 +54,9 @@ export const proposeAddDay: ToolDefinition = {
       day_number: { type: "integer", description: "This day's position in the confirmed structure (e.g. 2, if this is the second day the athlete agreed to). Only affects the card's label — never whether this adds a new day or redoes one already added, which is always decided server-side from the real program state. Fill it in from the confirmed structure when you know it, e.g. when redoing an earlier day so the card still reads its real position instead of the current total day count. Omit it if genuinely unsure; the label falls back to a day count." },
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
-      blocks: { ...BLOCKS_SCHEMA, description: "Exactly this one day's blocks." },
+      blocks: { ...BLOCKS_SCHEMA, description: "This day's non-standard blocks — Skills/Strength/Accessories/Finisher etc. Omit Warm-Up and Cool-Down entirely unless this day needs something other than the standard prescription; use warm_up/cool_down instead." },
+      warm_up: { type: "string", enum: ["default", "push", "legs"], description: "Which standard Warm-Up list to build server-side: \"push\" also adds the Mobility block (Push/Handstand days). Omit to infer from this day's own focus_tag. Ignored if `blocks` already includes a Warm-Up block." },
+      cool_down: { type: "string", enum: ["default", "legs"], description: "Which standard Cool-Down list to build server-side. Omit to infer from this day's own focus_tag. Ignored if `blocks` already includes a Cool-Down block." },
       source_workout_id: { type: "string", description: "The id of the library workout this day was matched from (from search_workouts/get_workout_detail), if any. Optional — omit for a from-scratch day. When present, the day is checked against that workout's real blocks; if it comes back effectively unedited, the result names what to check before proposing again." },
     },
     required: ["day_name", "brief", "blocks", "reason"],
@@ -62,7 +67,7 @@ export const proposeAddDay: ToolDefinition = {
       throw new Error(`"day_name" is required and must be a non-empty string.`);
     }
     const brief = validateBuildBrief(input.brief);
-    const blocks = input.blocks;
+    let blocks = input.blocks;
     if (!Array.isArray(blocks) || blocks.length === 0) {
       throw new Error(`"blocks" is required and must be this one day's blocks.`);
     }
@@ -83,6 +88,17 @@ export const proposeAddDay: ToolDefinition = {
     if (badWeek) {
       throw new Error(`propose_add_day only ever builds into week 1 — got week_number ${badWeek.week_number}. Omit week_number or set it to 1.`);
     }
+
+    // Server-built Warm-Up/Cool-Down (2026-09-18, per-day-latency pass) —
+    // same reasoning as propose_new_program: build whichever the model
+    // didn't write itself, before normalize/validate ever see this day.
+    blocks = await assembleDayWithServerBlocks(
+      userClient,
+      blocks as never[],
+      dayName,
+      input.warm_up as WarmUpMarker | undefined,
+      input.cool_down as CoolDownMarker | undefined
+    );
 
     const { data: profile } = await userClient.rpc("get_my_profile").single();
     const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);

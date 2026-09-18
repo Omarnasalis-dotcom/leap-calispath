@@ -12,6 +12,7 @@ import { addBlockToWeek } from "./addBlockToWeek.ts";
 import { recommendTest } from "./recommendTest.ts";
 import { searchWorkouts } from "./searchWorkouts.ts";
 import { getWorkoutDetail } from "./getWorkoutDetail.ts";
+import { matchWorkoutForDay } from "./matchWorkoutForDay.ts";
 import { proposeProgramFromWorkouts } from "./proposeProgramFromWorkouts.ts";
 import { replaceBlockExercises } from "./replaceBlockExercises.ts";
 import { updateBlockStructure } from "./updateBlockStructure.ts";
@@ -46,6 +47,7 @@ export const TOOLS: ToolDefinition[] = [
   recommendTest,
   searchWorkouts,
   getWorkoutDetail,
+  matchWorkoutForDay,
   proposeProgramFromWorkouts,
   replaceBlockExercises,
   updateBlockStructure,

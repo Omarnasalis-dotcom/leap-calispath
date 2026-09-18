@@ -25,6 +25,8 @@ import {
   parseConceptNotes,
   normalizeBlockStructure,
   levelBandForTier,
+  buildServerWarmUpCoolDown,
+  assembleDayWithServerBlocks,
 } from "../blockHelpers";
 
 // Minimal always-valid block, overridable per test. Real shape mirrors what
@@ -183,6 +185,7 @@ const ALL_PAD_NAMES_RESOLVABLE = [
   "Reverse Lunges", "Hip Flexors Stretch",
   "Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener",
   "Pancake Stretch", "Laying Hamstring Stretch", "Adductor Stretch",
+  "Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out",
 ];
 const REAL_CLIENT = makeMockClient(ALL_PAD_NAMES_RESOLVABLE);
 
@@ -209,6 +212,29 @@ describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial struc
     });
     const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     expect((block.metadata as Record<string, unknown>).rounds).toBe("5");
+    expect(fixes).toEqual([]);
+  });
+
+  it("2026-09-18 (per-day-latency pass): when the model supplies rounds itself but gets an exercise's sets wrong, corrects it instead of leaving it for a hard reject", async () => {
+    const block = makeBlock({
+      metadata: { structure: "circuit", rounds: "3" },
+      exercises: [
+        { name: "Pull Ups (Normal Grip)", sets: "3", reps: "8" }, // wrong — rounds drives repetition
+        { name: "Dips", sets: "1", reps: "10" }, // already correct
+      ],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
+    expect(block.exercises.every((ex) => ex.sets === "1")).toBe(true);
+    expect(fixes).toEqual([expect.stringContaining('metadata.rounds is "3", so every exercise\'s sets must be "1"')]);
+    expect(() => validateBlockStructure([block] as never, { requireDayPhases: false })).not.toThrow();
+  });
+
+  it("model-supplied rounds with every exercise already at sets \"1\" — no fix needed, no note", async () => {
+    const block = makeBlock({
+      metadata: { structure: "circuit", rounds: "3" },
+      exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "8" }],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     expect(fixes).toEqual([]);
   });
 
@@ -816,32 +842,26 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
     ).not.toThrow();
   });
 
-  it("rejects weighted work with a known logged weight but no number written anywhere", () => {
+  it("warns (does not reject) on weighted work with a known logged weight but no number written anywhere — demoted 2026-09-18, per-day-latency pass", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } })
-    ).toThrow(/no weight number appears/);
+    const warnings = validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } });
+    expect(warnings).toEqual([expect.stringContaining("no weight number appears")]);
   });
 
-  it("accepts weighted work once a real number is written", () => {
+  it("accepts weighted work once a real number is written, no warning", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "last week 20kg felt good, hold at 20kg" }] });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } })
-    ).not.toThrow();
+    expect(validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } })).toEqual([]);
   });
 
-  it("rejects weighted work with NO logged history and no number either (tightened 2026-09-16)", () => {
+  it("warns (does not reject) on weighted work with NO logged history and no number either", () => {
     const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "" }] });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit })
-    ).toThrow(/no logged history and no weight number/);
+    const warnings = validateAthleteFit([block] as never, { ...baseFit });
+    expect(warnings).toEqual([expect.stringContaining("no logged history and no weight number")]);
   });
 
-  it("accepts weighted work with no logged history once a real starting estimate is written", () => {
+  it("accepts weighted work with no logged history once a real starting estimate is written, no warning", () => {
     const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "start around 10kg added, adjust from feel" }] });
-    expect(() =>
-      validateAthleteFit([block] as never, { ...baseFit })
-    ).not.toThrow();
+    expect(validateAthleteFit([block] as never, { ...baseFit })).toEqual([]);
   });
 });
 
@@ -1091,6 +1111,87 @@ describe("warnUneditedFromSource (added 2026-09-18): a day identical to the matc
   it("returns no warnings when there's no source (field omitted) — an empty source list is a no-op, not a false positive", () => {
     const proposed = [makeBlock({ name: "PULL DAY 1 | Warm-Up", exercises: [{ name: "Inchworm" }] })];
     expect(warnUneditedFromSource(proposed as never, [])).toEqual([]);
+  });
+});
+
+describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", () => {
+  it("builds the standard Warm-Up and Cool-Down with the fixed prescription (2 rounds, circuit, 60s after round)", async () => {
+    const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PULL DAY 1", "PULL", undefined, undefined, true, true);
+    const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
+    const coolDown = blocks.find((b) => b.block_name === "Cool-Down")!;
+    expect(warmUp.metadata).toMatchObject({ timing_system: "straight_set", structure: "circuit", focus_tag: "PULL", rounds: "2", rest_after_round: 60 });
+    expect(warmUp.exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"]);
+    expect(warmUp.exercises.every((e) => e.sets === "1" && e.reps === "10")).toBe(true);
+    expect(coolDown.exercises.map((e) => e.name)).toEqual(["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"]);
+    expect(coolDown.exercises.every((e) => e.hold_seconds === "30")).toBe(true);
+    expect(blocks).toHaveLength(2); // no Mobility block for a non-push day
+  });
+
+  it("uses the LEGS-specific lists, and 45s (not 30s) for Pancake Stretch specifically", async () => {
+    const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "LEGS DAY", "LEGS", undefined, undefined, true, true);
+    const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
+    const coolDown = blocks.find((b) => b.block_name === "Cool-Down")!;
+    expect(warmUp.exercises.map((e) => e.name)).toEqual(["Inchworm", "Reverse Lunges", "Hip Flexors Stretch", "Banded Arm Circles", "wrist pressure"]);
+    const pancake = coolDown.exercises.find((e) => e.name === "Pancake Stretch")!;
+    expect(pancake.hold_seconds).toBe("45");
+    expect(coolDown.exercises.filter((e) => e.name !== "Pancake Stretch").every((e) => e.hold_seconds === "30")).toBe(true);
+  });
+
+  it("a \"push\" warm_up marker also builds a separate Mobility block", async () => {
+    const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PUSH DAY", "PUSH", "push", undefined, true, false);
+    expect(blocks.map((b) => b.block_name)).toEqual(["Warm-Up", "Mobility"]);
+    const mobility = blocks.find((b) => b.block_name === "Mobility")!;
+    expect(mobility.exercises.map((e) => e.name)).toEqual(["Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out"]);
+  });
+
+  it("infers legs from focus_tag when the marker is omitted", async () => {
+    const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "LEGS DAY", "LEGS", undefined, undefined, true, true);
+    const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
+    expect(warmUp.exercises.map((e) => e.name)).toContain("Reverse Lunges"); // LEGS-only name
+  });
+
+  it("builds only what's needed — needsWarmUp false skips it even if focus_tag would suggest push", async () => {
+    const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PUSH DAY", "PUSH", undefined, undefined, false, true);
+    expect(blocks.map((b) => b.block_name)).toEqual(["Cool-Down"]);
+  });
+
+  it("returns [] when neither is needed", async () => {
+    expect(await buildServerWarmUpCoolDown(REAL_CLIENT, "PULL DAY 1", "PULL", undefined, undefined, false, false)).toEqual([]);
+  });
+
+  it("skips a name that no longer resolves live rather than trusting the hardcoded list blindly", async () => {
+    const partialClient = makeMockClient(["Inchworm", "Scapula Push Ups"]); // only 2 of the 5 warm-up names
+    const blocks = await buildServerWarmUpCoolDown(partialClient, "PULL DAY 1", "PULL", undefined, undefined, true, false);
+    const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
+    expect(warmUp.exercises.map((e) => e.name).sort()).toEqual(["Inchworm", "Scapula Push Ups"]);
+  });
+});
+
+describe("assembleDayWithServerBlocks (added 2026-09-18)", () => {
+  it("injects a missing Warm-Up first and Cool-Down last, renumbering order_index across the whole day", async () => {
+    const strength = makeBlock({ name: "PULL DAY 1 | Strength", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] });
+    (strength as { order_index?: number }).order_index = 0;
+    const assembled = await assembleDayWithServerBlocks(REAL_CLIENT, [strength] as never, "PULL DAY 1", undefined, undefined);
+    expect(assembled.map((b) => getBlockParts(b).phase)).toEqual(["Warm-Up", "Strength", "Cool-Down"]);
+    expect(assembled.map((b) => (b as { order_index?: number }).order_index)).toEqual([0, 1, 2]);
+  });
+
+  it("the escape hatch: leaves a model-written Warm-Up untouched and doesn't inject a second one", async () => {
+    const warmUp = makeBlock({ name: "PULL DAY 1 | Warm-Up", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Jump Rope", sets: "1", reps: "30" }] });
+    const strength = makeBlock({ name: "PULL DAY 1 | Strength", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] });
+    const assembled = await assembleDayWithServerBlocks(REAL_CLIENT, [warmUp, strength] as never, "PULL DAY 1", undefined, undefined);
+    // Only Cool-Down injected; the model's own Warm-Up (with its own exercise) survives unchanged.
+    expect(assembled.map((b) => getBlockParts(b).phase)).toEqual(["Warm-Up", "Strength", "Cool-Down"]);
+    expect(assembled[0].exercises.map((e) => e.name)).toEqual(["Jump Rope"]);
+  });
+
+  it("does nothing when the model already wrote both", async () => {
+    const warmUp = makeBlock({ name: "PULL DAY 1 | Warm-Up", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Jump Rope" }] });
+    const coolDown = makeBlock({ name: "PULL DAY 1 | Cool-Down", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Shoulder stretch", hold_seconds: "30" }] });
+    const strength = makeBlock({ name: "PULL DAY 1 | Strength", metadata: { focus_tag: "PULL" }, exercises: [{ name: "Pull Ups (Normal Grip)", sets: "4", reps: "8" }] });
+    const assembled = await assembleDayWithServerBlocks(REAL_CLIENT, [warmUp, strength, coolDown] as never, "PULL DAY 1", undefined, undefined);
+    expect(assembled).toHaveLength(3);
+    expect(assembled.map((b) => getBlockParts(b).phase)).toEqual(["Warm-Up", "Strength", "Cool-Down"]);
   });
 });
 

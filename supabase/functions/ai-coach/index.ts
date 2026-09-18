@@ -233,6 +233,8 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
       return { verb: "SEARCHING", label: focus ? `Looking for a ${focus} day that fits` : "Searching the workout library" };
     case "get_workout_detail":
       return { verb: "READING", label: "Checking that workout's details" };
+    case "match_workout_for_day":
+      return { verb: "SEARCHING", label: focus ? `Looking for a ${focus} day that fits` : "Searching the workout library" };
     case "get_workout_logs":
       return { verb: "READING", label: "Reading your logged workouts" };
     case "get_program_structure":
