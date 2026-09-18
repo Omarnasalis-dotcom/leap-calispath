@@ -6,7 +6,7 @@ import { proposeNewProgram } from "./proposeNewProgram.ts";
 import { proposeAddDay } from "./proposeAddDay.ts";
 import { proposeEndProgram } from "./proposeEndProgram.ts";
 import { proposeDeleteWeek } from "./proposeDeleteWeek.ts";
-import { appendWeek } from "./appendWeek.ts";
+import { proposeAppendWeek } from "./proposeAppendWeek.ts";
 import { adjustProgram } from "./adjustProgram.ts";
 import { addBlockToWeek } from "./addBlockToWeek.ts";
 import { recommendTest } from "./recommendTest.ts";
@@ -41,7 +41,7 @@ export const TOOLS: ToolDefinition[] = [
   proposeAddDay,
   proposeEndProgram,
   proposeDeleteWeek,
-  appendWeek,
+  proposeAppendWeek,
   adjustProgram,
   addBlockToWeek,
   recommendTest,

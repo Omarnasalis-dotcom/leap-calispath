@@ -26,7 +26,7 @@
 // athlete's explicit "just give me one exact ready-made session" ask) and
 // keeps its original Start/Ignore copy.
 export interface ProgramAction {
-  type: 'create' | 'add_day' | 'end' | 'delete_week' | 'create_from_workouts';
+  type: 'create' | 'add_day' | 'end' | 'delete_week' | 'create_from_workouts' | 'append_week';
   reason: string;
   replacing?: boolean;
   // Trusted, server-computed running day count — the ONLY field
@@ -44,6 +44,7 @@ export interface ProgramAction {
     | { name: string; description: string; dayName: string | null; blocks: unknown[] }
     | { dayName: string; blocks: unknown[] }
     | { name: string; workoutIds: string[]; dayTitles: string[] }
+    | { blocks: unknown[]; removedBlockNames: string[] | null; carryOrderOverrides: Record<string, number> }
     | null;
   warriorProgramId: string | null;
   currentProgramIsAiOwned: boolean;

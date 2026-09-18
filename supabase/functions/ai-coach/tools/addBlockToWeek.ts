@@ -1,15 +1,16 @@
 import { ToolDefinition } from "./types.ts";
 import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure } from "./blockHelpers.ts";
 
-// Fills the gap neither append_week (only ever writes a brand-new week
+// Fills the gap neither propose_append_week (only ever writes a brand-new week
 // number) nor adjust_program (only UPDATEs exercises already in a block,
 // never INSERTs) can cover: adding a new block/day to a week that's
 // already written, in place, without bumping current_week. Direct-write,
-// no confirmation card — purely additive, same risk class as append_week.
+// no confirmation card — purely additive, same risk class append_week
+// (now propose_append_week) used to be before it got a card.
 export const addBlockToWeek: ToolDefinition = {
   name: "add_block_to_week",
   description:
-    "Add one or more brand-new blocks (days) to a week that's already written, without creating a new week and without touching any of that week's existing blocks. Only works on an AI Coach-owned program. Use this when the athlete wants to add a day to their current (or any past) week in place — not for building a whole new week from scratch (append_week's job) or editing exercises already in a block (adjust_program's job). The RPC rejects a block name that already exists in that week — use adjust_program to edit it instead, or pick a different name. Only call this after confirming with the athlete what you're about to add.",
+    "Add one or more brand-new blocks (days) to a week that's already written, without creating a new week and without touching any of that week's existing blocks. Only works on an AI Coach-owned program. Use this when the athlete wants to add a day to their current (or any past) week in place — not for building a whole new week from scratch (propose_append_week's job) or editing exercises already in a block (adjust_program's job). The RPC rejects a block name that already exists in that week — use adjust_program to edit it instead, or pick a different name. Only call this after confirming with the athlete what you're about to add.",
   input_schema: {
     type: "object",
     properties: {

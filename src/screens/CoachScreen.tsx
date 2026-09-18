@@ -197,6 +197,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // athlete — the onboarding funnel (createdProgram && !onboarding_completed_at
   // below) has its own dedicated celebration screen and is untouched; this
   // covers the steady-state case, which used to just silently do nothing.
+  // Persisted the same way pendingProgramAction is (2026-09-18, live-build
+  // fix) — this used to be a plain useState, so leaving the chat before
+  // acting on it lost the card entirely, unlike every other card. It's
+  // single-slot state, only ever set once per successful last-day confirm
+  // and cleared on dismiss/navigate or on the next sendMessage (see
+  // sendMessage's own setJustStartedProgram(null)) — the same
+  // hasLoadedFromStorageRef-guarded load/save pattern that fixed
+  // pendingProgramAction's mount-race also closes the only real way this
+  // could otherwise reappear after being dismissed.
   const [justStartedProgram, setJustStartedProgram] = useState<{ name: string } | null>(null);
   // Day-by-day build (2026-09-18): day 1's 'create' confirm knows the
   // program name; a later day's 'add_day' confirm doesn't (its payload only
@@ -231,6 +240,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // athlete to ask the AI to rebuild/resend it. Persisted the same way
   // messages already are.
   const PROGRAM_ACTION_STORAGE_KEY = `coach_pending_action_v1_${profile?.id}`;
+  const JUST_STARTED_STORAGE_KEY = `coach_just_started_v1_${profile?.id}`;
 
   const isDark = mode === 'dark';
   const c = isDark ? COACH_COLORS.dark : COACH_COLORS.light;
@@ -259,6 +269,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         if (savedAction) setPendingProgramAction(JSON.parse(savedAction));
       } catch (e: any) {
         console.warn('Failed to load saved pending program action:', e.message);
+      }
+
+      try {
+        const savedJustStarted = await AsyncStorage.getItem(JUST_STARTED_STORAGE_KEY);
+        if (savedJustStarted) setJustStartedProgram(JSON.parse(savedJustStarted));
+      } catch (e: any) {
+        console.warn('Failed to load saved just-started program:', e.message);
       }
 
       // Set by CoachFab when a starter prompt chip is tapped — sends it as
@@ -290,6 +307,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       AsyncStorage.removeItem(PROGRAM_ACTION_STORAGE_KEY);
     }
   }, [pendingProgramAction]);
+
+  useEffect(() => {
+    if (!hasLoadedFromStorageRef.current) return;
+    if (justStartedProgram) {
+      AsyncStorage.setItem(JUST_STARTED_STORAGE_KEY, JSON.stringify(justStartedProgram));
+    } else {
+      AsyncStorage.removeItem(JUST_STARTED_STORAGE_KEY);
+    }
+  }, [justStartedProgram]);
 
   // Sends the running message history to ai-coach and applies whatever
   // comes back. The function now streams over SSE — event: stage fires as
@@ -555,6 +581,31 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           role: 'assistant',
           content: `**${payload.name}** is live — check your Workout Program to see it.`,
         }]);
+      } else if (pendingProgramAction.type === 'append_week') {
+        // Weekly review → new week card (2026-09-18): the only card type
+        // with one button — no "change this"/ignore, since Step 3's text
+        // loop already handled adjustments before this proposal existed.
+        // Navigates straight to the Journey screen on success rather than
+        // going through the buildComplete/justStartedProgram machinery
+        // below, which is a day-by-day-build concept this isn't — see the
+        // early return.
+        const payload = pendingProgramAction.payload as
+          | { blocks: unknown[]; removedBlockNames: string[] | null; carryOrderOverrides: Record<string, number> }
+          | null;
+        if (!payload || !pendingProgramAction.warriorProgramId) {
+          throw new Error('Nothing to append.');
+        }
+        const { error } = await supabase.rpc('ai_coach_append_week', {
+          p_warrior_program_id: pendingProgramAction.warriorProgramId,
+          p_blocks: payload.blocks,
+          p_removed_block_names: payload.removedBlockNames,
+          p_carry_order_overrides: payload.carryOrderOverrides,
+        });
+        if (error) throw error;
+        setPendingProgramAction(null);
+        await refreshProfile();
+        router.replace('/my-journey');
+        return;
       } else if (pendingProgramAction.type === 'add_day') {
         const payload = pendingProgramAction.payload as { dayName: string; blocks: unknown[] } | null;
         if (!payload || !pendingProgramAction.warriorProgramId) {
@@ -828,6 +879,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               // exact ready-made session) and keeps its original Start/
               // Ignore copy untouched.
               const isDayCard = pendingProgramAction.type === 'create' || pendingProgramAction.type === 'add_day';
+              // Weekly review → new week card (2026-09-18): the only card
+              // with a single button — Step 3's text-based adjustment loop
+              // already ran before this proposal exists, so there's
+              // nothing left to "change" here; leaving the card un-acted-on
+              // (it persists, same as every other card) is the equivalent
+              // of ignoring it.
+              const isAppendWeekCard = pendingProgramAction.type === 'append_week';
               const dayName =
                 pendingProgramAction.payload && 'dayName' in pendingProgramAction.payload
                   ? pendingProgramAction.payload.dayName
@@ -846,7 +904,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   <View style={styles.actionCardHeader}>
                     <MaterialCommunityIcons
                       name={
-                        isDayCard || pendingProgramAction.type === 'create_from_workouts'
+                        isAppendWeekCard
+                          ? 'calendar-plus'
+                          : isDayCard || pendingProgramAction.type === 'create_from_workouts'
                           ? 'swap-horizontal'
                           : pendingProgramAction.type === 'delete_week'
                           ? 'trash-can-outline'
@@ -862,6 +922,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                         ? `Start "${(pendingProgramAction.payload as { name?: string } | null)?.name}"?`
                         : pendingProgramAction.type === 'delete_week'
                         ? `Delete Week ${pendingProgramAction.weekNumber}?`
+                        : isAppendWeekCard
+                        ? `Start Week ${pendingProgramAction.weekNumber ?? ''}`
                         : 'End your current program?'}
                     </Text>
                   </View>
@@ -879,17 +941,23 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     <Text style={styles.actionCardWarning}>⚠️ This is currently a program your coach assigned.</Text>
                   )}
                   <View style={styles.actionCardButtons}>
+                    {!isAppendWeekCard && (
+                      <TouchableOpacity
+                        style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
+                        onPress={handleIgnoreProgramAction}
+                        disabled={confirmingAction}
+                      >
+                        <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>
+                          {isDayCard ? 'Change this day' : 'IGNORE'}
+                        </Text>
+                      </TouchableOpacity>
+                    )}
                     <TouchableOpacity
-                      style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
-                      onPress={handleIgnoreProgramAction}
-                      disabled={confirmingAction}
-                    >
-                      <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>
-                        {isDayCard ? 'Change this day' : 'IGNORE'}
-                      </Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity
-                      style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent, opacity: confirmingAction ? 0.6 : 1 }]}
+                      style={[
+                        styles.actionCardConfirmBtn,
+                        { backgroundColor: theme.accent, opacity: confirmingAction ? 0.6 : 1 },
+                        isAppendWeekCard && { flex: 1 },
+                      ]}
                       onPress={handleConfirmProgramAction}
                       disabled={confirmingAction}
                     >
@@ -903,6 +971,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                             ? 'START PROGRAM'
                             : pendingProgramAction.type === 'delete_week'
                             ? 'DELETE WEEK'
+                            : isAppendWeekCard
+                            ? `START WEEK ${pendingProgramAction.weekNumber ?? ''}`
                             : 'END PROGRAM'}
                         </Text>
                       )}
@@ -985,6 +1055,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <MaterialCommunityIcons name={inputText.trim() ? 'send' : 'microphone'} size={18} color="#fff" />
             </TouchableOpacity>
           </View>
+          <Text style={[styles.disclaimer, { color: c.secondaryText }]}>
+            Leap Coach can make mistakes. Check important info.
+          </Text>
           </>
           )}
         </View>
@@ -1087,6 +1160,12 @@ const styles = StyleSheet.create({
   // legible in practice) — bumped to a normal weight for real legibility.
   messageText: { fontSize: 14.5, lineHeight: 22, fontWeight: '400' },
   inputContainer: { flexDirection: 'row', padding: 16, alignItems: 'flex-end', borderTopWidth: 1, gap: 10 },
+  // Static, always-visible note — never per-message, never dismissible.
+  // Sits in normal flow (not absolutely positioned) right after
+  // inputContainer, so it can never overlap the input or send button, and
+  // SpartanLayout's own bottom safe-area padding (coach.tsx wraps in
+  // <SpartanLayout hideToggle>, no noBottomInset) still applies below it.
+  disclaimer: { fontSize: 10.5, textAlign: 'center', paddingHorizontal: 16, paddingBottom: 8, marginTop: -8 },
   input: { flex: 1, minHeight: 46, maxHeight: 120, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, borderRadius: 23, borderWidth: 1 },
   sendBtn: { width: 46, height: 46, borderRadius: 23, justifyContent: 'center', alignItems: 'center' },
   headerCenter: { alignItems: 'center', flex: 1 },

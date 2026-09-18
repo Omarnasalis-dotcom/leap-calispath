@@ -4,7 +4,7 @@ import { isUuid } from "./blockHelpers.ts";
 export const adjustProgram: ToolDefinition = {
   name: "adjust_program",
   description:
-    "Make a targeted, in-place change to one or more specific exercises, identified by block_exercise_id (from get_program_structure — call it first, every time, never reuse an id from an earlier turn) — works on any already-written week, not just the current one. Not a new week (append_week's job) and not a new program (propose_new_program's job). Use for a single issue: swap an exercise causing pain, bump/reduce sets or reps, adjust rest. Only works on an AI Coach-owned program.",
+    "Make a targeted, in-place change to one or more specific exercises, identified by block_exercise_id (from get_program_structure — call it first, every time, never reuse an id from an earlier turn) — works on any already-written week, not just the current one. Not a new week (propose_append_week's job) and not a new program (propose_new_program's job). Use for a single issue: swap an exercise causing pain, bump/reduce sets or reps, adjust rest. Only works on an AI Coach-owned program.",
   input_schema: {
     type: "object",
     properties: {

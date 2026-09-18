@@ -1,4 +1,4 @@
-// Shared block-shape transform for propose_new_program / append_week / add_block_to_week. Claude
+// Shared block-shape transform for propose_new_program / propose_append_week / add_block_to_week. Claude
 // sends structured blocks (day_name + block_name + a metadata object +
 // plain coach_notes) rather than hand-producing the app's stored
 // "[CONCEPT:{...}] notes" string — far more reliable than asking a model to
@@ -50,6 +50,18 @@ export function getBlockParts(block: ClaudeBlock): { day: string; phase: string 
   return { day: combined.slice(0, pipeIndex).trim(), phase: combined.slice(pipeIndex + 1).trim() };
 }
 
+// The exact "DAY | PHASE" (or day_name+block_name combo) name a block will
+// be stored under — factored out of transformBlocksForInsert below so
+// computeWeekOrderIndex's caller (appendWeek.ts) can compute the same name
+// for a not-yet-inserted block that the DB will end up storing, and match
+// it against program_blocks.name for the previous week's real rows.
+export function getBlockName(block: ClaudeBlock): string {
+  return (
+    block.name ??
+    (block.day_name && block.block_name ? `${block.day_name} | ${block.block_name}` : block.day_name ?? block.block_name ?? "WORKOUT ROUTINE")
+  );
+}
+
 // Day-by-day build (2026-09-17): pure logic behind index.ts's buildProgramAction
 // "add_day" branch — extracted so the trusted collision/position check
 // (never the model's own claim about what's already in week 1) is
@@ -68,6 +80,113 @@ export function computeDayPosition(existingBlockNames: string[], dayName: string
   const replacing = existingDayNames.has(dayName);
   existingDayNames.add(dayName);
   return { replacing, dayNumber: existingDayNames.size };
+}
+
+// Fixed phase order every day already follows (§16's block-role table) —
+// used by computeWeekOrderIndex below, and worth exporting on its own since
+// it's the one place this order is enumerated as data rather than prose.
+export const PHASE_ORDER = ["warm-up", "mobility", "skills", "strength", "accessories", "finisher", "cool-down"];
+
+// Real bug found live (2026-09-18): append_week's SQL merged carried-forward
+// blocks (their real order_index from the previous week) with whatever
+// order_index the model assigned the blocks it actually sent — but the
+// model only ever sees the blocks it's editing that turn, so its numbers
+// are relative to that small subset, not the whole week. A day the model
+// touched could jump to the front of the new week.
+//
+// This computes the one true order for the WHOLE week instead, server-side,
+// from two things neither the model nor a partial payload can get wrong:
+// the day order the athlete is already training in (the previous week's
+// real block order), and the fixed phase order every day already follows
+// (PHASE_ORDER above). `blockNames` should be every block that will exist
+// in the new week — carried-forward and new/changed alike — in any order;
+// `previousWeekDayOrder` is the previous week's distinct day names, in
+// their real (first-appearance) order. A day not in previousWeekDayOrder
+// (a genuinely new day) is ranked after every known day, in the order it
+// first appears in `blockNames`; an unrecognized phase sorts last within
+// its day. Stable — ties keep their original relative order rather than
+// shuffling again on every call.
+export function computeWeekOrderIndex(blockNames: string[], previousWeekDayOrder: string[]): Map<string, number> {
+  const dayRank = new Map<string, number>();
+  previousWeekDayOrder.forEach((day, i) => dayRank.set(day, i));
+  let nextNewDayRank = previousWeekDayOrder.length;
+
+  const phaseRank = (phase: string): number => {
+    const idx = PHASE_ORDER.indexOf(phase.trim().toLowerCase());
+    return idx === -1 ? PHASE_ORDER.length : idx;
+  };
+
+  const ranked = blockNames.map((name, originalIndex) => {
+    const { day, phase } = getBlockParts({ name, exercises: [] });
+    if (!dayRank.has(day)) dayRank.set(day, nextNewDayRank++);
+    return { name, originalIndex, dayRank: dayRank.get(day)!, phaseRank: phaseRank(phase) };
+  });
+
+  ranked.sort((a, b) => a.dayRank - b.dayRank || a.phaseRank - b.phaseRank || a.originalIndex - b.originalIndex);
+
+  const result = new Map<string, number>();
+  ranked.forEach((entry, i) => result.set(entry.name, i));
+  return result;
+}
+
+// Computes append_week's real order server-side instead of trusting the
+// model's own order_index (see computeWeekOrderIndex above for the root
+// cause) — reads the previous week's real block order, works out which of
+// its blocks the caller's `newBlocks`/`removedBlockNames` will carry
+// forward untouched, and returns both the caller's own blocks with
+// corrected order_index (`orderedBlocks`) AND a name→order_index map for
+// the carried-forward ones (`carryOrderOverrides`) — the RPC still owns
+// fetching THEIR content (it already does this correctly), this only tells
+// it where each one belongs in the new week. Also returns the trusted new
+// week number (`newWeekNumber`, current max + 1) — propose_append_week
+// uses this for the confirmation card's "Start Week N" title instead of
+// asking the model to know it. Returns the input unchanged (newWeekNumber
+// null) if there's no previous week to order against (the program's very
+// first append, or a bad id) — nothing to compute from, and the RPC's own
+// carry-forward logic is a no-op in that case too.
+export async function computeAppendWeekOrdering(
+  userClient: { from: (t: string) => any },
+  warriorProgramId: string,
+  newBlocks: ClaudeBlock[],
+  removedBlockNames: string[] | null | undefined
+): Promise<{ orderedBlocks: ClaudeBlock[]; carryOrderOverrides: Record<string, number>; newWeekNumber: number | null }> {
+  const noop = { orderedBlocks: newBlocks, carryOrderOverrides: {}, newWeekNumber: null };
+
+  const { data: programRows } = await userClient.from("warrior_programs").select("template_id").eq("id", warriorProgramId);
+  const templateId = ((programRows ?? []) as Array<{ template_id?: string }>)[0]?.template_id;
+  if (!templateId) return noop;
+
+  const { data: rows } = await userClient.from("program_blocks").select("name, order_index, week_number").eq("template_id", templateId);
+  const allRows = (rows ?? []) as Array<{ name: string; order_index: number | null; week_number: number | null }>;
+  if (allRows.length === 0) return noop;
+
+  const maxWeek = Math.max(...allRows.map((r) => r.week_number ?? 1));
+  const previousWeekBlocks = allRows.filter((r) => (r.week_number ?? 1) === maxWeek).sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+
+  const previousWeekDayOrder: string[] = [];
+  for (const row of previousWeekBlocks) {
+    const { day } = getBlockParts({ name: row.name, exercises: [] });
+    if (!previousWeekDayOrder.includes(day)) previousWeekDayOrder.push(day);
+  }
+
+  // Exact same predicate ai_coach_append_week's own SQL uses to decide what
+  // carries forward — kept in lockstep so this always ranks precisely the
+  // set of names the RPC is actually about to write.
+  const removedSet = new Set(removedBlockNames ?? []);
+  const newNames = new Set(newBlocks.map(getBlockName));
+  const carriedForwardNames = previousWeekBlocks.map((r) => r.name).filter((n) => !newNames.has(n) && !removedSet.has(n));
+
+  const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...newBlocks.map(getBlockName)], previousWeekDayOrder);
+
+  const orderedBlocks = newBlocks.map((block) => ({ ...block, order_index: orderMap.get(getBlockName(block)) ?? block.order_index }));
+
+  const carryOrderOverrides: Record<string, number> = {};
+  for (const name of carriedForwardNames) {
+    const rank = orderMap.get(name);
+    if (rank !== undefined) carryOrderOverrides[name] = rank;
+  }
+
+  return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1 };
 }
 
 // Real bug found live (2026-08-26): the model left blocks with zero
@@ -162,8 +281,12 @@ export type CoolDownMarker = "default" | "legs";
 // "consistent across all levels" — never varies by level band or goal,
 // confirmed before building this. Only the exercise LIST varies, by day
 // focus (§11/§16) — that's what the marker (or, if omitted, the day's own
-// other blocks) selects.
-const WARMUP_COOLDOWN_PRESCRIPTION = { rounds: "2", rest_after_round: 60 } as const;
+// other blocks) selects. Warm-Up and Cool-Down get different prescriptions
+// (2026-09-18, live-build fix): a cool-down is one round of static holds,
+// never a multi-round circuit — real build put Deadhang in a circuit block
+// with reps, which is a warm-up shape, not a cool-down.
+const WARMUP_PRESCRIPTION = { rounds: "2", rest_after_round: 60 } as const;
+const COOLDOWN_PRESCRIPTION = { rounds: "1", rest_after_round: 60 } as const;
 
 // Builds whichever of Warm-Up/Cool-Down/Mobility the model didn't write
 // itself, from the verified lists above — this is the actual latency win:
@@ -204,7 +327,10 @@ export async function buildServerWarmUpCoolDown(
   const resolvable = new Set((data ?? []).map((r: { name: string }) => r.name));
 
   const blocks: ClaudeBlock[] = [];
-  const baseMeta = { timing_system: "straight_set" as const, structure: "circuit" as const, focus_tag: focusTag, is_weighted: false, ...WARMUP_COOLDOWN_PRESCRIPTION };
+  const warmUpMeta = { timing_system: "straight_set" as const, structure: "circuit" as const, focus_tag: focusTag, is_weighted: false, ...WARMUP_PRESCRIPTION };
+  // single/straight_set, never circuit: a cool-down is static holds, not
+  // reps run round after round — see this function's own header comment.
+  const coolDownMeta = { timing_system: "straight_set" as const, structure: "single" as const, focus_tag: focusTag, is_weighted: false, ...COOLDOWN_PRESCRIPTION };
 
   if (needsWarmUp) {
     const names = warmList.filter((n) => resolvable.has(n));
@@ -212,7 +338,7 @@ export async function buildServerWarmUpCoolDown(
       blocks.push({
         day_name: dayName,
         block_name: "Warm-Up",
-        metadata: { ...baseMeta },
+        metadata: { ...warmUpMeta },
         exercises: names.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
       });
     }
@@ -222,7 +348,7 @@ export async function buildServerWarmUpCoolDown(
         blocks.push({
           day_name: dayName,
           block_name: "Mobility",
-          metadata: { ...baseMeta },
+          metadata: { ...warmUpMeta },
           exercises: mobilityNames.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
         });
       }
@@ -235,7 +361,11 @@ export async function buildServerWarmUpCoolDown(
       blocks.push({
         day_name: dayName,
         block_name: "Cool-Down",
-        metadata: { ...baseMeta },
+        metadata: { ...coolDownMeta },
+        // reps deliberately omitted, never a "1" placeholder — a hold-based
+        // exercise carries hold_seconds instead, same convention every
+        // other hold-based block in this file (skill holds, BLOCKS_SCHEMA's
+        // own reps description) already follows.
         exercises: names.map((name) => ({ name, sets: "1", hold_seconds: name === "Pancake Stretch" ? "45" : "30", rest_seconds: "0" })),
       });
     }
@@ -344,6 +474,30 @@ export async function normalizeBlockStructure(
     if (!block.metadata) block.metadata = {};
     const meta = block.metadata as Record<string, unknown>;
     const { day, phase } = getBlockParts(block);
+
+    // Cool-down is static holds, never reps (2026-09-18, live-build fix): a
+    // real build put Deadhang in a circuit block with reps — a warm-up
+    // shape, not a cool-down. Runs before the rounds/circuit check below so
+    // a repaired Cool-Down is never also given a rounds default meant for
+    // circuits. Only ever converts, never rejects — the athlete never sees
+    // this, same as every other repair in this pass.
+    if (phase.toLowerCase() === "cool-down") {
+      const hadCircuitStructure = meta.structure === "circuit" || meta.structure === "superset" || meta.structure === "ladder";
+      const repBasedExercises = (block.exercises ?? []).filter((ex) => !isBlank(ex.reps) && isBlank(ex.hold_seconds));
+      if (hadCircuitStructure || repBasedExercises.length > 0) {
+        meta.structure = "single";
+        meta.timing_system = "straight_set";
+        for (const ex of repBasedExercises) {
+          ex.hold_seconds = "30";
+          delete ex.reps;
+        }
+        fixes.push(
+          `"${day} | ${phase}": a cool-down is static holds, not reps in a circuit — converted to straight_set/single${
+            repBasedExercises.length > 0 ? ` and defaulted hold_seconds on ${repBasedExercises.map((ex) => ex.name ?? "?").join(", ")}` : ""
+          }.`
+        );
+      }
+    }
 
     if ((meta.structure === "circuit" || meta.structure === "superset" || meta.structure === "ladder") && isBlank(meta.rounds)) {
       meta.rounds = "3";
@@ -1292,9 +1446,7 @@ export function transformBlocksForInsert(
   idMap: Map<string, string>
 ): Record<string, unknown>[] {
   return blocks.map((block) => {
-    const name = block.name ?? (block.day_name && block.block_name
-      ? `${block.day_name} | ${block.block_name}`
-      : block.day_name ?? block.block_name ?? "WORKOUT ROUTINE");
+    const name = getBlockName(block);
 
     const metadata = block.metadata ?? {};
     const cleanNotes = block.coach_notes ?? "";
@@ -1311,7 +1463,7 @@ export function transformBlocksForInsert(
 }
 
 // Shared JSON schema fragment for the "blocks" tool parameter — used by
-// propose_new_program, append_week, and add_block_to_week so their
+// propose_new_program, propose_append_week, and add_block_to_week so their
 // input_schema stays in sync.
 //
 // The CONCEPT metadata contract lives here, in the schema, not as a prose
@@ -1341,7 +1493,7 @@ export const BLOCKS_SCHEMA = {
       day_name: { type: "string", description: 'e.g. "PULL DAY 1"' },
       block_name: { type: "string", description: 'e.g. "Strength"' },
       order_index: { type: "integer", description: "Unique within this week only" },
-      week_number: { type: "integer", description: "Only meaningful for propose_new_program — defaults to 1, and should stay 1 unless the athlete explicitly asked for multiple weeks written upfront. append_week always writes the next week automatically; add_block_to_week ignores this and always lands in the week you specified." },
+      week_number: { type: "integer", description: "Only meaningful for propose_new_program — defaults to 1, and should stay 1 unless the athlete explicitly asked for multiple weeks written upfront. propose_append_week always builds the next week automatically; add_block_to_week ignores this and always lands in the week you specified." },
       metadata: {
         type: "object",
         description: "The CONCEPT block tag. timing_system + structure + focus_tag + is_weighted are always required; the rest are conditional — see each field.",

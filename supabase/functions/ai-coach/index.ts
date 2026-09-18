@@ -18,7 +18,7 @@ const WRITE_TOOL_NAMES = new Set([
   "propose_program_from_workouts",
   "propose_end_program",
   "propose_delete_week",
-  "append_week",
+  "propose_append_week",
   "adjust_program",
   "replace_block_exercises",
   "update_block_structure",
@@ -137,6 +137,24 @@ async function buildProgramAction(
   if (toolName === "propose_delete_week") {
     return { type: "delete_week", reason: input.reason, weekNumber: input.week_number, payload: null, ...base };
   }
+  if (toolName === "propose_append_week") {
+    // week_number is propose_append_week's own trusted computation
+    // (computeAppendWeekOrdering — current max week + 1, never the AI's
+    // claim), reused here as-is rather than re-deriving it from `base`'s
+    // active-program lookup, which only ever tells us the template/coach
+    // ownership, not a week count.
+    return {
+      type: "append_week",
+      reason: input.reason,
+      weekNumber: (result.week_number as number | null | undefined) ?? null,
+      payload: {
+        blocks: result.resolved_blocks ?? [],
+        removedBlockNames: (input.removed_block_names as string[] | undefined) ?? null,
+        carryOrderOverrides: (result.carry_order_overrides as Record<string, number> | undefined) ?? {},
+      },
+      ...base,
+    };
+  }
   if (toolName === "propose_program_from_workouts") {
     const workoutIds = (input.workout_ids as string[]) ?? [];
     // Trusted server-side lookup, same reasoning as `base` above — never
@@ -247,8 +265,8 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
       return { verb: "BUILDING", label: "Putting that day together" };
     case "propose_program_from_workouts":
       return { verb: "BUILDING", label: "Putting your program together" };
-    case "append_week":
-      return { verb: "WRITING", label: "Writing your next week" };
+    case "propose_append_week":
+      return { verb: "BUILDING", label: "Putting your next week together" };
     case "adjust_program":
       return { verb: "ADJUSTING", label: "Applying that change" };
     case "replace_block_exercises":
@@ -721,7 +739,8 @@ serve(async (req: Request) => {
             block.name === "propose_add_day" ||
             block.name === "propose_end_program" ||
             block.name === "propose_delete_week" ||
-            block.name === "propose_program_from_workouts"
+            block.name === "propose_program_from_workouts" ||
+            block.name === "propose_append_week"
           ) {
             programAction = await buildProgramAction(userClient, block.name, block.input ?? {}, result as Record<string, unknown>);
           }

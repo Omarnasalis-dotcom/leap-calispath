@@ -27,6 +27,8 @@ import {
   levelBandForTier,
   buildServerWarmUpCoolDown,
   assembleDayWithServerBlocks,
+  computeWeekOrderIndex,
+  computeAppendWeekOrdering,
 } from "../blockHelpers";
 
 // Minimal always-valid block, overridable per test. Real shape mirrors what
@@ -233,6 +235,40 @@ describe("normalizeBlockStructure (added 2026-09-17): auto-repairs trivial struc
     const block = makeBlock({
       metadata: { structure: "circuit", rounds: "3" },
       exercises: [{ name: "Pull Ups (Normal Grip)", sets: "1", reps: "8" }],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
+    expect(fixes).toEqual([]);
+  });
+
+  it("2026-09-18 (live-build fix): a Cool-Down written as a circuit with reps is converted to static holds", async () => {
+    const block = makeBlock({
+      name: "PULL DAY 1 | Cool-Down",
+      metadata: { structure: "circuit", timing_system: "straight_set" },
+      exercises: [
+        { name: "Deadhang", sets: "3", reps: "10" },
+        { name: "Shoulder stretch", sets: "1", hold_seconds: "30" },
+        { name: "Child Pose Sided", sets: "1", hold_seconds: "30" },
+      ],
+    });
+    const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
+    const meta = block.metadata as Record<string, unknown>;
+    expect(meta.structure).toBe("single");
+    expect(meta.timing_system).toBe("straight_set");
+    const deadhang = block.exercises.find((ex) => ex.name === "Deadhang")!;
+    expect(deadhang.hold_seconds).toBe("30");
+    expect(deadhang.reps).toBeUndefined();
+    expect(fixes).toEqual([expect.stringContaining("a cool-down is static holds, not reps in a circuit")]);
+  });
+
+  it("a Cool-Down already written as static holds is left untouched", async () => {
+    const block = makeBlock({
+      name: "PULL DAY 1 | Cool-Down",
+      metadata: { structure: "single", timing_system: "straight_set" },
+      exercises: [
+        { name: "Shoulder stretch", sets: "1", hold_seconds: "30" },
+        { name: "Child Pose Sided", sets: "1", hold_seconds: "30" },
+        { name: "Childe Pose", sets: "1", hold_seconds: "30" },
+      ],
     });
     const fixes = await normalizeBlockStructure([block] as never, "intermediate", REAL_CLIENT);
     expect(fixes).toEqual([]);
@@ -1021,6 +1057,154 @@ describe("computeDayPosition (added 2026-09-17): the trusted collision/position 
   });
 });
 
+describe("computeWeekOrderIndex (added 2026-09-18): the real fix behind append_week's block-order bug", () => {
+  it("an out-of-order payload comes back correctly ordered — by day order first, then phase order", () => {
+    const dayOrder = ["PULL DAY 1", "LEGS DAY", "PUSH DAY"];
+    // Deliberately shuffled and interleaved, as if the model only sent a
+    // couple of edited blocks — exactly the real bug's shape.
+    const names = [
+      "PUSH DAY | Cool-Down",
+      "PULL DAY 1 | Strength",
+      "LEGS DAY | Warm-Up",
+      "PULL DAY 1 | Warm-Up",
+      "PUSH DAY | Warm-Up",
+      "LEGS DAY | Cool-Down",
+    ];
+    const orderMap = computeWeekOrderIndex(names, dayOrder);
+    const sorted = [...names].sort((a, b) => orderMap.get(a)! - orderMap.get(b)!);
+    expect(sorted).toEqual([
+      "PULL DAY 1 | Warm-Up",
+      "PULL DAY 1 | Strength",
+      "LEGS DAY | Warm-Up",
+      "LEGS DAY | Cool-Down",
+      "PUSH DAY | Warm-Up",
+      "PUSH DAY | Cool-Down",
+    ]);
+    // order_index values are a real 0..N-1 sequence, not just relatively ordered.
+    expect(new Set(orderMap.values())).toEqual(new Set([0, 1, 2, 3, 4, 5]));
+  });
+
+  it("orders phases correctly within a day: Warm-Up, Mobility, Skills, Strength, Accessories, Finisher, Cool-Down", () => {
+    const dayOrder = ["PUSH DAY"];
+    const names = [
+      "PUSH DAY | Cool-Down",
+      "PUSH DAY | Finisher",
+      "PUSH DAY | Accessories",
+      "PUSH DAY | Strength",
+      "PUSH DAY | Skills",
+      "PUSH DAY | Mobility",
+      "PUSH DAY | Warm-Up",
+    ];
+    const orderMap = computeWeekOrderIndex(names, dayOrder);
+    const sorted = [...names].sort((a, b) => orderMap.get(a)! - orderMap.get(b)!);
+    expect(sorted).toEqual([
+      "PUSH DAY | Warm-Up",
+      "PUSH DAY | Mobility",
+      "PUSH DAY | Skills",
+      "PUSH DAY | Strength",
+      "PUSH DAY | Accessories",
+      "PUSH DAY | Finisher",
+      "PUSH DAY | Cool-Down",
+    ]);
+  });
+
+  it("a genuinely new day (not in the previous week) is ranked after every known day", () => {
+    const dayOrder = ["PULL DAY 1", "LEGS DAY"];
+    const names = ["NEW SKILL DAY | Warm-Up", "LEGS DAY | Warm-Up", "PULL DAY 1 | Warm-Up"];
+    const orderMap = computeWeekOrderIndex(names, dayOrder);
+    const sorted = [...names].sort((a, b) => orderMap.get(a)! - orderMap.get(b)!);
+    expect(sorted).toEqual(["PULL DAY 1 | Warm-Up", "LEGS DAY | Warm-Up", "NEW SKILL DAY | Warm-Up"]);
+  });
+
+  it("is stable: ties (same day+phase rank) keep their original relative order", () => {
+    const names = ["DAY 1 | Strength - A", "DAY 1 | Strength - B"]; // both rank as "strength" (unrecognized suffix ignored)
+    const orderMap = computeWeekOrderIndex(names, ["DAY 1"]);
+    expect(orderMap.get("DAY 1 | Strength - A")).toBeLessThan(orderMap.get("DAY 1 | Strength - B")!);
+  });
+});
+
+describe("computeAppendWeekOrdering (added 2026-09-18)", () => {
+  // Matches the minimal .from(table).select(cols).eq(col, val) shape
+  // computeAppendWeekOrdering actually calls — keyed by table name so one
+  // fake client can answer both the warrior_programs and program_blocks
+  // queries it makes.
+  function makeAppendWeekClient(templateId: string | null, previousWeekRows: Array<{ name: string; order_index: number; week_number: number }>) {
+    return {
+      from: (table: string) => ({
+        select: (_cols: string) => ({
+          eq: (_col: string, _val: string) => {
+            if (table === "warrior_programs") {
+              return Promise.resolve({ data: templateId ? [{ template_id: templateId }] : [] });
+            }
+            return Promise.resolve({ data: previousWeekRows });
+          },
+        }),
+      }),
+    };
+  }
+
+  it("carries forward blocks the caller didn't send, at their correct new-week rank — not their old order_index", async () => {
+    const client = makeAppendWeekClient("tmpl-1", [
+      { name: "PULL DAY 1 | Warm-Up", order_index: 0, week_number: 1 },
+      { name: "PULL DAY 1 | Strength", order_index: 1, week_number: 1 },
+      { name: "PULL DAY 1 | Cool-Down", order_index: 2, week_number: 1 },
+      { name: "LEGS DAY | Warm-Up", order_index: 3, week_number: 1 },
+      { name: "LEGS DAY | Strength", order_index: 4, week_number: 1 },
+      { name: "LEGS DAY | Cool-Down", order_index: 5, week_number: 1 },
+    ]);
+    // The model only edited PULL DAY 1's Strength block this turn — the
+    // real bug's exact shape (a small subset, order_index relative to just
+    // this call).
+    const newBlocks = [makeBlock({ name: "PULL DAY 1 | Strength", metadata: {}, exercises: [{ name: "Dips", sets: "3", reps: "6" }] })];
+    (newBlocks[0] as { order_index?: number }).order_index = 0;
+
+    const { orderedBlocks, carryOrderOverrides, newWeekNumber } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
+
+    // The sent block's order_index is corrected to its real position (1),
+    // not left at the model's own claim of 0.
+    expect((orderedBlocks[0] as { order_index?: number }).order_index).toBe(1);
+    // Every carried-forward block gets a real, sequential override —
+    // including ones that would otherwise collide with the new block's
+    // stale order_index of 0.
+    expect(carryOrderOverrides).toEqual({
+      "PULL DAY 1 | Warm-Up": 0,
+      "PULL DAY 1 | Cool-Down": 2,
+      "LEGS DAY | Warm-Up": 3,
+      "LEGS DAY | Strength": 4,
+      "LEGS DAY | Cool-Down": 5,
+    });
+    expect(newWeekNumber).toBe(2); // previous week was 1
+  });
+
+  it("a removed block name is excluded from carryOrderOverrides", async () => {
+    const client = makeAppendWeekClient("tmpl-1", [
+      { name: "PULL DAY 1 | Warm-Up", order_index: 0, week_number: 1 },
+      { name: "PULL DAY 1 | Finisher", order_index: 1, week_number: 1 },
+    ]);
+    const { carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", [] as never, ["PULL DAY 1 | Finisher"]);
+    expect(carryOrderOverrides).toEqual({ "PULL DAY 1 | Warm-Up": 0 });
+  });
+
+  it("no previous week (first append, or a bad id) — returns the input unchanged, no error", async () => {
+    const client = makeAppendWeekClient(null, []);
+    const newBlocks = [makeBlock({ name: "PULL DAY 1 | Warm-Up" })];
+    const result = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
+    expect(result.orderedBlocks).toBe(newBlocks);
+    expect(result.carryOrderOverrides).toEqual({});
+    expect(result.newWeekNumber).toBeNull();
+  });
+
+  it("only looks at the MOST RECENT previous week, not every historical week", async () => {
+    const client = makeAppendWeekClient("tmpl-1", [
+      { name: "OLD DAY | Warm-Up", order_index: 0, week_number: 1 }, // week 1, stale
+      { name: "PULL DAY 1 | Warm-Up", order_index: 0, week_number: 2 }, // week 2, real
+    ]);
+    const { carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", [] as never, undefined);
+    expect(carryOrderOverrides).toEqual({ "PULL DAY 1 | Warm-Up": 0 });
+    expect(carryOrderOverrides).not.toHaveProperty("OLD DAY | Warm-Up");
+  });
+});
+
 describe("warnTimingMismatch (added 2026-09-18): tabata suits a hold, not reps", () => {
   it("warns when a tabata block has an exercise with reps and no hold_seconds", () => {
     const block = makeBlock({
@@ -1115,15 +1299,16 @@ describe("warnUneditedFromSource (added 2026-09-18): a day identical to the matc
 });
 
 describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", () => {
-  it("builds the standard Warm-Up and Cool-Down with the fixed prescription (2 rounds, circuit, 60s after round)", async () => {
+  it("builds the standard Warm-Up (2 rounds, circuit) and Cool-Down (1 round, static holds, straight_set/single)", async () => {
     const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PULL DAY 1", "PULL", undefined, undefined, true, true);
     const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
     const coolDown = blocks.find((b) => b.block_name === "Cool-Down")!;
     expect(warmUp.metadata).toMatchObject({ timing_system: "straight_set", structure: "circuit", focus_tag: "PULL", rounds: "2", rest_after_round: 60 });
     expect(warmUp.exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"]);
     expect(warmUp.exercises.every((e) => e.sets === "1" && e.reps === "10")).toBe(true);
+    expect(coolDown.metadata).toMatchObject({ timing_system: "straight_set", structure: "single", focus_tag: "PULL", rounds: "1", rest_after_round: 60 });
     expect(coolDown.exercises.map((e) => e.name)).toEqual(["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"]);
-    expect(coolDown.exercises.every((e) => e.hold_seconds === "30")).toBe(true);
+    expect(coolDown.exercises.every((e) => e.hold_seconds === "30" && e.reps === undefined)).toBe(true);
     expect(blocks).toHaveLength(2); // no Mobility block for a non-push day
   });
 

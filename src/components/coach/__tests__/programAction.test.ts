@@ -47,6 +47,7 @@ describe("getChangeDayMessage (added 2026-09-17, day-by-day build)", () => {
     expect(getChangeDayMessage(makeAction({ type: "end" }))).toBeNull();
     expect(getChangeDayMessage(makeAction({ type: "delete_week" }))).toBeNull();
     expect(getChangeDayMessage(makeAction({ type: "create_from_workouts" }))).toBeNull();
+    expect(getChangeDayMessage(makeAction({ type: "append_week" }))).toBeNull();
   });
 
   it("returns null when there's no pending action at all", () => {
@@ -87,9 +88,10 @@ describe("isLastConfirmedDay (added 2026-09-18, Fix A): gates the Program Ready 
     expect(isLastConfirmedDay(makeAction({ type: "create_from_workouts" }))).toBe(true);
   });
 
-  it("always false for end/delete_week", () => {
+  it("always false for end/delete_week/append_week — none has a day-by-day concept to complete", () => {
     expect(isLastConfirmedDay(makeAction({ type: "end" }))).toBe(false);
     expect(isLastConfirmedDay(makeAction({ type: "delete_week" }))).toBe(false);
+    expect(isLastConfirmedDay(makeAction({ type: "append_week" }))).toBe(false);
   });
 });
 
