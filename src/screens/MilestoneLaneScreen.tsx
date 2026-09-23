@@ -2633,13 +2633,18 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingBottom: 10,
   },
+  // Same treatment as Profile's Continue Program day name (PhotoActionCard
+  // title) so the day reads identically on both screens.
   milestoneCardTitle: {
     color: '#FFFFFF',
-    fontFamily: 'PlusJakartaSans-ExtraBold',
-    fontSize: 14,
-    textShadowColor: 'rgba(0,0,0,0.5)',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 21,
+    lineHeight: 25,
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+    textShadowColor: 'rgba(0,0,0,0.8)',
     textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 4,
+    textShadowRadius: 6,
   },
   milestoneCardTitleLocked: {
     color: 'rgba(255,255,255,0.35)',
