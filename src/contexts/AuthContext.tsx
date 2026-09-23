@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
+import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
@@ -498,12 +498,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setPendingAppleName(null);
   }
 
-  async function refreshProfile(): Promise<Profile | null> {
+  // Stable across renders (keyed only on user?.id) -- every consumer that
+  // puts refreshProfile in a hook dependency array (e.g. MilestoneLaneScreen's
+  // useFocusEffect) would otherwise re-fire on every AuthProvider render,
+  // including the very renders fetchProfile's own setProfile call causes,
+  // producing an infinite refresh loop (visible as runaway AuthGuard
+  // diagnostic logs and repeated push-token registration).
+  const refreshProfile = useCallback((): Promise<Profile | null> => {
     if (user?.id) {
       return fetchProfile(user.id);
     }
-    return null;
-  }
+    return Promise.resolve(null);
+  }, [user?.id]);
 
   /**
    * Called after the user successfully updates their password.
