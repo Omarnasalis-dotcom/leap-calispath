@@ -90,14 +90,22 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   // feel premium).
   const worldAnims = useRef(WORLD_TABS.map(() => new Animated.Value(0))).current;
 
+  // Reset happens in toggleWorldsMenu (before the open render), not here:
+  // an effect runs after paint, so the circles' leftover value of 1 from
+  // the previous open flashed them fully visible for a frame before the
+  // reset + pop-in — the menu looked like it loaded twice.
   useEffect(() => {
     if (!worldsMenuOpen) return;
-    worldAnims.forEach((a) => a.setValue(0));
     Animated.stagger(
       70,
       worldAnims.map((a) => Animated.spring(a, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 9 }))
     ).start();
   }, [worldsMenuOpen, worldAnims]);
+
+  const toggleWorldsMenu = () => {
+    if (!worldsMenuOpen) worldAnims.forEach((a) => a.setValue(0));
+    setWorldsMenuOpen(!worldsMenuOpen);
+  };
 
   const handlePress = (tab: TabDef) => {
     if (tab.id === activeTab) return;
@@ -219,7 +227,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
               })}
             </View>
           )}
-          <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={() => setWorldsMenuOpen((o) => !o)}>
+          <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={toggleWorldsMenu}>
             {isWorldActive && <View style={[styles.activeIndicator, { backgroundColor: worldsColor }]} />}
             <View
               style={[
