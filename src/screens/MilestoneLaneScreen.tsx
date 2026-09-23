@@ -471,13 +471,32 @@ function JourneyCard({
           <Text style={styles.milestoneHereBadgeText}>YOU ARE HERE</Text>
         </Animated.View>
       ) : null}
-      <View style={styles.milestoneCardTextWrap}>
-        <Text style={[styles.milestoneCardTitle, locked && styles.milestoneCardTitleLocked]} numberOfLines={2}>
-          {title}
-        </Text>
-        <Text style={[styles.milestoneCardDesc, locked && styles.milestoneCardDescLocked]} numberOfLines={2}>
-          {desc}
-        </Text>
+      <View style={[styles.milestoneCardTextWrap, !locked && styles.milestoneCardTextWrapCentered]}>
+        {/* Open cards: the title alone is centered in the space between the
+            badge and the CTA, with the desc hung just below it (absolutely,
+            so it doesn't pull the title off-center) leaning toward the CTA.
+            The CTA row stays bottom-pinned. */}
+        {!locked ? (
+          <View style={styles.milestoneCardTextCenter}>
+            <View style={styles.milestoneCardTitleNudge}>
+              <Text style={styles.milestoneCardTitle} numberOfLines={2}>
+                {title}
+              </Text>
+              <Text style={[styles.milestoneCardDesc, styles.milestoneCardDescHung]} numberOfLines={2}>
+                {desc}
+              </Text>
+            </View>
+          </View>
+        ) : (
+          <>
+            <Text style={[styles.milestoneCardTitle, styles.milestoneCardTitleLocked]} numberOfLines={2}>
+              {title}
+            </Text>
+            <Text style={[styles.milestoneCardDesc, styles.milestoneCardDescLocked]} numberOfLines={2}>
+              {desc}
+            </Text>
+          </>
+        )}
         {!locked && (ctaLabel || secondaryCtaLabel) && (
           <View style={styles.ctaRow}>
             {ctaLabel && onPressCta && <MilestoneCardCta label={ctaLabel} onPress={onPressCta} />}
@@ -2632,6 +2651,30 @@ const styles = StyleSheet.create({
     bottom: 0,
     paddingHorizontal: 12,
     paddingBottom: 10,
+  },
+  // Open (unlocked) cards center their title + desc vertically (CTA stays
+  // pinned at the bottom) instead of the whole block hugging the bottom with
+  // an empty top half. Locked cards stay bottom-anchored: their lock badge sits
+  // top-left, and a centered title would run into it.
+  milestoneCardTextWrapCentered: {
+    top: 0,
+    // Clears the YOU ARE HERE badge (top 8 + ~18 tall).
+    paddingTop: 30,
+  },
+  milestoneCardTextCenter: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  // Title sits a touch below true center, snug to the desc under it.
+  milestoneCardTitleNudge: {
+    transform: [{ translateY: 4 }],
+  },
+  milestoneCardDescHung: {
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
+    marginTop: 3,
   },
   // Same treatment as Profile's Continue Program day name (PhotoActionCard
   // title) so the day reads identically on both screens.
