@@ -1,25 +1,21 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
-  Animated,
-  Easing,
-  AccessibilityInfo,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
-import { SuggestedTestCard } from './SuggestedTestCard';
-import { QuickStatsRow } from './QuickStatsRow';
+import { ActiveProgramCard } from './ActiveProgramCard';
 import { CommunitySection } from './CommunitySection';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { clamp01 } from '../../lib/worldProgress';
-import { TC_BUTTON_GRADIENT, TC_MOTION } from '../../../constants/trainingCenterTokens';
+import { ActiveProgramSummary } from '../../lib/activeProgramSummary';
 import { getSubscriptionTier, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
 
 const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
@@ -33,64 +29,6 @@ const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
 // the badge as "you had access, it ran out" rather than "you never had it",
 // same reasoning as hasExpiredSubscription's own doc comment.
 const EXPIRED_BADGE_COLOR = '#a1584a';
-
-/**
- * Slow diagonal sheen pass across the Training Center button (design
- * handoff §1: 4.2s ease-in-out loop) — a translating semi-transparent
- * streak clipped inside the button. Skipped entirely under reduce-motion
- * (same guard pattern as QuickWorkoutTimerModal's pulse animation).
- */
-function TrainingCenterSheen() {
-  const [width, setWidth] = useState(0);
-  const [reduceMotion, setReduceMotion] = useState(false);
-  const anim = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    if (reduceMotion || width === 0) return;
-    anim.setValue(0);
-    const loop = Animated.loop(
-      Animated.timing(anim, {
-        toValue: 1,
-        duration: TC_MOTION.sheenMs,
-        easing: Easing.inOut(Easing.ease),
-        useNativeDriver: true,
-      })
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [reduceMotion, width, anim]);
-
-  if (reduceMotion) return null;
-
-  const streakWidth = 70;
-  const translateX = anim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [-streakWidth, width + streakWidth],
-  });
-
-  return (
-    <View
-      pointerEvents="none"
-      style={{ ...StyleSheet.absoluteFillObject, overflow: 'hidden', borderRadius: 14 }}
-      onLayout={(e) => setWidth(e.nativeEvent.layout.width)}
-    >
-      {width > 0 && (
-        <Animated.View style={{ position: 'absolute', top: -20, bottom: -20, width: streakWidth, transform: [{ translateX }, { rotate: '18deg' }] }}>
-          <LinearGradient
-            colors={['transparent', 'rgba(255,255,255,0.10)', 'transparent']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={{ flex: 1 }}
-          />
-        </Animated.View>
-      )}
-    </View>
-  );
-}
 
 const W = WORLD_THEMES.strength;
 
@@ -109,22 +47,16 @@ interface ProfileHeaderProps {
   gloryPts: number;
   WRA_MAX: number;
   GLORY_MAX: number;
-  staticPbs: Record<string, number>;
-  powerPbs: Record<string, number>;
-  oneMMPbs: Record<string, number>;
-  weeklyStats: { streakDays: number; pointsThisWeek: number; workoutsCompleted: number };
-  hasActiveWorkout: boolean;
+  /** undefined = still loading, null = no active program. */
+  activeProgram: ActiveProgramSummary | null | undefined;
   onOpenActiveWorkout: () => void;
+  onCreateProgram: () => void;
   onShowWarriorModal: () => void;
   onOpenAdmin: () => void;
   onOpenPaywall: () => void;
   onFetchWRALeaderboard: () => void;
   onFetchGloryLeaderboard: () => void;
   onOpenCoachingCenter?: () => void;
-  onOpenTrainingCenter?: () => void;
-  onOpenStaticWorld: () => void;
-  onOpenPowerAssessment: () => void;
-  onOpenOneMinMax: (category?: 'entry' | 'main' | 'advanced') => void;
 }
 
 /**
@@ -135,8 +67,8 @@ interface ProfileHeaderProps {
  * full-opacity accent. Only the tier number sits inside.
  */
 function TierRingBadge({ tierLevel }: { tierLevel: number }) {
-  const OUTER_R = 73;
-  const INNER_R = 34;
+  const OUTER_R = 64;
+  const INNER_R = 30;
   const ringCount = Math.max(1, tierLevel);
   const rings = Array.from({ length: ringCount }, (_, i) => {
     const r = ringCount === 1 ? OUTER_R : INNER_R + (OUTER_R - INNER_R) * (i / (ringCount - 1));
@@ -186,22 +118,15 @@ export function ProfileHeader({
   gloryPts,
   WRA_MAX,
   GLORY_MAX,
-  staticPbs,
-  powerPbs,
-  oneMMPbs,
-  weeklyStats,
-  hasActiveWorkout,
+  activeProgram,
   onOpenActiveWorkout,
+  onCreateProgram,
   onShowWarriorModal,
   onOpenAdmin,
   onOpenPaywall,
   onFetchWRALeaderboard,
   onFetchGloryLeaderboard,
   onOpenCoachingCenter,
-  onOpenTrainingCenter,
-  onOpenStaticWorld,
-  onOpenPowerAssessment,
-  onOpenOneMinMax,
 }: ProfileHeaderProps) {
   // useScreenMeasure=true: see useTutorialTarget's own comment — Android's
   // measureInWindow() under-reports these targets' y once scrollIntoView
@@ -209,7 +134,6 @@ export function ProfileHeader({
   // is used instead for a position that's correct regardless of scroll state.
   const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef, true);
   const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef, true);
-  const { ref: workoutProgramButtonRef, onLayout: onWorkoutProgramButtonLayout, reportInteraction: reportWorkoutProgramButton } = useTutorialTarget('profile.workoutProgramButton', scrollRef, true);
 
   const tierName = (category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || 'UNKNOWN';
   const displayName = profile.first_name || profile.last_name
@@ -272,7 +196,7 @@ export function ProfileHeader({
               as "there's an upgrade here" without competing for attention. */}
           {(subscriptionTier === 'free' || subscriptionTier === 'first') && (
             <TouchableOpacity activeOpacity={0.7} onPress={onOpenPaywall} style={styles.upgradePill}>
-              <MaterialCommunityIcons name="crown-outline" size={10} color="#FC5454" />
+              <MaterialCommunityIcons name="crown-outline" size={9} color="#FC5454" />
               <Text style={styles.upgradePillText}>{isExpiredSubscriber ? 'RENEW' : 'UPGRADE'}</Text>
             </TouchableOpacity>
           )}
@@ -286,12 +210,12 @@ export function ProfileHeader({
           onLayout={onLevelCircleLayout}
           activeOpacity={0.7}
           onPress={onShowWarriorModal}
-          style={{ marginTop: 12 }}
+          style={{ marginTop: 10 }}
         >
           <TierRingBadge tierLevel={activeCurrentTier} />
         </TouchableOpacity>
 
-        <Text style={[styles.tierLine, { color: W.accent, marginTop: 10 }]}>
+        <Text style={[styles.tierLine, { color: W.accent, marginTop: 8 }]}>
           {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
         </Text>
       </View>
@@ -308,7 +232,7 @@ export function ProfileHeader({
         style={[styles.wraCard, { borderColor: worldRgba(W.accent, 0.3), backgroundColor: worldRgba(W.accent, 0.05) }]}
       >
         <View style={styles.wraHeaderRow}>
-          <MaterialCommunityIcons name="trophy-outline" size={16} color={W.accent} />
+          <MaterialCommunityIcons name="trophy-outline" size={14} color={W.accent} />
           <Text style={[styles.wraTitle, { color: neutrals.textPrimary }]}>Well-Rounded Athlete</Text>
           <Text style={[styles.wraTotal, { color: W.accent }]}>{wraScore.toFixed(2)}</Text>
         </View>
@@ -340,79 +264,39 @@ export function ProfileHeader({
         </View>
       )}
 
-      <QuickStatsRow
-        streakDays={weeklyStats.streakDays}
-        pointsThisWeek={weeklyStats.pointsThisWeek}
-        workoutsCompleted={weeklyStats.workoutsCompleted}
-        theme={theme}
-        hasActiveWorkout={hasActiveWorkout}
-        onOpenActiveWorkout={onOpenActiveWorkout}
-        firstTile={
-          <SuggestedTestCard
-            compact
-            userId={profile?.id}
-            staticPts={staticPts}
-            powerPts={powerPts}
-            mmPts={mmPts}
-            strengthTier={profile?.strength_tier || 0}
-            staticPbs={staticPbs}
-            powerPbs={powerPbs}
-            oneMMPbs={oneMMPbs}
-            onOpenStatic={onOpenStaticWorld}
-            onOpenPower={onOpenPowerAssessment}
-            onOpenOneMinMax={onOpenOneMinMax}
-            theme={theme}
+      {/* Active program "up next" + continue — Profile's one training entry
+          point now that the TRAIN tab owns the Training Center hub. Hidden
+          until the lookup resolves so a slow fetch never flashes the
+          no-program CTA at someone who has a program. */}
+      {activeProgram !== undefined && (
+        <View style={{ marginHorizontal: 20, marginTop: 14 }}>
+          <ActiveProgramCard
+            hasActiveProgram={activeProgram !== null}
+            nextUpDayName={activeProgram?.nextUpDayName ?? null}
+            onContinue={onOpenActiveWorkout}
+            onCreateProgram={onCreateProgram}
           />
-        }
-      />
+        </View>
+      )}
 
-      {/* My Workout Program / Coaching Center — same tri-color gradient
+      {/* Coaching Center — coaches/admins only, same tri-color gradient
           border used on the Warrior Program screen itself. */}
-      {mode !== undefined && (
+      {(profile?.is_coach || profile?.is_admin) && onOpenCoachingCenter && (
         <View style={{ marginHorizontal: 20, marginTop: 16, marginBottom: 8 }}>
-          {(profile?.is_coach || profile?.is_admin) ? (
-            onOpenCoachingCenter && (
-              <LinearGradient
-                colors={['#7E57C2', '#FF5252', '#FF7043']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.programGradient}
-              >
-                <TouchableOpacity
-                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF', borderWidth: 0 }]}
-                  onPress={onOpenCoachingCenter}
-                >
-                  <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
-                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>COACHING CENTER</Text>
-                </TouchableOpacity>
-              </LinearGradient>
-            )
-          ) : (
-            onOpenTrainingCenter && (
-              <LinearGradient
-                colors={TC_BUTTON_GRADIENT}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 1 }}
-                style={styles.programGradient}
-              >
-                <TouchableOpacity
-                  ref={workoutProgramButtonRef}
-                  onLayout={onWorkoutProgramButtonLayout}
-                  style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#050303' : '#FFFFFF', borderWidth: 0 }]}
-                  onPress={() => {
-                    onOpenTrainingCenter();
-                    reportWorkoutProgramButton();
-                  }}
-                >
-                  <TrainingCenterSheen />
-                  <MaterialCommunityIcons name="calendar-month-outline" size={16} color={neutrals.textPrimary} />
-                  <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>TRAINING CENTER</Text>
-                  <MaterialCommunityIcons name="chevron-right" size={18} color={neutrals.textPrimary} style={{ marginLeft: -2 }} />
-                </TouchableOpacity>
-              </LinearGradient>
-            )
-          )}
-
+          <LinearGradient
+            colors={['#7E57C2', '#FF5252', '#FF7043']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.programGradient}
+          >
+            <TouchableOpacity
+              style={[styles.programButton, { backgroundColor: mode === 'dark' ? '#151515' : '#FFFFFF', borderWidth: 0 }]}
+              onPress={onOpenCoachingCenter}
+            >
+              <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
+              <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>COACHING CENTER</Text>
+            </TouchableOpacity>
+          </LinearGradient>
         </View>
       )}
     </>
@@ -422,16 +306,16 @@ export function ProfileHeader({
 const styles = StyleSheet.create({
   identityHeader: {
     alignItems: 'center',
-    paddingTop: 22,
+    paddingTop: 18,
     paddingHorizontal: 20,
     marginBottom: 4,
   },
   name: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 23,
+    fontSize: 21,
     letterSpacing: 0.5,
     textAlign: 'center',
-    marginTop: 6,
+    marginTop: 5,
   },
   tierBadgeRow: {
     flexDirection: 'row',
@@ -441,13 +325,13 @@ const styles = StyleSheet.create({
   },
   subscriptionBadge: {
     flexShrink: 0,
-    paddingHorizontal: 9,
-    paddingVertical: 3.5,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
     borderRadius: 8,
   },
   subscriptionBadgeText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 10.5,
+    fontSize: 9.5,
     letterSpacing: 0.8,
     color: '#000',
   },
@@ -456,41 +340,41 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 3,
-    height: 20,
-    paddingHorizontal: 8,
+    height: 18,
+    paddingHorizontal: 7,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(252,84,84,0.5)',
   },
   upgradePillText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 10.5,
+    fontSize: 9.5,
     letterSpacing: 0.3,
     color: '#FC5454',
   },
   tierLine: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 11.5,
+    fontSize: 10.5,
     letterSpacing: 1.5,
     textAlign: 'center',
   },
   ringBadge: {
-    width: 150,
-    height: 150,
+    width: 132,
+    height: 132,
     alignItems: 'center',
     justifyContent: 'center',
   },
   ringTierNumber: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 42,
+    fontSize: 37,
   },
   wraCard: {
     marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 18,
+    marginTop: 16,
+    borderRadius: 16,
     borderWidth: 1.5,
-    paddingVertical: 15,
-    paddingHorizontal: 16,
+    paddingVertical: 12,
+    paddingHorizontal: 14,
   },
   wraHeaderRow: {
     flexDirection: 'row',
@@ -500,23 +384,23 @@ const styles = StyleSheet.create({
   wraTitle: {
     flex: 1,
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 15.5,
+    fontSize: 14,
   },
   wraTotal: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 18,
+    fontSize: 16,
   },
   wraSubcaption: {
     fontFamily: 'BarlowCondensed-SemiBold',
-    fontSize: 10.5,
-    marginLeft: 23,
+    fontSize: 9.5,
+    marginLeft: 21,
     marginTop: 1,
   },
   wraTrack: {
-    height: 7,
+    height: 6,
     borderRadius: 999,
     overflow: 'hidden',
-    marginTop: 13,
+    marginTop: 10,
   },
   wraFill: {
     height: '100%',
@@ -524,8 +408,8 @@ const styles = StyleSheet.create({
   },
   wraLegend: {
     flexDirection: 'row',
-    gap: 17,
-    marginTop: 11,
+    gap: 15,
+    marginTop: 9,
   },
   wraLegendItem: {
     flexDirection: 'row',
@@ -539,11 +423,11 @@ const styles = StyleSheet.create({
   },
   wraLegendValue: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 11,
+    fontSize: 10,
   },
   wraLegendLabel: {
     fontFamily: 'BarlowCondensed-SemiBold',
-    fontSize: 11,
+    fontSize: 10,
   },
   programGradient: {
     padding: 1.5,

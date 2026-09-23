@@ -36,15 +36,18 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
-import { StaticService } from '../services/StaticService';
-import { OneMMService } from '../services/OneMMService';
-import { ActivityStatsService, WeeklyActivityStats } from '../services/ActivityStatsService';
+import { getActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
+import { ChallengeService } from '../services/ChallengeService';
+import { getUserGroup } from '../lib/weeklyChallenge';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 import { useRouter, useFocusEffect } from 'expo-router';
 import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
 import { useTutorial } from '../contexts/TutorialContext';
 import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
+
+// Trophy gold (same as GROUP_NAMES' Legends color) for the Weekly Challenge card.
+const WEEKLY_CHALLENGE_GOLD = '#FFD700';
 
 interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
@@ -90,9 +93,6 @@ export function ProfileScreen({
   const router = useRouter();
   // Replaced navigation props with router calls
   const onOpenAssessment = () => router.push('/assessment');
-  const onOpenStaticWorld = () => router.push('/static-world');
-  const onOpenOneMinMax = (category?: 'entry' | 'main' | 'advanced') =>
-    router.push(category ? { pathname: '/one-min-max', params: { category } } : '/one-min-max');
   const onStartTrial = (tier?: number) => {
     const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
     // A progression trial IS the athlete's real next-tier trial, the same
@@ -124,7 +124,6 @@ export function ProfileScreen({
     router.push(firstPrompt ? { pathname: '/coach', params: { firstPrompt } } : '/coach');
   };
   const onOpenCoachingCenter = () => router.push('/coaching-hub');
-  const onOpenTrainingCenter = () => router.push('/training-center');
   const onOpenAdmin = () => router.push('/admin-tournament');
   const onOpenPaywall = () => router.push('/paywall');
 
@@ -254,11 +253,10 @@ export function ProfileScreen({
   const leaderboardScope: 'public' | 'community' = manualLeaderboardScope ?? (profile?.community_id ? 'community' : 'public');
   const setLeaderboardScope = setManualLeaderboardScope;
 
-  // Real Profile-tab activity stats (QuickStatsRow) + per-movement PBs (SuggestedTestCard)
-  const [weeklyStats, setWeeklyStats] = useState<WeeklyActivityStats>({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 });
-  const [hasActiveWorkout, setHasActiveWorkout] = useState(false);
-  const [staticPbs, setStaticPbs] = useState<Record<string, number>>({});
-  const [oneMMPbs, setOneMMPbs] = useState<Record<string, number>>({});
+  // ActiveProgramCard: undefined = not loaded yet, null = no active program.
+  const [activeProgram, setActiveProgram] = useState<ActiveProgramSummary | null | undefined>(undefined);
+  // Weekly Challenge card title: undefined = not loaded yet, null = none this week.
+  const [weeklyChallengeTitle, setWeeklyChallengeTitle] = useState<string | null | undefined>(undefined);
 
   // Leaderboard Filtering
   const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
@@ -334,22 +332,26 @@ export function ProfileScreen({
     }, [selectedTier, category, profile?.id, leaderboardScope])
   );
 
-  // Weekly activity stats + per-movement PBs, refreshed on mount and whenever
-  // the Profile tab regains focus (e.g. after logging a new attempt elsewhere).
+  // Active program "up next" day, refreshed on mount and whenever the
+  // Profile tab regains focus (e.g. after logging a session in the program).
+  // A failed fetch keeps the last known value rather than guessing.
   useFocusEffect(
     useCallback(() => {
       if (!profile?.id) return;
-      ActivityStatsService.getWeeklyStats(profile.id).then(setWeeklyStats).catch(() => {});
-      StaticService.getUserStats(profile.id).then(({ pbs }) => setStaticPbs(pbs)).catch(() => {});
-      OneMMService.getUserStats(profile.id).then(({ pbs }) => setOneMMPbs(pbs)).catch(() => {});
-      supabase
-        .from('warrior_programs')
-        .select('id')
-        .eq('warrior_id', profile.id)
-        .eq('status', 'active')
-        .maybeSingle()
-        .then(({ data }) => setHasActiveWorkout(!!data), () => {});
+      getActiveProgramSummary(profile.id).then(setActiveProgram).catch(() => {});
     }, [profile?.id])
+  );
+
+  // Current week's challenge for the athlete's tier group — same lookup the
+  // Weekly Challenge screen itself does, so the name always matches.
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id) return;
+      const group = getUserGroup(profile.strength_tier ?? 0);
+      ChallengeService.getActive(group, ChallengeService.getCurrentWeekStart())
+        .then((c) => setWeeklyChallengeTitle(c?.title ?? null))
+        .catch(() => {});
+    }, [profile?.id, profile?.strength_tier])
   );
 
   const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
@@ -524,31 +526,37 @@ export function ProfileScreen({
                 gloryPts={gloryPts}
                 WRA_MAX={WRA_MAX}
                 GLORY_MAX={GLORY_MAX}
-                staticPbs={staticPbs}
-                powerPbs={profile.power_pbs || {}}
-                oneMMPbs={oneMMPbs}
-                weeklyStats={weeklyStats}
-                hasActiveWorkout={hasActiveWorkout}
+                activeProgram={activeProgram}
                 onOpenActiveWorkout={() => router.push('/warrior-program')}
+                onCreateProgram={() => router.push('/my-journey')}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onOpenAdmin={onOpenAdmin}
                 onOpenPaywall={onOpenPaywall}
                 onFetchWRALeaderboard={() => fetchWRALeaderboard()}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
-                onOpenTrainingCenter={onOpenTrainingCenter}
-                onOpenStaticWorld={onOpenStaticWorld}
-                onOpenPowerAssessment={onOpenPowerAssessment}
-                onOpenOneMinMax={onOpenOneMinMax}
               />
 
               <TouchableOpacity
-                style={[styles.weeklyChallengeButton, { backgroundColor: W.accent }]}
+                style={[styles.weeklyChallengeButton, { borderColor: getWorldNeutrals(mode).border }]}
                 onPress={onOpenWeeklyChallenge}
-                activeOpacity={0.85}
+                activeOpacity={0.7}
               >
-                <MaterialCommunityIcons name="trophy-outline" size={18} color="#FFFFFF" />
-                <Text style={[styles.weeklyChallengeText, { color: '#FFFFFF' }]}>WEEKLY CHALLENGE</Text>
+                <View style={styles.weeklyChallengeStripe} />
+                <MaterialCommunityIcons name="trophy-outline" size={24} color={WEEKLY_CHALLENGE_GOLD} />
+                <View style={styles.weeklyChallengeTextCol}>
+                  <Text style={[styles.weeklyChallengeText, { color: getWorldNeutrals(mode).textPrimary }]} numberOfLines={1}>
+                    WEEKLY CHALLENGE
+                  </Text>
+                  {/* Blank line while loading (reserves the height, no flash
+                      of the "none" copy); a fetch error keeps the last value. */}
+                  <Text style={[styles.weeklyChallengeSubtitle, { color: getWorldNeutrals(mode).textMuted }]} numberOfLines={1}>
+                    {weeklyChallengeTitle === undefined
+                      ? ' '
+                      : (weeklyChallengeTitle ?? 'NO CHALLENGE THIS WEEK').toUpperCase()}
+                  </Text>
+                </View>
+                <MaterialCommunityIcons name="chevron-right" size={22} color={getWorldNeutrals(mode).textSecondary} />
               </TouchableOpacity>
             </>
           )}
@@ -770,18 +778,41 @@ const styles = StyleSheet.create({
   weeklyChallengeButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
+    gap: 12,
     marginHorizontal: 20,
     marginTop: 6,
     marginBottom: 16,
-    height: 56,
+    minHeight: 72,
+    paddingLeft: 18,
+    paddingRight: 12,
+    paddingVertical: 12,
     borderRadius: 15,
+    // Plain outlined button — no fill, keeps Profile's red to a minimum.
+    // Gold left stripe mirrors ActiveProgramCard's coral one.
+    borderWidth: 1,
+    overflow: 'hidden',
+  },
+  weeklyChallengeStripe: {
+    position: 'absolute',
+    left: 0,
+    top: 0,
+    bottom: 0,
+    width: 4,
+    backgroundColor: WEEKLY_CHALLENGE_GOLD,
+  },
+  weeklyChallengeTextCol: {
+    flex: 1,
   },
   weeklyChallengeText: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 15,
-    letterSpacing: 1.5,
+    fontSize: 18,
+    letterSpacing: 1.2,
+  },
+  weeklyChallengeSubtitle: {
+    fontFamily: 'BarlowCondensed-SemiBold',
+    fontSize: 12,
+    letterSpacing: 1.2,
+    marginTop: 1,
   },
   warriorInfoList: {
     marginTop: 20,

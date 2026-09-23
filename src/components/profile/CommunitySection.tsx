@@ -242,7 +242,7 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
             style={[styles.createBtn, { borderColor: neutrals.border }]}
             onPress={openCreateModal}
           >
-            <MaterialCommunityIcons name="account-group-outline" size={15} color={neutrals.textPrimary} />
+            <MaterialCommunityIcons name="account-group-outline" size={14} color={neutrals.textPrimary} />
             <Text style={[styles.createBtnText, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -251,7 +251,7 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
             style={[styles.joinBtn, { backgroundColor: W.accent }]}
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
           >
-            <MaterialCommunityIcons name="login" size={15} color="#FFFFFF" />
+            <MaterialCommunityIcons name="login" size={14} color="#FFFFFF" />
             <Text style={[styles.joinBtnText, { color: '#FFFFFF' }]}>JOIN COMMUNITY</Text>
           </TouchableOpacity>
         </View>
@@ -392,31 +392,31 @@ const styles = StyleSheet.create({
   },
   createBtn: {
     flex: 1,
-    height: 48,
+    height: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
     borderWidth: 1.5,
-    borderRadius: 13,
+    borderRadius: 12,
   },
   createBtnText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 0.5,
   },
   joinBtn: {
     flex: 1,
-    height: 48,
+    height: 42,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 6,
-    borderRadius: 13,
+    borderRadius: 12,
   },
   joinBtnText: {
     fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 13,
+    fontSize: 12,
     letterSpacing: 0.5,
   },
   sheetOverlay: {
