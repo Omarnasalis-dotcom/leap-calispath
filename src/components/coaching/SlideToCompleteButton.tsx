@@ -1,6 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, TouchableOpacity, View, Animated, Easing, AccessibilityInfo, LayoutChangeEvent } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 // Day Blocks v2 COMPLETE button (assets/design_handoff_day,blocks §4) —
 // shipped choice is tap-triggered slide, not drag. A single tap runs a
@@ -11,9 +10,11 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 // worklets::scheduleOnUI). Single JS-driven clock for the whole animation,
 // per the rn_animated_mixed_native_js_driver_crash incident's guidance:
 // never split one animated value across native and JS drivers.
-const BTN_HEIGHT = 36;
-const THUMB_SIZE = 28;
-const THUMB_INSET = 4;
+const BTN_HEIGHT = 30;
+// Thumb is a slim full-height accent bar flush with the button's edge (the
+// button's own radius + overflow:hidden rounds its outer corners) — no icon;
+// the label carries the COMPLETE / COMPLETED state.
+const THUMB_WIDTH = 12;
 const SLIDE_MS = 450;
 
 interface SlideToCompleteButtonProps {
@@ -91,7 +92,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
   };
 
   const onLayout = (e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width);
-  const travel = Math.max(width - THUMB_SIZE - THUMB_INSET * 2, 0);
+  const travel = Math.max(width - THUMB_WIDTH, 0);
 
   return (
     <TouchableOpacity
@@ -105,7 +106,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
       style={{
         flex: 1,
         height: BTN_HEIGHT,
-        borderRadius: 10,
+        borderRadius: 9,
         overflow: 'hidden',
         position: 'relative',
         backgroundColor: done ? hexAlpha(accentColor, 0.16) : '#1a1a1a',
@@ -114,6 +115,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
         opacity: disabled ? 0.4 : 1,
       }}
     >
+      {/* Tinted trail left behind the block as it slides. */}
       <Animated.View
         pointerEvents="none"
         style={{
@@ -121,12 +123,12 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
           left: 0,
           top: 0,
           bottom: 0,
-          width: progress.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] }),
+          width: progress.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }),
           backgroundColor: hexAlpha(accentColor, 0.22),
         }}
       />
-      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-        <Text style={{ color: done ? accentColor : '#fff', fontSize: 12, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.4 }}>
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingLeft: done ? 0 : THUMB_WIDTH, paddingRight: done ? THUMB_WIDTH : 0 }}>
+        <Text style={{ color: done ? accentColor : '#fff', fontSize: 11.5, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.4 }}>
           {done ? `${label}D` : label}
         </Text>
       </View>
@@ -134,18 +136,13 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
         pointerEvents="none"
         style={{
           position: 'absolute',
-          top: (BTN_HEIGHT - THUMB_SIZE) / 2,
-          width: THUMB_SIZE,
-          height: THUMB_SIZE,
-          borderRadius: THUMB_SIZE / 2,
+          top: 0,
+          bottom: 0,
+          width: THUMB_WIDTH,
           backgroundColor: accentColor,
-          alignItems: 'center',
-          justifyContent: 'center',
-          left: progress.interpolate({ inputRange: [0, 1], outputRange: [THUMB_INSET, THUMB_INSET + travel] }),
+          left: progress.interpolate({ inputRange: [0, 1], outputRange: [0, travel] }),
         }}
-      >
-        <MaterialCommunityIcons name={done ? 'check' : 'chevron-right'} size={14} color="#000" />
-      </Animated.View>
+      />
     </TouchableOpacity>
   );
 };

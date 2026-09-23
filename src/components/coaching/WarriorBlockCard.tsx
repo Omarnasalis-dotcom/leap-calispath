@@ -293,7 +293,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             { opacity: (isTogglingStatus || isLocked) ? 0.4 : 1 },
           ]}
         >
-          <Text style={{ color: skipped ? '#fff' : db.textMuted, fontSize: 13, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.6 }}>
+          <Text style={{ color: skipped ? '#fff' : db.textMuted, fontSize: 12, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.5 }}>
             {skipped ? 'UNDO SKIP' : 'SKIP'}
           </Text>
         </TouchableOpacity>
@@ -712,14 +712,15 @@ const getStyles = (db: DBPalette) => StyleSheet.create({
   },
   dbActionRow: {
     flexDirection: 'row',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingBottom: 12,
+    gap: 10,
+    paddingLeft: 16,
+    paddingRight: 12,
+    paddingBottom: 16,
   },
   dbSkipBtn: {
     flex: 1,
-    height: 36,
-    borderRadius: 10,
+    height: 30,
+    borderRadius: 9,
     backgroundColor: '#1a1a1a',
     alignItems: 'center',
     justifyContent: 'center',
@@ -759,13 +760,17 @@ const getStyles = (db: DBPalette) => StyleSheet.create({
     fontSize: 10,
     letterSpacing: 0.6,
   },
+  // Vertical rhythm: 16 card padding top/bottom, 12 between every section
+  // (header -> pills -> actions). Horizontal: every row shares the header's
+  // 16 left (incl. the 4px rail) / 12 right, so plate, pills and buttons
+  // line up on both edges.
   dbChipRow: {
     flexDirection: 'row',
     flexWrap: 'nowrap',
     gap: 6,
-    paddingHorizontal: 12,
+    paddingLeft: 16,
+    paddingRight: 12,
     paddingBottom: 12,
-    marginTop: -4,
     overflow: 'hidden',
   },
   dbPreviewChip: {
