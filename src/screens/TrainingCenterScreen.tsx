@@ -5,7 +5,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   ScrollView,
-  ActivityIndicator,
   Animated,
   Easing,
   AccessibilityInfo,
@@ -18,6 +17,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
+import { LeapLogo } from '../components/LeapLogo';
 import { canAccessCustomizeProgram } from '../lib/entitlement';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
@@ -556,7 +556,7 @@ export function TrainingCenterScreen() {
 
       {loading && (
         <View style={styles.centerFill}>
-          <ActivityIndicator color={c.coral} />
+          <LeapLogo size={40} animated />
         </View>
       )}
 

@@ -272,7 +272,7 @@ export function ProfileHeader({
               as "there's an upgrade here" without competing for attention. */}
           {(subscriptionTier === 'free' || subscriptionTier === 'first') && (
             <TouchableOpacity activeOpacity={0.7} onPress={onOpenPaywall} style={styles.upgradePill}>
-              <MaterialCommunityIcons name="crown-outline" size={7} color="#FC5454" />
+              <MaterialCommunityIcons name="crown-outline" size={10} color="#FC5454" />
               <Text style={styles.upgradePillText}>{isExpiredSubscriber ? 'RENEW' : 'UPGRADE'}</Text>
             </TouchableOpacity>
           )}
@@ -441,13 +441,13 @@ const styles = StyleSheet.create({
   },
   subscriptionBadge: {
     flexShrink: 0,
-    paddingHorizontal: 6,
-    paddingVertical: 1.5,
-    borderRadius: 6,
+    paddingHorizontal: 9,
+    paddingVertical: 3.5,
+    borderRadius: 8,
   },
   subscriptionBadgeText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 7.5,
+    fontSize: 10.5,
     letterSpacing: 0.8,
     color: '#000',
   },
@@ -455,16 +455,16 @@ const styles = StyleSheet.create({
     flexShrink: 0,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
-    height: 13,
-    paddingHorizontal: 5,
+    gap: 3,
+    height: 20,
+    paddingHorizontal: 8,
     borderRadius: 999,
     borderWidth: 1,
     borderColor: 'rgba(252,84,84,0.5)',
   },
   upgradePillText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 7.3,
+    fontSize: 10.5,
     letterSpacing: 0.3,
     color: '#FC5454',
   },
