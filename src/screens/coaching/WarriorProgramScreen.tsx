@@ -40,6 +40,7 @@ import { NotificationService } from '../../services/NotificationService';
 import { MissedReason } from '../../components/coaching/MissedReasonPicker';
 import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { DayBlocksProgressRing } from '../../components/coaching/DayBlocksProgressRing';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { DayCardList } from '../../components/coaching/DayCardList';
@@ -78,44 +79,29 @@ const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
 // "Running" day view (dbRunnerStyles below) was fixed dark-only — same
 // relationship-preservation split as DB_COLORS/PD_COLORS elsewhere.
 interface DBRPalette {
-  backBtnBorder: string;
   backBtnBg: string;
   title: string;
   metaLine: string;
-  percentValue: string;
-  percentSign: string;
-  percentLabel: string;
   tickMissed: string;
   tickScheduled: string;
-  restBtnBorder: string;
   restBtnBg: string;
 }
 
 const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
   dark: {
-    backBtnBorder: '#221c1c',
-    backBtnBg: 'rgba(255,255,255,.02)',
+    backBtnBg: '#141414',
     title: '#FFFFFF',
-    metaLine: '#6d6d6d',
-    percentValue: '#FFFFFF',
-    percentSign: '#5a5a5a',
-    percentLabel: '#4a4a4a',
-    tickMissed: '#2e2626',
-    tickScheduled: '#191515',
-    restBtnBorder: '#241f1f',
-    restBtnBg: 'rgba(0,0,0,.6)',
+    metaLine: '#a0a0a0',
+    tickMissed: '#3a3a3a',
+    tickScheduled: '#1f1f1f',
+    restBtnBg: '#141414',
   },
   light: {
-    backBtnBorder: '#E5DADA',
     backBtnBg: 'rgba(0,0,0,.03)',
     title: '#2A2A2A',
     metaLine: '#8A8A8A',
-    percentValue: '#2A2A2A',
-    percentSign: '#A5A5A5',
-    percentLabel: '#B5B5B5',
     tickMissed: '#E8C4C4',
     tickScheduled: '#EAE0E0',
-    restBtnBorder: '#DDD0D0',
     restBtnBg: 'rgba(255,255,255,.85)',
   },
 };
@@ -1339,7 +1325,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
               <TouchableOpacity onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <MaterialCommunityIcons name="chevron-left" size={20} color="#8a8a8a" />
+                <MaterialCommunityIcons name="chevron-left" size={18} color="#fff" />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1361,12 +1347,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   {activeDay.blocks.length} BLOCKS · {countMovements(activeDay)} MOVEMENTS · ~{estimateSessionMinutes(activeDay)} MIN
                 </Text>
               </View>
-              <View style={{ alignItems: 'flex-end' }}>
-                <Text style={dbRunnerStyles.percentValue}>
-                  {runnerDayState?.progressPct ?? 0}<Text style={dbRunnerStyles.percentSign}>%</Text>
-                </Text>
-                <Text style={dbRunnerStyles.percentLabel}>COMPLETE</Text>
-              </View>
+              <DayBlocksProgressRing pct={runnerDayState?.progressPct ?? 0} />
             </View>
             <View style={dbRunnerStyles.tickBar}>
               {activeDay.blocks.map((b) => {
@@ -1399,6 +1380,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   handleToggleBlockStatus={handleToggleBlockStatus}
                   isTogglingStatus={!!togglingBlockIds[block.id]}
                   handleOpenLogging={handleOpenLogModal}
+                  isLogPending={logModalVisible && String(activeLogBlockId) === String(block.id)}
                   startTimerForBlock={startTimerForBlock}
                   activeVideoExerciseId={activeVideoExerciseId}
                   onToggleVideo={handleToggleVideo}
@@ -1425,27 +1407,35 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             the old WorkoutProgressButton triggered (session-complete
             stats), so nothing that worked before is lost. */}
         {blocksTotalCount > 0 && (
-          <View style={dbRunnerStyles.footer} pointerEvents="box-none">
-            <TouchableOpacity
-              style={[dbRunnerStyles.restBtn, !runnerOpenBlock && { opacity: 0.35 }]}
-              disabled={!runnerOpenBlock}
-              onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
-            >
-              <MaterialCommunityIcons name="clock-outline" size={20} color="#EDEDED" />
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={dbRunnerStyles.primaryBtn}
-              onPress={() => {
-                if (isWorkoutAddressed) { handleWorkoutDonePress(); return; }
-                const target = runnerNextBlock || activeDay.blocks[0];
-                if (target) setExpandedBlocks({ [target.id]: true });
-              }}
-            >
-              <Text style={dbRunnerStyles.primaryBtnText}>
-                {isWorkoutAddressed ? 'FINISH SESSION' : runnerFooterLabel}
-              </Text>
-            </TouchableOpacity>
-          </View>
+          <LinearGradient
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,.94)', '#000']}
+            locations={[0, 0.3, 1]}
+            style={dbRunnerStyles.footerWrap}
+            pointerEvents="box-none"
+          >
+            <View style={dbRunnerStyles.footer} pointerEvents="box-none">
+              <TouchableOpacity
+                style={[dbRunnerStyles.restBtn, !runnerOpenBlock && { opacity: 0.35 }]}
+                disabled={!runnerOpenBlock}
+                onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
+              >
+                <MaterialCommunityIcons name="clock-outline" size={22} color="#fff" />
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={dbRunnerStyles.primaryBtn}
+                onPress={() => {
+                  if (isWorkoutAddressed) { handleWorkoutDonePress(); return; }
+                  const target = runnerNextBlock || activeDay.blocks[0];
+                  if (target) setExpandedBlocks({ [target.id]: true });
+                }}
+              >
+                <MaterialCommunityIcons name="play" size={14} color="#000" />
+                <Text style={dbRunnerStyles.primaryBtnText}>
+                  {isWorkoutAddressed ? 'FINISH SESSION' : runnerFooterLabel}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </LinearGradient>
         )}
         </View>
       ) : (
@@ -1768,31 +1758,30 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 // Center flow, independent of the app's own light/dark theme toggle.
 const getDbRunnerStyles = (dbr: DBRPalette) => StyleSheet.create({
   backBtn: {
-    width: 34, height: 34, borderRadius: 12, borderWidth: 1, borderColor: dbr.backBtnBorder,
-    backgroundColor: dbr.backBtnBg, alignItems: 'center', justifyContent: 'center', marginTop: 2,
+    width: 44, height: 44, borderRadius: 14,
+    backgroundColor: dbr.backBtnBg, alignItems: 'center', justifyContent: 'center',
   },
-  title: { color: dbr.title, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 20, letterSpacing: 1.4 },
+  title: { color: dbr.title, fontFamily: 'BarlowCondensed-Bold', fontSize: 24, letterSpacing: 1.2 },
   stateBadge: { borderWidth: 1, borderRadius: 5, paddingHorizontal: 7, paddingVertical: 3 },
-  metaLine: { color: dbr.metaLine, fontFamily: 'Barlow-Regular', fontSize: 10, marginTop: 3 },
-  percentValue: { color: dbr.percentValue, fontFamily: 'BarlowCondensed-Bold', fontSize: 19 },
-  percentSign: { color: dbr.percentSign, fontSize: 10 },
-  percentLabel: { color: dbr.percentLabel, fontFamily: 'Barlow-Regular', fontSize: 7.5, letterSpacing: 1.5, marginTop: 1 },
-  tickBar: { flexDirection: 'row', gap: 4, marginTop: 12 },
-  tick: { flex: 1, height: 3, borderRadius: 2 },
+  metaLine: { color: dbr.metaLine, fontFamily: 'Barlow-Regular', fontSize: 13, letterSpacing: 0.6, marginTop: 4 },
+  tickBar: { flexDirection: 'row', gap: 5, marginTop: 16 },
+  tick: { flex: 1, height: 4, borderRadius: 2 },
+  footerWrap: {
+    position: 'absolute', left: 0, right: 0, bottom: 0,
+    paddingHorizontal: 16, paddingTop: 24, paddingBottom: 30,
+  },
   footer: {
-    position: 'absolute', left: 20, right: 20, bottom: 26,
     flexDirection: 'row', gap: 10, alignItems: 'center',
   },
   restBtn: {
-    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: dbr.restBtnBorder,
+    width: 58, height: 58, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center', backgroundColor: dbr.restBtnBg,
   },
   primaryBtn: {
-    flex: 1, height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
+    flex: 1, height: 58, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center',
     backgroundColor: '#FC5454',
-    shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 30, elevation: 8,
   },
-  primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.9 },
+  primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 17, letterSpacing: 2.4 },
 });
 
 const styles = StyleSheet.create({

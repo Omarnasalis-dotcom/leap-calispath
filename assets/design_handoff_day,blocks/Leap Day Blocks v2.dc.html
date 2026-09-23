@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+@keyframes rowIn{from{opacity:0;transform:translateY(12px)}to{opacity:1;transform:translateY(0)}}
+@keyframes expandIn{from{opacity:0;transform:translateY(-4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes stampIn{from{opacity:0;transform:rotate(-8deg) scale(1.8)}to{opacity:1;transform:rotate(-8deg) scale(1)}}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">WORKOUT BLOCKS · V2</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Readability pass: bigger type, higher contrast, and every action is a labelled button.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">· Unlabelled empty box → explicit DONE button.<br>· Faint SKIP text → real 44px button.<br>· Chips → plain movement list, one per line.<br>· Meta text lifted from #5a to #a0.<br>· Chevron in its own tap target.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+      <div style="color:#8a8a8a;font-size:11px;letter-spacing:1.6px;font-weight:500;">MID-WORKOUT STATE</div>
+      <div style="{{ toggleTrack }}" onClick="{{ toggleProgress }}"><div style="width:18px;height:18px;border-radius:50%;background:#fff;"></div></div>
+    </div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);display:flex;flex-direction:column;flex-shrink:0;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;flex-shrink:0;">
+      <div>12:22</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;padding:22px 20px 16px;">
+      <div style="display:flex;align-items:center;gap:14px;">
+        <div style="width:44px;height:44px;border-radius:14px;background:#141414;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+        </div>
+        <div style="flex:1;min-width:0;">
+          <div style="color:#fff;font-size:24px;font-weight:700;letter-spacing:1.2px;line-height:1.05;">UPPER DAY 1</div>
+          <div style="color:#a0a0a0;font-size:13px;font-weight:400;letter-spacing:.6px;margin-top:4px;">5 blocks · 14 moves · ~23 min</div>
+        </div>
+        <div style="position:relative;width:52px;height:52px;flex-shrink:0;">
+          <svg width="52" height="52" viewBox="0 0 52 52" style="transform:rotate(-90deg);">
+            <circle cx="26" cy="26" r="22" fill="none" stroke="#1f1f1f" stroke-width="4"></circle>
+            <circle cx="26" cy="26" r="22" fill="none" stroke="#FC5454" stroke-width="4" stroke-linecap="round" stroke-dasharray="138.2" style="{{ ringStyle }}"></circle>
+          </svg>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;"><div style="{{ pctTextStyle }}">{{ pct }}<span style="font-size:8px;color:#a0a0a0;">%</span></div></div>
+        </div>
+      </div>
+      <div style="display:flex;gap:5px;margin-top:16px;">
+        <sc-for list="{{ ticks }}" as="t" hint-placeholder-count="5">
+          <div style="{{ t.style }}"></div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="flex:1;overflow-y:auto;">
+      <div style="padding:2px 16px 130px;display:grid;gap:12px;">
+        <sc-for list="{{ blocks }}" as="b" hint-placeholder-count="5">
+          <div style="{{ b.cardStyle }}">
+            <div style="{{ b.stampStyle }}">{{ b.stampLabel }}</div>
+
+            <div style="display:flex;align-items:center;gap:14px;padding:16px 12px 12px 16px;cursor:pointer;" onClick="{{ b.toggle }}">
+              <div style="{{ b.badgeStyle }}" onClick="{{ b.badgeTap }}">{{ b.badge }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="{{ b.titleStyle }}">{{ b.title }}</div>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px;flex-wrap:wrap;">
+                  <div style="{{ b.schemeStyle }}">{{ b.scheme }}</div>
+                  <div style="width:3px;height:3px;border-radius:50%;background:#5a5a5a;"></div>
+                  <div style="color:#a0a0a0;font-size:13px;font-weight:400;letter-spacing:.4px;">{{ b.meta }}</div>
+                </div>
+              </div>
+              <div style="{{ b.checkStyle }}" onClick="{{ b.doneTap }}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+              </div>
+              <div style="{{ b.chevStyle }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"></path></svg>
+              </div>
+            </div>
+
+            <sc-if value="{{ b.collapsed }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;flex-wrap:nowrap;gap:6px;padding:2px 12px 14px 16px;overflow:hidden;">
+                <sc-for list="{{ b.preview }}" as="m" hint-placeholder-count="2">
+                  <div style="{{ m.style }}">{{ m.name }}</div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ b.open }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;gap:6px;padding:2px 12px 14px;animation:expandIn .28s ease both;">
+                <sc-for list="{{ b.moves }}" as="m" hint-placeholder-count="3">
+                  <div style="display:flex;align-items:center;gap:12px;padding:12px 14px;border-radius:14px;background:#161616;">
+                    <div style="flex:1;min-width:0;">
+                      <div style="color:#fff;font-size:15px;font-weight:500;letter-spacing:.3px;">{{ m.name }}</div>
+                      <div style="color:#a0a0a0;font-size:12px;font-weight:300;margin-top:2px;">{{ m.note }}</div>
+                    </div>
+                    <div style="color:#e6e6e6;font-size:14px;font-weight:600;letter-spacing:.4px;white-space:nowrap;">{{ m.sets }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+
+            <div style="{{ b.footerStyle }}">
+              <div style="{{ b.skipBtn }}" onClick="{{ b.skip }}">
+                <svg style="{{ b.skipIconStyle }}" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 5l9 7-9 7zM18 5v14"></path></svg>
+                <div style="{{ b.skipTextStyle }}">{{ b.skipLabel }}</div>
+              </div>
+              <div style="{{ b.doneBtn }}" onClick="{{ b.doneClick }}" onPointerDown="{{ b.pDown }}" onPointerMove="{{ b.pMove }}" onPointerUp="{{ b.pUp }}" onPointerLeave="{{ b.pCancel }}">
+                <div style="{{ b.fillStyle }}"></div>
+                <div style="{{ b.thumbStyle }}">
+                  <svg style="{{ b.thumbArrow }}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+                  <svg style="{{ b.thumbCheck }}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                </div>
+                <svg style="{{ b.doneIconStyle }}" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+                <div style="position:relative;">{{ b.doneLabel }}</div>
+              </div>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:0;right:0;bottom:0;padding:24px 16px 30px;background:linear-gradient(180deg,rgba(0,0,0,0) 0%,rgba(0,0,0,.94) 30%,#000 100%);pointer-events:none;">
+      <div style="display:flex;gap:10px;pointer-events:auto;">
+        <div style="width:58px;height:58px;border-radius:18px;background:#141414;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9.5v4l2.5 2M9 2h6"></path></svg>
+        </div>
+        <div style="flex:1;height:58px;border-radius:18px;background:#FC5454;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="#000"><path d="M7 4l13 8-13 8z"></path></svg>
+          <div style="color:#000;font-size:17px;font-weight:700;letter-spacing:2.4px;">{{ ctaLabel }}</div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:740,&quot;height&quot;:960},&quot;doneStyle&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Buttons&quot;,&quot;Hold to complete&quot;,&quot;Slide to complete&quot;,&quot;Stamp&quot;,&quot;Check circle&quot;,&quot;Number badge&quot;,&quot;Wide + skip icon&quot;],&quot;default&quot;:&quot;Slide to complete&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;doneText&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;COMPLETE&quot;,&quot;LOCK IT IN&quot;,&quot;CRUSHED IT&quot;,&quot;NAILED IT&quot;,&quot;LOG BLOCK&quot;,&quot;CONQUER&quot;,&quot;CLAIM IT&quot;],&quot;default&quot;:&quot;COMPLETE&quot;,&quot;tsType&quot;:&quot;string&quot;}}">
+const CORAL = "#FC5454", GOLD = "#E0B43A", ORANGE = "#F7843A", STEEL = "#6B9BFF";
+const BLOCKS = [
+  { title: "WARM-UP", accent: GOLD, scheme: "STRAIGHT SETS", dur: "~5 min", moves: [
+    { name: "Banded Arm Circles", note: "Both directions", sets: "2 × 15" },
+    { name: "Scapula Pulls", note: "No elbow bend", sets: "2 × 10" },
+    { name: "Band Pull-Apart", note: "Slow return", sets: "2 × 15" },
+    { name: "Deadhang", note: "Shoulders relaxed", sets: "2 × 30s" } ] },
+  { title: "STRENGTH 1", accent: CORAL, scheme: "STRAIGHT SETS", dur: "~10 min", moves: [
+    { name: "Push Ups", note: "Full lockout", sets: "3 × 10" },
+    { name: "Ring Row", note: "Body in one line", sets: "3 × 12" } ] },
+  { title: "ACCESSORIES", accent: ORANGE, scheme: "STRAIGHT SETS", dur: "~4 min", moves: [
+    { name: "Banded Biceps Curl", note: "2s down", sets: "2 × 15" },
+    { name: "Overhead Extensions", note: "Elbows tight", sets: "2 × 12" },
+    { name: "Lateral Raises", note: "Light band", sets: "2 × 15" } ] },
+  { title: "FINISHER", accent: CORAL, scheme: "AMRAP", dur: "~2 min", moves: [
+    { name: "Knee Push Ups", note: "Steady pace", sets: "Max" },
+    { name: "Ring Row", note: "Steady pace", sets: "Max" },
+    { name: "Mountain Climbing", note: "Fast knees", sets: "Max" } ] },
+  { title: "COOL-DOWN", accent: STEEL, scheme: "TABATA", dur: "~1 min", moves: [
+    { name: "Shoulder Stretch", note: "Both sides", sets: "20s" },
+    { name: "Lat Stretch · Shoulder Opener", note: "Breathe slowly", sets: "20s" } ] },
+];
+const hex = (h, a) => { const n = parseInt(h.slice(1), 16); return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`; };
+
+class Component extends DCLogic {
+  state = { openIndex: -1, status: {}, holdI: -1, slideI: -1, slideX: 0 };
+
+  setStatus(i, v) { this.setState(p => ({ status: Object.assign({}, p.status, { [i]: p.status[i] === v ? undefined : v }) })); }
+
+  renderVals() {
+    const st = i => this.state.status[i] || "todo";
+    const settled = BLOCKS.filter((_, i) => st(i) !== "todo").length;
+    const pct = Math.round(settled / BLOCKS.length * 100);
+    const anyDone = settled > 0;
+    const mid = !!this.state.mid;
+    const v = this.props.doneStyle ?? "Slide to complete";
+    const isCheck = v === "Check circle", isBadge = v === "Number badge", isWide = v === "Wide + skip icon";
+    const isHold = v === "Hold to complete", isSlide = v === "Slide to complete", isStamp = v === "Stamp";
+    const btn = { position: "relative", overflow: "hidden", userSelect: "none", touchAction: "none", flex: 1, height: 44, borderRadius: 12, display: "flex", alignItems: "center", justifyContent: "center", gap: 7, cursor: "pointer", fontSize: 13, fontWeight: 600, letterSpacing: 1.6 };
+
+    return {
+      pct,
+      pctTextStyle: { color: "#fff", fontSize: pct === 100 ? 12.5 : 15, fontWeight: 700, lineHeight: 1, letterSpacing: 0, whiteSpace: "nowrap", paddingLeft: 3 },
+      ringStyle: { strokeDashoffset: 138.2 * (1 - pct / 100), opacity: pct === 0 ? 0 : 1, transition: "stroke-dashoffset .6s cubic-bezier(.4,0,.2,1), opacity .2s ease" },
+      ctaLabel: anyDone ? "RESUME WORKOUT" : "START WORKOUT",
+      ticks: BLOCKS.map((b, i) => ({ style: { flex: 1, height: 4, borderRadius: 2, background: st(i) === "done" ? b.accent : st(i) === "skipped" ? "#3a3a3a" : "#1f1f1f", transition: "background .3s ease" } })),
+      blocks: BLOCKS.map((b, i) => {
+        const s = st(i), done = s === "done", skipped = s === "skipped";
+        const open = this.state.openIndex === i;
+        const a = b.accent;
+        return {
+          title: b.title, scheme: b.scheme,
+          meta: `${b.moves.length} moves · ${b.dur}`,
+          badge: done ? "✓" : skipped ? "–" : String(i + 1),
+          open, collapsed: !open,
+          toggle: () => this.setState(p => ({ openIndex: p.openIndex === i ? -1 : i })),
+          skip: () => this.setStatus(i, "skipped"),
+          done: () => this.setStatus(i, "done"),
+          doneTap: (e) => { e.stopPropagation(); this.setStatus(i, "done"); },
+          doneClick: () => {
+            if (isHold) { if (done) this.setStatus(i, "done"); return; }
+            if (isSlide) {
+              if (done) { this.setStatus(i, "done"); return; }
+              if (this.state.slideI === i) return;
+              this.setState({ slideI: i });
+              clearTimeout(this._st); this._st = setTimeout(() => { this.setState({ slideI: -1 }); this.setStatus(i, "done"); }, 480);
+              return;
+            }
+            this.setStatus(i, "done");
+          },
+          pDown: (e) => {
+            if (done) return;
+            if (isHold) { this.setState({ holdI: i }); clearTimeout(this._ht); this._ht = setTimeout(() => { this.setState({ holdI: -1 }); this.setStatus(i, "done"); }, 850); }
+          },
+          pMove: () => {},
+          pUp: () => {
+            if (isHold) { clearTimeout(this._ht); this.setState({ holdI: -1 }); }
+          },
+          pCancel: () => { if (isHold) { clearTimeout(this._ht); this.setState({ holdI: -1 }); } },
+          fillStyle: { position: "absolute", left: 0, top: 0, bottom: 0, background: hex(a, isSlide ? .22 : .35), pointerEvents: "none",
+            width: isHold ? (this.state.holdI === i ? "100%" : "0%") : isSlide && (this.state.slideI === i || done) ? "100%" : "0",
+            transition: isHold ? (this.state.holdI === i ? "width .85s linear" : "width .2s ease") : isSlide ? "width .45s cubic-bezier(.6,0,.2,1)" : "none" },
+          thumbStyle: { display: isSlide ? "flex" : "none", position: "absolute", top: 4, width: 36, height: 36, borderRadius: "50%", background: a, alignItems: "center", justifyContent: "center", pointerEvents: "none",
+            left: this.state.slideI === i || done ? "calc(100% - 40px)" : "4px", transition: "left .45s cubic-bezier(.6,0,.2,1)" },
+          thumbArrow: { display: done ? "none" : "block" },
+          thumbCheck: { display: done ? "block" : "none" },
+          doneIconStyle: { position: "relative", display: isSlide ? "none" : "block" },
+          stampStyle: { display: isStamp && done ? "block" : "none", position: "absolute", top: 14, right: 64, padding: "4px 10px", border: "2px solid " + a, borderRadius: 6, color: a, fontSize: 14, fontWeight: 700, letterSpacing: 2.5, transform: "rotate(-8deg)", animation: "stampIn .35s cubic-bezier(.2,1.6,.4,1) both", pointerEvents: "none", background: "rgba(15,15,15,.85)" },
+          badgeTap: (e) => { if (!isBadge) return; e.stopPropagation(); this.setStatus(i, "done"); },
+          footerStyle: { display: (isCheck || isBadge) && !open ? "none" : "flex", gap: 8, padding: "0 12px 12px" },
+          checkStyle: { display: isCheck && !skipped ? "flex" : "none", width: 44, height: 44, borderRadius: "50%", flexShrink: 0, alignItems: "center", justifyContent: "center", cursor: "pointer", boxSizing: "border-box", background: done ? a : "transparent", border: "2px solid " + (done ? a : "#4a4a4a"), color: done ? "#000" : "#6a6a6a", transition: "all .2s ease" },
+          skipIconStyle: { display: isWide && !skipped ? "block" : "none" },
+          skipTextStyle: { display: isWide && !skipped ? "none" : "block" },
+          stampLabel: "DONE",
+          skipLabel: skipped ? "UNDO SKIP" : "SKIP",
+          doneLabel: (({ "COMPLETE": ["COMPLETE", "COMPLETED"], "LOCK IT IN": ["LOCK IT IN", "LOCKED IN"], "CRUSHED IT": ["CRUSHED IT", "CRUSHED"], "NAILED IT": ["NAILED IT", "NAILED"], "LOG BLOCK": ["LOG BLOCK", "LOGGED"], "CONQUER": ["CONQUER", "CONQUERED"], "CLAIM IT": ["CLAIM IT", "CLAIMED"] })[this.props.doneText ?? "COMPLETE"] || ["COMPLETE", "COMPLETED"])[done ? 1 : 0] + (!done && isHold ? " · HOLD" : ""),
+          cardStyle: { position: "relative", borderRadius: 20, background: "#0f0f0f", borderTop: "1px solid " + (open ? hex(a, .45) : "#1f1f1f"), borderRight: "1px solid " + (open ? hex(a, .45) : "#1f1f1f"), borderBottom: "1px solid " + (open ? hex(a, .45) : "#1f1f1f"), borderLeft: "4px solid " + (skipped ? "#3a3a3a" : a), opacity: skipped ? .55 : 1, animation: `rowIn .4s ease ${0.05 + i * 0.06}s both`, transition: "border-color .2s ease, opacity .2s ease" },
+          badgeStyle: isBadge ? { width: 44, height: 44, borderRadius: "50%", flexShrink: 0, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, cursor: "pointer", background: done ? a : "transparent", border: "2px " + (done ? "solid " + a : "dashed " + hex(a, .7)), color: done ? "#000" : skipped ? "#8a8a8a" : a, transition: "all .2s ease" } : { width: 40, height: 40, borderRadius: 12, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, fontWeight: 700, background: done ? a : hex(a, .14), color: done ? "#000" : skipped ? "#8a8a8a" : a },
+          titleStyle: { color: "#fff", fontSize: 19, fontWeight: 600, letterSpacing: 1.2, lineHeight: 1.1, textDecoration: skipped ? "line-through" : "none" },
+          schemeStyle: { color: skipped ? "#8a8a8a" : a, fontSize: 12, fontWeight: 600, letterSpacing: 1.3 },
+          chevStyle: { width: 44, height: 44, borderRadius: 12, flexShrink: 0, background: "#1a1a1a", display: "flex", alignItems: "center", justifyContent: "center", transform: open ? "rotate(180deg)" : "none", transition: "transform .25s ease" },
+          preview: b.moves.slice(0, 2).map(m => m.name).concat(b.moves.length > 2 ? [`+${b.moves.length - 2}`] : []).map(n => {
+            const more = n.startsWith("+");
+            return { name: n, style: { flex: more ? "0 0 auto" : "0 1 auto", minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", padding: "7px 12px", borderRadius: 999, background: more ? "transparent" : "#1a1a1a", border: "1px solid " + (more ? "#2a2a2a" : "#242424"), color: more ? "#a0a0a0" : "#e6e6e6", fontSize: 13, fontWeight: 500, letterSpacing: .3 } };
+          }),
+          moves: b.moves,
+          skipBtn: Object.assign({}, btn, isWide && !skipped ? { flex: "0 0 44px" } : {}, { display: done ? "none" : "flex", background: "#1a1a1a", color: skipped ? "#fff" : "#d0d0d0" }),
+          doneBtn: Object.assign({}, btn, { display: skipped || isCheck || isBadge ? "none" : "flex", background: done ? hex(a, .16) : isWide ? hex(a, .12) : "#1a1a1a", color: done || isWide ? a : "#fff", border: "1px solid " + (done || isWide ? hex(a, .4) : "#2a2a2a") }),
+        };
+      }),
+      toggleProgress: () => this.setState(p => p.mid ? { mid: false, status: {}, openIndex: -1 } : { mid: true, status: { 0: "done", 1: "done", 2: "skipped" }, openIndex: 3 }),
+      toggleTrack: { width: 40, height: 22, borderRadius: 11, padding: 2, boxSizing: "border-box", cursor: "pointer", background: mid ? CORAL : "#2a2a2a", display: "flex", justifyContent: mid ? "flex-end" : "flex-start" },
+    };
+  }
+}
+</script>
+</body>
+</html>
