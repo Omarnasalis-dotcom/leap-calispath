@@ -66,8 +66,9 @@ function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFi
   }
   if (isFirst && !isProItem) {
     return (
-      <View style={styles.topPickBadge}>
-        <Text style={styles.topPickBadgeText}>TOP PICK</Text>
+      <View style={styles.freeBadge}>
+        <MaterialCommunityIcons name="gift-outline" size={10} color="#000" />
+        <Text style={styles.freeBadgeText}>FREE</Text>
       </View>
     );
   }
@@ -143,6 +144,7 @@ function RecommendedCard({
 function TemplateRowCard({
   rec,
   imageSource,
+  isFirst,
   isCurrent,
   isSelecting,
   disabled,
@@ -152,6 +154,7 @@ function TemplateRowCard({
 }: {
   rec: LibraryTemplateRecommendation;
   imageSource: any;
+  isFirst: boolean;
   isCurrent: boolean;
   isSelecting: boolean;
   disabled: boolean;
@@ -176,7 +179,7 @@ function TemplateRowCard({
         {locked && <View style={styles.lockOverlay} pointerEvents="none" />}
 
         <View style={styles.rowTopRow}>
-          <CardBadge isCurrent={isCurrent} isFirst={false} isProItem={isProItem} />
+          <CardBadge isCurrent={isCurrent} isFirst={isFirst} isProItem={isProItem} />
           <View style={styles.tierPill}>
             <Text style={styles.tierPillText}>T{rec.tier_range.min}–{rec.tier_range.max}</Text>
           </View>
@@ -396,9 +399,9 @@ export function ProgramTemplatesScreen() {
     }
   };
 
-  const filteredAllTemplates = allTemplates.filter(
-    (t) => difficultyFilter === 'all' || tierRangeToDifficultyBand(t.tier_range) === difficultyFilter
-  );
+  const filteredAllTemplates = allTemplates
+    .filter((t) => difficultyFilter === 'all' || tierRangeToDifficultyBand(t.tier_range) === difficultyFilter)
+    .sort((a, b) => (a.id === topPickId ? -1 : b.id === topPickId ? 1 : 0));
 
   return (
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
@@ -469,6 +472,7 @@ export function ProgramTemplatesScreen() {
                   key={rec.id}
                   rec={rec}
                   imageSource={getCardImage(rec, index)}
+                  isFirst={rec.id === topPickId}
                   isCurrent={!!currentProgramName && rec.template_name === currentProgramName}
                   isSelecting={selectingId === rec.id}
                   disabled={selectingId !== null}
@@ -548,8 +552,8 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
 
   activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#2ECC71', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
   activeBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5 },
-  topPickBadge: { backgroundColor: c.coral, borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
-  topPickBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.4 },
+  freeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#2ECC71', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
+  freeBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 9, letterSpacing: 0.4 },
   proBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#FF5252', borderRadius: 6, paddingHorizontal: 7, paddingVertical: 4 },
   proBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 8, letterSpacing: 0.4 },
 

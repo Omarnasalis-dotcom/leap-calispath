@@ -625,7 +625,7 @@ const GOAL_LABELS: Record<string, string> = Object.fromEntries(
   GOALS.filter((g) => g.id !== 'other').map((g) => [g.id, g.label])
 );
 
-function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean }) {
+function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean; showFreeBadge?: boolean }) {
   return (
     <TouchableOpacity style={styles.choiceCard} onPress={onPress}>
       {/* Corner ribbon, not an inline chip -- gold metallic gradient (same
@@ -644,6 +644,15 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge }: { icon:
           <MaterialCommunityIcons name="crown" size={9} color="#2B2000" />
           <Text style={styles.proBadgeCornerText}>PRO</Text>
         </LinearGradient>
+      )}
+      {/* Same green FREE badge as the top-pick template inside Program
+          Templates (CardBadge's freeBadge) -- flags that Ready Template's
+          first option is reachable without upgrading. */}
+      {showFreeBadge && (
+        <View style={styles.freeBadgeCorner}>
+          <MaterialCommunityIcons name="gift-outline" size={9} color="#000" />
+          <Text style={styles.freeBadgeCornerText}>FREE</Text>
+        </View>
       )}
       <View style={styles.choiceIconWrap}>
         <MaterialCommunityIcons name={icon as any} size={22} color={ACCENT} />
@@ -1977,6 +1986,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   icon="view-grid-outline"
                   title="READY TEMPLATE"
                   desc="Start an expert-built program today."
+                  showFreeBadge
                   onPress={() => {
                     acknowledgeLegacyOnboarding();
                     router.push('/program-templates');
@@ -1995,14 +2005,26 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     isn't stuck (they already have the tab bar), so it'd be a
                     redundant, confusing duplicate action for them. */}
                 {mode === 'onboarding' && milestone3State === 'active' && (
-                  <TouchableOpacity
-                    style={styles.skipOnboardingBtn}
-                    disabled={submittingProgramReady}
-                    onPress={handleSkipProgramForLater}
-                  >
-                    <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
-                    <MaterialCommunityIcons name="chevron-right" size={14} color="rgba(255,255,255,0.6)" />
-                  </TouchableOpacity>
+                  <View style={styles.onboardingExitRow}>
+                    <TouchableOpacity
+                      style={styles.skipOnboardingBtn}
+                      disabled={submittingProgramReady}
+                      onPress={handleSkipProgramForLater}
+                    >
+                      <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
+                      <MaterialCommunityIcons name="chevron-right" size={12} color="rgba(255,255,255,0.6)" />
+                    </TouchableOpacity>
+                    {!canAccessPro(profile, paywallEnabled) && (
+                      <TouchableOpacity
+                        style={styles.upgradeNowBtn}
+                        disabled={submittingProgramReady}
+                        onPress={() => router.push('/paywall')}
+                      >
+                        <MaterialCommunityIcons name="crown" size={12} color="#000" />
+                        <Text style={styles.upgradeNowBtnText}>GET PRO NOW</Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 )}
               </View>
             </NodeRow>
@@ -2763,6 +2785,32 @@ const styles = StyleSheet.create({
     fontSize: 8,
     letterSpacing: 0.6,
   },
+  freeBadgeCorner: {
+    position: 'absolute',
+    top: -8,
+    left: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 3,
+    backgroundColor: '#2ECC71',
+    paddingHorizontal: 8,
+    paddingVertical: 3.5,
+    borderRadius: 7,
+    borderWidth: 0.5,
+    borderColor: 'rgba(255,255,255,0.4)',
+    shadowColor: '#1E9E58',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 5,
+    elevation: 5,
+    zIndex: 2,
+  },
+  freeBadgeCornerText: {
+    color: '#000',
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    fontSize: 8,
+    letterSpacing: 0.6,
+  },
   choiceDesc: {
     color: 'rgba(255,255,255,0.65)',
     fontFamily: 'PlusJakartaSans-Regular',
@@ -2770,21 +2818,44 @@ const styles = StyleSheet.create({
     marginTop: 3,
     lineHeight: 16,
   },
-  skipOnboardingBtn: {
+  onboardingExitRow: {
+    flexDirection: 'row',
     alignSelf: 'center',
     marginTop: 12,
+    gap: 8,
+  },
+  skipOnboardingBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 2,
+    justifyContent: 'center',
+    gap: 4,
     backgroundColor: 'rgba(17,17,17,0.85)',
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.2)',
     paddingVertical: 7,
     paddingHorizontal: 14,
     borderRadius: 16,
+    minWidth: 130,
   },
   skipOnboardingBtnText: {
     color: 'rgba(255,255,255,0.75)',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 11,
+    letterSpacing: 1,
+  },
+  upgradeNowBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 4,
+    backgroundColor: '#F3D477',
+    paddingVertical: 7,
+    paddingHorizontal: 14,
+    borderRadius: 16,
+    minWidth: 130,
+  },
+  upgradeNowBtnText: {
+    color: '#000',
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 11,
     letterSpacing: 1,
