@@ -128,3 +128,31 @@ export function rankGapProgress(score: number, gapToNext: number, rank: number):
   if (rank === 1) return 1;
   return clamp01(score / (score + Math.max(0, gapToNext)));
 }
+
+// ---------------------------------------------------------------------------
+// Well-Rounded Athlete
+
+/**
+ * WRA bar milestones. The bar fills from 0 toward the NEXT milestone rather
+ * than a fixed 5000 max, so early points visibly move it (11 pts -> 44% of
+ * 25) instead of rendering as a 0.2% speck.
+ */
+export const WRA_MILESTONES = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000];
+
+export interface WraMilestoneProgress {
+  /** Milestone being worked toward (the top one once it's reached). */
+  target: number;
+  /** Points still needed; 0 once the top milestone is reached. */
+  remaining: number;
+  /** True once the top milestone is reached. */
+  maxed: boolean;
+}
+
+export function wraMilestoneProgress(score: number): WraMilestoneProgress {
+  const safe = Number.isFinite(score) && score > 0 ? score : 0;
+  const next = WRA_MILESTONES.find((m) => safe < m);
+  if (next === undefined) {
+    return { target: WRA_MILESTONES[WRA_MILESTONES.length - 1], remaining: 0, maxed: true };
+  }
+  return { target: next, remaining: next - safe, maxed: false };
+}

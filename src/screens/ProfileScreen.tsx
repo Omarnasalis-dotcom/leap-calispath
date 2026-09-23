@@ -37,6 +37,7 @@ import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '.
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
 import { getActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
+import { ActiveProgramCard } from '../components/profile/ActiveProgramCard';
 import { ChallengeService } from '../services/ChallengeService';
 import { getUserGroup } from '../lib/weeklyChallenge';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
@@ -455,7 +456,6 @@ export function ProfileScreen({
   const mmPts = profile.one_mm_points || 0;
   const gloryPts = profile.glory_score || 0;
   const wraScore = staticPts + powerPts + mmPts;
-  const WRA_MAX = 5000;
   const GLORY_MAX = 1000;
 
   const fetchWRALeaderboard = async (scopeOverride?: 'public' | 'community') => {
@@ -524,15 +524,12 @@ export function ProfileScreen({
                 powerPts={powerPts}
                 mmPts={mmPts}
                 gloryPts={gloryPts}
-                WRA_MAX={WRA_MAX}
                 GLORY_MAX={GLORY_MAX}
-                activeProgram={activeProgram}
-                onOpenActiveWorkout={() => router.push('/warrior-program')}
-                onCreateProgram={() => router.push('/my-journey')}
                 onShowWarriorModal={() => setShowWarriorModal(true)}
                 onOpenAdmin={onOpenAdmin}
                 onOpenPaywall={onOpenPaywall}
                 onFetchWRALeaderboard={() => fetchWRALeaderboard()}
+                onOpenCommunityLeaderboard={() => handleWraScopeChange('community')}
                 onFetchGloryLeaderboard={fetchGloryLeaderboard}
                 onOpenCoachingCenter={onOpenCoachingCenter}
               />
@@ -558,6 +555,21 @@ export function ProfileScreen({
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={22} color={getWorldNeutrals(mode).textSecondary} />
               </TouchableOpacity>
+
+              {/* Active program "up next" + continue — Profile's one training
+                  entry point now that the TRAIN tab owns the Training Center
+                  hub. Hidden until the lookup resolves so a slow fetch never
+                  flashes the no-program CTA at someone who has a program. */}
+              {activeProgram !== undefined && (
+                <View style={styles.activeProgramWrap}>
+                  <ActiveProgramCard
+                    hasActiveProgram={activeProgram !== null}
+                    nextUpDayName={activeProgram?.nextUpDayName ?? null}
+                    onContinue={() => router.push('/warrior-program')}
+                    onCreateProgram={() => router.push('/my-journey')}
+                  />
+                </View>
+              )}
             </>
           )}
 
@@ -780,8 +792,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 12,
     marginHorizontal: 20,
-    marginTop: 6,
-    marginBottom: 16,
+    marginTop: 12,
     minHeight: 72,
     paddingLeft: 18,
     paddingRight: 12,
@@ -791,6 +802,11 @@ const styles = StyleSheet.create({
     // Gold left stripe mirrors ActiveProgramCard's coral one.
     borderWidth: 1,
     overflow: 'hidden',
+  },
+  activeProgramWrap: {
+    marginHorizontal: 20,
+    marginTop: 12,
+    marginBottom: 16,
   },
   weeklyChallengeStripe: {
     position: 'absolute',

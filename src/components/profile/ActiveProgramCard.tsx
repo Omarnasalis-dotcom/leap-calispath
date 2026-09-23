@@ -1,7 +1,7 @@
 import React from 'react';
 import { PhotoActionCard } from './PhotoActionCard';
 
-const COVER = require('../../../assets/Milestone Cards/pull/pull-01.png');
+const COVER = require('../../../assets/Milestone Cards/random/handstand.jpg');
 
 interface ActiveProgramCardProps {
   hasActiveProgram: boolean;
@@ -20,7 +20,6 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
   return hasActiveProgram ? (
     <PhotoActionCard
       photo={COVER}
-      icon="play"
       eyebrow="ACTIVE PROGRAM · UP NEXT"
       title={(nextUpDayName || 'WEEK COMPLETE').toUpperCase()}
       cta="CONTINUE PROGRAM"
@@ -29,7 +28,6 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
   ) : (
     <PhotoActionCard
       photo={COVER}
-      icon="plus"
       eyebrow="NO ACTIVE PROGRAM"
       title="START YOUR TRAINING"
       cta="CREATE YOUR FIRST PROGRAM"

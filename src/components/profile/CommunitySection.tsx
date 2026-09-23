@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, TextInput, Modal, ScrollView, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { LeaderboardService } from '../../services/LeaderboardService';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useSafeMutation } from '../../hooks/useSafeMutation';
@@ -12,6 +13,20 @@ import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/wo
 
 const W = WORLD_THEMES.strength;
 const NAME_MAX = 30;
+const LEADER_GOLD = '#FFD700';
+
+// Rank within the community's WRA leaderboard. The RPC only returns members
+// with points (and at most 100), so this is "ranked members", never a
+// member count.
+type CommunityRank = { rank: number | null; ranked: number };
+
+// Session-lifetime caches, keyed by community id. Profile and Strength share
+// one route and ProfileScreen unmounts this section when switching between
+// them, so without these every tab switch re-showed the loading skeleton and
+// refetched. Remounts now render the last-known values instantly and
+// refresh quietly in the background.
+const communityCache = new Map<string, MyCommunity>();
+const rankCache = new Map<string, CommunityRank>();
 
 interface CommunitySectionProps {
   userId: string;
@@ -22,9 +37,11 @@ interface CommunitySectionProps {
   // rest of the profile screen instead of popping in after it.
   communityId: string | null | undefined;
   scrollRef?: React.RefObject<ScrollView | null>;
+  /** Opens the WRA leaderboard scoped to this community. */
+  onOpenCommunityLeaderboard?: () => void;
 }
 
-export function CommunitySection({ userId, communityId, scrollRef }: CommunitySectionProps) {
+export function CommunitySection({ userId, communityId, scrollRef, onOpenCommunityLeaderboard }: CommunitySectionProps) {
   const { theme, mode } = useTheme();
   const neutrals = getWorldNeutrals(mode);
   const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.03)' : 'rgba(0,0,0,0.03)';
@@ -36,11 +53,13 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   // reload. refreshProfile() propagates the new community_id everywhere
   // that reads useAuth() in one shot.
   const { refreshProfile } = useAuth();
-  const [community, setCommunity] = useState<MyCommunity | null>(null);
+  const [community, setCommunity] = useState<MyCommunity | null>(
+    () => (communityId ? communityCache.get(communityId) ?? null : null)
+  );
   // Only true when there's actually something to fetch (the user already
   // has a community_id) — with no community yet, there's nothing async to
   // wait on, so this starts (and stays) false.
-  const [loading, setLoading] = useState(!!communityId);
+  const [loading, setLoading] = useState(!!communityId && !communityCache.has(communityId));
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showJoinModal, setShowJoinModal] = useState(false);
   const [createName, setCreateName] = useState('');
@@ -49,6 +68,10 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   const [formError, setFormError] = useState<string | null>(null);
   const [leaderCode, setLeaderCode] = useState<string | null>(null);
   const [codeLoading, setCodeLoading] = useState(false);
+  // undefined = loading / unknown (subline hidden rather than guessing).
+  const [rankInfo, setRankInfo] = useState<CommunityRank | undefined>(
+    () => (communityId ? rankCache.get(communityId) : undefined)
+  );
   const { safeMutate, isMutating } = useSafeMutation();
   // useScreenMeasure=true: see useTutorialTarget's own comment.
   const { ref: createButtonRef, onLayout: onCreateButtonLayout } = useTutorialTarget('community.createButton', scrollRef, true);
@@ -73,6 +96,7 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   const refresh = async () => {
     setLoading(true);
     const c = await getMyCommunity(userId);
+    if (c) communityCache.set(c.id, c);
     setCommunity(c);
     setLeaderCode(null);
     setLoading(false);
@@ -97,16 +121,45 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
       setLoading(false);
       return;
     }
-    setLoading(true);
+    // Cached: show it now, no skeleton; the fetch below just refreshes it.
+    const cached = communityCache.get(communityId);
+    if (cached) {
+      setCommunity(cached);
+      setLoading(false);
+    } else {
+      setLoading(true);
+    }
     let cancelled = false;
     getCommunityById(communityId).then((c) => {
       if (!cancelled) {
-        setCommunity(c);
+        if (c) communityCache.set(c.id, c);
+        // A failed refresh keeps the cached community instead of blanking it.
+        if (c || !cached) setCommunity(c);
         setLoading(false);
       }
     });
     return () => { cancelled = true; };
   }, [communityId]);
+
+  useEffect(() => {
+    // Keep the cached rank on screen while refreshing; only blank it when
+    // there's nothing known for this community yet.
+    setRankInfo(community?.id ? rankCache.get(community.id) : undefined);
+    if (!community?.id) return;
+    const id = community.id;
+    let cancelled = false;
+    LeaderboardService.getGlobalWellRoundedLeaderboard(userId, community.id).then((entries) => {
+      if (cancelled) return;
+      // The service returns [] on error too — indistinguishable from an
+      // empty board, so an empty result shows nothing instead of a claim.
+      if (entries.length === 0) return;
+      const me = entries.find((e) => e.user_id === userId);
+      const info = { rank: me?.rank ?? null, ranked: entries.length };
+      rankCache.set(id, info);
+      setRankInfo(info);
+    });
+    return () => { cancelled = true; };
+  }, [community?.id, userId]);
 
   const openCreateModal = () => {
     setFormError(null);
@@ -193,66 +246,106 @@ export function CommunitySection({ userId, communityId, scrollRef }: CommunitySe
   // and shifting everything below it once the name arrives.
   if (loading) {
     return (
-      <View style={{ marginTop: 18 }}>
+      <View style={{ marginTop: 8 }}>
         <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay, opacity: 0.5 }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.statusLabel, { color: neutrals.textCaption }]}>MY COMMUNITY</Text>
-          </View>
-          <LeapLogo size={18} animated />
+          <MaterialCommunityIcons name="account-group-outline" size={18} color={neutrals.textSecondary} />
+          <View style={styles.nameWrap} />
+          <LeapLogo size={16} animated />
         </View>
       </View>
     );
   }
 
   return (
-    <View style={{ marginTop: 18 }}>
+    <View style={{ marginTop: 8 }}>
       {community ? (
-        <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay }]}>
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.statusLabel, { color: neutrals.textCaption }]}>MY COMMUNITY</Text>
+        // One slim row: whole row opens the community leaderboard; the key
+        // (leader) and leave icons are their own nested buttons.
+        <TouchableOpacity
+          style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay }]}
+          activeOpacity={0.7}
+          disabled={!onOpenCommunityLeaderboard}
+          onPress={onOpenCommunityLeaderboard}
+          accessibilityRole="button"
+          accessibilityLabel={`${community.name} community${rankInfo?.rank ? `, rank ${rankInfo.rank} of ${rankInfo.ranked}` : ''}. Open community leaderboard`}
+        >
+          <MaterialCommunityIcons name="account-group-outline" size={18} color={neutrals.textSecondary} />
+          <View style={styles.nameWrap}>
             <Text style={[styles.statusName, { color: neutrals.textPrimary }]} numberOfLines={1}>
               {community.name.toUpperCase()}
             </Text>
-            {isLeader && leaderCode && (
-              <Text style={[styles.codeText, { color: W.accent, marginTop: 4 }]}>{leaderCode}</Text>
-            )}
+            {isLeader && <MaterialCommunityIcons name="crown" size={12} color={LEADER_GOLD} />}
           </View>
+
+          {/* Pill: join code while the leader has it revealed, else rank. */}
+          {isLeader && leaderCode ? (
+            <View style={[styles.pill, { backgroundColor: subtleOverlayStrong }]}>
+              <Text style={[styles.pillCode, { color: neutrals.textPrimary }]}>{leaderCode}</Text>
+            </View>
+          ) : rankInfo ? (
+            <View style={[styles.pill, { backgroundColor: subtleOverlayStrong }]}>
+              <Text style={[styles.pillText, { color: neutrals.textSecondary }]}>
+                {rankInfo.rank ? `#${rankInfo.rank} of ${rankInfo.ranked}${rankInfo.ranked >= 100 ? '+' : ''}` : 'UNRANKED'}
+              </Text>
+            </View>
+          ) : null}
+
           {isLeader && (
-            <TouchableOpacity onPress={toggleLeaderCode} disabled={codeLoading} style={styles.codeBtn}>
-              {codeLoading ? <LeapLogo size={16} animated /> : (
-                <MaterialCommunityIcons
-                  name={leaderCode ? 'eye-off-outline' : 'key-outline'}
-                  size={18}
-                  color={W.accent}
-                />
+            <TouchableOpacity
+              onPress={toggleLeaderCode}
+              disabled={codeLoading}
+              style={styles.iconBtn}
+              hitSlop={6}
+              accessibilityRole="button"
+              accessibilityLabel={leaderCode ? 'Hide join code' : 'Show join code'}
+            >
+              {codeLoading ? <LeapLogo size={14} animated /> : (
+                <MaterialCommunityIcons name={leaderCode ? 'eye-off-outline' : 'key-outline'} size={16} color={neutrals.textMuted} />
               )}
             </TouchableOpacity>
           )}
-          <TouchableOpacity onPress={confirmLeave} disabled={isMutating} style={styles.leaveBtn}>
-            {isMutating ? <LeapLogo size={18} animated /> : (
-              <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>LEAVE</Text>
+          <TouchableOpacity
+            onPress={confirmLeave}
+            disabled={isMutating}
+            style={[styles.iconBtn, { marginRight: -5 }]}
+            hitSlop={6}
+            accessibilityRole="button"
+            accessibilityLabel="Leave community"
+          >
+            {isMutating ? <LeapLogo size={14} animated /> : (
+              <MaterialCommunityIcons name="logout" size={16} color={neutrals.textMuted} />
             )}
           </TouchableOpacity>
-        </View>
+        </TouchableOpacity>
       ) : (
-        <View style={{ flexDirection: 'row', gap: 10 }}>
+        // Same slim row shape as the joined state, with the two actions as
+        // compact pills on the right.
+        <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay }]}>
+          <MaterialCommunityIcons name="account-group-outline" size={18} color={neutrals.textSecondary} />
+          <View style={styles.nameWrap}>
+            <Text style={[styles.statusName, { color: neutrals.textPrimary }]} numberOfLines={1}>COMMUNITY</Text>
+          </View>
           <TouchableOpacity
             ref={createButtonRef}
             onLayout={onCreateButtonLayout}
-            style={[styles.createBtn, { borderColor: neutrals.border }]}
+            style={[styles.actionPill, { borderColor: neutrals.border, borderWidth: 1 }]}
             onPress={openCreateModal}
+            accessibilityRole="button"
+            accessibilityLabel="Create community"
           >
-            <MaterialCommunityIcons name="account-group-outline" size={14} color={neutrals.textPrimary} />
-            <Text style={[styles.createBtnText, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
+            <MaterialCommunityIcons name="plus" size={13} color={neutrals.textPrimary} />
+            <Text style={[styles.actionPillText, { color: neutrals.textPrimary }]}>CREATE</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={joinButtonRef}
             onLayout={onJoinButtonLayout}
-            style={[styles.joinBtn, { backgroundColor: W.accent }]}
+            style={[styles.actionPill, { backgroundColor: W.accent, marginRight: -4 }]}
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
+            accessibilityRole="button"
+            accessibilityLabel="Join community"
           >
-            <MaterialCommunityIcons name="login" size={14} color="#FFFFFF" />
-            <Text style={[styles.joinBtnText, { color: '#FFFFFF' }]}>JOIN COMMUNITY</Text>
+            <MaterialCommunityIcons name="login" size={13} color="#FFFFFF" />
+            <Text style={[styles.actionPillText, { color: '#FFFFFF' }]}>JOIN</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -365,59 +458,58 @@ const styles = StyleSheet.create({
   statusCard: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 10,
+    height: 50,
+    paddingHorizontal: 14,
     borderWidth: 1.5,
-    borderRadius: 13,
-    padding: 14,
+    borderRadius: 14,
   },
-  statusLabel: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 10,
-    letterSpacing: 1.5,
-    marginBottom: 2,
+  nameWrap: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
   },
   statusName: {
+    flexShrink: 1,
     fontSize: 15,
     fontFamily: 'BarlowCondensed-ExtraBold',
     letterSpacing: 0.5,
   },
-  leaveBtn: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  codeBtn: {
-    width: 32,
-    height: 32,
-    alignItems: 'center',
+  pill: {
+    height: 22,
+    paddingHorizontal: 9,
+    borderRadius: 999,
     justifyContent: 'center',
   },
-  createBtn: {
-    flex: 1,
-    height: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderWidth: 1.5,
-    borderRadius: 12,
-  },
-  createBtnText: {
+  pillText: {
     fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 12,
-    letterSpacing: 0.5,
+    fontSize: 11,
+    letterSpacing: 0.4,
   },
-  joinBtn: {
-    flex: 1,
-    height: 42,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    borderRadius: 12,
-  },
-  joinBtnText: {
+  pillCode: {
     fontFamily: 'BarlowCondensed-ExtraBold',
     fontSize: 12,
-    letterSpacing: 0.5,
+    letterSpacing: 1.8,
+  },
+  iconBtn: {
+    width: 26,
+    height: 26,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    height: 30,
+    paddingHorizontal: 12,
+    borderRadius: 999,
+  },
+  actionPillText: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 12,
+    letterSpacing: 0.8,
   },
   sheetOverlay: {
     flex: 1,

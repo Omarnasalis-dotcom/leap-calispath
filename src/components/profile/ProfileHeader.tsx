@@ -1,21 +1,22 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import {
   View,
   Text,
   TouchableOpacity,
   ScrollView,
   StyleSheet,
+  Animated,
+  Easing,
+  AccessibilityInfo,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
-import { ActiveProgramCard } from './ActiveProgramCard';
 import { CommunitySection } from './CommunitySection';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
-import { clamp01 } from '../../lib/worldProgress';
-import { ActiveProgramSummary } from '../../lib/activeProgramSummary';
+import { wraMilestoneProgress } from '../../lib/worldProgress';
 import { getSubscriptionTier, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
 
 const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
@@ -32,6 +33,77 @@ const EXPIRED_BADGE_COLOR = '#a1584a';
 
 const W = WORLD_THEMES.strength;
 
+/**
+ * WRA bar: one fill sized to the worlds' combined share of the milestone,
+ * painted as a single gradient that blends from each world's color to the
+ * next (each color centred on that world's slice). Grows from 0 with an ease-out whenever
+ * the values change — single JS-driven value (widths can't use the native
+ * driver, and mixing drivers on one clock has crashed this app before).
+ */
+function WraMilestoneBar({ segments, trackColor }: { segments: { pct: number; color: string }[]; trackColor: string }) {
+  const anim = useRef(new Animated.Value(0)).current;
+  const key = segments.map((sg) => sg.pct.toFixed(2)).join('|');
+
+  const active = segments.filter((sg) => sg.pct > 0);
+  const filled = Math.min(active.reduce((sum, sg) => sum + sg.pct, 0), 100);
+  // Gradient stops at each slice's midpoint, normalised to the fill width.
+  // LinearGradient needs >= 2 colors, so a lone world is doubled up.
+  let cursor = 0;
+  const stops = active.map((sg) => {
+    const mid = (cursor + sg.pct / 2) / (filled || 1);
+    cursor += sg.pct;
+    return { color: sg.color, at: Math.min(Math.max(mid, 0), 1) };
+  });
+  const colors = stops.length === 1 ? [stops[0].color, stops[0].color] : stops.map((st) => st.color);
+  const locations = stops.length === 1 ? [0, 1] : stops.map((st) => st.at);
+
+  useEffect(() => {
+    let cancelled = false;
+    let a: Animated.CompositeAnimation | null = null;
+    AccessibilityInfo.isReduceMotionEnabled()
+      .catch(() => false)
+      .then((reduce) => {
+        if (cancelled) return;
+        if (reduce) {
+          anim.setValue(1);
+          return;
+        }
+        anim.setValue(0);
+        a = Animated.timing(anim, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: false });
+        a.start();
+      });
+    return () => {
+      cancelled = true;
+      a?.stop();
+    };
+  }, [key, anim]);
+
+  return (
+    <View style={[styles.wraTrack, { backgroundColor: trackColor }]}>
+      {filled > 0 && (
+        <Animated.View
+          style={{
+            height: '100%',
+            borderRadius: 999,
+            overflow: 'hidden',
+            width: anim.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${filled}%`] }),
+          }}
+        >
+          <LinearGradient
+            colors={colors as [string, string, ...string[]]}
+            locations={locations as [number, number, ...number[]]}
+            start={{ x: 0, y: 0.5 }}
+            end={{ x: 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+const formatPts = (n: number) => String(Number(n.toFixed(2)));
+
 interface ProfileHeaderProps {
   scrollRef?: React.RefObject<ScrollView | null>;
   profile: any;
@@ -45,16 +117,12 @@ interface ProfileHeaderProps {
   powerPts: number;
   mmPts: number;
   gloryPts: number;
-  WRA_MAX: number;
   GLORY_MAX: number;
-  /** undefined = still loading, null = no active program. */
-  activeProgram: ActiveProgramSummary | null | undefined;
-  onOpenActiveWorkout: () => void;
-  onCreateProgram: () => void;
   onShowWarriorModal: () => void;
   onOpenAdmin: () => void;
   onOpenPaywall: () => void;
   onFetchWRALeaderboard: () => void;
+  onOpenCommunityLeaderboard: () => void;
   onFetchGloryLeaderboard: () => void;
   onOpenCoachingCenter?: () => void;
 }
@@ -116,15 +184,12 @@ export function ProfileHeader({
   powerPts,
   mmPts,
   gloryPts,
-  WRA_MAX,
   GLORY_MAX,
-  activeProgram,
-  onOpenActiveWorkout,
-  onCreateProgram,
   onShowWarriorModal,
   onOpenAdmin,
   onOpenPaywall,
   onFetchWRALeaderboard,
+  onOpenCommunityLeaderboard,
   onFetchGloryLeaderboard,
   onOpenCoachingCenter,
 }: ProfileHeaderProps) {
@@ -141,7 +206,16 @@ export function ProfileHeader({
     : 'WARRIOR';
   const subscriptionTier = getSubscriptionTier(profile, paywallEnabled);
   const isExpiredSubscriber = hasExpiredSubscription(profile, paywallEnabled);
-  const wraPct = clamp01(wraScore / WRA_MAX) * 100;
+  const wraMilestone = wraMilestoneProgress(wraScore);
+  // Each world's slice of the bar = its points / milestone target. Once the
+  // top milestone is passed the bar is full, split by share of the total.
+  // Any non-zero world keeps at least a visible sliver.
+  const wraDenominator = wraMilestone.maxed ? Math.max(wraScore, 1) : wraMilestone.target;
+  const wraSegments = [
+    { value: staticPts, color: WORLD_THEMES.static.accent },
+    { value: powerPts, color: WORLD_THEMES.power.accent },
+    { value: mmPts, color: WORLD_THEMES.onemm.accent },
+  ].map((d) => ({ color: d.color, pct: d.value > 0 ? Math.max((d.value / wraDenominator) * 100, 1.5) : 0 }));
   const neutrals = getWorldNeutrals(mode);
   const subtleOverlay = mode === 'dark' ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.08)';
 
@@ -235,13 +309,18 @@ export function ProfileHeader({
           <MaterialCommunityIcons name="trophy-outline" size={14} color={W.accent} />
           <Text style={[styles.wraTitle, { color: neutrals.textPrimary }]}>Well-Rounded Athlete</Text>
           <Text style={[styles.wraTotal, { color: W.accent }]}>{wraScore.toFixed(2)}</Text>
+          {/* Card opens the WRA leaderboard. */}
+          <MaterialCommunityIcons name="chevron-right" size={16} color={neutrals.textMuted} style={{ marginLeft: -3, marginRight: -4 }} />
         </View>
-        <Text style={[styles.wraSubcaption, { color: neutrals.textMuted }]}>Static · Power · 1MM</Text>
-        {/* Honest bar: width always computed from the real total — never a
-            hard-coded full bar at 0 (the original app's recurring bug). */}
-        <View style={[styles.wraTrack, { backgroundColor: subtleOverlay }]}>
-          <View style={[styles.wraFill, { backgroundColor: W.accent, width: `${wraPct}%` }]} />
-        </View>
+        <Text style={[styles.wraSubcaption, { color: neutrals.textMuted }]}>
+          {wraMilestone.maxed
+            ? 'Top milestone reached'
+            : `Next milestone ${wraMilestone.target} · ${formatPts(wraMilestone.remaining)} to go`}
+        </Text>
+        {/* Honest bar: fills from the real total toward the next milestone
+            (never a hard-coded full bar at 0 — the original app's recurring
+            bug), so a new user's bar is visibly empty. */}
+        <WraMilestoneBar segments={wraSegments} trackColor={subtleOverlay} />
         <View style={styles.wraLegend}>
           {[
             { label: 'Static', value: staticPts, color: WORLD_THEMES.static.accent },
@@ -260,21 +339,11 @@ export function ProfileHeader({
       {/* Create / Join community actions */}
       {profile?.id && (
         <View style={{ marginHorizontal: 20 }}>
-          <CommunitySection userId={profile.id} communityId={profile.community_id} scrollRef={scrollRef} />
-        </View>
-      )}
-
-      {/* Active program "up next" + continue — Profile's one training entry
-          point now that the TRAIN tab owns the Training Center hub. Hidden
-          until the lookup resolves so a slow fetch never flashes the
-          no-program CTA at someone who has a program. */}
-      {activeProgram !== undefined && (
-        <View style={{ marginHorizontal: 20, marginTop: 14 }}>
-          <ActiveProgramCard
-            hasActiveProgram={activeProgram !== null}
-            nextUpDayName={activeProgram?.nextUpDayName ?? null}
-            onContinue={onOpenActiveWorkout}
-            onCreateProgram={onCreateProgram}
+          <CommunitySection
+            userId={profile.id}
+            communityId={profile.community_id}
+            scrollRef={scrollRef}
+            onOpenCommunityLeaderboard={onOpenCommunityLeaderboard}
           />
         </View>
       )}
@@ -397,14 +466,11 @@ const styles = StyleSheet.create({
     marginTop: 1,
   },
   wraTrack: {
+    flexDirection: 'row',
     height: 6,
     borderRadius: 999,
     overflow: 'hidden',
     marginTop: 10,
-  },
-  wraFill: {
-    height: '100%',
-    borderRadius: 999,
   },
   wraLegend: {
     flexDirection: 'row',
