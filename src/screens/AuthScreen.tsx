@@ -272,6 +272,12 @@ function GlassButton({ title, onPress, loading, disabled }: { title: string; onP
 // membership window) whenever one is entered, required or not.
 const INVITE_CODE_REQUIRED = false;
 
+// Invite codes are retired for now (2026-09-26): the field is hidden, so
+// inviteCode stays '' and the reserve/redeem/release flow never runs. Flip
+// back to true to bring codes back — but first make redeem_invite_code set
+// subscription_tier (audit 2026-09-25, H3), or a redeemed code grants nothing.
+const INVITE_CODE_ENABLED = false;
+
 export function AuthScreen() {
   const { mode } = useTheme();
   const c = AUTH_COLORS[mode];
@@ -347,7 +353,7 @@ export function AuthScreen() {
   }
 
   async function handleSubmit() {
-    if (!email || !password || (isSignUp && INVITE_CODE_REQUIRED && !inviteCode)) {
+    if (!email || !password || (isSignUp && INVITE_CODE_ENABLED && INVITE_CODE_REQUIRED && !inviteCode)) {
       Alert.alert('Missing Fields', `Please fill in all fields${INVITE_CODE_REQUIRED ? ' (including Invite Code)' : ''} to continue.`);
       return;
     }
@@ -572,26 +578,29 @@ export function AuthScreen() {
 
                       {renderEmailPasswordFields()}
 
-                      <View style={styles.inviteCodeGroup}>
-                        <GlassInput
-                          placeholder={INVITE_CODE_REQUIRED ? 'Invite Code' : 'Invite Code (Optional)'}
-                          value={inviteCode}
-                          onChangeText={setInviteCode}
-                          autoCapitalize="characters"
-                          accessibilityLabel="Invite code"
-                          c={c}
-                        />
-                        {INVITE_CODE_REQUIRED ? (
-                          <TouchableOpacity
-                            onPress={() => Linking.openURL('https://leap-arena.com/request')}
-                            style={{ marginTop: 6, alignSelf: 'flex-start' }}
-                          >
-                            <Text style={styles.linkText}>Don't have an invite code? Request one here</Text>
-                          </TouchableOpacity>
-                        ) : (
-                          <Text style={[styles.hintText, { color: c.inkTertiary }]}>Have one? Add it for trial/membership perks. Not required to join.</Text>
-                        )}
-                      </View>
+                      {!INVITE_CODE_ENABLED && <View style={styles.signupCtaSpacer} />}
+                      {INVITE_CODE_ENABLED && (
+                        <View style={styles.inviteCodeGroup}>
+                          <GlassInput
+                            placeholder={INVITE_CODE_REQUIRED ? 'Invite Code' : 'Invite Code (Optional)'}
+                            value={inviteCode}
+                            onChangeText={setInviteCode}
+                            autoCapitalize="characters"
+                            accessibilityLabel="Invite code"
+                            c={c}
+                          />
+                          {INVITE_CODE_REQUIRED ? (
+                            <TouchableOpacity
+                              onPress={() => Linking.openURL('https://leap-arena.com/request')}
+                              style={{ marginTop: 6, alignSelf: 'flex-start' }}
+                            >
+                              <Text style={styles.linkText}>Don't have an invite code? Request one here</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <Text style={[styles.hintText, { color: c.inkTertiary }]}>Have one? Add it for trial/membership perks. Not required to join.</Text>
+                          )}
+                        </View>
+                      )}
 
                       <GlassButton title="CLAIM YOUR DESTINY" onPress={handleSubmit} loading={loading} />
 
@@ -840,6 +849,10 @@ const styles = StyleSheet.create({
   inviteCodeGroup: {
     marginTop: 12,
     marginBottom: 16,
+  },
+  // Holds the CTA's spacing while the invite-code group is hidden.
+  signupCtaSpacer: {
+    height: 24,
   },
   backButton: {
     alignSelf: 'flex-start',
