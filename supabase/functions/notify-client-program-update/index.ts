@@ -22,18 +22,35 @@ function json(body: unknown, status = 200) {
 // Same robust resolution as delete-user-account/index.ts and
 // notify-coach-workout-logged/index.ts.
 function resolveServiceRoleKey(): string {
-  const raw = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (raw) return raw;
+  // New secret key (sb_secret_…) first; the legacy JWT key is only a
+  // fallback until legacy API keys are disabled (C1 key rotation).
   const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (rawSecretKeys) {
     try {
       const parsed = JSON.parse(rawSecretKeys);
-      return parsed.service_role ?? parsed.serviceRole ?? parsed[Object.keys(parsed)[0]] ?? "";
+      const key = parsed[Object.keys(parsed)[0]];
+      if (key) return key;
     } catch {
-      return "";
+      // fall through to the legacy key
     }
   }
-  return "";
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+}
+
+// Publishable key (sb_publishable_…) first; the legacy anon JWT is only a
+// fallback until legacy API keys are disabled (C1 key rotation).
+function resolvePublishableKey(): string {
+  const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      const key = parsed[Object.keys(parsed)[0]];
+      if (key) return key;
+    } catch {
+      // fall through to the legacy key
+    }
+  }
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 }
 
 Deno.serve(async (req) => {
@@ -69,7 +86,7 @@ Deno.serve(async (req) => {
   // this row rather than the coach — RLS alone can't tell those apart.
   const asClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    resolvePublishableKey(),
     { global: { headers: { Authorization: authHeader } } }
   );
 

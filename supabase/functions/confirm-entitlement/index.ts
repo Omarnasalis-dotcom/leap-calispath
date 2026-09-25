@@ -50,18 +50,19 @@ const PRODUCT_TIER_MAP: Record<string, { tier: "first" | "pro" | "max"; budgetUs
 };
 
 function resolveServiceRoleKey(): string {
-  const raw = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-  if (raw) return raw;
+  // New secret key (sb_secret_…) first; the legacy JWT key is only a
+  // fallback until legacy API keys are disabled (C1 key rotation).
   const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
   if (rawSecretKeys) {
     try {
       const parsed = JSON.parse(rawSecretKeys);
-      return parsed.service_role ?? parsed.serviceRole ?? parsed[Object.keys(parsed)[0]] ?? "";
+      const key = parsed[Object.keys(parsed)[0]];
+      if (key) return key;
     } catch {
-      return "";
+      // fall through to the legacy key
     }
   }
-  return "";
+  return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 }
 
 Deno.serve(async (req) => {

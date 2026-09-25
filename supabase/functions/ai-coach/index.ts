@@ -341,6 +341,22 @@ const CACHED_TOOLS = ANTHROPIC_TOOLS.map((tool, i) =>
   i === ANTHROPIC_TOOLS.length - 1 ? { ...tool, cache_control: { type: "ephemeral" } } : tool
 );
 
+// Publishable key (sb_publishable_…) first; the legacy anon JWT is only a
+// fallback until legacy API keys are disabled (C1 key rotation).
+function resolvePublishableKey(): string {
+  const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      const key = parsed[Object.keys(parsed)[0]];
+      if (key) return key;
+    } catch {
+      // fall through to the legacy key
+    }
+  }
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+}
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -351,7 +367,7 @@ serve(async (req: Request) => {
 
   const userClient = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    resolvePublishableKey(),
     { global: { headers: { Authorization: authHeader } } }
   );
 
@@ -364,18 +380,19 @@ serve(async (req: Request) => {
   // confirm-entitlement/index.ts's resolveServiceRoleKey, in case this
   // project's secrets are exposed as SUPABASE_SECRET_KEYS instead.
   const serviceRoleKey = (() => {
-    const raw = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-    if (raw) return raw;
+    // New secret key (sb_secret_…) first; the legacy JWT key is only a
+    // fallback until legacy API keys are disabled (C1 key rotation).
     const rawSecretKeys = Deno.env.get("SUPABASE_SECRET_KEYS");
     if (rawSecretKeys) {
       try {
         const parsed = JSON.parse(rawSecretKeys);
-        return parsed.service_role ?? parsed.serviceRole ?? parsed[Object.keys(parsed)[0]] ?? "";
+        const key = parsed[Object.keys(parsed)[0]];
+        if (key) return key;
       } catch {
-        return "";
+        // fall through to the legacy key
       }
     }
-    return "";
+    return Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   })();
   const serviceClient = serviceRoleKey
     ? createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey)

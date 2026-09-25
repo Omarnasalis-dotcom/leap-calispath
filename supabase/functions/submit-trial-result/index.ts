@@ -55,6 +55,22 @@ function decodeJwtSubject(token: string): string | null {
   }
 }
 
+// Publishable key (sb_publishable_…) first; the legacy anon JWT is only a
+// fallback until legacy API keys are disabled (C1 key rotation).
+function resolvePublishableKey(): string {
+  const raw = Deno.env.get("SUPABASE_PUBLISHABLE_KEYS");
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      const key = parsed[Object.keys(parsed)[0]];
+      if (key) return key;
+    } catch {
+      // fall through to the legacy key
+    }
+  }
+  return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
+}
+
 Deno.serve(async (req) => {
   // Handle CORS preflight
   if (req.method === "OPTIONS") {
@@ -138,7 +154,7 @@ Deno.serve(async (req) => {
   // Create authenticated Supabase client
   const supabase = createClient(
     Deno.env.get("SUPABASE_URL") ?? "",
-    Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+    resolvePublishableKey(),
     { global: { headers: { Authorization: authHeader } } }
   );
 
