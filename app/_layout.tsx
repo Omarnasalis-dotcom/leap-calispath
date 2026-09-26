@@ -17,12 +17,47 @@ const navigationIntegration = Sentry.reactNavigationIntegration({
 // testing) never pollutes the Sentry project with noise that isn't a real
 // user-facing crash — enabled is a second guard on top of only wiring the
 // DSN into preview/production EAS environments, not development.
+// Traces sampled at 20%, not 100%, to keep performance data affordable as
+// usage grows (audit 2026-09-25, L10).
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
   enabled: !__DEV__,
-  tracesSampleRate: 1.0,
+  tracesSampleRate: 0.2,
   integrations: [navigationIntegration],
 });
+
+// Many screens catch a failure and only console.error it, which was
+// invisible in production (audit M17). Forward those to Sentry too.
+// (@sentry/react-native 7.2 doesn't export captureConsoleIntegration, and
+// @sentry/core is only a transitive dependency.) Production only; reporting
+// must never break logging.
+if (!__DEV__) {
+  const originalConsoleError = console.error;
+  const describe = (arg: unknown) => {
+    if (typeof arg === 'string') return arg;
+    try {
+      return JSON.stringify(arg);
+    } catch {
+      return String(arg);
+    }
+  };
+  let forwarding = false; // re-entry guard, in case Sentry itself logs an error
+  console.error = (...args: unknown[]) => {
+    originalConsoleError(...args);
+    if (forwarding) return;
+    forwarding = true;
+    try {
+      const message = args.map(describe).join(' ').slice(0, 1000);
+      const error = args.find((arg) => arg instanceof Error) as Error | undefined;
+      if (error) Sentry.captureException(error, { extra: { console: message } });
+      else Sentry.captureMessage(message, 'error');
+    } catch {
+      // Never let crash reporting interfere with the original log.
+    } finally {
+      forwarding = false;
+    }
+  };
+}
 
 // Foreground pushes still show a banner/sound instead of arriving silently —
 // the default handler suppresses them while the app is open.
