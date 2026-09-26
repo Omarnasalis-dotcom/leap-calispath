@@ -111,7 +111,7 @@ const TINTS: Record<WorldKitKey, WorldTint> = {
       track: '#2a1212', tint: '#140b0b', tintStrong: '#1a0e0d', tintBorder: '#2e1616',
       tintBorderStrong: '#3a1a18', inputBg: '#0c0606', buttonTint: '#1a1010', goalBg: '#110a0a',
     },
-    lightTextDarken: 0.2,
+    lightTextDarken: 0.22,
   },
   onemm: {
     accent: '#FF6B2C',
@@ -120,7 +120,7 @@ const TINTS: Record<WorldKitKey, WorldTint> = {
       track: '#2a1a0c', tint: '#140c07', tintStrong: '#1a110a', tintBorder: '#33200f',
       tintBorderStrong: '#3a2412', inputBg: '#0c0805', buttonTint: '#1a1109', goalBg: '#110b07',
     },
-    lightTextDarken: 0.25,
+    lightTextDarken: 0.3,
   },
 };
 
@@ -155,6 +155,8 @@ const DARK_NEUTRALS = {
   goldBorder: 'rgba(232,182,76,0.35)',
 };
 
+// Light text greys and accentText darkening are tuned so every text token
+// clears WCAG AA 4.5:1 on the page, white cards and tinted rows.
 const LIGHT_NEUTRALS = {
   bg: '#F6F6F7',
   sheetBg: '#FFFFFF',
@@ -175,8 +177,8 @@ const LIGHT_NEUTRALS = {
   scrim: 'rgba(0,0,0,0.45)',
   text: '#0B0B0D',
   textSecondary: '#2E2E33',
-  textMuted: '#6A6A72',
-  textFaint: '#85858E',
+  textMuted: '#56565E',
+  textFaint: '#6E6E77',
   textDisabled: '#B0B0B8',
   textEmpty: '#C4C4CA',
   gold: '#B7862A',

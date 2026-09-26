@@ -26,7 +26,7 @@ import { clamp01 } from '../lib/worldProgress';
 import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, filterByGender, GoalCard, KitButton,
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
-  WorldSheet, WorldToast, YouBar, Gender,
+  WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
 
 type Level = 'entry' | 'main' | 'advanced';
@@ -319,7 +319,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   return (
     <GlobalErrorBoundary>
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <WorldPage tokens={t}>
         <WorldHeader
           tokens={t}
           icon="stopwatch"
@@ -373,7 +373,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         </ScrollView>
 
         {!sheet && toastNode}
-      </View>
+      </WorldPage>
 
       <WorldSheet
         tokens={t}

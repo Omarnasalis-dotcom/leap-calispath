@@ -27,7 +27,7 @@ import {
 import {
   BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitBar, KitButton,
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
-  WorldSheet, WorldToast, YouBar, Gender,
+  WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
 
 type Tier = 'all' | '1' | '2' | '3';
@@ -319,7 +319,7 @@ export function PowerWorldScreen() {
 
   return (
     <GlobalErrorBoundary>
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <WorldPage tokens={t}>
         <WorldHeader
           tokens={t}
           icon="bolt"
@@ -393,7 +393,7 @@ export function PowerWorldScreen() {
         </ScrollView>
 
         {!sheet && toastNode}
-      </View>
+      </WorldPage>
 
       <WorldSheet
         tokens={t}

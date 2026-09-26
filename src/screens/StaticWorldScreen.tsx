@@ -25,7 +25,7 @@ import { staticWithinLevel, STATIC_HOLD_TARGET_SECONDS } from '../lib/worldProgr
 import { SkillCarousel } from '../components/worlds/SkillCarousel';
 import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitButton,
-  KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldSheet, WorldToast, YouBar, Gender,
+  KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
 
 type Category = 'handstand' | 'front_lever' | 'back_lever' | 'planche';
@@ -323,7 +323,7 @@ export function StaticWorldScreen({ movement }: Props) {
 
   return (
     <GlobalErrorBoundary>
-      <View style={{ flex: 1, backgroundColor: t.bg }}>
+      <WorldPage tokens={t}>
         <WorldHeader
           tokens={t}
           icon="snowflake"
@@ -414,7 +414,7 @@ export function StaticWorldScreen({ movement }: Props) {
         </ScrollView>
 
         {!sheet && toastNode}
-      </View>
+      </WorldPage>
 
       <WorldSheet
         tokens={t}

@@ -4,6 +4,7 @@ export type { KitIconName } from './KitIcon';
 export { AnimatedRing, KIT_EASE } from './AnimatedRing';
 export { KitButton, KitCloseButton } from './KitButton';
 export { WorldHeader } from './WorldHeader';
+export { WorldPage } from './WorldPage';
 export { DashboardRings } from './DashboardRings';
 export type { GapCircle } from './DashboardRings';
 export { SegmentedSwitch } from './SegmentedSwitch';
