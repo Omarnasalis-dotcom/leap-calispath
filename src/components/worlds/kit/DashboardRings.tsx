@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pressable, Text, useWindowDimensions, View } from 'react-native';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { AnimatedRing } from './AnimatedRing';
 import { KitIcon } from './KitIcon';
@@ -35,6 +35,14 @@ interface Props {
 
 // Reference row: 96 + 6 + 158 + 6 + 96 = 362 = 402 frame − 2×20 padding.
 const ROW_WIDTH = 362;
+// Text column width as a share of the circle. Oswald's default line height
+// is ~1.5em, so every line gets an explicit tight lineHeight and the column
+// is narrowed to the width the circle actually has at the top/bottom lines;
+// anything longer ("PTS TO PASS", "12345.67") shrinks instead of hitting
+// the ring.
+const SIDE_TEXT_WIDTH = 0.68;
+const CENTER_TEXT_WIDTH = 0.7;
+const fit = { numberOfLines: 1, adjustsFontSizeToFit: true, minimumFontScale: 0.6 } as const;
 
 /** Rank / Score / Gap circles + leaderboard button (handoff §0.4). */
 export function DashboardRings({
@@ -52,10 +60,10 @@ export function DashboardRings({
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 * s, paddingTop: 22, paddingHorizontal: 20 }}>
       <Pressable accessibilityRole="button" accessibilityLabel={`${worldLabel} rank, open leaderboard`} onPress={onOpenLeaderboard}>
         <AnimatedRing size={side} radius={45 * s} strokeWidth={3} progress={rankProgress} color={isKing ? t.gold : t.accent} trackColor={t.track} delay={250}>
-          <View style={{ alignItems: 'center', gap: 3 }}>
-            <Text style={kt('medium', 9.5 * s, t.textMuted, 1.6)}>{worldLabel} RANK</Text>
-            <Text style={kt('bold', 24 * s, ranked ? (isKing ? t.gold : t.text) : t.textDisabled, 0)}>{ranked ? `#${rank}` : '—'}</Text>
-            <Text style={kt('medium', 10 * s, t.textFaint, 1.2)}>{ranked ? 'OF WORLD' : 'UNRANKED'}</Text>
+          <View style={[styles.content, { width: side * SIDE_TEXT_WIDTH, gap: 3 * s }]}>
+            <Text {...fit} style={[kt('medium', 9.5 * s, t.textMuted, 1.6, 12 * s), styles.center]}>{worldLabel} RANK</Text>
+            <Text {...fit} style={[kt('bold', 24 * s, ranked ? (isKing ? t.gold : t.text) : t.textDisabled, 0, 27 * s), styles.center]}>{ranked ? `#${rank}` : '—'}</Text>
+            <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.2, 12.5 * s), styles.center]}>{ranked ? 'OF WORLD' : 'UNRANKED'}</Text>
           </View>
         </AnimatedRing>
       </Pressable>
@@ -64,10 +72,10 @@ export function DashboardRings({
         <Pressable accessibilityRole="button" accessibilityLabel={`${worldLabel} score ${scoreText}, open leaderboard`} onPress={onOpenLeaderboard}>
           <View style={{ position: 'absolute', top: 14 * s, left: 14 * s, right: 14 * s, bottom: 14 * s, borderRadius: center, backgroundColor: t.tintStrong }} />
           <AnimatedRing size={center} radius={75 * s} strokeWidth={6} progress={scoreProgress} color={t.accent} trackColor={t.track} delay={150}>
-            <View style={{ alignItems: 'center', gap: 5, paddingBottom: 16 * s }}>
-              <Text style={kt('semibold', 10.5 * s, t.accentText, 2)}>{worldLabel} SCORE</Text>
-              <Text style={kt('bold', 34 * s, score > 0 ? t.text : t.textDisabled, 0)} numberOfLines={1} adjustsFontSizeToFit>{scoreText}</Text>
-              <Text style={kt('medium', 10 * s, t.textFaint, 1.6)}>TOTAL PTS</Text>
+            <View style={[styles.content, { width: center * CENTER_TEXT_WIDTH, gap: 5 * s, paddingBottom: 16 * s }]}>
+              <Text {...fit} style={[kt('semibold', 10.5 * s, t.accentText, 2, 13 * s), styles.center]}>{worldLabel} SCORE</Text>
+              <Text {...fit} style={[kt('bold', 34 * s, score > 0 ? t.text : t.textDisabled, 0, 38 * s), styles.center]}>{scoreText}</Text>
+              <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.6, 12.5 * s), styles.center]}>TOTAL PTS</Text>
             </View>
           </AnimatedRing>
         </Pressable>
@@ -90,13 +98,18 @@ export function DashboardRings({
       </View>
 
       <AnimatedRing size={side} radius={45 * s} strokeWidth={3} progress={gap.progress} color={gap.gold ? t.gold : t.accent} trackColor={t.track} delay={350}>
-        <View style={{ alignItems: 'center', gap: 3, paddingHorizontal: 6 }}>
-          <Text style={kt('medium', 9.5 * s, t.textMuted, 1.6)} numberOfLines={1}>{gap.label}</Text>
-          <Text style={kt('bold', 22 * s, gap.gold ? t.gold : gap.empty ? t.textDisabled : t.text, 0)} numberOfLines={1} adjustsFontSizeToFit>{gap.value}</Text>
-          <Text style={kt('medium', 10 * s, t.textFaint, 1.2)} numberOfLines={1}>{gap.sub}</Text>
+        <View style={[styles.content, { width: side * SIDE_TEXT_WIDTH, gap: 3 * s }]}>
+          <Text {...fit} style={[kt('medium', 9.5 * s, t.textMuted, 1.6, 12 * s), styles.center]}>{gap.label}</Text>
+          <Text {...fit} style={[kt('bold', 22 * s, gap.gold ? t.gold : gap.empty ? t.textDisabled : t.text, 0, 25 * s), styles.center]}>{gap.value}</Text>
+          <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.2, 12.5 * s), styles.center]}>{gap.sub}</Text>
         </View>
       </AnimatedRing>
     </View>
   );
 }
 
+
+const styles = StyleSheet.create({
+  content: { alignItems: 'center', justifyContent: 'center' },
+  center: { textAlign: 'center', alignSelf: 'stretch' },
+});
