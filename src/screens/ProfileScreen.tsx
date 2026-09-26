@@ -31,7 +31,6 @@ import { StrengthWorldView } from '../components/profile/StrengthWorldView';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
@@ -43,8 +42,7 @@ import { getUserGroup } from '../lib/weeklyChallenge';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 import { useRouter, useFocusEffect } from 'expo-router';
-import { OnboardingTutorialScreen } from '../screens/OnboardingTutorialScreen';
-import { useTutorial } from '../contexts/TutorialContext';
+import { useScreenTour } from '../hooks/useScreenTour';
 import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
 
 // Trophy gold (same as GROUP_NAMES' Legends color) for the Weekly Challenge card.
@@ -182,23 +180,6 @@ export function ProfileScreen({
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
-  const homeTutorial = useTutorial();
-  const [onboardingInitialStep, setOnboardingInitialStep] = useState(0);
-
-  // The spotlight tour closes the onboarding modal to run (it needs the
-  // real screen underneath interactive) and navigates through several other
-  // routes along the way, unmounting/remounting this screen — so tracking
-  // "just finished" locally here doesn't survive to the end of the tour.
-  // pendingObjective lives in TutorialContext instead, set once the tour
-  // actually completes, and read here regardless of which mount of this
-  // screen happens to be around when that happens.
-  useEffect(() => {
-    if (homeTutorial.pendingObjective) {
-      homeTutorial.clearPendingObjective();
-      setOnboardingInitialStep(3);
-      setShowOnboarding(true);
-    }
-  }, [homeTutorial.pendingObjective]);
 
   // Leaderboard Modal State
   const [showWRALeaderboard, setShowWRALeaderboard] = useState(false);
@@ -208,27 +189,9 @@ export function ProfileScreen({
   const [loadingLB, setLoadingLB] = useState(false);
   const [showWarriorModal, setShowWarriorModal] = useState(false);
 
-  // Onboarding modal — show if user was assessed in the last 5 minutes and hasn't seen it yet
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  useEffect(() => {
-    async function checkTutorialSeen() {
-      if (!profile?.id || !profile?.assessed_at) return;
-      try {
-        const key = `seen_profile_tutorial_${profile.id}`;
-        const hasSeen = await AsyncStorage.getItem(key);
-        if (hasSeen === 'true') return;
-
-        const assessedAt = new Date(profile.assessed_at).getTime();
-        const isNew = (Date.now() - assessedAt) < 5 * 60 * 1000;
-        if (isNew) {
-          setShowOnboarding(true);
-        }
-      } catch (e) {
-        console.warn('[ProfileScreen] Failed to read tutorial storage:', e);
-      }
-    }
-    checkTutorialSeen();
-  }, [profile?.id, profile?.assessed_at]);
+  // Main spotlight tour — auto-starts the first time a newly onboarded user
+  // lands on the Profile tab (its first step targets Profile's level ring).
+  useScreenTour('main', activeTab === 'profile');
   const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
   const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
   const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
@@ -722,49 +685,6 @@ export function ProfileScreen({
 
       </View>
       </WorldBackground>
-      <OnboardingTutorialScreen
-        visible={showOnboarding}
-        initialStep={onboardingInitialStep}
-        strengthTier={profile?.strength_tier ?? 0}
-        onBeginTrial={async () => {
-          setShowOnboarding(false);
-          if (profile?.id) {
-            try {
-              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
-            } catch (e) {
-              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
-            }
-          }
-          const nextTier = Math.min((profile?.strength_tier ?? 0) + 1, 9);
-          // Same fix as onStartTrial above — this is also always a real
-          // progression trial.
-          router.push({
-            pathname: '/trial',
-            params: { mode: 'progression', tier: String(nextTier), returnTo: 'journey', questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL },
-          });
-        }}
-        onSkip={async () => {
-          setShowOnboarding(false);
-          if (profile?.id) {
-            try {
-              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
-            } catch (e) {
-              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
-            }
-          }
-        }}
-        onTakeTour={async () => {
-          setShowOnboarding(false);
-          if (profile?.id) {
-            try {
-              await AsyncStorage.setItem(`seen_profile_tutorial_${profile.id}`, 'true');
-            } catch (e) {
-              console.warn('[ProfileScreen] Failed to save tutorial storage:', e);
-            }
-          }
-          homeTutorial.start({ showObjectiveAfter: true });
-        }}
-      />
     </GlobalErrorBoundary>
   );
 }

@@ -1,10 +1,17 @@
 import React, { createContext, useContext, useCallback, useEffect, useRef, useState } from 'react';
 import { BackHandler } from 'react-native';
-import { TUTORIAL_STEPS } from '../components/tutorial/tutorialSteps';
-import { Rect, TargetId, TutorialStep } from '../types/tutorial';
+import { TOURS } from '../components/tutorial/tutorialSteps';
+import { Rect, TargetId, TourId, TutorialStep } from '../types/tutorial';
+
+// Optional steps: how long to wait for the target to mount at all (covers a
+// screen transition that's still landing), then how long a mounted target
+// gets to produce a real measurement before the step is skipped.
+const OPTIONAL_MOUNT_GRACE_MS = 500;
+const OPTIONAL_MEASURE_GRACE_MS = 2500;
 
 interface TutorialContextType {
   active: boolean;
+  tourId: TourId;
   stepIndex: number;
   totalSteps: number;
   currentStep: TutorialStep;
@@ -14,19 +21,15 @@ interface TutorialContextType {
   // other elements' positions — useTutorialTarget re-measures whenever
   // this changes, on top of its own layout-driven measurement.
   remeasureNonce: number;
-  // Set when the tour (started with showObjectiveAfter) finishes — read
-  // this from ProfileScreen instead of tracking the active→inactive
-  // transition locally: the tour navigates through several other routes,
-  // unmounting/remounting ProfileScreen along the way, so any local ref
-  // tracking "was active a moment ago" is wiped out before the tour
-  // actually ends. This flag lives here, at the root, so it survives that.
-  pendingObjective: boolean;
-  clearPendingObjective: () => void;
   isTargetNeeded: (id: TargetId) => boolean;
   registerTarget: (id: TargetId, rect: Rect | null) => void;
+  // Mount/unmount bookkeeping for every target, needed or not — lets an
+  // optional step tell "not on this screen at all" (skip right away) from
+  // "on screen but still measuring" (give it a moment).
+  setTargetMounted: (id: TargetId, mounted: boolean) => void;
   reportInteraction: (id: TargetId) => void;
   requestRemeasure: () => void;
-  start: (options?: { showObjectiveAfter?: boolean }) => void;
+  start: (tourId?: TourId) => void;
   next: () => void;
   skip: () => void;
   dismiss: () => void;
@@ -36,28 +39,27 @@ const TutorialContext = createContext<TutorialContextType | undefined>(undefined
 
 export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const [active, setActive] = useState(false);
+  const [tourId, setTourId] = useState<TourId>('main');
   const [stepIndex, setStepIndex] = useState(0);
   const [targets, setTargets] = useState<Record<string, Rect | null>>({});
   const [remeasureNonce, setRemeasureNonce] = useState(0);
   const requestRemeasure = useCallback(() => setRemeasureNonce((n) => n + 1), []);
-  const [pendingObjective, setPendingObjective] = useState(false);
-  const clearPendingObjective = useCallback(() => setPendingObjective(false), []);
-  const showObjectiveAfterRef = useRef(false);
+  // Refs, not state: read only from timers, never rendered.
+  const mountedTargetsRef = useRef<Map<TargetId, number>>(new Map());
+  const targetsRef = useRef(targets);
+  targetsRef.current = targets;
 
-  const currentStep = TUTORIAL_STEPS[stepIndex];
+  const steps = TOURS[tourId];
+  const currentStep = steps[stepIndex];
 
   const dismiss = useCallback(() => {
     setActive(false);
     setStepIndex(0);
     setTargets({});
-    if (showObjectiveAfterRef.current) {
-      showObjectiveAfterRef.current = false;
-      setPendingObjective(true);
-    }
   }, []);
 
-  const start = useCallback((options?: { showObjectiveAfter?: boolean }) => {
-    showObjectiveAfterRef.current = !!options?.showObjectiveAfter;
+  const start = useCallback((nextTourId: TourId = 'main') => {
+    setTourId(nextTourId);
     setTargets({});
     setStepIndex(0);
     setActive(true);
@@ -65,16 +67,25 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const next = useCallback(() => {
     setStepIndex((i) => {
-      if (i >= TUTORIAL_STEPS.length - 1) {
+      if (i >= steps.length - 1) {
         dismiss();
         return i;
       }
       return i + 1;
     });
-  }, [dismiss]);
+  }, [dismiss, steps]);
 
   const registerTarget = useCallback((id: TargetId, rect: Rect | null) => {
     setTargets((prev) => ({ ...prev, [id]: rect }));
+  }, []);
+
+  // Counted, not a Set: the same id can briefly be mounted twice (e.g. an
+  // old screen unmounting while its replacement mounts).
+  const setTargetMounted = useCallback((id: TargetId, mounted: boolean) => {
+    const counts = mountedTargetsRef.current;
+    const n = (counts.get(id) ?? 0) + (mounted ? 1 : -1);
+    if (n > 0) counts.set(id, n);
+    else counts.delete(id);
   }, []);
 
   const isTargetNeeded = useCallback(
@@ -90,6 +101,23 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     },
     [active, currentStep, next]
   );
+
+  // Optional steps skip themselves when their target isn't there — see
+  // TutorialStep.optional.
+  useEffect(() => {
+    if (!active || !currentStep.optional) return;
+    const id = currentStep.targetId;
+    const mountTimer = setTimeout(() => {
+      if (!mountedTargetsRef.current.has(id)) next();
+    }, OPTIONAL_MOUNT_GRACE_MS);
+    const measureTimer = setTimeout(() => {
+      if (!targetsRef.current[id]) next();
+    }, OPTIONAL_MEASURE_GRACE_MS);
+    return () => {
+      clearTimeout(mountTimer);
+      clearTimeout(measureTimer);
+    };
+  }, [active, tourId, stepIndex, currentStep, next]);
 
   // Real steps cause their own navigation when tapped — some of them chain
   // through an async check before landing (MY WORKOUT PROGRAM routes through
@@ -111,15 +139,15 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
 
   const value: TutorialContextType = {
     active,
+    tourId,
     stepIndex,
-    totalSteps: TUTORIAL_STEPS.length,
+    totalSteps: steps.length,
     currentStep,
     targets,
     remeasureNonce,
-    pendingObjective,
-    clearPendingObjective,
     isTargetNeeded,
     registerTarget,
+    setTargetMounted,
     reportInteraction,
     requestRemeasure,
     start,

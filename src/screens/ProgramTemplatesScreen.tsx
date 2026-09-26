@@ -21,6 +21,11 @@ import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { ProgramPreviewModal, UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
+import { TourTarget } from '../components/tutorial/TourTarget';
+import { TourHelpButton } from '../components/tutorial/TourHelpButton';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { useScreenTour } from '../hooks/useScreenTour';
+import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // getRecommendations/getAllPublishedTemplates/selectLibraryTemplate own the
@@ -150,6 +155,8 @@ function TemplateRowCard({
   disabled,
   isProItem,
   locked,
+  tourTargetId,
+  scrollRef,
   onSelect,
 }: {
   rec: LibraryTemplateRecommendation;
@@ -160,15 +167,21 @@ function TemplateRowCard({
   disabled: boolean;
   isProItem: boolean;
   locked: boolean;
+  // Set on the first row only — the Templates tour highlights it.
+  tourTargetId?: TargetId;
+  scrollRef?: React.RefObject<ScrollView | null>;
   onSelect: () => void;
 }) {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
   const level = tierRangeToDifficultyBand(rec.tier_range);
+  const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(tourTargetId, scrollRef);
 
   return (
     <TouchableOpacity
+      ref={tourRef}
+      onLayout={onTourLayout}
       activeOpacity={0.85}
       onPress={onSelect}
       disabled={disabled || isCurrent}
@@ -234,6 +247,9 @@ export function ProgramTemplatesScreen() {
   const [recommendations, setRecommendations] = useState<LibraryTemplateRecommendation[]>([]);
   const [allTemplates, setAllTemplates] = useState<LibraryTemplateRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const { replay: replayTour } = useScreenTour('templates', !loading);
+  const scrollRef = useRef<ScrollView>(null);
+  const { ref: recommendedTourRef, onLayout: onRecommendedTourLayout } = useTutorialTarget('templates.recommended', scrollRef);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyBand | 'all'>('all');
   const [currentProgramName, setCurrentProgramName] = useState<string | null>(null);
@@ -413,6 +429,7 @@ export function ProgramTemplatesScreen() {
           <Text style={styles.headerTitle}>PROGRAM TEMPLATES</Text>
           <Text style={styles.headerSubline}>{filteredAllTemplates.length} OF {allTemplates.length} SHOWN</Text>
         </View>
+        <TourHelpButton onPress={replayTour} color={c.textMuted} />
       </View>
 
       {loading ? (
@@ -420,7 +437,7 @@ export function ProgramTemplatesScreen() {
           <ActivityIndicator color={c.coral} />
         </View>
       ) : (
-        <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
+        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
           {currentProgramName && (
             <View style={styles.currentProgramBanner}>
               <Text style={styles.currentProgramText}>
@@ -438,7 +455,7 @@ export function ProgramTemplatesScreen() {
           {recommendations.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>RECOMMENDED FOR YOU</Text>
-              <View style={styles.grid}>
+              <View ref={recommendedTourRef} onLayout={onRecommendedTourLayout} style={styles.grid}>
                 {recommendations.map((rec, index) => (
                   <RecommendedCard
                     key={rec.id}
@@ -458,7 +475,9 @@ export function ProgramTemplatesScreen() {
           )}
 
           <Text style={styles.sectionLabel}>OTHER TEMPLATES</Text>
-          <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
+          <TourTarget id="templates.difficultyFilter" scrollRef={scrollRef}>
+            <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
+          </TourTarget>
           <View style={{ height: 14 }} />
 
           {!errorMsg && filteredAllTemplates.length === 0 ? (
@@ -478,6 +497,8 @@ export function ProgramTemplatesScreen() {
                   disabled={selectingId !== null}
                   isProItem={isProItem(rec)}
                   locked={isProgramLocked(rec)}
+                  tourTargetId={index === 0 ? 'templates.firstRow' : undefined}
+                  scrollRef={scrollRef}
                   onSelect={() => handleCardPress(rec)}
                 />
               ))}

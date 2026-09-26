@@ -18,6 +18,9 @@ import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { LeapLogo } from '../components/LeapLogo';
+import { TourTarget } from '../components/tutorial/TourTarget';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { TargetId } from '../types/tutorial';
 import { canAccessCustomizeProgram } from '../lib/entitlement';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
@@ -157,6 +160,8 @@ const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
 interface PathTileDef {
   key: string;
+  // Highlighted by the main tour's TRAIN steps.
+  tourTargetId?: TargetId;
   icon: keyof typeof MaterialCommunityIcons.glyphMap;
   title: string;
   sub: string;
@@ -226,7 +231,8 @@ function TileSheen() {
   );
 }
 
-function PathTile({ def, index }: { def: PathTileDef; index: number }) {
+function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; scrollRef: React.RefObject<ScrollView | null> }) {
+  const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(def.tourTargetId, scrollRef);
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
@@ -295,6 +301,8 @@ function PathTile({ def, index }: { def: PathTileDef; index: number }) {
   // border wrapper.
   const card = (
     <TouchableOpacity
+      ref={tourRef}
+      onLayout={onTourLayout}
       activeOpacity={0.8}
       onPress={def.onPress}
       style={[
@@ -357,6 +365,7 @@ export function TrainingCenterScreen() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [data, setData] = useState<HubData | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
   // Tracks whether we've ever successfully loaded data, independent of
   // React state so it's readable synchronously inside load() itself. This
   // screen now lives in a persistent tab navigator and refetches on every
@@ -503,6 +512,7 @@ export function TrainingCenterScreen() {
         },
         {
           key: 'templates',
+          tourTargetId: 'train.tile.templates',
           icon: 'layers-outline',
           title: 'PROGRAM\nTEMPLATES',
           sub: data.templatesCount != null ? formatTemplatesSub(data.templatesCount) : 'READY PLANS',
@@ -514,6 +524,7 @@ export function TrainingCenterScreen() {
         },
         {
           key: 'customize',
+          tourTargetId: 'train.tile.customize',
           icon: 'tune-vertical',
           title: 'CUSTOMIZE\nPROGRAM',
           sub: data.movementsCount != null ? formatMovementsSub(data.movementsCount) : 'MOVEMENTS',
@@ -525,6 +536,7 @@ export function TrainingCenterScreen() {
         },
         {
           key: 'quick',
+          tourTargetId: 'train.tile.quick',
           icon: 'lightning-bolt-outline',
           title: 'QUICK\nWORKOUT',
           sub: formatQuickWorkoutSub(data.quickMin, data.quickMax),
@@ -570,8 +582,9 @@ export function TrainingCenterScreen() {
       )}
 
       {!loading && !errorMsg && data && (
-        <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
+        <ScrollView ref={scrollRef} contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
           <RowIn index={0}>
+            <TourTarget id="train.heroCard" scrollRef={scrollRef}>
             {data.hasActiveProgram ? (
               <View style={[styles.heroCard, { borderColor: c.heroBorderActive }]}>
                 <View style={{ flexDirection: 'row', gap: 16 }}>
@@ -618,6 +631,7 @@ export function TrainingCenterScreen() {
                 </TouchableOpacity>
               </View>
             )}
+            </TourTarget>
           </RowIn>
 
           {data.hasHistory && (
@@ -640,7 +654,7 @@ export function TrainingCenterScreen() {
           <Text style={styles.sectionEyebrow}>CHOOSE YOUR PATH</Text>
           <View style={styles.tileGrid}>
             {tiles.map((t, i) => (
-              <PathTile key={t.key} def={t} index={i + 2} />
+              <PathTile key={t.key} def={t} index={i + 2} scrollRef={scrollRef} />
             ))}
           </View>
         </ScrollView>

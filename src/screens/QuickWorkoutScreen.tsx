@@ -18,6 +18,11 @@ import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { QuickWorkoutTimerModal } from '../components/workoutLibrary/QuickWorkoutTimerModal';
 import { UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
+import { TourTarget } from '../components/tutorial/TourTarget';
+import { TourHelpButton } from '../components/tutorial/TourHelpButton';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { useScreenTour } from '../hooks/useScreenTour';
+import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // Browse standalone Quick Workouts and start one immediately — no preview
@@ -70,21 +75,25 @@ function QuickWorkoutCard({
   locked,
   loadingDetail,
   hidden,
+  tourTargetId,
   onPress,
 }: {
   item: StandaloneWorkoutSummary;
   locked: boolean;
   loadingDetail: boolean;
   hidden?: boolean;
+  // Set on the first visible card only — the Quick Workout tour highlights it.
+  tourTargetId?: TargetId;
   onPress: () => void;
 }) {
   const { mode } = useTheme();
   const styles = getStyles(TC_COLORS[mode]);
+  const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(tourTargetId);
   const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}${item.category ? ` · ${item.category.replace('_', ' ')}` : ''}`;
 
   if (item.cover_image_url) {
     return (
-      <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.photoCardWrap, hidden && { display: 'none' }]}>
+      <TouchableOpacity ref={tourRef} onLayout={onTourLayout} activeOpacity={0.85} onPress={onPress} style={[styles.photoCardWrap, hidden && { display: 'none' }]}>
         <ImageBackground source={{ uri: item.cover_image_url }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
           <LinearGradient colors={['transparent', 'rgba(0,0,0,.55)', 'rgba(0,0,0,.9)']} style={StyleSheet.absoluteFillObject} />
           <View style={styles.photoDurationBadge}>
@@ -103,7 +112,7 @@ function QuickWorkoutCard({
   }
 
   return (
-    <TouchableOpacity activeOpacity={0.85} onPress={onPress} style={[styles.card, hidden && { display: 'none' }]}>
+    <TouchableOpacity ref={tourRef} onLayout={onTourLayout} activeOpacity={0.85} onPress={onPress} style={[styles.card, hidden && { display: 'none' }]}>
       <View style={styles.durationBox}>
         <Text style={styles.durationValue}>{item.duration_minutes ?? '–'}</Text>
         <Text style={styles.durationUnit}>MIN</Text>
@@ -191,6 +200,7 @@ export function QuickWorkoutScreen() {
 
   const [items, setItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const { replay: replayTour } = useScreenTour('quickWorkout', !loading);
   const [categoryFilter, setCategoryFilter] = useState<string>('all');
   const [difficultyFilter, setDifficultyFilter] = useState<DifficultyBand | 'all'>('all');
 
@@ -248,6 +258,7 @@ export function QuickWorkoutScreen() {
     (categoryFilter === 'all' || i.category === categoryFilter) &&
     (difficultyFilter === 'all' || i.difficulty === difficultyFilter);
   const filteredItems = items.filter(matchesFilters);
+  const firstVisibleItemId = filteredItems[0]?.id;
 
   const handlePlay = async (item: StandaloneWorkoutSummary) => {
     if (!item.is_free && !isPro) {
@@ -285,12 +296,15 @@ export function QuickWorkoutScreen() {
           <Text style={styles.headerTitle}>QUICK WORKOUT</Text>
           <Text style={styles.headerSubline}>{filteredItems.length} READY SESSIONS</Text>
         </View>
+        <TourHelpButton onPress={replayTour} color={c.textMuted} />
       </View>
 
       <ScrollView contentContainerStyle={{ padding: TC_LAYOUT.screenPadding, paddingBottom: 24 }}>
-        <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
-        <View style={{ height: 8 }} />
-        <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
+        <TourTarget id="quick.filters">
+          <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
+          <View style={{ height: 8 }} />
+          <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
+        </TourTarget>
 
         {loading ? (
           <View style={{ paddingVertical: 60, alignItems: 'center' }}>
@@ -312,6 +326,7 @@ export function QuickWorkoutScreen() {
                 locked={!item.is_free && !isPro}
                 loadingDetail={loadingDetailId === item.id}
                 hidden={!matchesFilters(item)}
+                tourTargetId={item.id === firstVisibleItemId ? 'quick.firstCard' : undefined}
                 onPress={() => handlePlay(item)}
               />
             ))}

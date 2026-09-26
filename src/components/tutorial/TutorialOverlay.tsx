@@ -5,7 +5,6 @@ import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Mask, Rect } from 'react-native-svg';
 import { useTutorial } from '../../contexts/TutorialContext';
-import { TUTORIAL_STEPS } from './tutorialSteps';
 import { HighlightRing } from './HighlightRing';
 import { TapDot } from './TapDot';
 import { TutorialCaption } from './TutorialCaption';
@@ -37,9 +36,8 @@ const MODAL_HOSTED_TARGETS = new Set<TargetId>([
 ]);
 
 export function TutorialOverlay() {
-  const { active, stepIndex } = useTutorial();
+  const { active, currentStep: step } = useTutorial();
   if (!active) return null;
-  const step = TUTORIAL_STEPS[stepIndex];
   if (MODAL_HOSTED_TARGETS.has(step.targetId)) return null;
   return <TutorialStepOverlayContent />;
 }
@@ -49,19 +47,17 @@ export function TutorialOverlay() {
 // lives inside that modal — same visuals/behavior as the global overlay,
 // just scoped to fire only for the target ids this modal owns.
 export function TutorialModalOverlay({ targetIds }: { targetIds: TargetId[] }) {
-  const { active, stepIndex } = useTutorial();
+  const { active, currentStep: step } = useTutorial();
   if (!active) return null;
-  const step = TUTORIAL_STEPS[stepIndex];
   if (!targetIds.includes(step.targetId)) return null;
   return <TutorialStepOverlayContent />;
 }
 
 function TutorialStepOverlayContent() {
-  const { stepIndex, totalSteps, targets, next, skip } = useTutorial();
+  const { stepIndex, totalSteps, currentStep: step, targets, next, skip } = useTutorial();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
 
-  const step = TUTORIAL_STEPS[stepIndex];
   const rect = targets[step.targetId] ?? null;
   const ready = !!rect;
   const isDecoy = step.mode === 'decoy';
@@ -171,7 +167,7 @@ function TutorialStepOverlayContent() {
           colors={['rgba(20,10,10,0.94)', 'rgba(10,6,6,0.94)']}
           style={StyleSheet.absoluteFill}
         />
-        <TutorialCaption stepIndex={stepIndex} tag={step.tag} caption={step.caption} />
+        <TutorialCaption stepIndex={stepIndex} tag={`STEP ${stepIndex + 1} OF ${totalSteps}`} caption={step.caption} />
         <TutorialDots total={totalSteps} activeIndex={stepIndex} />
         {isDecoy && (
           <View style={styles.navRow}>

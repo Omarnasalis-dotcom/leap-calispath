@@ -29,6 +29,10 @@ import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
 import { StandaloneWorkoutDetailModal, BuildSummaryModal, UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 import { ChipRow } from '../components/trainingCenter/ChipRow';
+import { TourHelpButton } from '../components/tutorial/TourHelpButton';
+import { useTutorialTarget } from '../hooks/useTutorialTarget';
+import { useScreenTour } from '../hooks/useScreenTour';
+import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 // Browse standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your
@@ -204,6 +208,7 @@ function WorkoutPhotoCard({
   dayNumber,
   columns,
   hidden,
+  tourTargetId,
   onPress,
 }: {
   item: StandaloneWorkoutSummary;
@@ -217,14 +222,19 @@ function WorkoutPhotoCard({
   dayNumber: number | null;
   columns: 1 | 2;
   hidden?: boolean;
+  // Set on the first visible card only — the Customize tour highlights it.
+  tourTargetId?: TargetId;
   onPress: () => void;
 }) {
   const { mode } = useTheme();
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
   const isSelected = dayNumber !== null;
+  const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(tourTargetId);
   return (
     <TouchableOpacity
+      ref={tourRef}
+      onLayout={onTourLayout}
       onPress={onPress}
       activeOpacity={0.85}
       style={[
@@ -477,6 +487,10 @@ export function CustomizeProgramScreen() {
 
   const [workoutItems, setWorkoutItems] = useState<StandaloneWorkoutSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const { replay: replayTour } = useScreenTour('customize', !loading);
+  const { ref: filtersTourRef, onLayout: onFiltersTourLayout } = useTutorialTarget('customize.filters');
+  const { ref: layoutToggleTourRef, onLayout: onLayoutToggleTourLayout } = useTutorialTarget('customize.layoutToggle');
+  const { ref: quickBuildTourRef, onLayout: onQuickBuildTourLayout } = useTutorialTarget('customize.quickBuild');
   // Default changed from 1 to 2 per the shorter-card/2-per-row request —
   // the toggle (view-agenda vs view-grid, ~line 885) still lets an athlete
   // switch back to the wide 1-column layout.
@@ -574,6 +588,7 @@ export function CustomizeProgramScreen() {
     (categoryFilter === 'all' || i.category === categoryFilter) &&
     (difficultyFilter === 'all' || i.difficulty === difficultyFilter);
   const filteredWorkoutItems = workoutItems.filter(matchesFilters);
+  const firstVisibleWorkoutId = filteredWorkoutItems[0]?.id;
 
   const getDayNumber = (item: { id: string }): number | null => {
     const idx = selectedDayWorkouts.findIndex((w) => w.id === item.id);
@@ -873,17 +888,18 @@ export function CustomizeProgramScreen() {
           <Text style={styles.headerTitle}>CUSTOMIZE YOUR PROGRAM</Text>
           <Text style={styles.headerSubline}>{filteredWorkoutItems.length} WORKOUTS · {selectedDayWorkouts.length} ADDED</Text>
         </View>
+        <TourHelpButton onPress={replayTour} color={c.textMuted} />
       </View>
 
       {/* Fixed above the grid (not inside its ScrollView) so filters stay
           reachable at any scroll position instead of scrolling away with
           the cards. */}
-      <View style={styles.filtersBar}>
+      <View ref={filtersTourRef} onLayout={onFiltersTourLayout} style={styles.filtersBar}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ flex: 1 }}>
             <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
           </View>
-          <View style={styles.layoutToggle}>
+          <View ref={layoutToggleTourRef} onLayout={onLayoutToggleTourLayout} style={styles.layoutToggle}>
             <TouchableOpacity
               onPress={() => setColumns(1)}
               style={[styles.layoutToggleBtn, columns === 1 && styles.layoutToggleBtnActive]}
@@ -973,6 +989,7 @@ export function CustomizeProgramScreen() {
                 dayNumber={getDayNumber(item)}
                 columns={columns}
                 hidden={!matchesFilters(item)}
+                tourTargetId={item.id === firstVisibleWorkoutId ? 'customize.firstCard' : undefined}
                 onPress={() => openDetail(item)}
               />
             ))}
@@ -1002,6 +1019,8 @@ export function CustomizeProgramScreen() {
         // selection in progress) so the two don't overlap; otherwise sits
         // directly above the tab bar.
         <TouchableOpacity
+          ref={quickBuildTourRef}
+          onLayout={onQuickBuildTourLayout}
           style={[styles.quickBuildFab, selectedDayWorkouts.length > 0 && { bottom: TC_LAYOUT.bottomBarOffset + 62 }]}
           onPress={handleEnterQuickBuild}
           activeOpacity={0.85}

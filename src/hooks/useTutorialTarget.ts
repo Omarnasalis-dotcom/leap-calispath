@@ -28,9 +28,16 @@ export function useTutorialTarget(
   // rather than risk changing behavior for everything.
   useScreenMeasure?: boolean
 ) {
-  const { isTargetNeeded, registerTarget, reportInteraction, remeasureNonce } = useTutorial();
+  const { isTargetNeeded, registerTarget, setTargetMounted, reportInteraction, remeasureNonce } = useTutorial();
   const ref = useRef<View>(null);
   const needed = !!targetId && isTargetNeeded(targetId);
+
+  // Lets optional steps skip straight past a target that isn't on screen.
+  useEffect(() => {
+    if (!targetId) return;
+    setTargetMounted(targetId, true);
+    return () => setTargetMounted(targetId, false);
+  }, [targetId, setTargetMounted]);
 
   const measure = useCallback(() => {
     if (!targetId || !isTargetNeeded(targetId)) return;

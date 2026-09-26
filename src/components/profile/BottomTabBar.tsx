@@ -7,6 +7,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { ONEMM_UNLOCK_TIER } from '../../lib/oneMMLogic';
 import { WORLD_THEMES, worldRgba, WorldKey } from '../../../constants/worldThemes';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
+import { useTutorial } from '../../contexts/TutorialContext';
 import { TargetId } from '../../types/tutorial';
 import { WorldsIcon } from './WorldsIcon';
 
@@ -83,6 +84,11 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { ref: barRef, onLayout: onBarLayout } = useTutorialTarget('bottomTab.bar');
+  const { ref: worldsRef, onLayout: onWorldsLayout, reportInteraction: reportWorlds } = useTutorialTarget('bottomTab.worlds', undefined, true);
+  // Only the 1MM circle is a tour target (the tour's route into 1-Minute
+  // Max) — Power/Static are covered by a decoy step on WORLDS itself.
+  const { ref: oneMMCircleRef, onLayout: onOneMMCircleLayout, reportInteraction: reportOneMMCircle } = useTutorialTarget('worlds.1mm', undefined, true);
+  const { requestRemeasure } = useTutorial();
   const [worldsMenuOpen, setWorldsMenuOpen] = useState(false);
   // One value per world circle, started in a stagger rather than all
   // together — reads as a small "fan out" pop rather than one flat card
@@ -99,8 +105,11 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
     Animated.stagger(
       70,
       worldAnims.map((a) => Animated.spring(a, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 9 }))
-    ).start();
-  }, [worldsMenuOpen, worldAnims]);
+    // The circles measure at scale 0 on their first layout — re-measure
+    // once the pop-in settles so the tour's 1MM highlight lands on the
+    // full-size circle.
+    ).start(() => requestRemeasure());
+  }, [worldsMenuOpen, worldAnims, requestRemeasure]);
 
   const toggleWorldsMenu = () => {
     if (!worldsMenuOpen) worldAnims.forEach((a) => a.setValue(0));
@@ -193,6 +202,8 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
                     ]}
                   >
                     <TouchableOpacity
+                      ref={tab.id === '1mm' ? oneMMCircleRef : undefined}
+                      onLayout={tab.id === '1mm' ? onOneMMCircleLayout : undefined}
                       style={[
                         styles.worldCircle,
                         {
@@ -205,6 +216,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
                       onPress={() => {
                         setWorldsMenuOpen(false);
                         handlePress(tab);
+                        if (tab.id === '1mm') reportOneMMCircle();
                       }}
                     >
                       <MaterialCommunityIcons
@@ -227,7 +239,18 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
               })}
             </View>
           )}
-          <TouchableOpacity style={styles.item} activeOpacity={0.7} onPress={toggleWorldsMenu}>
+          <TouchableOpacity
+            ref={worldsRef}
+            onLayout={onWorldsLayout}
+            style={styles.item}
+            activeOpacity={0.7}
+            onPress={() => {
+              // Only an open advances the tour — its next step needs the
+              // fan-out's 1MM circle on screen.
+              if (!worldsMenuOpen) reportWorlds();
+              toggleWorldsMenu();
+            }}
+          >
             {isWorldActive && <View style={[styles.activeIndicator, { backgroundColor: worldsColor }]} />}
             <View
               style={[

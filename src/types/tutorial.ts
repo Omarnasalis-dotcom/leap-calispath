@@ -17,6 +17,8 @@ export type TargetId =
   | 'bottomTab.1mm'
   | 'bottomTab.trainingCenter'
   | 'bottomTab.journey'
+  | 'bottomTab.worlds'
+  | 'worlds.1mm'
   | 'strength.trialButton'
   | 'strength.tierChips'
   | 'strength.leaderboardFirstRow'
@@ -34,14 +36,35 @@ export type TargetId =
   | 'onemm.movementGrid'
   | 'onemm.timerBadge'
   | 'onemm.startSprintButton'
-  | 'onemm.timerCloseButton';
+  | 'onemm.timerCloseButton'
+  | 'train.heroCard'
+  | 'train.tile.templates'
+  | 'train.tile.customize'
+  | 'train.tile.quick'
+  | 'customize.filters'
+  | 'customize.layoutToggle'
+  | 'customize.firstCard'
+  | 'customize.quickBuild'
+  | 'quick.filters'
+  | 'quick.firstCard'
+  | 'templates.recommended'
+  | 'templates.difficultyFilter'
+  | 'templates.firstRow';
+
+// 'main' is the app-wide first-run tour (Profile -> worlds -> TRAIN ->
+// Journey); the rest are short per-screen tours that auto-start the first
+// time their own screen opens.
+export type TourId = 'main' | 'customize' | 'quickWorkout' | 'templates';
 
 export type TutorialStepMode = 'real' | 'decoy';
 
 export interface TutorialStep {
-  id: number;
   targetId: TargetId;
   mode: TutorialStepMode;
-  tag: string;
   caption: string;
+  // For targets that only exist in some states (no active program, no
+  // recommendations, a day without a side quest…): if the target hasn't
+  // measured shortly after the step begins, the step is skipped instead of
+  // pointing at nothing.
+  optional?: boolean;
 }
