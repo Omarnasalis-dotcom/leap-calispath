@@ -19,6 +19,12 @@ import { Button } from '../components/Button';
 import { COUNTRIES } from '../constants/countries';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 
+// Mirrors the database rule profiles_display_name_format (1-30 chars, no @).
+const USERNAME_MAX_LENGTH = 30;
+const USERNAME_TAKEN_MESSAGE = 'This username is already taken. Please choose another one.';
+const USERNAME_RULES_MESSAGE = `Usernames can be up to ${USERNAME_MAX_LENGTH} characters and can't contain @.`;
+const SAVE_FAILED_MESSAGE = 'Failed to save your profile. Please try again.';
+
 // Reached only when AuthGuard detects a signed-in user with no display_name —
 // which today only happens after a first-time Google/Apple sign-in, since the
 // email/password signup form always collects it up front. Gender and country
@@ -70,9 +76,9 @@ export function CompleteProfileScreen() {
       const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
         username: cleanDisplayName,
       });
-      if (usernameError) return { error: usernameError };
+      if (usernameError) return { error: new Error(SAVE_FAILED_MESSAGE) };
       if (isAvailable === false) {
-        return { error: new Error('This username is already taken. Please choose another one.') };
+        return { error: new Error(USERNAME_TAKEN_MESSAGE) };
       }
 
       const updates: Record<string, string> = { display_name: cleanDisplayName };
@@ -84,11 +90,19 @@ export function CompleteProfileScreen() {
       if (country) updates.country = country;
 
       const { error } = await supabase.from('profiles').update(updates).eq('id', profile!.id);
-      if (error) return { error };
+      if (error) {
+        // The database enforces the username rules too (unique ignoring
+        // case, 1-30 chars, no @), e.g. when two people pick the same name
+        // at the same moment. Map those to something the user can act on.
+        if (error.code === '23505') return { error: new Error(USERNAME_TAKEN_MESSAGE) };
+        if (error.code === '23514') return { error: new Error(USERNAME_RULES_MESSAGE) };
+        return { error: new Error(SAVE_FAILED_MESSAGE) };
+      }
       return { data: null, error: null };
     }, {
+      // No errorMessage override: it replaced every message above with the
+      // generic one, so "username taken" was never actually shown.
       onSuccess: () => refreshProfile(),
-      errorMessage: 'Failed to save your profile. Please try again.',
     });
   }
 
@@ -124,6 +138,7 @@ export function CompleteProfileScreen() {
             value={displayName}
             onChangeText={setDisplayName}
             autoCapitalize="none"
+            maxLength={USERNAME_MAX_LENGTH}
           />
 
           <View style={{ marginBottom: 16 }}>

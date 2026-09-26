@@ -278,6 +278,9 @@ const INVITE_CODE_REQUIRED = false;
 // subscription_tier (audit 2026-09-25, H3), or a redeemed code grants nothing.
 const INVITE_CODE_ENABLED = false;
 
+// Keep in sync with ResetPasswordScreen and the Supabase Auth minimum.
+const MIN_NEW_PASSWORD_LENGTH = 8;
+
 export function AuthScreen() {
   const { mode } = useTheme();
   const c = AUTH_COLORS[mode];
@@ -355,6 +358,12 @@ export function AuthScreen() {
   async function handleSubmit() {
     if (!email || !password || (isSignUp && INVITE_CODE_ENABLED && INVITE_CODE_REQUIRED && !inviteCode)) {
       Alert.alert('Missing Fields', `Please fill in all fields${INVITE_CODE_REQUIRED ? ' (including Invite Code)' : ''} to continue.`);
+      return;
+    }
+    // New passwords only — existing accounts with shorter passwords can
+    // still sign in (audit 2026-09-25, M10).
+    if (isSignUp && password.length < MIN_NEW_PASSWORD_LENGTH) {
+      Alert.alert('Password Too Short', `Please use at least ${MIN_NEW_PASSWORD_LENGTH} characters.`);
       return;
     }
 
@@ -506,7 +515,7 @@ export function AuthScreen() {
         c={c}
       />
       <GlassInput
-        placeholder="Min 6 characters"
+        placeholder={isSignUp ? `Min ${MIN_NEW_PASSWORD_LENGTH} characters` : 'Password'}
         value={password}
         onChangeText={setPassword}
         secureTextEntry

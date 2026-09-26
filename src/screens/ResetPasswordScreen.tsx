@@ -20,6 +20,9 @@ interface ResetPasswordScreenProps {
   onComplete?: () => void;
 }
 
+// Keep in sync with AuthScreen and the Supabase Auth minimum (audit M10).
+const MIN_NEW_PASSWORD_LENGTH = 8;
+
 export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
   const isMounted = useMountedRef();
   const [newPassword, setNewPassword] = useState('');
@@ -191,8 +194,8 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       return;
     }
 
-    if (newPassword.length < 6) {
-      setInlineError('PASSWORD MUST BE AT LEAST 6 CHARACTERS.');
+    if (newPassword.length < MIN_NEW_PASSWORD_LENGTH) {
+      setInlineError(`PASSWORD MUST BE AT LEAST ${MIN_NEW_PASSWORD_LENGTH} CHARACTERS.`);
       return;
     }
 
@@ -285,7 +288,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
             <Input
               label="NEW PASSWORD"
-              placeholder="Min 6 characters"
+              placeholder={`Min ${MIN_NEW_PASSWORD_LENGTH} characters`}
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
@@ -295,7 +298,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
             <Input
               label="CONFIRM PASSWORD"
-              placeholder="Min 6 characters"
+              placeholder={`Min ${MIN_NEW_PASSWORD_LENGTH} characters`}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry

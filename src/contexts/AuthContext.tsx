@@ -15,6 +15,7 @@ import {
   statusCodes,
 } from '@react-native-google-signin/google-signin';
 import Purchases from 'react-native-purchases';
+import * as Sentry from '@sentry/react-native';
 import { checkPaywallEnabled } from '../lib/appVersion';
 import { withNetworkRetry, isTransientNetworkError } from '../lib/submitErrors';
 
@@ -63,6 +64,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);
+
+  // Tag Sentry reports with the user id only (never email) so one user's
+  // crash can be found from a support request (audit 2026-09-25, M17).
+  useEffect(() => {
+    try {
+      Sentry.setUser(user?.id ? { id: user.id } : null);
+    } catch {
+      // Never let crash-reporting setup affect auth.
+    }
+  }, [user?.id]);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
   const [paywallEnabled, setPaywallEnabled] = useState(false);
   const [pendingAppleName, setPendingAppleName] = useState<{ firstName?: string; lastName?: string } | null>(null);
@@ -491,6 +502,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     if (Platform.OS !== 'web') {
       await Purchases.logOut().catch(() => { });
+      // Otherwise the next "Sign in with Google" on a shared phone can
+      // silently reuse this account (audit L16). Best-effort, like above.
+      try {
+        await GoogleSignin.signOut();
+      } catch {
+        // Not signed in with Google, or the module isn't configured — fine.
+      }
     }
 
     const { error } = await supabase.auth.signOut();

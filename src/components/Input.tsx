@@ -16,6 +16,7 @@ interface InputProps {
   autoComplete?: 'email' | 'current-password' | 'new-password' | 'name' | 'username' | 'off';
   onBlur?: () => void;
   onEndEditing?: () => void;
+  maxLength?: number;
 }
 
 export function Input({
@@ -32,6 +33,7 @@ export function Input({
   autoComplete,
   onBlur,
   onEndEditing,
+  maxLength,
 }: InputProps) {
   const { theme } = useTheme();
   // Default autoCapitalize based on keyboardType if not specified
@@ -60,6 +62,7 @@ export function Input({
         nativeID={id}
         onBlur={onBlur}
         onEndEditing={onEndEditing}
+        maxLength={maxLength}
         {...(Platform.OS === 'web' && {
           id: id || name,
           name: name || id,
