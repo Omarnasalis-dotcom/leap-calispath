@@ -1299,14 +1299,17 @@ describe("warnUneditedFromSource (added 2026-09-18): a day identical to the matc
 });
 
 describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", () => {
-  it("builds the standard Warm-Up (2 rounds, circuit) and Cool-Down (1 round, static holds, straight_set/single)", async () => {
+  it("builds the standard Warm-Up (2 rounds, circuit) and Cool-Down (static holds, straight_set/single, no rounds)", async () => {
     const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PULL DAY 1", "PULL", undefined, undefined, true, true);
     const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
     const coolDown = blocks.find((b) => b.block_name === "Cool-Down")!;
     expect(warmUp.metadata).toMatchObject({ timing_system: "straight_set", structure: "circuit", focus_tag: "PULL", rounds: "2", rest_after_round: 60 });
     expect(warmUp.exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"]);
     expect(warmUp.exercises.every((e) => e.sets === "1" && e.reps === "10")).toBe(true);
-    expect(coolDown.metadata).toMatchObject({ timing_system: "straight_set", structure: "single", focus_tag: "PULL", rounds: "1", rest_after_round: 60 });
+    expect(coolDown.metadata).toMatchObject({ timing_system: "straight_set", structure: "single", focus_tag: "PULL" });
+    // No rounds on a single block — validateBlockStructure rejects that (2026-09-26 fix).
+    expect(coolDown.metadata).not.toHaveProperty("rounds");
+    expect(coolDown.metadata).not.toHaveProperty("rest_after_round");
     expect(coolDown.exercises.map((e) => e.name)).toEqual(["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"]);
     expect(coolDown.exercises.every((e) => e.hold_seconds === "30" && e.reps === undefined)).toBe(true);
     expect(blocks).toHaveLength(2); // no Mobility block for a non-push day
@@ -1349,6 +1352,55 @@ describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", (
     const blocks = await buildServerWarmUpCoolDown(partialClient, "PULL DAY 1", "PULL", undefined, undefined, true, false);
     const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
     expect(warmUp.exercises.map((e) => e.name).sort()).toEqual(["Inchworm", "Scapula Push Ups"]);
+  });
+});
+
+// The real propose_new_program / propose_add_day order: server-built
+// Warm-Up/Cool-Down -> normalizeBlockStructure -> validateBlockStructure.
+// Each piece was tested alone, but never together — so the server's own
+// Cool-Down (then carrying rounds:"1") failed the validator's "no rounds on
+// a single block" rule on every build, sending the model into 2-4 retries
+// per day in live use (2026-09-26).
+describe("build pipeline: server blocks + normalize + validate together (2026-09-26)", () => {
+  const mainBlocks = (day: string, focus: string) => [
+    makeBlock({ name: `${day} | Strength`, metadata: { structure: "single", timing_system: "straight_set", focus_tag: focus }, exercises: [{ name: "Pull Ups", sets: "4", reps: "6" }] }),
+    makeBlock({ name: `${day} | Accessories`, metadata: { structure: "superset", timing_system: "straight_set", focus_tag: focus, rounds: "3" }, exercises: [{ name: "Dips", sets: "1", reps: "10" }, { name: "High Pull Ups", sets: "1", reps: "10" }] }),
+  ];
+  const build = async (blocks: unknown[], day: string) => {
+    const assembled = await assembleDayWithServerBlocks(REAL_CLIENT, blocks as never, day, undefined, undefined);
+    await normalizeBlockStructure(assembled as never, "intermediate", REAL_CLIENT);
+    return assembled;
+  };
+  const coolDownOf = (blocks: Array<{ block_name?: string; name?: string; metadata?: unknown }>) =>
+    blocks.find((b) => (b.block_name ?? b.name ?? "").includes("Cool-Down"))!.metadata as Record<string, unknown>;
+
+  it.each([["PULL DAY", "PULL"], ["PUSH DAY", "PUSH"], ["LEGS DAY", "LEGS"]])(
+    "a %s where the model leaves Warm-Up/Cool-Down to the server passes validation",
+    async (day, focus) => {
+      const blocks = await build(mainBlocks(day, focus), day);
+      expect(() => validateBlockStructure(blocks as never, { requireDayPhases: true })).not.toThrow();
+    }
+  );
+
+  it("repairs a model-written single Cool-Down that carries a stray rounds", async () => {
+    const coolDown = makeBlock({ name: "PULL DAY | Cool-Down", metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL", rounds: "1", rest_after_round: 60 }, exercises: [{ name: "Childe Pose", sets: "1", hold_seconds: "30" }] });
+    const blocks = await build([...mainBlocks("PULL DAY", "PULL"), coolDown], "PULL DAY");
+    expect(() => validateBlockStructure(blocks as never, { requireDayPhases: true })).not.toThrow();
+    expect(coolDownOf(blocks as never)).not.toHaveProperty("rounds");
+  });
+
+  it("repairs a model-written circuit Cool-Down with rounds (converted to single, rounds removed)", async () => {
+    const coolDown = makeBlock({ name: "PULL DAY | Cool-Down", metadata: { structure: "circuit", timing_system: "straight_set", focus_tag: "PULL", rounds: "2" }, exercises: [{ name: "Childe Pose", sets: "1", hold_seconds: "30" }, { name: "Shoulder stretch", sets: "1", hold_seconds: "30" }] });
+    const blocks = await build([...mainBlocks("PULL DAY", "PULL"), coolDown], "PULL DAY");
+    expect(() => validateBlockStructure(blocks as never, { requireDayPhases: true })).not.toThrow();
+    expect(coolDownOf(blocks as never)).toMatchObject({ structure: "single" });
+    expect(coolDownOf(blocks as never)).not.toHaveProperty("rounds");
+  });
+
+  it("still rejects rounds on a NON-cool-down single block (may mean \"N sets\" — never silently dropped)", async () => {
+    const strength = makeBlock({ name: "PULL DAY | Strength", metadata: { structure: "single", timing_system: "straight_set", focus_tag: "PULL", rounds: "3" }, exercises: [{ name: "Pull Ups", sets: "1", reps: "6" }] });
+    const blocks = await build([strength], "PULL DAY");
+    expect(() => validateBlockStructure(blocks as never, { requireDayPhases: true })).toThrow(/has structure "single" but also metadata.rounds/);
   });
 });
 

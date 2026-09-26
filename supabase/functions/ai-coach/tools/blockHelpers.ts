@@ -282,11 +282,15 @@ export type CoolDownMarker = "default" | "legs";
 // confirmed before building this. Only the exercise LIST varies, by day
 // focus (§11/§16) — that's what the marker (or, if omitted, the day's own
 // other blocks) selects. Warm-Up and Cool-Down get different prescriptions
-// (2026-09-18, live-build fix): a cool-down is one round of static holds,
+// (2026-09-18, live-build fix): a cool-down is one pass of static holds,
 // never a multi-round circuit — real build put Deadhang in a circuit block
 // with reps, which is a warm-up shape, not a cool-down.
+// No rounds on the Cool-Down (2026-09-26): it is a "single" block, and
+// validateBlockStructure rejects rounds on single blocks — carrying
+// rounds:"1" here made every server-built cool-down fail validation, which
+// sent the model into 2-4 retries per day (or no day card at all).
 const WARMUP_PRESCRIPTION = { rounds: "2", rest_after_round: 60 } as const;
-const COOLDOWN_PRESCRIPTION = { rounds: "1", rest_after_round: 60 } as const;
+const COOLDOWN_PRESCRIPTION = {} as const;
 
 // Builds whichever of Warm-Up/Cool-Down/Mobility the model didn't write
 // itself, from the verified lists above — this is the actual latency win:
@@ -496,6 +500,16 @@ export async function normalizeBlockStructure(
             repBasedExercises.length > 0 ? ` and defaulted hold_seconds on ${repBasedExercises.map((ex) => ex.name ?? "?").join(", ")}` : ""
           }.`
         );
+      }
+      // After the conversion above, so a circuit cool-down that was just
+      // made single loses its rounds too. validateBlockStructure rejects
+      // rounds on any single block; scoped to cool-downs only because on
+      // other single blocks rounds may be the model's way of saying "N
+      // sets" — that still gets rejected and rewritten, never dropped.
+      if (meta.structure === "single" && !isBlank(meta.rounds)) {
+        delete meta.rounds;
+        delete meta.rest_after_round;
+        fixes.push(`"${day} | ${phase}": a single-structure cool-down has no rounds — removed metadata.rounds.`);
       }
     }
 
