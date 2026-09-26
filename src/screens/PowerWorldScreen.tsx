@@ -347,7 +347,7 @@ export function PowerWorldScreen() {
 
           <View ref={movementRowRef} onLayout={onMovementRowLayout} collapsable={false} style={{ gap: 10, paddingTop: 22, paddingHorizontal: 24 }}>
             {loading && !stats
-              ? POWER_MOVEMENTS.map(m => <Skeleton key={m.id} width="100%" height={112} borderRadius={20} />)
+              ? POWER_MOVEMENTS.map(m => <Skeleton key={m.id} width="100%" height={106} borderRadius={20} />)
               : POWER_MOVEMENTS.map(m => (
                 <LiftRow key={m.id} tokens={t} movement={m} pb={pbs[m.id] ?? 0} worldBest={summary?.movementBests[m.id]} onPress={() => openLog(m)} />
               ))}
@@ -503,7 +503,7 @@ function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
       accessibilityLabel={`${ui.name}${logged ? `, 1RM ${pb} kilograms` : ''}. Log 1RM`}
       onPress={onPress}
       style={({ pressed }) => ({
-        borderRadius: 20, paddingTop: 14, paddingBottom: 14, paddingLeft: 16, paddingRight: 14, gap: 12, minWidth: 0,
+        borderRadius: 20, paddingTop: 12, paddingBottom: 12, paddingLeft: 16, paddingRight: 14, gap: 10, minWidth: 0,
         backgroundColor: logged ? t.tint : t.emptyRowBg,
         borderWidth: 1, borderColor: logged ? t.tintBorderStrong : t.emptyRowBorder,
         opacity: pressed ? 0.85 : 1,
@@ -517,7 +517,7 @@ function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
-          <Text style={kt('bold', 40, logged ? t.text : t.textEmpty, 0, 44)}>{logged ? String(pb) : '—'}</Text>
+          <Text style={kt('bold', 40, logged ? t.text : t.textEmpty, 0, 42)}>{logged ? String(pb) : '—'}</Text>
           {logged && <Text style={kt('medium', 11, t.textMuted, 1.4)}>KG</Text>}
         </View>
         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
