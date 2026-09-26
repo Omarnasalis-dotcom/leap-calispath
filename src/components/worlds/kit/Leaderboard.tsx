@@ -44,20 +44,25 @@ function Pills<K extends string>({ tokens: t, options, active, onChange }: {
 }
 
 /** PUBLIC | MY COMMUNITY (only when in a community) + ALL | MALE | FEMALE. */
-export function BoardFilters({ tokens: t, inCommunity, scope, onScope, gender, onGender, style }: {
+export function BoardFilters({ tokens: t, inCommunity, scope, onScope, gender, onGender, style, showGender = true }: {
   tokens: WorldKitTokens; inCommunity: boolean; scope: Scope; onScope: (s: Scope) => void;
   gender: Gender; onGender: (g: Gender) => void; style?: object;
+  /** Hide ALL/MALE/FEMALE when the source rows carry no gender. */
+  showGender?: boolean;
 }) {
+  if (!inCommunity && !showGender) return null;
   return (
     <View style={[{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }, style]}>
       {inCommunity && (
         <Pills tokens={t} active={scope} onChange={onScope}
           options={[{ key: 'public', label: 'PUBLIC' }, { key: 'community', label: 'MY COMMUNITY' }]} />
       )}
-      <View style={{ marginLeft: 'auto' }}>
-        <Pills tokens={t} active={gender} onChange={onGender}
-          options={[{ key: 'ALL', label: 'ALL' }, { key: 'MALE', label: 'MALE' }, { key: 'FEMALE', label: 'FEMALE' }]} />
-      </View>
+      {showGender && (
+        <View style={{ marginLeft: 'auto' }}>
+          <Pills tokens={t} active={gender} onChange={onGender}
+            options={[{ key: 'ALL', label: 'ALL' }, { key: 'MALE', label: 'MALE' }, { key: 'FEMALE', label: 'FEMALE' }]} />
+        </View>
+      )}
     </View>
   );
 }
@@ -185,6 +190,34 @@ export function YouBar({ tokens: t, rankText, king, ranked, handle, sub, scoreTe
         <Text style={kt('bold', 18, t.text, 0, 20)}>{scoreText}</Text>
         <Text style={[kt('semibold', 9.5, t.textFaint, 1.4), { marginTop: 3 }]}>PTS</Text>
       </View>
+    </View>
+  );
+}
+
+/** Level ELITE list under the tier switch (§1.3 / §2.2): up to 6 rows or a dashed empty state. */
+export function EliteList({ tokens: t, title, rows, loading, myId, filters }: {
+  tokens: WorldKitTokens; title: string; rows: BoardRow[]; loading: boolean; myId?: string; filters: React.ReactNode;
+}) {
+  return (
+    <View style={{ gap: 16 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Text style={kt('semibold', 19, t.text, 2)}>{title}</Text>
+        <Text style={kt('medium', 12, t.textMuted, 1.4)}>{`${rows.length} WARRIORS`}</Text>
+      </View>
+      {filters}
+      {rows.length > 0 ? (
+        <View style={{ borderRadius: 18, backgroundColor: t.sheetBg, borderWidth: 1, borderColor: t.emptyRowBorder, overflow: 'hidden' }}>
+          {rows.slice(0, 6).map((r, i) => (
+            <BoardRowView key={r.user_id} tokens={t} row={r} index={i} you={r.user_id === myId} first={i === 0} />
+          ))}
+        </View>
+      ) : (
+        <View style={{ borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong, paddingVertical: 28, paddingHorizontal: 20 }}>
+          <Text style={[kt('regular', 13, t.textMuted), { textAlign: 'center' }]}>
+            {loading ? 'LOADING…' : 'No warriors at this level yet.'}
+          </Text>
+        </View>
+      )}
     </View>
   );
 }

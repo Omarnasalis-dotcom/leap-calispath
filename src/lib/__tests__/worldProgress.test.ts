@@ -138,3 +138,13 @@ describe('powerWithinLevel', () => {
     expect(powerWithinLevel(300)).toEqual({ progress: 1, nextLevel: null, gap: 0 });
   });
 });
+
+import { staticWithinLevel } from '../worldProgress';
+
+describe('staticWithinLevel', () => {
+  it('measures progress inside Stone/Iron/Titan', () => {
+    expect(staticWithinLevel(75)).toMatchObject({ progress: 0.5, gap: 75 });
+    expect(staticWithinLevel(275).progress).toBeCloseTo(0.5); // Iron 150→400
+    expect(staticWithinLevel(500)).toEqual({ progress: 1, nextLevel: null, gap: 0 });
+  });
+});

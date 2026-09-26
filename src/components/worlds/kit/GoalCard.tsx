@@ -15,10 +15,12 @@ interface Props {
   /** Omit for New and King states. */
   bar?: { progress: number; from: string; to: string };
   footer: string;
+  /** 'caps' tagline (Power/Endurance) or an italic 'quote' (Static). */
+  footerStyle?: 'caps' | 'quote';
 }
 
 /** Goal card (handoff §0.6). */
-export function GoalCard({ tokens: t, icon, king, kicker, title, bar, footer }: Props) {
+export function GoalCard({ tokens: t, icon, king, kicker, title, bar, footer, footerStyle = 'caps' }: Props) {
   return (
     <View style={{
       borderRadius: 20, padding: 18, gap: 14,
@@ -36,7 +38,9 @@ export function GoalCard({ tokens: t, icon, king, kicker, title, bar, footer }: 
       </View>
       {bar && <GoalBar tokens={t} {...bar} />}
       <View style={{ borderTopWidth: 1, borderTopColor: t.border, paddingTop: 12 }}>
-        <Text style={kt('medium', 12, t.textFaint, 2.4)}>{footer}</Text>
+        {footerStyle === 'quote'
+          ? <Text style={[kt('light', 13, t.textFaint, 0.3), { fontStyle: 'italic' }]}>{footer}</Text>
+          : <Text style={kt('medium', 12, t.textFaint, 2.4)}>{footer}</Text>}
       </View>
     </View>
   );

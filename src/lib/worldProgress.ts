@@ -80,6 +80,19 @@ export function staticHoldProgress(seconds: number): number {
   return clamp01(seconds / STATIC_HOLD_TARGET_SECONDS);
 }
 
+/** Static equivalent of powerWithinLevel: progress inside Stone/Iron/Titan. */
+export function staticWithinLevel(totalPoints: number): LevelProgress {
+  const currentId = getStaticLevel(totalPoints);
+  const current = STATIC_LEVELS[currentId];
+  const next = currentId < 3 ? STATIC_LEVELS[(currentId + 1) as 2 | 3] : null;
+  if (!next) return { progress: 1, nextLevel: null, gap: 0 };
+  return {
+    progress: clamp01((totalPoints - current.minPoints) / (next.minPoints - current.minPoints)),
+    nextLevel: next,
+    gap: Math.max(0, next.minPoints - totalPoints),
+  };
+}
+
 export function staticLevelProgress(totalPoints: number): LevelProgress {
   const currentId = getStaticLevel(totalPoints);
   const next = currentId < 3 ? STATIC_LEVELS[(currentId + 1) as 2 | 3] : null;

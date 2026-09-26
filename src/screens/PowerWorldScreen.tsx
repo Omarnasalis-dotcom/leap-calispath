@@ -25,7 +25,7 @@ import {
   setKg as plateSetKg, undoPlate,
 } from '../lib/plates';
 import {
-  BoardFilters, BoardKicker, BoardRowView, DashboardRings, filterByGender, GoalCard, KitBar, KitButton,
+  BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitBar, KitButton,
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
   WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
@@ -536,35 +536,6 @@ function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
 }
 
 const fmt0 = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
-
-// ------------------------------------------------------------ elite list
-
-function EliteList({ tokens: t, title, rows, loading, myId, filters }: {
-  tokens: WorldKitTokens; title: string; rows: BoardRow[]; loading: boolean; myId?: string; filters: React.ReactNode;
-}) {
-  return (
-    <View style={{ gap: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Text style={kt('semibold', 19, t.text, 2)}>{title}</Text>
-        <Text style={kt('medium', 12, t.textMuted, 1.4)}>{`${rows.length} WARRIORS`}</Text>
-      </View>
-      {filters}
-      {rows.length > 0 ? (
-        <View style={{ borderRadius: 18, backgroundColor: t.sheetBg, borderWidth: 1, borderColor: t.emptyRowBorder, overflow: 'hidden' }}>
-          {rows.slice(0, 6).map((r, i) => (
-            <BoardRowView key={r.user_id} tokens={t} row={r} index={i} you={r.user_id === myId} first={i === 0} />
-          ))}
-        </View>
-      ) : (
-        <View style={{ borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong, paddingVertical: 28, paddingHorizontal: 20 }}>
-          <Text style={[kt('regular', 13, t.textMuted), { textAlign: 'center' }]}>
-            {loading ? 'LOADING…' : 'No warriors at this level yet.'}
-          </Text>
-        </View>
-      )}
-    </View>
-  );
-}
 
 // ---------------------------------------------------------- plate loader
 

@@ -1,751 +1,492 @@
-import { useRouter, useFocusEffect } from 'expo-router';
-import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, Modal,
-  Dimensions, Vibration, AppState, Keyboard } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { getCountryFlag } from '../constants/countries';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, Keyboard, Platform, Pressable, RefreshControl, ScrollView, Text, TextInput, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
 import {
-  STATIC_MOVEMENTS, STATIC_LEVELS, STATIC_CATEGORIES,
-  getCategoryMovements, getLevelMovements, StaticMovement
+  STATIC_MOVEMENTS, STATIC_LEVELS, STATIC_CATEGORIES, getStaticLevel, StaticMovement,
 } from '../lib/staticLogic';
-import { StaticService, StaticLeaderboardEntry, StaticLevelLeaderboardEntry } from '../services/StaticService';
+import { StaticService, StaticLeaderboardEntry, StaticLevelLeaderboardEntry, StaticWellRoundedEntry } from '../services/StaticService';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
-import { useTimer } from '../hooks/useTimer';
-import { WarriorButton } from '../components/atoms/WarriorButton';
-import { WarriorCard } from '../components/atoms/WarriorCard';
-import { CelebrationBanner } from '../components/CelebrationBanner';
-import { SoundServiceInstance as SoundService } from '../lib/SoundService';
-import { LeapLogo } from '../components/LeapLogo';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
-import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { useWorldSummary } from '../hooks/useWorldSummary';
+import { useHoldTimer } from '../hooks/useHoldTimer';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
-import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
-import { DismissKeyboardOnOutsideTap } from '../components/DismissKeyboardOnOutsideTap';
-import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
-import { ThemeMode } from '../../constants/Theme';
-import { WorldBackground } from '../components/worlds/WorldBackground';
-import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
-import { StatCircle } from '../components/worlds/StatCircle';
-import { ScoreRingHero } from '../components/worlds/ScoreRingHero';
-import { ExerciseCircle } from '../components/worlds/ExerciseCircle';
-import { PillTabRow } from '../components/worlds/PillTabRow';
-import { MilestoneCard } from '../components/worlds/MilestoneCard';
-import { STATIC_MOVEMENT_ICONS } from '../components/worlds/ExerciseIcon';
-import { NotificationService } from '../services/NotificationService';
-import {
-  staticHoldProgress,
-  staticLevelProgress,
-  rankGapProgress,
-  STATIC_HOLD_TARGET_SECONDS,
-} from '../lib/worldProgress';
 import { useReturnTo } from '../hooks/useReturnTo';
+import { CelebrationBanner } from '../components/CelebrationBanner';
+import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
+import { NotificationService } from '../services/NotificationService';
+import { getWorldKitTokens, WorldKitTokens, WORLD_FONTS } from '../../constants/worldKitTokens';
+import { deriveStanding, fmt2, youBarSubline, BoardRow } from '../lib/worldStanding';
+import { staticWithinLevel, STATIC_HOLD_TARGET_SECONDS } from '../lib/worldProgress';
+import { SkillCarousel } from '../components/worlds/SkillCarousel';
+import {
+  AnimatedRing, BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitButton,
+  KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldSheet, WorldToast, YouBar, Gender,
+} from '../components/worlds/kit';
 
-const { width } = Dimensions.get('window');
+type Category = 'handstand' | 'front_lever' | 'back_lever' | 'planche';
+type Tier = 'overall' | '1' | '2' | '3';
+type SheetState = { kind: 'log'; movementId: string } | { kind: 'board' } | null;
 
-const HERO_CENTER_SIZE = 134;
-const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
-// 3 hold circles per category — slightly larger than Power's 4-up row.
-const HOLD_CIRCLE_SIZE = Math.min(100, Math.floor((width - 40 - 20) / 3));
+const CATEGORIES: Category[] = ['handstand', 'front_lever', 'back_lever', 'planche'];
+const SHORT: Record<Category, string> = { handstand: 'HANDSTAND', front_lever: 'FRONT LV', back_lever: 'BACK LV', planche: 'PLANCHE' };
+const QUOTE = '“Stillness is strength under control.”';
+const MAX_SECONDS = 999;
+const QUICK = [10, 20, 30, 60];
 
-interface StaticWorldScreenProps {
+const movesOf = (c: Category) => STATIC_MOVEMENTS.filter(m => m.category === c).sort((a, b) => a.level - b.level);
+const holdPts = (m: StaticMovement, secs: number) => secs * m.multiplier;
+/** Live Static scoring: a skill is worth its best-scoring variation. */
+const categoryPts = (c: Category, pbs: Record<string, number>) => Math.max(0, ...movesOf(c).map(m => holdPts(m, pbs[m.id] ?? 0)));
+const fs = (s: number) => `${(Math.round(s * 10) / 10).toFixed(1)}s`;
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
+interface Props {
   onClose?: () => void;
-  // Deep-linked from the Milestone Lane's "Test Your Hold" side quest with a
-  // STATIC_MOVEMENTS id (e.g. 'wall_handstand') — mirrors how OneMinMaxScreen
-  // pre-selects its own category from an incoming `category` prop. Only
-  // pre-selects the category/movement; doesn't auto-open the log modal, same
-  // restraint as that precedent.
+  /** Deep link from My Journey's "Test Your Hold" — pre-selects that skill. */
   movement?: string;
 }
 
-// Map categories to professional icons
-const CATEGORY_ICONS: Record<string, keyof typeof MaterialCommunityIcons.glyphMap> = {
-  handstand: 'hand-pointing-up',
-  front_lever: 'angle-right',
-  back_lever: 'rotate-right',
-  planche: 'diamond-stone',
-};
-
-export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps) {
+export function StaticWorldScreen({ movement }: Props) {
   const { theme, mode } = useTheme();
-  const isDark = mode === 'dark';
-  const W = getWorldTheme('static', mode);
+  const t = getWorldKitTokens('static', mode);
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
-  const isLoadingAllDataRef = useRef(false);
-  const { runAsync: runSafeSave } = useSafeAsync();
+  const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
+  const isSlowSave = useSlowSubmitNotice(saving);
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('static.scoreCircle');
   const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('static.movementRow');
-  const deepLinkedMovement = movement ? STATIC_MOVEMENTS.find(m => m.id === movement) ?? null : null;
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
-  const [selectedMovement, setSelectedMovement] = useState<StaticMovement | null>(deepLinkedMovement);
-  const [selectedLevel, setSelectedLevel] = useState<1 | 2 | 3 | null>(null);
-  const [entries, setEntries] = useState<StaticLeaderboardEntry[]>([]);
-  const [levelEntries, setLevelEntries] = useState<StaticLevelLeaderboardEntry[]>([]);
-  const [wellRoundedEntries, setWellRoundedEntries] = useState<any[]>([]);
-  const [personalBest, setPersonalBest] = useState<StaticLeaderboardEntry | null>(null);
-  const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
-  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
-  // Community scope — must trigger a server-side refetch (RPCs cap at 100
-  // rows before any filter), unlike genderFilter which filters client-side
-  // on the already-fetched, already-limited data. Derived fresh each render
-  // from profile.community_id rather than mirrored into its own useState
-  // via a syncing useEffect — that version fetched once at mount with the
-  // stale 'public' default (profile hadn't loaded yet) and again once the
-  // sync effect corrected it, and whichever in-flight request resolved
-  // last won, regardless of which was actually current. A derived value is
-  // correct on the very first render that has real profile data, so the
-  // fetch effects below only fire once for that transition.
-  const [manualStaticScope, setManualStaticScope] = useState<'public' | 'community' | null>(null);
-  const staticScope: 'public' | 'community' = manualStaticScope ?? (profile?.community_id ? 'community' : 'public');
-  const setStaticScope = setManualStaticScope;
 
-  const filteredWellRoundedEntries = React.useMemo(() => {
-    let list = wellRoundedEntries;
-    if (genderFilter !== 'ALL') {
-      list = wellRoundedEntries.filter(e => (e.gender || '').toUpperCase() === genderFilter);
-    }
-    return list.map((e, i) => ({ ...e, rank: i + 1 }));
-  }, [wellRoundedEntries, genderFilter]);
-  const [loading, setLoading] = useState(false);
-  const [showGlobalMastery, setShowGlobalMastery] = useState(false);
-  const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'handstand' | 'front_lever' | 'back_lever' | 'planche'>('overall');
-  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'handstand' | 'front_lever' | 'back_lever' | 'planche'>(
-    deepLinkedMovement?.category ?? 'handstand'
-  );
-  
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [userHolds, setUserHolds] = useState<Record<string, number>>({});
+  const deepLinked = movement ? STATIC_MOVEMENTS.find(m => m.id === movement) : undefined;
+  const [skill, setSkill] = useState(Math.max(0, CATEGORIES.indexOf((deepLinked?.category ?? 'handstand') as Category)));
+
+  const [pbs, setPbs] = useState<Record<string, number>>({});
+  const [loaded, setLoaded] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const { summary, refresh: refreshSummary } = useWorldSummary('static', !!user);
+
+  const [tier, setTier] = useState<Tier>('overall');
+  const [eliteRows, setEliteRows] = useState<StaticLevelLeaderboardEntry[]>([]);
+  const [eliteLoading, setEliteLoading] = useState(false);
+
+  const [sheet, setSheet] = useState<SheetState>(null);
+  const lastSheet = useRef<Exclude<SheetState, null>>({ kind: 'board' });
+  if (sheet) lastSheet.current = sheet;
+  const shown = sheet ?? lastSheet.current;
+
+  const timer = useHoldTimer();
+  const [manual, setManual] = useState(false);
+  const [manualSecs, setManualSecs] = useState(20);
+  const [top, setTop] = useState<StaticLeaderboardEntry[]>([]);
+  const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
+
+  const [boardRows, setBoardRows] = useState<StaticWellRoundedEntry[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [gender, setGender] = useState<Gender>('ALL');
+  // Derived default (not mirrored via an effect) — see the stale-scope race
+  // documented in the previous version of this screen.
+  const [manualScope, setManualScope] = useState<'public' | 'community' | null>(null);
+  const scope: 'public' | 'community' = manualScope ?? (profile?.community_id ? 'community' : 'public');
+  const communityIdFor = (s: 'public' | 'community') => (s === 'community' ? profile?.community_id ?? null : null);
+
   const [showCelebration, setShowCelebration] = useState(false);
   const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
 
-  // useFocusEffect (not a plain mount-only useEffect): this screen now lives
-  // in a persistent tab navigator (app/(tabs)/_layout.tsx) and stays mounted
-  // across tab switches instead of remounting, so a mount-only effect would
-  // only ever fetch once per session — this refetches every time the tab
-  // regains focus, same as ProfileScreen/MilestoneLaneScreen already do.
-  useFocusEffect(
-    useCallback(() => {
-      loadAllData();
-    }, [user])
-  );
+  // ------------------------------------------------------------------ data
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchLeaderboard();
-    }, [leaderboardTab, selectedLevel, staticScope])
-  );
-
-  useEffect(() => {
-    if (selectedLevel) {
-      loadLevelData();
-    }
-  }, [selectedLevel, staticScope]);
-
-  useEffect(() => {
-    if (selectedMovement && showLogModal) {
-      loadMovementData();
-    }
-  }, [selectedMovement, showLogModal, staticScope]);
-
-  async function loadAllData() {
-    // Refetching on every focus (not just mount, see the useFocusEffect
-    // below) means a quick tab-flip can start a second loadAllData() before
-    // the first resolves; without this guard a slower earlier response
-    // could resolve after a newer one and overwrite fresher state with
-    // stale data.
-    if (!user || isLoadingAllDataRef.current) return;
-    isLoadingAllDataRef.current = true;
-    setLoading(true);
+  const isFetchingRef = useRef(false);
+  const fetchPbs = useCallback(async () => {
+    if (!user || isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
-      const holds = await StaticService.getUserHolds(user.id);
-      const holdMap: Record<string, number> = {};
-      holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
-      if (!isMounted.current) return;
-      setUserHolds(holdMap);
-
-      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-      const elite = await StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId);
-      if (!isMounted.current) return;
-      setWellRoundedEntries(elite);
-    } catch (error) {
-      console.error('[StaticWorld] Error loading data:', error);
+      const { pbs: p } = await StaticService.getUserStats(user.id);
+      if (isMounted.current) setPbs(p);
+    } catch (e) {
+      console.error('[StaticWorld] load error:', e);
     } finally {
-      isLoadingAllDataRef.current = false;
-      if (isMounted.current) setLoading(false);
+      isFetchingRef.current = false;
+      if (isMounted.current) { setLoaded(true); setRefreshing(false); }
     }
-  }
+  }, [user, isMounted]);
 
-  async function fetchLeaderboard() {
+  useFocusEffect(useCallback(() => { fetchPbs(); }, [fetchPbs]));
+
+  const fetchElite = async (level: Tier, s: 'public' | 'community') => {
+    if (level === 'overall' || !user) return;
+    setEliteLoading(true);
+    setEliteRows([]);
+    try {
+      const rows = await StaticService.getLevelLeaderboard(Number(level) as 1 | 2 | 3, user.id, communityIdFor(s));
+      if (isMounted.current) setEliteRows(rows);
+    } finally {
+      if (isMounted.current) setEliteLoading(false);
+    }
+  };
+
+  const fetchBoard = async (s: 'public' | 'community') => {
     if (!user) return;
+    setBoardLoading(true);
     try {
-      if (leaderboardTab === 'overall') {
-        const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-        const elite = await StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId);
-        if (!isMounted.current) return;
-        setWellRoundedEntries(elite);
-      }
+      const rows = await StaticService.getWellRoundedLeaderboard(user.id, communityIdFor(s));
+      if (isMounted.current) setBoardRows(rows);
     } catch (e) {
-      console.error(e);
-    }
-  }
-
-  async function loadMovementData() {
-    if (!selectedMovement || !user) return;
-    try {
-      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-      const { entries: e, personalBest: pb } = await StaticService.getMovementLeaderboard(selectedMovement.id, user.id, scopeCommunityId);
-      if (!isMounted.current) return;
-      setEntries(e);
-      setPersonalBest(pb);
-    } catch (e) {
-      console.error('Error loading movement data:', e);
-    }
-  }
-
-  async function loadLevelData() {
-    if (!selectedLevel || !user) return;
-    setLoading(true);
-    try {
-      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-      const e = await StaticService.getLevelLeaderboard(selectedLevel, user.id, scopeCommunityId);
-      if (!isMounted.current) return;
-      setLevelEntries(e);
+      console.error('[StaticWorld] board error:', e);
     } finally {
-      if (isMounted.current) setLoading(false);
+      if (isMounted.current) setBoardLoading(false);
     }
-  }
+  };
 
-  async function refreshUserHolds() {
-    if (user) {
-      const holds = await StaticService.getUserHolds(user.id);
-      const holdMap: Record<string, number> = {};
-      holds.forEach(h => { holdMap[h.movement_id] = h.hold_seconds; });
-      if (!isMounted.current) return;
-      setUserHolds(holdMap);
+  const onRefresh = () => {
+    setRefreshing(true);
+    fetchPbs();
+    refreshSummary();
+    if (tier !== 'overall') fetchElite(tier, scope);
+  };
+
+  // ------------------------------------------------------------- standing
+
+  const localScore = CATEGORIES.reduce((a, c) => a + categoryPts(c, pbs), 0);
+  const score = summary ? summary.myScore : localScore;
+  const standing = deriveStanding({
+    rank: summary?.myRank ?? null,
+    rankedCount: summary?.rankedCount ?? 0,
+    score,
+    topScore: summary?.topScore ?? 0,
+    above: summary?.above ?? null,
+  });
+  const above = summary?.above ?? null;
+  const level = staticWithinLevel(score);
+  const levelCap = score <= 0
+    ? `Log a hold to enter ${titleCase(STATIC_LEVELS[1].name)}`
+    : level.nextLevel
+      ? `${fmt2(level.gap)} pts to ${titleCase(level.nextLevel.name)}`
+      : `Top level reached · ${titleCase(STATIC_LEVELS[3].name)}`;
+
+  const gap = standing.isKing
+    ? { label: 'STATUS', value: 'KING', sub: '#1 OF WORLD', progress: 1, gold: true }
+    : standing.isRanked && above && standing.gapToPass != null
+      ? { label: `GAP TO #${above.rank}`, value: fmt2(standing.gapToPass), sub: 'PTS TO PASS', progress: standing.gapProgress }
+      : { label: 'GAP TO', value: '—', sub: 'RANK UP', progress: 0, empty: true };
+
+  const goal = standing.isKing
+    ? { kicker: "YOU'RE #1", title: 'STATIC KING ACHIEVED', bar: undefined }
+    : standing.isRanked && above && standing.gapToPass != null
+      ? {
+        kicker: 'NEXT TARGET',
+        title: `${fmt2(standing.gapToPass)} pts to steal Rank #${above.rank}`,
+        bar: { progress: standing.gapProgress, from: `YOU ${fmt2(score)}`, to: `#${above.rank} ${fmt2(above.score)}` },
+      }
+      : { kicker: 'GET STARTED', title: `Log a hold to rank up · target: ${STATIC_HOLD_TARGET_SECONDS}s wall handstand`, bar: undefined };
+
+  // ------------------------------------------------------------- sheets
+
+  const openLog = (m: StaticMovement) => {
+    timer.reset();
+    setManual(false);
+    setManualSecs(pbs[m.id] > 0 ? Math.round(pbs[m.id]) : 20);
+    setPendingOverwrite(null);
+    setTop([]);
+    setSheet({ kind: 'log', movementId: m.id });
+    StaticService.getMovementLeaderboard(m.id, user?.id, communityIdFor(scope))
+      .then(r => { if (isMounted.current) setTop(r.entries); })
+      .catch(e => console.error('[StaticWorld] top holds error:', e));
+  };
+
+  const openBoard = () => {
+    setSheet({ kind: 'board' });
+    fetchBoard(scope);
+  };
+
+  const closeSheet = () => {
+    if (timer.phase === 'ready' || timer.phase === 'run') {
+      const abandon = () => { timer.reset(); setSheet(null); };
+      if (Platform.OS === 'web') {
+        if (window.confirm('You have a timer running. Cancel this hold?')) abandon();
+      } else {
+        Alert.alert('Cancel Test?', 'You have a timer currently running. Are you sure you want to cancel and exit?', [
+          { text: 'Keep Going', style: 'cancel' },
+          { text: 'Cancel Test', style: 'destructive', onPress: abandon },
+        ]);
+      }
+      return;
     }
-  }
+    Keyboard.dismiss();
+    setSheet(null);
+  };
 
-  // Preparation intervals and control handlers moved to StaticWorkoutLogModal
+  // --------------------------------------------------------------- save
 
-  async function handleSaveHold(seconds: number, force: boolean = false) {
-    if (!selectedMovement || !user || seconds <= 0) return;
-
-    // Below the current best — ask before silently discarding it (or, if
-    // force is true, this IS the user's confirmed choice to overwrite).
-    // Strictly less-than (not <=): submit_static_hold treats a tied time as
-    // "not a new PB" but also not worse — a tie should just no-op silently
-    // like before, not surface a misleading "below your best" prompt.
-    if (!force && personalBest && seconds < personalBest.best_time_seconds) {
-      // Manual-entry mode leaves the keyboard open when this fires — the
-      // overwrite overlay renders inside this same modal, but the native
-      // keyboard sits above everything regardless of RN zIndex, so without
-      // an explicit dismiss it can cover the overlay's buttons with no way
-      // to close it (no input on the overlay itself to blur).
+  const handleSave = (seconds: number, force = false) => {
+    if (!user || !sheet || sheet.kind !== 'log') return;
+    const m = STATIC_MOVEMENTS.find(x => x.id === sheet.movementId);
+    if (!m) return;
+    if (!Number.isFinite(seconds) || seconds <= 0) {
+      Alert.alert('Invalid', 'Please enter a valid hold time in seconds.');
+      return;
+    }
+    const currentBest = pbs[m.id] ?? 0;
+    // Strictly less-than: submit_static_hold treats a tie as a no-op, not "worse".
+    if (!force && currentBest > 0 && seconds < currentBest) {
       Keyboard.dismiss();
       setPendingOverwrite(seconds);
       return;
     }
 
-    let shouldCelebrate = false;
-
-    setLoading(true);
+    let isPB = false;
     runSafeSave(async () => {
-      const { isNewPB: isPB, overtakenNotificationId, wraOvertakenNotificationId } = await StaticService.saveHold(user.id, selectedMovement.id, seconds, force);
-
-      if (isPB) {
-        if (isMounted.current) {
-          setCelebrationData({
-            stat: `${seconds}s`,
-            movement: selectedMovement?.name || 'Movement'
-          });
-          shouldCelebrate = true;
-        }
-        NotificationService.notify(
-          user.id,
-          'static_pb',
-          'New Static PB!',
-          `${selectedMovement?.name || 'Hold'}: ${seconds}s — a new personal record.`,
-          { screen: 'static-world' }
-        );
-        if (overtakenNotificationId) {
-          NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
-        }
-        if (wraOvertakenNotificationId) {
-          NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
-        }
-      }
-
-      if (!isPB) {
-        if (Platform.OS === 'web') alert('Hold logged successfully');
-        else Alert.alert('Success', 'Hold logged successfully');
-      }
-
-      const scopeCommunityId = staticScope === 'community' ? profile?.community_id : null;
-      try {
-        await Promise.all([
-          loadMovementData(),
-          refreshUserHolds(),
-          StaticService.getWellRoundedLeaderboard(user.id, scopeCommunityId)
-            .then(elite => { if (isMounted.current) setWellRoundedEntries(elite); })
-            .catch(e => console.error('Error refreshing elite leaderboard:', e)),
-          selectedLevel ? loadLevelData() : Promise.resolve(),
-          refreshProfile ? refreshProfile() : Promise.resolve(),
-        ]);
-      } catch (refreshError) {
-        // The hold above already saved successfully — a post-save refresh blip
-        // must not surface as "Failed to save hold" (that message offers a
-        // retry, which would resubmit an already-saved hold and hit the
-        // P1004 cooldown rejection). Log it and let onSuccess still run below.
-        console.error('Error refreshing static world data after save:', refreshError);
+      const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } = await StaticService.saveHold(user.id, m.id, seconds, force);
+      isPB = isNewPB;
+      if (isNewPB) {
+        if (isMounted.current) setCelebrationData({ stat: `${seconds}s`, movement: m.name });
+        NotificationService.notify(user.id, 'static_pb', 'New Static PB!', `${m.name}: ${seconds}s — a new personal record.`, { screen: 'static-world' });
+        if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
+        if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
       }
     }, {
       onSuccess: () => {
-        setLoading(false);
         setPendingOverwrite(null);
-        if (isMounted.current) setShowLogModal(false);
-
-        // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
-        if (shouldCelebrate && isMounted.current) {
-          setTimeout(() => {
-            if (isMounted.current) {
-              setShowCelebration(true);
-            }
-          }, 400);
-        }
-
-        // Came from a My Journey side quest — head straight back and mark
-        // this slot complete, after a brief pause so the result/celebration
-        // is actually visible first rather than yanking the screen away.
-        setTimeout(() => {
-          if (isMounted.current) completeQuestAndReturn();
-        }, 1800);
+        timer.reset();
+        setSheet(null);
+        setToast(isPB
+          ? (currentBest > 0 ? `NEW PB · +${fmt2(holdPts(m, seconds - currentBest))} PTS` : `FIRST HOLD · ${fmt2(holdPts(m, seconds))} PTS`)
+          : 'LOGGED · PB UNCHANGED');
+        fetchPbs();
+        refreshSummary();
+        if (tier !== 'overall') fetchElite(tier, scope);
+        refreshProfile?.();
+        if (isPB) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
+        setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
       },
       onError: (error: any) => {
-        setLoading(false);
         setPendingOverwrite(null);
-        // P1001-P1004 are submit_static_hold's own anti-cheat validation
-        // (negative time / invalid movement / ceiling exceeded / cooldown
-        // active) - expected outcomes, not bugs, so skip the console noise
-        // and just show the message. Mirrors TrialScreen's DISHONOR handling.
-        const isAntiCheatRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code);
-        if (!isAntiCheatRejection) {
-          console.error('Error saving hold:', error);
-        }
-        // seconds/force are still the enclosing call's exact args, so a retry
-        // resubmits the same hold instead of forcing it to be redone just
-        // because the network blipped.
+        // P1001–P1004 are submit_static_hold's own validation (bad time,
+        // bad movement, ceiling, cooldown) — expected, so no console noise.
+        if (!['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code)) console.error('Error saving hold:', error);
         const msg = describeSubmitError(error, 'Failed to save hold');
         if (Platform.OS === 'web') {
-          if (window.confirm(`${msg}\n\nTry again?`)) handleSaveHold(seconds, force);
+          if (window.confirm(`${msg}\n\nTry again?`)) handleSave(seconds, force);
         } else {
           Alert.alert('Error', msg, [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handleSaveHold(seconds, force) },
+            { text: 'Try Again', onPress: () => handleSave(seconds, force) },
           ]);
         }
-      }
+      },
     });
-  }
+  };
 
-  const renderLapHeader = () => (
-    <WorldHeaderPill
-      world={W}
-      title="STATIC WORLD"
-      icon="snowflake"
-      onPress={() => setShowGlobalMastery(true)}
-      style={styles.headerPill}
-    />
+  // ---------------------------------------------------------- rendering
+
+  const skillTabs = CATEGORIES.map(c => ({
+    key: c,
+    label: SHORT[c],
+    dots: movesOf(c).map(m => (pbs[m.id] ?? 0) > 0),
+  }));
+
+  const onPickTier = (k: Tier) => {
+    setTier(k);
+    if (k !== 'overall') fetchElite(k, scope);
+  };
+
+  const eliteList: BoardRow[] = useMemo(
+    () => eliteRows.map(r => ({ user_id: r.user_id, name: r.display_name, points: Number(r.total_points) || 0 })),
+    [eliteRows],
   );
+  const boardList: BoardRow[] = useMemo(
+    () => filterByGender(
+      boardRows.map((r: any) => {
+        const pts = Number(r.total_points) || 0;
+        return { user_id: r.user_id, name: r.display_name, points: pts, country: r.country, gender: r.gender, level: STATIC_LEVELS[getStaticLevel(pts)].name };
+      }),
+      gender,
+    ),
+    [boardRows, gender],
+  );
+  const you = youBarSubline(boardList, user?.id, score, 'Static');
+  const unfiltered = scope === 'public' && gender === 'ALL';
+  const youRankText = you.index >= 0 ? `#${you.index + 1}` : unfiltered && standing.isRanked ? `#${summary?.myRank}` : '—';
+  const youSub = you.index < 0
+    ? (unfiltered && standing.isRanked && above && standing.gapToPass != null
+      ? `${fmt2(standing.gapToPass)} pts to pass ${above.name}`
+      : score > 0 ? 'Not in this filter' : 'Log a hold to join the board')
+    : you.text;
 
-  const peakData = React.useMemo(() => {
-    const peaks: Record<string, number> = {
-      handstand: 0,
-      front_lever: 0,
-      back_lever: 0,
-      planche: 0
-    };
-
-    STATIC_MOVEMENTS.forEach(m => {
-      const seconds = userHolds[m.id] || 0;
-      const points = seconds * m.multiplier;
-      if (points > peaks[m.category]) {
-        peaks[m.category] = points;
-      }
-    });
-
-    const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-    return { ...peaks, total };
-  }, [userHolds]);
-
-  const personalEntry = wellRoundedEntries.find(e => e.user_id === user?.id);
-  const userRank = personalEntry?.rank || 0;
-  const displayScore = personalEntry ? Number(personalEntry.total_points) : Number(peakData.total);
-  
-  let gapToNext = 0;
-  if (userRank > 1 && wellRoundedEntries.length > 0) {
-    const targetRank = userRank - 1;
-    const personAbove = wellRoundedEntries.find(e => e.rank === targetRank);
-    if (personAbove) {
-      gapToNext = Math.ceil(personAbove.total_points - displayScore);
-    }
-  }
+  const toastNode = <WorldToast tokens={t} message={toast} onHide={() => setToast(null)} />;
+  const logMove = shown.kind === 'log' ? STATIC_MOVEMENTS.find(m => m.id === shown.movementId) : undefined;
+  const logValue = manual ? manualSecs : timer.seconds;
 
   return (
     <GlobalErrorBoundary>
-      <WorldBackground world={W}>
-      <View style={styles.container}>
-      {renderLapHeader()}
-      {returnTo === 'journey' && (
-        <TouchableOpacity style={styles.backToJourneyPill} onPress={() => goBackOrReturnTo('/static-world')}>
-          <MaterialCommunityIcons name="chevron-left" size={16} color={W.accent} />
-          <Text style={[styles.backToJourneyText, { color: W.accent }]}>BACK TO JOURNEY</Text>
-        </TouchableOpacity>
-      )}
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <WorldHeader
+          tokens={t}
+          icon="snowflake"
+          title="STATIC WORLD"
+          onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/static-world') : undefined}
+        />
+        <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          <DashboardRings
+            tokens={t}
+            worldLabel="STATIC"
+            rank={standing.isRanked ? summary?.myRank ?? null : null}
+            isKing={standing.isKing}
+            rankProgress={standing.rankProgress}
+            score={score}
+            scoreText={fmt2(score)}
+            scoreProgress={score > 0 ? level.progress : 0}
+            gap={gap}
+            onOpenLeaderboard={openBoard}
+            scoreRef={scoreCircleRef}
+            onScoreLayout={onScoreCircleLayout}
+          />
+          <Text style={[kt('regular', 12.5, t.textSecondary, 0.4), { textAlign: 'center', marginTop: 14 }]}>{levelCap}</Text>
 
-      <ScrollView contentContainerStyle={{ paddingBottom: 100 }}>
-        <View style={styles.dashboard}>
-          <View style={styles.heroRow}>
-            <StatCircle
-              size={HERO_SIDE_SIZE}
-              label="STATIC RANK"
-              value={`#${personalEntry?.rank || 0}`}
-              caption="OF WORLD"
-              unranked={!personalEntry?.rank || displayScore <= 0}
-            />
-
-            <ScoreRingHero
-              ref={scoreCircleRef}
-              onLayout={onScoreCircleLayout}
-              world={W}
-              size={HERO_CENTER_SIZE}
-              progress={staticLevelProgress(displayScore).progress}
-              label="STATIC SCORE"
-              value={typeof displayScore === 'number' ? displayScore.toFixed(2) : String(displayScore)}
-              caption="TOTAL PTS"
-              showCrown={personalEntry?.rank === 1}
-              onPress={() => setShowGlobalMastery(true)}
-              badgeIcon="chart-bar"
-              onBadgePress={() => setShowGlobalMastery(true)}
-            />
-
-            <StatCircle
-              size={HERO_SIDE_SIZE}
-              label="GAP TO"
-              value={userRank === 1 ? 'KING' : `+${gapToNext}`}
-              caption="RANK UP"
-              unranked={userRank === 0}
+          <View style={{ paddingTop: 26, paddingHorizontal: 24, paddingBottom: 8 }}>
+            <SegmentedSwitch
+              tokens={t}
+              items={skillTabs}
+              active={CATEGORIES[skill]}
+              onChange={(c) => setSkill(CATEGORIES.indexOf(c))}
+              height={46}
+              fontSize={11.5}
+              accessibilityLabel="Static skill"
             />
           </View>
 
-          <Text style={[styles.sectionHeader, { color: getWorldNeutrals(mode).textPrimary }]}>YOUR PEAK PERFORMANCE</Text>
-
-          <PillTabRow
-            world={W}
-            label="TIER"
-            style={styles.tabRow}
-            activeKey={selectedLevel === null ? 'overall' : String(selectedLevel)}
-            onSelect={(key) => {
-              if (key === 'overall') setSelectedLevel(null);
-              else setSelectedLevel(selectedLevel === Number(key) ? null : (Number(key) as 1 | 2 | 3));
-            }}
-            items={[
-              { key: 'overall', label: 'OVERALL STATIC', emoji: '👑' },
-              { key: '1', label: STATIC_LEVELS[1].name.toUpperCase() },
-              { key: '2', label: STATIC_LEVELS[2].name.toUpperCase() },
-              { key: '3', label: STATIC_LEVELS[3].name.toUpperCase() },
-            ]}
+          <SkillCarousel
+            count={CATEGORIES.length}
+            index={skill}
+            onIndexChange={setSkill}
+            containerRef={movementRowRef}
+            onContainerLayout={onMovementRowLayout}
+            renderCard={(i, active) => (
+              <SkillCard tokens={t} category={CATEGORIES[i]} n={i + 1} active={active} pbs={pbs} loaded={loaded} onOpen={openLog} />
+            )}
           />
 
-          <PillTabRow
-            world={W}
-            label="SKILL"
-            activeStyle="solid"
-            style={styles.tabRow}
-            activeKey={selectedExerciseCategory}
-            onSelect={(key) => setSelectedExerciseCategory(key as any)}
-            items={(['handstand', 'front_lever', 'back_lever', 'planche'] as const).map((cat) => ({
-              key: cat,
-              label: STATIC_CATEGORIES[cat].name.toUpperCase(),
-            }))}
-          />
-
-          <View style={styles.peakGrid} ref={movementRowRef} onLayout={onMovementRowLayout}>
-            {STATIC_MOVEMENTS.filter(m => m.category === selectedExerciseCategory).map(m => {
-              const pb = userHolds[m.id] || 0;
-              return (
-                <ExerciseCircle
-                  key={m.id}
-                  world={W}
-                  size={HOLD_CIRCLE_SIZE}
-                  progress={staticHoldProgress(pb)}
-                  icon={STATIC_MOVEMENT_ICONS[m.id] ?? 'handstand'}
-                  name={m.name.toUpperCase()}
-                  value={pb > 0 ? String(Math.round(pb)) : undefined}
-                  caption={pb > 0 ? `PB ${Math.round(pb)}s` : 'TAP TO TIME'}
-                  hasLogged={pb > 0}
-                  badge="stopwatch"
-                  style={styles.holdItem}
-                  onPress={() => {
-                    setSelectedMovement(m);
-                    setShowLogModal(true);
-                  }}
-                />
-              );
-            })}
-          </View>
-
-          <View style={styles.leaderboardSection}>
-            {selectedLevel ? (
-              <View style={styles.lbSection}>
-                <Text style={[styles.lbTitle, { color: W.accent }]}>
-                  {STATIC_LEVELS[selectedLevel].name.toUpperCase()} ELITE
-                </Text>
-                <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
-              </View>
+          <View style={{ paddingTop: 34, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}>
+            <SegmentedSwitch
+              tokens={t}
+              height={38}
+              fontSize={12}
+              active={tier}
+              onChange={onPickTier}
+              accessibilityLabel="Static level"
+              items={[
+                { key: 'overall', label: 'OVERALL', crown: true },
+                { key: '1', label: STATIC_LEVELS[1].name },
+                { key: '2', label: STATIC_LEVELS[2].name },
+                { key: '3', label: STATIC_LEVELS[3].name },
+              ]}
+            />
+            {tier === 'overall' ? (
+              <GoalCard tokens={t} icon="target" king={standing.isKing} kicker={goal.kicker} title={goal.title} bar={goal.bar} footer={QUOTE} footerStyle="quote" />
             ) : (
-              <MilestoneCard
-                world={W}
-                style={{ marginTop: 20 }}
-                icon={userRank === 1 ? 'crown' : 'sword-cross'}
-                headline={
-                  userRank === 1
-                    ? 'STATIC KING ACHIEVED'
-                    : userRank > 0
-                      ? `${gapToNext} Points to steal Rank #${userRank - 1}`
-                      : 'Log a hold to rank up'
-                }
-                caption={
-                  userRank === 1
-                    ? 'YOU ARE AT THE PEAK'
-                    : userRank > 0
-                      ? 'YOUR NEXT TARGET'
-                      : `YOUR NEXT TARGET: ${STATIC_HOLD_TARGET_SECONDS}s WALL HANDSTAND`
-                }
-                // Honest fill: unranked renders an empty track (the original
-                // hard-coded 100% here for rank 0 — the audit's worst bug).
-                progress={rankGapProgress(displayScore, gapToNext, userRank)}
-                footerRight={
-                  userRank > 1
-                    ? `+${gapToNext} PTS TO DETHRONE`
-                    : `${Number(displayScore).toFixed(2)} PTS`
+              <EliteList
+                tokens={t}
+                title={`${STATIC_LEVELS[Number(tier) as 1 | 2 | 3].name} ELITE`}
+                rows={eliteList}
+                loading={eliteLoading}
+                myId={user?.id}
+                filters={
+                  <BoardFilters
+                    tokens={t}
+                    inCommunity={!!profile?.community_id}
+                    scope={scope}
+                    onScope={(s) => { setManualScope(s); fetchElite(tier, s); }}
+                    gender={gender}
+                    onGender={setGender}
+                    showGender={false}
+                  />
                 }
               />
             )}
-
-            {!!selectedLevel && !!profile?.community_id && (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 8, gap: 12 }}>
-                {(['public', 'community'] as const).map((scope) => (
-                  <TouchableOpacity
-                    key={scope}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 16,
-                      borderRadius: 20,
-                      backgroundColor: staticScope === scope ? W.accent : 'rgba(255,255,255,0.05)',
-                      borderWidth: 1,
-                      borderColor: staticScope === scope ? W.accent : 'rgba(255,255,255,0.1)'
-                    }}
-                    onPress={() => setStaticScope(scope)}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: '900',
-                      color: staticScope === scope ? '#FFF' : theme.text.secondary
-                    }}>
-                      {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            {!selectedLevel ? null : (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 8, gap: 12 }}>
-                {['ALL', 'MALE', 'FEMALE'].map((filter) => (
-                  <TouchableOpacity
-                    key={filter}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 16,
-                      borderRadius: 20,
-                      backgroundColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.05)',
-                      borderWidth: 1,
-                      borderColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.1)'
-                    }}
-                    onPress={() => setGenderFilter(filter as any)}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: '900',
-                      color: genderFilter === filter ? '#FFF' : theme.text.secondary
-                    }}>
-                      {filter}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-            
-            {selectedLevel && levelEntries.map((item, i) => (
-              <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${W.accent}20` : 'transparent' }]}>
-                <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
-                  <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
-                </View>
-                <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
-                  {item.display_name.toUpperCase()}
-                </Text>
-                <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
-                  <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.total_points || 0).toFixed(2)}</Text>
-                </View>
-              </View>
-            ))}
-
-            {/* Ambient Quote */}
-            {!selectedLevel && (
-              <View style={{ alignItems: 'center', marginTop: 40, marginBottom: 40 }}>
-                <Text style={{ 
-                  color: theme.text.tertiary, 
-                  fontSize: 10, 
-                  fontFamily: 'PlusJakartaSans-SemiBold',
-                  letterSpacing: 3,
-                  textTransform: 'uppercase'
-                }}>
-                  LEAP INTO THE HOLD. DEFY GRAVITY.
-                </Text>
-              </View>
-            )}
           </View>
-        </View>
-      </ScrollView>
+        </ScrollView>
 
-      {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
+        {!sheet && toastNode}
+      </View>
 
-      <Modal visible={showGlobalMastery} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '85%' }]}>
-             <View style={styles.modalHeader}>
-                <View style={styles.modalTitleBox}>
-                   <MaterialCommunityIcons name="crown" size={24} color={W.accent} />
-                   <Text style={[styles.modalTitle, { color: theme.text.primary, marginLeft: 8 }]}>
-                     STATIC MASTERY
-                   </Text>
-                </View>
-                <TouchableOpacity onPress={() => setShowGlobalMastery(false)}>
-                  <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-                </TouchableOpacity>
-             </View>
-             
-             <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL STATIC RANKINGS</Text>
-
-             {!!profile?.community_id && (
-               <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16, gap: 12 }}>
-                 {(['public', 'community'] as const).map((scope) => (
-                   <TouchableOpacity
-                     key={scope}
-                     style={{
-                       paddingVertical: 6,
-                       paddingHorizontal: 16,
-                       borderRadius: 20,
-                       backgroundColor: staticScope === scope ? W.accent : 'rgba(255,255,255,0.05)',
-                       borderWidth: 1,
-                       borderColor: staticScope === scope ? W.accent : 'rgba(255,255,255,0.1)'
-                     }}
-                     onPress={() => setStaticScope(scope)}
-                   >
-                     <Text style={{
-                       fontSize: 12,
-                       fontWeight: '900',
-                       color: staticScope === scope ? '#FFF' : theme.text.secondary
-                     }}>
-                       {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
-                     </Text>
-                   </TouchableOpacity>
-                 ))}
-               </View>
-             )}
-
-             <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
-               {['ALL', 'MALE', 'FEMALE'].map((filter) => (
-                 <TouchableOpacity
-                   key={filter}
-                   style={{
-                     paddingVertical: 6,
-                     paddingHorizontal: 16,
-                     borderRadius: 20,
-                     backgroundColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.05)',
-                     borderWidth: 1,
-                     borderColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.1)'
-                   }}
-                   onPress={() => setGenderFilter(filter as any)}
-                 >
-                   <Text style={{ 
-                     fontSize: 12, 
-                     fontWeight: '900', 
-                     color: genderFilter === filter ? '#FFF' : theme.text.secondary 
-                   }}>
-                     {filter}
-                   </Text>
-                 </TouchableOpacity>
-               ))}
-             </View>
-
-             <ScrollView style={{ marginTop: 20 }}>
-                {filteredWellRoundedEntries.map((item, i) => (
-                  <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `${W.accent}20`, borderColor: W.accent, borderWidth: 1 }]}>
-                    <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
-                      <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
-                    </View>
-                    <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
-                      <Text style={{ fontSize: 16 }}>{getCountryFlag((item as any).country)} </Text>
-                      {item.display_name.toUpperCase()}
-                    </Text>
-                    <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
-                      <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.total_points || 0).toFixed(2)} PTS</Text>
-                    </View>
-                  </View>
-                ))}
-             </ScrollView>
-          </View>
-        </View>
-      </Modal>
-
-      {showLogModal && (
-        <StaticWorkoutLogModal
-          visible={showLogModal}
-          onClose={() => setShowLogModal(false)}
-          selectedMovement={selectedMovement}
-          personalBest={personalBest}
-          entries={entries}
-          user={user}
-          theme={theme}
-          world={W}
-          mode={mode}
-          onSaveHold={handleSaveHold}
-          overwriteOverlay={
-            <PBOverwriteConfirmModal
-              visible={pendingOverwrite !== null}
-              theme={theme}
-              accentColor={W.accent}
-              movementName={selectedMovement?.name || ''}
-              unitLabel="s"
-              currentBest={personalBest?.best_time_seconds ?? 0}
-              attemptValue={pendingOverwrite ?? 0}
-              saving={loading}
-              onKeepBest={() => setPendingOverwrite(null)}
-              onSaveAnyway={() => {
-                const seconds = pendingOverwrite;
-                if (seconds !== null) handleSaveHold(seconds, true);
-              }}
+      <WorldSheet
+        tokens={t}
+        visible={!!sheet}
+        onClose={closeSheet}
+        variant={shown.kind === 'board' ? 'board' : 'log'}
+        kicker={shown.kind === 'board'
+          ? <BoardKicker tokens={t} icon="snowflake" text="STATIC WORLD" />
+          : logMove ? `${STATIC_CATEGORIES[logMove.category].name.toUpperCase()} · LEVEL ${logMove.level}` : ''}
+        title={shown.kind === 'board' ? 'LEADERBOARD' : (logMove?.name ?? '').toUpperCase()}
+        footer={shown.kind === 'board' ? (
+          <YouBar
+            tokens={t}
+            rankText={youRankText}
+            king={you.index === 0}
+            ranked={you.index >= 0 || (unfiltered && standing.isRanked)}
+            handle={profile?.display_name || 'You'}
+            sub={youSub}
+            scoreText={fmt2(score)}
+          />
+        ) : undefined}
+        overlay={
+          <>
+            {shown.kind === 'log' && logMove && (
+              <PBOverwriteConfirmModal
+                visible={pendingOverwrite !== null}
+                theme={theme}
+                accentColor={t.accent}
+                movementName={logMove.name}
+                unitLabel="s"
+                currentBest={pbs[logMove.id] ?? 0}
+                attemptValue={pendingOverwrite ?? 0}
+                saving={saving}
+                onKeepBest={() => setPendingOverwrite(null)}
+                onSaveAnyway={() => { if (pendingOverwrite !== null) handleSave(pendingOverwrite, true); }}
+              />
+            )}
+            {!!sheet && toastNode}
+          </>
+        }
+      >
+        {shown.kind === 'board' ? (
+          <View>
+            <BoardFilters
+              tokens={t}
+              inCommunity={!!profile?.community_id}
+              scope={scope}
+              onScope={(s) => { setManualScope(s); fetchBoard(s); }}
+              gender={gender}
+              onGender={setGender}
+              style={{ paddingTop: 14, paddingHorizontal: 24 }}
             />
-          }
-        />
-      )}
+            <LeaderboardBody tokens={t} rows={boardList} myId={user?.id} loading={boardLoading} />
+          </View>
+        ) : logMove ? (
+          <TimerSheetBody
+            tokens={t}
+            movement={logMove}
+            pb={pbs[logMove.id] ?? 0}
+            timer={timer}
+            manual={manual}
+            onMode={(isManual) => { if (timer.phase === 'ready' || timer.phase === 'run') return; timer.reset(); setManual(isManual); }}
+            manualSecs={manualSecs}
+            setManualSecs={setManualSecs}
+            onLog={() => handleSave(logValue)}
+            saving={saving}
+            isSlowSave={isSlowSave}
+            top={top}
+            myId={user?.id}
+          />
+        ) : null}
+      </WorldSheet>
 
       <CelebrationBanner
         visible={showCelebration}
@@ -756,447 +497,228 @@ export function StaticWorldScreen({ onClose, movement }: StaticWorldScreenProps)
         userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
         onDismiss={() => setShowCelebration(false)}
         headerText="STATIC WORLD"
-        showLeapLogo={true}
-        accentColor={W.accent}
+        showLeapLogo
+        accentColor={t.accent}
       />
-      </View>
-      </WorldBackground>
     </GlobalErrorBoundary>
   );
 }
 
-interface StaticWorkoutLogModalProps {
-  visible: boolean;
-  onClose: () => void;
-  selectedMovement: any;
-  personalBest: any;
-  entries: any[];
-  user: any;
-  theme: any;
-  world: WorldTheme;
-  mode: ThemeMode;
-  onSaveHold: (seconds: number) => Promise<void>;
-  // Rendered as the last child inside this modal's own content — NOT a
-  // second <Modal>, since two simultaneously-open native Modals on iOS can
-  // freeze the app (see PBOverwriteConfirmModal's own comment).
-  overwriteOverlay?: React.ReactNode;
-}
+// ------------------------------------------------------------ skill card
 
-const StaticWorkoutLogModal: React.FC<StaticWorkoutLogModalProps> = ({
-  visible,
-  onClose,
-  selectedMovement,
-  personalBest,
-  entries,
-  user,
-  theme,
-  world: W,
-  mode,
-  onSaveHold,
-  overwriteOverlay
-}) => {
-  const { seconds: timerSeconds, isRunning: timerRunning, start: startTimer, stop: stopTimer, reset: resetTimer } = useTimer();
-  const [isPreparing, setIsPreparing] = useState(false);
-  const [preCountdown, setPreCountdown] = useState(0);
-  const [saving, setSaving] = useState(false);
-  const isSlowSave = useSlowSubmitNotice(saving);
-  // Lets a user skip the live timer entirely (manualMode) and type a known
-  // hold time directly, or adjust the captured value after stopping the
-  // timer before it's logged — both feed the same enteredSeconds field
-  // that actually gets saved, rather than the raw timer reading.
-  const [manualMode, setManualMode] = useState(false);
-  const [enteredSeconds, setEnteredSeconds] = useState('');
-  const isMounted = useMountedRef();
-  const prepStartTimeRef = useRef<number | null>(null);
-  const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
-
-  // Pre-fill the review field with the captured time the moment the timer
-  // stops, so the user can adjust it before logging rather than only ever
-  // seeing a read-only number.
-  useEffect(() => {
-    if (!timerRunning && timerSeconds > 0 && !manualMode) {
-      setEnteredSeconds(String(timerSeconds));
-    }
-  }, [timerRunning, timerSeconds, manualMode]);
-
-  useEffect(() => {
-    if (prepTimerRef.current) clearInterval(prepTimerRef.current);
-
-    if (isPreparing) {
-      if (!prepStartTimeRef.current) {
-        prepStartTimeRef.current = Date.now();
-      }
-      SoundService.playTick();
-
-      const sub = AppState.addEventListener('change', (nextState) => {
-        if (nextState === 'active' && prepStartTimeRef.current) {
-          const elapsed = Math.floor((Date.now() - prepStartTimeRef.current) / 1000);
-          if (elapsed >= 5) {
-            setIsPreparing(false);
-            setPreCountdown(0);
-            SoundService.playBoxingBell();
-            Vibration.vibrate(100);
-            startTimer(elapsed - 5);
-            if (prepTimerRef.current) clearInterval(prepTimerRef.current);
-          }
-        }
-      });
-
-      prepTimerRef.current = setInterval(() => {
-        if (prepStartTimeRef.current) {
-          const elapsed = Math.floor((Date.now() - prepStartTimeRef.current) / 1000);
-          const remaining = 5 - elapsed;
-
-          if (remaining <= 0) {
-            setIsPreparing(false);
-            setPreCountdown(0);
-            SoundService.playBoxingBell();
-            Vibration.vibrate(100);
-            startTimer(elapsed - 5);
-            if (prepTimerRef.current) clearInterval(prepTimerRef.current);
-          } else {
-            setPreCountdown(prev => {
-              if (prev !== remaining) {
-                SoundService.playTick();
-              }
-              return remaining;
-            });
-          }
-        }
-      }, 250);
-
-      return () => {
-        sub.remove();
-        if (prepTimerRef.current) clearInterval(prepTimerRef.current);
-      };
-    } else {
-      prepStartTimeRef.current = null;
-    }
-  }, [isPreparing]);
-
-  const handleStartWithLeadIn = () => {
-    setPreCountdown(5);
-    prepStartTimeRef.current = Date.now();
-    setIsPreparing(true);
-    resetTimer();
-    setEnteredSeconds('');
-  };
-
-  const cancelPreparation = () => {
-    setIsPreparing(false);
-    setPreCountdown(0);
-    prepStartTimeRef.current = null;
-    if (prepTimerRef.current) {
-      clearInterval(prepTimerRef.current);
-      prepTimerRef.current = null;
-    }
-    resetTimer();
-  };
-
-  const handleReset = () => {
-    resetTimer();
-    setEnteredSeconds('');
-  };
-
-  const handleEnterManually = () => {
-    setManualMode(true);
-    setEnteredSeconds('');
-  };
-
-  const handleUseTimerInstead = () => {
-    setManualMode(false);
-    resetTimer();
-    setEnteredSeconds('');
-  };
-
-  const handleClose = () => {
-    if (timerRunning || isPreparing) {
-      Alert.alert(
-        'Cancel Test?',
-        'You have a timer currently running. Are you sure you want to cancel and exit?',
-        [
-          { text: 'Keep Going', style: 'cancel' },
-          { text: 'Cancel Test', style: 'destructive', onPress: () => {
-            if (timerRunning) stopTimer();
-            setIsPreparing(false);
-            setPreCountdown(0);
-            prepStartTimeRef.current = null;
-            if (prepTimerRef.current) {
-              clearInterval(prepTimerRef.current);
-              prepTimerRef.current = null;
-            }
-            resetTimer();
-            setEnteredSeconds('');
-            setManualMode(false);
-            onClose();
-          }}
-        ]
-      );
-    } else {
-      onClose();
-    }
-  };
-
-  const handleSave = async () => {
-    const seconds = parseInt(enteredSeconds, 10);
-    if (isNaN(seconds) || seconds <= 0) {
-      Alert.alert('Invalid', 'Please enter a valid hold time in seconds.');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSaveHold(seconds);
-    } finally {
-      if (isMounted.current) setSaving(false);
-    }
-  };
-
+function SkillCard({ tokens: t, category, n, active, pbs, loaded, onOpen }: {
+  tokens: WorldKitTokens; category: Category; n: number; active: boolean;
+  pbs: Record<string, number>; loaded: boolean; onOpen: (m: StaticMovement) => void;
+}) {
+  const pts = categoryPts(category, pbs);
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      <DismissKeyboardOnOutsideTap>
-      <View style={styles.modalOverlay}>
-        <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '90%' }]}>
-           <View style={styles.modalHeader}>
-              <View style={{ flex: 1, marginRight: 10 }}>
-                <Text style={[styles.modalTitle, { color: theme.text.primary }]} numberOfLines={2}>
-                  {selectedMovement?.name.toUpperCase()}
-                </Text>
-                {personalBest ? (
-                  <Text style={{ color: W.accent, fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
-                    YOUR BEST: {personalBest.best_time_seconds}s (RANK #{personalBest.rank})
-                  </Text>
-                ) : (
-                  <Text style={{ color: theme.text.tertiary, fontSize: 11, fontWeight: '900', marginTop: 4, letterSpacing: 1 }}>
-                    NO HOLD LOGGED YET — TIME ONE TO GET RANKED
-                  </Text>
-                )}
-              </View>
-              <TouchableOpacity onPress={handleClose}>
-                 <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-              </TouchableOpacity>
-           </View>
-
-           <View style={styles.timerContainer}>
-              {manualMode ? (
-                <>
-                  <View style={styles.timerInputRow}>
-                    <TextInput
-                      style={[styles.timerText, styles.timerInput, { color: theme.text.primary, borderColor: W.accent }]}
-                      keyboardType="numeric"
-                      value={enteredSeconds}
-                      onChangeText={setEnteredSeconds}
-                      placeholder="0"
-                      placeholderTextColor={theme.text.tertiary}
-                      autoFocus
-                    />
-                    <Text style={[styles.timerText, { color: theme.text.primary }]}>s</Text>
-                  </View>
-                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ENTER HOLD TIME MANUALLY</Text>
-                </>
-              ) : !isPreparing && !timerRunning && timerSeconds > 0 ? (
-                <>
-                  <View style={styles.timerInputRow}>
-                    <TextInput
-                      style={[styles.timerText, styles.timerInput, { color: theme.text.primary, borderColor: W.accent }]}
-                      keyboardType="numeric"
-                      value={enteredSeconds}
-                      onChangeText={setEnteredSeconds}
-                    />
-                    <Text style={[styles.timerText, { color: theme.text.primary }]}>s</Text>
-                  </View>
-                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ADJUST IF NEEDED, THEN LOG</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[
-                    styles.timerText,
-                    { color: isPreparing ? W.accent : theme.text.primary }
-                  ]}>
-                    {isPreparing ? `${preCountdown}s` : `${timerSeconds}s`}
-                  </Text>
-                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                    {isPreparing ? 'GET READY' : 'ACTIVE HOLD TIME'}
-                  </Text>
-                </>
-              )}
-           </View>
-
-           {isPreparing ? (
-              <TouchableOpacity
-                style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                onPress={cancelPreparation}
-              >
-                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
-              </TouchableOpacity>
-           ) : manualMode ? (
-              <View style={{ gap: 10 }}>
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: W.accent }]}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                </TouchableOpacity>
-                {isSlowSave && (
-                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
-                    Still submitting — hang tight...
-                  </Text>
-                )}
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                  onPress={handleUseTimerInstead}
-                >
-                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>USE TIMER INSTEAD</Text>
-                </TouchableOpacity>
-              </View>
-           ) : (
-              <View style={{ gap: 10 }}>
-                {!timerRunning ? (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.startBtn, { backgroundColor: W.accent }]}
-                      onPress={handleStartWithLeadIn}
-                    >
-                      <Text style={styles.startBtnText}>{timerSeconds > 0 ? "RESTART TEST" : "START TIMER"}</Text>
-                    </TouchableOpacity>
-
-                    {timerSeconds > 0 && (
-                      <>
-                        <TouchableOpacity
-                          style={[styles.saveBtn, { backgroundColor: W.accent }]}
-                          onPress={handleSave}
-                          disabled={saving}
-                        >
-                          {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                          onPress={handleReset}
-                        >
-                          <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RESET / DISCARD</Text>
-                        </TouchableOpacity>
-                      </>
-                    )}
-
-                    {timerSeconds === 0 && (
-                      <TouchableOpacity style={styles.manualEntryLink} onPress={handleEnterManually}>
-                        <Text style={[styles.manualEntryLinkText, { color: theme.text.tertiary }]}>ENTER TIME MANUALLY INSTEAD</Text>
-                      </TouchableOpacity>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <TouchableOpacity
-                      style={[styles.startBtn, { backgroundColor: "#FF5252" }]}
-                      onPress={stopTimer}
-                    >
-                      <Text style={styles.startBtnText}>STOP & LOG</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[styles.cancelBtn, { borderColor: "#FF5252" }]}
-                      onPress={() => {
-                        stopTimer();
-                        handleReset();
-                      }}
-                    >
-                      <Text style={[styles.cancelBtnText, { color: "#FF5252" }]}>CANCEL TEST</Text>
-                    </TouchableOpacity>
-                  </>
-                )}
-              </View>
-           )}
-
-           <View style={{ marginTop: 30, borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.05)', paddingTop: 20 }}>
-              <Text style={[styles.sectionHeader, { fontSize: 9, marginBottom: 15, letterSpacing: 3, color: getWorldNeutrals(mode).textPrimary }]}>
-                TOP PERFORMERS
-              </Text>
-              <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 200 }} contentContainerStyle={{ paddingBottom: 20 }}>
-                 {entries.length > 0 ? entries.map((item, i) => (
-                    <View key={item.user_id} style={[styles.lbRow, { paddingVertical: 8 }, item.user_id === user?.id && { backgroundColor: `${theme.accent}15`, borderColor: theme.accent, borderWidth: 1 }]}>
-                       <View style={[styles.lbRank, { width: 24, height: 24, borderRadius: 12, backgroundColor: i < 3 ? `${theme.accent}20` : 'transparent' }]}>
-                          <Text style={{ color: i === 0 ? theme.accent : theme.text.secondary, fontWeight: '900', fontSize: 10 }}>{i + 1}</Text>
-                       </View>
-                       <Text style={[styles.lbName, { color: theme.text.primary, fontSize: 11 }]} numberOfLines={1} ellipsizeMode="tail">
-                         {item.display_name.toUpperCase()}
-                       </Text>
-                       <View style={[styles.lbPointsFrame, { backgroundColor: W.accent, paddingHorizontal: 8 }]}>
-                          <Text style={[styles.lbPointsText, { color: '#000', fontSize: 11 }]}>{Math.round(item.best_time_seconds)}s</Text>
-                       </View>
-                    </View>
-                 )) : (
-                    <Text style={{ textAlign: 'center', color: theme.text.tertiary, fontSize: 10, marginTop: 20 }}>
-                      NO HOLD TIMES RECORDED YET
-                    </Text>
-                 )}
-              </ScrollView>
-           </View>
-           {overwriteOverlay}
+    <View style={{
+      flex: 1, minWidth: 0, borderRadius: 26, padding: 20, gap: 14, overflow: 'hidden',
+      backgroundColor: active ? t.tintStrong : t.emptyRowBg,
+      borderWidth: 1, borderColor: active ? `${t.accent}73` : t.emptyRowBorder,
+    }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
+        <View style={{ flexShrink: 1 }}>
+          <Text style={kt('medium', 10.5, t.textMuted, 2, 13)}>{`SKILL ${n} OF 4`}</Text>
+          <Text style={[kt('bold', 30, t.text, 1.2, 33), { marginTop: 4 }]} numberOfLines={1} adjustsFontSizeToFit>
+            {STATIC_CATEGORIES[category].name.toUpperCase()}
+          </Text>
+        </View>
+        <View style={{ alignItems: 'flex-end' }}>
+          <Text style={kt('bold', 22, t.accentText, 0, 24)}>{fmt2(pts)}</Text>
+          <Text style={[kt('medium', 10, t.textFaint, 1.6), { marginTop: 3 }]}>PTS</Text>
         </View>
       </View>
-      </DismissKeyboardOnOutsideTap>
-    </Modal>
+      <View style={{ gap: 8, marginTop: 'auto' }}>
+        {movesOf(category).map(m => (
+          <HoldRow key={m.id} tokens={t} movement={m} pb={pbs[m.id] ?? 0} loaded={loaded} onPress={active ? () => onOpen(m) : undefined} />
+        ))}
+      </View>
+    </View>
   );
-};
+}
 
-const styles = StyleSheet.create({
-  slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
-  container: { flex: 1, paddingTop: 22 },
-  headerPill: { marginTop: 0 },
-  backToJourneyPill: { flexDirection: 'row', alignItems: 'center', alignSelf: 'center', gap: 4, marginTop: 10 },
-  backToJourneyText: { fontSize: 11, fontWeight: '700', letterSpacing: 1.5 },
-  dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 24 },
-  heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },
-  modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
-  modalSub: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
-  lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
-  lbTitle: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, letterSpacing: 3 },
-  lbSub: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 1.5, opacity: 0.6 },
-  sectionHeader: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 20,
-    letterSpacing: 1.5,
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: -4,
-  },
-  // PillTabRow carries its own 20px side padding — cancel the dashboard's so
-  // the fade hint sits flush with the screen edge.
-  tabRow: { marginHorizontal: -20 },
-  peakGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  holdItem: { flex: 1 },
-  leaderboardSection: { marginTop: 20 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 11, marginBottom: 7, gap: 11 },
-  lbRank: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  lbPointsFrame: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
-  lbPointsText: { fontSize: 13, fontWeight: '900' },
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', maxWidth: 400, borderRadius: 24, padding: 24, borderWidth: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-  modalTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 2 },
-  timerContainer: { alignItems: 'center', marginVertical: 40 },
-  timerText: { fontSize: 80, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
-  timerSub: { fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 },
-  timerInputRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', gap: 6 },
-  timerInput: { minWidth: 110, textAlign: 'center', borderBottomWidth: 2, paddingVertical: 0 },
-  manualEntryLink: { paddingVertical: 10, alignItems: 'center' },
-  manualEntryLinkText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textDecorationLine: 'underline' },
-  startBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
-  startBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
-  saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
-  saveBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
-  cancelBtn: {
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    marginTop: 10,
-  },
-  cancelBtnText: {
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
+function HoldRow({ tokens: t, movement: m, pb, loaded, onPress }: {
+  tokens: WorldKitTokens; movement: StaticMovement; pb: number; loaded: boolean; onPress?: () => void;
+}) {
+  const logged = pb > 0;
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${m.name}${logged ? `, best ${pb} seconds` : ''}. Time a hold`}
+      disabled={!onPress}
+      onPress={onPress}
+      style={({ pressed }) => ({
+        flexDirection: 'row', alignItems: 'center', gap: 12, height: 62, minWidth: 0,
+        paddingLeft: 12, paddingRight: 10, borderRadius: 16,
+        backgroundColor: t.tint, borderWidth: 1, borderColor: t.tintBorderStrong, opacity: pressed ? 0.8 : 1,
+      })}
+    >
+      <View style={{
+        width: 22, height: 22, borderRadius: 7, alignItems: 'center', justifyContent: 'center',
+        backgroundColor: logged ? `${t.accent}2E` : t.mode === 'dark' ? '#151515' : t.button,
+      }}>
+        <Text style={kt('bold', 11, logged ? t.accentText : t.textDisabled)}>{m.level}</Text>
+      </View>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={kt('semibold', 15, t.text, 1, 18)} numberOfLines={1}>{m.name.toUpperCase()}</Text>
+        <Text style={[kt('medium', 11.5, logged ? t.textSecondary : t.textFaint, logged ? 0.6 : 1.6), { marginTop: 1 }]} numberOfLines={1}>
+          {!loaded ? ' ' : logged ? `PB ${fs(pb)} · ${fmt2(holdPts(m, pb))} pts` : 'TAP TO TIME'}
+        </Text>
+      </View>
+      <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6, borderWidth: 1, borderColor: t.tintBorder }}>
+        <Text style={kt('semibold', 11, t.textMuted, 0.6)}>{`×${m.multiplier}`}</Text>
+      </View>
+      <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+        <KitIcon name="stopwatch" size={16} color="#ffffff" />
+      </View>
+    </Pressable>
+  );
+}
+
+// ------------------------------------------------------------ timer sheet
+
+function TimerSheetBody({
+  tokens: t, movement: m, pb, timer, manual, onMode, manualSecs, setManualSecs, onLog, saving, isSlowSave, top, myId,
+}: {
+  tokens: WorldKitTokens; movement: StaticMovement; pb: number; timer: ReturnType<typeof useHoldTimer>;
+  manual: boolean; onMode: (manual: boolean) => void; manualSecs: number; setManualSecs: (n: number) => void;
+  onLog: () => void; saving: boolean; isSlowSave: boolean; top: StaticLeaderboardEntry[]; myId?: string;
+}) {
+  const { phase, countdown, seconds } = timer;
+  const target = Math.max(pb, 10);
+  const value = manual ? manualSecs : seconds;
+  const isNewPb = pb > 0 && value > pb;
+
+  let label: string; let big: string; let sub: string; let progress: number;
+  if (manual) {
+    label = 'YOUR HOLD'; big = fs(manualSecs); sub = `${fmt2(holdPts(m, manualSecs))} PTS${isNewPb ? ' · NEW PB' : ''}`; progress = manualSecs / target;
+  } else if (phase === 'ready') {
+    label = 'GET READY'; big = String(countdown); sub = 'GET INTO POSITION'; progress = (4 - countdown) / 3;
+  } else if (phase === 'run') {
+    label = 'HOLDING'; big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} PTS`; progress = seconds / target;
+  } else if (phase === 'stopped') {
+    label = 'YOUR HOLD'; big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} PTS${isNewPb ? ' · NEW PB' : ''}`; progress = seconds / target;
+  } else {
+    label = pb > 0 ? 'PERSONAL BEST' : 'NO TIME YET'; big = pb > 0 ? fs(pb) : '0.0s'; sub = `${fmt2(holdPts(m, pb))} PTS`; progress = pb > 0 ? 1 : 0;
   }
-});
+
+  const stepBtn = (text: string, onPress: () => void) => (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={text === '−1s' ? 'Minus one second' : 'Plus one second'}
+      onPress={onPress}
+      style={({ pressed }) => ({ width: 48, height: 44, borderRadius: 12, backgroundColor: t.mode === 'dark' ? '#141414' : t.button, borderWidth: 1, borderColor: t.mode === 'dark' ? '#242424' : t.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+    >
+      <Text style={kt('semibold', 15, t.text)}>{text}</Text>
+    </Pressable>
+  );
+  const adjustRow = (caption: string, onStep: (d: number) => void) => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
+      {stepBtn('−1s', () => onStep(-1))}
+      <Text style={[kt('medium', 11, t.textMuted, 2), { width: 84, textAlign: 'center' }]}>{caption}</Text>
+      {stepBtn('+1s', () => onStep(1))}
+    </View>
+  );
+  const setManualClamped = (n: number) => setManualSecs(Math.max(0, Math.min(MAX_SECONDS, n)));
+
+  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: fs(Number(r.best_time_seconds) || 0) }));
+
+  return (
+    <View style={{ paddingHorizontal: 24 }}>
+      <View style={{ marginTop: 16 }}>
+        <SegmentedSwitch
+          tokens={t}
+          items={[{ key: 'log', label: 'LOG TIME' }, { key: 'timer', label: 'TIMER' }]}
+          active={manual ? 'log' : 'timer'}
+          onChange={(k) => onMode(k === 'log')}
+          accessibilityLabel="Log mode"
+        />
+      </View>
+
+      <View style={{ alignItems: 'center', paddingTop: 22, paddingBottom: 18 }}>
+        <AnimatedRing
+          size={196} radius={90} strokeWidth={5}
+          progress={progress} color={t.accent} trackColor={t.track}
+          duration={phase === 'run' ? 100 : 600} linear={phase === 'run'}
+        >
+          <View style={{ alignItems: 'center', gap: 4, width: 150 }}>
+            <Text style={kt('medium', 11, t.textMuted, 2.2)}>{label}</Text>
+            {manual ? (
+              <View style={{ flexDirection: 'row', alignItems: 'baseline' }}>
+                <TextInput
+                  value={String(manualSecs)}
+                  onChangeText={(txt) => setManualClamped(parseInt(txt.replace(/[^0-9]/g, '').slice(0, 3), 10) || 0)}
+                  keyboardType="number-pad"
+                  selectTextOnFocus
+                  maxLength={3}
+                  selectionColor={t.accent}
+                  cursorColor={t.accent}
+                  accessibilityLabel="Hold time in seconds"
+                  style={{ fontFamily: WORLD_FONTS.bold, fontSize: 50, lineHeight: 56, color: t.text, padding: 0, margin: 0, textAlign: 'center', minWidth: 30, includeFontPadding: false }}
+                />
+                <Text style={kt('bold', 30, t.textMuted)}>s</Text>
+              </View>
+            ) : (
+              <Text style={kt('bold', phase === 'ready' ? 72 : 50, phase === 'idle' && pb <= 0 ? t.textDisabled : t.text, 0, phase === 'ready' ? 78 : 56)} numberOfLines={1} adjustsFontSizeToFit>
+                {big}
+              </Text>
+            )}
+            <Text style={kt('medium', 12, t.accentText, 1.4)} numberOfLines={1}>{manual ? `${sub} · TAP TO TYPE` : sub}</Text>
+          </View>
+        </AnimatedRing>
+      </View>
+
+      {manual ? (
+        <View style={{ gap: 12 }}>
+          <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10 }}>
+            {QUICK.map(v => {
+              const on = manualSecs === v;
+              return (
+                <Pressable
+                  key={v}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${v} seconds`}
+                  onPress={() => setManualSecs(v)}
+                  style={{ height: 38, paddingHorizontal: 14, borderRadius: 10, justifyContent: 'center', backgroundColor: on ? t.accent : t.mode === 'dark' ? '#141414' : t.button, borderWidth: 1, borderColor: on ? t.accent : t.mode === 'dark' ? '#242424' : t.border }}
+                >
+                  <Text style={kt('semibold', 13, on ? t.onAccent : t.textSecondary)}>{`${v}s`}</Text>
+                </Pressable>
+              );
+            })}
+          </View>
+          {adjustRow('FINE TUNE', d => setManualClamped(manualSecs + d))}
+          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={manualSecs <= 0} />
+        </View>
+      ) : phase === 'idle' ? (
+        <KitButton tokens={t} label="START TIMER" icon="play" onPress={timer.start} />
+      ) : phase === 'ready' ? (
+        <KitButton tokens={t} label="CANCEL" variant="outline" onPress={timer.reset} />
+      ) : phase === 'run' ? (
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Stop and log"
+          onPress={timer.stop}
+          style={({ pressed }) => ({ height: 56, borderRadius: 16, backgroundColor: t.mode === 'dark' ? '#ffffff' : t.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: pressed ? 0.85 : 1 })}
+        >
+          <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: t.mode === 'dark' ? '#000000' : '#ffffff' }} />
+          <Text style={kt('bold', 17, t.mode === 'dark' ? '#000000' : '#ffffff', 2.6)}>STOP & LOG</Text>
+        </Pressable>
+      ) : (
+        <View style={{ gap: 12 }}>
+          {adjustRow('ADJUST', timer.adjust)}
+          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={seconds <= 0} />
+          <View style={{ flexDirection: 'row', gap: 10 }}>
+            <KitButton tokens={t} label="RESTART" variant="outline" height={46} fontSize={13} onPress={timer.start} style={{ flex: 1, borderWidth: 1 }} />
+            <KitButton tokens={t} label="DISCARD" variant="outline" height={46} fontSize={13} onPress={timer.reset} style={{ flex: 1, borderWidth: 1 }} />
+          </View>
+        </View>
+      )}
+      {isSlowSave && (
+        <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>Still submitting — hang tight...</Text>
+      )}
+
+      <TopList tokens={t} title="TOP HOLDS" rightLabel={`×${m.multiplier} PTS / SEC`} rows={topRows} emptyText="NO HOLD TIMES RECORDED YET" />
+    </View>
+  );
+}
