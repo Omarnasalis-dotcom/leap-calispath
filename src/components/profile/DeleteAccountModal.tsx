@@ -1,12 +1,16 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, TextInput, Platform } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { hasActiveAccess } from '../../lib/entitlement';
 import { useTheme } from '../../contexts/ThemeContext';
 
 export function DeleteAccountModal() {
   const { theme } = useTheme();
-  const { user, signInWithGoogle, signInWithApple } = useAuth();
+  const { user, profile, signInWithGoogle, signInWithApple } = useAuth();
+  // Store subscriptions keep billing after the account is gone — say so
+  // before the user confirms (audit 2026-09-25, M3).
+  const hasSubscription = !!profile?.subscription_tier && hasActiveAccess(profile);
   // "The first provider that the user used to sign up with" (Supabase's own
   // doc comment on app_metadata.provider). Google/Apple accounts never set a
   // password, so signInWithPassword below would always fail for them with
@@ -176,6 +180,20 @@ export function DeleteAccountModal() {
               All your tiers, trial history, rankings,{'\n'}
               and progress will be deleted forever.
             </Text>
+
+            {hasSubscription && (
+              <Text style={{
+                color: theme.text.primary,
+                fontSize: 12,
+                textAlign: 'center',
+                lineHeight: 18,
+                marginTop: -12,
+                marginBottom: 24,
+              }}>
+                Deleting your account does not cancel your subscription.{'\n'}
+                Cancel it first in {Platform.OS === 'android' ? 'Google Play → Payments & subscriptions' : 'Settings → your name → Subscriptions'}, or you'll keep being charged.
+              </Text>
+            )}
 
             <Text style={{
               color: theme.text.tertiary,
