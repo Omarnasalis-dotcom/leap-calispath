@@ -28,6 +28,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
   const [editGender, setEditGender] = useState<string | null>(null);
   const [editCountry, setEditCountry] = useState('');
   const [showCountryModal, setShowCountryModal] = useState(false);
+  const [hideMainForCountry, setHideMainForCountry] = useState(false);
   const [countrySearch, setCountrySearch] = useState('');
   const [editFirstName, setEditFirstName] = useState('');
   const [editLastName, setEditLastName] = useState('');
@@ -43,8 +44,21 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
       setEditLastName(profile.last_name || '');
       setCountrySearch('');
       setShowCountryModal(false);
+      setHideMainForCountry(false);
     }
   }, [visible, profile]);
+
+  // Hiding the edit sheet and showing the country picker in one commit swaps
+  // two native Modals at once — the Android Fabric "specified child already
+  // has a parent" crash (see 4461569). Do it across two frames, both ways.
+  const openCountryPicker = () => {
+    setHideMainForCountry(true);
+    requestAnimationFrame(() => setShowCountryModal(true));
+  };
+  const closeCountryPicker = () => {
+    setShowCountryModal(false);
+    requestAnimationFrame(() => setHideMainForCountry(false));
+  };
 
   const saveProfileInfo = async () => {
     if (!profile?.id) return;
@@ -84,7 +98,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
   return (
     <>
       <Modal
-        visible={visible && !showCountryModal}
+        visible={visible && !hideMainForCountry}
         animationType="slide"
         transparent={true}
         onRequestClose={onClose}
@@ -165,7 +179,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
               ) : (
                 <TouchableOpacity 
                   style={[styles.readOnlyInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, justifyContent: 'center' }]}
-                  onPress={() => setShowCountryModal(true)}
+                  onPress={openCountryPicker}
                 >
                   <Text style={{ color: editCountry ? theme.text.primary : theme.text.tertiary }}>
                     {editCountry || 'Select Country'}
@@ -214,7 +228,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
                   style={{ paddingVertical: 16, borderBottomWidth: 1, borderBottomColor: theme.card.border }}
                   onPress={() => {
                     setEditCountry(item);
-                    setShowCountryModal(false);
+                    closeCountryPicker();
                     setCountrySearch('');
                   }}
                 >
@@ -222,7 +236,7 @@ export function EditProfileModal({ visible, onClose, profile, refreshProfile }: 
                 </TouchableOpacity>
               )}
             />
-            <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={() => setShowCountryModal(false)}>
+            <TouchableOpacity style={{ marginTop: 16, alignItems: 'center' }} onPress={closeCountryPicker}>
               <Text style={{ color: theme.text.secondary, fontWeight: '700' }}>CANCEL</Text>
             </TouchableOpacity>
           </View>

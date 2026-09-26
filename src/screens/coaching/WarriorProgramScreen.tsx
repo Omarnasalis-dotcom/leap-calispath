@@ -157,6 +157,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     pendingPaywallNavRef.current = false;
     router.push('/paywall');
   };
+  // Timer completion unmounts WarriorTimerModal; showing the log Modal in
+  // that same commit swaps two native Modal transactions at once — the
+  // Android Fabric "specified child already has a parent" crash (fixed the
+  // same way in 4461569). One frame later the timer Modal is gone.
+  const openLogModalAfterTimerCloses = () => {
+    requestAnimationFrame(() => setLogModalVisible(true));
+  };
 
   const [weeksData, setWeeksData] = useState<Record<number, ProgramDay[]>>({ 1: [] });
   const [activeWeek, setActiveWeek] = useState<number>(1);
@@ -1716,7 +1723,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setLogMissedReason(null);
             setLogMissedDetail('');
             setLogAmrapRounds(String(roundsCompleted));
-            setLogModalVisible(true);
+            openLogModalAfterTimerCloses();
           }}
           onForTimeComplete={(blockId, elapsedSeconds) => {
             setActiveTimerBlock(null);
@@ -1729,7 +1736,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setLogMissedReason(null);
             setLogMissedDetail('');
             setLogForTimeDuration(formatTimerString(elapsedSeconds));
-            setLogModalVisible(true);
+            openLogModalAfterTimerCloses();
           }}
           onBlockComplete={(blockId, roundsCompleted, tabataHoldTimes) => {
             setActiveTimerBlock(null);
@@ -1743,7 +1750,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setLogMissedDetail('');
             setLogAmrapRounds(roundsCompleted !== undefined ? String(roundsCompleted) : '');
             setPendingHoldTimes(tabataHoldTimes || []);
-            setLogModalVisible(true);
+            openLogModalAfterTimerCloses();
           }}
         />
       )}
