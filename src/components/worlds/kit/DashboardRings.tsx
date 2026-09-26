@@ -72,7 +72,7 @@ export function DashboardRings({
         <Pressable accessibilityRole="button" accessibilityLabel={`${worldLabel} score ${scoreText}, open leaderboard`} onPress={onOpenLeaderboard}>
           <View style={{ position: 'absolute', top: 14 * s, left: 14 * s, right: 14 * s, bottom: 14 * s, borderRadius: center, backgroundColor: t.tintStrong }} />
           <AnimatedRing size={center} radius={75 * s} strokeWidth={6} progress={scoreProgress} color={t.accent} trackColor={t.track} delay={150}>
-            <View style={[styles.content, { width: center * CENTER_TEXT_WIDTH, gap: 5 * s, paddingBottom: 16 * s }]}>
+            <View style={[styles.content, { width: center * CENTER_TEXT_WIDTH, gap: 5 * s }]}>
               <Text {...fit} style={[kt('semibold', 10.5 * s, t.accentText, 2, 13 * s), styles.center]}>{worldLabel} SCORE</Text>
               <Text {...fit} style={[kt('bold', 34 * s, score > 0 ? t.text : t.textDisabled, 0, 38 * s), styles.center]}>{scoreText}</Text>
               <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.6, 12.5 * s), styles.center]}>TOTAL PTS</Text>
