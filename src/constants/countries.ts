@@ -116,3 +116,17 @@ export function getCountryFlag(country?: string | null): string {
   if (!country) return '🏴';
   return COUNTRY_FLAGS[country] || '🏴';
 }
+
+/**
+ * ISO 3166-1 alpha-2 code ("SA", "EG") for a stored country name, decoded
+ * from its flag emoji — each flag is two regional-indicator symbols that
+ * spell the code — so there's no second country table to keep in sync.
+ * Returns '' for unknown/missing countries.
+ */
+export function getCountryCode(country?: string | null): string {
+  const flag = country ? COUNTRY_FLAGS[country] : undefined;
+  if (!flag) return '';
+  return Array.from(flag)
+    .map(ch => String.fromCharCode((ch.codePointAt(0) ?? 0) - 0x1f1e6 + 65))
+    .join('');
+}

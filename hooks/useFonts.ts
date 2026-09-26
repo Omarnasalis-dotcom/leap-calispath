@@ -20,6 +20,13 @@ import {
   PlusJakartaSans_700Bold,
   PlusJakartaSans_800ExtraBold,
 } from '@expo-google-fonts/plus-jakarta-sans';
+import {
+  Oswald_300Light,
+  Oswald_400Regular,
+  Oswald_500Medium,
+  Oswald_600SemiBold,
+  Oswald_700Bold,
+} from '@expo-google-fonts/oswald';
 
 export const useStealthFonts = () => {
   const [fontsLoaded] = useFonts({
@@ -45,6 +52,13 @@ export const useStealthFonts = () => {
     'PlusJakartaSans-SemiBold': PlusJakartaSans_600SemiBold,
     'PlusJakartaSans-Bold': PlusJakartaSans_700Bold,
     'PlusJakartaSans-ExtraBold': PlusJakartaSans_800ExtraBold,
+    // World screens only (assets/design_handoff_worlds) — see WORLD_FONTS
+    // in constants/worldThemes.ts.
+    'Oswald-Light': Oswald_300Light,
+    'Oswald-Regular': Oswald_400Regular,
+    'Oswald-Medium': Oswald_500Medium,
+    'Oswald-SemiBold': Oswald_600SemiBold,
+    'Oswald-Bold': Oswald_700Bold,
   });
 
   return fontsLoaded;
