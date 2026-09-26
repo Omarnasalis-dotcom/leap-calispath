@@ -371,11 +371,20 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
         { text: 'Cancel', style: 'cancel' },
         { text: 'Delete', style: 'destructive', onPress: async () => {
           await safeMutate(async () => {
-            const { data: session } = await supabase.from('tournament_sessions').select('config_id').eq('id', sessionId).single();
-            await supabase.from('tournament_matches').delete().eq('tournament_id', sessionId);
-            await supabase.from('tournament_participants').delete().eq('tournament_id', sessionId);
-            await supabase.from('tournament_sessions').delete().eq('id', sessionId);
-            if (session?.config_id) await supabase.from('tournament_configs').delete().eq('id', session.config_id);
+            // Stop at the first failed step and report it, instead of always
+            // claiming success (audit L13).
+            const { data: session, error: sessionError } = await supabase.from('tournament_sessions').select('config_id').eq('id', sessionId).single();
+            if (sessionError) return { error: sessionError };
+            const { error: matchesError } = await supabase.from('tournament_matches').delete().eq('tournament_id', sessionId);
+            if (matchesError) return { error: matchesError };
+            const { error: participantsError } = await supabase.from('tournament_participants').delete().eq('tournament_id', sessionId);
+            if (participantsError) return { error: participantsError };
+            const { error: deleteSessionError } = await supabase.from('tournament_sessions').delete().eq('id', sessionId);
+            if (deleteSessionError) return { error: deleteSessionError };
+            if (session?.config_id) {
+              const { error: configError } = await supabase.from('tournament_configs').delete().eq('id', session.config_id);
+              if (configError) return { error: configError };
+            }
             return { data: null, error: null };
           }, {
             onSuccess: () => {
