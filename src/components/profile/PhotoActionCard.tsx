@@ -19,6 +19,8 @@ interface PhotoActionCardProps {
   title: string;
   cta: string;
   onPress: () => void;
+  /** Frame only (photo, stripe, empty button) at the final height — no text, not tappable. */
+  loading?: boolean;
 }
 
 function ChevronRight() {
@@ -34,26 +36,29 @@ function ChevronRight() {
  * Challenge): dimmed photo, coral stripe, eyebrow + title header, and a
  * full-width CTA.
  */
-export function PhotoActionCard({ photo, eyebrow, title, cta, onPress }: PhotoActionCardProps) {
+export function PhotoActionCard({ photo, eyebrow, title, cta, onPress, loading }: PhotoActionCardProps) {
   return (
     <View style={styles.card}>
       <Image source={photo} resizeMode="cover" style={styles.bgPhoto} />
       <View style={styles.stripe} />
 
       <View>
-        <Text style={styles.eyebrow} numberOfLines={1}>{eyebrow}</Text>
-        <Text style={styles.title} numberOfLines={1}>{title}</Text>
+        {/* A single space keeps each line's height while loading. */}
+        <Text style={styles.eyebrow} numberOfLines={1}>{loading ? ' ' : eyebrow}</Text>
+        <Text style={styles.title} numberOfLines={1}>{loading ? ' ' : title}</Text>
       </View>
 
       <TouchableOpacity
         activeOpacity={0.85}
         onPress={onPress}
+        disabled={loading}
         style={styles.button}
         accessibilityRole="button"
-        accessibilityLabel={cta}
+        accessibilityLabel={loading ? 'Loading' : cta}
+        accessibilityState={{ busy: !!loading }}
       >
-        <Text style={styles.buttonLabel} numberOfLines={1}>{cta}</Text>
-        <ChevronRight />
+        <Text style={styles.buttonLabel} numberOfLines={1}>{loading ? ' ' : cta}</Text>
+        {!loading && <ChevronRight />}
       </TouchableOpacity>
     </View>
   );

@@ -12,8 +12,23 @@ export interface ActiveProgramSummary {
   nextUpDayName: string | null;
 }
 
+// Last result per user for this app session, so the Profile card can render
+// its real content instantly on every return while a fresh lookup runs.
+const lastSummary = new Map<string, ActiveProgramSummary | null>();
+
+/** Last known summary (undefined if never loaded this session). */
+export function peekActiveProgramSummary(userId: string): ActiveProgramSummary | null | undefined {
+  return lastSummary.has(userId) ? lastSummary.get(userId) : undefined;
+}
+
 /** Resolves to null when the athlete has no active program. */
 export async function getActiveProgramSummary(userId: string): Promise<ActiveProgramSummary | null> {
+  const result = await fetchActiveProgramSummary(userId);
+  lastSummary.set(userId, result);
+  return result;
+}
+
+async function fetchActiveProgramSummary(userId: string): Promise<ActiveProgramSummary | null> {
   const { data: assignment, error } = await supabase
     .from('warrior_programs')
     .select('id, template_id, current_week')

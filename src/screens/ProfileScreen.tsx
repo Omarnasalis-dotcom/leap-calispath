@@ -29,7 +29,7 @@ import { LeaderboardService, GlobalWellRoundedEntry } from '../services/Leaderbo
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
-import { getActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
+import { getActiveProgramSummary, peekActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
 import { ActiveProgramCard } from '../components/profile/ActiveProgramCard';
 import { ChallengeService } from '../services/ChallengeService';
 import { getUserGroup } from '../lib/weeklyChallenge';
@@ -155,7 +155,11 @@ export function ProfileScreen({
   // lands on the Profile tab (its first step targets Profile's level ring).
   useScreenTour('main', activeTab === 'profile');
   // ActiveProgramCard: undefined = not loaded yet, null = no active program.
-  const [activeProgram, setActiveProgram] = useState<ActiveProgramSummary | null | undefined>(undefined);
+  // Seeded from this session's last lookup, so returning to Profile shows the
+  // real card immediately while useFocusEffect below refreshes it.
+  const [activeProgram, setActiveProgram] = useState<ActiveProgramSummary | null | undefined>(
+    () => (profile?.id ? peekActiveProgramSummary(profile.id) : undefined)
+  );
   // Weekly Challenge card title: undefined = not loaded yet, null = none this week.
   const [weeklyChallengeTitle, setWeeklyChallengeTitle] = useState<string | null | undefined>(undefined);
 
@@ -383,18 +387,19 @@ export function ProfileScreen({
 
               {/* Active program "up next" + continue — Profile's one training
                   entry point now that the TRAIN tab owns the Training Center
-                  hub. Hidden until the lookup resolves so a slow fetch never
-                  flashes the no-program CTA at someone who has a program. */}
-              {activeProgram !== undefined && (
-                <View style={styles.activeProgramWrap}>
-                  <ActiveProgramCard
-                    hasActiveProgram={activeProgram !== null}
-                    nextUpDayName={activeProgram?.nextUpDayName ?? null}
-                    onContinue={() => router.push('/warrior-program')}
-                    onCreateProgram={() => router.push('/my-journey')}
-                  />
-                </View>
-              )}
+                  hub. Always takes its space: while the first lookup runs it
+                  shows the card frame with no text (so the page doesn't jump
+                  when it arrives, and a slow fetch never flashes the
+                  no-program CTA at someone who has a program). */}
+              <View style={styles.activeProgramWrap}>
+                <ActiveProgramCard
+                  loading={activeProgram === undefined}
+                  hasActiveProgram={activeProgram != null}
+                  nextUpDayName={activeProgram?.nextUpDayName ?? null}
+                  onContinue={() => router.push('/warrior-program')}
+                  onCreateProgram={() => router.push('/my-journey')}
+                />
+              </View>
             </>
           )}
 
