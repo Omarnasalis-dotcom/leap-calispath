@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">STRENGTH · V3</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Every tier is a card you swipe through. Everything about that tier lives on its card.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">· Tier card = ring + rank + gap + trial button in one place.<br>· Swipe, tap a side card, or tap the climb line to change tier.<br>· Climb line = overall progress through 9 tiers.<br>· Top 3 shown as a podium; your spot pinned below.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">Try tiers 1–4 (complete), 5 (current), 6–9 (locked). 8–9 have no entries.</div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);display:flex;flex-direction:column;flex-shrink:0;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;flex-shrink:0;">
+      <div>3:52</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;padding:16px 24px 4px;">
+      <div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2.4px;">STRENGTH WORLD</div>
+        <div style="color:#fff;font-size:26px;font-weight:700;letter-spacing:1.4px;line-height:1.1;margin-top:2px;">THE CLIMB</div>
+      </div>
+      <div style="position:relative;width:44px;height:44px;cursor:pointer;">
+        <div style="position:absolute;inset:-5px;border-radius:50%;border:1px solid rgba(252,84,84,.2);"></div>
+        <div style="width:44px;height:44px;border-radius:50%;background:#FC5454;display:flex;align-items:center;justify-content:center;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.6" stroke-linecap="round"><path d="M5 10v4M9.5 7v10M14.5 9v6M19 6v12"></path></svg>
+        </div>
+      </div>
+    </div>
+
+    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
+
+      <div style="position:relative;height:348px;margin-top:14px;touch-action:pan-y;" onPointerDown="{{ swipeStart }}" onPointerUp="{{ swipeEnd }}">
+        <div style="{{ trackStyle }}">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+            <div style="{{ c.card }}" onClick="{{ c.pick }}">
+              <div style="{{ c.numeral }}">{{ c.num2 }}</div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+                <div style="{{ c.tierLbl }}">TIER {{ c.n }} OF 9</div>
+                <div style="{{ c.chip }}">{{ c.status }}</div>
+              </div>
+              <div style="{{ c.nameStyle }}">{{ c.name }}</div>
+              <div style="position:relative;display:grid;gap:8px;">
+                <div style="height:4px;border-radius:2px;background:#221414;overflow:hidden;"><div style="{{ c.bar }}"></div></div>
+                <div style="{{ c.capStyle }}">{{ c.cap }}</div>
+              </div>
+              <div style="position:relative;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-top:1px solid #1f1f1f;padding-top:14px;">
+                <div>
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">RANK</div>
+                  <div style="display:flex;align-items:baseline;gap:5px;margin-top:3px;">
+                    <div style="{{ c.statVal }}">{{ c.rank }}</div>
+                    <div style="color:#6a6a6a;font-size:12px;font-weight:400;">{{ c.rankOf }}</div>
+                  </div>
+                </div>
+                <div style="border-left:1px solid #1f1f1f;padding-left:16px;">
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">GAP TO #1</div>
+                  <div style="{{ c.gapStyle }}">{{ c.gap }}</div>
+                </div>
+              </div>
+              <div style="{{ c.btn }}">{{ c.btnLabel }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="padding:22px 24px 0;display:grid;gap:12px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;">
+          <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">YOUR CLIMB</div>
+          <div style="color:#d0d0d0;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ overallLabel }}</div>
+        </div>
+        <div style="position:relative;height:34px;">
+          <div style="position:absolute;left:17px;right:17px;top:16px;height:2px;background:#1f1f1f;"></div>
+          <div style="{{ climbFill }}"></div>
+          <div style="position:relative;display:flex;justify-content:space-between;">
+            <sc-for list="{{ dots }}" as="d" hint-placeholder-count="9">
+              <div style="width:34px;height:34px;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ d.pick }}">
+                <div style="{{ d.style }}">{{ d.n }}</div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+
+      <div style="padding:30px 24px 28px;display:grid;gap:16px;">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;">
+          <div style="color:#fff;font-size:19px;font-weight:600;letter-spacing:2px;">{{ boardTitle }}</div>
+          <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ countLabel }}</div>
+        </div>
+        <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+          <sc-if value="{{ inCommunity }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;">
+              <sc-for list="{{ scopeOpts }}" as="o" hint-placeholder-count="2">
+                <div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;margin-left:auto;">
+            <sc-for list="{{ genderOpts }}" as="o" hint-placeholder-count="3">
+              <div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div>
+            </sc-for>
+          </div>
+        </div>
+
+        <sc-if value="{{ hasRows }}" hint-placeholder-val="{{ true }}">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;padding-top:6px;">
+            <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;">
+                <div style="{{ p.avatar }}">{{ p.init }}</div>
+                <div style="width:100%;text-align:center;min-width:0;">
+                  <div style="{{ p.nameStyle }}">{{ p.name }}</div>
+                  <div style="color:#fff;font-size:16px;font-weight:600;margin-top:1px;">{{ p.time }}</div>
+                </div>
+                <div style="{{ p.block }}">
+                  <div style="{{ p.rankStyle }}">{{ p.rank }}</div>
+                  <div style="color:#6a6a6a;font-size:10px;font-weight:600;letter-spacing:1px;">{{ p.code }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ hasYou }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:12px;height:62px;padding:0 16px;border-radius:16px;background:rgba(252,84,84,.07);border:1px solid rgba(252,84,84,.4);">
+              <div style="color:#FC5454;font-size:18px;font-weight:700;width:34px;">{{ you.rank }}</div>
+              <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                <div style="color:#fff;font-size:14px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ you.name }}</div>
+                <div style="padding:1px 6px;border-radius:5px;background:#FC5454;color:#000;font-size:10px;font-weight:700;letter-spacing:1.2px;flex-shrink:0;">YOU</div>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:flex-end;">
+                <div style="color:#fff;font-size:16px;font-weight:600;">{{ you.time }}</div>
+                <div style="color:#8a8a8a;font-size:11px;font-weight:500;">{{ you.gap }}</div>
+              </div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ youNotRanked }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;align-items:center;gap:12px;height:62px;padding:0 16px;border-radius:16px;border:1px dashed #2a2a2a;">
+              <div style="color:#4a4a4a;font-size:18px;font-weight:700;width:34px;">—</div>
+              <div style="flex:1;color:#8a8a8a;font-size:13px;font-weight:400;">{{ youEmptyNote }}</div>
+            </div>
+          </sc-if>
+
+          <div style="height:48px;border-radius:14px;background:#111;border:1px solid #1f1f1f;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;" onClick="{{ openSheet }}">
+            <div style="color:#d0d0d0;font-size:13px;font-weight:600;letter-spacing:2px;">SEE MORE</div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M9 6l6 6-6 6"></path></svg>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isEmpty }}" hint-placeholder-val="{{ false }}">
+          <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;opacity:.5;">
+            <div style="height:56px;border-radius:12px 12px 0 0;border:1px dashed #2a2a2a;border-bottom:none;"></div>
+            <div style="height:84px;border-radius:12px 12px 0 0;border:1px dashed #2a2a2a;border-bottom:none;"></div>
+            <div style="height:42px;border-radius:12px 12px 0 0;border:1px dashed #2a2a2a;border-bottom:none;"></div>
+          </div>
+          <div style="color:#8a8a8a;font-size:13px;font-weight:400;letter-spacing:.3px;text-align:center;margin-top:-4px;">No warriors have attempted this tier yet.</div>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:12px 6px 28px;background:#0a0a0a;border-top:1px solid #1a1a1a;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#8a8a8a"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0116 0z"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">PROFILE</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;border-radius:10px;background:rgba(252,84,84,.14);display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2.4" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19M3 9l2-2M21 15l-2 2M15 3l2 2M9 21l-2-2"></path></svg></div>
+        <div style="color:#FC5454;font-size:11px;font-weight:600;letter-spacing:1.2px;">STRENGTH</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.4" stroke-linecap="round"><path d="M20 12a8 8 0 11-8-8"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">WORLDS</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M4 10l6-6M14 20l6-6M3 7l4-4M17 21l4-4"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">TRAIN</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">JOURNEY</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ sheetOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.7);display:flex;flex-direction:column;justify-content:flex-end;z-index:5;" onClick="{{ closeSheet }}">
+        <div style="max-height:72%;border-radius:28px 28px 0 0;background:#0c0c0c;border-top:1px solid #222;display:flex;flex-direction:column;" onClick="{{ stop }}">
+          <div style="width:40px;height:4px;border-radius:2px;background:#2a2a2a;margin:10px auto 0;"></div>
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 24px 12px;">
+            <div>
+              <div style="color:#fff;font-size:19px;font-weight:600;letter-spacing:2px;">{{ boardTitle }}</div>
+              <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1.4px;margin-top:2px;">{{ countLabel }}</div>
+            </div>
+            <div style="width:40px;height:40px;border-radius:50%;background:#1a1a1a;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ closeSheet }}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </div>
+          </div>
+          <div style="overflow-y:auto;padding-bottom:28px;">
+            <sc-for list="{{ allRows }}" as="r" hint-placeholder-count="6">
+              <div style="{{ r.rowStyle }}">
+                <div style="{{ r.rankStyle }}">{{ r.rank }}</div>
+                <div style="width:26px;height:18px;border-radius:4px;background:#1a1a1a;color:#a0a0a0;font-size:10px;font-weight:600;letter-spacing:.6px;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ r.code }}</div>
+                <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                  <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+                  <sc-if value="{{ r.you }}" hint-placeholder-val="{{ false }}"><div style="padding:1px 6px;border-radius:5px;background:#FC5454;color:#000;font-size:10px;font-weight:700;letter-spacing:1.2px;flex-shrink:0;">YOU</div></sc-if>
+                </div>
+                <div style="display:flex;flex-direction:column;align-items:flex-end;flex-shrink:0;">
+                  <div style="color:#fff;font-size:16px;font-weight:600;">{{ r.time }}</div>
+                  <div style="color:#6a6a6a;font-size:11px;font-weight:500;letter-spacing:.4px;">{{ r.gap }}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:740,&quot;height&quot;:960},&quot;currentTier&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:1,&quot;max&quot;:9,&quot;step&quot;:1,&quot;default&quot;:5,&quot;tsType&quot;:&quot;number&quot;},&quot;currentPct&quot;:{&quot;editor&quot;:&quot;range&quot;,&quot;min&quot;:0,&quot;max&quot;:100,&quot;step&quot;:1,&quot;unit&quot;:&quot;%&quot;,&quot;default&quot;:56,&quot;tsType&quot;:&quot;number&quot;},&quot;inCommunity&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const CORAL = "#FC5454", GREEN = "#4CC38A";
+const TIERS = ["HELOT", "EPHEBE", "HOPLITE", "PELTAST", "LOCHAGOS", "STRATEGOS", "OLYMPIAN", "DEMIGOD", "ETERNITY"];
+const COUNTS = [28, 24, 18, 14, 6, 3, 2, 0, 0];
+const USER_RANK = [12, 4, 9, 1, 0, 0, 0, 0, 0];
+const PEOPLE = [
+  ["@mohammad.waleed.abdulrahman", "SA", "m"], ["@lina.khaled", "AE", "f"], ["@yousef.fit", "KW", "m"], ["@sara.m", "SA", "f"],
+  ["@abdullah.q", "QA", "m"], ["@noor.lifts", "BH", "f"], ["@fahad.alotaibi", "SA", "m"], ["@maryam.h", "KW", "f"],
+  ["@khalid.run", "AE", "m"], ["@huda.s", "OM", "f"], ["@ali.hassan", "BH", "m"], ["@reem.power", "SA", "f"],
+  ["@hamad.k", "QA", "m"], ["@dana.fit", "KW", "f"], ["@saud.b", "SA", "m"], ["@jana.moves", "AE", "f"],
+  ["@turki.x", "SA", "m"], ["@aisha.r", "OM", "f"], ["@nasser.j", "KW", "m"], ["@lulwa.a", "QA", "f"],
+  ["@majed.pro", "SA", "m"], ["@hessa.t", "AE", "f"], ["@rashid.m", "BH", "m"], ["@shahad.k", "SA", "f"],
+  ["@faisal.z", "KW", "m"], ["@nouf.lift", "SA", "f"], ["@omar.d", "AE", "m"], ["@wadha.s", "QA", "f"],
+];
+const ME = { name: "@omar.nasser", code: "KW", g: "m", you: true, comm: true };
+const fmt = s => `${Math.floor(s / 60)}'${String(s % 60).padStart(2, "0")}"`;
+const cap = s => s[0] + s.slice(1).toLowerCase();
+const RANK_COL = ["#E8B64C", "#C9CED6", "#C98B5A"];
+const CW = 318, CG = 12;
+
+function board(t) {
+  const n = COUNTS[t], ur = USER_RANK[t];
+  const list = Array.from({ length: n - (ur ? 1 : 0) }, (_, i) => {
+    const p = PEOPLE[(i + t * 3) % PEOPLE.length];
+    return { name: p[0], code: p[1], g: p[2], you: false, comm: i % 2 === 0 };
+  });
+  if (ur) list.splice(ur - 1, 0, ME);
+  const base = 160 + t * 22;
+  return list.map((p, i) => ({ ...p, secs: base + i * 7 + (i * i) % 5 }));
+}
+
+class Component extends DCLogic {
+  state = { sel: null, scope: "PUBLIC", gender: "ALL", sheet: false, drawn: false };
+  componentDidMount() { this._t = setTimeout(() => this.setState({ drawn: true }), 120); }
+  componentWillUnmount() { clearTimeout(this._t); }
+  go(k) { this.setState({ sel: Math.max(0, Math.min(8, k)) }); }
+
+  renderVals() {
+    const cur = Math.min(9, Math.max(1, this.props.currentTier ?? 5)) - 1;
+    const pct = Math.min(100, Math.max(0, this.props.currentPct ?? 56));
+    const inComm = this.props.inCommunity ?? true;
+    const s = this.state.sel ?? cur;
+    const drawn = this.state.drawn;
+    const overall = Math.round(((cur + pct / 100) / 9) * 100);
+
+    const cards = TIERS.map((name, k) => {
+      const on = k === s, done = k < cur, now = k === cur, locked = k > cur;
+      const b = board(k), mi = b.findIndex(p => p.you);
+      const accent = now ? CORAL : done ? GREEN : "#4a4a4a";
+      let rank = "—", rankOf = b.length ? "of " + b.length : "no entries yet", gap = "—";
+      if (mi >= 0) { rank = "#" + (mi + 1); gap = mi === 0 ? "KING" : "+" + fmt(b[mi].secs - b[0].secs); }
+      else if (b.length && !locked) rankOf = "unranked · " + b.length;
+      return {
+        n: k + 1, num2: String(k + 1).padStart(2, "0"), name,
+        pick: () => { if (!on) this.go(k); },
+        status: now ? "CURRENT" : done ? "COMPLETE" : "LOCKED",
+        card: { position: "relative", overflow: "hidden", flex: `0 0 ${CW}px`, height: 336, boxSizing: "border-box", borderRadius: 26, padding: 22, display: "flex", flexDirection: "column", gap: 16,
+          background: now ? "#130909" : "#0d0d0d", border: `1px solid ${now ? "rgba(252,84,84,.45)" : locked ? "#181818" : "#1f1f1f"}`,
+          transform: on ? "scale(1)" : "scale(.92)", opacity: on ? 1 : .45, cursor: on ? "default" : "pointer",
+          transition: "transform .45s cubic-bezier(.4,0,.2,1), opacity .45s" },
+        numeral: { position: "absolute", right: -8, top: -26, fontSize: 190, fontWeight: 700, lineHeight: 1, color: "transparent", WebkitTextStroke: `1.5px ${now ? "rgba(252,84,84,.22)" : "rgba(255,255,255,.06)"}`, pointerEvents: "none", letterSpacing: -4 },
+        tierLbl: { color: now ? CORAL : "#8a8a8a", fontSize: 11, fontWeight: 600, letterSpacing: 2.2 },
+        chip: { padding: "3px 9px", borderRadius: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.6, color: now ? "#000" : accent, background: now ? CORAL : "transparent", border: now ? "none" : `1px solid ${done ? "rgba(76,195,138,.45)" : "#2a2a2a"}` },
+        nameStyle: { position: "relative", color: locked ? "#5a5a5a" : "#fff", fontSize: name.length > 8 ? 40 : 46, fontWeight: 700, letterSpacing: 1.4, lineHeight: 1, marginTop: 18 },
+        bar: { height: "100%", borderRadius: 2, background: done ? GREEN : CORAL, width: drawn ? (done ? "100%" : now ? pct + "%" : "0%") : "0%", transition: "width .9s cubic-bezier(.4,0,.2,1) .15s" },
+        cap: now ? `${pct}% to ${cap(TIERS[Math.min(8, k + 1)])}` : done ? "Tier complete" : `Complete ${cap(TIERS[k - 1])} to unlock`,
+        capStyle: { color: now ? "#d0d0d0" : done ? GREEN : "#6a6a6a", fontSize: 12.5, fontWeight: 400, letterSpacing: .4 },
+        rank, rankOf, gap,
+        statVal: { color: mi >= 0 ? "#fff" : "#4a4a4a", fontSize: 26, fontWeight: 600, lineHeight: 1 },
+        gapStyle: { color: mi === 0 ? "#E8B64C" : mi > 0 ? "#fff" : "#4a4a4a", fontSize: 26, fontWeight: 600, lineHeight: 1, marginTop: 3 },
+        btnLabel: now ? `START ${name} TRIAL` : done ? `PRACTICE ${name}` : "LOCKED",
+        btn: { position: "relative", marginTop: "auto", height: 52, borderRadius: 15, boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 15, fontWeight: 700, letterSpacing: 2.4, cursor: locked ? "default" : "pointer",
+          background: now ? CORAL : locked ? "#141414" : "transparent", color: now ? "#000" : locked ? "#4a4a4a" : "#fff", border: done ? "1.5px solid #3a3a3a" : "none" },
+      };
+    });
+
+    const dots = TIERS.map((_, k) => {
+      const done = k < cur, now = k === cur, on = k === s;
+      return { n: k + 1, pick: () => this.go(k), style: {
+        width: on ? 30 : 22, height: on ? 30 : 22, borderRadius: "50%", boxSizing: "border-box", display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: on ? 13 : 11, fontWeight: 700, transition: "all .25s",
+        background: now ? CORAL : done ? "#1a1a1a" : "#000", color: now ? "#000" : done ? "#e6e6e6" : "#4a4a4a",
+        border: on && !now ? "2px solid #fff" : now ? "none" : `1.5px solid ${done ? "#3a3a3a" : "#222"}`,
+        boxShadow: now ? "0 0 0 5px rgba(252,84,84,.16)" : "none" } };
+    });
+    const step = (402 - 48 - 34) / 8;
+    const fillW = drawn ? step * (cur + pct / 100) : 0;
+
+    const full = board(s);
+    const scope = inComm ? this.state.scope : "PUBLIC";
+    const list = full.filter(p => (scope === "PUBLIC" || p.comm) && (this.state.gender === "ALL" || p.g === (this.state.gender === "MALE" ? "m" : "f")));
+    const top = list.length ? list[0].secs : 0;
+    const yi = list.findIndex(p => p.you);
+    const pod = [1, 0, 2].map(i => {
+      const p = list[i], h = [84, 60, 46][i];
+      const col = RANK_COL[i];
+      if (!p) return { init: "", name: "—", time: "", rank: i + 1, code: "", avatar: { width: 44, height: 44, borderRadius: "50%", border: "1px dashed #2a2a2a" }, nameStyle: { color: "#4a4a4a", fontSize: 12 }, block: { width: "100%", height: h, borderRadius: "12px 12px 0 0", border: "1px dashed #222", borderBottom: "none", display: "flex", flexDirection: "column", alignItems: "center", paddingTop: 8, boxSizing: "border-box" }, rankStyle: { color: "#3a3a3a", fontSize: 20, fontWeight: 700 } };
+      return {
+        init: p.name.replace("@", "").slice(0, 2).toUpperCase(), name: p.name, time: fmt(p.secs), rank: i + 1, code: p.code,
+        avatar: { width: i === 0 ? 56 : 44, height: i === 0 ? 56 : 44, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", background: "#141414", border: `2px solid ${p.you ? CORAL : col}`, color: "#fff", fontSize: i === 0 ? 18 : 15, fontWeight: 600, boxSizing: "border-box" },
+        nameStyle: { color: p.you ? CORAL : "#a0a0a0", fontSize: 12, fontWeight: p.you ? 600 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+        block: { width: "100%", height: drawn ? h : 0, borderRadius: "12px 12px 0 0", background: i === 0 ? "linear-gradient(#1c1710,#0c0c0c)" : "linear-gradient(#161616,#0c0c0c)", borderTop: `2px solid ${col}`, display: "flex", flexDirection: "column", alignItems: "center", gap: 2, paddingTop: 8, boxSizing: "border-box", transition: `height .7s cubic-bezier(.4,0,.2,1) ${.1 + i * .08}s`, overflow: "hidden" },
+        rankStyle: { color: col, fontSize: i === 0 ? 26 : 20, fontWeight: 700, lineHeight: 1 },
+      };
+    });
+
+    const row = (p, i) => ({
+      rank: i + 1, code: p.code, name: p.name, you: p.you, time: fmt(p.secs), gap: i === 0 ? "LEADER" : "+" + fmt(p.secs - top),
+      rowStyle: { display: "flex", alignItems: "center", gap: 12, height: 60, padding: "0 24px", borderTop: "1px solid #161616", background: p.you ? "rgba(252,84,84,.07)" : "transparent" },
+      rankStyle: { width: 22, textAlign: "center", fontSize: 17, fontWeight: 700, color: i < 3 ? RANK_COL[i] : "#6a6a6a", flexShrink: 0 },
+      nameStyle: { color: p.you ? "#fff" : "#d0d0d0", fontSize: 14, fontWeight: p.you ? 500 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 },
+    });
+    const seg = (opts, key) => opts.map(o => ({
+      label: o, pick: () => this.setState({ [key]: o }),
+      style: { padding: "7px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, letterSpacing: 1.4, cursor: "pointer",
+        background: this.state[key] === o ? CORAL : "transparent", color: this.state[key] === o ? "#000" : "#8a8a8a" },
+    }));
+
+    return {
+      cards,
+      trackStyle: { position: "absolute", top: 6, left: 0, display: "flex", gap: CG, transform: `translateX(${(402 - CW) / 2 - s * (CW + CG)}px)`, transition: "transform .45s cubic-bezier(.4,0,.2,1)" },
+      swipeStart: e => { this._x = e.clientX; },
+      swipeEnd: e => { const dx = e.clientX - (this._x ?? e.clientX); if (Math.abs(dx) > 40) this.go(s + (dx < 0 ? 1 : -1)); },
+      overallLabel: `TIER ${cur + 1} OF 9 · ${overall}%`,
+      dots,
+      climbFill: { position: "absolute", left: 17, top: 16, height: 2, width: fillW, background: CORAL, transition: "width 1s cubic-bezier(.4,0,.2,1)" },
+      boardTitle: TIERS[s] + " LEADERBOARD",
+      countLabel: list.length + (list.length === 1 ? " WARRIOR" : " WARRIORS"),
+      inCommunity: inComm,
+      scopeOpts: seg(["PUBLIC", "MY COMMUNITY"], "scope"),
+      genderOpts: seg(["ALL", "MALE", "FEMALE"], "gender"),
+      hasRows: list.length > 0, isEmpty: list.length === 0,
+      podium: pod,
+      hasYou: yi > 2, you: yi > 2 ? { rank: "#" + (yi + 1), name: ME.name, time: fmt(list[yi].secs), gap: "+" + fmt(list[yi].secs - top) } : {},
+      youNotRanked: yi < 0 && s <= cur,
+      youEmptyNote: s === cur ? "Complete the trial to rank up in the leaderboard" : "Practice this tier to set your time",
+      allRows: list.map(row),
+      sheetOpen: this.state.sheet,
+      openSheet: () => this.setState({ sheet: true }),
+      closeSheet: () => this.setState({ sheet: false }),
+      stop: e => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>
