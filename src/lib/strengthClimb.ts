@@ -12,12 +12,24 @@ import { TIER_NAMES } from '../types';
 export const MAX_STRENGTH_TIER = 9;
 export const TIER_COUNT = MAX_STRENGTH_TIER + 1;
 
-export type TierStatus = 'current' | 'complete' | 'locked';
+/**
+ * 'placed' = below your tier but you've never completed its trial — you were
+ * placed past it by the onboarding assessment.
+ */
+export type TierStatus = 'current' | 'complete' | 'placed' | 'locked';
 
-export function tierStatus(tier: number, currentTier: number): TierStatus {
+/**
+ * `completedTiers` = tiers with at least one completed trial of your own.
+ * Until it's known (undefined), tiers below yours read as complete.
+ */
+export function tierStatus(tier: number, currentTier: number, completedTiers?: ReadonlySet<number>): TierStatus {
   if (tier === currentTier) return 'current';
-  return tier < currentTier ? 'complete' : 'locked';
+  if (tier > currentTier) return 'locked';
+  return completedTiers && !completedTiers.has(tier) ? 'placed' : 'complete';
 }
+
+/** Tiers below yours are behind you whether earned or placed. */
+export const isBehind = (s: TierStatus) => s === 'complete' || s === 'placed';
 
 /** M'SS" — e.g. 160 → 2'40". Lower is better. */
 export function fmtTime(seconds: number): string {
@@ -28,14 +40,15 @@ export function fmtTime(seconds: number): string {
 export const tierName = (tier: number) => (TIER_NAMES[tier] ?? '').toUpperCase();
 export const tierTitle = (tier: number) => TIER_NAMES[tier] ?? '';
 
-/** Progress-bar fill for a card: complete is full, everything else empty. */
+/** Progress-bar fill for a card: tiers behind you are full, everything else empty. */
 export function tierBarFill(status: TierStatus): number {
-  return status === 'complete' ? 1 : 0;
+  return isBehind(status) ? 1 : 0;
 }
 
-export function tierCaption(tier: number, currentTier: number): string {
-  const status = tierStatus(tier, currentTier);
+export function tierCaption(tier: number, currentTier: number, completedTiers?: ReadonlySet<number>): string {
+  const status = tierStatus(tier, currentTier, completedTiers);
   if (status === 'complete') return 'Tier complete';
+  if (status === 'placed') return 'Placed by your assessment';
   if (status === 'locked') return `Complete ${tierTitle(tier - 1)} to unlock`;
   return tier >= MAX_STRENGTH_TIER ? 'The final trial' : `Pass the trial to reach ${tierTitle(tier + 1)}`;
 }

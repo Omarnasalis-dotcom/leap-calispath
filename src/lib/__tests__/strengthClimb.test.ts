@@ -1,4 +1,4 @@
-import { cardStats, climbPercent, fmtTime, tierCaption, tierStatus, warriorsLabel } from '../strengthClimb';
+import { cardStats, climbPercent, fmtTime, tierBarFill, tierCaption, tierStatus, warriorsLabel } from '../strengthClimb';
 
 const board = [
   { user_id: 'a', best_time_seconds: 160 },
@@ -17,6 +17,16 @@ describe('strengthClimb', () => {
     expect(tierStatus(1, 2)).toBe('complete');
     expect(tierStatus(2, 2)).toBe('current');
     expect(tierStatus(3, 2)).toBe('locked');
+  });
+
+  it('tiers below yours with no completed trial are placed', () => {
+    const done = new Set([0]);
+    expect(tierStatus(0, 3, done)).toBe('complete');
+    expect(tierStatus(2, 3, done)).toBe('placed');
+    expect(tierStatus(3, 3, done)).toBe('current');
+    expect(tierStatus(4, 3, done)).toBe('locked');
+    expect(tierCaption(2, 3, done)).toBe('Placed by your assessment');
+    expect(tierBarFill('placed')).toBe(1);
   });
 
   it('captions never invent a percentage', () => {

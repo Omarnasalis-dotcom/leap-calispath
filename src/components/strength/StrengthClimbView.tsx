@@ -5,11 +5,11 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getWorldKitTokens, WorldKitTokens, WORLD_FONTS } from '../../../constants/worldKitTokens';
-import { getTierLeaderboard, LeaderboardEntry } from '../../lib/leaderboard';
+import { getTierLeaderboard, getUserPersonalBests, LeaderboardEntry } from '../../lib/leaderboard';
 import { getCountryCode } from '../../constants/countries';
 import { initials } from '../../lib/worldStanding';
 import {
-  cardStats, climbPercent, fmtTime, MAX_STRENGTH_TIER, TIER_COUNT, tierBarFill, tierCaption, tierName,
+  cardStats, climbPercent, fmtTime, isBehind, MAX_STRENGTH_TIER, TIER_COUNT, tierBarFill, tierCaption, tierName,
   tierStatus, TierStatus, warriorsLabel,
 } from '../../lib/strengthClimb';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
@@ -72,6 +72,9 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   // Public boards for every tier (card stats show all ten at once).
   const [boards, setBoards] = useState<(LeaderboardEntry[] | null)[]>(() => TIERS.map(() => null));
   const [communityBoard, setCommunityBoard] = useState<{ tier: number; entries: LeaderboardEntry[] } | null>(null);
+  // Tiers you've completed a trial on yourself; tiers below yours that
+  // aren't in here were placed by the onboarding assessment.
+  const [completedTiers, setCompletedTiers] = useState<Set<number> | undefined>(undefined);
   const [scope, setScope] = useState<Scope>('public');
   const [gender, setGender] = useState<Gender>('ALL');
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -83,7 +86,17 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     if (isMounted.current) setBoards(prev => results.map((r, i) => r ?? prev[i]));
   }, [userId, isMounted]);
 
-  useFocusEffect(useCallback(() => { loadBoards(); }, [loadBoards]));
+  const loadCompleted = useCallback(async () => {
+    if (!userId) return;
+    try {
+      const bests = await getUserPersonalBests(userId);
+      if (isMounted.current) setCompletedTiers(new Set(bests.map(b => b.tier)));
+    } catch {
+      // Keep the previous set; tiers stay 'complete' until known.
+    }
+  }, [userId, isMounted]);
+
+  useFocusEffect(useCallback(() => { loadBoards(); loadCompleted(); }, [loadBoards, loadCompleted]));
 
   useEffect(() => {
     if (scope !== 'community' || !userId || !profile?.community_id) return;
@@ -94,7 +107,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     return () => { live = false; };
   }, [scope, selected, userId, profile?.community_id, isMounted]);
 
-  const selectedStatus = tierStatus(selected, currentTier);
+  const selectedStatus = tierStatus(selected, currentTier, completedTiers);
   const source = scope === 'community'
     ? (communityBoard?.tier === selected ? communityBoard.entries : null)
     : boards[selected];
@@ -132,6 +145,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
                 colors={c}
                 tier={tier}
                 currentTier={currentTier}
+                completedTiers={completedTiers}
                 active={active}
                 entries={boards[tier] ?? []}
                 userId={userId}
@@ -145,7 +159,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
           />
         </View>
 
-        <ClimbLine tokens={t} colors={c} currentTier={currentTier} selected={selected} onSelect={setSelected} drawn={drawn} />
+        <ClimbLine tokens={t} colors={c} currentTier={currentTier} completedTiers={completedTiers} selected={selected} onSelect={setSelected} drawn={drawn} />
 
         <View style={{ paddingTop: 30, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
@@ -220,14 +234,15 @@ function ClimbHeader({ tokens: t }: { tokens: WorldKitTokens }) {
 
 type Colors = ReturnType<typeof climbColors>;
 
-function TierCard({ tokens: t, colors: c, tier, currentTier, active, entries, userId, drawn, onPress, onShowDetails, buttonRef, onButtonLayout }: {
-  tokens: WorldKitTokens; colors: Colors; tier: number; currentTier: number; active: boolean;
+function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, active, entries, userId, drawn, onPress, onShowDetails, buttonRef, onButtonLayout }: {
+  tokens: WorldKitTokens; colors: Colors; tier: number; currentTier: number; completedTiers?: ReadonlySet<number>; active: boolean;
   entries: LeaderboardEntry[]; userId?: string; drawn: Animated.Value; onPress: () => void; onShowDetails: () => void;
   buttonRef?: React.Ref<View>; onButtonLayout?: () => void;
 }) {
-  const status = tierStatus(tier, currentTier);
+  const status = tierStatus(tier, currentTier, completedTiers);
   const isCurrent = status === 'current';
   const locked = status === 'locked';
+  const placed = status === 'placed';
   const name = tierName(tier);
   const stats = cardStats(entries, userId, status);
   const fill = tierBarFill(status);
@@ -236,7 +251,10 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, active, entries, us
     ? { text: 'CURRENT', bg: t.accent, fg: t.onAccent, border: 'transparent' }
     : status === 'complete'
       ? { text: 'COMPLETE', bg: 'transparent', fg: c.green, border: c.greenBorder }
-      : { text: 'LOCKED', bg: 'transparent', fg: t.textDisabled, border: t.borderStrong };
+      : placed
+        // Neutral, not green: behind you, but never earned by a trial.
+        ? { text: 'PLACED', bg: 'transparent', fg: t.textSecondary, border: t.borderStrong }
+        : { text: 'LOCKED', bg: 'transparent', fg: t.textDisabled, border: t.borderStrong };
 
   return (
     <View style={{
@@ -280,12 +298,12 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, active, entries, us
       <View style={{ gap: 8 }}>
         <View style={{ height: 4, borderRadius: 2, backgroundColor: t.track, overflow: 'hidden' }}>
           <Animated.View style={{
-            height: '100%', borderRadius: 2, backgroundColor: c.green,
+            height: '100%', borderRadius: 2, backgroundColor: placed ? c.outlineBtn : c.green,
             width: drawn.interpolate({ inputRange: [0, 1], outputRange: ['0%', `${fill * 100}%`] }),
           }} />
         </View>
-        <Text style={kt('regular', 12.5, isCurrent ? t.textSecondary : status === 'complete' ? c.green : t.textFaint, 0.4)}>
-          {tierCaption(tier, currentTier)}
+        <Text style={kt('regular', 12.5, isCurrent ? t.textSecondary : status === 'complete' ? c.green : placed ? t.textMuted : t.textFaint, 0.4)}>
+          {tierCaption(tier, currentTier, completedTiers)}
         </Text>
       </View>
 
@@ -312,7 +330,7 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, active, entries, us
           style={({ pressed }) => ({
             height: 52, borderRadius: 15, alignItems: 'center', justifyContent: 'center',
             backgroundColor: isCurrent ? (pressed ? t.accentHover : t.accent) : locked ? c.lockedBtnBg : 'transparent',
-            borderWidth: status === 'complete' ? 1.5 : 0, borderColor: c.outlineBtn,
+            borderWidth: isBehind(status) ? 1.5 : 0, borderColor: c.outlineBtn,
             opacity: pressed && !isCurrent ? 0.8 : 1,
           })}
         >
@@ -327,8 +345,9 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, active, entries, us
 
 // ------------------------------------------------------------ climb line
 
-function ClimbLine({ tokens: t, colors: c, currentTier, selected, onSelect, drawn }: {
-  tokens: WorldKitTokens; colors: Colors; currentTier: number; selected: number; onSelect: (i: number) => void; drawn: Animated.Value;
+function ClimbLine({ tokens: t, colors: c, currentTier, completedTiers, selected, onSelect, drawn }: {
+  tokens: WorldKitTokens; colors: Colors; currentTier: number; completedTiers?: ReadonlySet<number>;
+  selected: number; onSelect: (i: number) => void; drawn: Animated.Value;
 }) {
   const { width } = useWindowDimensions();
   const step = (width - 48 - 34) / MAX_STRENGTH_TIER;
@@ -346,7 +365,8 @@ function ClimbLine({ tokens: t, colors: c, currentTier, selected, onSelect, draw
         }} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
           {TIERS.map(k => {
-            const status = tierStatus(k, currentTier);
+            const status = tierStatus(k, currentTier, completedTiers);
+            const behind = isBehind(status);
             const on = k === selected;
             const now = status === 'current';
             const size = on ? 30 : 22;
@@ -362,11 +382,11 @@ function ClimbLine({ tokens: t, colors: c, currentTier, selected, onSelect, draw
                 {now && <View style={{ position: 'absolute', width: size + 10, height: size + 10, borderRadius: (size + 10) / 2, backgroundColor: `${t.accent}29` }} />}
                 <View style={{
                   width: size, height: size, borderRadius: size / 2, alignItems: 'center', justifyContent: 'center',
-                  backgroundColor: now ? t.accent : status === 'complete' ? c.dotDoneBg : c.dotLockedBg,
+                  backgroundColor: now ? t.accent : behind ? c.dotDoneBg : c.dotLockedBg,
                   borderWidth: now ? 0 : on ? 2 : 1.5,
-                  borderColor: on ? t.text : status === 'complete' ? c.outlineBtn : c.dotLockedBorder,
+                  borderColor: on ? t.text : behind ? c.outlineBtn : c.dotLockedBorder,
                 }}>
-                  <Text style={kt('bold', on ? 13 : 11, now ? t.onAccent : status === 'complete' ? c.dotDoneText : t.textDisabled)}>{k}</Text>
+                  <Text style={kt('bold', on ? 13 : 11, now ? t.onAccent : behind ? c.dotDoneText : t.textDisabled)}>{k}</Text>
                 </View>
               </Pressable>
             );
