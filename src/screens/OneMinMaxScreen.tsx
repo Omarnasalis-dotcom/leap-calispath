@@ -1,25 +1,17 @@
-import { useRouter, useLocalSearchParams, useFocusEffect, router } from 'expo-router';
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Alert, Platform, Modal, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard,
-  Dimensions, RefreshControl, Animated, Vibration, AppState } from 'react-native';
-import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { useFocusEffect } from 'expo-router';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, Keyboard, Platform, Pressable, RefreshControl, ScrollView, Text, View } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useTheme } from '../contexts/ThemeContext';
 import { useAuth } from '../contexts/AuthContext';
-import {
-  ONEMM_MOVEMENTS,
-  ONEMM_CATEGORIES,
-  calculateOneMMPoints
-} from '../lib/oneMMLogic';
+import { ONEMM_MOVEMENTS, ONEMM_CATEGORIES, calculateOneMMPoints, OneMMMovement } from '../lib/oneMMLogic';
 import { OneMMService, OneMMUserStats, OneMMRanking } from '../services/OneMMService';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { useMountedRef } from '../hooks/useMountedRef';
-
-import { SoundServiceInstance as SoundService } from '../lib/SoundService';
-import { getCountryFlag } from '../constants/countries';
-import { LeapLogo } from '../components/LeapLogo';
+import { useWorldSummary } from '../hooks/useWorldSummary';
+import { useOneMinuteTimer, ONE_MINUTE_COUNTDOWN, ONE_MINUTE_SECONDS } from '../hooks/useOneMinuteTimer';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { CelebrationBanner } from '../components/CelebrationBanner';
@@ -28,763 +20,439 @@ import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { NotificationService } from '../services/NotificationService';
 import { useReturnTo } from '../hooks/useReturnTo';
-import { getWorldTheme, getWorldNeutrals, WorldTheme } from '../../constants/worldThemes';
-import { WorldBackground } from '../components/worlds/WorldBackground';
-import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
-import { StatCircle } from '../components/worlds/StatCircle';
-import { ScoreRingHero } from '../components/worlds/ScoreRingHero';
-import { ExerciseCircle } from '../components/worlds/ExerciseCircle';
-import { PillTabRow } from '../components/worlds/PillTabRow';
-import { MilestoneCard } from '../components/worlds/MilestoneCard';
-import { oneMMProgress, oneMMTarget, rankGapProgress } from '../lib/worldProgress';
+import { getWorldKitTokens, WorldKitTokens } from '../../constants/worldKitTokens';
+import { deriveStanding, fmt2, youBarSubline, BoardRow } from '../lib/worldStanding';
+import { clamp01 } from '../lib/worldProgress';
+import {
+  AnimatedRing, BoardFilters, BoardKicker, DashboardRings, filterByGender, GoalCard, KitButton,
+  KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
+  WorldSheet, WorldToast, YouBar, Gender,
+} from '../components/worlds/kit';
 
-const { width } = Dimensions.get('window');
+type Level = 'entry' | 'main' | 'advanced';
+type SheetState =
+  | { kind: 'log'; movementId: string; mode: 'log' | 'timer' }
+  | { kind: 'board' }
+  | null;
 
-const HERO_CENTER_SIZE = 134;
-const HERO_SIDE_SIZE = Math.min(84, Math.floor((width - 40 - 20 - HERO_CENTER_SIZE) / 2));
-// 3-column grid (handoff: 6 movements in 3×2), 88px circles, 8px column gap.
-const GRID_COLUMN_WIDTH = Math.floor((width - 40 - 16) / 3);
-const GRID_CIRCLE_SIZE = Math.min(88, GRID_COLUMN_WIDTH - 4);
+const LEVELS: Level[] = ['entry', 'main', 'advanced'];
+/** Main/Advanced unlock at strength tier 5 (ONEMM_CATEGORIES tiers). */
+const LEVEL_UNLOCK_TIER = 5;
+const MAX_REPS = 150;
+const QUOTE = 'SIXTY SECONDS. NO EXCUSES.';
 
-const VALID_ONEMM_CATEGORIES = ['entry', 'main', 'advanced'];
+const isLevelLocked = (level: Level, tier: number) => level !== 'entry' && tier < LEVEL_UNLOCK_TIER;
 
 export function OneMinMaxScreen({ category }: { category?: string }) {
-  const { theme, toggleTheme, mode } = useTheme();
-  const W = getWorldTheme('onemm', mode);
+  const { theme, mode } = useTheme();
+  const t = getWorldKitTokens('onemm', mode);
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
   const { runAsync: runSafeSave, isExecuting: saving } = useSafeAsync();
+  const isSlowSave = useSlowSubmitNotice(saving);
+  const tier = profile?.strength_tier ?? 0;
+
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
   const { ref: movementGridRef, onLayout: onMovementGridLayout } = useTutorialTarget('onemm.movementGrid');
-  // useScreenMeasure=true: this badge sits in the movement grid, outside the
-  // screen's ScrollView — see useTutorialTarget's own comment for why that
-  // needs the pageX/pageY measurement path on Android.
+  // useScreenMeasure=true: see useTutorialTarget — pageX/pageY path on Android.
   const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge', undefined, true);
-  const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
+  const { ref: startSprintRef, onLayout: onStartSprintLayout } = useTutorialTarget('onemm.startSprintButton');
+  const { ref: timerCloseRef, onLayout: onTimerCloseLayout, reportInteraction: reportTimerClose } = useTutorialTarget('onemm.timerCloseButton');
+
+  // Deep-linked from SuggestedTestCard / My Journey with the category the
+  // suggested movement lives in — respect the tier lock.
+  const [level, setLevel] = useState<Level>(
+    LEVELS.includes(category as Level) && !isLevelLocked(category as Level, tier) ? (category as Level) : 'entry'
+  );
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [leaderboardTab, setLeaderboardTab] = useState<'overall' | 'entry' | 'main' | 'advanced'>('overall');
-  // Deep-linked from SuggestedTestCard with the exact category the
-  // suggested movement lives in (e.g. "main" for Dips) — without this, a
-  // suggestion outside the default "entry" tab would look like it doesn't
-  // exist until the user manually switches tabs.
-  const [selectedExerciseCategory, setSelectedExerciseCategory] = useState<'entry' | 'main' | 'advanced'>(
-    VALID_ONEMM_CATEGORIES.includes(category || '') && !((profile?.strength_tier ?? 0) < 5 && (category === 'main' || category === 'advanced'))
-      ? (category as 'entry' | 'main' | 'advanced')
-      : 'entry'
-  );
-  const [leaderboardData, setLeaderboardData] = useState<OneMMRanking[]>([]);
-  const [modalLeaderboardData, setModalLeaderboardData] = useState<OneMMRanking[]>([]);
-  const [showMovementLeaderboard, setShowMovementLeaderboard] = useState(false);
-  const [showOverallModal, setShowOverallModal] = useState(false);
-  const [showLogModal, setShowLogModal] = useState(false);
-  const [genderFilter, setGenderFilter] = useState<'ALL' | 'MALE' | 'FEMALE'>('ALL');
-  // Community scope — must trigger a server-side refetch (RPCs cap at 100
-  // rows before any filter), unlike genderFilter which filters client-side
-  // on the already-fetched, already-limited data. Derived fresh each render
-  // from profile.community_id rather than mirrored into its own useState
-  // via a syncing useEffect — that version fetched once at mount with the
-  // stale 'public' default (profile hadn't loaded yet) and again once the
-  // sync effect corrected it, and whichever in-flight request resolved
-  // last won, regardless of which was actually current. A derived value is
-  // correct on the very first render that has real profile data, so the
-  // fetch effect below only fires once for that transition.
-  const [manualOnemmScope, setManualOnemmScope] = useState<'public' | 'community' | null>(null);
-  const onemmScope: 'public' | 'community' = manualOnemmScope ?? (profile?.community_id ? 'community' : 'public');
-  const setOnemmScope = setManualOnemmScope;
+  const { summary, refresh: refreshSummary } = useWorldSummary('onemm', !!user);
 
-  const filteredModalLeaderboardData = React.useMemo(() => {
-    let list = modalLeaderboardData;
-    if (genderFilter !== 'ALL') {
-      list = modalLeaderboardData.filter(e => (e.gender || '').toUpperCase() === genderFilter);
-    }
-    return list.map((e, i) => ({ ...e, rank: i + 1 }));
-  }, [modalLeaderboardData, genderFilter]);
-  const [selectedMovement, setSelectedMovement] = useState<string | null>(null);
+  const [sheet, setSheet] = useState<SheetState>(null);
+  // Keeps the last content rendered while the sheet plays its exit animation.
+  const lastSheet = useRef<Exclude<SheetState, null>>({ kind: 'board' });
+  if (sheet) lastSheet.current = sheet;
+  const shown = sheet ?? lastSheet.current;
+
+  const [repsRaw, setRepsRaw] = useState('');
+  const [movementTop, setMovementTop] = useState<OneMMRanking[]>([]);
   const [pendingOverwrite, setPendingOverwrite] = useState<number | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
 
-  // Refetching on every focus (not just mount, see the useFocusEffect below)
-  // means a quick tab-flip can start a second fetchData() before the first
-  // resolves; without this guard a slower earlier response could resolve
-  // after a newer one and overwrite fresher state with stale data.
-  const isFetchingDataRef = useRef(false);
-  const fetchData = useCallback(async () => {
-    if (!user || isFetchingDataRef.current) return;
-    isFetchingDataRef.current = true;
+  const [boardRows, setBoardRows] = useState<OneMMRanking[]>([]);
+  const [boardLoading, setBoardLoading] = useState(false);
+  const [gender, setGender] = useState<Gender>('ALL');
+  // Community scope is derived (not mirrored via an effect) so the first
+  // render with a real profile already has the right default — see the
+  // race this avoided in the previous screen version.
+  const [manualScope, setManualScope] = useState<'public' | 'community' | null>(null);
+  const scope: 'public' | 'community' = manualScope ?? (profile?.community_id ? 'community' : 'public');
+
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
+
+  // ------------------------------------------------------------------ data
+
+  const isFetchingRef = useRef(false);
+  const fetchStats = useCallback(async () => {
+    if (!user || isFetchingRef.current) return;
+    isFetchingRef.current = true;
     try {
       const s = await OneMMService.getUserStats(user.id);
-      if (!isMounted.current) return;
-      setStats(s);
-      setLoading(false);
-      setRefreshing(false);
-
-      const rank = await OneMMService.getGloryRank(user.id, s.totalPoints);
-      if (!isMounted.current) return;
-      setStats(prev => prev ? { ...prev, ranks: { ...prev.ranks, glory: rank } } : prev);
-    } catch (error) {
-      console.error('Fetch 1MM error:', error);
-      if (!isMounted.current) return;
-      setLoading(false);
-      setRefreshing(false);
+      if (isMounted.current) setStats(s);
+    } catch (e) {
+      console.error('Fetch 1MM error:', e);
     } finally {
-      isFetchingDataRef.current = false;
+      isFetchingRef.current = false;
+      if (isMounted.current) { setLoading(false); setRefreshing(false); }
     }
   }, [user, isMounted]);
 
-  const fetchLeaderboard = useCallback(async () => {
+  useFocusEffect(useCallback(() => { fetchStats(); }, [fetchStats]));
+
+  const fetchBoard = useCallback(async (s: 'public' | 'community') => {
+    setBoardLoading(true);
     try {
-      const scopeCommunityId = onemmScope === 'community' ? profile?.community_id : null;
-      let data;
-      if (leaderboardTab === 'overall') {
-        data = await OneMMService.getLeaderboard('overall', undefined, scopeCommunityId);
-      } else {
-        data = await OneMMService.getCategoryLeaderboard(leaderboardTab, scopeCommunityId);
-      }
-      if (!isMounted.current) return;
-      setLeaderboardData(data);
-    } catch (error) {
-      console.error('1MM Leaderboard error:', error);
+      const communityId = s === 'community' ? profile?.community_id : null;
+      const data = await OneMMService.getLeaderboard('overall', undefined, communityId);
+      if (isMounted.current) setBoardRows(data);
+    } catch (e) {
+      console.error('1MM board error:', e);
+    } finally {
+      if (isMounted.current) setBoardLoading(false);
     }
-  }, [leaderboardTab, isMounted, onemmScope, profile?.community_id]);
+  }, [profile?.community_id, isMounted]);
 
-  const fetchMovementLeaderboard = async (moveId: string) => {
+  const fetchMovementTop = useCallback(async (movementId: string) => {
+    setMovementTop([]);
     try {
-      const data = await OneMMService.getLeaderboard(moveId);
-      if (!isMounted.current) return;
-      setModalLeaderboardData(data);
-      setShowMovementLeaderboard(true);
-    } catch (error) {
-      if (!isMounted.current) return;
-      console.error('Movement LB error:', error);
+      const data = await OneMMService.getLeaderboard(movementId);
+      if (isMounted.current) setMovementTop(data);
+    } catch (e) {
+      console.error('1MM movement top error:', e);
     }
-  };
-
-  const fetchOverallLeaderboard = async (scopeOverride?: 'public' | 'community') => {
-    if (__DEV__) console.log('Fetching overall leaderboard...');
-    setShowOverallModal(true); // Open modal immediately for better UX
-    try {
-      const scope = scopeOverride || onemmScope;
-      const scopeCommunityId = scope === 'community' ? profile?.community_id : null;
-      const data = await OneMMService.getLeaderboard('overall', undefined, scopeCommunityId);
-      if (!isMounted.current) return;
-      setModalLeaderboardData(data);
-    } catch (error) {
-      console.error('Overall LB error:', error);
-      if (!isMounted.current) return;
-      Alert.alert('Error', 'Could not load leaderboard.');
-      setShowOverallModal(false);
-    }
-  };
-
-  // useFocusEffect (not a plain mount-only useEffect): this screen now lives
-  // in a persistent tab navigator (app/(tabs)/_layout.tsx) and stays mounted
-  // across tab switches instead of remounting, so a mount-only effect would
-  // only ever fetch once per session — this refetches every time the tab
-  // regains focus, same as ProfileScreen/MilestoneLaneScreen already do.
-  useFocusEffect(
-    useCallback(() => {
-      fetchData();
-    }, [fetchData])
-  );
-
-  useFocusEffect(
-    useCallback(() => {
-      fetchLeaderboard();
-    }, [fetchLeaderboard])
-  );
+  }, [isMounted]);
 
   const onRefresh = () => {
     setRefreshing(true);
-    fetchData();
-    fetchLeaderboard();
+    fetchStats();
+    refreshSummary();
   };
 
-  const handleSaveResult = async (reps: number, force: boolean = false) => {
-    if (!user || !selectedMovement) return;
+  // ------------------------------------------------------------- standing
 
-    // Below the current best — ask before silently discarding it (or, if
-    // force is true, this IS the user's confirmed choice to overwrite).
-    // Strictly less-than (not <=): submit_onemm_log treats a tied rep count
-    // as a genuine PB (p_reps >= v_current_max), so a tie should proceed
-    // normally rather than prompting.
-    const currentBest = stats?.pbs[selectedMovement] ?? 0;
+  const localScore = stats?.totalPoints ?? 0;
+  const score = summary ? summary.myScore : localScore;
+  const standing = deriveStanding({
+    rank: summary ? summary.myRank : (stats?.ranks.glory || null),
+    rankedCount: summary?.rankedCount ?? 0,
+    score,
+    topScore: summary?.topScore ?? 0,
+    above: summary?.above ?? null,
+  });
+  const above = summary?.above ?? null;
+
+  const gap = standing.isKing
+    ? { label: 'STATUS', value: 'KING', sub: '#1 OF WORLD', progress: 1, gold: true }
+    : standing.isRanked && above && standing.gapToPass != null
+      ? { label: `GAP TO #${above.rank}`, value: fmt2(standing.gapToPass), sub: 'PTS TO PASS', progress: standing.gapProgress }
+      : { label: 'GAP TO', value: '—', sub: 'RANK UP', progress: 0, empty: true };
+
+  // ------------------------------------------------------------- sheets
+
+  const openLog = (m: OneMMMovement, sheetMode: 'log' | 'timer') => {
+    if (isLevelLocked(m.categoryId, tier) || m.minTier > tier) {
+      setToast(`REACH TIER ${Math.max(m.minTier, LEVEL_UNLOCK_TIER)} TO UNLOCK`);
+      return;
+    }
+    const pb = stats?.pbs[m.id] ?? 0;
+    setRepsRaw(pb > 0 ? String(pb) : '');
+    setPendingOverwrite(null);
+    setSheet({ kind: 'log', movementId: m.id, mode: sheetMode });
+    fetchMovementTop(m.id);
+  };
+
+  const openBoard = () => {
+    setSheet({ kind: 'board' });
+    fetchBoard(scope);
+  };
+
+  const timer = useOneMinuteTimer((taps) => {
+    setRepsRaw(String(taps));
+    setSheet(s => (s && s.kind === 'log' ? { ...s, mode: 'log' } : s));
+    setToast('TIME! CONFIRM YOUR REPS');
+  });
+
+  const closeSheet = () => {
+    if (timer.phase !== 'idle') {
+      const abandon = () => { timer.cancel(); setSheet(null); };
+      if (Platform.OS === 'web') {
+        if (window.confirm('Abandon this 1MM sprint? Progress will be lost.')) abandon();
+      } else {
+        Alert.alert('ABANDON SPRINT', 'Abandon this 1MM sprint? Progress will be lost.', [
+          { text: 'KEEP FIGHTING', style: 'cancel' },
+          { text: 'ABANDON', style: 'destructive', onPress: abandon },
+        ]);
+      }
+      return;
+    }
+    Keyboard.dismiss();
+    setSheet(null);
+  };
+
+  const setMode = (m: 'log' | 'timer') => {
+    if (m === 'log' && timer.phase !== 'idle') timer.cancel();
+    setSheet(s => (s && s.kind === 'log' ? { ...s, mode: m } : s));
+  };
+
+  // --------------------------------------------------------------- save
+
+  const handleSaveResult = (reps: number, force = false) => {
+    if (!user || !sheet || sheet.kind !== 'log') return;
+    const movementId = sheet.movementId;
+    const movement = ONEMM_MOVEMENTS.find(m => m.id === movementId);
+    const currentBest = stats?.pbs[movementId] ?? 0;
+
+    // Strictly less-than: submit_onemm_log treats a tie as a PB.
     if (!force && currentBest > 0 && reps < currentBest) {
-      // Same fix as Static/Power: dismiss explicitly rather than relying on
-      // this modal's tap-outside-to-dismiss, since the overlay's own buttons
-      // sit inside that same tappable area and shouldn't require a second
-      // tap elsewhere first just to reveal the keyboard-covered controls.
       Keyboard.dismiss();
       setPendingOverwrite(reps);
       return;
     }
 
-    let shouldCelebrate = false;
-
+    let isPB = false;
     runSafeSave(async () => {
-      const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } = await OneMMService.saveLog(user.id, selectedMovement, reps, force);
-
+      const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } =
+        await OneMMService.saveLog(user.id, movementId, reps, force);
+      isPB = isNewPB;
       if (isNewPB) {
-        const movementName = ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || 'Movement';
-        if (isMounted.current) {
-          setCelebrationData({
-            stat: `${reps} REPS`,
-            movement: movementName
-          });
-          shouldCelebrate = true;
-        }
-        NotificationService.notify(
-          user.id,
-          'one_mm_pb',
-          'New 1MM PB!',
-          `${movementName}: ${reps} reps — a new personal record.`,
-          { screen: 'one-min-max' }
-        );
-        if (overtakenNotificationId) {
-          NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
-        }
-        if (wraOvertakenNotificationId) {
-          NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
-        }
-      }
-
-      if (!isNewPB) {
-        Alert.alert('Success', '1MM Result Logged!');
+        const name = movement?.name || 'Movement';
+        if (isMounted.current) setCelebrationData({ stat: `${reps} REPS`, movement: name });
+        NotificationService.notify(user.id, 'one_mm_pb', 'New 1MM PB!', `${name}: ${reps} reps — a new personal record.`, { screen: 'one-min-max' });
+        if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
+        if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
       }
     }, {
       onSuccess: () => {
+        const mult = movement ? ONEMM_CATEGORIES[movement.categoryId].multiplier : 0;
         setPendingOverwrite(null);
-        setShowLogModal(false);
-        fetchData();
-        fetchLeaderboard();
-        if (refreshProfile) refreshProfile();
-
-        // Defer celebration after log modal fully dismisses (iOS overlapping modal bug)
-        if (shouldCelebrate && isMounted.current) {
-          setTimeout(() => {
-            if (isMounted.current) {
-              setShowCelebration(true);
-            }
-          }, 400);
-        }
-
-        // Came from a My Journey side quest — head straight back and mark
-        // this slot complete, after a brief pause so the result/celebration
-        // is actually visible first rather than yanking the screen away.
-        setTimeout(() => {
-          if (isMounted.current) completeQuestAndReturn();
-        }, 1800);
+        setSheet(null);
+        setToast(isPB
+          ? (currentBest > 0 ? `NEW PB · +${fmt2((reps - currentBest) * mult)} PTS` : `FIRST SET · ${fmt2(reps * mult)} PTS`)
+          : 'LOGGED · PB UNCHANGED');
+        fetchStats();
+        refreshSummary();
+        refreshProfile?.();
+        // The sheet's Modal must be fully gone before CelebrationBanner's
+        // Modal mounts (iOS overlapping-modal freeze / Android swap crash).
+        if (isPB) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
+        // Came from a My Journey side quest — return after the result is seen.
+        setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
       },
       onError: (error: any) => {
         setPendingOverwrite(null);
-        const isExpectedRejection = ['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code);
-        if (!isExpectedRejection) {
+        if (!['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code)) {
           console.error('Error saving 1MM result:', error);
         }
-        // reps/force are still the enclosing call's exact args, so a retry
-        // resubmits the same result instead of forcing the set to be redone
-        // just because the network blipped.
         Alert.alert('Error', describeSubmitError(error, 'Failed to save result.'), [
           { text: 'Cancel', style: 'cancel' },
           { text: 'Try Again', onPress: () => handleSaveResult(reps, force) },
         ]);
-      }
+      },
     });
   };
 
-  const renderHeader = () => (
-    <WorldHeaderPill
-      world={W}
-      title="ENDURANCE WORLD"
-      icon="timer-outline"
-      onPress={() => setLeaderboardTab('overall')}
-      style={styles.headerPill}
-    />
-  );
-
-  const renderSkeleton = () => {
-    return (
-      <View style={styles.dashboard}>
-        <View style={{ alignItems: 'center', marginBottom: 15, marginTop: 10 }}>
-          <Skeleton width={100} height={12} borderRadius={4} />
-        </View>
-
-        <View style={[styles.heroRow, { marginBottom: 20 }]}>
-          <Skeleton width={HERO_SIDE_SIZE} height={HERO_SIDE_SIZE} borderRadius={HERO_SIDE_SIZE / 2} />
-          <Skeleton width={HERO_CENTER_SIZE} height={HERO_CENTER_SIZE} borderRadius={HERO_CENTER_SIZE / 2} />
-          <Skeleton width={HERO_SIDE_SIZE} height={HERO_SIDE_SIZE} borderRadius={HERO_SIDE_SIZE / 2} />
-        </View>
-
-        <View style={{ marginBottom: 16 }}>
-          <Skeleton width={150} height={16} borderRadius={4} />
-        </View>
-
-        <View style={{ flexDirection: 'row', marginBottom: 20, gap: 10 }}>
-          <Skeleton width={90} height={40} borderRadius={20} />
-          <Skeleton width={70} height={40} borderRadius={20} />
-          <Skeleton width={70} height={40} borderRadius={20} />
-          <Skeleton width={90} height={40} borderRadius={20} />
-        </View>
-
-        <View style={styles.peakGrid}>
-          {Array.from({ length: 6 }).map((_, idx) => (
-            <View key={idx} style={[styles.gridItem, { alignItems: 'center', gap: 8 }]}>
-              <Skeleton width={GRID_CIRCLE_SIZE} height={GRID_CIRCLE_SIZE} borderRadius={GRID_CIRCLE_SIZE / 2} />
-              <Skeleton width={70} height={12} borderRadius={4} />
-            </View>
-          ))}
-        </View>
-
-        <View style={{
-          marginTop: 20,
-          padding: 24,
-          borderRadius: 24,
-          backgroundColor: W.cardFill,
-          borderWidth: 1,
-          borderColor: W.cardBorder,
-          marginHorizontal: 16,
-          gap: 12
-        }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <Skeleton width={28} height={28} borderRadius={14} />
-            <View style={{ flex: 1, gap: 6 }}>
-              <Skeleton width="80%" height={16} borderRadius={4} />
-              <Skeleton width="50%" height={12} borderRadius={4} />
-            </View>
-          </View>
-          <Skeleton width="100%" height={8} borderRadius={4} />
-        </View>
-      </View>
-    );
-  };
-
-  const renderDashboard = () => {
-    if (!stats) return null;
-
-    const getPeakPerformance = () => {
-      const peaks: Record<string, number> = {};
-      ONEMM_MOVEMENTS.forEach(m => {
-        const reps = stats.pbs[m.id] || 0;
-        const points = calculateOneMMPoints(reps, m.categoryId);
-        if (points > (peaks[m.patternId] || 0)) {
-          peaks[m.patternId] = points;
-        }
-      });
-      const total = Object.values(peaks).reduce((sum, p) => sum + p, 0);
-      return { total };
-    };
-
-    const peakData = getPeakPerformance();
-    const userRank = stats.ranks['glory'] || 0;
-
-    // Gap Calculation (Handle Ties)
-    let gapToNext = 0;
-    if (userRank > 1) {
-      const personAbove = leaderboardData.find(e => e.rank === userRank - 1);
-      if (personAbove && !isNaN(personAbove.value)) {
-        gapToNext = Math.ceil((personAbove.value || 0) - (peakData.total || 0));
-      }
-
-      if (gapToNext <= 0) {
-        const strictlyBetter = leaderboardData.find(e => e.value > peakData.total);
-        if (strictlyBetter) {
-          gapToNext = Math.ceil(strictlyBetter.value - peakData.total);
-        }
-      }
+  const onLogPress = () => {
+    const reps = parseInt(repsRaw, 10);
+    if (isNaN(reps) || reps <= 0 || reps > MAX_REPS) {
+      Alert.alert('Invalid', `Please enter a valid number of reps (1-${MAX_REPS}).`);
+      return;
     }
-
-    return (
-      <View style={styles.dashboard}>
-        <View style={styles.heroRow}>
-          <StatCircle
-            size={HERO_SIDE_SIZE}
-            label="1MM RANK"
-            value={`#${userRank || 0}`}
-            caption="OF WORLD"
-            unranked={!userRank || peakData.total <= 0}
-          />
-
-          <ScoreRingHero
-            ref={scoreCircleRef}
-            onLayout={onScoreCircleLayout}
-            world={W}
-            size={HERO_CENTER_SIZE}
-            progress={rankGapProgress(peakData.total, gapToNext, userRank)}
-            label="1MM SCORE"
-            value={Number(peakData.total || 0).toFixed(2)}
-            caption="TOTAL PTS"
-            showCrown={userRank === 1}
-            onPress={() => fetchOverallLeaderboard()}
-            badgeIcon="chart-bar"
-            onBadgePress={() => fetchOverallLeaderboard()}
-          />
-
-          <StatCircle
-            size={HERO_SIDE_SIZE}
-            label="GAP TO"
-            value={userRank === 1 ? 'KING' : `+${gapToNext}`}
-            caption="RANK UP"
-            unranked={userRank === 0}
-          />
-        </View>
-
-        <Text style={[styles.sectionHeader, { color: getWorldNeutrals(mode).textPrimary }]}>YOUR PEAK ENDURANCE</Text>
-
-        <PillTabRow
-          world={W}
-          style={styles.tabRow}
-          activeKey={leaderboardTab}
-          onSelect={(key) => {
-            const isLocked = (profile?.strength_tier ?? 0) < 5 && (key === 'main' || key === 'advanced');
-            if (isLocked) {
-              Alert.alert('Locked', 'Reach Tier 5 to unlock Main and Advanced categories.');
-              return;
-            }
-            if (key !== 'overall') {
-              setSelectedExerciseCategory(key as any);
-            }
-            setLeaderboardTab(key as any);
-          }}
-          items={[
-            { key: 'overall', label: 'ENDURANCE', emoji: '👑' },
-            { key: 'entry', label: ONEMM_CATEGORIES.entry.name },
-            { key: 'main', label: ONEMM_CATEGORIES.main.name, locked: (profile?.strength_tier ?? 0) < 5 },
-            { key: 'advanced', label: ONEMM_CATEGORIES.advanced.name, locked: (profile?.strength_tier ?? 0) < 5 },
-          ]}
-        />
-
-        {/* 3-column grid; the whole circle logs — one number per circle,
-            never the old stacked "-" over "#--" placeholders. Long-press
-            opens the movement's leaderboard. */}
-        <View style={styles.peakGrid} ref={movementGridRef} onLayout={onMovementGridLayout}>
-          {ONEMM_MOVEMENTS.filter(m => m.categoryId === selectedExerciseCategory).map((m, index) => {
-            const pb = stats.pbs[m.id] || 0;
-            const isLocked = m.minTier > (profile?.strength_tier ?? 0);
-            const isFirst = index === 0;
-
-            return (
-              <ExerciseCircle
-                key={m.id}
-                ref={isFirst ? timerBadgeRef : undefined}
-                onLayout={isFirst ? onTimerBadgeLayout : undefined}
-                world={W}
-                size={GRID_CIRCLE_SIZE}
-                progress={oneMMProgress(m.id, pb)}
-                icon={m.patternId}
-                name={m.name.toUpperCase()}
-                value={pb > 0 ? String(pb) : undefined}
-                caption={pb > 0 ? `${pb} LOGGED` : 'TAP TO LOG'}
-                hasLogged={pb > 0}
-                badge="stopwatch"
-                locked={isLocked}
-                style={styles.gridItem}
-                onPress={() => {
-                  if (isLocked) {
-                    Alert.alert('Locked', `Reach Tier ${m.minTier} to unlock this movement.`);
-                    return;
-                  }
-                  setSelectedMovement(m.id);
-                  setShowLogModal(true);
-                  if (isFirst) reportTimerBadge();
-                }}
-                onLongPress={() => {
-                  if (isLocked) return;
-                  setSelectedMovement(m.id);
-                  fetchMovementLeaderboard(m.id);
-                }}
-              />
-            );
-          })}
-        </View>
-        {leaderboardTab !== 'overall' && (
-          <View style={styles.leaderboardSection}>
-            <View style={styles.lbSection}>
-            <Text style={[styles.lbTitle, { color: W.accent }]}>
-              {`${leaderboardTab.toUpperCase()} ELITE`}
-            </Text>
-            <Text style={[styles.lbSub, { color: theme.text.tertiary }]}>THE HIGHEST TIER WARRIOR</Text>
-          </View>
-          {!!profile?.community_id && (
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 12, gap: 12 }}>
-              {(['public', 'community'] as const).map((scope) => (
-                <TouchableOpacity
-                  key={scope}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 16,
-                    borderRadius: 20,
-                    backgroundColor: onemmScope === scope ? W.accent : 'rgba(255,255,255,0.05)',
-                    borderWidth: 1,
-                    borderColor: onemmScope === scope ? W.accent : 'rgba(255,255,255,0.1)'
-                  }}
-                  onPress={() => setOnemmScope(scope)}
-                >
-                  <Text style={{
-                    fontSize: 12,
-                    fontWeight: '900',
-                    color: onemmScope === scope ? '#FFF' : theme.text.secondary
-                  }}>
-                    {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
-          {leaderboardData.length === 0 && (
-            <View style={{ alignItems: 'center', paddingVertical: 24 }}>
-              <Text style={{ color: theme.text.tertiary, fontSize: 12, letterSpacing: 1 }}>
-                NO SCORES YET — COMPLETE A ONE-MINUTE MAX TO APPEAR
-              </Text>
-            </View>
-          )}
-          {leaderboardData.map((item, i) => (
-            <View key={item.user_id} style={[styles.lbRow, { backgroundColor: item.user_id === user?.id ? `${W.accent}20` : 'transparent' }]}>
-              <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}30` : 'transparent' }]}>
-                <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900', fontSize: 12 }}>{i + 1}</Text>
-              </View>
-              <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
-                {item.display_name.toUpperCase()}
-              </Text>
-              <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
-                <Text style={[styles.lbPointsText, { color: '#000' }]}>{Number(item.value || 0).toFixed(2)}</Text>
-              </View>
-            </View>
-          ))}
-        </View>
-        )}
-
-        {/* ENDURANCE MILESTONE TRACKER */}
-        {leaderboardTab === 'overall' && (
-          <MilestoneCard
-            world={W}
-            style={{ marginTop: 20 }}
-            icon={userRank === 1 ? 'crown' : 'sword-cross'}
-            headline={
-              userRank === 1
-                ? 'ENDURANCE KING ACHIEVED'
-                : userRank > 0
-                  ? `${gapToNext} Points to steal Rank #${userRank - 1}`
-                  : 'Log a result to rank up'
-            }
-            caption={
-              userRank === 1
-                ? 'YOU ARE AT THE PEAK'
-                : userRank > 0
-                  ? 'YOUR NEXT TARGET'
-                  : `YOUR NEXT TARGET: ${oneMMTarget('knee_push_ups')} KNEE PUSH-UPS`
-            }
-            // Honest fill: unranked renders an empty track, 100% only at
-            // genuine rank 1 (was hard-coded full for rank 0).
-            progress={rankGapProgress(peakData.total, gapToNext, userRank)}
-            footerRight={
-              userRank > 1
-                ? `+${gapToNext} PTS TO DETHRONE`
-                : `${Number(peakData.total || 0).toFixed(2)} PTS`
-            }
-          />
-        )}
-
-        {/* Ambient Quote */}
-        {leaderboardTab === 'overall' && (
-          <View style={{ alignItems: 'center', marginTop: 20, marginBottom: 40 }}>
-            <Text style={{ 
-              color: theme.text.tertiary, 
-              fontSize: 10, 
-              fontFamily: 'PlusJakartaSans-SemiBold',
-              letterSpacing: 3,
-              textTransform: 'uppercase'
-            }}>
-              LEAP PAST YOUR LIMITS. ENDURE.
-            </Text>
-          </View>
-        )}
-      </View>
-    );
+    handleSaveResult(reps);
   };
+
+  // ---------------------------------------------------------- rendering
+
+  const pbs = stats?.pbs ?? {};
+  const levelTabs = LEVELS.map(l => {
+    const moves = ONEMM_MOVEMENTS.filter(m => m.categoryId === l);
+    const logged = moves.filter(m => (pbs[m.id] ?? 0) > 0).length;
+    return { key: l, label: ONEMM_CATEGORIES[l].name, sub: `${logged}/${moves.length} LOGGED`, locked: isLevelLocked(l, tier) };
+  });
+
+  const onPickLevel = (l: Level) => {
+    if (isLevelLocked(l, tier)) {
+      setToast(`REACH TIER ${LEVEL_UNLOCK_TIER} TO UNLOCK ${ONEMM_CATEGORIES[l].name}`);
+      return;
+    }
+    setLevel(l);
+  };
+
+  const goal = standing.isKing
+    ? { kicker: "YOU'RE #1", title: 'ENDURANCE KING ACHIEVED', bar: undefined }
+    : standing.isRanked && above && standing.gapToPass != null
+      ? {
+        kicker: 'NEXT TARGET',
+        title: `${fmt2(standing.gapToPass)} pts to steal Rank #${above.rank}`,
+        bar: { progress: standing.gapProgress, from: `YOU ${fmt2(score)}`, to: `#${above.rank} ${fmt2(above.score)}` },
+      }
+      : { kicker: 'GET STARTED', title: 'Log your first 60s set to rank up', bar: undefined };
+
+  const boardList: BoardRow[] = useMemo(
+    () => filterByGender(
+      boardRows.map(r => ({ user_id: r.user_id, name: r.display_name, points: Number(r.value) || 0, country: r.country, gender: r.gender })),
+      gender,
+    ),
+    [boardRows, gender],
+  );
+  const you = youBarSubline(boardList, user?.id, score, 'Endurance');
+  const unfiltered = scope === 'public' && gender === 'ALL';
+  const youRankText = you.index >= 0 ? `#${you.index + 1}` : unfiltered && standing.isRanked ? `#${summary?.myRank}` : '—';
+  const youSub = you.index < 0 && unfiltered && standing.isRanked && above && standing.gapToPass != null
+    ? `${fmt2(standing.gapToPass)} pts to pass ${above.name}`
+    : you.text;
+
+  const toastNode = <WorldToast tokens={t} message={toast} onHide={() => setToast(null)} />;
 
   return (
     <GlobalErrorBoundary>
-      <WorldBackground world={W}>
-      <View style={styles.container}>
-      {renderHeader()}
-      {returnTo === 'journey' && (
-        <TouchableOpacity style={styles.backToJourneyPill} onPress={() => goBackOrReturnTo('/one-min-max')}>
-          <MaterialCommunityIcons name="chevron-left" size={16} color={W.accent} />
-          <Text style={[styles.backToJourneyText, { color: W.accent }]}>BACK TO JOURNEY</Text>
-        </TouchableOpacity>
-      )}
-      <ScrollView
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={W.accent} />}
-        contentContainerStyle={{ paddingBottom: 100 }}
-      >
-        {loading || !stats ? renderSkeleton() : renderDashboard()}
-      </ScrollView>
-
-      {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
-
-      {/* 1MM TIMER MODAL */}
-      {showLogModal && (
-        <OneMinMaxTimerModal
-          visible={showLogModal}
-          onClose={() => setShowLogModal(false)}
-          movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
-          user={user}
-          theme={theme}
-          world={W}
-          onSaveResult={handleSaveResult}
-          overwriteOverlay={
-            <PBOverwriteConfirmModal
-              visible={pendingOverwrite !== null}
-              theme={theme}
-              accentColor={W.accent}
-              movementName={ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name || ''}
-              unitLabel=" REPS"
-              currentBest={selectedMovement ? (stats?.pbs[selectedMovement] ?? 0) : 0}
-              attemptValue={pendingOverwrite ?? 0}
-              saving={saving}
-              onKeepBest={() => setPendingOverwrite(null)}
-              onSaveAnyway={() => {
-                const reps = pendingOverwrite;
-                if (reps !== null) handleSaveResult(reps, true);
-              }}
-            />
-          }
+      <View style={{ flex: 1, backgroundColor: t.bg }}>
+        <WorldHeader
+          tokens={t}
+          icon="stopwatch"
+          title="ENDURANCE WORLD"
+          onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/one-min-max') : undefined}
         />
-      )}
+        <ScrollView
+          refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
+          contentContainerStyle={{ paddingBottom: 100 }}
+        >
+          <DashboardRings
+            tokens={t}
+            worldLabel="1MM"
+            rank={standing.isRanked ? (summary?.myRank ?? stats?.ranks.glory ?? null) : null}
+            isKing={standing.isKing}
+            rankProgress={standing.rankProgress}
+            score={score}
+            scoreText={fmt2(score)}
+            scoreProgress={standing.topProgress}
+            gap={gap}
+            onOpenLeaderboard={openBoard}
+            scoreRef={scoreCircleRef}
+            onScoreLayout={onScoreCircleLayout}
+          />
 
-      {/* MOVEMENT LEADERBOARD MODAL */}
-      <Modal visible={showMovementLeaderboard} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '80%' }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: W.accent }]}>
-                {ONEMM_MOVEMENTS.find(m => m.id === selectedMovement)?.name.toUpperCase()} ELITE
-              </Text>
-              <TouchableOpacity onPress={() => setShowMovementLeaderboard(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={{ marginTop: 20 }}>
-              {modalLeaderboardData.map((item, i) => (
-                <View key={item.user_id} style={styles.lbRow}>
-                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}20` : 'transparent' }]}>
-                    <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">{item.display_name.toUpperCase()}</Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
-                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{item.value} REPS</Text>
-                  </View>
-                </View>
-              ))}
-              <TouchableOpacity
-                style={[styles.startBtn, { backgroundColor: W.accent, marginTop: 20 }]}
-                onPress={() => {
-                  setShowMovementLeaderboard(false);
-                  setShowLogModal(true);
-                }}
-              >
-                <Text style={styles.startBtnText}>CHALLENGE PB</Text>
-              </TouchableOpacity>
-            </ScrollView>
+          <View style={{ paddingTop: 26, paddingHorizontal: 24, paddingBottom: 10 }}>
+            <SegmentedSwitch tokens={t} items={levelTabs} active={level} onChange={onPickLevel} height={50} fontSize={13} accessibilityLabel="Endurance level" />
           </View>
-        </View>
-      </Modal>
 
-      {/* OVERALL LEADERBOARD MODAL */}
-      <Modal visible={showOverallModal} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, maxHeight: '85%' }]}>
-            <View style={styles.modalHeader}>
-              <View style={styles.modalTitleBox}>
-                <MaterialCommunityIcons name="crown" size={24} color={W.accent} />
-                <Text style={[styles.modalTitle, { color: theme.text.primary, marginLeft: 8 }]}>
-                  OVERALL MASTERY
-                </Text>
-              </View>
-              <TouchableOpacity onPress={() => setShowOverallModal(false)}>
-                <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-              </TouchableOpacity>
-            </View>
-
-            <Text style={[styles.modalSub, { color: theme.text.tertiary }]}>GLOBAL VOLUME RANKINGS</Text>
-
-            {!!profile?.community_id && (
-              <View style={{ flexDirection: 'row', justifyContent: 'center', marginTop: 16, gap: 12 }}>
-                {(['public', 'community'] as const).map((scope) => (
-                  <TouchableOpacity
-                    key={scope}
-                    style={{
-                      paddingVertical: 6,
-                      paddingHorizontal: 16,
-                      borderRadius: 20,
-                      backgroundColor: onemmScope === scope ? W.accent : 'rgba(255,255,255,0.05)',
-                      borderWidth: 1,
-                      borderColor: onemmScope === scope ? W.accent : 'rgba(255,255,255,0.1)'
-                    }}
-                    onPress={() => { setOnemmScope(scope); fetchOverallLeaderboard(scope); }}
-                  >
-                    <Text style={{
-                      fontSize: 12,
-                      fontWeight: '900',
-                      color: onemmScope === scope ? '#FFF' : theme.text.secondary
-                    }}>
-                      {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <View style={{ flexDirection: 'row', justifyContent: 'center', marginBottom: 16, marginTop: 16, gap: 12 }}>
-              {['ALL', 'MALE', 'FEMALE'].map((filter) => (
-                <TouchableOpacity
-                  key={filter}
-                  style={{
-                    paddingVertical: 6,
-                    paddingHorizontal: 16,
-                    borderRadius: 20,
-                    backgroundColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.05)',
-                    borderWidth: 1,
-                    borderColor: genderFilter === filter ? W.accent : 'rgba(255,255,255,0.1)'
-                  }}
-                  onPress={() => setGenderFilter(filter as any)}
-                >
-                  <Text style={{ 
-                    fontSize: 12, 
-                    fontWeight: '900', 
-                    color: genderFilter === filter ? '#FFF' : theme.text.secondary 
-                  }}>
-                    {filter}
-                  </Text>
-                </TouchableOpacity>
+          <View ref={movementGridRef} onLayout={onMovementGridLayout} collapsable={false} style={{ gap: 10, paddingHorizontal: 24 }}>
+            {loading && !stats
+              ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} width="100%" height={78} borderRadius={20} />)
+              : ONEMM_MOVEMENTS.filter(m => m.categoryId === level).map((m, i) => (
+                <MovementRow
+                  key={m.id}
+                  tokens={t}
+                  movement={m}
+                  pb={pbs[m.id] ?? 0}
+                  worldBest={summary?.movementBests[m.id]}
+                  onLog={() => openLog(m, 'log')}
+                  onTimer={() => { openLog(m, 'timer'); if (i === 0) reportTimerBadge(); }}
+                  timerRef={i === 0 ? timerBadgeRef : undefined}
+                  onTimerLayout={i === 0 ? onTimerBadgeLayout : undefined}
+                />
               ))}
-            </View>
-
-            <ScrollView style={{ marginTop: 20 }}>
-              {filteredModalLeaderboardData.map((item, i) => (
-                <View key={item.user_id} style={[styles.lbRow, item.user_id === user?.id && { backgroundColor: `${W.accent}15`, borderColor: W.accent, borderWidth: 1 }]}>
-                  <View style={[styles.lbRank, { backgroundColor: i < 3 ? `${W.accent}20` : 'transparent' }]}>
-                    <Text style={{ color: i === 0 ? W.accent : theme.text.secondary, fontWeight: '900' }}>{i + 1}</Text>
-                  </View>
-                  <Text style={[styles.lbName, { color: theme.text.primary }]} numberOfLines={1} ellipsizeMode="tail">
-                    <Text style={{ fontSize: 16 }}>{getCountryFlag(item.country)} </Text>
-                    {item.display_name.toUpperCase()}
-                  </Text>
-                  <View style={[styles.lbPointsFrame, { backgroundColor: W.accent }]}>
-                    <Text style={[styles.lbPointsText, { color: '#000' }]}>{item.value || 0} PTS</Text>
-                  </View>
-                </View>
-              ))}
-            </ScrollView>
           </View>
-        </View>
-      </Modal>
+
+          <View style={{ paddingTop: 26, paddingHorizontal: 24, paddingBottom: 28 }}>
+            <GoalCard tokens={t} icon="stopwatch" king={standing.isKing} kicker={goal.kicker} title={goal.title} bar={goal.bar} footer={QUOTE} />
+          </View>
+        </ScrollView>
+
+        {!sheet && toastNode}
       </View>
-      </WorldBackground>
+
+      <WorldSheet
+        tokens={t}
+        visible={!!sheet}
+        onClose={() => { closeSheet(); if (shown.kind === 'log') reportTimerClose(); }}
+        variant={shown.kind === 'board' ? 'board' : 'log'}
+        closeRef={shown.kind === 'log' ? timerCloseRef : undefined}
+        onCloseLayout={shown.kind === 'log' ? onTimerCloseLayout : undefined}
+        kicker={shown.kind === 'board'
+          ? <BoardKicker tokens={t} icon="stopwatch" text="ENDURANCE WORLD · 1MM" />
+          : logKicker(shown.movementId, pbs)}
+        title={shown.kind === 'board' ? 'LEADERBOARD' : (ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name ?? '').toUpperCase()}
+        footer={shown.kind === 'board' ? (
+          <YouBar
+            tokens={t}
+            rankText={youRankText}
+            king={you.index === 0}
+            ranked={you.index >= 0 || (unfiltered && standing.isRanked)}
+            handle={profile?.display_name || 'You'}
+            sub={youSub}
+            scoreText={fmt2(score)}
+          />
+        ) : undefined}
+        overlay={
+          <>
+            {shown.kind === 'log' && (
+              <>
+                <TutorialModalOverlay targetIds={['onemm.startSprintButton', 'onemm.timerCloseButton']} />
+                <PBOverwriteConfirmModal
+                  visible={pendingOverwrite !== null}
+                  theme={theme}
+                  accentColor={t.accent}
+                  movementName={ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name || ''}
+                  unitLabel=" REPS"
+                  currentBest={pbs[shown.movementId] ?? 0}
+                  attemptValue={pendingOverwrite ?? 0}
+                  saving={saving}
+                  onKeepBest={() => setPendingOverwrite(null)}
+                  onSaveAnyway={() => { if (pendingOverwrite !== null) handleSaveResult(pendingOverwrite, true); }}
+                />
+              </>
+            )}
+            {!!sheet && toastNode}
+          </>
+        }
+      >
+        {shown.kind === 'board' ? (
+          <View>
+            <BoardFilters
+              tokens={t}
+              inCommunity={!!profile?.community_id}
+              scope={scope}
+              onScope={(s) => { setManualScope(s); fetchBoard(s); }}
+              gender={gender}
+              onGender={setGender}
+              style={{ paddingTop: 14, paddingHorizontal: 24 }}
+            />
+            <LeaderboardBody tokens={t} rows={boardList} myId={user?.id} loading={boardLoading} />
+          </View>
+        ) : (
+          <LogSheetBody
+            tokens={t}
+            movementId={shown.movementId}
+            mode={shown.mode}
+            onMode={setMode}
+            pb={pbs[shown.movementId] ?? 0}
+            repsRaw={repsRaw}
+            setRepsRaw={setRepsRaw}
+            timer={timer}
+            onLog={onLogPress}
+            saving={saving}
+            isSlowSave={isSlowSave}
+            top={movementTop}
+            myId={user?.id}
+            startRef={startSprintRef}
+            onStartLayout={onStartSprintLayout}
+          />
+        )}
+      </WorldSheet>
 
       <CelebrationBanner
         visible={showCelebration}
@@ -795,429 +463,199 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
         onDismiss={() => setShowCelebration(false)}
         headerText="ENDURANCE WORLD"
-        showLeapLogo={true}
-        accentColor={W.accent}
+        showLeapLogo
+        accentColor={t.accent}
       />
     </GlobalErrorBoundary>
   );
 }
 
-interface OneMinMaxTimerModalProps {
-  visible: boolean;
-  onClose: () => void;
-  movementName: string;
-  user: any;
-  theme: any;
-  world: WorldTheme;
-  onSaveResult: (reps: number) => Promise<void>;
-  // Rendered inside this modal's own content — NOT a second <Modal>, since two
-  // simultaneously-open native Modals on iOS can freeze the app (see
-  // PBOverwriteConfirmModal's own comment).
-  overwriteOverlay?: React.ReactNode;
+function logKicker(movementId: string, pbs: Record<string, number>): string {
+  const m = ONEMM_MOVEMENTS.find(x => x.id === movementId);
+  const pb = pbs[movementId] ?? 0;
+  return `${m ? ONEMM_CATEGORIES[m.categoryId].name : ''} · 1 MINUTE MAX${pb > 0 ? ` · PB ${pb} REPS` : ''}`;
 }
 
-const OneMinMaxTimerModal: React.FC<OneMinMaxTimerModalProps> = ({
-  visible,
-  onClose,
-  movementName,
-  user,
-  theme,
-  world: W,
-  onSaveResult,
-  overwriteOverlay
-}) => {
-  const isMounted = useMountedRef();
-  const { ref: startSprintRef, onLayout: onStartSprintLayout } = useTutorialTarget('onemm.startSprintButton');
-  const { ref: timerCloseRef, onLayout: onTimerCloseLayout, reportInteraction: reportTimerClose } = useTutorialTarget('onemm.timerCloseButton');
-  const [timeLeft, setTimeLeft] = useState(60);
-  const [preCountdown, setPreCountdown] = useState(0);
-  const [isPreTimerRunning, setIsPreTimerRunning] = useState(false);
-  const [isTimerRunning, setIsTimerRunning] = useState(false);
-  const [timerFinished, setTimerFinished] = useState(false);
-  const [repsInput, setRepsInput] = useState('');
-  // Lets a user skip the live timer entirely and type a known rep count
-  // directly — same escape hatch as Static World's manualMode, only
-  // reachable from the pure idle screen (never mid-sprint or after one
-  // finishes, where the timer-derived flow already owns the input).
-  const [manualMode, setManualMode] = useState(false);
-  const [saving, setSaving] = useState(false);
-  const isSlowSave = useSlowSubmitNotice(saving);
+// ---------------------------------------------------------------- rows
 
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const startTimeRef = useRef<number | null>(null);
-  const preStartTimeRef = useRef<number | null>(null);
+function MovementRow({ tokens: t, movement, pb, worldBest, onLog, onTimer, timerRef, onTimerLayout }: {
+  tokens: WorldKitTokens; movement: OneMMMovement; pb: number; worldBest?: number;
+  onLog: () => void; onTimer: () => void; timerRef?: React.Ref<View>; onTimerLayout?: () => void;
+}) {
+  const logged = pb > 0;
+  // World best from get_world_summary; until it loads, fall back to your own PB.
+  const best = Math.max(worldBest ?? 0, pb);
+  const ratio = best > 0 ? pb / best : 0;
+  const pts = calculateOneMMPoints(pb, movement.categoryId);
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`${movement.name}${logged ? `, best ${pb} reps` : ''}. Log reps`}
+      onPress={onLog}
+      style={{
+        flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12, borderRadius: 20, minWidth: 0,
+        backgroundColor: logged ? t.tint : t.emptyRowBg,
+        borderWidth: 1, borderColor: logged ? t.tintBorderStrong : t.emptyRowBorder,
+      }}
+    >
+      <AnimatedRing size={54} radius={24} strokeWidth={3} progress={ratio} color={t.accent} trackColor={t.track} delay={150} duration={900}>
+        <View style={{ alignItems: 'center' }}>
+          <Text style={kt('bold', logged ? 17 : 16, logged ? t.text : t.textEmpty, 0, logged ? 19 : 18)}>{logged ? String(pb) : '—'}</Text>
+          {logged && <Text style={kt('semibold', 8.5, t.textFaint, 1)}>REPS</Text>}
+        </View>
+      </AnimatedRing>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={kt('bold', 16, t.text, 1.1, 18.5)} numberOfLines={1}>{movement.name.toUpperCase()}</Text>
+        <Text style={[kt('semibold', 11, logged ? t.accentText : t.textFaint, 1.1), { marginTop: 3 }]} numberOfLines={1}>
+          {logged ? `${fmt2(pts)} PTS · ${Math.round(clamp01(ratio) * 100)}% OF WORLD BEST` : 'TAP TO LOG · OR RUN TIMER'}
+        </Text>
+      </View>
+      <View ref={timerRef} onLayout={onTimerLayout} collapsable={false}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`Run 60 second timer for ${movement.name}`}
+          onPress={onTimer}
+          hitSlop={6}
+          style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, backgroundColor: pressed ? t.accentHover : t.accent, alignItems: 'center', justifyContent: 'center' })}
+        >
+          <KitIcon name="stopwatch" size={18} color="#ffffff" />
+        </Pressable>
+      </View>
+    </Pressable>
+  );
+}
 
-  useEffect(() => {
-    if (timerRef.current) clearInterval(timerRef.current);
+// ------------------------------------------------------------ log sheet
 
-    const checkTimerStatus = () => {
-      if (isPreTimerRunning && preStartTimeRef.current !== null) {
-        const elapsed = Math.floor((Date.now() - preStartTimeRef.current) / 1000);
-        const remaining = 5 - elapsed;
-        if (remaining <= 0) {
-          const activeElapsed = elapsed - 5;
-          setIsPreTimerRunning(false);
-          SoundService.playBoxingBell();
-          if (activeElapsed >= 60) {
-            setTimeLeft(0);
-            setIsTimerRunning(false);
-            setTimerFinished(true);
-            Vibration.vibrate([0, 500, 200, 500]);
-            SoundService.playDigitalBuzzer(2);
-            if (timerRef.current) clearInterval(timerRef.current);
-          } else {
-            startTimeRef.current = preStartTimeRef.current + 5000;
-            setTimeLeft(60 - activeElapsed);
-            setIsTimerRunning(true);
-          }
-        } else {
-          setPreCountdown(prev => {
-            if (prev !== remaining) {
-              SoundService.playTick();
-            }
-            return remaining;
-          });
-        }
-      } else if (isTimerRunning && startTimeRef.current !== null) {
-        const elapsed = Math.floor((Date.now() - startTimeRef.current) / 1000);
-        const remaining = 60 - elapsed;
-        if (remaining <= 0) {
-          setTimeLeft(0);
-          setIsTimerRunning(false);
-          setTimerFinished(true);
-          Vibration.vibrate([0, 500, 200, 500]);
-          SoundService.playDigitalBuzzer(2);
-          if (timerRef.current) clearInterval(timerRef.current);
-        } else {
-          setTimeLeft(remaining);
-        }
-      }
-    };
+function LogSheetBody({
+  tokens: t, movementId, mode, onMode, pb, repsRaw, setRepsRaw, timer, onLog, saving, isSlowSave,
+  top, myId, startRef, onStartLayout,
+}: {
+  tokens: WorldKitTokens; movementId: string; mode: 'log' | 'timer'; onMode: (m: 'log' | 'timer') => void;
+  pb: number; repsRaw: string; setRepsRaw: (s: string) => void;
+  timer: ReturnType<typeof useOneMinuteTimer>; onLog: () => void; saving: boolean; isSlowSave: boolean;
+  top: OneMMRanking[]; myId?: string; startRef?: React.Ref<View>; onStartLayout?: () => void;
+}) {
+  const m = ONEMM_MOVEMENTS.find(x => x.id === movementId);
+  const mult = m ? ONEMM_CATEGORIES[m.categoryId].multiplier : 0;
+  const reps = parseInt(repsRaw, 10) || 0;
+  const isPb = reps > pb;
+  const chip = isPb
+    ? { text: pb > 0 ? 'NEW PB' : 'FIRST SET', filled: true }
+    : { text: pb > 0 ? `PB ${pb} REPS` : 'ADD REPS', filled: false };
+  const adjust = (d: number) => setRepsRaw(String(Math.min(MAX_REPS, Math.max(0, reps + d))));
 
-    if (isPreTimerRunning || isTimerRunning) {
-      checkTimerStatus();
-      timerRef.current = setInterval(checkTimerStatus, 250);
+  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: `${r.value} REPS` }));
 
-      const sub = AppState.addEventListener('change', (nextState) => {
-        if (nextState === 'active') {
-          checkTimerStatus();
-        }
-      });
+  return (
+    <View style={{ paddingHorizontal: 24 }}>
+      <View style={{ marginTop: 16 }}>
+        <SegmentedSwitch
+          tokens={t}
+          items={[{ key: 'log', label: 'LOG REPS' }, { key: 'timer', label: '60S TIMER' }]}
+          active={mode}
+          onChange={onMode}
+          accessibilityLabel="Log mode"
+        />
+      </View>
 
-      return () => {
-        sub.remove();
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [isPreTimerRunning, isTimerRunning]);
+      {mode === 'log' ? (
+        <>
+          <View style={{ marginTop: 14, borderRadius: 22, backgroundColor: t.tint, borderWidth: 1, borderColor: t.tintBorder, paddingVertical: 18, paddingHorizontal: 14, gap: 14, alignItems: 'center' }}>
+            <Text style={kt('medium', 10.5, t.textMuted, 2)}>REPS IN 60 SECONDS</Text>
+            <NumberField
+              tokens={t}
+              value={repsRaw}
+              onChangeText={raw => setRepsRaw(raw.replace(/[^0-9]/g, '').slice(0, 3))}
+              unit="REPS"
+              hint="TAP TO TYPE"
+              maxLength={3}
+              accessibilityLabel="Reps in 60 seconds"
+            />
+            <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
+              {[-5, -1, 1, 5].map(d => (
+                <Pressable
+                  key={d}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${d > 0 ? 'Add' : 'Remove'} ${Math.abs(d)} reps`}
+                  onPress={() => adjust(d)}
+                  style={({ pressed }) => ({ flex: 1, height: 46, borderRadius: 12, backgroundColor: t.buttonTint, borderWidth: 1, borderColor: t.tintBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+                >
+                  <Text style={kt('semibold', 15, t.text)}>{`${d > 0 ? '+' : '−'}${Math.abs(d)}`}</Text>
+                </Pressable>
+              ))}
+            </View>
+          </View>
+          <ThisSetRow tokens={t} points={fmt2(reps * mult)} chip={chip} />
+          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={reps <= 0} />
+          {isSlowSave && (
+            <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>Still submitting — hang tight...</Text>
+          )}
+        </>
+      ) : (
+        <TimerPanel tokens={t} timer={timer} startRef={startRef} onStartLayout={onStartLayout} />
+      )}
 
-  const startTimer = () => {
-    setPreCountdown(5);
-    setIsPreTimerRunning(true);
-    setIsTimerRunning(false);
-    setTimerFinished(false);
-    setTimeLeft(60);
-    preStartTimeRef.current = Date.now();
-    startTimeRef.current = null;
-  };
+      <TopList tokens={t} title="TOP 60S SETS" rightLabel={`×${mult} PTS / REP`} rows={topRows} emptyText="NO SETS LOGGED YET" />
+    </View>
+  );
+}
 
-  const cancelTimer = () => {
-    if (isPreTimerRunning || isTimerRunning || timerFinished) {
-      if (Platform.OS === 'web') {
-        if (window.confirm('Are you sure you want to abandon this 1MM sprint? Progress will be lost.')) {
-          executeCancel();
-        }
-      } else {
-        Alert.alert(
-          'ABANDON SPRINT',
-          'Are you sure you want to abandon this 1MM sprint? Progress will be lost.',
-          [
-            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
-            { text: 'ABANDON', style: 'destructive', onPress: executeCancel },
-          ]
-        );
-      }
-    } else {
-      executeCancel();
-    }
-  };
+function TimerPanel({ tokens: t, timer, startRef, onStartLayout }: {
+  tokens: WorldKitTokens; timer: ReturnType<typeof useOneMinuteTimer>;
+  startRef?: React.Ref<View>; onStartLayout?: () => void;
+}) {
+  const { phase, countdown, left, taps } = timer;
+  const progress = phase === 'ready'
+    ? (ONE_MINUTE_COUNTDOWN + 1 - countdown) / ONE_MINUTE_COUNTDOWN
+    : phase === 'run' ? left / ONE_MINUTE_SECONDS : 1;
+  const label = phase === 'ready' ? 'GET READY' : phase === 'run' ? 'TIME LEFT' : '1 MINUTE MAX';
+  const big = phase === 'ready' ? String(countdown) : phase === 'run' ? String(Math.ceil(left)) : String(ONE_MINUTE_SECONDS);
+  const sub = phase === 'run' ? `${taps} REPS` : phase === 'ready' ? 'GET INTO POSITION' : 'SECONDS';
 
-  const executeCancel = () => {
-    setIsPreTimerRunning(false);
-    setIsTimerRunning(false);
-    setPreCountdown(0);
-    setTimeLeft(60);
-    setManualMode(false);
-    preStartTimeRef.current = null;
-    startTimeRef.current = null;
-    if (timerRef.current) clearInterval(timerRef.current);
-    onClose();
-  };
-
-  const resetTimer = () => {
-    setTimerFinished(false);
-    setIsTimerRunning(false);
-    setIsPreTimerRunning(false);
-    setTimeLeft(60);
-    setRepsInput('');
-    preStartTimeRef.current = null;
-    startTimeRef.current = null;
-  };
-
-  const handleEnterManually = () => {
-    setManualMode(true);
-    setRepsInput('');
-  };
-
-  const handleUseTimerInstead = () => {
-    setManualMode(false);
-    resetTimer();
-  };
-
-  const handleSave = async () => {
-    if (!repsInput) return;
-    const reps = parseInt(repsInput, 10);
-    if (isNaN(reps) || reps <= 0 || reps > 150) {
-      Alert.alert('Invalid', 'Please enter a valid number of reps (1-150).');
-      return;
-    }
-    setSaving(true);
-    try {
-      await onSaveResult(reps);
-    } finally {
-      if (isMounted.current) {
-        setSaving(false);
-      }
-    }
+  const tapRep = () => {
+    if (timer.addRep()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
   };
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={cancelTimer}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          style={styles.modalOverlay}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    <View>
+      <View style={{ alignItems: 'center', paddingTop: 22, paddingBottom: 16 }}>
+        <Pressable
+          onPress={tapRep}
+          disabled={phase !== 'run'}
+          accessibilityRole="button"
+          accessibilityLabel={phase === 'run' ? `Count a rep, ${taps} so far` : label}
         >
-          <View style={[styles.modalContent, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-            <View style={styles.modalHeader}>
-              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>
-                {movementName.toUpperCase()}
-              </Text>
-              <TouchableOpacity
-                ref={timerCloseRef}
-                onLayout={onTimerCloseLayout}
-                onPress={() => {
-                  cancelTimer();
-                  reportTimerClose();
-                }}
-              >
-                <MaterialCommunityIcons name="close" size={24} color={theme.text.tertiary} />
-              </TouchableOpacity>
+          <AnimatedRing
+            size={210} radius={97} strokeWidth={6}
+            progress={progress} color={t.accent} trackColor={t.track}
+            duration={phase === 'run' ? 100 : 600}
+            linear={phase === 'run'}
+          >
+            <View style={{ alignItems: 'center', gap: 4 }}>
+              <Text style={kt('medium', 11, t.textMuted, 2.2)}>{label}</Text>
+              <Text style={kt('bold', phase === 'ready' ? 76 : 64, t.text, 0, phase === 'ready' ? 84 : 72)}>{big}</Text>
+              <Text style={kt('semibold', 12, t.accentText, 1.4)}>{sub}</Text>
             </View>
+          </AnimatedRing>
+        </Pressable>
+      </View>
 
-            <View style={styles.timerContainer}>
-              {manualMode ? (
-                <>
-                  <TextInput
-                    style={[styles.timerText, styles.manualTimerInput, { color: theme.text.primary, borderColor: W.accent }]}
-                    keyboardType="numeric"
-                    value={repsInput}
-                    onChangeText={setRepsInput}
-                    placeholder="0"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
-                    autoFocus
-                  />
-                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>ENTER REPS MANUALLY</Text>
-                </>
-              ) : (
-                <>
-                  <Text style={[
-                    styles.timerText,
-                    { color: isPreTimerRunning ? W.accent : (timeLeft <= 10 ? '#FF5252' : theme.text.primary) }
-                  ]}>
-                    {isPreTimerRunning ? preCountdown : timeLeft}s
-                  </Text>
-                  <Text style={[styles.timerSub, { color: theme.text.tertiary }]}>
-                    {isPreTimerRunning ? 'GET READY' : '60 SECOND SPRINT'}
-                  </Text>
-                </>
-              )}
-            </View>
-
-            {!isPreTimerRunning && !isTimerRunning && !timerFinished && !manualMode && (
-              <>
-                <TouchableOpacity
-                  ref={startSprintRef}
-                  onLayout={onStartSprintLayout}
-                  style={[styles.startBtn, { backgroundColor: W.accent }]}
-                  onPress={startTimer}
-                >
-                  <Text style={styles.startBtnText}>START SPRINT</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.manualEntryLink} onPress={handleEnterManually}>
-                  <Text style={[styles.manualEntryLinkText, { color: theme.text.tertiary }]}>ENTER REPS MANUALLY INSTEAD</Text>
-                </TouchableOpacity>
-              </>
-            )}
-
-            {manualMode && (
-              <View style={{ gap: 10 }}>
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: W.accent }]}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                </TouchableOpacity>
-                {isSlowSave && (
-                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
-                    Still submitting — hang tight...
-                  </Text>
-                )}
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]}
-                  onPress={handleUseTimerInstead}
-                >
-                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>USE TIMER INSTEAD</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {(isPreTimerRunning || isTimerRunning) && (
-              <TouchableOpacity style={[styles.cancelBtn, { borderColor: theme.text.tertiary }]} onPress={cancelTimer}>
-                <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL SPRINT</Text>
-              </TouchableOpacity>
-            )}
-
-            {timerFinished && !manualMode && (
-              <View style={styles.inputContainer}>
-                <Text style={[styles.inputLabel, { color: theme.text.secondary }]}>ENTER TOTAL REPS</Text>
-                <TextInput
-                  style={[styles.modalInput, { color: theme.text.primary, borderColor: W.accent }]}
-                  keyboardType="numeric"
-                  value={repsInput}
-                  onChangeText={setRepsInput}
-                  autoFocus
-                  placeholder="0"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
-                />
-                <TouchableOpacity
-                  style={[styles.saveBtn, { backgroundColor: W.accent }]}
-                  onPress={handleSave}
-                  disabled={saving}
-                >
-                  {saving ? <LeapLogo size={40} animated /> : <Text style={styles.saveBtnText}>LOG PERFORMANCE</Text>}
-                </TouchableOpacity>
-                {isSlowSave && (
-                  <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
-                    Still submitting — hang tight...
-                  </Text>
-                )}
-
-                <TouchableOpacity
-                  style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 10 }]}
-                  onPress={resetTimer}
-                >
-                  <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>RETRY SPRINT</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-
-            {isTimerRunning && (
-              <Text style={[styles.workText, { color: W.accent }]}>GO! GO! GO!</Text>
-            )}
+      {phase === 'idle' && (
+        <View style={{ gap: 10 }}>
+          <View ref={startRef} onLayout={onStartLayout} collapsable={false}>
+            <KitButton tokens={t} label="START 60S" icon="play" onPress={timer.start} />
           </View>
-          {/* Sibling of modalContent, not a child, and rendered AFTER it so
-              it paints on top — modalContent holds the real START SPRINT
-              button; if this overlay renders behind it, taps reach the real
-              button first and actually start the sprint instead of being
-              caught by the decoy layer. modalOverlay (this component's
-              parent here) is also the actual full-screen, zero-offset root,
-              which measureInWindow's screen-absolute coordinates need. */}
-          <TutorialModalOverlay targetIds={['onemm.startSprintButton', 'onemm.timerCloseButton']} />
-          {overwriteOverlay}
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
-    </Modal>
+          <Text style={[kt('regular', 12, t.textMuted, 0.4), { textAlign: 'center' }]}>Tap the ring on every rep to count as you go.</Text>
+        </View>
+      )}
+      {phase === 'ready' && <KitButton tokens={t} label="CANCEL" variant="outline" onPress={timer.cancel} />}
+      {phase === 'run' && (
+        <View style={{ flexDirection: 'row', gap: 10 }}>
+          <KitButton tokens={t} label="+1 REP" height={64} fontSize={18} onPress={tapRep} style={{ flex: 2 }} />
+          <KitButton tokens={t} label="STOP" variant="outline" height={64} fontSize={14} onPress={timer.stop} style={{ flex: 1, borderWidth: 1 }} />
+        </View>
+      )}
+    </View>
   );
-};
-
-const styles = StyleSheet.create({
-  slowNotice: { textAlign: 'center', fontSize: 13, marginTop: 4 },
-  container: { flex: 1, paddingTop: 22 },
-  headerPill: { marginTop: 0 },
-  backToJourneyPill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 4,
-    marginTop: 10,
-  },
-  backToJourneyText: {
-    fontSize: 11,
-    fontWeight: '700',
-    letterSpacing: 1.5,
-  },
-
-  dashboard: { paddingHorizontal: 20, paddingTop: 26, gap: 24 },
-  heroRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', width: '100%', gap: 10 },
-
-  modalTitleBox: { flexDirection: 'row', alignItems: 'center' },
-  modalSub: { fontSize: 10, fontWeight: '900', letterSpacing: 3, textAlign: 'center', marginTop: -20 },
-  lbSection: { marginTop: 10, alignItems: 'center', gap: 4, marginBottom: 20 },
-  lbTitle: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, letterSpacing: 3 },
-  lbSub: { fontFamily: 'BarlowCondensed-SemiBold', fontSize: 9, letterSpacing: 1.5, opacity: 0.6 },
-  sectionHeader: {
-    fontFamily: 'BarlowCondensed-ExtraBold',
-    fontSize: 20,
-    letterSpacing: 1.5,
-    textAlign: 'center',
-    marginTop: 10,
-    marginBottom: -4,
-  },
-  // PillTabRow carries its own 20px side padding — cancel the dashboard's so
-  // the fade hint sits flush with the screen edge.
-  tabRow: { marginHorizontal: -20 },
-
-  // Handoff: 3-column × 2-row grid, 22px row gap, 8px column gap.
-  peakGrid: { flexDirection: 'row', flexWrap: 'wrap', rowGap: 22, columnGap: 8 },
-  gridItem: { width: GRID_COLUMN_WIDTH },
-
-  leaderboardSection: { marginTop: 20 },
-  lbRow: { flexDirection: 'row', alignItems: 'center', paddingVertical: 10, paddingHorizontal: 14, borderRadius: 11, marginBottom: 7, gap: 11 },
-  lbRank: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
-  lbName: { flex: 1, fontSize: 12, fontWeight: '900', letterSpacing: 1 },
-  lbPointsFrame: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 4 },
-  lbPointsText: { fontSize: 13, fontWeight: '900' },
-
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', alignItems: 'center', padding: 20 },
-  modalContent: { width: '100%', maxWidth: 400, borderRadius: 24, padding: 24, borderWidth: 1 },
-  modalHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 30 },
-  modalTitle: { fontSize: 16, fontWeight: '900', letterSpacing: 2 },
-  timerContainer: { alignItems: 'center', marginVertical: 40 },
-  timerText: { fontSize: 80, fontWeight: '900', fontFamily: 'PlusJakartaSans-ExtraBold' },
-  timerSub: { fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 },
-  startBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
-  startBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
-  inputContainer: { gap: 20 },
-  inputLabel: { fontSize: 12, fontWeight: '900', letterSpacing: 1, textAlign: 'center' },
-  modalInput: { borderWidth: 2, borderRadius: 12, padding: 20, fontSize: 32, textAlign: 'center', fontWeight: '900' },
-  saveBtn: { paddingVertical: 20, borderRadius: 12, alignItems: 'center' },
-  saveBtnText: { color: '#000', fontWeight: '900', fontSize: 16, letterSpacing: 2 },
-  workText: { fontSize: 24, fontWeight: '900', textAlign: 'center', marginTop: 20 },
-  cancelBtn: {
-    paddingVertical: 15,
-    borderRadius: 12,
-    alignItems: 'center',
-    borderWidth: 1,
-    marginTop: 10,
-  },
-  cancelBtnText: {
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-  },
-  manualEntryLink: { paddingVertical: 10, alignItems: 'center' },
-  manualEntryLinkText: { fontSize: 12, fontWeight: '700', letterSpacing: 0.5, textDecorationLine: 'underline' },
-  manualTimerInput: { borderWidth: 2, borderRadius: 16, paddingVertical: 12, paddingHorizontal: 24, textAlign: 'center', minWidth: 160 },
-});
+}

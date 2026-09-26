@@ -24,6 +24,9 @@ interface Props {
   /** Rendered last at the Modal root, above the sheet (PB-overwrite confirm, toast). */
   overlay?: React.ReactNode;
   scrollEnabled?: boolean;
+  /** Tutorial target on the ✕ button (e.g. onemm.timerCloseButton). */
+  closeRef?: React.Ref<View>;
+  onCloseLayout?: () => void;
 }
 
 /**
@@ -37,6 +40,7 @@ interface Props {
  */
 export function WorldSheet({
   tokens: t, visible, onClose, variant, kicker, title, children, footer, overlay, scrollEnabled = true,
+  closeRef, onCloseLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
@@ -87,7 +91,9 @@ export function WorldSheet({
                   {title}
                 </Text>
               </View>
-              <KitCloseButton tokens={t} onPress={onClose} />
+              <View ref={closeRef} onLayout={onCloseLayout} collapsable={false}>
+                <KitCloseButton tokens={t} onPress={onClose} />
+              </View>
             </View>
             <ScrollView
               style={board ? { flex: 1 } : undefined}
