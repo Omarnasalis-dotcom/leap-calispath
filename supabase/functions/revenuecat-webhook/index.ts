@@ -45,6 +45,11 @@ interface RevenueCatEvent {
   // product," so resolvedProductId below falls back to it for those.
   new_product_id?: string;
   id?: string;
+  // When RevenueCat created the event. Used with `id` so a redelivered or
+  // out-of-order event can't overwrite a newer one (audit M23).
+  event_timestamp_ms?: number;
+  // CANCELLATION only. "CUSTOMER_SUPPORT" means the purchase was refunded.
+  cancel_reason?: string;
   // Apple's transaction id for the ORIGINAL purchase in a subscription —
   // stable across renewals and across RevenueCat app_user_id transfers,
   // unlike transaction_id (changes every renewal) or app_user_id itself.
@@ -277,19 +282,42 @@ Deno.serve(async (req) => {
     }
   }
 
-  const { error } = await admin.rpc("apply_revenuecat_entitlement", {
+  // A refund arrives as a CANCELLATION with cancel_reason CUSTOMER_SUPPORT.
+  // The money was returned, so access ends at the refund, not at the end of
+  // the period that was paid for (owner decision 2026-09-27, audit M23).
+  const isRefund = event.type === "CANCELLATION" && event.cancel_reason === "CUSTOMER_SUPPORT";
+  const expiresAtMs = isRefund && event.event_timestamp_ms
+    ? Math.min(event.expiration_at_ms, event.event_timestamp_ms)
+    : event.expiration_at_ms;
+
+  const { data: outcome, error } = await admin.rpc("apply_revenuecat_entitlement", {
     p_user_id: event.app_user_id,
-    p_expires_at: new Date(event.expiration_at_ms).toISOString(),
+    p_expires_at: new Date(expiresAtMs).toISOString(),
     p_source: "rc_subscription",
     p_original_transaction_id: event.original_transaction_id ?? null,
     p_tier: mapped?.tier ?? null,
     p_budget_usd: mapped?.budgetUsd ?? null,
     p_is_new_period: NEW_PERIOD_EVENT_TYPES.has(event.type),
+    // Dedupe + ordering: the function skips an event id it already
+    // processed, and an event older than one already applied to the same
+    // subscription, returning "duplicate"/"stale" instead of "applied".
+    p_event_id: event.id ?? null,
+    p_event_at: event.event_timestamp_ms ? new Date(event.event_timestamp_ms).toISOString() : null,
   });
 
   if (error) {
     console.error(`[revenuecat-webhook] apply_revenuecat_entitlement failed for event ${event.id} (${event.type}):`, error);
     return json({ error: "Failed to apply entitlement" }, 500);
+  }
+
+  // Skipped events are still a successful delivery — a non-2xx would make
+  // RevenueCat retry something that must never be applied.
+  if (outcome === "duplicate" || outcome === "stale") {
+    console.log(`[revenuecat-webhook] Skipped ${outcome} event ${event.id} (${event.type}) for ${event.app_user_id}`);
+    return json({ success: true, skipped: true, reason: outcome });
+  }
+  if (isRefund) {
+    console.log(`[revenuecat-webhook] Refund for ${event.app_user_id}: access ended at ${new Date(expiresAtMs).toISOString()}`);
   }
 
   // Admin notification for a genuinely new subscriber only (2026-09-16 —
