@@ -15,15 +15,14 @@
 | Status | Items |
 |---|---|
 | **Fixed on prod & verified** | C1 (key rotation, legacy keys disabled), H1, H2, H6, M1, M2, M20, M21, M22, L5, AI Coach cool-down validator loop (found from live logs, not in the original audit), L9 |
-| **Fixed in migration `20260926030000` — apply with `db push`** | M15 (reminder only to users active in last 14 days: 246 → 62 targets/day), L21, M8, L6 |
-| **Fixed in code — deploy `ai-coach`** | H5 #1 (100 s turn-start deadline) |
-| **Removed — delete from prod** | L1 (`chat-gemini`) |
+| **Fixed on prod & verified (batch 2)** | M15 (reminder only to users active in last 14 days: 246 → 62 targets/day), L21, M8, L6 — migration `20260926030000`; H5 #1 (100 s turn-start deadline, ai-coach v82); L1 (`chat-gemini` deleted); M10 server minimum password length 8 |
 | **Fixed in app code — ships with next store release** | M3, M12, M13, M17, L10, L13, L16, M10 (app side), M20 follow-ups, invite field hidden |
 | **Fixed — ships on push to `main` (Vercel)** | M9 (admin-web react-router 7.18.4) |
 | **Resolved without code** | M11 (made unreachable by M20's DB rules), L14 (moot while email confirmation is off) |
+| **Accepted limitation** | M10 leaked-password protection — paid Supabase plan feature; revisit if the plan is upgraded |
 | **Not a problem / won't fix** | M4 (by design: coaches want every log from their assigned clients), M6 (Apple review purchases run in sandbox — filtering it would break review), L8 (build config, left alone) |
 | **Parked by owner** | H4 (minimal version planned: Apple standard EULA link + AI Coach privacy section/notice), H3 (until invite codes return) |
-| **Open — needs a decision or dashboard** | M10 dashboard (leaked-password protection + 8-char minimum), M19 email confirmation, M5/M18 analytics, M23 webhook ordering, H5 #4/#7, M7, M14, M16, L2–L4, L7, L11, L12, L15, L17–L20, L22, L24–L27 |
+| **Open — needs a decision or dashboard** | M19 email confirmation, M5/M18 analytics, M23 webhook ordering, H5 #4/#7, M7, M14, M16, L2–L4, L7, L11, L12, L15, L17–L20, L22, L24–L27 |
 
 Correction: M15 and the "15 weekly actives" context used `profiles.last_active`, which only the V2-locked Clash code writes. Real signals (training + app opens): 42 users opened the app in the last 7 days, 17 trained; 123 of 188 reachable users had neither in 14+ days.
 
