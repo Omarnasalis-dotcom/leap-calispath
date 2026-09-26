@@ -16,8 +16,14 @@ interface Props {
   onClose: () => void;
   /** 'log' = auto height up to 88% · 'board' = fixed 90%, darker bg (§0.7, §0.8). */
   variant: 'log' | 'board';
-  kicker: React.ReactNode;
+  kicker?: React.ReactNode;
   title: string;
+  /** Line under the title (Strength's full leaderboard: "24 WARRIORS"). */
+  subtitle?: string;
+  /** Title size override (default 24 log / 26 board). */
+  titleSize?: number;
+  /** Max height for the 'log' variant (default 88%). */
+  maxHeight?: `${number}%`;
   children: React.ReactNode;
   /** Pinned below the scroll area (leaderboard "you" bar). */
   footer?: React.ReactNode;
@@ -39,8 +45,8 @@ interface Props {
  * (e.g. CelebrationBanner).
  */
 export function WorldSheet({
-  tokens: t, visible, onClose, variant, kicker, title, children, footer, overlay, scrollEnabled = true,
-  closeRef, onCloseLayout,
+  tokens: t, visible, onClose, variant, kicker, title, subtitle, titleSize, maxHeight = '88%', children, footer, overlay,
+  scrollEnabled = true, closeRef, onCloseLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
   const [mounted, setMounted] = useState(visible);
@@ -71,7 +77,7 @@ export function WorldSheet({
           <Pressable accessibilityLabel="Close sheet" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
           <Animated.View
             style={{
-              ...(board ? { height: '90%' } : { maxHeight: '88%' }),
+              ...(board ? { height: '90%' } : { maxHeight }),
               borderTopLeftRadius: 28,
               borderTopRightRadius: 28,
               backgroundColor: board ? t.boardBg : t.sheetBg,
@@ -87,9 +93,14 @@ export function WorldSheet({
                 {typeof kicker === 'string'
                   ? <Text style={kt('medium', 10.5, t.textMuted, 2)} numberOfLines={1}>{kicker}</Text>
                   : kicker}
-                <Text style={[kt('bold', board ? 26 : 24, t.text, board ? 1.4 : 1.2, board ? 29 : 27), { marginTop: 3 }]} numberOfLines={2}>
-                  {title}
-                </Text>
+                {titleSize != null ? (
+                  <Text style={kt('semibold', titleSize, t.text, 2, titleSize + 4)} numberOfLines={2}>{title}</Text>
+                ) : (
+                  <Text style={[kt('bold', board ? 26 : 24, t.text, board ? 1.4 : 1.2, board ? 29 : 27), { marginTop: 3 }]} numberOfLines={2}>
+                    {title}
+                  </Text>
+                )}
+                {!!subtitle && <Text style={[kt('medium', 12, t.textMuted, 1.4), { marginTop: 2 }]}>{subtitle}</Text>}
               </View>
               <View ref={closeRef} onLayout={onCloseLayout} collapsable={false}>
                 <KitCloseButton tokens={t} onPress={onClose} />

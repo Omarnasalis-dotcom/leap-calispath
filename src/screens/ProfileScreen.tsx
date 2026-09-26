@@ -12,7 +12,6 @@ import {
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
-import { TIER_NAMES, POWER_TIER_NAMES } from '../types';
 import { EditProfileModal } from '../components/profile/EditProfileModal';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { FloatingGamesButton } from '../components/FloatingGamesButton';
@@ -20,26 +19,20 @@ import { LeaderboardModals } from '../components/profile/LeaderboardModals';
 import { TierDetailsModal } from '../components/profile/TierDetailsModal';
 import { ProfileHeader } from '../components/profile/ProfileHeader';
 import { CoachFab } from '../components/coach/CoachFab';
-import { TierRankCard } from '../components/profile/TierRankCard';
-import { WorldHeaderPill } from '../components/worlds/WorldHeaderPill';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { WorldBackground } from '../components/worlds/WorldBackground';
 import { useProfileSubTab } from '../contexts/ProfileSubTabContext';
 import { SettingsSheet } from '../components/profile/SettingsSheet';
-import { TierSelectorRow } from '../components/profile/TierSelectorRow';
-import { StrengthWorldView } from '../components/profile/StrengthWorldView';
+import { StrengthClimbView } from '../components/strength/StrengthClimbView';
 import { ProfileSkeleton } from '../components/profile/ProfileSkeleton';
 import { LeaderboardService, GlobalWellRoundedEntry } from '../services/LeaderboardService';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { getTierLeaderboard, getPowerTierLeaderboard, LeaderboardEntry } from '../lib/leaderboard';
-import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { isStaticWorldUnlocked } from '../lib/staticLogic';
 import { getActiveProgramSummary, ActiveProgramSummary } from '../lib/activeProgramSummary';
 import { ActiveProgramCard } from '../components/profile/ActiveProgramCard';
 import { ChallengeService } from '../services/ChallengeService';
 import { getUserGroup } from '../lib/weeklyChallenge';
-import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useScreenTour } from '../hooks/useScreenTour';
@@ -52,35 +45,6 @@ interface ProfileScreenProps {
   initialCategory?: 'strength' | 'power';
   initialTier?: number;
   activeTab?: 'profile' | 'strength';
-}
-
-// Shared by the initial-load effect and the on-focus refresh effect below —
-// they used to duplicate this, and the on-focus one had drifted to always
-// pass gap: null, silently blanking the GAP circle every time the Profile
-// screen regained focus (e.g. returning from a trial).
-function computeTierRankData(
-  entries: LeaderboardEntry[],
-  userId: string,
-  category: 'strength' | 'power'
-): { rank: number | null; total: number; gap: string | null } {
-  const userIdx = entries.findIndex(e => e.user_id === userId);
-  if (userIdx === -1) {
-    return { rank: null, total: entries.length, gap: null };
-  }
-  const rank = userIdx + 1;
-  let gap: string | null = null;
-  if (rank > 1) {
-    const prev = entries[userIdx - 1];
-    const current = entries[userIdx];
-    if (category === 'strength') {
-      const diff = current.best_time_seconds - prev.best_time_seconds;
-      gap = `${diff.toFixed(1)}s`;
-    } else {
-      const diff = prev.best_time_seconds - current.best_time_seconds;
-      gap = `${diff}pts`;
-    }
-  }
-  return { rank, total: entries.length, gap };
 }
 
 export function ProfileScreen({
@@ -126,8 +90,8 @@ export function ProfileScreen({
   const onOpenAdmin = () => router.push('/admin-tournament');
   const onOpenPaywall = () => router.push('/paywall');
 
-  const { profile, signOut, user, refreshProfile, paywallEnabled } = useAuth();
-  const { theme, mode, toggleTheme } = useTheme();
+  const { profile, user, refreshProfile, paywallEnabled } = useAuth();
+  const { theme, mode } = useTheme();
 
   // Not an Apple/Google requirement — this was a defensive, optional feature
   // for a real-but-rare edge case (a second genuine subscription landing on
@@ -144,9 +108,8 @@ export function ProfileScreen({
   const W = getWorldTheme('strength', mode);
   const hasSyncedOnMount = useRef(false);
   const mainScrollRef = useRef<ScrollView>(null);
-  const [selectedTier, setSelectedTier] = useState(profile?.strength_tier || 0);
   const [leaderboardBestTime, setLeaderboardBestTime] = useState<number | null>(null);
-  const [category, setCategory] = useState<'strength' | 'power'>(initialCategory);
+  const [category] = useState<'strength' | 'power'>(initialCategory);
   // Profile/Strength state now lives in ProfileSubTabContext (provided by
   // app/(tabs)/_layout.tsx) instead of local state, since BottomTabBar was
   // hoisted up to that layout so it persists across tab switches — this
@@ -179,7 +142,6 @@ export function ProfileScreen({
   const [showSettings, setShowSettings] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);
-  const [isMuted, setIsMuted] = useState(SoundService.getMuted());
 
   // Leaderboard Modal State
   const [showWRALeaderboard, setShowWRALeaderboard] = useState(false);
@@ -192,31 +154,6 @@ export function ProfileScreen({
   // Main spotlight tour — auto-starts the first time a newly onboarded user
   // lands on the Profile tab (its first step targets Profile's level ring).
   useScreenTour('main', activeTab === 'profile');
-  const [tierRankData, setTierRankData] = useState<{ rank: number | null, total: number, gap: string | null }>({ rank: null, total: 0, gap: null });
-  const [tierLeaderboardEntries, setTierLeaderboardEntries] = useState<LeaderboardEntry[]>([]);
-  const [tierLeaderboardLoading, setTierLeaderboardLoading] = useState(true);
-  // Community leaderboard filter — only meaningful once the user has
-  // joined a community (profile.community_id). Filtering happens
-  // server-side inside getTierLeaderboard/getPowerTierLeaderboard, not by
-  // re-filtering already-fetched entries (see community feature plan).
-  //
-  // Defaults to 'community' whenever the user has one, but stores ONLY the
-  // manual override — the effective scope is derived fresh every render
-  // from profile.community_id, never a separate piece of state that a
-  // useEffect has to "catch up" to a tick later. That two-step version
-  // (useState defaulted at mount + a useEffect syncing it once profile
-  // loads) caused a real race: the fetch effect below fires once with the
-  // stale mount-time default (profile isn't loaded yet, so 'public'), then
-  // fires again once the sync effect corrects it to 'community' — and
-  // whichever of those two in-flight requests resolves LAST wins,
-  // regardless of which was actually current. Deriving the scope
-  // synchronously means profile.community_id and the scope it implies are
-  // always consistent on the very first render that has real profile data,
-  // so the fetch effect only fires once for that transition.
-  const [manualLeaderboardScope, setManualLeaderboardScope] = useState<'public' | 'community' | null>(null);
-  const leaderboardScope: 'public' | 'community' = manualLeaderboardScope ?? (profile?.community_id ? 'community' : 'public');
-  const setLeaderboardScope = setManualLeaderboardScope;
-
   // ActiveProgramCard: undefined = not loaded yet, null = no active program.
   const [activeProgram, setActiveProgram] = useState<ActiveProgramSummary | null | undefined>(undefined);
   // Weekly Challenge card title: undefined = not loaded yet, null = none this week.
@@ -227,9 +164,10 @@ export function ProfileScreen({
   // WRA leaderboard's community scope — unlike gender, this must trigger a
   // server-side refetch rather than a client-side filter (see community
   // feature plan: the RPC caps at 100 rows before any filter is applied,
-  // so a client-side filter would silently drop small communities). Derived
-  // the same way as leaderboardScope above — see that comment for why a
-  // separate useState-plus-syncing-useEffect caused stale/racy defaults.
+  // so a client-side filter would silently drop small communities). Only the
+  // manual override is state; the effective scope is derived each render
+  // from profile.community_id — a useState-plus-syncing-useEffect version
+  // fired a stale mount-time fetch that could race and win.
   const [manualWraScope, setManualWraScope] = useState<'public' | 'community' | null>(null);
   const wraScope: 'public' | 'community' = manualWraScope ?? (profile?.community_id ? 'community' : 'public');
   const setWraScope = setManualWraScope;
@@ -254,48 +192,6 @@ export function ProfileScreen({
   const [showEditProfile, setShowEditProfile] = useState(false);
 
 
-  useEffect(() => {
-    if (profile) {
-      setSelectedTier(category === 'strength' ? (profile.strength_tier || 0) : (profile.power_tier || 0));
-    }
-  }, [profile?.strength_tier, profile?.power_tier, category]);
-
-  useEffect(() => {
-    async function loadRank() {
-      if (!profile?.id) return;
-      setTierLeaderboardLoading(true);
-      try {
-        const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-        const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
-        const { entries } = await fetcher(selectedTier, profile.id, scopeCommunityId);
-        setTierLeaderboardEntries(entries);
-        setTierRankData(computeTierRankData(entries, profile.id, category));
-      } catch (e) {
-        console.error('Error loading rank:', e);
-        setTierRankData({ rank: null, total: 0, gap: null });
-        setTierLeaderboardEntries([]);
-      } finally {
-        setTierLeaderboardLoading(false);
-      }
-    }
-    loadRank();
-  }, [selectedTier, category, profile?.id, leaderboardScope]);
-
-  // Refresh rank when screen comes back into focus (e.g. after trial)
-  useFocusEffect(
-    useCallback(() => {
-      if (!profile?.id) return;
-      const fetcher = category === 'strength' ? getTierLeaderboard : getPowerTierLeaderboard;
-      const scopeCommunityId = leaderboardScope === 'community' ? profile.community_id : null;
-      fetcher(selectedTier, profile.id, scopeCommunityId)
-        .then(({ entries }) => {
-          setTierLeaderboardEntries(entries);
-          setTierRankData(computeTierRankData(entries, profile.id, category));
-        })
-        .catch(() => {});
-    }, [selectedTier, category, profile?.id, leaderboardScope])
-  );
-
   // Active program "up next" day, refreshed on mount and whenever the
   // Profile tab regains focus (e.g. after logging a session in the program).
   // A failed fetch keeps the last known value rather than guessing.
@@ -318,7 +214,6 @@ export function ProfileScreen({
     }, [profile?.id, profile?.strength_tier])
   );
 
-  const isPowerUnlocked = isPowerWorldUnlocked(profile?.strength_tier || 0);
   const isStaticUnlocked = isStaticWorldUnlocked(profile?.strength_tier ?? 0);
 
   const currentTier = profile?.strength_tier || 0;
@@ -326,30 +221,6 @@ export function ProfileScreen({
 
   // Adjusted derived values based on active category
   const activeCurrentTier = category === 'strength' ? currentTier : currentPowerTier;
-  const isLocked = selectedTier > activeCurrentTier;
-  const isLowerTier = selectedTier < activeCurrentTier;
-  const tierName = category === 'strength'
-    ? TIER_NAMES[selectedTier] || 'Unknown'
-    : POWER_TIER_NAMES[selectedTier] || 'Unknown';
-
-  const handleCategorySwitch = async (newCategory: 'strength' | 'power') => {
-    if (newCategory === category || (newCategory === 'power' && !isPowerUnlocked)) return;
-
-    setCategory(newCategory);
-    setSelectedTier(newCategory === 'strength'
-      ? (profile?.strength_tier || 0)
-      : (profile?.power_tier || 0)
-    );
-  };
-
-  async function handleSignOut() {
-    try {
-      await signOut();
-    } catch (error) {
-      console.error('Sign out error:', error);
-    }
-  }
-
   useEffect(() => {
     if (hasSyncedOnMount.current || (profile?.id && syncedUserIds.current.has(profile.id))) return;
 
@@ -393,22 +264,6 @@ export function ProfileScreen({
     }
     syncAllPoints();
   }, [profile?.id]);
-
-  const tierScrollRef = useRef<ScrollView>(null);
-
-  useEffect(() => {
-    // TierSelectorRow's own contentOffset already positions it at the
-    // current tier on first layout (no more visible "tier 0 then jump"
-    // flash). This handles the case where activeCurrentTier changes after
-    // that first paint, e.g. a trial completes and the tier advances while
-    // the Strength tab is still open.
-    if (activeCurrentTier > 0 && tierScrollRef.current) {
-      const itemWidth = 90;
-      const gap = 12;
-      const offset = activeCurrentTier * (itemWidth + gap);
-      tierScrollRef.current.scrollTo({ x: offset, animated: true });
-    }
-  }, [activeCurrentTier]);
 
   if (!profile) {
     return <ProfileSkeleton />;
@@ -464,6 +319,13 @@ export function ProfileScreen({
     <GlobalErrorBoundary>
       <WorldBackground world={W}>
       <View style={styles.container}>
+        {activeTab === 'strength' ? (
+          <StrengthClimbView
+            profile={profile}
+            onStartTrial={onStartTrial}
+            onShowTierDetails={(tier) => { setModalTier(tier); setShowTierModal(true); }}
+          />
+        ) : (
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
             <>
@@ -536,64 +398,8 @@ export function ProfileScreen({
             </>
           )}
 
-          {activeTab === 'strength' && (
-            <>
-              <View style={{ paddingTop: 22, marginBottom: 12 }}>
-                <WorldHeaderPill
-                  world={W}
-                  title="STRENGTH WORLD"
-                  icon="sword-cross"
-                />
-              </View>
-
-              <TierRankCard
-                profile={profile}
-                category={category}
-                selectedTier={selectedTier}
-                tierRankData={tierRankData}
-                theme={theme}
-                onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
-              />
-
-              <TierSelectorRow
-                scrollRef={mainScrollRef}
-                category={category}
-                selectedTier={selectedTier}
-                activeCurrentTier={activeCurrentTier}
-                theme={theme}
-                tierScrollRef={tierScrollRef}
-                onSelectTier={setSelectedTier}
-              />
-
-              <StrengthWorldView
-                scrollRef={mainScrollRef}
-                profile={profile}
-                category={category}
-                selectedTier={selectedTier}
-                activeCurrentTier={activeCurrentTier}
-                isLocked={isLocked}
-                isLowerTier={isLowerTier}
-                tierName={tierName}
-                tierRankData={tierRankData}
-                isMuted={isMuted}
-                mode={mode}
-                theme={theme}
-                onStartTrial={onStartTrial}
-                onOpenPowerAssessment={onOpenPowerAssessment}
-                leaderboardEntries={tierLeaderboardEntries}
-                leaderboardLoading={tierLeaderboardLoading}
-                onSignOut={handleSignOut}
-                onSetMuted={setIsMuted}
-                onShowTierModal={(tier) => { setModalTier(tier); setShowTierModal(true); }}
-                toggleTheme={toggleTheme}
-                showSettingsFooter={false}
-                hasCommunity={!!profile?.community_id}
-                leaderboardScope={leaderboardScope}
-                onLeaderboardScopeChange={setLeaderboardScope}
-              />
-            </>
-          )}
         </ScrollView>
+        )}
 
         {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx, above
             this screen, so it persists across tab switches instead of

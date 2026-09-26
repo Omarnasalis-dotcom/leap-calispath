@@ -9,7 +9,7 @@
 
 import { ThemeMode } from './Theme';
 
-export type WorldKitKey = 'static' | 'power' | 'onemm';
+export type WorldKitKey = 'static' | 'power' | 'onemm' | 'strength';
 
 export interface WorldKitTokens {
   mode: ThemeMode;
@@ -92,6 +92,8 @@ interface WorldTint {
   dark: Pick<WorldKitTokens, 'track' | 'tint' | 'tintStrong' | 'tintBorder' | 'tintBorderStrong' | 'inputBg' | 'buttonTint' | 'goalBg'>;
   /** How much to darken the accent for text on a light page. */
   lightTextDarken: number;
+  /** Text on a solid accent fill (Strength's coral takes black text). */
+  onAccent?: string;
 }
 
 const TINTS: Record<WorldKitKey, WorldTint> = {
@@ -121,6 +123,17 @@ const TINTS: Record<WorldKitKey, WorldTint> = {
       tintBorderStrong: '#3a2412', inputBg: '#0c0805', buttonTint: '#1a1109', goalBg: '#110b07',
     },
     lightTextDarken: 0.3,
+  },
+  // assets/design_handoff_strength_v3 — coral with black text on fills.
+  strength: {
+    accent: '#FC5454',
+    accentHover: '#ff7b7b',
+    dark: {
+      track: '#221414', tint: '#130909', tintStrong: '#1c1710', tintBorder: '#2a1616',
+      tintBorderStrong: 'rgba(252,84,84,0.45)', inputBg: '#0c0606', buttonTint: '#1a0f0f', goalBg: '#110a0a',
+    },
+    lightTextDarken: 0.3,
+    onAccent: '#000000',
   },
 };
 
@@ -191,7 +204,7 @@ const LIGHT_NEUTRALS = {
 export function getWorldKitTokens(world: WorldKitKey, mode: ThemeMode): WorldKitTokens {
   const t = TINTS[world];
   if (mode === 'dark') {
-    return { mode, accent: t.accent, accentHover: t.accentHover, accentText: t.accent, onAccent: '#ffffff', ...t.dark, ...DARK_NEUTRALS };
+    return { mode, accent: t.accent, accentHover: t.accentHover, accentText: t.accent, onAccent: t.onAccent ?? '#ffffff', ...t.dark, ...DARK_NEUTRALS };
   }
   const a = t.accent;
   return {
@@ -199,7 +212,7 @@ export function getWorldKitTokens(world: WorldKitKey, mode: ThemeMode): WorldKit
     accent: a,
     accentHover: t.accentHover,
     accentText: darken(a, t.lightTextDarken),
-    onAccent: '#ffffff',
+    onAccent: t.onAccent ?? '#ffffff',
     track: onWhite(a, 0.16),
     tint: onWhite(a, 0.06),
     tintStrong: onWhite(a, 0.1),

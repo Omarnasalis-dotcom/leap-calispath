@@ -57,7 +57,8 @@ const makeWorldTheme = (accent: string, pageBg: string, ctaText: string): WorldT
 export const WORLD_THEMES: Record<WorldKey, WorldTheme> = {
   // Power/Static/1MM accents follow assets/design_handoff_worlds §0.2.
   power: makeWorldTheme('#FF4A3D', '#050302', '#1a0605'),
-  strength: makeWorldTheme('#FF5252', '#050302', '#1a0605'),
+  // Strength accent follows assets/design_handoff_strength_v3.
+  strength: makeWorldTheme('#FC5454', '#050302', '#1a0605'),
   static: makeWorldTheme('#8E6BFF', '#050308', '#1a0f2e'),
   onemm: makeWorldTheme('#FF6B2C', '#050301', '#1a0603'),
 };
