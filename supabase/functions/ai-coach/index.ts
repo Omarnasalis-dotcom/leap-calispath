@@ -308,6 +308,10 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
 // actual fix; this is headroom so a build that needs a couple of extra
 // round trips completes instead of dying silently.
 const MAX_TOOL_TURNS = 16;
+// No new Claude turn starts after this much wall-clock time (see the guard
+// at the top of the tool loop). A turn plus its tools has run up to ~17s in
+// live logs, so this leaves headroom under the Edge Function limit.
+const TURN_START_DEADLINE_MS = 100_000;
 // Reverted AGAIN 2026-08-26, same day as the re-attempt above: Haiku
 // claimed "Week 2 is built... Go log Week 2" with no append_week call
 // behind it (athlete checked, nothing was added) — the exact narrate-
@@ -631,6 +635,23 @@ serve(async (req: Request) => {
 
     const startedAt = Date.now();
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
+      // Wall-clock guard (audit 2026-09-25, H5 #1): never start another
+      // Claude turn this late — one more slow turn plus a tool can push past
+      // the Edge Function limit, which the athlete sees as a dead connection
+      // with no message. Stop cleanly instead; any card/recommendation this
+      // request already produced is still sent.
+      if (turn > 0 && Date.now() - startedAt > TURN_START_DEADLINE_MS) {
+        console.error(`[ai-coach] Stopping at turn ${turn}: ${Date.now() - startedAt}ms elapsed, past the ${TURN_START_DEADLINE_MS}ms turn-start deadline.`);
+        await recordCost();
+        send("final", {
+          reply: "This is taking longer than it should, so I'm stopping here rather than leave you waiting. Ask me again and I'll pick up from where we are.",
+          recommendations,
+          programAction,
+          blocks,
+          suggestedReplies,
+        });
+        return;
+      }
       const turnStart = Date.now();
       const claudeResponse = await callClaude(messages);
       logTurn(turn, Date.now() - turnStart, Date.now() - startedAt, claudeResponse);
