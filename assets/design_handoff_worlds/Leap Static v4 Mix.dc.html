@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#8E6BFF;}
+a:hover{color:#a98fff;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">STATIC · V4 MIX</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Original dashboard circles on top, v2 swipe skill cards below.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">· 3 circles kept: rank, score, gap. Rings now fill with progress.<br>· Centre ring = progress to next level; chart button opens rankings.<br>· Skill tabs + movement circles → swipe cards with 3 hold rows.<br>· Multiplier shown on every hold.<br>· Tier tabs sit with the section they change.<br>· Timing sheet: ready → hold → adjust → log.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">Use Tweaks to switch New / Ranked / King. Tap any hold to try the timer; logging updates your score live.</div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);display:flex;flex-direction:column;flex-shrink:0;">
+
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;flex-shrink:0;">
+      <div>4:37</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;display:flex;align-items:center;justify-content:space-between;gap:10px;padding:16px 24px 4px;">
+      <div style="cursor:pointer;min-width:0;" onClick="{{ openGlobal }}">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v20M4 6.5l16 11M20 6.5l-16 11M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"></path></svg>
+          <div style="color:#fff;font-size:26px;font-weight:700;letter-spacing:1.4px;line-height:1.1;">STATIC WORLD</div>
+        </div>
+      </div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <sc-if value="{{ fromJourney }}" hint-placeholder-val="{{ false }}">
+          <div style="height:36px;padding:0 12px;border-radius:12px;border:1px solid #2a2a2a;display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M15 6l-6 6 6 6"></path></svg>
+            <div style="color:#d0d0d0;font-size:11px;font-weight:600;letter-spacing:1.4px;">JOURNEY</div>
+          </div>
+        </sc-if>
+              </div>
+    </div>
+
+    <div style="flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;">
+
+      <div style="padding:22px 20px 0;display:grid;gap:14px;justify-items:center;">
+        <div style="display:flex;align-items:center;justify-content:center;gap:6px;width:100%;">
+          <div style="position:relative;width:96px;height:96px;flex-shrink:0;cursor:pointer;" onClick="{{ openGlobal }}">
+            <svg width="96" height="96" viewBox="0 0 96 96" style="position:absolute;inset:0;transform:rotate(-90deg);">
+              <circle cx="48" cy="48" r="45" fill="none" stroke="#1c1830" stroke-width="3"></circle>
+              <circle cx="48" cy="48" r="45" fill="none" stroke="#8E6BFF" stroke-width="3" stroke-linecap="round" stroke-dasharray="282.7" style="{{ rankArc }}"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;">
+              <div style="color:#8a8a8a;font-size:9.5px;font-weight:500;letter-spacing:1.6px;">STATIC RANK</div>
+              <div style="{{ rankStyle }}">{{ rankTxt }}</div>
+              <div style="color:#6a6a6a;font-size:10px;font-weight:500;letter-spacing:1.2px;">{{ rankOf }}</div>
+            </div>
+          </div>
+          <div style="position:relative;width:158px;height:158px;flex-shrink:0;cursor:pointer;" onClick="{{ openGlobal }}">
+            <div style="position:absolute;inset:14px;border-radius:50%;background:#0c0a14;"></div>
+            <svg width="158" height="158" viewBox="0 0 158 158" style="position:absolute;inset:0;transform:rotate(-90deg);">
+              <circle cx="79" cy="79" r="75" fill="none" stroke="#1c1830" stroke-width="6"></circle>
+              <circle cx="79" cy="79" r="75" fill="none" stroke="#8E6BFF" stroke-width="6" stroke-linecap="round" stroke-dasharray="471.2" style="{{ scoreArc }}"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;padding-bottom:16px;box-sizing:border-box;">
+              <div style="color:#8E6BFF;font-size:10.5px;font-weight:600;letter-spacing:2px;">STATIC SCORE</div>
+              <div style="{{ scoreStyle }}">{{ scoreTxt }}</div>
+            </div>
+            <div style="position:absolute;right:-2px;bottom:4px;width:44px;height:44px;border-radius:50%;background:#8E6BFF;border:4px solid #000;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 0 0 1px rgba(142,107,255,.35);" style-hover="background:#a08aff;" onClick="{{ openBoard }}" title="Static leaderboard">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linejoin="round"><path d="M3 20h18M9.5 20V9h5v11M3.5 20v-6h6M14.5 20v-8.5h6V20"></path></svg>
+            </div>
+          </div>
+          <div style="position:relative;width:96px;height:96px;flex-shrink:0;">
+            <svg width="96" height="96" viewBox="0 0 96 96" style="position:absolute;inset:0;transform:rotate(-90deg);">
+              <circle cx="48" cy="48" r="45" fill="none" stroke="#1c1830" stroke-width="3"></circle>
+              <circle cx="48" cy="48" r="45" fill="none" stroke="{{ gapCol }}" stroke-width="3" stroke-linecap="round" stroke-dasharray="282.7" style="{{ gapArc }}"></circle>
+            </svg>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;">
+              <div style="color:#8a8a8a;font-size:9.5px;font-weight:500;letter-spacing:1.6px;">{{ gapLbl }}</div>
+              <div style="{{ gapStyle }}">{{ gapTxt }}</div>
+              <div style="color:#6a6a6a;font-size:10px;font-weight:500;letter-spacing:1.2px;">{{ gapSub }}</div>
+            </div>
+          </div>
+        </div>
+        <div style="color:#d0d0d0;font-size:12.5px;font-weight:400;letter-spacing:.4px;text-align:center;">{{ levelCap }}</div>
+      </div>
+
+      <div style="padding:26px 24px 8px;">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:3px;border-radius:14px;background:#0e0e0e;border:1px solid #1c1c1c;">
+          <sc-for list="{{ skillTabs }}" as="t" hint-placeholder-count="4">
+            <div style="{{ t.style }}" onClick="{{ t.pick }}">
+              <div style="white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;">{{ t.label }}</div>
+              <div style="display:flex;gap:3px;">
+                <sc-for list="{{ t.dots }}" as="d" hint-placeholder-count="3"><div style="{{ d }}"></div></sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+      <div style="position:relative;height:318px;touch-action:pan-y;" onPointerDown="{{ swipeStart }}" onPointerUp="{{ swipeEnd }}">
+        <div style="{{ trackStyle }}">
+          <sc-for list="{{ cards }}" as="c" hint-placeholder-count="3">
+            <div style="{{ c.card }}" onClick="{{ c.pick }}">
+              <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:10px;">
+                <div>
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">SKILL {{ c.n }} OF 4</div>
+                  <div style="color:#fff;font-size:30px;font-weight:700;letter-spacing:1.2px;line-height:1.05;margin-top:4px;">{{ c.name }}</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="color:#8E6BFF;font-size:22px;font-weight:700;line-height:1;">{{ c.pts }}</div>
+                  <div style="color:#6a6a6a;font-size:10px;font-weight:500;letter-spacing:1.6px;margin-top:3px;">PTS</div>
+                </div>
+              </div>
+              <div style="display:grid;grid-template-columns:minmax(0,1fr);gap:8px;margin-top:auto;">
+                <sc-for list="{{ c.moves }}" as="m" hint-placeholder-count="3">
+                  <div style="{{ m.row }}" onClick="{{ m.open }}">
+                    <div style="{{ m.lvl }}">{{ m.lv }}</div>
+                    <div style="flex:1;min-width:0;">
+                      <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">{{ m.name }}</div>
+                      <div style="{{ m.subStyle }}">{{ m.sub }}</div>
+                    </div>
+                    <div style="padding:2px 7px;border-radius:6px;border:1px solid #2a2440;color:#a0a0a0;font-size:11px;font-weight:600;letter-spacing:.6px;flex-shrink:0;">{{ m.mult }}</div>
+                    <div style="width:36px;height:36px;border-radius:50%;background:#8E6BFF;display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><path d="M12 9v4l2 2M10 2h4"></path></svg>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+
+      <div style="padding:34px 24px 28px;display:grid;gap:16px;">
+        <div style="display:grid;grid-template-columns:repeat(4,minmax(0,1fr));padding:3px;border-radius:14px;background:#0e0e0e;border:1px solid #1c1c1c;">
+          <sc-for list="{{ tierTabs }}" as="t" hint-placeholder-count="4">
+            <div style="{{ t.style }}" onClick="{{ t.pick }}">
+              <sc-if value="{{ t.crown }}" hint-placeholder-val="{{ false }}"><svg width="11" height="11" viewBox="0 0 24 24" fill="{{ t.iconCol }}"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"></path></svg></sc-if>
+              <div>{{ t.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <sc-if value="{{ isOverall }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ goalCard }}">
+            <div style="display:flex;align-items:center;gap:12px;">
+              <div style="width:40px;height:40px;border-radius:12px;background:rgba(142,107,255,.14);display:flex;align-items:center;justify-content:center;flex-shrink:0;">
+                <sc-if value="{{ isKing }}" hint-placeholder-val="{{ false }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="#E8B64C"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"></path></svg></sc-if>
+                <sc-if value="{{ notKing }}" hint-placeholder-val="{{ true }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"></circle><circle cx="12" cy="12" r="5"></circle><circle cx="12" cy="12" r="1.2" fill="#8E6BFF"></circle></svg></sc-if>
+              </div>
+              <div style="flex:1;min-width:0;">
+                <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">{{ goalKicker }}</div>
+                <div style="color:#fff;font-size:18px;font-weight:600;letter-spacing:.8px;line-height:1.15;margin-top:3px;text-wrap:pretty;">{{ goalTitle }}</div>
+              </div>
+            </div>
+            <sc-if value="{{ showGoalBar }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;gap:7px;">
+                <div style="height:4px;border-radius:2px;background:#1c1830;overflow:hidden;"><div style="{{ goalBar }}"></div></div>
+                <div style="display:flex;justify-content:space-between;color:#8a8a8a;font-size:11.5px;font-weight:500;letter-spacing:.6px;"><div>{{ goalFrom }}</div><div>{{ goalTo }}</div></div>
+              </div>
+            </sc-if>
+            <div style="color:#6a6a6a;font-size:13px;font-weight:300;font-style:italic;letter-spacing:.3px;border-top:1px solid #1a1a1a;padding-top:12px;">“Stillness is strength under control.”</div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isElite }}" hint-placeholder-val="{{ false }}">
+          <div style="display:flex;align-items:baseline;justify-content:space-between;">
+            <div style="color:#fff;font-size:19px;font-weight:600;letter-spacing:2px;">{{ eliteTitle }}</div>
+            <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ eliteCount }}</div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <sc-if value="{{ inCommunity }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;">
+                <sc-for list="{{ scopeOpts }}" as="o" hint-placeholder-count="2"><div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div></sc-for>
+              </div>
+            </sc-if>
+            <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;margin-left:auto;">
+              <sc-for list="{{ genderOpts }}" as="o" hint-placeholder-count="3"><div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div></sc-for>
+            </div>
+          </div>
+          <sc-if value="{{ hasElite }}" hint-placeholder-val="{{ true }}">
+            <div style="border-radius:18px;background:#0c0c0c;border:1px solid #1c1c1c;overflow:hidden;">
+              <sc-for list="{{ eliteRows }}" as="r" hint-placeholder-count="5">
+                <div style="{{ r.rowStyle }}">
+                  <div style="{{ r.rankStyle }}">{{ r.rank }}</div>
+                  <div style="width:26px;height:18px;border-radius:4px;background:#1a1a1a;color:#a0a0a0;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ r.code }}</div>
+                  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                    <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+                    <sc-if value="{{ r.you }}" hint-placeholder-val="{{ false }}"><div style="padding:1px 6px;border-radius:5px;background:#8E6BFF;color:#fff;font-size:10px;font-weight:700;letter-spacing:1.2px;flex-shrink:0;">YOU</div></sc-if>
+                  </div>
+                  <div style="color:#fff;font-size:15px;font-weight:600;flex-shrink:0;">{{ r.pts }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+          <sc-if value="{{ noElite }}" hint-placeholder-val="{{ false }}">
+            <div style="border-radius:18px;border:1px dashed #262626;padding:28px 20px;color:#8a8a8a;font-size:13px;text-align:center;">No warriors at this level yet.</div>
+          </sc-if>
+        </sc-if>
+      </div>
+    </div>
+
+    <div style="flex-shrink:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));padding:12px 6px 28px;background:#0a0a0a;border-top:1px solid #1a1a1a;">
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="#8a8a8a"><circle cx="12" cy="8" r="4"></circle><path d="M4 21a8 8 0 0116 0z"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">PROFILE</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.2" stroke-linecap="round"><path d="M5 5l14 14M19 5L5 19M3 9l2-2M21 15l-2 2M15 3l2 2M9 21l-2-2"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">STRENGTH</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;border-radius:10px;background:rgba(142,107,255,.16);display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.4" stroke-linecap="round"><path d="M20 12a8 8 0 11-8-8"></path></svg></div>
+        <div style="color:#8E6BFF;font-size:11px;font-weight:600;letter-spacing:1.2px;">WORLDS</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M4 10l6-6M14 20l6-6M3 7l4-4M17 21l4-4"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">TRAIN</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:center;gap:6px;cursor:pointer;">
+        <div style="width:48px;height:30px;display:flex;align-items:center;justify-content:center;"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#8a8a8a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5"></path></svg></div>
+        <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">JOURNEY</div>
+      </div>
+    </div>
+
+    <sc-if value="{{ timerOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;flex-direction:column;justify-content:flex-end;z-index:6;" onClick="{{ closeTimer }}">
+        <div style="max-height:88%;border-radius:28px 28px 0 0;background:#0c0c0c;border-top:1px solid #222;display:flex;flex-direction:column;" onClick="{{ stop }}">
+          <div style="width:40px;height:4px;border-radius:2px;background:#2a2a2a;margin:10px auto 0;flex-shrink:0;"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:16px 24px 0;flex-shrink:0;">
+            <div>
+              <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">{{ mvKicker }}</div>
+              <div style="color:#fff;font-size:24px;font-weight:700;letter-spacing:1.2px;line-height:1.1;margin-top:3px;">{{ mvName }}</div>
+            </div>
+            <div style="width:40px;height:40px;border-radius:50%;background:#1a1a1a;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" onClick="{{ closeTimer }}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </div>
+          </div>
+          <div style="overflow-y:auto;padding:0 24px 30px;">
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));padding:3px;border-radius:14px;background:#0e0e0e;border:1px solid #1c1c1c;margin-top:16px;">
+              <sc-for list="{{ modeTabs }}" as="t" hint-placeholder-count="2">
+                <div style="{{ t.style }}" onClick="{{ t.pick }}">{{ t.label }}</div>
+              </sc-for>
+            </div>
+            <div style="display:flex;flex-direction:column;align-items:center;padding:22px 0 18px;">
+              <div style="position:relative;width:196px;height:196px;">
+                <svg width="196" height="196" viewBox="0 0 196 196" style="position:absolute;inset:0;transform:rotate(-90deg);">
+                  <circle cx="98" cy="98" r="90" fill="none" stroke="#1c1830" stroke-width="5"></circle>
+                  <circle cx="98" cy="98" r="90" fill="none" stroke="#8E6BFF" stroke-width="5" stroke-linecap="round" stroke-dasharray="565.5" style="{{ tArc }}"></circle>
+                </svg>
+                <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;">
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2.2px;">{{ tLabel }}</div>
+                  <div style="{{ tBigStyle }}">{{ tBig }}</div>
+                  <div style="color:#8E6BFF;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ tSub }}</div>
+                </div>
+              </div>
+            </div>
+
+            <sc-if value="{{ phIdle }}" hint-placeholder-val="{{ true }}">
+              <div style="display:grid;gap:12px;">
+                <div style="height:56px;border-radius:16px;background:#8E6BFF;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;color:#fff;font-size:17px;font-weight:700;letter-spacing:2.6px;" onClick="{{ startTimer }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="#fff"><path d="M7 4l13 8-13 8z"></path></svg>START TIMER
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ phReady }}" hint-placeholder-val="{{ false }}">
+              <div style="height:56px;border-radius:16px;border:1.5px solid #2a2a2a;box-sizing:border-box;display:flex;align-items:center;justify-content:center;color:#8a8a8a;font-size:15px;font-weight:600;letter-spacing:2.4px;cursor:pointer;" onClick="{{ discard }}">CANCEL</div>
+            </sc-if>
+            <sc-if value="{{ phRun }}" hint-placeholder-val="{{ false }}">
+              <div style="height:56px;border-radius:16px;background:#fff;display:flex;align-items:center;justify-content:center;gap:10px;cursor:pointer;color:#000;font-size:17px;font-weight:700;letter-spacing:2.6px;" onClick="{{ stopTimer }}">
+                <div style="width:12px;height:12px;border-radius:2px;background:#000;"></div>STOP &amp; LOG
+              </div>
+            </sc-if>
+            <sc-if value="{{ phStopped }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;gap:12px;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:14px;">
+                  <div style="width:48px;height:44px;border-radius:12px;background:#141414;border:1px solid #242424;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:600;cursor:pointer;" onClick="{{ minus }}">−1s</div>
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;width:84px;text-align:center;">ADJUST</div>
+                  <div style="width:48px;height:44px;border-radius:12px;background:#141414;border:1px solid #242424;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:600;cursor:pointer;" onClick="{{ plus }}">+1s</div>
+                </div>
+                <div style="height:56px;border-radius:16px;background:#8E6BFF;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:17px;font-weight:700;letter-spacing:2.6px;" onClick="{{ logIt }}">LOG PERFORMANCE</div>
+                <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;">
+                  <div style="height:46px;border-radius:14px;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center;color:#d0d0d0;font-size:13px;font-weight:600;letter-spacing:1.8px;cursor:pointer;" onClick="{{ restart }}">RESTART</div>
+                  <div style="height:46px;border-radius:14px;border:1px solid #2a2a2a;display:flex;align-items:center;justify-content:center;color:#8a8a8a;font-size:13px;font-weight:600;letter-spacing:1.8px;cursor:pointer;" onClick="{{ discard }}">DISCARD</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ phManual }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;gap:12px;">
+                <div style="display:flex;align-items:center;justify-content:center;gap:10px;">
+                  <sc-for list="{{ quick }}" as="q" hint-placeholder-count="4">
+                    <div style="{{ q.style }}" onClick="{{ q.pick }}">{{ q.label }}</div>
+                  </sc-for>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:center;gap:14px;">
+                  <div style="width:48px;height:44px;border-radius:12px;background:#141414;border:1px solid #242424;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:600;cursor:pointer;" onClick="{{ minus }}">−1s</div>
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;width:84px;text-align:center;">FINE TUNE</div>
+                  <div style="width:48px;height:44px;border-radius:12px;background:#141414;border:1px solid #242424;display:flex;align-items:center;justify-content:center;color:#fff;font-size:15px;font-weight:600;cursor:pointer;" onClick="{{ plus }}">+1s</div>
+                </div>
+                <div style="height:56px;border-radius:16px;background:#8E6BFF;display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:17px;font-weight:700;letter-spacing:2.6px;" onClick="{{ logIt }}">LOG PERFORMANCE</div>
+              </div>
+            </sc-if>
+
+            <div style="margin-top:28px;display:grid;gap:10px;">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;">
+                <div style="color:#fff;font-size:16px;font-weight:600;letter-spacing:1.8px;">TOP HOLDS</div>
+                <div style="color:#8a8a8a;font-size:11.5px;font-weight:500;letter-spacing:1.2px;">{{ mvMultTxt }}</div>
+              </div>
+              <div style="border-radius:16px;background:#0f0f0f;border:1px solid #1c1c1c;overflow:hidden;">
+                <sc-for list="{{ mvRows }}" as="r" hint-placeholder-count="4">
+                  <div style="{{ r.rowStyle }}">
+                    <div style="{{ r.rankStyle }}">{{ r.rank }}</div>
+                    <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                      <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+                      <sc-if value="{{ r.you }}" hint-placeholder-val="{{ false }}"><div style="padding:1px 6px;border-radius:5px;background:#8E6BFF;color:#fff;font-size:10px;font-weight:700;letter-spacing:1.2px;flex-shrink:0;">YOU</div></sc-if>
+                    </div>
+                    <div style="color:#fff;font-size:15px;font-weight:600;flex-shrink:0;">{{ r.time }}</div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ globalOpen }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(0,0,0,.72);display:flex;flex-direction:column;justify-content:flex-end;z-index:5;" onClick="{{ closeGlobal }}">
+        <div style="height:90%;border-radius:28px 28px 0 0;background:#0a0a0a;border-top:1px solid #221c38;display:flex;flex-direction:column;overflow:hidden;" onClick="{{ stop }}">
+          <div style="width:40px;height:4px;border-radius:2px;background:#2a2a2a;margin:10px auto 0;flex-shrink:0;"></div>
+          <div style="display:flex;align-items:flex-start;justify-content:space-between;padding:14px 24px 0;flex-shrink:0;">
+            <div>
+              <div style="display:flex;align-items:center;gap:7px;">
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v20M4 6.5l16 11M20 6.5l-16 11M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"></path></svg>
+                <div style="color:#8E6BFF;font-size:10.5px;font-weight:600;letter-spacing:2.2px;">STATIC WORLD</div>
+              </div>
+              <div style="color:#fff;font-size:26px;font-weight:700;letter-spacing:1.4px;line-height:1.1;margin-top:3px;">LEADERBOARD</div>
+            </div>
+            <div style="width:40px;height:40px;border-radius:50%;background:#1a1a1a;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" onClick="{{ closeGlobal }}">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.6" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+            </div>
+          </div>
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;padding:14px 24px 0;flex-shrink:0;">
+            <sc-if value="{{ inCommunity }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;">
+                <sc-for list="{{ scopeOpts }}" as="o" hint-placeholder-count="2"><div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div></sc-for>
+              </div>
+            </sc-if>
+            <div style="display:flex;padding:3px;border-radius:12px;background:#111;border:1px solid #1f1f1f;margin-left:auto;">
+              <sc-for list="{{ genderOpts }}" as="o" hint-placeholder-count="3"><div style="{{ o.style }}" onClick="{{ o.pick }}">{{ o.label }}</div></sc-for>
+            </div>
+          </div>
+          <div style="flex:1;min-height:0;overflow-y:auto;">
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));align-items:end;gap:8px;padding:26px 24px 0;">
+              <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;">
+                  <sc-if value="{{ p.first }}" hint-placeholder-val="{{ false }}"><svg width="20" height="20" viewBox="0 0 24 24" fill="#E8B64C"><path d="M3 7l4.5 4L12 4l4.5 7L21 7l-2 12H5z"></path></svg></sc-if>
+                  <div style="{{ p.avatar }}">{{ p.init }}</div>
+                  <div style="display:flex;align-items:center;gap:5px;max-width:100%;min-width:0;">
+                    <div style="{{ p.nameStyle }}">{{ p.name }}</div>
+                  </div>
+                  <div style="{{ p.block }}">
+                    <div style="{{ p.rankStyle }}">{{ p.rank }}</div>
+                    <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:.4px;">{{ p.pts }}</div>
+                    <div style="color:#6a6a6a;font-size:9.5px;font-weight:600;letter-spacing:1.4px;">{{ p.lvl }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="margin:0 24px;border-radius:0 0 18px 18px;background:#0e0e0e;border:1px solid #1c1c1c;border-top:none;overflow:hidden;">
+              <sc-for list="{{ restRows }}" as="r" hint-placeholder-count="6">
+                <div style="{{ r.rowStyle }}">
+                  <div style="{{ r.rankStyle }}">{{ r.rank }}</div>
+                  <div style="width:26px;height:18px;border-radius:4px;background:#1a1a1a;color:#a0a0a0;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ r.code }}</div>
+                  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                    <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+                    <sc-if value="{{ r.you }}" hint-placeholder-val="{{ false }}"><div style="padding:1px 6px;border-radius:5px;background:#8E6BFF;color:#fff;font-size:10px;font-weight:700;letter-spacing:1.2px;flex-shrink:0;">YOU</div></sc-if>
+                  </div>
+                  <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:1.2px;flex-shrink:0;">{{ r.lvl }}</div>
+                  <div style="color:#fff;font-size:15px;font-weight:600;flex-shrink:0;width:58px;text-align:right;">{{ r.pts }}</div>
+                </div>
+              </sc-for>
+            </div>
+            <div style="height:20px;"></div>
+          </div>
+          <div style="flex-shrink:0;padding:12px 24px 26px;border-top:1px solid #1a1a1a;background:#0a0a0a;">
+            <div style="{{ youBar }}">
+              <div style="{{ youRankStyle }}">{{ youRank }}</div>
+              <div style="flex:1;min-width:0;">
+                <div style="display:flex;align-items:center;gap:8px;">
+                  <div style="color:#fff;font-size:14px;font-weight:500;">@omar.nasser</div>
+                  <div style="padding:1px 6px;border-radius:5px;background:#8E6BFF;color:#fff;font-size:10px;font-weight:700;letter-spacing:1.2px;">YOU</div>
+                </div>
+                <div style="color:#a0a0a0;font-size:11.5px;font-weight:500;letter-spacing:.6px;margin-top:2px;">{{ youSub }}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="color:#fff;font-size:18px;font-weight:700;line-height:1;">{{ scoreTxt }}</div>
+                <div style="color:#6a6a6a;font-size:9.5px;font-weight:600;letter-spacing:1.4px;margin-top:3px;">PTS</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ toastOn }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:24px;right:24px;top:62px;z-index:8;height:52px;border-radius:16px;background:#8E6BFF;display:flex;align-items:center;justify-content:center;gap:8px;color:#fff;font-size:14px;font-weight:600;letter-spacing:1.4px;box-shadow:0 12px 30px rgba(0,0,0,.6);">{{ toast }}</div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:740,&quot;height&quot;:960},&quot;demoState&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;New&quot;,&quot;Ranked&quot;,&quot;King&quot;],&quot;default&quot;:&quot;Ranked&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;inCommunity&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;},&quot;fromJourney&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;}}">
+const VIOLET = "#8E6BFF", GOLD = "#E8B64C";
+const SKILLS = [
+  { name: "HANDSTAND", moves: ["WALL HANDSTAND", "FREESTANDING HANDSTAND", "ONE ARM HANDSTAND"], mult: [0.25, 1, 8] },
+  { name: "FRONT LEVER", moves: ["TUCK FRONT LEVER", "STRADDLE FRONT LEVER", "FULL FRONT LEVER"], mult: [0.5, 2, 6] },
+  { name: "BACK LEVER", moves: ["TUCK BACK LEVER", "STRADDLE BACK LEVER", "FULL BACK LEVER"], mult: [0.5, 1.5, 4] },
+  { name: "PLANCHE", moves: ["TUCK PLANCHE", "STRADDLE PLANCHE", "FULL PLANCHE"], mult: [1, 3, 8] },
+];
+const LEVELS = [{ n: "STONE", min: 0, max: 150 }, { n: "IRON", min: 150, max: 400 }, { n: "TITAN", min: 400, max: 800 }];
+const NAMES = [["@mohammad.w", "SA", "m"], ["@lina.khaled", "AE", "f"], ["@yousef.fit", "KW", "m"], ["@sara.m", "SA", "f"], ["@abdullah.q", "QA", "m"], ["@noor.lifts", "BH", "f"], ["@fahad.alotaibi", "SA", "m"], ["@maryam.h", "KW", "f"], ["@khalid.run", "AE", "m"], ["@huda.s", "OM", "f"], ["@ali.hassan", "BH", "m"], ["@reem.power", "SA", "f"], ["@hamad.k", "QA", "m"], ["@dana.fit", "KW", "f"], ["@saud.b", "SA", "m"], ["@jana.moves", "AE", "f"], ["@turki.x", "SA", "m"], ["@aisha.r", "OM", "f"], ["@nasser.j", "KW", "m"], ["@lulwa.a", "QA", "f"], ["@majed.pro", "SA", "m"], ["@hessa.t", "AE", "f"], ["@rashid.m", "BH", "m"], ["@shahad.k", "SA", "f"]];
+const OTHERS = NAMES.map((p, i) => ({ name: p[0], code: p[1], g: p[2], comm: i % 3 === 0, pts: Math.round((640 * Math.pow(0.86, i) + 6) * 100) / 100 }));
+const PRESETS = {
+  New: {},
+  Ranked: { "0-0": 60, "0-1": 22, "1-0": 18, "2-0": 15, "3-0": 12 },
+  King: { "0-0": 90, "0-1": 60, "0-2": 30, "1-1": 30, "1-2": 14, "2-2": 20, "3-1": 25, "3-2": 6 },
+};
+const RC = ["#E8B64C", "#C9CED6", "#C98B5A"];
+const f2 = n => n.toFixed(2);
+const fs = s => (Math.round(s * 10) / 10).toFixed(1) + "s";
+const lvlOf = p => p >= 400 ? 2 : p >= 150 ? 1 : 0;
+const CW = 326, CG = 12;
+
+class Component extends DCLogic {
+  state = { skill: 0, tier: "OVERALL", scope: "PUBLIC", gender: "ALL", global: false, mv: null, ph: "idle", t: 0, cd: 3, pbs: null, preset: null, toast: null, drawn: false };
+  componentDidMount() { this._d = setTimeout(() => this.setState({ drawn: true }), 120); }
+  componentWillUnmount() { clearTimeout(this._d); clearInterval(this._iv); clearTimeout(this._ts); }
+  pbs() {
+    const p = this.props.demoState ?? "Ranked";
+    if (this.state.preset !== p) { this.state.preset = p; this.state.pbs = { ...PRESETS[p] }; }
+    return this.state.pbs;
+  }
+  clear() { clearInterval(this._iv); this._iv = null; }
+  start() {
+    this.clear();
+    this.setState({ ph: "ready", cd: 3, t: 0 });
+    let c = 3;
+    this._iv = setInterval(() => {
+      c -= 1;
+      if (c > 0) return this.setState({ cd: c });
+      this.clear();
+      const t0 = Date.now();
+      this.setState({ ph: "run", t: 0 });
+      this._iv = setInterval(() => this.setState({ t: (Date.now() - t0) / 1000 }), 100);
+    }, 1000);
+  }
+  seg(opts, key) {
+    return opts.map(o => ({ label: o, pick: () => this.setState({ [key]: o }),
+      style: { padding: "7px 12px", borderRadius: 9, fontSize: 12, fontWeight: 600, letterSpacing: 1.4, cursor: "pointer",
+        background: this.state[key] === o ? VIOLET : "transparent", color: this.state[key] === o ? "#fff" : "#8a8a8a" } }));
+  }
+
+  renderVals() {
+    const pbs = this.pbs();
+    const inComm = this.props.inCommunity ?? true;
+    const drawn = this.state.drawn;
+    const sk = this.state.skill;
+    const score = Object.entries(pbs).reduce((a, [k, v]) => { const [s, m] = k.split("-").map(Number); return a + v * SKILLS[s].mult[m]; }, 0);
+    const me = { name: "@omar.nasser", code: "KW", g: "m", comm: true, you: true, pts: Math.round(score * 100) / 100 };
+    const everyone = (score > 0 ? [...OTHERS, me] : OTHERS).slice().sort((a, b) => b.pts - a.pts);
+    const myRank = score > 0 ? everyone.indexOf(me) + 1 : 0;
+    const king = myRank === 1;
+    const li = lvlOf(score), L = LEVELS[li];
+    const lvlPct = li === 2 ? Math.min(1, (score - L.min) / (L.max - L.min)) : (score - L.min) / (L.max - L.min);
+    const above = myRank > 1 ? everyone[myRank - 2] : null;
+
+    const filt = list => list.filter(p => ((inComm ? this.state.scope : "PUBLIC") === "PUBLIC" || p.comm) && (this.state.gender === "ALL" || p.g === (this.state.gender === "MALE" ? "m" : "f")));
+    const row = (p, i, extra) => ({
+      rank: i + 1, code: p.code, name: p.name, you: !!p.you, pts: f2(p.pts), lvl: LEVELS[lvlOf(p.pts)].n,
+      rowStyle: { display: "flex", alignItems: "center", gap: 12, height: 58, padding: `0 ${extra ?? 16}px`, borderTop: i === 0 && extra == null ? "none" : "1px solid #161616", background: p.you ? "rgba(142,107,255,.09)" : "transparent" },
+      rankStyle: { width: 22, textAlign: "center", fontSize: 16, fontWeight: 700, color: i < 3 ? RC[i] : p.you ? VIOLET : "#6a6a6a", flexShrink: 0 },
+      nameStyle: { color: p.you ? "#fff" : "#d0d0d0", fontSize: 14, fontWeight: p.you ? 500 : 400, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", minWidth: 0 },
+    });
+
+    const cards = SKILLS.map((S, k) => {
+      const on = k === sk;
+      const pts = S.moves.reduce((a, _, m) => a + (pbs[`${k}-${m}`] || 0) * S.mult[m], 0);
+      return {
+        n: k + 1, name: S.name, pts: f2(pts),
+        pick: () => { if (!on) this.setState({ skill: k }); },
+        card: { flex: `0 0 ${CW}px`, width: CW, minWidth: 0, maxWidth: CW, overflow: "hidden", height: 306, boxSizing: "border-box", borderRadius: 26, padding: 20, display: "flex", flexDirection: "column", gap: 14,
+          background: on ? "#0e0b18" : "#0d0d0d", border: `1px solid ${on ? "rgba(142,107,255,.45)" : "#1c1c1c"}`,
+          transform: on ? "scale(1)" : "scale(.92)", opacity: on ? 1 : .42, cursor: on ? "default" : "pointer", transition: "transform .45s cubic-bezier(.4,0,.2,1), opacity .45s" },
+        moves: S.moves.map((nm, m) => {
+          const pb = pbs[`${k}-${m}`];
+          return {
+            lv: m + 1, name: nm, mult: "×" + S.mult[m],
+            sub: pb ? `PB ${fs(pb)} · ${f2(pb * S.mult[m])} pts` : "TAP TO TIME",
+            subStyle: { color: pb ? "#d0d0d0" : "#6a6a6a", fontSize: 11.5, fontWeight: 500, letterSpacing: pb ? .6 : 1.6, marginTop: 1 },
+            lvl: { width: 22, height: 22, borderRadius: 7, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, fontSize: 11, fontWeight: 700,
+              background: pb ? "rgba(142,107,255,.18)" : "#151515", color: pb ? VIOLET : "#5a5a5a" },
+            row: { display: "flex", alignItems: "center", gap: 12, height: 62, minWidth: 0, boxSizing: "border-box", padding: "0 10px 0 12px", borderRadius: 16, background: "#121019", border: "1px solid #1e1a2c", cursor: "pointer" },
+            open: e => { if (!on) return; e.stopPropagation(); this.clear(); this.setState({ mv: [k, m], ph: "idle", t: 0 }); },
+          };
+        }),
+      };
+    });
+
+    const tiers = ["OVERALL", "STONE", "IRON", "TITAN"];
+    const tier = this.state.tier, ti = tiers.indexOf(tier) - 1;
+    const elite = ti >= 0 ? filt(everyone.filter(p => lvlOf(p.pts) === ti)) : [];
+
+    const mv = this.state.mv;
+    let T = {};
+    if (mv) {
+      const [k, m] = mv, S = SKILLS[k], mult = S.mult[m], pb = pbs[`${k}-${m}`] || 0;
+      const ph = this.state.ph, t = this.state.t;
+      const holders = OTHERS.slice(0, 9).map((p, i) => ({ ...p, secs: Math.max(3, Math.round((60 / mult) * Math.pow(.88, i) * 10) / 10 + (i % 3)) }));
+      if (pb) holders.push({ ...me, secs: pb });
+      holders.sort((a, b) => b.secs - a.secs);
+      const target = Math.max(pb, 10);
+      T = {
+        mvKicker: `${S.name} · LEVEL ${m + 1}`, mvName: S.moves[m], mvMultTxt: `×${mult} PTS / SEC`,
+        phIdle: ph === "idle", phReady: ph === "ready", phRun: ph === "run", phStopped: ph === "stopped", phManual: ph === "manual",
+        tLabel: ph === "ready" ? "GET READY" : ph === "run" ? "HOLDING" : ph === "idle" ? (pb ? "PERSONAL BEST" : "NO TIME YET") : "YOUR HOLD",
+        tBig: ph === "ready" ? String(this.state.cd) : ph === "idle" ? (pb ? fs(pb) : "0.0s") : fs(t),
+        tSub: ph === "idle" ? `${f2(pb * mult)} PTS` : ph === "ready" ? "GET INTO POSITION" : `${f2(t * mult)} PTS` + (ph !== "run" && t > pb && pb ? " · NEW PB" : ""),
+        tBigStyle: { color: ph === "idle" && !pb ? "#4a4a4a" : "#fff", fontSize: ph === "ready" ? 72 : 50, fontWeight: 700, lineHeight: 1 },
+        tArc: { strokeDashoffset: 565.5 * (1 - (ph === "ready" ? (3 - this.state.cd + 1) / 3 : ph === "idle" ? (pb ? 1 : 0) : Math.min(1, t / target))), transition: ph === "run" ? "stroke-dashoffset .1s linear" : "stroke-dashoffset .6s ease" },
+        mvRows: holders.slice(0, 6).map((p, i) => ({ ...row(p, i), time: fs(p.secs) })),
+        quick: [10, 20, 30, 60].map(v => ({ label: v + "s", pick: () => this.setState({ t: v }),
+          style: { height: 38, padding: "0 14px", borderRadius: 10, display: "flex", alignItems: "center", cursor: "pointer", fontSize: 13, fontWeight: 600,
+            background: Math.round(this.state.t) === v ? VIOLET : "#141414", color: Math.round(this.state.t) === v ? "#fff" : "#d0d0d0", border: "1px solid #242424" } })),
+      };
+    }
+
+    const scoreTxt = f2(score);
+    return {
+      fromJourney: this.props.fromJourney ?? false,
+      inCommunity: inComm,
+      openGlobal: () => this.setState({ global: true }), closeGlobal: () => this.setState({ global: false }),
+      levelShort: L.n[0], levelName: king ? "STATIC KING" : score > 0 ? L.n : "UNRANKED", isKing: king, notKing: !king,
+      levelChip: { display: "flex", alignItems: "center", gap: 5, padding: "3px 9px", borderRadius: 7, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.6,
+        background: king ? GOLD : score > 0 ? VIOLET : "transparent", color: king || score > 0 ? (king ? "#000" : "#fff") : "#6a6a6a", border: score > 0 ? "none" : "1px solid #2a2a2a" },
+      scoreTxt, scoreStyle: { color: score > 0 ? "#fff" : "#4a4a4a", fontSize: 34, fontWeight: 700, lineHeight: 1 },
+      levelBar: { height: "100%", borderRadius: 2, background: VIOLET, width: drawn ? lvlPct * 100 + "%" : "0%", transition: "width .9s cubic-bezier(.4,0,.2,1) .15s" },
+      levelCap: score === 0 ? "Log a hold to enter Stone" : li < 2 ? `${f2(L.max - score)} pts to ${LEVELS[li + 1].n[0] + LEVELS[li + 1].n.slice(1).toLowerCase()}` : "Top level reached · Titan",
+      rankTxt: myRank ? "#" + myRank : "—", rankOf: myRank ? "of world" : "unranked",
+      rankStyle: { color: myRank ? "#fff" : "#4a4a4a", fontSize: 24, fontWeight: 700, lineHeight: 1 },
+      gapLbl: king ? "STATUS" : myRank ? `GAP TO #${myRank - 1}` : "GAP TO",
+      gapTxt: king ? "KING" : above ? f2(above.pts - score + .01) : "—",
+      gapStyle: { color: king ? GOLD : above ? "#fff" : "#4a4a4a", fontSize: 22, fontWeight: 700, lineHeight: 1 },
+      gapSub: king ? "#1 OF WORLD" : above ? "PTS TO PASS" : "RANK UP", gapCol: king ? GOLD : VIOLET,
+      scoreArc: { strokeDashoffset: 471.2 * (1 - (drawn ? lvlPct : 0)), transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1) .15s" },
+      rankArc: { strokeDashoffset: 282.7 * (1 - (drawn && myRank ? 1 - (myRank - 1) / everyone.length : 0)), transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1) .25s" },
+      gapArc: { strokeDashoffset: 282.7 * (1 - (drawn ? (king ? 1 : above ? score / above.pts : 0) : 0)), transition: "stroke-dashoffset 1s cubic-bezier(.4,0,.2,1) .35s" },
+      skillCount: `${Object.keys(pbs).length} OF 12 HOLDS LOGGED`,
+      cards,
+      trackStyle: { position: "absolute", top: 6, left: 0, display: "flex", gap: CG, transform: `translateX(${(402 - CW) / 2 - sk * (CW + CG)}px)`, transition: "transform .45s cubic-bezier(.4,0,.2,1)" },
+      swipeStart: e => { this._x = e.clientX; },
+      swipeEnd: e => { const dx = e.clientX - (this._x ?? e.clientX); if (Math.abs(dx) > 40) this.setState({ skill: Math.max(0, Math.min(3, sk + (dx < 0 ? 1 : -1))) }); },
+      skillTabs: SKILLS.map((S, k) => ({ label: S.name.replace(" LEVER", " LV"), pick: () => this.setState({ skill: k }),
+        dots: S.moves.map((_, m) => ({ width: 5, height: 5, borderRadius: 3, background: pbs[`${k}-${m}`] ? (k === sk ? "#fff" : VIOLET) : (k === sk ? "rgba(255,255,255,.3)" : "#2a2a2a") })),
+        style: { height: 46, borderRadius: 11, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 5, padding: "0 4px", minWidth: 0, cursor: "pointer", fontSize: 11.5, fontWeight: 600, letterSpacing: 1.2, transition: "background .2s",
+          color: k === sk ? "#fff" : "#8a8a8a", background: k === sk ? VIOLET : "transparent" } })),
+      tierTabs: tiers.map(t => ({ label: t, crown: t === "OVERALL", iconCol: tier === t ? "#fff" : "#8a8a8a", pick: () => this.setState({ tier: t }),
+        style: { height: 38, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", gap: 5, cursor: "pointer", fontSize: 12, fontWeight: 600, letterSpacing: 1.4,
+          background: tier === t ? VIOLET : "transparent", color: tier === t ? "#fff" : "#8a8a8a", transition: "background .2s" } })),
+      isOverall: tier === "OVERALL", isElite: tier !== "OVERALL",
+      goalCard: { borderRadius: 20, padding: 18, display: "grid", gap: 14, background: king ? "#14110a" : "#0e0e0e", border: `1px solid ${king ? "rgba(232,182,76,.35)" : "#1c1c1c"}` },
+      goalKicker: king ? "YOU'RE #1" : score > 0 ? "NEXT TARGET" : "GET STARTED",
+      goalTitle: king ? "STATIC KING ACHIEVED" : score > 0 ? `${f2(above.pts - score + .01)} pts to steal Rank #${myRank - 1}` : "Log a hold to rank up · target: 60s wall handstand",
+      showGoalBar: !king && score > 0,
+      goalBar: { height: "100%", borderRadius: 2, background: VIOLET, width: drawn && above ? Math.max(4, (score / above.pts) * 100) + "%" : "0%", transition: "width .9s cubic-bezier(.4,0,.2,1) .2s" },
+      goalFrom: "YOU " + scoreTxt, goalTo: above ? `#${myRank - 1} ${f2(above.pts)}` : "",
+      eliteTitle: tier + " ELITE", eliteCount: elite.length + " WARRIORS",
+      hasElite: elite.length > 0, noElite: ti >= 0 && elite.length === 0,
+      eliteRows: elite.slice(0, 6).map((p, i) => row(p, i)),
+      scopeOpts: this.seg(["PUBLIC", "MY COMMUNITY"], "scope"), genderOpts: this.seg(["ALL", "MALE", "FEMALE"], "gender"),
+      globalOpen: this.state.global,
+      globalCount: filt(everyone).length + " WARRIORS",
+      globalRows: filt(everyone).map((p, i) => row(p, i, 24)),
+      openBoard: e => { e.stopPropagation(); this.setState({ global: true }); },
+      ...(() => {
+        const list = filt(everyone);
+        const H = [96, 126, 76];
+        const podium = [1, 0, 2].map((i, j) => list[i] ? { p: list[i], i, h: H[j] } : null).filter(Boolean).map(({ p, i, h }) => ({
+          rank: i + 1, first: i === 0, name: p.name, pts: f2(p.pts), lvl: LEVELS[lvlOf(p.pts)].n,
+          init: p.name.replace("@", "").slice(0, 2).toUpperCase(),
+          avatar: { width: i === 0 ? 62 : 52, height: i === 0 ? 62 : 52, borderRadius: "50%", display: "flex", alignItems: "center", justifyContent: "center", fontSize: i === 0 ? 18 : 15, fontWeight: 700, letterSpacing: 1,
+            background: "#141120", color: "#fff", border: `2px solid ${p.you ? VIOLET : RC[i]}`, boxShadow: i === 0 ? "0 0 0 5px rgba(232,182,76,.12)" : "none" },
+          nameStyle: { color: p.you ? VIOLET : "#d0d0d0", fontSize: 12, fontWeight: 500, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "100%" },
+          block: { width: "100%", height: h, boxSizing: "border-box", borderRadius: "14px 14px 0 0", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", gap: 3, paddingTop: 12,
+            background: i === 0 ? "linear-gradient(#1a1526,#0e0e0e)" : "#121019", border: "1px solid #1c1c1c", borderBottom: "none" },
+          rankStyle: { color: RC[i], fontSize: i === 0 ? 30 : 24, fontWeight: 700, lineHeight: 1 },
+        }));
+        const restRows = list.slice(3, 20).map((p, k) => row(p, k + 3, 16));
+        const myIdx = list.indexOf(me), ahead = myIdx > 0 ? list[myIdx - 1] : null;
+        return {
+          podium, restRows,
+          youRank: myIdx >= 0 ? "#" + (myIdx + 1) : "—",
+          youSub: myIdx < 0 ? (score > 0 ? "Not in this filter" : "Log a hold to join the board") : myIdx === 0 ? "Static King · hold the top spot" : `${f2(ahead.pts - score + .01)} pts to pass ${ahead.name}`,
+          youRankStyle: { width: 44, fontSize: 20, fontWeight: 700, color: myIdx === 0 ? GOLD : myIdx > 0 ? VIOLET : "#4a4a4a", flexShrink: 0 },
+          youBar: { display: "flex", alignItems: "center", gap: 12, height: 62, padding: "0 16px", borderRadius: 16, background: myIdx === 0 ? "#14110a" : "#121019", border: `1px solid ${myIdx === 0 ? "rgba(232,182,76,.35)" : "rgba(142,107,255,.35)"}` },
+        };
+      })(),
+      timerOpen: !!mv, ...T,
+      closeTimer: () => { this.clear(); this.setState({ mv: null }); },
+      startTimer: () => this.start(),
+      stopTimer: () => { this.clear(); this.setState({ ph: "stopped" }); },
+      restart: () => this.start(),
+      discard: () => { this.clear(); this.setState({ ph: "idle", t: 0 }); },
+      goManual: () => this.setState({ ph: "manual", t: 20 }),
+      modeTabs: [["manual", "LOG TIME"], ["timer", "TIMER"]].map(([id, label]) => {
+        const on = id === "manual" ? this.state.ph === "manual" : this.state.ph !== "manual";
+        return { label, pick: () => { if (on) return; this.clear(); if (id === "manual") { const k = this.state.mv; const pb = k ? pbs[`${k[0]}-${k[1]}`] : 0; this.setState({ ph: "manual", t: pb || 20 }); } else this.setState({ ph: "idle", t: 0 }); },
+          style: { height: 40, borderRadius: 11, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer", fontSize: 12.5, fontWeight: 600, letterSpacing: 1.6,
+            background: on ? VIOLET : "transparent", color: on ? "#fff" : "#8a8a8a", transition: "background .2s" } };
+      }),
+      minus: () => this.setState(s => ({ t: Math.max(0, Math.round(s.t) - 1) })),
+      plus: () => this.setState(s => ({ t: Math.round(s.t) + 1 })),
+      logIt: () => {
+        const [k, m] = mv, key = `${k}-${m}`, t = Math.round(this.state.t * 10) / 10;
+        if (t <= 0) return;
+        const better = t > (pbs[key] || 0);
+        const next = better ? { ...pbs, [key]: t } : pbs;
+        clearTimeout(this._ts);
+        this._ts = setTimeout(() => this.setState({ toast: null }), 2200);
+        this.setState({ pbs: next, mv: null, ph: "idle", toast: better ? `NEW PB · +${f2((t - (pbs[key] || 0)) * SKILLS[k].mult[m])} PTS` : "LOGGED · PB UNCHANGED" });
+      },
+      toastOn: !!this.state.toast, toast: this.state.toast,
+      stop: e => e.stopPropagation(),
+    };
+  }
+}
+</script>
+</body>
+</html>
