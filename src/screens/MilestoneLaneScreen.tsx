@@ -1329,12 +1329,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     const hasCache = journeyDataCache?.profileId === profile.id;
     if (!hasCache) setJourneyLoading(true);
     try {
-      const { data: program } = await supabase
+      const { data: program, error: programError } = await supabase
         .from('warrior_programs')
         .select('id, template_id, current_week, coach_id, program_templates:template_id ( name )')
         .eq('warrior_id', profile.id)
         .eq('status', 'active')
         .maybeSingle();
+      // A failed query must not look like "no active program" — that wiped
+      // the cache and showed the empty state on a network blip. Throwing
+      // lands in the catch below, which keeps any cached lane on screen.
+      if (programError) throw programError;
 
       if (!program) {
         setJourneyData(null);
