@@ -44,6 +44,23 @@ export function powerLevelProgress(totalPoints: number): LevelProgress {
 }
 
 /**
+ * Power "LEVEL GAP" circle (handoff §0.4): progress WITHIN the current
+ * level (0 at its floor, 1 at the next level's threshold) and the points
+ * still needed. At the top level: progress 1, gap 0, nextLevel null.
+ */
+export function powerWithinLevel(totalPoints: number): LevelProgress {
+  const current = getPowerLevel(totalPoints);
+  const next = current.id < 3 ? POWER_LEVELS[current.id + 1] : null;
+  if (!next) return { progress: 1, nextLevel: null, gap: 0 };
+  const span = next.minPoints - current.minPoints;
+  return {
+    progress: clamp01((totalPoints - current.minPoints) / span),
+    nextLevel: next,
+    gap: Math.max(0, next.minPoints - totalPoints),
+  };
+}
+
+/**
  * Per-exercise ring on the Power screen: each of the 4 movements fills toward
  * its "fair share" (a quarter) of the next level's point threshold.
  */

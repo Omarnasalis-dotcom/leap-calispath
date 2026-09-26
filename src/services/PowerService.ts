@@ -141,7 +141,7 @@ export const PowerService = {
         const levelId = parseInt(type.split('_')[1]);
         let query = supabase
           .from('profiles')
-          .select('id, display_name, power_points, gender')
+          .select('id, display_name, power_points, gender, country')
           .eq('power_tier', levelId);
         if (communityId) query = query.eq('community_id', communityId);
         const { data, error } = await query
@@ -155,6 +155,7 @@ export const PowerService = {
           value: d.power_points,
           points: d.power_points,
           gender: d.gender,
+          country: d.country,
           rank: i + 1
         }));
       }

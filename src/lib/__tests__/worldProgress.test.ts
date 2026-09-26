@@ -127,3 +127,14 @@ describe('worldProgress', () => {
     });
   });
 });
+
+import { powerWithinLevel } from '../worldProgress';
+
+describe('powerWithinLevel', () => {
+  it('measures progress inside the current level', () => {
+    expect(powerWithinLevel(0)).toMatchObject({ progress: 0, gap: 100 });
+    expect(powerWithinLevel(175).progress).toBeCloseTo(0.5); // Ampere 100→250
+    expect(powerWithinLevel(175).nextLevel?.name).toBe('TESLA');
+    expect(powerWithinLevel(300)).toEqual({ progress: 1, nextLevel: null, gap: 0 });
+  });
+});
