@@ -117,28 +117,36 @@ export function StaticWorldScreen({ movement }: Props) {
 
   useFocusEffect(useCallback(() => { fetchPbs(); }, [fetchPbs]));
 
+  // Latest-request guards: when the user switches tier/scope/movement quickly,
+  // an older response resolving last must not overwrite the current list.
+  const eliteReq = useRef(0);
+  const boardReq = useRef(0);
+  const topReq = useRef(0);
+
   const fetchElite = async (level: Tier, s: 'public' | 'community') => {
     if (level === 'overall' || !user) return;
+    const req = ++eliteReq.current;
     setEliteLoading(true);
     setEliteRows([]);
     try {
       const rows = await StaticService.getLevelLeaderboard(Number(level) as 1 | 2 | 3, user.id, communityIdFor(s));
-      if (isMounted.current) setEliteRows(rows);
+      if (isMounted.current && req === eliteReq.current) setEliteRows(rows);
     } finally {
-      if (isMounted.current) setEliteLoading(false);
+      if (isMounted.current && req === eliteReq.current) setEliteLoading(false);
     }
   };
 
   const fetchBoard = async (s: 'public' | 'community') => {
     if (!user) return;
+    const req = ++boardReq.current;
     setBoardLoading(true);
     try {
       const rows = await StaticService.getWellRoundedLeaderboard(user.id, communityIdFor(s));
-      if (isMounted.current) setBoardRows(rows);
+      if (isMounted.current && req === boardReq.current) setBoardRows(rows);
     } catch (e) {
       console.error('[StaticWorld] board error:', e);
     } finally {
-      if (isMounted.current) setBoardLoading(false);
+      if (isMounted.current && req === boardReq.current) setBoardLoading(false);
     }
   };
 
@@ -193,8 +201,9 @@ export function StaticWorldScreen({ movement }: Props) {
     setPendingOverwrite(null);
     setTop([]);
     setSheet({ kind: 'log', movementId: m.id });
+    const req = ++topReq.current;
     StaticService.getMovementLeaderboard(m.id, user?.id, communityIdFor(scope))
-      .then(r => { if (isMounted.current) setTop(r.entries); })
+      .then(r => { if (isMounted.current && req === topReq.current) setTop(r.entries); })
       .catch(e => console.error('[StaticWorld] top holds error:', e));
   };
 
@@ -222,9 +231,11 @@ export function StaticWorldScreen({ movement }: Props) {
 
   // --------------------------------------------------------------- save
 
-  const handleSave = (seconds: number, force = false) => {
-    if (!user || !sheet || sheet.kind !== 'log') return;
-    const m = STATIC_MOVEMENTS.find(x => x.id === sheet.movementId);
+  const handleSave = (seconds: number, force = false, forMovementId?: string) => {
+    // The movement travels with a retry (see OneMinMaxScreen).
+    const movementId = forMovementId ?? (sheet?.kind === 'log' ? sheet.movementId : undefined);
+    if (!user || !movementId) return;
+    const m = STATIC_MOVEMENTS.find(x => x.id === movementId);
     if (!m) return;
     if (!Number.isFinite(seconds) || seconds <= 0) {
       Alert.alert('Invalid', 'Please enter a valid hold time in seconds.');
@@ -255,7 +266,7 @@ export function StaticWorldScreen({ movement }: Props) {
         setSheet(null);
         setToast(isPB
           ? (currentBest > 0 ? `NEW PB · +${fmt2(holdPts(m, seconds - currentBest))} PTS` : `FIRST HOLD · ${fmt2(holdPts(m, seconds))} PTS`)
-          : 'LOGGED · PB UNCHANGED');
+          : force ? `PB REPLACED · ${seconds}s` : 'LOGGED · PB UNCHANGED');
         fetchPbs();
         refreshSummary();
         if (tier !== 'overall') fetchElite(tier, scope);
@@ -270,11 +281,11 @@ export function StaticWorldScreen({ movement }: Props) {
         if (!['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code)) console.error('Error saving hold:', error);
         const msg = describeSubmitError(error, 'Failed to save hold');
         if (Platform.OS === 'web') {
-          if (window.confirm(`${msg}\n\nTry again?`)) handleSave(seconds, force);
+          if (window.confirm(`${msg}\n\nTry again?`)) handleSave(seconds, force, m.id);
         } else {
           Alert.alert('Error', msg, [
             { text: 'Cancel', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handleSave(seconds, force) },
+            { text: 'Try Again', onPress: () => handleSave(seconds, force, m.id) },
           ]);
         }
       },

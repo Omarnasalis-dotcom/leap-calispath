@@ -5,6 +5,7 @@ import {
   getPowerTierLeaderboard,
   invalidateStrengthLeaderboardCache,
   invalidatePowerLeaderboardCache,
+  getCompletedTrialTiers,
 } from '../leaderboard';
 import { supabase } from '../supabase';
 
@@ -202,5 +203,28 @@ describe('getPowerTierLeaderboard caching', () => {
     await getPowerTierLeaderboard(2, 'p1');
 
     expect(supabase.from).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('getCompletedTrialTiers', () => {
+  const chain = (result: { data: any; error: any }) => {
+    const q: any = { select: jest.fn(() => q), eq: jest.fn(() => q), then: (res: any, rej: any) => Promise.resolve(result).then(res, rej) };
+    return q;
+  };
+
+  it('returns the set of completed tiers', async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: [{ tier_attempted: 0 }, { tier_attempted: 2 }, { tier_attempted: 2 }], error: null }));
+    const tiers = await getCompletedTrialTiers('u1');
+    expect(tiers).toEqual(new Set([0, 2]));
+  });
+
+  it('returns null on error so callers never treat a failure as "no trials"', async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: null, error: { message: 'network' } }));
+    expect(await getCompletedTrialTiers('u1')).toBeNull();
+  });
+
+  it('returns an empty set when the user has no completed trials', async () => {
+    (supabase.from as jest.Mock).mockReturnValueOnce(chain({ data: [], error: null }));
+    expect(await getCompletedTrialTiers('u1')).toEqual(new Set());
   });
 });

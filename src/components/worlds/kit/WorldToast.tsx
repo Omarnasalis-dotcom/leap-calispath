@@ -17,12 +17,20 @@ export function WorldToast({ tokens: t, message, onHide, duration = 2200 }: {
   const [shown, setShown] = useState<string | null>(message);
 
   useEffect(() => {
-    if (!message) return;
+    if (!message) {
+      // Cleared from outside: fade out whatever is still showing.
+      Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }).start();
+      return;
+    }
     setShown(message);
     opacity.setValue(0);
     Animated.timing(opacity, { toValue: 1, duration: 180, useNativeDriver: true }).start();
     const timer = setTimeout(() => {
-      Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }).start(() => onHide());
+      // Only report hidden if the fade actually completed: a newer message
+      // interrupting it must not be cleared by this older toast.
+      Animated.timing(opacity, { toValue: 0, duration: 220, useNativeDriver: true }).start(({ finished }) => {
+        if (finished) onHide();
+      });
     }, duration);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps

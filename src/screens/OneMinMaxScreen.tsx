@@ -113,24 +113,31 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   useFocusEffect(useCallback(() => { fetchStats(); }, [fetchStats]));
 
+  // Latest-request guards: when the user switches tier/scope/movement quickly,
+  // an older response resolving last must not overwrite the current list.
+  const boardReq = useRef(0);
+  const topReq = useRef(0);
+
   const fetchBoard = useCallback(async (s: 'public' | 'community') => {
+    const req = ++boardReq.current;
     setBoardLoading(true);
     try {
       const communityId = s === 'community' ? profile?.community_id : null;
       const data = await OneMMService.getLeaderboard('overall', undefined, communityId);
-      if (isMounted.current) setBoardRows(data);
+      if (isMounted.current && req === boardReq.current) setBoardRows(data);
     } catch (e) {
       console.error('1MM board error:', e);
     } finally {
-      if (isMounted.current) setBoardLoading(false);
+      if (isMounted.current && req === boardReq.current) setBoardLoading(false);
     }
   }, [profile?.community_id, isMounted]);
 
   const fetchMovementTop = useCallback(async (movementId: string) => {
+    const req = ++topReq.current;
     setMovementTop([]);
     try {
       const data = await OneMMService.getLeaderboard(movementId);
-      if (isMounted.current) setMovementTop(data);
+      if (isMounted.current && req === topReq.current) setMovementTop(data);
     } catch (e) {
       console.error('1MM movement top error:', e);
     }
@@ -210,9 +217,11 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   // --------------------------------------------------------------- save
 
-  const handleSaveResult = (reps: number, force = false) => {
-    if (!user || !sheet || sheet.kind !== 'log') return;
-    const movementId = sheet.movementId;
+  const handleSaveResult = (reps: number, force = false, forMovementId?: string) => {
+    // The movement travels with a retry, so Try Again still works if the
+    // sheet was closed while the first attempt was in flight.
+    const movementId = forMovementId ?? (sheet?.kind === 'log' ? sheet.movementId : undefined);
+    if (!user || !movementId) return;
     const movement = ONEMM_MOVEMENTS.find(m => m.id === movementId);
     const currentBest = stats?.pbs[movementId] ?? 0;
 
@@ -242,7 +251,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         setSheet(null);
         setToast(isPB
           ? (currentBest > 0 ? `NEW PB · +${fmt2((reps - currentBest) * mult)} PTS` : `FIRST SET · ${fmt2(reps * mult)} PTS`)
-          : 'LOGGED · PB UNCHANGED');
+          // A confirmed overwrite replaces the PB even though it isn't "new".
+          : force ? `PB REPLACED · ${reps} REPS` : 'LOGGED · PB UNCHANGED');
         fetchStats();
         refreshSummary();
         refreshProfile?.();
@@ -259,7 +269,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         }
         Alert.alert('Error', describeSubmitError(error, 'Failed to save result.'), [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Try Again', onPress: () => handleSaveResult(reps, force) },
+          { text: 'Try Again', onPress: () => handleSaveResult(reps, force, movementId) },
         ]);
       },
     });

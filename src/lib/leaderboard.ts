@@ -216,6 +216,22 @@ export async function getGloryLeaderboard(
 }
 
 /**
+ * Strength tiers the user has completed at least one trial on (progression
+ * or practice). Returns null when the lookup fails — unlike
+ * getUserPersonalBests, which returns [] on error — so callers never mistake
+ * a network blip for "no trials completed".
+ */
+export async function getCompletedTrialTiers(userId: string): Promise<Set<number> | null> {
+  const { data, error } = await supabase
+    .from('trial_history')
+    .select('tier_attempted')
+    .eq('user_id', userId)
+    .eq('completed', true);
+  if (error || !Array.isArray(data)) return null;
+  return new Set(data.map((r: any) => Number(r.tier_attempted)));
+}
+
+/**
  * Get user's personal best times for all tiers they've attempted
  */
 export async function getUserPersonalBests(userId: string): Promise<PersonalBest[]> {

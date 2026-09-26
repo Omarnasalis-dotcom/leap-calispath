@@ -108,26 +108,34 @@ export function PowerWorldScreen() {
 
   const communityIdFor = (s: 'public' | 'community') => (s === 'community' ? profile?.community_id ?? null : null);
 
+  // Latest-request guards: when the user switches tier/scope/movement quickly,
+  // an older response resolving last must not overwrite the current list.
+  const eliteReq = useRef(0);
+  const boardReq = useRef(0);
+  const topReq = useRef(0);
+
   const fetchElite = useCallback(async (level: Tier, s: 'public' | 'community') => {
     if (level === 'all') return;
+    const req = ++eliteReq.current;
     setEliteLoading(true);
     setEliteRows([]);
     try {
       const data = await PowerService.getLeaderboard(`level_${level}` as any, communityIdFor(s));
-      if (isMounted.current) setEliteRows(data);
+      if (isMounted.current && req === eliteReq.current) setEliteRows(data);
     } finally {
-      if (isMounted.current) setEliteLoading(false);
+      if (isMounted.current && req === eliteReq.current) setEliteLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.community_id, isMounted]);
 
   const fetchBoard = useCallback(async (s: 'public' | 'community') => {
+    const req = ++boardReq.current;
     setBoardLoading(true);
     try {
       const data = await PowerService.getLeaderboard('glory', communityIdFor(s));
-      if (isMounted.current) setBoardRows(data);
+      if (isMounted.current && req === boardReq.current) setBoardRows(data);
     } finally {
-      if (isMounted.current) setBoardLoading(false);
+      if (isMounted.current && req === boardReq.current) setBoardLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [profile?.community_id, isMounted]);
@@ -184,8 +192,9 @@ export function PowerWorldScreen() {
     setPendingOverwrite(null);
     setMovementTop([]);
     setSheet({ kind: 'log', movementId: m.id });
+    const req = ++topReq.current;
     PowerService.getLeaderboard(m.id as any)
-      .then(d => { if (isMounted.current) setMovementTop(d); })
+      .then(d => { if (isMounted.current && req === topReq.current) setMovementTop(d); })
       .catch(e => console.error('Power top lifts error:', e));
   };
 
@@ -207,9 +216,10 @@ export function PowerWorldScreen() {
 
   // --------------------------------------------------------------- save
 
-  const handleSave = (value: number, force = false) => {
-    if (!user || !sheet || sheet.kind !== 'log' || saving) return;
-    const movementId = sheet.movementId;
+  const handleSave = (value: number, force = false, forMovementId?: string) => {
+    // The movement travels with a retry (see OneMinMaxScreen).
+    const movementId = forMovementId ?? (sheet?.kind === 'log' ? sheet.movementId : undefined);
+    if (!user || !movementId || saving) return;
     if (isNaN(value) || value <= 0 || value > MAX_KG) {
       Alert.alert('Invalid', `Please enter a valid weight (0.1 - ${MAX_KG} kg).`);
       return;
@@ -260,7 +270,7 @@ export function PowerWorldScreen() {
         setSheet(null);
         setToast(isPB
           ? (currentBest > 0 ? `NEW 1RM · +${fmt2(gained)} PTS` : `FIRST 1RM · ${fmt2(calculatePowerPoints(movementId, value))} PTS`)
-          : 'LOGGED · 1RM UNCHANGED');
+          : force ? `1RM REPLACED · ${value} KG` : 'LOGGED · 1RM UNCHANGED');
         fetchStats();
         refreshSummary();
         if (tier !== 'all') fetchElite(tier, scope);
@@ -274,7 +284,7 @@ export function PowerWorldScreen() {
         console.error('Power save error:', error);
         Alert.alert('Error', describeSubmitError(error, 'Failed to save PR.'), [
           { text: 'Cancel', style: 'cancel' },
-          { text: 'Try Again', onPress: () => handleSave(value, force) },
+          { text: 'Try Again', onPress: () => handleSave(value, force, movementId) },
         ]);
       },
     });

@@ -5,7 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getWorldKitTokens, WorldKitTokens, WORLD_FONTS } from '../../../constants/worldKitTokens';
-import { getTierLeaderboard, getUserPersonalBests, LeaderboardEntry } from '../../lib/leaderboard';
+import { getCompletedTrialTiers, getTierLeaderboard, LeaderboardEntry } from '../../lib/leaderboard';
 import { getCountryCode } from '../../constants/countries';
 import { initials } from '../../lib/worldStanding';
 import {
@@ -88,12 +88,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
   const loadCompleted = useCallback(async () => {
     if (!userId) return;
-    try {
-      const bests = await getUserPersonalBests(userId);
-      if (isMounted.current) setCompletedTiers(new Set(bests.map(b => b.tier)));
-    } catch {
-      // Keep the previous set; tiers stay 'complete' until known.
-    }
+    // null = the lookup failed: keep what we had (undefined reads as
+    // 'complete'), never mark real passes as PLACED because of a blip.
+    const tiers = await getCompletedTrialTiers(userId).catch(() => null);
+    if (tiers && isMounted.current) setCompletedTiers(tiers);
   }, [userId, isMounted]);
 
   useFocusEffect(useCallback(() => { loadBoards(); loadCompleted(); }, [loadBoards, loadCompleted]));
