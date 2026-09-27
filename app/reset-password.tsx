@@ -16,3 +16,5 @@ export default function Route() {
     </SpartanLayout>
   );
 }
+
+export { RouteErrorBoundary as ErrorBoundary } from '../src/components/RouteErrorBoundary';

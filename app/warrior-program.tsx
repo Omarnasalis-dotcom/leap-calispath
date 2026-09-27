@@ -23,3 +23,5 @@ export default function WarriorProgramRoute() {
     />
   );
 }
+
+export { RouteErrorBoundary as ErrorBoundary } from '../src/components/RouteErrorBoundary';

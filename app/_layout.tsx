@@ -265,7 +265,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   }
 
   const inAuthGroup = segments[0] === 'auth' || segments[0] === 'reset-password';
-  const inOnboarding = segments[0] === 'onboarding';
   const inAssessmentGroup = segments[0] === 'assessment';
   const inCompleteProfile = segments[0] === 'complete-profile';
   const isResetPassword = segments[0] === 'reset-password';
@@ -353,7 +352,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // tab's own "ADD GOAL" link and legacy milestone 2 still need to reach this
       // route at any time, not just during the one-time mandatory flow. Without this
       // exemption, tapping either one bounced straight back to /profile.
-      if (inAssessmentGroup || inOnboardingJourney || (inAuthGroup && !isResetPassword) || inOnboarding) {
+      if (inAssessmentGroup || inOnboardingJourney || (inAuthGroup && !isResetPassword)) {
         return <Redirect href="/" />;
       }
     }
