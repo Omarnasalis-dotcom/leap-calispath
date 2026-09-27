@@ -21,7 +21,11 @@ const CLAIM_PATTERNS: RegExp[] = [
   /\b(built|added|created|wrote|finished)\s+(your\s+)?week\s*\d*\b/i,
   // "your program is live" / "program has been created" / "I've started your program"
   /\b(your\s+)?program\s*(is|has been|was)\s*(now\s*)?(live|built|created|ready|started|ended|deleted)\b/i,
-  /\bI('ve| have)\s+(built|created|started|ended|deleted|removed|added|adjusted|updated|swapped|replaced)\s+(your\s+)?(program|week|day|block|exercise)\b/i,
+  // Determiner widened from "your" to also cover "the/that/this" (2026-09-27,
+  // found by actionClaimGuard.test.ts): "I've swapped the exercise" slipped
+  // through. Safe to widen — index.ts only runs this guard when no write
+  // tool was called in the request, so an honest post-tool reply never trips it.
+  /\bI('ve| have)\s+(built|created|started|ended|deleted|removed|added|adjusted|updated|swapped|replaced)\s+((your|the|that|this)\s+)?(program|week|day|block|exercise)\b/i,
   // Arabic: "تم بناء/إضافة/حذف/تعديل" (was built/added/deleted/adjusted), "برنامجك جاهز" (your program is ready)
   /تم\s*(بناء|إضاف|حذف|تعديل|إنشاء|إنهاء)/,
   /برنامجك\s*(جاهز|جاهزة|اتعمل|إتعمل)/,

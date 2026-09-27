@@ -5,6 +5,7 @@ import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
 import { computeDayPosition, getBlockParts } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
+import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
@@ -633,6 +634,28 @@ serve(async (req: Request) => {
       if (error) console.error("[ai-coach] ai_coach_record_chat_cost failed:", error.message);
     }
 
+    // Safety backstop (see safetyGuard.ts): log-and-flag only — the reply is
+    // always sent unchanged. Flagged replies are saved as an automated report
+    // for human review. Never lets a failure here affect the athlete.
+    const flagUnsafeReply = async (reply: string) => {
+      const flags = detectSafetyFlags(reply);
+      if (flags.length === 0) return;
+      console.error(`[ai-coach] SAFETY FLAG (${flags.join(", ")}) for ${user.id}: "${reply.slice(0, 200)}"`);
+      try {
+        const lastUser = [...initialMessages].reverse().find((m) => m.role === "user");
+        const precedingUserMessage = typeof lastUser?.content === "string" ? lastUser.content : null;
+        const { error } = await userClient.from("ai_coach_message_reports").insert({
+          user_id: user.id,
+          reason: "auto_safety_flag",
+          assistant_message: `[${flags.join(", ")}] ${reply}`,
+          preceding_user_message: precedingUserMessage,
+        });
+        if (error) console.error("[ai-coach] Failed to save safety flag:", error.message);
+      } catch (err) {
+        console.error("[ai-coach] Failed to save safety flag:", err);
+      }
+    };
+
     const startedAt = Date.now();
     for (let turn = 0; turn < MAX_TOOL_TURNS; turn++) {
       // Wall-clock guard (audit 2026-09-25, H5 #1): never start another
@@ -744,6 +767,7 @@ serve(async (req: Request) => {
 
         console.log(`[ai-coach] DONE in ${Date.now() - startedAt}ms after ${turn + 1} turn(s)`);
         await recordCost();
+        await flagUnsafeReply(text);
         send("final", { reply: text, recommendations, programAction, blocks, suggestedReplies });
         return;
       }
