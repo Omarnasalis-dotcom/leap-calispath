@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -18,6 +18,7 @@ import { Input } from '../components/Input';
 import { Button } from '../components/Button';
 import { COUNTRIES } from '../constants/countries';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { track } from '../lib/analytics';
 
 // Mirrors the database rule profiles_display_name_format (1-30 chars, no @).
 const USERNAME_MAX_LENGTH = 30;
@@ -61,13 +62,21 @@ export function CompleteProfileScreen() {
   // either source, so they still correctly see the fields.
   const needsName = !initialFirstName && !initialLastName;
 
+  // Analytics (audit M18): 16% of new signups stalled on this screen with no
+  // way to see why — record views and every reason a save is rejected.
+  useEffect(() => {
+    track('complete_profile_viewed');
+  }, []);
+
   async function handleContinue() {
     const cleanDisplayName = displayName.trim();
     if (!cleanDisplayName) {
+      track('complete_profile_error', { reason: 'missing_username' });
       Alert.alert('Missing Username', 'Please choose a username to continue.');
       return;
     }
     if (cleanDisplayName.includes('@')) {
+      track('complete_profile_error', { reason: 'contains_at' });
       Alert.alert('Invalid Username', 'Your username cannot contain the @ symbol. Please choose a different username.');
       return;
     }
@@ -76,8 +85,12 @@ export function CompleteProfileScreen() {
       const { data: isAvailable, error: usernameError } = await supabase.rpc('check_username_available', {
         username: cleanDisplayName,
       });
-      if (usernameError) return { error: new Error(SAVE_FAILED_MESSAGE) };
+      if (usernameError) {
+        track('complete_profile_error', { reason: 'username_check_failed' });
+        return { error: new Error(SAVE_FAILED_MESSAGE) };
+      }
       if (isAvailable === false) {
+        track('complete_profile_error', { reason: 'username_taken' });
         return { error: new Error(USERNAME_TAKEN_MESSAGE) };
       }
 
@@ -94,8 +107,10 @@ export function CompleteProfileScreen() {
         // The database enforces the username rules too (unique ignoring
         // case, 1-30 chars, no @), e.g. when two people pick the same name
         // at the same moment. Map those to something the user can act on.
-        if (error.code === '23505') return { error: new Error(USERNAME_TAKEN_MESSAGE) };
-        if (error.code === '23514') return { error: new Error(USERNAME_RULES_MESSAGE) };
+        const reason = error.code === '23505' ? 'username_taken' : error.code === '23514' ? 'username_rules' : 'save_failed';
+        track('complete_profile_error', { reason });
+        if (reason === 'username_taken') return { error: new Error(USERNAME_TAKEN_MESSAGE) };
+        if (reason === 'username_rules') return { error: new Error(USERNAME_RULES_MESSAGE) };
         return { error: new Error(SAVE_FAILED_MESSAGE) };
       }
       return { data: null, error: null };

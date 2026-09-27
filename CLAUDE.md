@@ -91,6 +91,7 @@ Each file under `app/` imports its corresponding screen from `src/screens/`. The
 | `workout_logs`, `workout_set_logs`, `bodyweight_logs` | Training logs |
 | `ai_coach_requests` | AI Coach request + cost log (drives message caps and $ budgets) |
 | `app_config` | Per-platform flags: `paywall_enabled`, `ai_coach_enabled`, chat caps, `minimum_version` |
+| `app_events` | First-party analytics written by `track()` (`src/lib/analytics.ts`); users insert only their own, admins read. Funnel/DAU report: `admin_get_growth_analytics` → admin-web Growth page |
 
 **Key patterns:**
 - Leaderboards come from SECURITY DEFINER RPCs (`get_tier_leaderboard`, etc.) over server-written tables.

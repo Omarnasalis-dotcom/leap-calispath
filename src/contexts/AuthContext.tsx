@@ -16,6 +16,7 @@ import {
 } from '@react-native-google-signin/google-signin';
 import Purchases from 'react-native-purchases';
 import * as Sentry from '@sentry/react-native';
+import { trackAppOpened } from '../lib/analytics';
 import { checkPaywallEnabled } from '../lib/appVersion';
 import { withNetworkRetry, isTransientNetworkError } from '../lib/submitErrors';
 
@@ -73,6 +74,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     } catch {
       // Never let crash-reporting setup affect auth.
     }
+  }, [user?.id]);
+
+  // Analytics (audit M5): an app open = a signed-in session starting, or the
+  // app returning to the foreground (throttled inside trackAppOpened).
+  useEffect(() => {
+    if (!user?.id) return;
+    trackAppOpened();
+    const sub = AppState.addEventListener('change', (state) => {
+      if (state === 'active') trackAppOpened();
+    });
+    return () => sub.remove();
   }, [user?.id]);
   const [needsPasswordReset, setNeedsPasswordReset] = useState(false);
   const [paywallEnabled, setPaywallEnabled] = useState(false);

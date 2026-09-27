@@ -40,6 +40,7 @@ import { ProgramAction, getChangeDayMessage, isLastConfirmedDay } from '../compo
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
 import { canAccessPro, isProRequiredError } from '../lib/entitlement';
+import { track } from '../lib/analytics';
 import { FreeCoachIntake } from '../components/coach/FreeCoachIntake';
 
 interface Message {
@@ -244,6 +245,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
   const isDark = mode === 'dark';
   const c = isDark ? COACH_COLORS.dark : COACH_COLORS.light;
+
+  // Analytics (audit M5): once per visit, split free vs paid.
+  useEffect(() => {
+    track('ai_coach_opened', { access: canAccessPro(profile, paywallEnabled) ? 'paid' : 'free' });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     const init = async () => {

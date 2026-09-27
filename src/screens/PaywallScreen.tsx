@@ -8,6 +8,7 @@ import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
 import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/analytics';
 
 type Step = 'context' | 'presenting' | 'confirming' | 'fallback';
 
@@ -102,8 +103,13 @@ export function PaywallScreen() {
 
   const present = useCallback(async () => {
     setStep('presenting');
+    track('paywall_viewed', { current_tier: currentTier });
     try {
       const result = await RevenueCatUI.presentPaywall();
+      if (result === PAYWALL_RESULT.PURCHASED) track('purchase_completed', { from_tier: currentTier });
+      else if (result === PAYWALL_RESULT.RESTORED) track('purchase_restored', { from_tier: currentTier });
+      else if (result === PAYWALL_RESULT.CANCELLED) track('purchase_cancelled', { current_tier: currentTier });
+      else track('paywall_failed', { result: String(result) });
       if (result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED) {
         await pollForAccess();
       } else if (result === PAYWALL_RESULT.CANCELLED) {
@@ -122,9 +128,10 @@ export function PaywallScreen() {
       }
     } catch (err) {
       console.error('[Paywall] presentPaywall failed:', err);
+      track('paywall_failed', { result: 'exception' });
       setStep('fallback');
     }
-  }, [pollForAccess, router]);
+  }, [pollForAccess, router, currentTier]);
 
   useEffect(() => {
     // Already-subscribed users land on the 'context' interstitial instead
