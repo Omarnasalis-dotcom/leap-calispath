@@ -528,7 +528,7 @@ export function TrialScreen({
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
-        <TouchableOpacity style={styles.backButton} onPress={handleBack}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" style={styles.backButton} onPress={handleBack}>
           <MaterialCommunityIcons name="chevron-left" size={32} color={accentColor} />
         </TouchableOpacity>
         <View style={[styles.headerTitleFrame, { borderColor: accentColor }]}>

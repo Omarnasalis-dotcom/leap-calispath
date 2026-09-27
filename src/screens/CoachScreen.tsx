@@ -761,7 +761,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         <View style={[styles.card, { backgroundColor: c.screenBg, borderColor: theme.accent + '30' }]}>
           <View style={[styles.header, { borderBottomColor: c.headerDivider }]}>
-            <TouchableOpacity onPress={onBack} style={styles.iconBtn}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.iconBtn}>
               <MaterialCommunityIcons name="chevron-left" size={26} color={c.secondaryText} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
@@ -774,8 +774,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {canAccessPro(profile, paywallEnabled) && (
                 <>
-                  <TouchableOpacity onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
-                  <TouchableOpacity onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="New session" onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear chat" onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
                 </>
               )}
             </View>
@@ -829,7 +829,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   ))}
                 </View>
                 {m.role === 'assistant' && m.content.length > 0 && (
-                  <TouchableOpacity
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Report this message"
                     style={styles.reportButton}
                     onPress={() => handleReportMessage(i)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -1047,7 +1047,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               multiline
               editable={!rateLimited}
             />
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send message"
               onPress={() => sendMessage()}
               disabled={loading || !inputText.trim() || rateLimited}
               style={[styles.sendBtn, { backgroundColor: theme.accent, opacity: (loading || rateLimited) ? 0.5 : 1 }]}

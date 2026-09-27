@@ -224,7 +224,7 @@ export function ProfileHeader({
       {/* Admin shield - Top Left */}
       <View style={{ position: 'absolute', top: 12, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {profile?.is_admin && (
-          <TouchableOpacity
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open admin panel"
             activeOpacity={0.7}
             onPress={onOpenAdmin}
             style={{

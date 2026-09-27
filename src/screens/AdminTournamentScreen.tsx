@@ -208,7 +208,7 @@ function CodesTab({ theme }: { theme: any }) {
           {generatedCodes.map((code: string, i: number) => (
             <View key={i} style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 10, borderBottomWidth: 0.5, borderBottomColor: 'rgba(255,255,255,0.05)' }}>
               <Text style={{ color: theme.text.primary, fontFamily: 'monospace', fontSize: 13 }}>{code}</Text>
-              <TouchableOpacity onPress={() => copyCode(code)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Copy code" onPress={() => copyCode(code)}>
                 <MaterialCommunityIcons name="content-copy" size={16} color={theme.accent} />
               </TouchableOpacity>
             </View>
@@ -227,7 +227,7 @@ function CodesTab({ theme }: { theme: any }) {
               <Text style={{ color: filterStatus === s ? '#000' : theme.text.secondary, fontSize: 11, fontWeight: '700' }}>{s.toUpperCase()}</Text>
             </TouchableOpacity>
           ))}
-          <TouchableOpacity onPress={fetchExistingCodes} style={{ marginLeft: 'auto' }}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Refresh codes" onPress={fetchExistingCodes} style={{ marginLeft: 'auto' }}>
             <MaterialCommunityIcons name="refresh" size={20} color={theme.accent} />
           </TouchableOpacity>
         </View>
@@ -248,7 +248,7 @@ function CodesTab({ theme }: { theme: any }) {
                   </Text>
                 </View>
                 {!c.used_by && (
-                  <TouchableOpacity disabled={generating} onPress={() => handleRevoke(c.id)}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Delete code" disabled={generating} onPress={() => handleRevoke(c.id)}>
                     <MaterialCommunityIcons name="trash-can-outline" size={18} color={generating ? "#999" : "#EF4444"} />
                   </TouchableOpacity>
                 )}
@@ -453,7 +453,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
                 <Text style={{ color: theme.text.tertiary, fontSize: 8 }}>RDS</Text>
                 <TextInput style={[styles.smallInput, { width: 35 }]} value={ex.weight_kg.toString()} onChangeText={(val: string) => updateExercise(i, exIdx, { weight_kg: parseInt(val) || 0 })} keyboardType="numeric" />
                 <Text style={{ color: theme.text.tertiary, fontSize: 8 }}>KG</Text>
-                <TouchableOpacity onPress={() => { const newRounds = [...rounds]; newRounds[i].exercises = newRounds[i].exercises.filter((_: any, idx: number) => idx !== exIdx); setRounds(newRounds); }}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => { const newRounds = [...rounds]; newRounds[i].exercises = newRounds[i].exercises.filter((_: any, idx: number) => idx !== exIdx); setRounds(newRounds); }}>
                   <MaterialCommunityIcons name="close" size={16} color={'#EF4444'} />
                 </TouchableOpacity>
               </View>
@@ -528,7 +528,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
               <Text style={{ color: theme.text.tertiary, fontSize: 8 }}>RDS</Text>
               <TextInput style={[styles.smallInput, { width: 35 }]} value={ex.weight_kg.toString()} onChangeText={(val: string) => { const newEx = [...rankWorkout.exercises]; newEx[exIdx] = { ...newEx[exIdx], weight_kg: parseInt(val) || 0 }; setRankWorkout({ ...rankWorkout, exercises: newEx }); }} keyboardType="numeric" />
               <Text style={{ color: theme.text.tertiary, fontSize: 8 }}>KG</Text>
-              <TouchableOpacity onPress={() => { const newEx = rankWorkout.exercises.filter((_: any, idx: number) => idx !== exIdx); setRankWorkout({ ...rankWorkout, exercises: newEx }); }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={() => { const newEx = rankWorkout.exercises.filter((_: any, idx: number) => idx !== exIdx); setRankWorkout({ ...rankWorkout, exercises: newEx }); }}>
                 <MaterialCommunityIcons name="close" size={16} color={'#EF4444'} />
               </TouchableOpacity>
             </View>
@@ -625,7 +625,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
                     <Text style={{ color: theme.text.tertiary, fontSize: 10 }}>{item.status.toUpperCase()} • {item.config?.type.toUpperCase()}</Text>
                   </View>
                   {item.status === 'registration' && (
-                    <TouchableOpacity disabled={loading} onPress={() => handleDelete(item.id, item.status)}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Delete tournament" disabled={loading} onPress={() => handleDelete(item.id, item.status)}>
                       <MaterialCommunityIcons name="trash-can-outline" size={20} color={loading ? '#999' : '#EF4444'} />
                     </TouchableOpacity>
                   )}

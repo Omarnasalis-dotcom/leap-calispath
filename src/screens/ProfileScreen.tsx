@@ -333,7 +333,7 @@ export function ProfileScreen({
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
             <>
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Settings"
                 style={styles.settingsGearButton}
                 onPress={() => setShowSettings(true)}
               >
@@ -426,7 +426,7 @@ export function ProfileScreen({
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
                   <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
-                  <TouchableOpacity onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
                     <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
                   </TouchableOpacity>
                 </View>

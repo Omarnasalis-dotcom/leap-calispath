@@ -453,7 +453,7 @@ function DaySlotCard({
         <View style={styles.daySlotOverlay}>
           <View style={styles.daySlotTopRow}>
             <Text style={styles.daySlotDayLabel}>DAY {index + 1}</Text>
-            <TouchableOpacity onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear search" onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <MaterialCommunityIcons name="close-circle" size={16} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
           </View>
@@ -881,7 +881,7 @@ export function CustomizeProgramScreen() {
     <DragGhostContext.Provider value={dragGhostContextValue}>
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
@@ -900,14 +900,14 @@ export function CustomizeProgramScreen() {
             <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
           </View>
           <View ref={layoutToggleTourRef} onLayout={onLayoutToggleTourLayout} style={styles.layoutToggle}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="List view"
               onPress={() => setColumns(1)}
               style={[styles.layoutToggleBtn, columns === 1 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             >
               <MaterialCommunityIcons name="view-agenda-outline" size={16} color={columns === 1 ? '#000' : c.textMuted} />
             </TouchableOpacity>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Grid view"
               onPress={() => setColumns(2)}
               style={[styles.layoutToggleBtn, columns === 2 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
@@ -1033,10 +1033,10 @@ export function CustomizeProgramScreen() {
           <View style={styles.quickBuildPanelHeader}>
             <Text style={styles.quickBuildPanelTitle}>QUICK BUILD</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              <TouchableOpacity onPress={() => setQuickBuildPanelOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Hide quick build" onPress={() => setQuickBuildPanelOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={c.textMuted} />
               </TouchableOpacity>
-              <TouchableOpacity onPress={handleExitQuickBuild} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Exit quick build" onPress={handleExitQuickBuild} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="close" size={20} color={c.textMuted} />
               </TouchableOpacity>
             </View>

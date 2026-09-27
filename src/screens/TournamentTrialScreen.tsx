@@ -307,7 +307,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                   <Text style={[styles.timerText, { fontSize: 48, color: theme.text.primary }]}>{rounds}</Text>
                   <Text style={[styles.timerLabel, { color: theme.text.tertiary }]}>CIRCUIT ROUNDS</Text>
                 </View>
-                <TouchableOpacity onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add round" onPress={() => handleCircuitRound(1)} style={styles.repBtn}>
                   <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
                 </TouchableOpacity>
               </View>
@@ -342,7 +342,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                       <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
                       <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>EXTRA</Text>
                     </View>
-                    <TouchableOpacity onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add extra rep" onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
                       <MaterialCommunityIcons name="plus" size={16} color={theme.accent} />
                     </TouchableOpacity>
                   </View>
@@ -352,7 +352,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                       <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
                     </TouchableOpacity>
                     <Text style={[styles.repValue, { color: theme.accent }]}>{exerciseReps[i]}</Text>
-                    <TouchableOpacity onPress={() => handleRep(i, 1)} style={styles.repBtn}>
+                    <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add rep" onPress={() => handleRep(i, 1)} style={styles.repBtn}>
                       <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
                     </TouchableOpacity>
                   </View>

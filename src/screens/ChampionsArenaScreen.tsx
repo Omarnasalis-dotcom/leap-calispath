@@ -92,7 +92,7 @@ export function ChampionsArenaScreen({ onClose, onStartArenaWorkout }: Champions
       <View style={styles.container}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
-        <TouchableOpacity onPress={onClose} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={onClose} style={styles.backButton}>
           <MaterialCommunityIcons name="chevron-left" size={32} color={W.accent} />
         </TouchableOpacity>
         <View style={[styles.headerTitleFrame, { borderColor: W.accent }]}>

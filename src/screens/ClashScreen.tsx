@@ -216,7 +216,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
           <MaterialCommunityIcons name="arrow-left" size={28} color={theme.text.primary} />
         </TouchableOpacity>
         <Text style={[styles.title, { color: theme.text.primary }]}>BATTLE LOBBY</Text>
-        <TouchableOpacity onPress={onOpenRankings} style={styles.backButton}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Rankings" onPress={onOpenRankings} style={styles.backButton}>
           <MaterialCommunityIcons name="trophy-outline" size={26} color={theme.accent} />
         </TouchableOpacity>
       </View>
@@ -290,10 +290,10 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
                   </View>
                   {!isSender && clash.status === 'pending' && (
                     <View style={styles.clashActions}>
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#4CAF50' }]} onPress={() => handleRespond(clash.id, 'accepted')}>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Accept clash" style={[styles.actionBtn, { backgroundColor: '#4CAF50' }]} onPress={() => handleRespond(clash.id, 'accepted')}>
                         <MaterialCommunityIcons name="check" size={18} color="#FFF" />
                       </TouchableOpacity>
-                      <TouchableOpacity style={[styles.actionBtn, { backgroundColor: '#D32F2F' }]} onPress={() => handleRespond(clash.id, 'declined')}>
+                      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Decline clash" style={[styles.actionBtn, { backgroundColor: '#D32F2F' }]} onPress={() => handleRespond(clash.id, 'declined')}>
                         <MaterialCommunityIcons name="close" size={18} color="#FFF" />
                       </TouchableOpacity>
                     </View>

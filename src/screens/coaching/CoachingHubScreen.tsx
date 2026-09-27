@@ -123,7 +123,7 @@ export function CoachingHubScreen({ onClose }: CoachingHubScreenProps) {
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* ─── HEADER ─── */}
       <View style={[styles.header, { borderBottomColor: 'rgba(255,255,255,0.06)' }]}>
-        <TouchableOpacity onPress={handleClose} style={styles.backBtn}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={handleClose} style={styles.backBtn}>
           <MaterialCommunityIcons name="chevron-left" size={30} color={bronzeGold} />
         </TouchableOpacity>
 

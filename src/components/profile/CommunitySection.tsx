@@ -356,7 +356,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
           <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
-              <TouchableOpacity style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowCreateModal(false)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowCreateModal(false)}>
                 <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>
@@ -418,7 +418,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
           <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
               <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>JOIN COMMUNITY</Text>
-              <TouchableOpacity style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowJoinModal(false)}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowJoinModal(false)}>
                 <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>

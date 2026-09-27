@@ -122,7 +122,7 @@ export function SessionDetailView({
   return (
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>

@@ -552,7 +552,7 @@ export function TrainingCenterScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
           <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>

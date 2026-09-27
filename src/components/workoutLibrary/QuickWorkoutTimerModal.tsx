@@ -638,7 +638,7 @@ export function QuickWorkoutTimerModal({
     <Modal visible={visible} transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleRequestClose}>
       <View style={[qwStyles.container, { backgroundColor: '#000000' }]}>
         <View style={[qwStyles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
             <MaterialCommunityIcons name="close" size={18} color="#EDEDED" />
           </TouchableOpacity>
           <View style={qwStyles.schemeChip}>
@@ -819,7 +819,7 @@ export function QuickWorkoutTimerModal({
 
         {phase !== 'prep' && (isForTime || isAmrap) && (
           <View style={qwStyles.footer}>
-            <TouchableOpacity
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={timer.isRunning ? 'Pause timer' : 'Start timer'}
               style={qwStyles.footerIconBtn}
               onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
               disabled={phase === 'done'}
@@ -833,7 +833,7 @@ export function QuickWorkoutTimerModal({
             >
               <Text style={[qwStyles.footerPrimaryText, committed && { color: '#8a8a8a' }]}>{primaryLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={qwStyles.footerIconBtn} onPress={handleRequestClose}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="End workout" style={qwStyles.footerIconBtn} onPress={handleRequestClose}>
               <MaterialCommunityIcons name="stop" size={20} color={CORAL} />
             </TouchableOpacity>
           </View>
