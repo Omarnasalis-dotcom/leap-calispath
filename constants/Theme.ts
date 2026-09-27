@@ -32,8 +32,8 @@ export const StealthTheme = {
     },
     text: {
       primary: 'rgba(255, 255, 255, 0.85)', // Low contrast white
-      secondary: 'rgba(255, 255, 255, 0.45)',
-      tertiary: 'rgba(255, 255, 255, 0.2)',
+      secondary: 'rgba(255, 255, 255, 0.50)',
+      tertiary: 'rgba(255, 255, 255, 0.38)',
     },
     accent: '#FF5252', // Minimal power glow
     statusBar: 'light-content' as const,
@@ -49,8 +49,8 @@ export const StealthTheme = {
     },
     text: {
       primary: 'rgba(0, 0, 0, 0.85)',
-      secondary: 'rgba(0, 0, 0, 0.45)',
-      tertiary: 'rgba(0, 0, 0, 0.2)',
+      secondary: 'rgba(0, 0, 0, 0.58)',
+      tertiary: 'rgba(0, 0, 0, 0.42)',
     },
     accent: '#FF5252',
     statusBar: 'dark-content' as const,
