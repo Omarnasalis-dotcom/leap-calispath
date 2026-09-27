@@ -8,6 +8,7 @@ const ADMIN_NAV: Array<
   { section: string } | { to: string; label: string; end?: boolean }
 > = [
   { to: '/', label: 'Dashboard', end: true },
+  { to: '/growth', label: 'Growth' },
   { to: '/notifications', label: 'Notifications' },
   { to: '/users', label: 'Users' },
   { to: '/leaderboards', label: 'Leaderboards' },

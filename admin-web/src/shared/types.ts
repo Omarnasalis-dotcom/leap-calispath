@@ -168,7 +168,8 @@ export interface InviteRequestRow {
 export interface AiCoachMessageReportRow {
   id: string;
   user_id: string;
-  reason: 'inaccurate' | 'inappropriate' | 'other';
+  // 'auto_safety_flag' is written by the AI Coach's safety guard, not a user.
+  reason: 'inaccurate' | 'inappropriate' | 'other' | 'auto_safety_flag';
   assistant_message: string;
   preceding_user_message: string | null;
   created_at: string;

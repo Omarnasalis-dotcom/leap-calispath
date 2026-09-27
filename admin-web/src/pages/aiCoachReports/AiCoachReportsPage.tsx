@@ -10,6 +10,7 @@ const REASON_LABEL: Record<AiCoachMessageReportRow['reason'], string> = {
   inaccurate: 'Inaccurate',
   inappropriate: 'Inappropriate',
   other: 'Other',
+  auto_safety_flag: 'Auto safety flag',
 };
 
 export function AiCoachReportsPage() {
