@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
 
@@ -20,8 +20,12 @@ function getYouTubeVideoId(url: string): string {
 // same-origin request, which YouTube rejects with error 153 ("video player
 // configuration error"). Wrapping the iframe in an HTML document served via
 // the `html` source works around that.
+function buildEmbedUrl(videoId: string): string {
+  return `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&controls=1&modestbranding=1&rel=0`;
+}
+
 function buildEmbedHtml(videoId: string): string {
-  const embedUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&playsinline=1&controls=1&modestbranding=1&rel=0`;
+  const embedUrl = buildEmbedUrl(videoId);
   return `<!DOCTYPE html>
 <html>
   <head>
@@ -55,15 +59,28 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({ url, theme
           </TouchableOpacity>
         </View>
         <View style={styles.playerWrap}>
-          <WebView
-            source={{ html: buildEmbedHtml(videoId), baseUrl: 'https://leap-arena.com' }}
-            style={styles.player}
-            originWhitelist={['*']}
-            allowsInlineMediaPlayback
-            allowsFullscreenVideo
-            mediaPlaybackRequiresUserAction={false}
-            javaScriptEnabled
-          />
+          {Platform.OS === 'web' ? (
+            // react-native-webview has no web implementation, so on web the
+            // demo never rendered (audit L18). The browser plays the embed
+            // directly; vercel.json's CSP allows YouTube in frame-src.
+            React.createElement('iframe', {
+              src: buildEmbedUrl(videoId),
+              style: { width: '100%', height: '100%', border: 0 },
+              allow: 'autoplay; encrypted-media; picture-in-picture',
+              allowFullScreen: true,
+              title: 'Exercise demo',
+            })
+          ) : (
+            <WebView
+              source={{ html: buildEmbedHtml(videoId), baseUrl: 'https://leap-arena.com' }}
+              style={styles.player}
+              originWhitelist={['*']}
+              allowsInlineMediaPlayback
+              allowsFullscreenVideo
+              mediaPlaybackRequiresUserAction={false}
+              javaScriptEnabled
+            />
+          )}
         </View>
       </View>
     </LinearGradient>
