@@ -1,5 +1,6 @@
 import { useRouter, useLocalSearchParams, router, useFocusEffect } from 'expo-router';
 import React, { useEffect, useState, useRef, useCallback } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { View,
   Text,
   StyleSheet,
@@ -75,6 +76,11 @@ interface WarriorProgramScreenProps {
 // constant) rather than a real coach — only those are eligible for
 // self-service week extension via add_week_to_own_program.
 const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+
+// In-progress set logging saved on-device so it survives the app being
+// killed mid-workout (see the restore/save effects in the component).
+const SET_PROGRESS_MAX_AGE_MS = 12 * 60 * 60 * 1000;
+const setProgressStorageKey = (warriorProgramId: string) => `workout_set_progress_v1:${warriorProgramId}`;
 
 // "Running" day view (dbRunnerStyles below) was fixed dark-only — same
 // relationship-preservation split as DB_COLORS/PD_COLORS elsewhere.
@@ -202,6 +208,54 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       return { ...prev, [blockId]: { ...blockEntry, [exerciseId]: next } };
     });
   };
+
+  // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
+  // progress only reached the server when a whole block was logged, so a
+  // phone call or low-memory kill lost every set ticked so far. Kept per
+  // program in device storage; restored for up to 12h, and only for blocks
+  // that still aren't logged. Saving starts only after the restore read has
+  // finished, so the empty initial state can't overwrite saved progress.
+  const setProgressRestoredRef = useRef(false);
+  useEffect(() => {
+    if (loading || !warriorProgramId || setProgressRestoredRef.current) return;
+    const key = setProgressStorageKey(warriorProgramId);
+    AsyncStorage.getItem(key)
+      .then((raw) => {
+        if (!raw) return;
+        const saved = JSON.parse(raw) as { savedAt?: number; progress?: typeof blockSetProgress };
+        if (!saved?.progress || !saved.savedAt || Date.now() - saved.savedAt > SET_PROGRESS_MAX_AGE_MS) return;
+        const openBlockIds = new Set(
+          Object.values(weeksData)
+            .flat()
+            .flatMap((d) => d.blocks)
+            .filter((b) => b.completedStatus === 'none')
+            .map((b) => String(b.id))
+        );
+        const restored = Object.fromEntries(
+          Object.entries(saved.progress).filter(([blockId]) => openBlockIds.has(String(blockId)))
+        );
+        if (Object.keys(restored).length > 0) {
+          setBlockSetProgress((prev) => ({ ...restored, ...prev }));
+        }
+      })
+      .catch(() => {
+        // Unreadable/corrupt saved progress — start fresh, never block the screen.
+      })
+      .finally(() => {
+        setProgressRestoredRef.current = true;
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading, warriorProgramId]);
+
+  useEffect(() => {
+    if (!setProgressRestoredRef.current || !warriorProgramId) return;
+    const key = setProgressStorageKey(warriorProgramId);
+    const hasProgress = Object.values(blockSetProgress).some((sets) => Object.keys(sets).length > 0);
+    (hasProgress
+      ? AsyncStorage.setItem(key, JSON.stringify({ savedAt: Date.now(), progress: blockSetProgress }))
+      : AsyncStorage.removeItem(key)
+    ).catch(() => {});
+  }, [blockSetProgress, warriorProgramId]);
 
   // Log Form State
   const [logModalVisible, setLogModalVisible] = useState(false);
@@ -1331,7 +1385,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               progress source as the day-list view. */}
           <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <TouchableOpacity onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="chevron-left" size={18} color="#fff" />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
@@ -1421,7 +1475,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             pointerEvents="box-none"
           >
             <View style={dbRunnerStyles.footer} pointerEvents="box-none">
-              <TouchableOpacity
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Start timer"
                 style={[dbRunnerStyles.restBtn, !runnerOpenBlock && { opacity: 0.35 }]}
                 disabled={!runnerOpenBlock}
                 onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
