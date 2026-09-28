@@ -55,7 +55,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Workout | تمرين | |
 | Program | برنامج | |
 | Active program | البرنامج الحالي | |
-| Build your program | ابنِ برنامجك | |
+| Build your program | إنشاء برنامجك | owner's choice (was ابنِ برنامجك) |
 | Day | اليوم | |
 | Week | الأسبوع | |
 | Exercise | تمرين | same word as workout; context makes it clear |
