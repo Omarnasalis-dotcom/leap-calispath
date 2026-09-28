@@ -54,7 +54,9 @@ interface Props {
 
 export function StaticWorldScreen({ movement }: Props) {
   const { theme, mode } = useTheme();
-  const t = getWorldKitTokens('static', mode);
+  // Memoized so the skill cards (React.memo) don't all re-render on every
+  // swipe or timer tick.
+  const t = useMemo(() => getWorldKitTokens('static', mode), [mode]);
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();
@@ -207,6 +209,11 @@ export function StaticWorldScreen({ movement }: Props) {
       .then(r => { if (isMounted.current && req === topReq.current) setTop(r.entries); })
       .catch(e => console.error('[StaticWorld] top holds error:', e));
   };
+
+  // Stable for the memoized skill cards; always runs the latest openLog.
+  const openLogRef = useRef(openLog);
+  openLogRef.current = openLog;
+  const openLogFromCard = useCallback((m: StaticMovement) => openLogRef.current(m), []);
 
   const openBoard = () => {
     setSheet({ kind: 'board' });
@@ -381,7 +388,7 @@ export function StaticWorldScreen({ movement }: Props) {
             containerRef={movementRowRef}
             onContainerLayout={onMovementRowLayout}
             renderCard={(i, active) => (
-              <SkillCard tokens={t} category={CATEGORIES[i]} n={i + 1} active={active} pbs={pbs} loaded={loaded} onOpen={openLog} />
+              <SkillCard tokens={t} category={CATEGORIES[i]} n={i + 1} active={active} pbs={pbs} loaded={loaded} onOpen={openLogFromCard} />
             )}
           />
 
@@ -518,7 +525,8 @@ export function StaticWorldScreen({ movement }: Props) {
 
 // ------------------------------------------------------------ skill card
 
-function SkillCard({ tokens: t, category, n, active, pbs, loaded, onOpen }: {
+// Memoized: a swipe only re-renders the two cards whose `active` changed.
+const SkillCard = React.memo(function SkillCard({ tokens: t, category, n, active, pbs, loaded, onOpen }: {
   tokens: WorldKitTokens; category: Category; n: number; active: boolean;
   pbs: Record<string, number>; loaded: boolean; onOpen: (m: StaticMovement) => void;
 }) {
@@ -548,7 +556,7 @@ function SkillCard({ tokens: t, category, n, active, pbs, loaded, onOpen }: {
       </View>
     </View>
   );
-}
+});
 
 function HoldRow({ tokens: t, movement: m, pb, loaded, onPress }: {
   tokens: WorldKitTokens; movement: StaticMovement; pb: number; loaded: boolean; onPress?: () => void;

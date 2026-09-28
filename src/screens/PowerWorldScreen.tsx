@@ -49,7 +49,7 @@ const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 export function PowerWorldScreen() {
   const { theme, mode } = useTheme();
-  const t = getWorldKitTokens('power', mode);
+  const t = useMemo(() => getWorldKitTokens('power', mode), [mode]);
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();

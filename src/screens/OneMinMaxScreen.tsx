@@ -48,7 +48,7 @@ const isLevelLocked = (level: Level, tier: number) => tier < LEVEL_UNLOCK_TIER[l
 
 export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, mode } = useTheme();
-  const t = getWorldKitTokens('onemm', mode);
+  const t = useMemo(() => getWorldKitTokens('onemm', mode), [mode]);
   const { user, profile, refreshProfile } = useAuth();
   const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const isMounted = useMountedRef();

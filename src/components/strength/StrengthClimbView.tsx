@@ -58,10 +58,14 @@ function climbColors(t: WorldKitTokens) {
   } as const;
 }
 
+const NO_ENTRIES: LeaderboardEntry[] = [];
+
 export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: Props) {
   const { mode } = useTheme();
-  const t = getWorldKitTokens('strength', mode);
-  const c = climbColors(t);
+  // Memoized so the tier cards (React.memo) only re-render when their own
+  // props change, not on every swipe.
+  const t = useMemo(() => getWorldKitTokens('strength', mode), [mode]);
+  const c = useMemo(() => climbColors(t), [t]);
   const isMounted = useMountedRef();
   const scrollRef = useRef<ScrollView>(null);
   const userId: string | undefined = profile?.id;
@@ -130,6 +134,17 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   const { ref: tierCardsRef, onLayout: onTierCardsLayout } = useTutorialTarget('strength.tierChips', scrollRef, true);
   const { ref: podiumRef, onLayout: onPodiumLayout } = useTutorialTarget('strength.leaderboardFirstRow', scrollRef, true);
 
+  // Stable handlers for the memoized cards; the latest props are read at
+  // press time.
+  const onStartTrialRef = useRef(onStartTrial);
+  onStartTrialRef.current = onStartTrial;
+  const onShowTierDetailsRef = useRef(onShowTierDetails);
+  onShowTierDetailsRef.current = onShowTierDetails;
+  const startTrialFor = useCallback((tier: number) => {
+    onStartTrialRef.current(tier < currentTier ? tier : undefined);
+  }, [currentTier]);
+  const showDetailsFor = useCallback((tier: number) => onShowTierDetailsRef.current(tier), []);
+
   return (
     <WorldPage tokens={t}>
       <ClimbHeader tokens={t} />
@@ -154,11 +169,11 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
                 currentTier={currentTier}
                 completedTiers={completedTiers}
                 active={active}
-                entries={boards[tier] ?? []}
+                entries={boards[tier] ?? NO_ENTRIES}
                 userId={userId}
                 drawn={drawn}
-                onPress={() => onStartTrial(tier < currentTier ? tier : undefined)}
-                onShowDetails={() => onShowTierDetails(tier)}
+                onPress={startTrialFor}
+                onShowDetails={showDetailsFor}
                 buttonRef={tier === currentTier ? trialButtonRef : undefined}
                 onButtonLayout={tier === currentTier ? onTrialButtonLayout : undefined}
               />
@@ -242,11 +257,14 @@ function ClimbHeader({ tokens: t }: { tokens: WorldKitTokens }) {
 
 type Colors = ReturnType<typeof climbColors>;
 
-function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, active, entries, userId, drawn, onPress, onShowDetails, buttonRef, onButtonLayout }: {
+// Memoized: a swipe only re-renders the two cards whose `active` changed.
+const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, active, entries, userId, drawn, onPress: onPressTier, onShowDetails: onShowDetailsTier, buttonRef, onButtonLayout }: {
   tokens: WorldKitTokens; colors: Colors; tier: number; currentTier: number; completedTiers?: ReadonlySet<number>; active: boolean;
-  entries: LeaderboardEntry[]; userId?: string; drawn: Animated.Value; onPress: () => void; onShowDetails: () => void;
+  entries: LeaderboardEntry[]; userId?: string; drawn: Animated.Value; onPress: (tier: number) => void; onShowDetails: (tier: number) => void;
   buttonRef?: React.Ref<View>; onButtonLayout?: () => void;
 }) {
+  const onPress = () => onPressTier(tier);
+  const onShowDetails = () => onShowDetailsTier(tier);
   const status = tierStatus(tier, currentTier, completedTiers);
   const isCurrent = status === 'current';
   const locked = status === 'locked';
@@ -349,7 +367,7 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
       </View>
     </View>
   );
-}
+});
 
 // ------------------------------------------------------------ climb line
 
