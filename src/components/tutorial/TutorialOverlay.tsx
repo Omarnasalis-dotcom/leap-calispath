@@ -10,6 +10,7 @@ import { TapDot } from './TapDot';
 import { TutorialCaption } from './TutorialCaption';
 import { TutorialDots } from './TutorialDots';
 import { TargetId } from '../../types/tutorial';
+import { t, physicalLeft } from '../../i18n';
 
 const ACCENT = '#FF5252';
 const RING_PAD = 6;
@@ -126,8 +127,8 @@ function TutorialStepOverlayContent() {
               5th, tappable cover below for "decoy" steps. */}
           <View style={{ position: 'absolute', left: 0, top: 0, width, height: box.top }} />
           <View style={{ position: 'absolute', left: 0, top: box.top + box.height, width, height: height - (box.top + box.height) }} />
-          <View style={{ position: 'absolute', left: 0, top: box.top, width: box.left, height: box.height }} />
-          <View style={{ position: 'absolute', left: box.left + box.width, top: box.top, width: width - (box.left + box.width), height: box.height }} />
+          <View style={{ position: 'absolute', left: physicalLeft(0, box.left, width), top: box.top, width: box.left, height: box.height }} />
+          <View style={{ position: 'absolute', left: physicalLeft(box.left + box.width, width - (box.left + box.width), width), top: box.top, width: width - (box.left + box.width), height: box.height }} />
 
           <HighlightRing rect={rect!} />
           {isDecoy && <TapDot rect={rect!} />}
@@ -136,7 +137,7 @@ function TutorialStepOverlayContent() {
             <TouchableOpacity
               onPress={next}
               activeOpacity={1}
-              style={{ position: 'absolute', left: box.left, top: box.top, width: box.width, height: box.height, borderRadius: 16 }}
+              style={{ position: 'absolute', left: physicalLeft(box.left, box.width, width), top: box.top, width: box.width, height: box.height, borderRadius: 16 }}
             />
           )}
         </>
@@ -147,7 +148,7 @@ function TutorialStepOverlayContent() {
         onPress={skip}
         activeOpacity={0.8}
       >
-        <Text style={styles.skipText}>SKIP</Text>
+        <Text style={styles.skipText}>{t('tour.skip')}</Text>
       </TouchableOpacity>
 
       {/* Chrome (caption/dots) renders immediately every step regardless of
@@ -172,7 +173,7 @@ function TutorialStepOverlayContent() {
         {isDecoy && (
           <View style={styles.navRow}>
             <TouchableOpacity style={styles.nextBtn} onPress={next} activeOpacity={0.85}>
-              <Text style={styles.nextText}>{isLast ? 'GOT IT' : 'NEXT'}</Text>
+              <Text style={styles.nextText}>{isLast ? t('tour.gotIt') : t('tour.next')}</Text>
             </TouchableOpacity>
           </View>
         )}

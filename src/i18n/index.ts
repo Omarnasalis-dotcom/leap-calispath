@@ -55,3 +55,10 @@ export function tierLevelLabel(tier: number): string {
 export function ltr(text: string): string {
   return isRTL ? `\u2066${text}\u2069` : text;
 }
+
+// For overlays placed at measured screen coordinates (measureInWindow's x is
+// always from the physical left edge): React Native turns `left` into the
+// right-side offset in right-to-left layouts, so convert it back.
+export function physicalLeft(x: number, width: number, screenWidth: number): number {
+  return isRTL ? screenWidth - x - width : x;
+}

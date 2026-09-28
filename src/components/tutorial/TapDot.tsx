@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import { Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { Rect } from '../../types/tutorial';
+import { physicalLeft } from '../../i18n';
 
 interface TapDotProps {
   rect: Rect;
@@ -25,13 +26,14 @@ export function TapDot({ rect }: TapDotProps) {
   const scale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.82] });
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.9, 0.55] });
 
+  const { width: screenWidth } = useWindowDimensions();
   return (
     <Animated.View
       pointerEvents="none"
       style={[
         styles.dot,
         {
-          left: rect.x + rect.width / 2 - DOT_SIZE / 2,
+          left: physicalLeft(rect.x + rect.width / 2 - DOT_SIZE / 2, DOT_SIZE, screenWidth),
           top: rect.y + rect.height / 2 - DOT_SIZE / 2,
           opacity,
           transform: [{ scale }],

@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet } from 'react-native';
+import { Animated, StyleSheet, useWindowDimensions } from 'react-native';
 import { Rect } from '../../types/tutorial';
+import { physicalLeft } from '../../i18n';
 
 const ACCENT = '#FF5252';
 const RING_PAD = 6;
@@ -26,8 +27,9 @@ export function HighlightRing({ rect }: HighlightRingProps) {
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.55, 0] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] });
 
+  const { width: screenWidth } = useWindowDimensions();
   const box = {
-    left: rect.x - RING_PAD,
+    left: physicalLeft(rect.x - RING_PAD, rect.width + RING_PAD * 2, screenWidth),
     top: rect.y - RING_PAD,
     width: rect.width + RING_PAD * 2,
     height: rect.height + RING_PAD * 2,
