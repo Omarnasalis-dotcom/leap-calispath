@@ -217,7 +217,7 @@ const ar: Translations = {
     saved: 'تم الحفظ.',
     step2Todo: 'أخبرنا بهدفك ومعداتك.',
     step2Locked: 'يُفتح بعد تحديد المستوى.',
-    step3Title: '03 إنشاء برنامجك',
+    step3Title: '03 إنشاء البرنامج التدريبي',
     step3Done: '{{name}} — قيد التنفيذ.',
     yourProgramLower: 'برنامجك',
     step3Locked: 'يُفتح بعد تحديد أهدافك.',

@@ -56,6 +56,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Program | برنامج | |
 | Active program | البرنامج الحالي | |
 | Build your program | إنشاء برنامجك | owner's choice (was ابنِ برنامجك) |
+| Onboarding step 3 title | إنشاء البرنامج التدريبي | owner's choice, Journey card 03 only |
 | Day | اليوم | |
 | Week | الأسبوع | |
 | Exercise | تمرين | same word as workout; context makes it clear |
