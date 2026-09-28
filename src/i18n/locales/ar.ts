@@ -625,6 +625,9 @@ const ar: Translations = {
     endEarly: 'هل تريد إنهاء المؤقت مبكرًا؟',
     cancel: 'إلغاء',
     endTimer: 'إنهاء المؤقت',
+    work: '● تمرين',
+    rest: '○ راحة',
+    nextExercise: 'التالي: {{name}}',
   },
   workoutModals: {
     blocksMovements_zero: 'لا أقسام · {{moves}} حركات',
@@ -1209,7 +1212,6 @@ const ar: Translations = {
     endedSubmit: 'انتهى هذا التحدي. لا يمكنك إرسال نتائج لأسابيع سابقة.',
     newBestTitle: 'أفضل نتيجة جديدة!',
     newBestBody: 'تم تحديث نتيجتك في لوحة الصدارة.',
-    repsScore: '{{reps}} تكرارًا',
     pushTitle: 'أفضل نتيجة جديدة في التحدي الأسبوعي!',
     pushBody: '{{title}}: {{score}} — أفضل نتيجة شخصية لك هذا الأسبوع.',
     notPbTitle: 'ليست أفضل نتيجة',

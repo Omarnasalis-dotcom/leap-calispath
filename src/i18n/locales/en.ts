@@ -602,6 +602,9 @@ const en = {
     endEarly: 'Are you sure you want to end the timer early?',
     cancel: 'CANCEL',
     endTimer: 'END TIMER',
+    work: '● WORK',
+    rest: '○ REST',
+    nextExercise: 'NEXT: {{name}}',
   },
   workoutModals: {
     blocksMovements_one: '{{count}} BLOCK · {{moves}} MOVEMENTS',
@@ -1178,7 +1181,6 @@ const en = {
     endedSubmit: 'This challenge has ended. You cannot submit scores for previous weeks.',
     newBestTitle: 'NEW BEST!',
     newBestBody: 'Your score has been updated on the leaderboard.',
-    repsScore: '{{reps}} reps',
     pushTitle: 'New Weekly Challenge Best!',
     pushBody: '{{title}}: {{score}} — a new personal best this week.',
     notPbTitle: 'Not a PB',
