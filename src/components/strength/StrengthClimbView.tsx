@@ -162,7 +162,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
         <View style={{ paddingTop: 30, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text style={kt('semibold', 19, t.text, 2)}>{`${tierName(selected)} LEADERBOARD`}</Text>
+            <Text style={kt('semibold', 19, t.text, 2)}>{tr('strength.leaderboardTitle', { tier: tierName(selected) })}</Text>
             <Text style={kt('medium', 12, t.textMuted, 1.4)}>{loading ? ' ' : warriorsLabel(list.length)}</Text>
           </View>
           <BoardFilters
@@ -272,7 +272,7 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
       </Svg>
 
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-        <Text style={kt('semibold', 11, isCurrent ? t.accentText : t.textMuted, 2.2)}>{`TIER ${tier} OF ${MAX_STRENGTH_TIER}`}</Text>
+        <Text style={kt('semibold', 11, isCurrent ? t.accentText : t.textMuted, 2.2)}>{tr('strength.cardTier', { tier, max: MAX_STRENGTH_TIER })}</Text>
         <View style={{ paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7, backgroundColor: chip.bg, borderWidth: isCurrent ? 0 : 1, borderColor: chip.border }}>
           <Text style={kt('bold', 10.5, chip.fg, 1.6)}>{chip.text}</Text>
         </View>

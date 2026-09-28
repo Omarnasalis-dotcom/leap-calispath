@@ -797,6 +797,7 @@ const ar: Translations = {
     power3: 'Tesla: النخبة — 250+ نقطة. ذروة إتقان القوة بالأوزان.',
   },
   strength: {
+    cardTier: 'المستوى {{tier}} من {{max}}',
     seeFullBoard: 'عرض لوحة الصدارة كاملة',
     seeMore: 'عرض المزيد',
     loading: 'جارٍ التحميل…',

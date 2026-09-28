@@ -1,6 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Image, ImageSourcePropType } from 'react-native';
 import Svg, { Path } from 'react-native-svg';
+import { FLIP_X } from '../../i18n';
 
 // Design handoff tokens. The card stays dark in both themes — it reads as a
 // feature banner, same as the Training Center tiles. Oswald (handoff font)
@@ -25,7 +26,7 @@ interface PhotoActionCardProps {
 
 function ChevronRight() {
   return (
-    <Svg width={14} height={14} viewBox="0 0 16 16" fill="none">
+    <Svg width={14} height={14} viewBox="0 0 16 16" fill="none" style={FLIP_X}>
       <Path d="M6 3.5 L10.5 8 L6 12.5" stroke={BUTTON_TEXT} strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" />
     </Svg>
   );

@@ -8,7 +8,7 @@
  */
 
 import { TIER_NAMES } from '../types';
-import { t } from '../i18n';
+import { t, ltr } from '../i18n';
 
 export const MAX_STRENGTH_TIER = 9;
 export const TIER_COUNT = MAX_STRENGTH_TIER + 1;
@@ -35,7 +35,7 @@ export const isBehind = (s: TierStatus) => s === 'complete' || s === 'placed';
 /** M'SS" — e.g. 160 → 2'40". Lower is better. */
 export function fmtTime(seconds: number): string {
   const s = Math.max(0, Math.round(seconds));
-  return `${Math.floor(s / 60)}'${String(s % 60).padStart(2, '0')}"`;
+  return ltr(`${Math.floor(s / 60)}'${String(s % 60).padStart(2, '0')}"`);
 }
 
 export const tierName = (tier: number) => (TIER_NAMES[tier] ?? '').toUpperCase();

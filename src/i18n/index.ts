@@ -51,3 +51,10 @@ export const FLIP_X = isRTL ? ({ transform: [{ scaleX: -1 }] } as const) : undef
 export function tierLevelLabel(tier: number): string {
   return tier >= 0 && tier <= 9 ? t(`tiers.level${tier}` as 'tiers.level0') : `Tier ${tier}`;
 }
+
+// Keeps a number-with-marks such as 3'00" or 1:05 in left-to-right order
+// inside Arabic text, where the bidi algorithm would otherwise reverse it
+// ("00'3). No-op in English.
+export function ltr(text: string): string {
+  return isRTL ? `\u2066${text}\u2069` : text;
+}

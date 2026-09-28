@@ -770,6 +770,7 @@ const en = {
     power3: 'Tesla: Elite — 250+ pts. Peak weighted strength mastery.',
   },
   strength: {
+    cardTier: 'TIER {{tier}} OF {{max}}',
     seeFullBoard: 'See the full leaderboard',
     seeMore: 'SEE MORE',
     loading: 'LOADING…',
