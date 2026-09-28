@@ -45,7 +45,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | AI Coach | المدرب الذكي | |
 | Training Center | مركز التدريب | |
 | Quick Workout | تمرين سريع | |
-| Program Templates | قوالب البرامج | |
+| Program Templates | البرامج الجاهزة | owner's choice |
 | Settings | الإعدادات | |
 
 ## 3. Training
