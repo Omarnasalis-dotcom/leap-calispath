@@ -24,6 +24,8 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
+import { t, FLIP_X } from '../i18n';
+import { localizedErrorText } from '../lib/asyncErrorHandler';
 
 // Browse standalone Quick Workouts and start one immediately — no preview
 // screen. Design intent (handoff §7): "starts the session immediately —
@@ -59,7 +61,7 @@ function CardTrailingIcon({ locked, loadingDetail }: { locked: boolean; loadingD
     return (
       <View style={styles.proBadge}>
         <MaterialCommunityIcons name="crown" size={11} color="#FFFFFF" />
-        <Text style={styles.proBadgeText}>PRO</Text>
+        <Text style={styles.proBadgeText}>{t('quickWorkout.pro')}</Text>
       </View>
     );
   }
@@ -89,7 +91,7 @@ function QuickWorkoutCard({
   const { mode } = useTheme();
   const styles = getStyles(TC_COLORS[mode]);
   const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(tourTargetId);
-  const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : 'QUICK WORKOUT'}${item.category ? ` · ${item.category.replace('_', ' ')}` : ''}`;
+  const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : t('quickWorkout.title')}${item.category ? ` · ${t(`chips.${item.category.toLowerCase()}` as 'chips.all', { defaultValue: item.category.replace('_', ' ') })}` : ''}`;
 
   if (item.cover_image_url) {
     return (
@@ -115,7 +117,7 @@ function QuickWorkoutCard({
     <TouchableOpacity ref={tourRef} onLayout={onTourLayout} activeOpacity={0.85} onPress={onPress} style={[styles.card, hidden && { display: 'none' }]}>
       <View style={styles.durationBox}>
         <Text style={styles.durationValue}>{item.duration_minutes ?? '–'}</Text>
-        <Text style={styles.durationUnit}>MIN</Text>
+        <Text style={styles.durationUnit}>{t('quickWorkout.min')}</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={styles.cardTitle} numberOfLines={1}>{item.title.toUpperCase()}</Text>
@@ -143,7 +145,7 @@ function WorkoutPreviewModal({
   const previewStyles = getPreviewStyles(TC_COLORS[mode]);
   if (!workout) return null;
   const allExercises = workout.blocks.flatMap((b) => b.exercises);
-  const metaLine = `${workout.duration_minutes ?? '–'} MIN · ${workout.format ? (FORMAT_LABELS[workout.format] ?? workout.format.toUpperCase()) : 'QUICK WORKOUT'}${workout.category ? ` · ${workout.category.replace('_', ' ')}` : ''}`;
+  const metaLine = t('quickWorkout.minPrefix', { min: workout.duration_minutes ?? '–', rest: `${workout.format ? (FORMAT_LABELS[workout.format] ?? workout.format.toUpperCase()) : t('quickWorkout.title')}${workout.category ? ` · ${t(`chips.${workout.category.toLowerCase()}` as 'chips.all', { defaultValue: workout.category.replace('_', ' ') })}` : ''}` });
 
   return (
     <Modal visible transparent animationType="fade" onRequestClose={onCancel}>
@@ -158,17 +160,17 @@ function WorkoutPreviewModal({
                 <View key={`${ex.exercise_id}-${i}`} style={previewStyles.exerciseRow}>
                   <Text style={previewStyles.exerciseName} numberOfLines={1}>{ex.name}</Text>
                   <Text style={previewStyles.exerciseMeta}>
-                    {ex.sets && ex.reps ? `${ex.sets} × ${ex.reps}` : ex.work_seconds ? `${ex.work_seconds}S` : ex.hold_seconds ? `${ex.hold_seconds}S HOLD` : ''}
+                    {ex.sets && ex.reps ? `${ex.sets} × ${ex.reps}` : ex.work_seconds ? t('units.sec', { value: ex.work_seconds }) : ex.hold_seconds ? t('quickWorkout.hold', { sec: ex.hold_seconds }) : ''}
                   </Text>
                 </View>
               ))}
             </View>
           </ScrollView>
           <TouchableOpacity style={previewStyles.startBtn} onPress={onStart}>
-            <Text style={previewStyles.startBtnText}>START WORKOUT</Text>
+            <Text style={previewStyles.startBtnText}>{t('quickWorkout.startWorkout')}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={previewStyles.cancelBtn} onPress={onCancel}>
-            <Text style={previewStyles.cancelBtnText}>CANCEL</Text>
+            <Text style={previewStyles.cancelBtnText}>{t('quickWorkout.cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -263,9 +265,9 @@ export function QuickWorkoutScreen() {
   const handlePlay = async (item: StandaloneWorkoutSummary) => {
     if (!item.is_free && !isPro) {
       openUpgradeModal({
-        title: 'START THIS WORKOUT',
-        body: 'Quick Workouts outside the free set are a Pro and Max feature. Upgrade to unlock the full library and start training today.',
-        pillLabel: `${item.duration_minutes ?? '–'} MIN WORKOUT`,
+        title: t('quickWorkout.upgradeTitle'),
+        body: t('quickWorkout.upgradeBody'),
+        pillLabel: t('quickWorkout.minPill', { min: item.duration_minutes ?? '–' }),
       });
       return;
     }
@@ -274,13 +276,13 @@ export function QuickWorkoutScreen() {
     try {
       const detail = await getStandaloneWorkoutDetail(item.id);
       if (!detail) {
-        Alert.alert('NOT AVAILABLE', 'THAT WORKOUT COULD NOT BE FOUND — IT MAY HAVE BEEN REMOVED.');
+        Alert.alert(t('quickWorkout.notAvailableTitle'), t('quickWorkout.notAvailable'));
         return;
       }
       setActiveWorkout(detail);
     } catch (err: any) {
       console.error('handlePlay failed:', err);
-      Alert.alert('COULD NOT LOAD WORKOUT', (err?.message || 'SOMETHING WENT WRONG.').toUpperCase());
+      Alert.alert(t('quickWorkout.loadFailedTitle'), localizedErrorText(err, t('quickWorkout.somethingWrong')));
     } finally {
       setLoadingDetailId(null);
     }
@@ -289,12 +291,12 @@ export function QuickWorkoutScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('quickWorkout.back')} onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} style={FLIP_X} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
-          <Text style={styles.headerTitle}>QUICK WORKOUT</Text>
-          <Text style={styles.headerSubline}>{filteredItems.length} READY SESSIONS</Text>
+          <Text style={styles.headerTitle}>{t('quickWorkout.title')}</Text>
+          <Text style={styles.headerSubline}>{t('quickWorkout.readySessions', { count: filteredItems.length })}</Text>
         </View>
         <TourHelpButton onPress={replayTour} color={c.textMuted} />
       </View>
@@ -332,7 +334,7 @@ export function QuickWorkoutScreen() {
             ))}
             {filteredItems.length === 0 && (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>NO QUICK WORKOUTS MATCH THIS FILTER YET.</Text>
+                <Text style={styles.emptyText}>{t('quickWorkout.noMatch')}</Text>
               </View>
             )}
           </View>
@@ -362,7 +364,7 @@ export function QuickWorkoutScreen() {
         theme={StealthTheme.dark}
         title={upgradeModalContent?.title || ''}
         body={upgradeModalContent?.body || ''}
-        cancelLabel="MAYBE LATER"
+        cancelLabel={t('quickWorkout.maybeLater')}
         pillLabel={upgradeModalContent?.pillLabel}
         pillIcon="timer-outline"
         upgrading={upgrading}

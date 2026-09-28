@@ -36,6 +36,7 @@ import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { useTimer } from '../../hooks/useTimer';
 import { formatTime } from '../../lib/trials';
 import { StandaloneWorkoutDetail, StandaloneWorkoutExercise } from '../../lib/workoutLibrary';
+import { t } from '../../i18n';
 
 const PREP_SECONDS = 3;
 const CORAL = '#FC5454';
@@ -51,9 +52,9 @@ interface Interval {
 
 function exerciseSubtitle(ex: StandaloneWorkoutExercise): string {
   if (ex.sets && ex.reps) return `${ex.sets} × ${ex.reps}`;
-  if (ex.reps) return `${ex.reps} REPS`;
-  if (ex.work_seconds) return `${ex.work_seconds}S WORK`;
-  if (ex.hold_seconds) return `${ex.hold_seconds}S HOLD`;
+  if (ex.reps) return t('qwTimer.reps', { reps: ex.reps });
+  if (ex.work_seconds) return t('qwTimer.work', { sec: ex.work_seconds });
+  if (ex.hold_seconds) return t('qwTimer.hold', { sec: ex.hold_seconds });
   return '';
 }
 
@@ -101,7 +102,7 @@ function buildIntervalPlan(workout: StandaloneWorkoutDetail): Interval[] {
     const plan: Interval[] = [];
     for (let r = 1; r <= rounds; r++) {
       for (const ex of list) {
-        const label = `ROUND ${r} OF ${rounds}`;
+        const label = t('qwTimer.roundOf', { round: r, total: rounds });
         plan.push({ seconds: ex?.work_seconds ?? 20, label, isRest: false, exercise: ex, roundNumber: r, totalRounds: rounds });
         plan.push({ seconds: ex?.rest_seconds ?? 10, label, isRest: true, exercise: ex, roundNumber: r, totalRounds: rounds });
       }
@@ -178,7 +179,7 @@ function TimerDial({
         {clockText}
       </Animated.Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-        <Text style={[dialStyles.roundLine, roundLine === 'COMPLETE' && { color: CORAL }]}>{roundLine}</Text>
+        <Text style={[dialStyles.roundLine, roundLine === t('qwTimer.complete') && { color: CORAL }]}>{roundLine}</Text>
         {!!roundOf && (
           <>
             <View style={dialStyles.roundDivider} />
@@ -227,7 +228,7 @@ function SplitsSection({ splitsAt }: { splitsAt: number[] }) {
   if (splitsAt.length === 0) {
     return (
       <View style={qwStyles.noSplitsBox}>
-        <Text style={qwStyles.noSplitsText}>Finish a round to bank your first split.</Text>
+        <Text style={qwStyles.noSplitsText}>{t('qwTimer.noSplits')}</Text>
       </View>
     );
   }
@@ -243,7 +244,7 @@ function SplitsSection({ splitsAt }: { splitsAt: number[] }) {
     <View style={{ gap: 8 }}>
       {rows.map((row) => (
         <View key={row.num} style={qwStyles.splitRow}>
-          <Text style={qwStyles.splitNum}>R{row.num}</Text>
+          <Text style={qwStyles.splitNum}>{t('qwTimer.splitRound', { n: row.num })}</Text>
           <View style={qwStyles.splitRule} />
           <Text style={[qwStyles.splitDelta, { color: row.delta.startsWith('+') ? '#8a6a6a' : '#6a8a6a' }]}>{row.delta}</Text>
           <Text style={qwStyles.splitTime}>{formatTime(row.dur)}</Text>
@@ -487,11 +488,11 @@ export function QuickWorkoutTimerModal({
   const handleRequestClose = () => {
     if (phase === 'running') {
       Alert.alert(
-        'END WORKOUT?',
-        "YOUR PROGRESS IN THIS SESSION WON'T BE SAVED.",
+        t('qwTimer.endTitle'),
+        t('qwTimer.endBody'),
         [
-          { text: 'KEEP GOING', style: 'cancel' },
-          { text: 'END WORKOUT', style: 'destructive', onPress: onClose },
+          { text: t('qwTimer.keepGoing'), style: 'cancel' },
+          { text: t('qwTimer.endWorkout'), style: 'destructive', onPress: onClose },
         ]
       );
       return;
@@ -577,7 +578,7 @@ export function QuickWorkoutTimerModal({
 
   // Dial inputs, computed per format.
   let dialFraction = 0;
-  let dialEyebrow = phase === 'done' ? 'FINAL TIME' : 'ELAPSED';
+  let dialEyebrow = phase === 'done' ? t('qwTimer.finalTime') : t('qwTimer.elapsed');
   let dialClockText = '0:00';
   let dialRoundLine = '';
   let dialRoundOf: string | null = null;
@@ -592,39 +593,39 @@ export function QuickWorkoutTimerModal({
       const completedRounds = Math.min(forTimeRound - 1, forTimeTargetRounds);
       const loggedCount = forTimeLogged.filter(Boolean).length;
       dialFraction = Math.min((completedRounds + (flatExercises.length ? loggedCount / flatExercises.length : 0)) / forTimeTargetRounds, 1);
-      dialRoundLine = finished ? 'COMPLETE' : `ROUND ${Math.min(forTimeRound, forTimeTargetRounds)}`;
-      dialRoundOf = finished ? `${forTimeTargetRounds} OF ${forTimeTargetRounds}` : `OF ${forTimeTargetRounds}`;
+      dialRoundLine = finished ? t('qwTimer.complete') : t('qwTimer.round', { n: Math.min(forTimeRound, forTimeTargetRounds) });
+      dialRoundOf = finished ? t('qwTimer.nOf', { n: forTimeTargetRounds, total: forTimeTargetRounds }) : t('qwTimer.of', { total: forTimeTargetRounds });
       showPips = true;
       pipsTotal = forTimeTargetRounds;
       pipsCompleted = completedRounds;
     } else {
-      dialRoundLine = phase === 'done' ? 'COMPLETE' : 'FOR TIME';
+      dialRoundLine = phase === 'done' ? t('qwTimer.complete') : 'FOR TIME';
       dialFraction = phase === 'done' ? 1 : 0;
     }
   } else if (isAmrap) {
     dialClockText = formatTime(timer.seconds);
-    dialEyebrow = phase === 'done' ? 'FINAL TIME' : 'TIME LEFT';
+    dialEyebrow = phase === 'done' ? t('qwTimer.finalTime') : t('qwTimer.timeLeft');
     dialFraction = amrapCapSeconds > 0 ? Math.min(amrapElapsed / amrapCapSeconds, 1) : 0;
-    dialRoundLine = phase === 'done' ? 'COMPLETE' : `${roundSplits.length} ROUND${roundSplits.length === 1 ? '' : 'S'}`;
+    dialRoundLine = phase === 'done' ? t('qwTimer.complete') : t('qwTimer.rounds', { count: roundSplits.length });
   } else if (isEmomOrTabata && currentInterval) {
     dialClockText = formatTime(timer.seconds);
     const withinInterval = currentInterval.seconds > 0 ? (currentInterval.seconds - timer.seconds) / currentInterval.seconds : 0;
     const completedIntervals = intervalIndex;
     dialFraction = phase === 'done' ? 1 : Math.min((completedIntervals + withinInterval) / Math.max(plan.length, 1), 1);
     const finished = phase === 'done';
-    dialRoundLine = finished ? 'COMPLETE' : `ROUND ${currentInterval.roundNumber}`;
-    dialRoundOf = finished ? `${currentInterval.totalRounds} OF ${currentInterval.totalRounds}` : `OF ${currentInterval.totalRounds}`;
+    dialRoundLine = finished ? t('qwTimer.complete') : t('qwTimer.round', { n: currentInterval.roundNumber });
+    dialRoundOf = finished ? t('qwTimer.nOf', { n: currentInterval.totalRounds, total: currentInterval.totalRounds }) : t('qwTimer.of', { total: currentInterval.totalRounds });
     showPips = true;
     pipsTotal = currentInterval.totalRounds;
     pipsCompleted = currentInterval.roundNumber - 1;
   }
 
   const primaryLabel = committed
-    ? 'SAVED ✓'
+    ? t('qwTimer.saved')
     : isForTime
-      ? (forTimeTargetRounds !== null && forTimeRound < forTimeTargetRounds ? `LAP ROUND ${forTimeRound}` : phase === 'done' ? 'FINISH WORKOUT' : 'FINISH')
+      ? (forTimeTargetRounds !== null && forTimeRound < forTimeTargetRounds ? t('qwTimer.lapRound', { n: forTimeRound }) : phase === 'done' ? t('qwTimer.finishWorkout') : t('qwTimer.finish'))
       : isAmrap
-        ? (phase === 'done' ? 'FINISH WORKOUT' : 'LOG ROUND')
+        ? (phase === 'done' ? t('qwTimer.finishWorkout') : t('qwTimer.logRound'))
         : '';
 
   const handlePrimaryPress = () => {
@@ -638,23 +639,23 @@ export function QuickWorkoutTimerModal({
     <Modal visible={visible} transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleRequestClose}>
       <View style={[qwStyles.container, { backgroundColor: '#000000' }]}>
         <View style={[qwStyles.header, { paddingTop: insets.top + 16 }]}>
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('qwTimer.close')} onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
             <MaterialCommunityIcons name="close" size={18} color="#EDEDED" />
           </TouchableOpacity>
           <View style={qwStyles.schemeChip}>
-            <Text style={qwStyles.schemeChipText}>{workout.format ? workout.format.toUpperCase() : 'WORKOUT'}</Text>
+            <Text style={qwStyles.schemeChipText}>{workout.format ? workout.format.toUpperCase() : t('qwTimer.workout')}</Text>
           </View>
           <View style={{ width: 34 }} />
         </View>
         <Text style={qwStyles.headerMeta} numberOfLines={1}>
           {workout.title.toUpperCase()}
-          {isForTime && forTimeTargetRounds !== null ? ` · ${forTimeTargetRounds} ROUNDS` : ''}
-          {flatExercises.length > 0 ? ` · ${flatExercises.length} MOVES` : ''}
+          {isForTime && forTimeTargetRounds !== null ? t('qwTimer.metaRounds', { count: forTimeTargetRounds }) : ''}
+          {flatExercises.length > 0 ? t('qwTimer.metaMoves', { count: flatExercises.length }) : ''}
         </Text>
 
         {phase === 'prep' && (
           <View style={qwStyles.centerFill}>
-            <Text style={qwStyles.prepLabel}>GET READY</Text>
+            <Text style={qwStyles.prepLabel}>{t('qwTimer.getReady')}</Text>
             <Text style={[qwStyles.prepNumber, { color: CORAL }]}>{prepCountdown}</Text>
           </View>
         )}
@@ -684,7 +685,7 @@ export function QuickWorkoutTimerModal({
                     disabled={phase === 'done'}
                   >
                     <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={18} color="#EDEDED" />
-                    <Text style={qwStyles.pauseBtnText}>{timer.isRunning ? 'PAUSE' : 'RESUME'}</Text>
+                    <Text style={qwStyles.pauseBtnText}>{timer.isRunning ? t('qwTimer.pause') : t('qwTimer.resume')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[qwStyles.pauseBtn, { marginTop: 0 }]}
@@ -692,7 +693,7 @@ export function QuickWorkoutTimerModal({
                     disabled={phase === 'done'}
                   >
                     <MaterialCommunityIcons name="skip-next" size={18} color="#EDEDED" />
-                    <Text style={qwStyles.pauseBtnText}>SKIP</Text>
+                    <Text style={qwStyles.pauseBtnText}>{t('qwTimer.skip')}</Text>
                   </TouchableOpacity>
                 </View>
               )}
@@ -703,17 +704,17 @@ export function QuickWorkoutTimerModal({
               <View style={qwStyles.summaryCard}>
                 <View style={qwStyles.summaryCol}>
                   <Text style={qwStyles.summaryVal}>{formatTime(timer.seconds)}</Text>
-                  <Text style={qwStyles.summaryLabel}>TOTAL TIME</Text>
+                  <Text style={qwStyles.summaryLabel}>{t('qwTimer.totalTime')}</Text>
                 </View>
                 <View style={qwStyles.summaryCol}>
                   <Text style={[qwStyles.summaryVal, { color: CORAL }]}>
                     {roundSplits.length > 0 ? formatTime(Math.round(timer.seconds / roundSplits.length)) : '0:00'}
                   </Text>
-                  <Text style={qwStyles.summaryLabel}>AVG ROUND</Text>
+                  <Text style={qwStyles.summaryLabel}>{t('qwTimer.avgRound')}</Text>
                 </View>
                 <View style={qwStyles.summaryCol}>
                   <Text style={qwStyles.summaryVal}>{isForTime && forTimeTargetRounds ? forTimeTargetRounds : roundSplits.length}</Text>
-                  <Text style={qwStyles.summaryLabel}>ROUNDS</Text>
+                  <Text style={qwStyles.summaryLabel}>{t('qwTimer.roundsLabel')}</Text>
                 </View>
               </View>
             ) : (
@@ -721,8 +722,8 @@ export function QuickWorkoutTimerModal({
                 {isForTime && (
                   <View style={{ marginTop: 22 }}>
                     <View style={qwStyles.sectionRule}>
-                      <Text style={qwStyles.sectionEyebrow}>THIS ROUND</Text>
-                      <Text style={qwStyles.sectionCount}>{`${forTimeLogged.filter(Boolean).length} OF ${flatExercises.length} LOGGED`}</Text>
+                      <Text style={qwStyles.sectionEyebrow}>{t('qwTimer.thisRound')}</Text>
+                      <Text style={qwStyles.sectionCount}>{t('qwTimer.loggedOf', { n: forTimeLogged.filter(Boolean).length, total: flatExercises.length })}</Text>
                     </View>
                     <View style={{ gap: 8 }}>
                       {flatExercises.map((ex, i) => {
@@ -752,7 +753,7 @@ export function QuickWorkoutTimerModal({
                 {isAmrap && (
                   <View style={{ marginTop: 22 }}>
                     <View style={qwStyles.sectionRule}>
-                      <Text style={qwStyles.sectionEyebrow}>THE CIRCUIT</Text>
+                      <Text style={qwStyles.sectionEyebrow}>{t('qwTimer.theCircuit')}</Text>
                     </View>
                     <View style={{ gap: 8 }}>
                       {flatExercises.map((ex) => (
@@ -769,7 +770,7 @@ export function QuickWorkoutTimerModal({
                 {isEmomOrTabata && currentInterval?.exercise && (
                   <View style={{ marginTop: 22 }}>
                     <View style={qwStyles.sectionRule}>
-                      <Text style={qwStyles.sectionEyebrow}>{currentInterval.isRest ? 'REST' : 'THIS ROUND'}</Text>
+                      <Text style={qwStyles.sectionEyebrow}>{currentInterval.isRest ? t('qwTimer.rest') : t('qwTimer.thisRound')}</Text>
                     </View>
                     <View style={[qwStyles.logRow, qwStyles.logRowNext]}>
                       <View style={[qwStyles.logDot, { backgroundColor: CORAL }]} />
@@ -787,7 +788,7 @@ export function QuickWorkoutTimerModal({
                 {isEmomOrTabata && flatExercises.length > 1 && (
                   <View style={{ marginTop: 22 }}>
                     <View style={qwStyles.sectionRule}>
-                      <Text style={qwStyles.sectionEyebrow}>ROTATION</Text>
+                      <Text style={qwStyles.sectionEyebrow}>{t('qwTimer.rotation')}</Text>
                     </View>
                     <View style={{ gap: 8 }}>
                       {flatExercises.map((ex) => {
@@ -807,7 +808,7 @@ export function QuickWorkoutTimerModal({
                 {(isForTime || isAmrap) && (
                   <View style={{ marginTop: 22 }}>
                     <View style={qwStyles.sectionRule}>
-                      <Text style={qwStyles.sectionEyebrow}>SPLITS</Text>
+                      <Text style={qwStyles.sectionEyebrow}>{t('qwTimer.splits')}</Text>
                     </View>
                     <SplitsSection splitsAt={roundSplits} />
                   </View>
@@ -819,7 +820,7 @@ export function QuickWorkoutTimerModal({
 
         {phase !== 'prep' && (isForTime || isAmrap) && (
           <View style={qwStyles.footer}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel={timer.isRunning ? 'Pause timer' : 'Start timer'}
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={timer.isRunning ? t('qwTimer.pauseTimer') : t('qwTimer.startTimer')}
               style={qwStyles.footerIconBtn}
               onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
               disabled={phase === 'done'}
@@ -833,7 +834,7 @@ export function QuickWorkoutTimerModal({
             >
               <Text style={[qwStyles.footerPrimaryText, committed && { color: '#8a8a8a' }]}>{primaryLabel}</Text>
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="End workout" style={qwStyles.footerIconBtn} onPress={handleRequestClose}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('qwTimer.endWorkoutA11y')} style={qwStyles.footerIconBtn} onPress={handleRequestClose}>
               <MaterialCommunityIcons name="stop" size={20} color={CORAL} />
             </TouchableOpacity>
           </View>
