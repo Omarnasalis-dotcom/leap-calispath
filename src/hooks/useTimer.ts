@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { Platform, AppState, AppStateStatus } from 'react-native';
 import * as Notifications from 'expo-notifications';
+import { t } from '../i18n';
 
 export interface UseTimerResult {
   seconds: number;
@@ -42,8 +43,8 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
         if (remaining > 0) {
           const identifier = await Notifications.scheduleNotificationAsync({
             content: {
-              title: "Time's up!",
-              body: "Your rest period is over. Let's get back to work!",
+              title: t('system.restOverTitle'),
+              body: t('system.restOverBody'),
               sound: true,
             },
             trigger: { 

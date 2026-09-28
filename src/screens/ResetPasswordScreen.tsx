@@ -321,7 +321,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               onPress={exitToLogin}
             >
               <Text style={[styles.cancelText, { color: theme.text.secondary }]}>
-                RETURN TO LOGIN
+                {t('resetPassword.returnToLogin')}
               </Text>
             </TouchableOpacity>
           </View>

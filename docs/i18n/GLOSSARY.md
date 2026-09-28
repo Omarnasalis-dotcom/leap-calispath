@@ -72,6 +72,8 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Cool-down | التهدئة | |
 | Circuit | دائرة تدريبية | |
 | Superset | مجموعة مزدوجة | |
+| Resistance band | شريط مقاومة | |
+| Filter (noun) | عامل التصفية | |
 | Hold | ثبات | |
 | Added weight | وزن إضافي | |
 | Bodyweight | وزن الجسم | |
@@ -106,7 +108,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Continue | متابعة |
 | Next | التالي |
 | Back | رجوع |
-| Skip | تخطٍّ |
+| Skip | تخطَّ |
 | Done | تم |
 | Finish | إنهاء |
 | Save | حفظ |

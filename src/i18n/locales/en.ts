@@ -143,6 +143,7 @@ const en = {
     mismatch: 'PASSWORDS DO NOT MATCH.',
     tooShort: 'PASSWORD MUST BE AT LEAST {{count}} CHARACTERS.',
     updated: 'PASSWORD UPDATED! YOU CAN NOW SIGN IN.',
+    returnToLogin: 'RETURN TO LOGIN',
     unexpected: 'AN UNEXPECTED ERROR OCCURRED.',
   },
   goals: {
@@ -1620,6 +1621,8 @@ const en = {
     routeErrorTitle: 'SOMETHING WENT WRONG',
     routeErrorBody: 'This screen hit an error. The rest of the app is fine.',
     tryAgain: 'TRY AGAIN',
+    restOverTitle: "Time's up!",
+    restOverBody: "Your rest period is over. Let's get back to work!",
     offline: "NO CONNECTION — RESULTS WON'T SAVE",
     profileLoadFailed: "Couldn't load your profile. Check your connection and try again.",
     retry: 'Retry',
