@@ -228,7 +228,7 @@ function TemplateRowCard({
               ) : (
                 <>
                   <Text style={styles.selectBtnText}>{t('templates.select')}</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={13} color="#000" />
+                  <MaterialCommunityIcons name="arrow-right" size={13} color="#000" style={FLIP_X} />
                 </>
               )}
             </View>

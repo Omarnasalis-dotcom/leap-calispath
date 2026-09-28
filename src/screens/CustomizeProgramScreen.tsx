@@ -34,6 +34,8 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
+import { t, FLIP_X, isArabic } from '../i18n';
+import { localizedErrorText } from '../lib/asyncErrorHandler';
 
 // Browse standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your
 // custom program's days, then create it. The preview/build modals are
@@ -146,7 +148,7 @@ function WorkoutCardVisual({
         {isSelected ? (
           <View style={styles.dayBadge}>
             <MaterialCommunityIcons name="check-circle" size={11} color="#000" />
-            <Text style={styles.dayBadgeText}>DAY {dayNumber}</Text>
+            <Text style={styles.dayBadgeText}>{t('customize.day', { n: dayNumber })}</Text>
           </View>
         ) : locked ? (
           <View style={styles.lockBadge}>
@@ -161,17 +163,17 @@ function WorkoutCardVisual({
         <View style={styles.topRightBadges}>
           {showProBadge && (
             <View style={styles.proBadge}>
-              <Text style={styles.proBadgeText}>PRO</Text>
+              <Text style={styles.proBadgeText}>{t('customize.pro')}</Text>
             </View>
           )}
           {!!item.category && (
             <View style={styles.categoryBadge}>
-              <Text style={styles.categoryBadgeText} numberOfLines={1}>{item.category.replace('_', ' ')}</Text>
+              <Text style={styles.categoryBadgeText} numberOfLines={1}>{t(`chips.${item.category.toLowerCase()}` as 'chips.all', { defaultValue: item.category.replace('_', ' ') })}</Text>
             </View>
           )}
           {item.is_skill && (
             <View style={styles.skillBadge}>
-              <Text style={styles.skillBadgeText} numberOfLines={1}>{(item.skill_label?.trim() || 'Skills').toUpperCase()}</Text>
+              <Text style={styles.skillBadgeText} numberOfLines={1}>{(item.skill_label?.trim() || t('customize.skills')).toUpperCase()}</Text>
             </View>
           )}
         </View>
@@ -183,7 +185,7 @@ function WorkoutCardVisual({
         <Text style={[styles.cardTitle, isWide ? styles.cardTitleWide : styles.cardTitleGrid]} numberOfLines={isWide ? 1 : 2}>
           {item.title.toUpperCase()}
         </Text>
-        {!!item.difficulty && <Text style={[styles.cardMeta, !isWide && styles.cardMetaGrid]}>{item.difficulty.toUpperCase()}</Text>}
+        {!!item.difficulty && <Text style={[styles.cardMeta, !isWide && styles.cardMetaGrid]}>{t(`chips.${item.difficulty.toLowerCase()}` as 'chips.all', { defaultValue: item.difficulty.toUpperCase() })}</Text>}
       </LinearGradient>
     </>
   );
@@ -434,7 +436,7 @@ function DaySlotCard({
     return (
       <View ref={ref} onLayout={measure} style={styles.daySlotEmpty}>
         <MaterialCommunityIcons name="plus" size={20} color={c.textFaint2} />
-        <Text style={styles.daySlotEmptyLabel}>DAY {index + 1}</Text>
+        <Text style={styles.daySlotEmptyLabel}>{t('customize.day', { n: index + 1 })}</Text>
       </View>
     );
   }
@@ -452,8 +454,8 @@ function DaySlotCard({
         )}
         <View style={styles.daySlotOverlay}>
           <View style={styles.daySlotTopRow}>
-            <Text style={styles.daySlotDayLabel}>DAY {index + 1}</Text>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear search" onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+            <Text style={styles.daySlotDayLabel}>{t('customize.day', { n: index + 1 })}</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.clearSearch')} onPress={onClear} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <MaterialCommunityIcons name="close-circle" size={16} color="rgba(255,255,255,0.85)" />
             </TouchableOpacity>
           </View>
@@ -462,12 +464,12 @@ function DaySlotCard({
             <View style={styles.daySlotBadgeRow}>
               {!!workout.category && (
                 <View style={styles.daySlotCategoryBadge}>
-                  <Text style={styles.daySlotCategoryBadgeText} numberOfLines={1}>{workout.category.replace('_', ' ')}</Text>
+                  <Text style={styles.daySlotCategoryBadgeText} numberOfLines={1}>{t(`chips.${workout.category.toLowerCase()}` as 'chips.all', { defaultValue: workout.category.replace('_', ' ') })}</Text>
                 </View>
               )}
               {workout.is_skill && (
                 <View style={styles.daySlotSkillBadge}>
-                  <Text style={styles.daySlotSkillBadgeText} numberOfLines={1}>{(workout.skill_label?.trim() || 'Skills').toUpperCase()}</Text>
+                  <Text style={styles.daySlotSkillBadgeText} numberOfLines={1}>{(workout.skill_label?.trim() || t('customize.skills')).toUpperCase()}</Text>
                 </View>
               )}
             </View>
@@ -566,7 +568,7 @@ export function CustomizeProgramScreen() {
       .then(({ data }) => {
         const templateInfo: any = data?.program_templates;
         const name = Array.isArray(templateInfo) ? templateInfo[0]?.name : templateInfo?.name;
-        setCurrentProgramName(name || (data ? 'YOUR CURRENT PROGRAM' : null));
+        setCurrentProgramName(name || (data ? t('customize.yourCurrent') : null));
       });
   }, [user?.id]);
 
@@ -602,14 +604,14 @@ export function CustomizeProgramScreen() {
       const detail = await getStandaloneWorkoutDetail(item.id);
       if (workoutDetailRequestId.current !== requestId) return;
       if (!detail) {
-        Alert.alert('NOT AVAILABLE', 'THAT WORKOUT COULD NOT BE FOUND — IT MAY HAVE BEEN REMOVED.');
+        Alert.alert(t('customize.notAvailableTitle'), t('customize.notAvailable'));
         return;
       }
       setWorkoutDetail(detail);
     } catch (err: any) {
       console.error('openDetail failed:', err);
       if (workoutDetailRequestId.current === requestId) {
-        Alert.alert('COULD NOT LOAD WORKOUT', (err?.message || 'SOMETHING WENT WRONG.').toUpperCase());
+        Alert.alert(t('customize.loadFailedTitle'), localizedErrorText(err, t('customize.somethingWrong')));
       }
     } finally {
       if (workoutDetailRequestId.current === requestId) setWorkoutDetailLoading(false);
@@ -624,7 +626,7 @@ export function CustomizeProgramScreen() {
 
   const addDay = (item: StandaloneWorkoutSummary) => {
     if (selectedDayWorkouts.length >= MAX_CUSTOM_PROGRAM_DAYS) {
-      Alert.alert('DAY LIMIT REACHED', `A CUSTOM PROGRAM CAN HAVE AT MOST ${MAX_CUSTOM_PROGRAM_DAYS} DAYS.`);
+      Alert.alert(t('customize.dayLimitTitle'), t('customize.dayLimit', { max: MAX_CUSTOM_PROGRAM_DAYS }));
       return;
     }
     setSelectedDayWorkouts((prev) => [...prev, item]);
@@ -700,7 +702,7 @@ export function CustomizeProgramScreen() {
       });
     } catch (err: any) {
       if (isProRequiredError(err)) { goToPaywallAfterClosingSummary(workouts); return; }
-      Alert.alert('COULD NOT CREATE PROGRAM', err.message?.toUpperCase() || 'SOMETHING WENT WRONG.');
+      Alert.alert(t('customize.createFailedTitle'), localizedErrorText(err, t('customize.somethingWrong')));
     } finally {
       setCreatingProgram(false);
     }
@@ -794,11 +796,11 @@ export function CustomizeProgramScreen() {
     const applyShrink = () => setDaySlots((prev) => prev.slice(0, n));
     if (filledCount === 0) { applyShrink(); return; }
     Alert.alert(
-      'REMOVE FILLED DAYS?',
-      `SWITCHING TO ${n} DAYS WILL REMOVE ${filledCount} ALREADY-FILLED DAY${filledCount === 1 ? '' : 'S'}.`,
+      t('customize.removeDaysTitle'),
+      t('customize.removeDays', { n, count: filledCount }),
       [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'CONTINUE', style: 'destructive', onPress: applyShrink },
+        { text: t('customize.cancel'), style: 'cancel' },
+        { text: t('customize.continue'), style: 'destructive', onPress: applyShrink },
       ]
     );
   };
@@ -841,7 +843,7 @@ export function CustomizeProgramScreen() {
 
   const handleTapAssignFirstEmpty = (workout: StandaloneWorkoutSummary) => {
     if (daySlots.length === 0) {
-      Alert.alert('PICK A DAY COUNT FIRST', 'CHOOSE HOW MANY DAYS YOU WANT ABOVE, THEN TAP OR DRAG A WORKOUT INTO A DAY.');
+      Alert.alert(t('customize.pickDaysTitle'), t('customize.pickDays'));
       return;
     }
     // Already placed — a repeat tap should never create a second entry for
@@ -849,7 +851,7 @@ export function CustomizeProgramScreen() {
     if (daySlots.some((w) => w?.id === workout.id)) return;
     const idx = daySlots.findIndex((w) => w === null);
     if (idx === -1) {
-      Alert.alert('ALL DAYS FILLED', 'CLEAR A DAY, OR PICK A HIGHER DAY COUNT TO ADD MORE.');
+      Alert.alert(t('customize.allFilledTitle'), t('customize.allFilled'));
       return;
     }
     setDaySlots((prev) => { const next = [...prev]; next[idx] = workout; return next; });
@@ -874,18 +876,18 @@ export function CustomizeProgramScreen() {
     });
     const dupes = Object.keys(counts).filter((k) => counts[k] >= 2);
     if (dupes.length === 0) return null;
-    return `${dupes.map((d) => `${counts[d]}× ${d.replace('_', ' ')}`).join(', ')} — that's fine if it's intentional.`;
+    return t('customize.dupeWarning', { list: dupes.map((d) => `${counts[d]}× ${t(`chips.${d.toLowerCase()}` as 'chips.all', { defaultValue: d.replace('_', ' ') })}`).join(isArabic ? '، ' : ', ') });
   })();
 
   return (
     <DragGhostContext.Provider value={dragGhostContextValue}>
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.back')} onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} style={FLIP_X} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
-          <Text style={styles.headerTitle}>CUSTOMIZE YOUR PROGRAM</Text>
+          <Text style={styles.headerTitle}>{t('customize.title')}</Text>
           <Text style={styles.headerSubline}>{filteredWorkoutItems.length} WORKOUTS · {selectedDayWorkouts.length} ADDED</Text>
         </View>
         <TourHelpButton onPress={replayTour} color={c.textMuted} />
@@ -900,14 +902,14 @@ export function CustomizeProgramScreen() {
             <ChipRow options={CATEGORY_OPTIONS} selected={categoryFilter} onSelect={setCategoryFilter} />
           </View>
           <View ref={layoutToggleTourRef} onLayout={onLayoutToggleTourLayout} style={styles.layoutToggle}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="List view"
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.listView')}
               onPress={() => setColumns(1)}
               style={[styles.layoutToggleBtn, columns === 1 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
             >
               <MaterialCommunityIcons name="view-agenda-outline" size={16} color={columns === 1 ? '#000' : c.textMuted} />
             </TouchableOpacity>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Grid view"
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.gridView')}
               onPress={() => setColumns(2)}
               style={[styles.layoutToggleBtn, columns === 2 && styles.layoutToggleBtnActive]}
               hitSlop={{ top: 8, bottom: 8, left: 6, right: 6 }}
@@ -967,7 +969,7 @@ export function CustomizeProgramScreen() {
             ))}
             {filteredWorkoutItems.length === 0 && (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>NO WORKOUTS MATCH THIS FILTER YET.</Text>
+                <Text style={styles.emptyText}>{t('customize.noMatch')}</Text>
               </View>
             )}
           </View>
@@ -995,7 +997,7 @@ export function CustomizeProgramScreen() {
             ))}
             {filteredWorkoutItems.length === 0 && (
               <View style={styles.emptyBox}>
-                <Text style={styles.emptyText}>NO WORKOUTS MATCH THIS FILTER YET.</Text>
+                <Text style={styles.emptyText}>{t('customize.noMatch')}</Text>
               </View>
             )}
           </View>
@@ -1026,23 +1028,23 @@ export function CustomizeProgramScreen() {
           activeOpacity={0.85}
         >
           <MaterialCommunityIcons name="lightning-bolt" size={16} color="#000" />
-          <Text style={styles.quickBuildFabText}>QUICK BUILD</Text>
+          <Text style={styles.quickBuildFabText}>{t('customize.quickBuild')}</Text>
         </TouchableOpacity>
       ) : quickBuildPanelOpen ? (
         <View style={styles.quickBuildPanel}>
           <View style={styles.quickBuildPanelHeader}>
-            <Text style={styles.quickBuildPanelTitle}>QUICK BUILD</Text>
+            <Text style={styles.quickBuildPanelTitle}>{t('customize.quickBuild')}</Text>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 16 }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Hide quick build" onPress={() => setQuickBuildPanelOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.hideQuickBuild')} onPress={() => setQuickBuildPanelOpen(false)} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="chevron-down" size={20} color={c.textMuted} />
               </TouchableOpacity>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Exit quick build" onPress={handleExitQuickBuild} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('customize.exitQuickBuild')} onPress={handleExitQuickBuild} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="close" size={20} color={c.textMuted} />
               </TouchableOpacity>
             </View>
           </View>
 
-          <Text style={styles.quickBuildSectionLabel}>HOW MANY DAYS?</Text>
+          <Text style={styles.quickBuildSectionLabel}>{t('customize.howManyDays')}</Text>
           <View style={{ height: 6 }} />
           <ChipRow
             options={DAY_COUNT_OPTIONS}
@@ -1087,7 +1089,7 @@ export function CustomizeProgramScreen() {
                   activeOpacity={0.85}
                 >
                   <MaterialCommunityIcons name="calendar-check" size={16} color="#000" />
-                  <Text style={styles.buildCtaText}>CREATE PROGRAM ({daySlots.length})</Text>
+                  <Text style={styles.buildCtaText}>{t('customize.createProgram', { n: daySlots.length })}</Text>
                 </TouchableOpacity>
               )}
             </>
@@ -1099,7 +1101,7 @@ export function CustomizeProgramScreen() {
         <TouchableOpacity style={styles.quickBuildFab} onPress={() => setQuickBuildPanelOpen(true)} activeOpacity={0.85}>
           <MaterialCommunityIcons name="lightning-bolt" size={16} color="#000" />
           <Text style={styles.quickBuildFabText}>
-            {daySlots.length === 0 ? 'QUICK BUILD' : `${filledDaySlots.length}/${daySlots.length} DAYS`}
+            {daySlots.length === 0 ? t('customize.quickBuild') : t('customize.filledOf', { filled: filledDaySlots.length, total: daySlots.length })}
           </Text>
           <MaterialCommunityIcons name="chevron-up" size={16} color="#000" />
         </TouchableOpacity>
@@ -1125,7 +1127,7 @@ export function CustomizeProgramScreen() {
         days={buildSummarySource === 'quickBuild' ? filledDaySlots : selectedDayWorkouts}
         switchWarning={
           currentProgramName
-            ? `Starting this will mark "${currentProgramName}" as completed. Your logged workout history is kept.`
+            ? t('customize.switchWarning', { name: currentProgramName })
             : null
         }
         creating={creatingProgram}
@@ -1145,10 +1147,10 @@ export function CustomizeProgramScreen() {
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
         theme={StealthTheme.dark}
-        title="START YOUR PROGRAM"
-        body="Custom programs are a Pro and Max feature. Upgrade to start training with the days you just built — nothing is lost."
-        cancelLabel="KEEP EDITING"
-        pillLabel={`${buildSummarySource === 'quickBuild' ? daySlots.length : selectedDayWorkouts.length}-DAY PROGRAM BUILT`}
+        title={t('customize.upgradeTitle')}
+        body={t('customize.upgradeBody')}
+        cancelLabel={t('customize.keepEditing')}
+        pillLabel={t('customize.builtPill', { n: buildSummarySource === 'quickBuild' ? daySlots.length : selectedDayWorkouts.length })}
         upgrading={upgrading}
         onUpgrade={() => {
           if (upgradingRef.current) return;
