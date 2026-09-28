@@ -37,14 +37,14 @@ type SheetState =
   | null;
 
 const LEVELS: Level[] = ['entry', 'main', 'advanced'];
-/** Main/Advanced unlock at strength tier 5 (ONEMM_CATEGORIES tiers). */
-const LEVEL_UNLOCK_TIER = 5;
+/** Strength tier each level unlocks at (ONEMM_CATEGORIES tiers). */
+const LEVEL_UNLOCK_TIER: Record<Level, number> = { entry: 0, main: 3, advanced: 5 };
 const MAX_REPS = 150;
 const QUOTE = tr('enduranceWorld.quote');
 // Category names (ENTRY/MAIN/ADVANCED) shown in the user's language.
 const catName = (c: keyof typeof ONEMM_CATEGORIES) => tr(`enduranceWorld.cat_${c}` as 'enduranceWorld.cat_entry');
 
-const isLevelLocked = (level: Level, tier: number) => level !== 'entry' && tier < LEVEL_UNLOCK_TIER;
+const isLevelLocked = (level: Level, tier: number) => tier < LEVEL_UNLOCK_TIER[level];
 
 export function OneMinMaxScreen({ category }: { category?: string }) {
   const { theme, mode } = useTheme();
@@ -175,7 +175,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   const openLog = (m: OneMMMovement, sheetMode: 'log' | 'timer') => {
     if (isLevelLocked(m.categoryId, tier) || m.minTier > tier) {
-      setToast(tr('enduranceWorld.reachTier', { tier: Math.max(m.minTier, LEVEL_UNLOCK_TIER) }));
+      setToast(tr('enduranceWorld.reachTier', { tier: Math.max(m.minTier, LEVEL_UNLOCK_TIER[m.categoryId]) }));
       return;
     }
     const pb = stats?.pbs[m.id] ?? 0;
@@ -298,7 +298,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   const onPickLevel = (l: Level) => {
     if (isLevelLocked(l, tier)) {
-      setToast(tr('enduranceWorld.reachTierLevel', { tier: LEVEL_UNLOCK_TIER, level: catName(l) }));
+      setToast(tr('enduranceWorld.reachTierLevel', { tier: LEVEL_UNLOCK_TIER[l], level: catName(l) }));
       return;
     }
     setLevel(l);

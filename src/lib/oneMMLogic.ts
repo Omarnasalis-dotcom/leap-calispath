@@ -13,7 +13,7 @@ export const ONEMM_UNLOCK_TIER = 0;
 
 export const ONEMM_CATEGORIES = {
   entry: { id: 'entry', name: 'ENTRY', multiplier: 0.25, tiers: [0, 4] },
-  main: { id: 'main', name: 'MAIN', multiplier: 0.5, tiers: [5, 8] },
+  main: { id: 'main', name: 'MAIN', multiplier: 0.5, tiers: [3, 8] },
   advanced: { id: 'advanced', name: 'ADVANCED', multiplier: 5, tiers: [5, 8] },
 };
 
@@ -26,12 +26,12 @@ export const ONEMM_MOVEMENTS: OneMMMovement[] = [
   { id: 'incline_push_ups', name: 'Incline Push-ups', categoryId: 'entry', patternId: 'push', minTier: 0 },
   { id: 'assisted_pull_ups', name: 'Assisted Pull-ups', categoryId: 'entry', patternId: 'pull', minTier: 0 },
 
-  // MAIN (Tiers 5-8)
-  { id: 'push_ups', name: 'Push-ups', categoryId: 'main', patternId: 'push', minTier: 5 },
-  { id: 'pull_ups', name: 'Pull-ups', categoryId: 'main', patternId: 'pull', minTier: 5 },
-  { id: 'dips', name: 'Dips', categoryId: 'main', patternId: 'dip', minTier: 5 },
-  { id: 'goblet_squats', name: 'Goblet Squats (+20kg)', categoryId: 'main', patternId: 'squat', minTier: 5 },
-  { id: 'deadlift', name: 'Deadlift (+30kg)', categoryId: 'main', patternId: 'deadlift', minTier: 5 },
+  // MAIN (Tiers 3-8)
+  { id: 'push_ups', name: 'Push-ups', categoryId: 'main', patternId: 'push', minTier: 3 },
+  { id: 'pull_ups', name: 'Pull-ups', categoryId: 'main', patternId: 'pull', minTier: 3 },
+  { id: 'dips', name: 'Dips', categoryId: 'main', patternId: 'dip', minTier: 3 },
+  { id: 'goblet_squats', name: 'Goblet Squats (+20kg)', categoryId: 'main', patternId: 'squat', minTier: 3 },
+  { id: 'deadlift', name: 'Deadlift (+30kg)', categoryId: 'main', patternId: 'deadlift', minTier: 3 },
 
   // ADVANCED (Tiers 5-8)
   { id: 'muscle_ups', name: 'Muscle-ups', categoryId: 'advanced', patternId: 'muscle_up', minTier: 5 },
