@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sentry from '@sentry/react-native';
+import { t } from '../i18n';
 
 interface Props {
   children: React.ReactNode;
@@ -38,13 +39,13 @@ export class GlobalErrorBoundary extends React.Component<Props, State> {
       return (
         <View style={styles.container}>
           <MaterialCommunityIcons name="alert-circle-outline" size={80} color="#EF4444" />
-          <Text style={styles.title}>SYSTEM FAILURE</Text>
-          <Text style={styles.subtitle}>The interface has encountered a critical anomaly.</Text>
+          <Text style={styles.title}>{t('system.failureTitle')}</Text>
+          <Text style={styles.subtitle}>{t('system.failureBody')}</Text>
           <Text style={styles.errorText} numberOfLines={3}>
-            {this.state.error?.message || 'Unknown error'}
+            {this.state.error?.message || t('system.unknownError')}
           </Text>
           <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>REBOOT INTERFACE</Text>
+            <Text style={styles.buttonText}>{t('system.reboot')}</Text>
           </TouchableOpacity>
         </View>
       );

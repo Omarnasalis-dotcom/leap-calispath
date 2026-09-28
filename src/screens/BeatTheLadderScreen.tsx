@@ -29,6 +29,7 @@ import {
   searchLadderExercises,
   validateMove,
 } from '../lib/beatTheLadder';
+import { t } from '../i18n';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -39,18 +40,18 @@ interface BeatTheLadderScreenProps {
 }
 
 function getRejectionMessage(reason: MoveRejectionReason, currentName: string): string {
-  if (reason === 'already_used') return 'was already used earlier in this chain.';
-  return `isn't harder than ${currentName}.`;
+  if (reason === 'already_used') return t('ladderGame.alreadyUsed');
+  return t('ladderGame.notHarder', { name: currentName });
 }
 
 const SUCCESS_COLOR = '#43D17C';
 
 const LADDER_QUOTES = [
-  'ONE MORE MOVE. ALWAYS ONE MORE MOVE.',
-  'THE CHAIN ONLY BREAKS WHEN YOU LET IT.',
-  'KNOW YOUR MOVEMENTS. KNOW YOUR LIMITS.',
-  'EVERY RUNG IS EARNED.',
-  'CLIMB UNTIL YOU CAN\'T.',
+  t('ladderGame.quote1'),
+  t('ladderGame.quote2'),
+  t('ladderGame.quote3'),
+  t('ladderGame.quote4'),
+  t('ladderGame.quote5'),
 ];
 
 export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
@@ -104,7 +105,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
       const newChain = [...chain, candidate];
       setChain(newChain);
       setQuery('');
-      setLastMoveNote(`${candidate.name} is harder than ${currentExercise.name}.`);
+      setLastMoveNote(t('ladderGame.harderThan', { a: candidate.name, b: currentExercise.name }));
       if (newChain.length === LADDER_EXERCISES.length) {
         setStatus('cleared');
         setShowWheel(true);
@@ -139,7 +140,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
           <TouchableOpacity onPress={onExit} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
             <MaterialCommunityIcons name="chevron-left" size={28} color={theme.text.primary} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: theme.text.primary }]}>BEAT THE PLANK</Text>
+          <Text style={[styles.title, { color: theme.text.primary }]}>{t('ladderGame.title')}</Text>
           <Animated.View
             style={[
               styles.chainBadge,
@@ -153,10 +154,10 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
         {status === 'active' ? (
           <View style={styles.playArea}>
             <View style={[styles.currentCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.currentLabel, { color: theme.text.tertiary }]}>YOUR EXERCISE</Text>
+              <Text style={[styles.currentLabel, { color: theme.text.tertiary }]}>{t('ladderGame.yourExercise')}</Text>
               <Text style={[styles.currentName, { color: theme.text.primary }]}>{currentExercise.name}</Text>
               <Text style={[styles.currentBand, { color: theme.accent }]}>
-                {getDifficultyBand(currentExercise.difficulty)} range
+                {t('ladderGame.range', { band: t(`ladderGame.band_${getDifficultyBand(currentExercise.difficulty)}` as 'ladderGame.band_Elite') })}
               </Text>
             </View>
 
@@ -184,7 +185,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
               ]}
               value={query}
               onChangeText={setQuery}
-              placeholder="Name something harder…"
+              placeholder={t('ladderGame.placeholder')}
               placeholderTextColor={theme.text.tertiary}
               autoCapitalize="none"
               autoCorrect={false}
@@ -202,19 +203,19 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
             )}
 
             {query.length > 0 && suggestions.length === 0 && (
-              <Text style={[styles.noMatches, { color: theme.text.tertiary }]}>No matches yet — keep typing.</Text>
+              <Text style={[styles.noMatches, { color: theme.text.tertiary }]}>{t('ladderGame.noMatches')}</Text>
             )}
           </View>
         ) : (
           <View style={styles.playArea}>
             <View style={[styles.resultCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
               <Text style={[styles.resultKicker, { color: theme.text.tertiary }]}>
-                {status === 'cleared' ? 'LADDER CLEARED' : 'RUN OVER'}
+                {status === 'cleared' ? t('ladderGame.cleared') : t('ladderGame.runOver')}
               </Text>
               <Text style={[styles.resultChain, { color: theme.accent }]}>{chainLength}</Text>
-              <Text style={[styles.resultSub, { color: theme.text.secondary }]}>moves chained</Text>
+              <Text style={[styles.resultSub, { color: theme.text.secondary }]}>{t('ladderGame.movesChained')}</Text>
               <Text style={[styles.resultCeiling, { color: theme.text.primary }]}>
-                {status === 'cleared' ? 'Topped out at: ' : 'Reached: '}{currentExercise.name}
+                {status === 'cleared' ? t('ladderGame.toppedOut') : t('ladderGame.reached')}{currentExercise.name}
               </Text>
               {status === 'game_over' && brokenOn && rejectionReason && (
                 <Text style={[styles.resultReason, { color: theme.text.tertiary }]}>
@@ -222,9 +223,9 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
                 </Text>
               )}
             </View>
-            <Button title="PLAY AGAIN" onPress={handleRestart} />
+            <Button title={t('ladderGame.playAgain')} onPress={handleRestart} />
             <Button
-              title="SHARE RESULT"
+              title={t('ladderGame.share')}
               onPress={() => {
                 // The wheel is a plain overlay (not a <Modal>), but closing it
                 // first keeps the two from ever visually stacking.
@@ -233,7 +234,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
               }}
               variant="secondary"
             />
-            <Button title="EXIT" onPress={onExit} variant="secondary" />
+            <Button title={t('ladderGame.exit')} onPress={onExit} variant="secondary" />
           </View>
         )}
 
@@ -248,7 +249,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
               ]}
             >
               <Text style={[styles.chainChipIndex, { color: theme.text.tertiary }]}>
-                {index === 0 ? 'START' : index}
+                {index === 0 ? t('ladderGame.start') : index}
               </Text>
               <Text style={[styles.chainChipName, { color: theme.text.primary }]}>{exercise.name}</Text>
             </View>
@@ -261,10 +262,10 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
           headerText="BEAT THE PLANK"
           title={status === 'cleared' ? 'LADDER CLEARED' : 'CHAIN BROKEN'}
           subtitle="SOLO CLIMB"
-          stat={`${chainLength} MOVE${chainLength === 1 ? '' : 'S'}`}
-          rank={`${status === 'cleared' ? 'TOPPED OUT' : 'REACHED'}: ${currentExercise.name.toUpperCase()}`}
+          stat={t('ladderGame.moves', { count: chainLength })}
+          rank={status === 'cleared' ? t('ladderGame.toppedOutCaps', { name: currentExercise.name.toUpperCase() }) : t('ladderGame.reachedCaps', { name: currentExercise.name.toUpperCase() })}
           emoji="🪜"
-          userName={profile?.display_name?.toUpperCase() || 'PLAYER'}
+          userName={profile?.display_name?.toUpperCase() || t('ladderGame.player')}
           celebratory={status === 'cleared'}
           quotes={LADDER_QUOTES}
         />

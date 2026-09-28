@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Linking, SafeAreaView } from 'react-native';
 import { LeapLogo } from './LeapLogo';
 import { Button } from './Button';
+import { t, isArabic } from '../i18n';
 
 interface ForceUpdateScreenProps {
   message: string;
@@ -16,10 +17,10 @@ export function ForceUpdateScreen({ message, storeUrl }: ForceUpdateScreenProps)
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <LeapLogo size={100} animated={false} />
-        <Text style={styles.title}>Update Required</Text>
-        <Text style={styles.message}>{message}</Text>
+        <Text style={styles.title}>{t('system.updateTitle')}</Text>
+        <Text style={styles.message}>{isArabic ? t('system.updateMessage') : message}</Text>
         {!!storeUrl && (
-          <Button title="Update Now" onPress={() => Linking.openURL(storeUrl)} />
+          <Button title={t('system.updateNow')} onPress={() => Linking.openURL(storeUrl)} />
         )}
       </View>
     </SafeAreaView>

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sentry from '@sentry/react-native';
 import { router, type ErrorBoundaryProps } from 'expo-router';
+import { t } from '../i18n';
 
 // Per-screen error boundary (audit 2026-09-25, L22). Each route file
 // re-exports this as `ErrorBoundary`, which Expo Router renders in place of
@@ -17,16 +18,16 @@ export function RouteErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   return (
     <View style={styles.container}>
       <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#EF4444" />
-      <Text style={styles.title}>SOMETHING WENT WRONG</Text>
-      <Text style={styles.subtitle}>This screen hit an error. The rest of the app is fine.</Text>
+      <Text style={styles.title}>{t('system.routeErrorTitle')}</Text>
+      <Text style={styles.subtitle}>{t('system.routeErrorBody')}</Text>
       <Text style={styles.errorText} numberOfLines={3}>
-        {error?.message || 'Unknown error'}
+        {error?.message || t('system.unknownError')}
       </Text>
       <TouchableOpacity style={styles.button} onPress={retry} accessibilityRole="button">
-        <Text style={styles.buttonText}>TRY AGAIN</Text>
+        <Text style={styles.buttonText}>{t('system.tryAgain')}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/')} accessibilityRole="button">
-        <Text style={styles.secondaryButtonText}>GO HOME</Text>
+        <Text style={styles.secondaryButtonText}>{t('system.goHome')}</Text>
       </TouchableOpacity>
     </View>
   );

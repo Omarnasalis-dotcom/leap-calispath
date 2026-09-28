@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
 import { TouchableOpacity } from 'react-native';
+import { t, FLIP_X } from '../i18n';
 
 interface LockedFeatureProps {
   title: string;
@@ -25,14 +26,14 @@ export function LockedFeature({ title, description, season = 2 }: LockedFeatureP
         <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
         <Text style={[styles.description, { color: theme.text.secondary }]}>{description}</Text>
         <View style={[styles.badge, { borderColor: theme.accent, marginBottom: 40 }]}>
-          <Text style={[styles.badgeText, { color: theme.accent }]}>COMING IN SEASON {season}</Text>
+          <Text style={[styles.badgeText, { color: theme.accent }]}>{t('system.comingSeason', { season })}</Text>
         </View>
         <TouchableOpacity 
           style={[styles.backButton, { borderColor: theme.card.border }]} 
           onPress={() => router.canGoBack() ? router.back() : router.replace('/')}
         >
-          <MaterialCommunityIcons name="arrow-left" size={20} color={theme.text.primary} style={{ marginRight: 8 }} />
-          <Text style={[styles.backButtonText, { color: theme.text.primary }]}>GO BACK</Text>
+          <MaterialCommunityIcons name="arrow-left" size={20} color={theme.text.primary} style={[{ marginRight: 8 }, FLIP_X]} />
+          <Text style={[styles.backButtonText, { color: theme.text.primary }]}>{t('system.goBack')}</Text>
         </TouchableOpacity>
       </View>
     </View>
