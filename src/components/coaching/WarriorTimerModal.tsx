@@ -56,6 +56,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
     tabataPhase,
     tabataWorkSecs,
     tabataRestSecs,
+    tabataExerciseCount,
     amrapRoundsCompleted,
     logRound,
     holdTimes,
@@ -71,6 +72,16 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
       onBlockComplete(blockId, roundsCompleted, tabataHoldTimes);
     },
   });
+
+  // Tabata: currentRound/totalRounds count work intervals, one exercise
+  // each, cycling through the block's exercises once per round. During rest
+  // the name shown is the next interval's exercise.
+  const tabataRound = Math.ceil(currentRound / tabataExerciseCount);
+  const tabataTotalRounds = Math.round(totalRounds / tabataExerciseCount);
+  const tabataInterval = tabataPhase === 'rest' ? currentRound + 1 : currentRound;
+  const tabataExercise = timerType === 'tabata' && tabataInterval <= totalRounds
+    ? activeBlock.exercises[(tabataInterval - 1) % activeBlock.exercises.length]
+    : undefined;
 
   const isHoldExercise = activeBlock.exercises.some(
     ex => ex.hold_seconds && parseInt(String(ex.hold_seconds), 10) > 0
@@ -145,7 +156,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 0, maxWidth: 420, alignItems: 'center' }]}>
             <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
-              {timerType === 'amrap' ? t('timerModal.amrapCountdown') : timerType === 'fortime' ? t('timerModal.forTimeStopwatch') : timerType === 'tabata' ? t('timerModal.tabataRound', { round: currentRound, total: totalRounds }) : totalRounds > 1 ? t('timerModal.restIntervalRound', { round: currentRound, total: totalRounds }) : t('timerModal.restInterval')}
+              {timerType === 'amrap' ? t('timerModal.amrapCountdown') : timerType === 'fortime' ? t('timerModal.forTimeStopwatch') : timerType === 'tabata' ? t('timerModal.tabataRound', { round: tabataRound, total: tabataTotalRounds }) : totalRounds > 1 ? t('timerModal.restIntervalRound', { round: currentRound, total: totalRounds }) : t('timerModal.restInterval')}
             </Text>
 
             {/* Timer visual circle using a gradient border trick */}
@@ -177,7 +188,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                     letterSpacing: 2,
                     marginBottom: 2,
                   }}>
-                    {tabataPhase === 'work' ? '● WORK' : '○ REST'}
+                    {tabataPhase === 'work' ? t('timerModal.work') : t('timerModal.rest')}
                   </Text>
                 )}
                 <Text style={{
@@ -198,10 +209,15 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
               </View>
             </LinearGradient>
 
-            {/* Tabata round dots + best-hold capture */}
+            {/* Tabata current exercise, interval dots + best-hold capture */}
             {timerType === 'tabata' && (
               <View style={{ alignItems: 'center', marginBottom: 20, gap: 12 }}>
-                <View style={{ flexDirection: 'row', gap: 6 }}>
+                {tabataExercise && (
+                  <Text style={{ color: theme.text.primary, fontSize: 18, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1, textAlign: 'center' }}>
+                    {tabataPhase === 'rest' ? t('timerModal.nextExercise', { name: tabataExercise.name }) : tabataExercise.name}
+                  </Text>
+                )}
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6 }}>
                   {Array.from({ length: totalRounds }).map((_, i) => {
                     const roundNum = i + 1;
                     const isDone = roundNum < currentRound || (roundNum === currentRound && tabataPhase === 'rest');

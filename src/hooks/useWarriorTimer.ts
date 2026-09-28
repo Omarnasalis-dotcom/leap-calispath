@@ -5,6 +5,7 @@ import { SoundServiceInstance } from '../lib/SoundService';
 export interface ProgramBlockParams {
   id: string | number;
   metadata?: any;
+  exercises?: unknown[];
 }
 
 interface UseWarriorTimerProps {
@@ -19,6 +20,11 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
   const [tabataPhase, setTabataPhase] = useState<'work' | 'rest'>('work');
   const [tabataWorkSecs, setTabataWorkSecs] = useState(20);
   const [tabataRestSecs, setTabataRestSecs] = useState(10);
+  // Tabata runs every exercise once per round, one work interval each, so
+  // currentRound/totalRounds count work intervals (rounds × exercises).
+  // Mirrored into a ref for the tick effect's completion callback.
+  const [tabataExerciseCount, setTabataExerciseCount] = useState(1);
+  const tabataExerciseCountRef = useRef(1);
   const [timeLeft, setTimeLeft] = useState<number>(0);
   const [timerRunning, setTimerRunning] = useState<boolean>(false);
   const [elapsedTime, setElapsedTime] = useState<number>(0);
@@ -236,7 +242,7 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
                         setCompletionEvent({
                           type: 'tabata',
                           blockId: activeTimerBlockId,
-                          roundsCompleted: nextRound - 1,
+                          roundsCompleted: Math.floor((nextRound - 1) / tabataExerciseCountRef.current),
                           holdTimes: holdTimesRef.current,
                         });
                       }
@@ -307,9 +313,12 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
       const workSec = parseInt(String(block.metadata?.tabata_work_seconds || '20'), 10);
       const restSec = parseInt(String(block.metadata?.tabata_rest_seconds || '10'), 10);
       const tabRounds = parseInt(String(block.metadata?.tabata_rounds || '8'), 10);
+      const exerciseCount = Math.max(block.exercises?.length ?? 0, 1);
       setTabataWorkSecs(workSec);
       setTabataRestSecs(restSec);
-      setTotalRounds(tabRounds);
+      setTabataExerciseCount(exerciseCount);
+      tabataExerciseCountRef.current = exerciseCount;
+      setTotalRounds(tabRounds * exerciseCount);
       setCurrentRound(1);
       setTabataPhase('work');
       setTimeLeft(workSec);
@@ -359,6 +368,7 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     tabataPhase,
     tabataWorkSecs,
     tabataRestSecs,
+    tabataExerciseCount,
     amrapRoundsCompleted,
     logRound,
     holdTimes,
