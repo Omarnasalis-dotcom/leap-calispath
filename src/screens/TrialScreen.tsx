@@ -32,7 +32,7 @@ import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
-import { t, isArabic } from '../i18n';
+import { t, isArabic, FLIP_X, tierLevelLabel } from '../i18n';
 
 
 
@@ -530,7 +530,7 @@ export function TrialScreen({
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('trial.back')} style={styles.backButton} onPress={handleBack}>
-          <MaterialCommunityIcons name="chevron-left" size={32} color={accentColor} />
+          <MaterialCommunityIcons name="chevron-left" size={32} color={accentColor} style={FLIP_X} />
         </TouchableOpacity>
         <View style={[styles.headerTitleFrame, { borderColor: accentColor }]}>
           <Text style={[styles.title, { color: theme.text.primary }]}>{trialDisplayName.toUpperCase()}</Text>
@@ -560,7 +560,7 @@ export function TrialScreen({
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
-            <Text style={[styles.badgeText, { color: theme.text.primary }]}>TIER {targetTier}</Text>
+            <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(targetTier).toUpperCase()}</Text>
           </View>
         </View>
 
