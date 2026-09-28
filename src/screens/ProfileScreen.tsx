@@ -63,15 +63,15 @@ export function ProfileScreen({
     // one the Milestone Lane's own trial card gates on — passing it here
     // (this tier grid, not the lane's embedded card) used to leave that
     // card stuck showing "open" forever, since nothing told the lane a
-    // trial was resolved. returnTo/questSlotKey (via the shared sentinel —
-    // this screen has no idea what the lane's current week is) closes that
-    // gap and lands the athlete on My Journey to see it reflected. Practice
-    // trials don't advance tier and aren't "the" journey trial, so they
-    // keep today's behavior (back to Profile) untouched.
+    // trial was resolved. questSlotKey (via the shared sentinel — this
+    // screen has no idea what the lane's current week is) closes that gap:
+    // the athlete comes back here, and the lane resolves its trial card the
+    // next time it opens (see markCurrentTrialDone). Practice trials don't
+    // advance tier and aren't "the" journey trial, so they pass nothing.
     router.push({
       pathname: '/trial',
       params: mode === 'progression'
-        ? { tier, mode, returnTo: 'journey', questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL }
+        ? { tier, mode, questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL }
         : { tier, mode },
     });
   };

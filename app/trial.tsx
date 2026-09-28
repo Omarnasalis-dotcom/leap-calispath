@@ -1,13 +1,14 @@
 import React from 'react';
-import { useRouter, useLocalSearchParams, Stack } from 'expo-router';
+import { useLocalSearchParams, Stack } from 'expo-router';
 import { TrialScreen } from '../src/screens/TrialScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
-import { useReturnTo } from '../src/hooks/useReturnTo';
+import { useReturnTo, CURRENT_TRIAL_QUEST_SENTINEL, markCurrentTrialDone } from '../src/hooks/useReturnTo';
+import { useAuth } from '../src/contexts/AuthContext';
 
 export default function Route() {
-  const router = useRouter();
   const { mode, tier } = useLocalSearchParams<{ mode: string; tier: string }>();
-  const { returnTo, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
+  const { questSlotKey, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
+  const { user } = useAuth();
 
   return (
     <SpartanLayout hideToggle>
@@ -24,10 +25,14 @@ export default function Route() {
         // is a no-op (returns false) when not reached via the journey
         // lane's own questSlotKey param, so the plain '/profile' fallback
         // below still covers every other entry point.
-        onComplete={() => {
-          if (!completeQuestAndReturn()) {
-            router.replace(returnTo === 'journey' ? '/my-journey' : '/profile');
+        // Started outside the lane (Strength's tier grid): go back there,
+        // and leave the lane a note so its trial card still resolves.
+        onComplete={async () => {
+          if (completeQuestAndReturn()) return;
+          if (questSlotKey === CURRENT_TRIAL_QUEST_SENTINEL && user) {
+            await markCurrentTrialDone(user.id);
           }
+          goBackOrReturnTo('/profile');
         }}
         onBack={() => goBackOrReturnTo('/')}
       />

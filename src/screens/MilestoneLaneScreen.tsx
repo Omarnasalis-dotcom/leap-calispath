@@ -18,7 +18,7 @@ import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
-import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
+import { CURRENT_TRIAL_QUEST_SENTINEL, consumeCurrentTrialDone } from '../hooks/useReturnTo';
 import { t, FLIP_X } from '../i18n';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
@@ -1275,20 +1275,39 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // this point in the component body, and this effect's dependency array
   // (unlike its deferred callback) evaluates immediately. Bails out until
   // journeyData is actually loaded instead of resolving nothing.
+  const markQuestSlotDone = useCallback((slotKey: string) => {
+    if (!profile?.id) return;
+    const profileId = profile.id;
+    setCompletedQuestSlots((prev) => {
+      if (prev.has(slotKey)) return prev;
+      const next = new Set(prev);
+      next.add(slotKey);
+      updateLocalFlagsCache(profileId, { completedQuestSlots: next });
+      AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profileId}`, JSON.stringify(Array.from(next))).catch(() => {});
+      return next;
+    });
+  }, [profile?.id]);
+
   useEffect(() => {
     if (!questDone || !profile?.id) return;
     const currentTrialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
     const resolvedSlotKey = questDone === CURRENT_TRIAL_QUEST_SENTINEL ? currentTrialSlotKey : questDone;
     if (!resolvedSlotKey) return;
-    setCompletedQuestSlots((prev) => {
-      if (prev.has(resolvedSlotKey)) return prev;
-      const next = new Set(prev);
-      next.add(resolvedSlotKey);
-      updateLocalFlagsCache(profile.id, { completedQuestSlots: next });
-      AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
-      return next;
-    });
-  }, [questDone, profile?.id, journeyData]);
+    markQuestSlotDone(resolvedSlotKey);
+  }, [questDone, profile?.id, journeyData, markQuestSlotDone]);
+
+  // Same resolution for a trial passed from Strength's tier grid, which
+  // returns there instead of here and leaves a note (markCurrentTrialDone).
+  // Waits for journeyData so the note isn't used up before the week is known.
+  useFocusEffect(
+    useCallback(() => {
+      if (!profile?.id || !journeyData) return;
+      const trialSlot = `w${journeyData.currentWeek}_trial`;
+      consumeCurrentTrialDone(profile.id).then((done) => {
+        if (done) markQuestSlotDone(trialSlot);
+      });
+    }, [profile?.id, journeyData, markQuestSlotDone])
+  );
 
   const handleSkipQuest = useCallback(
     (slotKey: string) => {
