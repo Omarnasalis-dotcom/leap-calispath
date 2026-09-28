@@ -21,6 +21,7 @@ import { useSafeMutation } from '../hooks/useSafeMutation';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { NotificationService } from '../services/NotificationService';
 import { useReturnTo } from '../hooks/useReturnTo';
+import { t as tr, isArabic, isRTL } from '../i18n';
 
 // Local types for UI
 interface WeeklyEntry {
@@ -33,9 +34,9 @@ interface WeeklyEntry {
 }
 
 const GROUP_NAMES: Record<number, { name: string; tiers: string }> = {
-  1: { name: 'NOVICES', tiers: '0-2' },
-  2: { name: 'WARRIORS', tiers: '3-5' },
-  3: { name: 'LEGENDS', tiers: '6-8' },
+  1: { name: tr('weekly.novices'), tiers: '0-2' },
+  2: { name: tr('weekly.warriors'), tiers: '3-5' },
+  3: { name: tr('weekly.legends'), tiers: '6-8' },
 };
 
 function getUserGroup(tier: number): 1 | 2 | 3 {
@@ -217,9 +218,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         {/* Header */}
         <View style={styles.header}>
           <TouchableOpacity onPress={onClose} style={[styles.backButton, { borderColor: theme.card.border }]}>
-            <Text style={{ color: theme.text.secondary }}>←</Text>
+            <Text style={{ color: theme.text.secondary }}>{isRTL ? '→' : '←'}</Text>
           </TouchableOpacity>
-          <Text style={[styles.title, { color: theme.accent }]}>WEEKLY CHALLENGE</Text>
+          <Text style={[styles.title, { color: theme.accent }]}>{tr('weekly.title')}</Text>
           {isAdmin ? (
             <TouchableOpacity onPress={() => setShowAdminModal(true)} style={[styles.backButton, { borderColor: theme.accent, backgroundColor: 'rgba(205,127,50,0.1)' }]}>
               <Text style={{ color: theme.accent }}>⚙️</Text>
@@ -239,13 +240,13 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
             }}
             style={styles.weekNavBtn}
           >
-            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>◀</Text>
+            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>{isRTL ? '▶' : '◀'}</Text>
           </TouchableOpacity>
 
           <View style={styles.weekLabelContainer}>
             <Text style={[styles.weekLabel, { color: theme.text.primary }]}>
-              {new Date(selectedWeekStart).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-              {selectedWeekStart === ChallengeService.getCurrentWeekStart() ? ' (ACTIVE)' : ' (ENDED)'}
+              {new Date(selectedWeekStart).toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric' })}
+              {selectedWeekStart === ChallengeService.getCurrentWeekStart() ? tr('weekly.active') : tr('weekly.ended')}
             </Text>
           </View>
 
@@ -258,7 +259,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
             }}
             style={[styles.weekNavBtn, { opacity: selectedWeekStart === ChallengeService.getCurrentWeekStart() ? 0.2 : 1 }]}
           >
-            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>▶</Text>
+            <Text style={{ color: theme.text.tertiary, fontSize: 18 }}>{isRTL ? '◀' : '▶'}</Text>
           </TouchableOpacity>
         </View>
 
@@ -280,7 +281,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         ) : (
           <View style={[styles.groupBadge, { backgroundColor: theme.card.background, borderColor: theme.accent }]}>
             <Text style={[styles.groupName, { color: theme.accent }]}>{groupInfo.name}</Text>
-            <Text style={[styles.groupTiers, { color: theme.text.tertiary }]}>Tier {groupInfo.tiers}</Text>
+            <Text style={[styles.groupTiers, { color: theme.text.tertiary }]}>{tr('weekly.tierRange', { range: groupInfo.tiers })}</Text>
           </View>
         )}
 
@@ -289,8 +290,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         ) : !challenge ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyIcon]}>⏳</Text>
-            <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO CHALLENGE THIS WEEK</Text>
-            <Text style={[styles.emptySubtitle, { color: theme.text.tertiary }]}>Check back Saturday for a new challenge</Text>
+            <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>{tr('weekly.noChallenge')}</Text>
+            <Text style={[styles.emptySubtitle, { color: theme.text.tertiary }]}>{tr('weekly.checkBack')}</Text>
             {isAdmin && (
               <TouchableOpacity
                 style={[styles.adminButton, { backgroundColor: theme.accent }]}
@@ -310,20 +311,20 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               ) : null}
               <View style={[styles.scoringBadge, { backgroundColor: challenge.scoring_type === 'time' ? 'rgba(205,127,50,0.1)' : 'rgba(100,200,100,0.1)' }]}>
                 <Text style={[styles.scoringText, { color: theme.accent }]}>
-                  {challenge.scoring_type === 'time' ? '⏱ FOR TIME' : '💪 FOR REPS'}
+                  {challenge.scoring_type === 'time' ? tr('weekly.forTime') : tr('weekly.forReps')}
                 </Text>
               </View>
             </View>
 
             {/* Movements */}
-            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>MOVEMENTS</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>{tr('weekly.movements')}</Text>
             {challenge.movements.map((m, i) => (
               <View key={i} style={[styles.movementRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
                 <Text style={[styles.movementName, { color: theme.text.primary }]}>{m.name}</Text>
                 <View style={styles.movementRight}>
-                  <Text style={[styles.movementReps, { color: theme.accent }]}>{m.reps} reps</Text>
+                  <Text style={[styles.movementReps, { color: theme.accent }]}>{tr('weekly.repsCount', { reps: m.reps })}</Text>
                   {challenge.scoring_type === 'reps' && (
-                    <Text style={[styles.movementPoints, { color: theme.text.tertiary }]}>{m.points}pts each</Text>
+                    <Text style={[styles.movementPoints, { color: theme.text.tertiary }]}>{tr('weekly.ptsEach', { pts: m.points })}</Text>
                   )}
                 </View>
               </View>
@@ -332,13 +333,13 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
             {/* Your Score */}
             {userEntry && (
               <View style={[styles.yourScore, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
-                <Text style={[styles.yourScoreLabel, { color: theme.text.tertiary }]}>YOUR BEST</Text>
+                <Text style={[styles.yourScoreLabel, { color: theme.text.tertiary }]}>{tr('weekly.yourBest')}</Text>
                 <Text style={[styles.yourScoreValue, { color: theme.accent }]}>
                   {challenge.scoring_type === 'time'
                     ? `${Math.floor(userEntry.score / 60)}:${String(Math.floor(userEntry.score % 60)).padStart(2, '0')}`
-                    : `${userEntry.score} pts`}
+                    : tr('weekly.pts', { pts: userEntry.score })}
                 </Text>
-                <Text style={[styles.yourScoreRank, { color: theme.text.secondary }]}>RANK #{userEntry.rank}</Text>
+                <Text style={[styles.yourScoreRank, { color: theme.text.secondary }]}>{tr('weekly.rank', { rank: userEntry.rank })}</Text>
               </View>
             )}
 
@@ -347,21 +348,21 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
               style={[styles.submitButton, { backgroundColor: selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? '#444' : theme.accent, opacity: selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? 0.5 : 1 }]}
               onPress={() => {
                 if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
-                  Alert.alert('Challenge Ended', 'This challenge has ended. You cannot start a previous week challenge.');
+                  Alert.alert(tr('weekly.endedTitle'), tr('weekly.endedBody'));
                   return;
                 }
                 setShowSubmitModal(true);
               }}
             >
               <Text style={styles.submitButtonText}>
-                {selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? 'CHALLENGE ENDED' : 'START CHALLENGE'}
+                {selectedWeekStart !== ChallengeService.getCurrentWeekStart() ? tr('weekly.challengeEnded') : tr('weekly.startChallenge')}
               </Text>
             </TouchableOpacity>
 
             {/* Leaderboard */}
-            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
+            <Text style={[styles.sectionTitle, { color: theme.text.tertiary }]}>{tr('weekly.leaderboard')}</Text>
             {entries.length === 0 ? (
-              <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>No entries yet. Be the first!</Text>
+              <Text style={[styles.emptyText, { color: theme.text.tertiary }]}>{tr('weekly.noEntries')}</Text>
             ) : entries.slice(0, 10).map((entry, index) => (
               <View key={entry.id} style={[styles.entryRow, {
                 backgroundColor: entry.is_current_user ? 'rgba(205,127,50,0.1)' : theme.card.background,
@@ -372,12 +373,12 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                 </Text>
                 <Text style={[styles.entryName, { color: entry.is_current_user ? theme.accent : theme.text.primary }]}>
                   {entry.display_name}
-                  {entry.is_current_user && ' (YOU)'}
+                  {entry.is_current_user && tr('weekly.youSuffix')}
                 </Text>
                 <Text style={[styles.entryScore, { color: theme.accent }]}>
                   {challenge.scoring_type === 'time'
                     ? `${Math.floor(entry.score / 60)}:${String(Math.floor(entry.score % 60)).padStart(2, '0')}`
-                    : `${entry.score} pts`}
+                    : tr('weekly.pts', { pts: entry.score })}
                 </Text>
               </View>
             ))}
@@ -594,7 +595,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
                   <Text style={styles.timerBtnText}>PUBLISH CHALLENGE</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={() => setShowAdminModal(false)} style={{ marginTop: 12, alignItems: 'center' }}>
-                  <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
+                  <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>{tr('weekly.cancel')}</Text>
                 </TouchableOpacity>
               </View>
             </ScrollView>
@@ -607,7 +608,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           subtitle="Challenge Complete"
           stat="Weekly Challenge Conquered"
           emoji="🏆"
-          userName={profile?.display_name || 'WARRIOR'}
+          userName={profile?.display_name || tr('weekly.warrior')}
           onDismiss={() => {
             setShowCelebration(false);
           }}
@@ -708,17 +709,17 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
 
     if (isPreparing || timerRunning || hasStartedChallenge) {
       if (Platform.OS === 'web') {
-        if (window.confirm('Are you sure you want to abandon this weekly challenge? Progress will be lost.')) {
+        if (window.confirm(tr('weekly.abandonBody'))) {
           executeCancel();
         }
       } else {
         Alert.alert(
-          'ABANDON CHALLENGE',
-          'Are you sure you want to abandon this weekly challenge? Progress will be lost.',
+          tr('weekly.abandonTitle'),
+          tr('weekly.abandonBody'),
           [
-            { text: 'KEEP FIGHTING', style: 'cancel', onPress: () => {} },
+            { text: tr('weekly.keepFighting'), style: 'cancel', onPress: () => {} },
             {
-              text: 'ABANDON',
+              text: tr('weekly.abandon'),
               style: 'destructive',
               onPress: executeCancel,
             },
@@ -748,7 +749,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
 
   async function handleSubmit(finalScore: number) {
     if (selectedWeekStart !== ChallengeService.getCurrentWeekStart()) {
-      alert("This challenge has ended. You cannot submit scores for previous weeks.");
+      alert(tr('weekly.endedSubmit'));
       return;
     }
 
@@ -774,19 +775,19 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
     }, {
       onSuccess: async (improved) => {
         if (improved) {
-          Alert.alert('NEW BEST!', 'Your score has been updated on the leaderboard.');
+          Alert.alert(tr('weekly.newBestTitle'), tr('weekly.newBestBody'));
           const scoreLabel = challenge.scoring_type === 'time'
             ? `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
-            : `${finalScore} reps`;
+            : tr('weekly.repsScore', { reps: finalScore });
           NotificationService.notify(
             user.id,
             'weekly_challenge_pb',
-            'New Weekly Challenge Best!',
-            `${challenge.title}: ${scoreLabel} — a new personal best this week.`,
+            tr('weekly.pushTitle'),
+            tr('weekly.pushBody', { title: challenge.title, score: scoreLabel }),
             { screen: 'weekly-challenge' }
           );
         } else {
-          Alert.alert('Not a PB', 'Great effort, but not your best score this week.');
+          Alert.alert(tr('weekly.notPbTitle'), tr('weekly.notPbBody'));
         }
         await onSubmitSuccess();
         onClose();
@@ -828,16 +829,16 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
           >
             <ScrollView style={{ flex: 1, width: '100%' }} contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={true} keyboardShouldPersistTaps="handled">
             <Text style={[styles.modalTitle, { color: theme.accent }]}>
-              {challenge?.scoring_type === 'time' ? 'FOR TIME' : 'FOR REPS'}
+              {challenge?.scoring_type === 'time' ? tr('weekly.forTimeCaps') : tr('weekly.forRepsCaps')}
             </Text>
 
             {/* Workout Reference in Modal */}
             <View style={[styles.modalWorkoutRef, { borderColor: theme.accent + '22' }]}>
               <View style={styles.workoutHeaderRow}>
-                <Text style={[styles.workoutHeaderTitle, { color: theme.accent }]}>CHALLENGE PROTOCOL</Text>
+                <Text style={[styles.workoutHeaderTitle, { color: theme.accent }]}>{tr('weekly.protocol')}</Text>
                 {challenge?.scoring_type === 'reps' && (
                   <Text style={[styles.workoutHeaderSubtitle, { color: theme.text.tertiary }]}>
-                    ⏱ {challenge.time_limit} Min Limit
+                    {tr('weekly.minLimit', { min: challenge.time_limit })}
                   </Text>
                 )}
               </View>
@@ -862,14 +863,14 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                     <View style={styles.badgeContainer}>
                       <View style={[styles.repBadge, { backgroundColor: 'rgba(255, 255, 255, 0.05)' }]}>
                         <Text style={[styles.repText, { color: theme.text.secondary }]}>
-                          {m.reps} Reps
+                          {tr('weekly.repsBadge', { reps: m.reps })}
                         </Text>
                       </View>
                       
                       {challenge.scoring_type === 'reps' && (
                         <View style={[styles.pointPill, { backgroundColor: 'rgba(74, 222, 128, 0.1)' }]}>
                           <Text style={styles.pointPillText}>
-                            +{m.points} Pts
+                            {tr('weekly.ptsBadge', { pts: m.points })}
                           </Text>
                         </View>
                       )}
@@ -886,12 +887,12 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                 {isPreparing ? (
                   <View style={{ alignItems: 'center', marginVertical: 30 }}>
                     <Text style={{ color: theme.accent, fontSize: 96, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{preCountdown}</Text>
-                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>GET READY</Text>
+                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>{tr('weekly.getReady')}</Text>
                     <TouchableOpacity 
                       style={[styles.timerBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]} 
                       onPress={cancelPreparation}
                     >
-                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
+                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>{tr('weekly.cancel')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -903,14 +904,14 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                       style={[styles.timerBtn, { backgroundColor: timerRunning ? '#8B0000' : theme.accent }]}
                       onPress={() => timerRunning ? stopTimer() : handleStartWithLeadIn()}
                     >
-                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                      <Text style={styles.timerBtnText}>{timerRunning ? tr('weekly.stop') : tr('weekly.start')}</Text>
                     </TouchableOpacity>
                     {!timerRunning && timerSeconds > 0 && (
                       <TouchableOpacity
                         style={[styles.timerBtn, { backgroundColor: theme.card.border, marginBottom: 8 }]}
                         onPress={() => resetTimer()}
                       >
-                        <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>RESET</Text>
+                        <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>{tr('weekly.reset')}</Text>
                       </TouchableOpacity>
                     )}
                     {!timerRunning && timerSeconds > 0 && (
@@ -922,7 +923,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                         {submitting ? (
                           <LeapLogo size={40} animated />
                         ) : (
-                          <Text style={styles.timerBtnText}>SAVE {Math.floor(timerSeconds / 60)}:{String(timerSeconds % 60).padStart(2, '0')}</Text>
+                          <Text style={styles.timerBtnText}>{tr('weekly.save', { time: `${Math.floor(timerSeconds / 60)}:${String(timerSeconds % 60).padStart(2, '0')}` })}</Text>
                         )}
                       </TouchableOpacity>
                     )}
@@ -935,12 +936,12 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                 {isPreparing ? (
                   <View style={{ alignItems: 'center', marginVertical: 30 }}>
                     <Text style={{ color: theme.accent, fontSize: 96, fontWeight: '900', fontVariant: ['tabular-nums'] }}>{preCountdown}</Text>
-                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>GET READY</Text>
+                    <Text style={{ color: theme.text.primary, fontSize: 14, fontWeight: '900', letterSpacing: 4, marginBottom: 20 }}>{tr('weekly.getReady')}</Text>
                     <TouchableOpacity
                       style={[styles.timerBtn, { backgroundColor: 'rgba(255,255,255,0.1)', borderColor: 'rgba(255,255,255,0.2)', borderWidth: 1 }]}
                       onPress={cancelPreparation}
                     >
-                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
+                      <Text style={[styles.timerBtnText, { color: theme.text.secondary }]}>{tr('weekly.cancel')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -957,7 +958,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                         timerRunning ? stopTimer() : handleStartWithLeadIn();
                       }}
                     >
-                      <Text style={styles.timerBtnText}>{timerRunning ? 'STOP' : 'START'}</Text>
+                      <Text style={styles.timerBtnText}>{timerRunning ? tr('weekly.stop') : tr('weekly.start')}</Text>
                     </TouchableOpacity>
 
                     {/* Show entry form when timer hits 0 OR user skips */}
@@ -969,7 +970,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                           setTimerSeconds(0);
                         }}
                       >
-                        <Text style={[styles.timerBtnText, { color: theme.accent }]}>DONE — ENTER RESULTS</Text>
+                        <Text style={[styles.timerBtnText, { color: theme.accent }]}>{tr('weekly.doneEnter')}</Text>
                       </TouchableOpacity>
                     ) : null}
 
@@ -979,7 +980,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                         onPress={() => setTimerSeconds(0)}
                         style={{ marginTop: 8 }}
                       >
-                        <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>SKIP TIMER — ENTER MANUALLY</Text>
+                        <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>{tr('weekly.skipTimer')}</Text>
                       </TouchableOpacity>
                     )}
                   </>
@@ -987,10 +988,10 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
 
                 {!timerRunning && timerSeconds === 0 ? (
                   <>
-                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>ENTER YOUR RESULTS</Text>
+                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>{tr('weekly.enterResults')}</Text>
 
                     {/* Rounds input */}
-                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ROUNDS COMPLETED</Text>
+                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>{tr('weekly.roundsCompleted')}</Text>
                     <TextInput
                       style={[styles.input, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
                       value={roundsCompleted}
@@ -999,13 +1000,13 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                         setRoundsCompleted(newRounds);
                         setCalculatedPoints(calculatePointsFrom(newRounds, additionalReps));
                       }}
-                      placeholder="e.g. 3"
+                      placeholder={tr('weekly.roundsPlaceholder')}
                       placeholderTextColor={theme.text.tertiary}
                       keyboardType="numeric"
                     />
 
                     {/* Additional reps for each movement */}
-                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ADDITIONAL REPS (if incomplete round)</Text>
+                    <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>{tr('weekly.additionalReps')}</Text>
                     {challenge?.movements.map((m, idx) => (
                       <View key={idx} style={styles.movementInputRow}>
                         <Text style={[styles.movementInputLabel, { color: theme.text.primary }]}>{m.name}</Text>
@@ -1026,7 +1027,7 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
 
                     {/* Calculated points display */}
                     <View style={[styles.pointsDisplay, { backgroundColor: 'rgba(205,127,50,0.1)', borderColor: theme.accent }]}>
-                      <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>TOTAL POINTS</Text>
+                      <Text style={[styles.pointsLabel, { color: theme.text.tertiary }]}>{tr('weekly.totalPoints')}</Text>
                       <Text style={[styles.pointsValue, { color: theme.accent }]}>{calculatedPoints}</Text>
                     </View>
 
@@ -1041,20 +1042,20 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
                       {submitting ? (
                         <LeapLogo size={40} animated />
                       ) : (
-                        <Text style={styles.timerBtnText}>SUBMIT {calculatedPoints} PTS</Text>
+                        <Text style={styles.timerBtnText}>{tr('weekly.submitPts', { pts: calculatedPoints })}</Text>
                       )}
                     </TouchableOpacity>
                   </>
                 ) : (
                   !timerRunning && timerSeconds !== 0 && timerSeconds !== (challenge?.time_limit || 10) * 60 ? null :
-                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>Start the timer to begin your workout</Text>
+                    <Text style={[styles.orText, { color: theme.text.tertiary }]}>{tr('weekly.startTimerHint')}</Text>
                 )}
               </>
             )}
 
             {!isPreparing && (
               <TouchableOpacity onPress={handleCancel}>
-                <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>CANCEL</Text>
+                <Text style={[styles.cancelText, { color: theme.text.tertiary }]}>{tr('weekly.cancel')}</Text>
               </TouchableOpacity>
             )}
           </ScrollView>
