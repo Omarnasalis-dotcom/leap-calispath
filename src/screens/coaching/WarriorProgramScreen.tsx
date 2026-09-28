@@ -275,12 +275,15 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const [logRpe, setLogRpe] = useState<number | null>(null);
   const [logMissedReason, setLogMissedReason] = useState<MissedReason | null>(null);
   const [logMissedDetail, setLogMissedDetail] = useState('');
-  // Today's already-submitted workout_logs rows, keyed by block_id — lets
+  // This program's latest workout_logs row per block_id — marks the block
+  // done on any later day (not just the day it was logged) and lets
   // "EDIT LOG" pre-fill the modal with what was actually saved instead of
   // opening blank and forcing the warrior to redo the whole entry.
+  // first_logged_at is the block's oldest log, so a re-log replaces it.
   const [loggedDetails, setLoggedDetails] = useState<Record<string, {
     notes: string; feel: string | null; rpe: number | null;
     missed_reason: string | null; missed_detail: string | null;
+    first_logged_at: string;
   }>>({});
 
   // Active Timer State (Extracted to Hook)
@@ -293,6 +296,19 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // re-enable a lock rule if that ever changes.
   const isBlockLocked = (blockId: string | number): boolean => {
     return false;
+  };
+
+  // Cutoff for toggle_block_status/log_block_with_sets, which delete the
+  // block's logs from this time on before saving the new one: the start of
+  // today, or earlier when the block was already logged on a previous day,
+  // so changing that log replaces it instead of adding a second one.
+  const replaceLogsSince = (blockId: string | number): string => {
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const firstLoggedAt = loggedDetails[blockId]?.first_logged_at;
+    return firstLoggedAt && new Date(firstLoggedAt) < startOfToday
+      ? firstLoggedAt
+      : startOfToday.toISOString();
   };
 
   const startTimerForBlock = (block: ProgramBlock) => {
@@ -554,9 +570,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     setLoading(true);
     setErrorMsg(null);
     try {
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
       // Batch A: none of these three depend on each other's results, so fire
       // them together instead of one-at-a-time. This was previously a fully
       // sequential 6-query waterfall (profiles -> warrior_programs ->
@@ -566,7 +579,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       // Only program_week_archive/program_blocks (need activeTemplateId) and
       // block_exercises (needs the resulting block ids) have a real
       // dependency chain — see batches B and C below.
-      const [profileRes, assignmentRes, loggedTodayRes] = await Promise.all([
+      const [profileRes, assignmentRes, loggedRes] = await Promise.all([
         supabase
           .from('profiles')
           .select('statics_tier, power_points, one_mm_points, strength_tier')
@@ -591,11 +604,14 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           .eq('warrior_id', warriorId)
           .eq('status', 'active')
           .maybeSingle(),
+        // Every log, not just today's: a block stays done after the day it
+        // was logged. Filtered to the active program below (its id isn't
+        // known yet), oldest first so the latest log per block wins.
         supabase
           .from('workout_logs')
-          .select('block_id, notes, feel, rpe, missed_reason, missed_detail')
+          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at')
           .eq('warrior_id', warriorId)
-          .gte('completed_at', startOfToday.toISOString()),
+          .order('completed_at', { ascending: true }),
       ]);
 
       const { data: profilePoints } = profileRes;
@@ -641,17 +657,23 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setWarriorProgramId(actualAssignment.id);
       setCoachId(actualAssignment.coach_id || null);
 
-      const { data: loggedToday, error: loggedError } = loggedTodayRes;
+      const { data: loggedRows, error: loggedError } = loggedRes;
       if (loggedError) throw loggedError;
 
-      const loggedBlockMap = new Map((loggedToday || []).map((l: any) => [l.block_id, l.notes || '']));
+      const programLogs = (loggedRows || []).filter((l: any) => l.warrior_program_id === actualAssignment.id);
+      const firstLoggedAt = new Map<string, string>();
+      for (const l of programLogs) {
+        if (!firstLoggedAt.has(l.block_id)) firstLoggedAt.set(l.block_id, l.completed_at);
+      }
+      const loggedBlockMap = new Map(programLogs.map((l: any) => [l.block_id, l.notes || '']));
       setLoggedDetails(Object.fromEntries(
-        (loggedToday || []).map((l: any) => [l.block_id, {
+        programLogs.map((l: any) => [l.block_id, {
           notes: l.notes || '',
           feel: l.feel,
           rpe: l.rpe,
           missed_reason: l.missed_reason,
           missed_detail: l.missed_detail,
+          first_logged_at: firstLoggedAt.get(l.block_id) ?? l.completed_at,
         }])
       ));
 
@@ -871,9 +893,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     const nextStatus = targetStatus;
     const previousStatus = days.flatMap(d => d.blocks).find(b => b.id === blockId)?.completedStatus || 'none';
 
-    const startOfToday = new Date();
-    startOfToday.setHours(0, 0, 0, 0);
-
     setTogglingBlockIds(prev => ({ ...prev, [blockId]: true }));
     try {
       const { data: toggleResult, error } = await supabase.rpc('toggle_block_status', {
@@ -881,7 +900,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         p_warrior_program_id: warriorProgramId,
         p_block_id: blockId,
         p_next_status: nextStatus,
-        p_start_of_today: startOfToday.toISOString()
+        p_start_of_today: replaceLogsSince(blockId)
       });
 
       if (error) throw error;
@@ -1152,9 +1171,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       if (logNotes) finalNotes += logNotes;
       finalNotes = finalNotes.trim();
 
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -1169,7 +1185,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         p_missed_detail: logStatus === 'missed' ? logMissedDetail : null,
         p_notes: finalNotes,
         p_session_seconds: null,
-        p_start_of_today: startOfToday.toISOString(),
+        p_start_of_today: replaceLogsSince(activeLogBlockId),
         p_sets: buildSetsPayload(activeLogBlockId),
       }).abortSignal(controller.signal);
 
@@ -1286,9 +1302,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
       if (logNotes) finalNotes += logNotes;
 
-      const startOfToday = new Date();
-      startOfToday.setHours(0, 0, 0, 0);
-
       let timerId: NodeJS.Timeout | null = null;
       const timeoutPromise = new Promise((_, reject) => {
         timerId = setTimeout(() => reject(new Error(t('workout.timedOut'))), 10000);
@@ -1306,7 +1319,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           p_missed_detail: status === 'missed' ? logMissedDetail : null,
           p_notes: finalNotes.trim(),
           p_session_seconds: null,
-          p_start_of_today: startOfToday.toISOString(),
+          p_start_of_today: replaceLogsSince(blockId),
           p_sets: buildSetsPayload(blockId),
         }),
         timeoutPromise
