@@ -36,6 +36,7 @@ import { getUserGroup } from '../lib/weeklyChallenge';
 
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useScreenTour } from '../hooks/useScreenTour';
+import { WelcomeTourCard } from '../components/tutorial/WelcomeTourCard';
 import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
 import { t, FLIP_X } from '../i18n';
 
@@ -154,7 +155,7 @@ export function ProfileScreen({
 
   // Main spotlight tour — auto-starts the first time a newly onboarded user
   // lands on the Profile tab (its first step targets Profile's level ring).
-  useScreenTour('main', activeTab === 'profile');
+  const mainTour = useScreenTour('main', activeTab === 'profile');
   // ActiveProgramCard: undefined = not loaded yet, null = no active program.
   // Seeded from this session's last lookup, so returning to Profile shows the
   // real card immediately while useFocusEffect below refreshes it.
@@ -414,6 +415,13 @@ export function ProfileScreen({
         {(profile?.is_admin || profile?.is_coach) && <FloatingGamesButton />}
 
         <SettingsSheet visible={showSettings} onClose={() => setShowSettings(false)} />
+        <WelcomeTourCard
+          visible={mainTour.offerOpen}
+          tier={profile?.strength_tier ?? 0}
+          name={profile?.display_name}
+          onStart={mainTour.acceptOffer}
+          onSkip={mainTour.declineOffer}
+        />
 
         {/* Warrior Info Modal */}
         <Modal
