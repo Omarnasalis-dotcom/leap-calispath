@@ -18,7 +18,7 @@ import { SkillCarousel } from '../worlds/SkillCarousel';
 import {
   BoardFilters, filterByGender, KIT_EASE, kt, rankColor, WorldPage, WorldSheet, YouBadge, Gender, Scope,
 } from '../worlds/kit';
-import { t as tr } from '../../i18n';
+import { t as tr, isArabic } from '../../i18n';
 
 interface Props {
   profile: any;
@@ -135,7 +135,9 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             count={TIER_COUNT}
             index={selected}
             onIndexChange={setSelected}
-            cardHeight={336}
+            // Arabic lines (Cairo) are taller; the fixed card needs the room
+            // or the start-trial button spills over its bottom edge.
+            cardHeight={isArabic ? 380 : 336}
             maxCardWidth={318}
             inactiveOpacity={0.45}
             renderCard={(tier, active) => (
@@ -223,8 +225,7 @@ function ClimbHeader({ tokens: t }: { tokens: WorldKitTokens }) {
   // to the floating AI Coach button that already sits top-right here.
   return (
     <View style={{ paddingTop: 16, paddingHorizontal: 24, paddingBottom: 4 }}>
-      <Text style={kt('medium', 11, t.textMuted, 2.4)}>{tr('strength.world')}</Text>
-      <Text style={[kt('bold', 26, t.text, 1.4, 29), { marginTop: 2 }]}>{tr('strength.theClimb')}</Text>
+      <Text style={kt('bold', 26, t.text, 1.4, 29)}>{tr('strength.title')}</Text>
     </View>
   );
 }

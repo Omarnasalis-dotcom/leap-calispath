@@ -3,7 +3,7 @@ import { initReactI18next } from 'react-i18next';
 import { I18nManager, Platform } from 'react-native';
 import en from './locales/en';
 import ar from './locales/ar';
-import { installArabicStyleSheet, installArabicText } from './arabicStyles';
+import { installArabicText } from './arabicStyles';
 import { installPluralRules } from './pluralRules';
 
 export type AppLanguage = 'en' | 'ar';
@@ -21,10 +21,7 @@ export const currentLanguage: AppLanguage =
   Platform.OS !== 'web' && I18nManager.isRTL && CAN_CHOOSE_ARABIC ? 'ar' : 'en';
 export const isArabic = currentLanguage === 'ar';
 
-if (isArabic) {
-  installArabicStyleSheet();
-  installArabicText();
-}
+if (isArabic) installArabicText();
 installPluralRules();
 
 i18n.use(initReactI18next).init({

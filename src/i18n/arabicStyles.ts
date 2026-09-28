@@ -1,14 +1,22 @@
 import React from 'react';
-import * as ReactNative from 'react-native';
-import { StyleSheet, type TextProps } from 'react-native';
+import { Platform, StyleSheet, type TextProps } from 'react-native';
 
-// Arabic-mode style fixes (audit M16), applied app-wide:
-// - letterSpacing pulls apart Arabic letters that must join, so it is dropped.
-// - The app's Latin fonts (Barlow, Plus Jakarta, Oswald, Orbitron) have no
-//   Arabic letters; each is swapped for the Cairo weight closest to it.
+// Arabic-mode text fixes (audit M16), applied by the Text component itself
+// so they reach StyleSheet and inline styles (kt(), style={{...}}) alike:
+// - Text that contains Arabic letters drops letterSpacing (it pulls apart
+//   letters that must join) and swaps the app's Latin fonts, which have no
+//   Arabic letters, for the closest Cairo weight. English words and numbers
+//   keep the original design fonts ("HOPLITE" stays in Oswald).
+// - On iOS, text with no textAlign is aligned to the start (right).
+
+// Only the app's own Latin text fonts are swapped. Anything else (icon fonts
+// such as MaterialCommunityIcons, monospace) must keep its family, or the
+// icons render as empty boxes.
+const LATIN_TEXT_FONTS = /^(Barlow|BarlowCondensed|PlusJakartaSans|Oswald|Orbitron)[-_]/;
+const ARABIC_LETTERS = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 
 export function arabicFontFor(family: string): string {
-  if (family === 'monospace' || family.startsWith('Cairo-')) return family;
+  if (!LATIN_TEXT_FONTS.test(family)) return family;
   if (/ExtraBold|Black|800|900/.test(family)) return 'Cairo-ExtraBold';
   if (/SemiBold|600/.test(family)) return 'Cairo-SemiBold';
   if (/Bold|700/.test(family)) return 'Cairo-Bold';
@@ -27,37 +35,47 @@ export function arabicStyle<T extends StyleObject>(style: T): T {
   return next as T;
 }
 
-let installed = false;
+/** True when the text (including nested <Text> children) has Arabic letters. */
+export function containsArabic(children: React.ReactNode): boolean {
+  if (typeof children === 'string') return ARABIC_LETTERS.test(children);
+  if (Array.isArray(children)) return children.some(containsArabic);
+  if (React.isValidElement(children)) {
+    return containsArabic((children.props as { children?: React.ReactNode }).children);
+  }
+  return false;
+}
 
-// Rewrites every StyleSheet.create() made after this runs. It has to run
-// before any screen module is loaded, which is why src/i18n is imported
-// first in index.js. Inline style objects are not covered; screens with
-// inline text styles use arabicStyle() directly.
-export function installArabicStyleSheet() {
-  if (installed) return;
-  installed = true;
-  const originalCreate = StyleSheet.create;
-  (StyleSheet as { create: typeof StyleSheet.create }).create = ((styles: Record<string, StyleObject>) => {
-    const next: Record<string, StyleObject> = {};
-    for (const key of Object.keys(styles)) next[key] = arabicStyle(styles[key]);
-    return originalCreate(next);
-  }) as typeof StyleSheet.create;
+// iOS resolves "natural" alignment from the app's own language (English
+// here, even with the layout forced right-to-left), so text with no
+// textAlign sat on the left. React Native flips an explicit 'left' to the
+// right in RTL, matching what Android already does on its own.
+// Not for adjustsFontSizeToFit text: on iOS an alignment there made React
+// Native shrink content-sized text to a sliver (the Strength tier name).
+export function arabicTextStyle(
+  style: StyleObject, hasArabic: boolean, platform = Platform.OS, fitsToWidth = false,
+): StyleObject {
+  const next = hasArabic ? arabicStyle(style) : style;
+  if (platform === 'ios' && !fitsToWidth && next.textAlign == null) return { ...next, textAlign: 'left' };
+  return next;
 }
 
 let textInstalled = false;
 
-// Inline text styles (style={{ letterSpacing: 2, fontFamily: ... }} and the
-// worlds kit's kt()) never pass through StyleSheet.create, so in Arabic the
-// Text component itself applies the same two rules to whatever style it
-// gets. Screens import Text from 'react-native' and read it at render time,
-// so replacing the export before any screen renders covers all of them.
+// Screens import Text from 'react-native' and read it at render time, so
+// replacing the export before any screen renders (src/i18n is imported first
+// in index.js) covers all of them.
 export function installArabicText() {
   if (textInstalled) return;
   textInstalled = true;
+  // The real module object: `import * as` would give a copy, and replacing
+  // Text on a copy changes nothing for the screens.
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const ReactNative = require('react-native') as typeof import('react-native');
   const OriginalText = ReactNative.Text;
   const ArabicText = React.forwardRef<React.ElementRef<typeof OriginalText>, TextProps>((props, ref) => {
-    const flat = StyleSheet.flatten(props.style);
-    return React.createElement(OriginalText, { ...props, ref, style: flat ? arabicStyle(flat as StyleObject) : props.style });
+    const flat = (StyleSheet.flatten(props.style) ?? {}) as StyleObject;
+    const style = arabicTextStyle(flat, containsArabic(props.children), Platform.OS, !!props.adjustsFontSizeToFit);
+    return React.createElement(OriginalText, { ...props, ref, style });
   });
   ArabicText.displayName = 'Text';
   Object.defineProperty(ReactNative, 'Text', { configurable: true, enumerable: true, get: () => ArabicText });

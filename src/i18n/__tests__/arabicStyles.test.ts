@@ -1,4 +1,6 @@
-import { arabicFontFor, arabicStyle } from '../arabicStyles';
+import React from 'react';
+import { Text } from 'react-native';
+import { arabicFontFor, arabicStyle, arabicTextStyle, containsArabic } from '../arabicStyles';
 import en from '../locales/en';
 import ar from '../locales/ar';
 
@@ -14,6 +16,8 @@ describe('arabicFontFor', () => {
     ['Orbitron_900Black', 'Cairo-ExtraBold'],
     ['Orbitron_700Bold', 'Cairo-Bold'],
     ['monospace', 'monospace'],
+    ['material-community', 'material-community'],
+    ['Cairo-Bold', 'Cairo-Bold'],
   ])('%s -> %s', (from, to) => {
     expect(arabicFontFor(from)).toBe(to);
   });
@@ -48,5 +52,27 @@ describe('translations', () => {
       const value = key.split('.').reduce<any>((o, k) => o[k], ar);
       expect(value.trim()).not.toBe('');
     }
+  });
+});
+
+describe('arabicTextStyle', () => {
+  it('fixes Arabic text; English text keeps its font and spacing', () => {
+    const style = { fontFamily: 'Oswald-Bold', letterSpacing: 2 };
+    expect(arabicTextStyle(style, true, 'android')).toEqual({ fontFamily: 'Cairo-Bold' });
+    expect(arabicTextStyle(style, false, 'android')).toEqual(style);
+  });
+
+  it('on iOS, text without an alignment gets start alignment (flipped to the right in RTL)', () => {
+    expect(arabicTextStyle({ fontSize: 12 }, false, 'ios')).toEqual({ fontSize: 12, textAlign: 'left' });
+    expect(arabicTextStyle({ textAlign: 'center' }, true, 'ios')).toEqual({ textAlign: 'center' });
+  });
+});
+
+describe('containsArabic', () => {
+  it('finds Arabic in strings, arrays and nested Text', () => {
+    expect(containsArabic('HOPLITE')).toBe(false);
+    expect(containsArabic(['3', ' · ', 'المستوى'])).toBe(true);
+    expect(containsArabic(React.createElement(Text, null, 'مرحبا'))).toBe(true);
+    expect(containsArabic(42 as unknown as React.ReactNode)).toBe(false);
   });
 });
