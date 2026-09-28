@@ -52,7 +52,7 @@ async function notifyUsers(
   const { data: inserted, error: insertError } = await admin
     .from("notifications")
     .insert(rows)
-    .select("id, user_id");
+    .select("id, user_id, title, body");
 
   if (insertError || !inserted) {
     console.error("notifications insert error:", insertError);
@@ -69,7 +69,9 @@ async function notifyUsers(
   }
 
   const deliverable = inserted
-    .map((n) => ({ id: n.id, userId: n.user_id, token: tokenByUser.get(n.user_id) }))
+    // The stored title/body, not the English arguments: localize_notification
+    // may have translated them for the recipient.
+    .map((n) => ({ id: n.id, userId: n.user_id, title: n.title, body: n.body, token: tokenByUser.get(n.user_id) }))
     .filter((d): d is typeof d & { token: string } => !!d.token);
 
   let sent = 0;
@@ -77,7 +79,7 @@ async function notifyUsers(
 
   for (let i = 0; i < deliverable.length; i += EXPO_BATCH_SIZE) {
     const chunk = deliverable.slice(i, i + EXPO_BATCH_SIZE);
-    const messages = chunk.map((d) => ({ to: d.token, title, body, data, sound: "default" }));
+    const messages = chunk.map((d) => ({ to: d.token, title: d.title, body: d.body, data, sound: "default" }));
 
     let tickets: ExpoTicket[] = [];
     try {

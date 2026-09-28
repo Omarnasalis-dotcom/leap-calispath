@@ -174,7 +174,7 @@ Deno.serve(async (req) => {
       body,
       data: notificationData,
     })
-    .select("id")
+    .select("id, title, body")
     .single();
 
   if (insertError || !notification) {
@@ -205,8 +205,9 @@ Deno.serve(async (req) => {
       },
       body: JSON.stringify([{
         to: pushToken,
-        title,
-        body,
+        // Stored text: localize_notification may have translated it.
+        title: notification.title,
+        body: notification.body,
         data: notificationData,
         sound: "default",
       }]),
