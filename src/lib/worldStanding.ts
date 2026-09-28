@@ -8,6 +8,7 @@
  */
 
 import { clamp01 } from './worldProgress';
+import { t } from '../i18n';
 
 export interface WorldAbove {
   rank: number;
@@ -84,9 +85,9 @@ export function youBarSubline(
 ): { index: number; text: string } {
   const index = myId ? list.findIndex(r => r.user_id === myId) : -1;
   if (index < 0) {
-    return { index, text: myScore > 0 ? 'Not in this filter' : 'Log a set to join the board' };
+    return { index, text: myScore > 0 ? t('standing.notInFilter') : t('standing.logToJoin') };
   }
-  if (index === 0) return { index, text: `${worldName} King · hold the top spot` };
+  if (index === 0) return { index, text: t('standing.king', { world: worldName }) };
   const ahead = list[index - 1];
-  return { index, text: `${fmt2(Math.max(0, ahead.points - myScore) + 0.01)} pts to pass ${ahead.name}` };
+  return { index, text: t('standing.ptsToPass', { pts: fmt2(Math.max(0, ahead.points - myScore) + 0.01), name: ahead.name }) };
 }

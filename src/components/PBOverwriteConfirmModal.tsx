@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LeapLogo } from './LeapLogo';
+import { t } from '../i18n';
 
 interface PBOverwriteConfirmModalProps {
   visible: boolean;
@@ -48,24 +49,24 @@ export function PBOverwriteConfirmModal({
           <MaterialCommunityIcons name="alert-decagram-outline" size={26} color={accentColor} />
         </View>
 
-        <Text style={[styles.title, { color: theme.text.primary }]}>BELOW YOUR PERSONAL BEST</Text>
+        <Text style={[styles.title, { color: theme.text.primary }]}>{t('pbOverwrite.title')}</Text>
         <Text style={[styles.subtitle, { color: theme.text.secondary }]} numberOfLines={2}>
           {movementName.toUpperCase()}
         </Text>
 
         <View style={styles.compareRow}>
           <View style={[styles.compareBox, { borderColor: theme.card.border }]}>
-            <Text style={[styles.compareLabel, { color: theme.text.tertiary }]}>YOUR BEST</Text>
+            <Text style={[styles.compareLabel, { color: theme.text.tertiary }]}>{t('pbOverwrite.yourBest')}</Text>
             <Text style={[styles.compareValue, { color: theme.text.primary }]}>{currentBest}{unitLabel}</Text>
           </View>
           <View style={[styles.compareBox, { borderColor: accentColor, backgroundColor: `${accentColor}12` }]}>
-            <Text style={[styles.compareLabel, { color: accentColor }]}>THIS ATTEMPT</Text>
+            <Text style={[styles.compareLabel, { color: accentColor }]}>{t('pbOverwrite.thisAttempt')}</Text>
             <Text style={[styles.compareValue, { color: accentColor }]}>{attemptValue}{unitLabel}</Text>
           </View>
         </View>
 
         <Text style={[styles.warning, { color: theme.text.secondary }]}>
-          Saving this anyway will replace your current best with this lower value.
+          {t('pbOverwrite.warning')}
         </Text>
 
         <TouchableOpacity
@@ -73,7 +74,7 @@ export function PBOverwriteConfirmModal({
           onPress={onKeepBest}
           disabled={saving}
         >
-          <Text style={[styles.keepBtnText, { color: theme.text.primary }]}>KEEP MY CURRENT BEST</Text>
+          <Text style={[styles.keepBtnText, { color: theme.text.primary }]}>{t('pbOverwrite.keep')}</Text>
         </TouchableOpacity>
 
         <TouchableOpacity
@@ -82,7 +83,7 @@ export function PBOverwriteConfirmModal({
           disabled={saving}
         >
           {saving ? <LeapLogo size={28} animated /> : (
-            <Text style={[styles.overwriteBtnText, { color: accentColor }]}>SAVE ANYWAY</Text>
+            <Text style={[styles.overwriteBtnText, { color: accentColor }]}>{t('pbOverwrite.saveAnyway')}</Text>
           )}
         </TouchableOpacity>
       </View>

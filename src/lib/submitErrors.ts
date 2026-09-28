@@ -1,3 +1,4 @@
+import { t, isArabic } from '../i18n';
 /**
  * Turns a Supabase/Postgrest error into user-facing copy, distinguishing a
  * stale/anon-fallback auth token (see NativeStorageAdapter in supabase.ts)
@@ -6,11 +7,11 @@
  */
 export function describeSubmitError(error: any, fallback: string): string {
   if (error?.name === 'AbortError') {
-    return 'Network request timed out. Please check your connection and try again.';
+    return t('submit.timedOut');
   }
 
   if (isTransientNetworkError(error)) {
-    return 'Network request failed. Please check your connection and try again.';
+    return t('submit.networkFailed');
   }
 
   const code = error?.code;
@@ -23,7 +24,20 @@ export function describeSubmitError(error: any, fallback: string): string {
     message.includes('json web token');
 
   if (isStaleAuth) {
-    return 'Your session needs a moment to refresh. Please try again.';
+    return t('submit.sessionRefresh');
+  }
+
+  // The submit RPCs' own validation errors (P1001-P1004) are written in
+  // English on the server; Arabic shows its own version of each.
+  if (isArabic) {
+    if (code === 'P1001') return t('submit.unrealistic');
+    if (code === 'P1002') return t('submit.invalidMovement');
+    if (code === 'P1003') return t('submit.overCeiling');
+    if (code === 'P1004') {
+      const seconds = String(error?.message ?? '').match(/\d+/)?.[0];
+      return seconds ? t('submit.cooldown', { seconds }) : t('submit.cooldownShort');
+    }
+    return fallback;
   }
 
   return error?.message || fallback;

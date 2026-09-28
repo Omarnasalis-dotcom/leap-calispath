@@ -27,6 +27,7 @@ import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitButton,
   KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
+import { t as tr, isArabic } from '../i18n';
 
 type Category = 'handstand' | 'front_lever' | 'back_lever' | 'planche';
 type Tier = 'overall' | '1' | '2' | '3';
@@ -34,7 +35,7 @@ type SheetState = { kind: 'log'; movementId: string } | { kind: 'board' } | null
 
 const CATEGORIES: Category[] = ['handstand', 'front_lever', 'back_lever', 'planche'];
 const SHORT: Record<Category, string> = { handstand: 'HANDSTAND', front_lever: 'FRONT LV', back_lever: 'BACK LV', planche: 'PLANCHE' };
-const QUOTE = '“Stillness is strength under control.”';
+const QUOTE = tr('staticWorld.quote');
 const MAX_SECONDS = 999;
 const QUICK = [10, 20, 30, 60];
 
@@ -42,7 +43,7 @@ const movesOf = (c: Category) => STATIC_MOVEMENTS.filter(m => m.category === c).
 const holdPts = (m: StaticMovement, secs: number) => secs * m.multiplier;
 /** Live Static scoring: a skill is worth its best-scoring variation. */
 const categoryPts = (c: Category, pbs: Record<string, number>) => Math.max(0, ...movesOf(c).map(m => holdPts(m, pbs[m.id] ?? 0)));
-const fs = (s: number) => `${(Math.round(s * 10) / 10).toFixed(1)}s`;
+const fs = (s: number) => tr('units.secLower', { value: (Math.round(s * 10) / 10).toFixed(1) });
 const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
 
 interface Props {
@@ -171,26 +172,26 @@ export function StaticWorldScreen({ movement }: Props) {
   const above = summary?.above ?? null;
   const level = staticWithinLevel(score);
   const levelCap = score <= 0
-    ? `Log a hold to enter ${titleCase(STATIC_LEVELS[1].name)}`
+    ? tr('staticWorld.enterLevel', { level: titleCase(STATIC_LEVELS[1].name) })
     : level.nextLevel
-      ? `${fmt2(level.gap)} pts to ${titleCase(level.nextLevel.name)}`
-      : `Top level reached · ${titleCase(STATIC_LEVELS[3].name)}`;
+      ? tr('staticWorld.ptsToLevel', { pts: fmt2(level.gap), level: titleCase(level.nextLevel.name) })
+      : tr('staticWorld.topLevel', { level: titleCase(STATIC_LEVELS[3].name) });
 
   const gap = standing.isKing
-    ? { label: 'STATUS', value: 'KING', sub: '#1 OF WORLD', progress: 1, gold: true }
+    ? { label: tr('worlds.status'), value: tr('worlds.king'), sub: tr('worlds.firstOfWorld'), progress: 1, gold: true }
     : standing.isRanked && above && standing.gapToPass != null
-      ? { label: `GAP TO #${above.rank}`, value: fmt2(standing.gapToPass), sub: 'PTS TO PASS', progress: standing.gapProgress }
-      : { label: 'GAP TO', value: '—', sub: 'RANK UP', progress: 0, empty: true };
+      ? { label: tr('worlds.gapTo', { rank: above.rank }), value: fmt2(standing.gapToPass), sub: tr('worlds.ptsToPass'), progress: standing.gapProgress }
+      : { label: tr('worlds.gapToEmpty'), value: '—', sub: tr('worlds.rankUp'), progress: 0, empty: true };
 
   const goal = standing.isKing
-    ? { kicker: "YOU'RE #1", title: 'STATIC KING ACHIEVED', bar: undefined }
+    ? { kicker: tr('worlds.youreFirst'), title: tr('staticWorld.kingAchieved'), bar: undefined }
     : standing.isRanked && above && standing.gapToPass != null
       ? {
-        kicker: 'NEXT TARGET',
-        title: `${fmt2(standing.gapToPass)} pts to steal Rank #${above.rank}`,
-        bar: { progress: standing.gapProgress, from: `YOU ${fmt2(score)}`, to: `#${above.rank} ${fmt2(above.score)}` },
+        kicker: tr('worlds.nextTarget'),
+        title: tr('worlds.stealRank', { pts: fmt2(standing.gapToPass), rank: above.rank }),
+        bar: { progress: standing.gapProgress, from: tr('worlds.youScore', { score: fmt2(score) }), to: `#${above.rank} ${fmt2(above.score)}` },
       }
-      : { kicker: 'GET STARTED', title: `Log a hold to rank up · target: ${STATIC_HOLD_TARGET_SECONDS}s wall handstand`, bar: undefined };
+      : { kicker: tr('worlds.getStarted'), title: tr('staticWorld.getStartedGoal', { seconds: STATIC_HOLD_TARGET_SECONDS }), bar: undefined };
 
   // ------------------------------------------------------------- sheets
 
@@ -216,11 +217,11 @@ export function StaticWorldScreen({ movement }: Props) {
     if (timer.phase === 'ready' || timer.phase === 'run') {
       const abandon = () => { timer.reset(); setSheet(null); };
       if (Platform.OS === 'web') {
-        if (window.confirm('You have a timer running. Cancel this hold?')) abandon();
+        if (window.confirm(tr('worlds.cancelTimerWeb'))) abandon();
       } else {
-        Alert.alert('Cancel Test?', 'You have a timer currently running. Are you sure you want to cancel and exit?', [
-          { text: 'Keep Going', style: 'cancel' },
-          { text: 'Cancel Test', style: 'destructive', onPress: abandon },
+        Alert.alert(tr('worlds.cancelTestTitle'), tr('worlds.cancelTestBody'), [
+          { text: tr('worlds.keepGoing'), style: 'cancel' },
+          { text: tr('worlds.cancelTest'), style: 'destructive', onPress: abandon },
         ]);
       }
       return;
@@ -238,7 +239,7 @@ export function StaticWorldScreen({ movement }: Props) {
     const m = STATIC_MOVEMENTS.find(x => x.id === movementId);
     if (!m) return;
     if (!Number.isFinite(seconds) || seconds <= 0) {
-      Alert.alert('Invalid', 'Please enter a valid hold time in seconds.');
+      Alert.alert(tr('worlds.invalid'), tr('staticWorld.invalidHold'));
       return;
     }
     const currentBest = pbs[m.id] ?? 0;
@@ -254,8 +255,8 @@ export function StaticWorldScreen({ movement }: Props) {
       const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } = await StaticService.saveHold(user.id, m.id, seconds, force);
       isPB = isNewPB;
       if (isNewPB) {
-        if (isMounted.current) setCelebrationData({ stat: `${seconds}s`, movement: m.name });
-        NotificationService.notify(user.id, 'static_pb', 'New Static PB!', `${m.name}: ${seconds}s — a new personal record.`, { screen: 'static-world' });
+        if (isMounted.current) setCelebrationData({ stat: tr('units.secLower', { value: seconds }), movement: m.name });
+        NotificationService.notify(user.id, 'static_pb', tr('staticWorld.pbPushTitle'), tr('staticWorld.pbPushBody', { name: m.name, seconds }), { screen: 'static-world' });
         if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
         if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
       }
@@ -265,8 +266,8 @@ export function StaticWorldScreen({ movement }: Props) {
         timer.reset();
         setSheet(null);
         setToast(isPB
-          ? (currentBest > 0 ? `NEW PB · +${fmt2(holdPts(m, seconds - currentBest))} PTS` : `FIRST HOLD · ${fmt2(holdPts(m, seconds))} PTS`)
-          : force ? `PB REPLACED · ${seconds}s` : 'LOGGED · PB UNCHANGED');
+          ? (currentBest > 0 ? tr('worlds.newPb', { pts: fmt2(holdPts(m, seconds - currentBest)) }) : tr('staticWorld.firstHold', { pts: fmt2(holdPts(m, seconds)) }))
+          : force ? tr('staticWorld.pbReplaced', { seconds }) : tr('staticWorld.loggedUnchanged'));
         fetchPbs();
         refreshSummary();
         if (tier !== 'overall') fetchElite(tier, scope);
@@ -279,13 +280,13 @@ export function StaticWorldScreen({ movement }: Props) {
         // P1001–P1004 are submit_static_hold's own validation (bad time,
         // bad movement, ceiling, cooldown) — expected, so no console noise.
         if (!['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code)) console.error('Error saving hold:', error);
-        const msg = describeSubmitError(error, 'Failed to save hold');
+        const msg = describeSubmitError(error, tr('staticWorld.saveFailed'));
         if (Platform.OS === 'web') {
-          if (window.confirm(`${msg}\n\nTry again?`)) handleSave(seconds, force, m.id);
+          if (window.confirm(`${msg}\n\n${tr('worlds.tryAgainQ')}`)) handleSave(seconds, force, m.id);
         } else {
-          Alert.alert('Error', msg, [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Try Again', onPress: () => handleSave(seconds, force, m.id) },
+          Alert.alert(tr('worlds.error'), msg, [
+            { text: tr('worlds.cancel'), style: 'cancel' },
+            { text: tr('worlds.tryAgain'), onPress: () => handleSave(seconds, force, m.id) },
           ]);
         }
       },
@@ -319,13 +320,13 @@ export function StaticWorldScreen({ movement }: Props) {
     ),
     [boardRows, gender],
   );
-  const you = youBarSubline(boardList, user?.id, score, 'Static');
+  const you = youBarSubline(boardList, user?.id, score, tr('staticWorld.nameForKing'));
   const unfiltered = scope === 'public' && gender === 'ALL';
   const youRankText = you.index >= 0 ? `#${you.index + 1}` : unfiltered && standing.isRanked ? `#${summary?.myRank}` : '—';
   const youSub = you.index < 0
     ? (unfiltered && standing.isRanked && above && standing.gapToPass != null
-      ? `${fmt2(standing.gapToPass)} pts to pass ${above.name}`
-      : score > 0 ? 'Not in this filter' : 'Log a hold to join the board')
+      ? tr('staticWorld.passName', { pts: fmt2(standing.gapToPass), name: above.name })
+      : score > 0 ? tr('worlds.notInFilter') : tr('staticWorld.logToJoin'))
     : you.text;
 
   const toastNode = <WorldToast tokens={t} message={toast} onHide={() => setToast(null)} />;
@@ -338,7 +339,7 @@ export function StaticWorldScreen({ movement }: Props) {
         <WorldHeader
           tokens={t}
           icon="snowflake"
-          title="STATIC WORLD"
+          title={tr('staticWorld.title')}
           onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/static-world') : undefined}
         />
         <ScrollView
@@ -347,7 +348,7 @@ export function StaticWorldScreen({ movement }: Props) {
         >
           <DashboardRings
             tokens={t}
-            worldLabel="STATIC"
+            worldLabel={tr('staticWorld.label')}
             rank={standing.isRanked ? summary?.myRank ?? null : null}
             isKing={standing.isKing}
             rankProgress={standing.rankProgress}
@@ -369,7 +370,7 @@ export function StaticWorldScreen({ movement }: Props) {
               onChange={(c) => setSkill(CATEGORIES.indexOf(c))}
               height={46}
               fontSize={11.5}
-              accessibilityLabel="Static skill"
+              accessibilityLabel={tr('staticWorld.skillA11y')}
             />
           </View>
 
@@ -391,9 +392,9 @@ export function StaticWorldScreen({ movement }: Props) {
               fontSize={12}
               active={tier}
               onChange={onPickTier}
-              accessibilityLabel="Static level"
+              accessibilityLabel={tr('staticWorld.levelA11y')}
               items={[
-                { key: 'overall', label: 'OVERALL', crown: true },
+                { key: 'overall', label: tr('worlds.overall'), crown: true },
                 { key: '1', label: STATIC_LEVELS[1].name },
                 { key: '2', label: STATIC_LEVELS[2].name },
                 { key: '3', label: STATIC_LEVELS[3].name },
@@ -404,7 +405,7 @@ export function StaticWorldScreen({ movement }: Props) {
             ) : (
               <EliteList
                 tokens={t}
-                title={`${STATIC_LEVELS[Number(tier) as 1 | 2 | 3].name} ELITE`}
+                title={tr('worlds.elite', { level: STATIC_LEVELS[Number(tier) as 1 | 2 | 3].name })}
                 rows={eliteList}
                 loading={eliteLoading}
                 myId={user?.id}
@@ -433,16 +434,16 @@ export function StaticWorldScreen({ movement }: Props) {
         onClose={closeSheet}
         variant={shown.kind === 'board' ? 'board' : 'log'}
         kicker={shown.kind === 'board'
-          ? <BoardKicker tokens={t} icon="snowflake" text="STATIC WORLD" />
-          : logMove ? `${STATIC_CATEGORIES[logMove.category].name.toUpperCase()} · LEVEL ${logMove.level}` : ''}
-        title={shown.kind === 'board' ? 'LEADERBOARD' : (logMove?.name ?? '').toUpperCase()}
+          ? <BoardKicker tokens={t} icon="snowflake" text={tr('staticWorld.title')} />
+          : logMove ? tr('worlds.levelN', { name: STATIC_CATEGORIES[logMove.category].name.toUpperCase(), level: logMove.level }) : ''}
+        title={shown.kind === 'board' ? tr('worlds.leaderboard') : (logMove?.name ?? '').toUpperCase()}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
             rankText={youRankText}
             king={you.index === 0}
             ranked={you.index >= 0 || (unfiltered && standing.isRanked)}
-            handle={profile?.display_name || 'You'}
+            handle={profile?.display_name || tr('worlds.you')}
             sub={youSub}
             scoreText={fmt2(score)}
           />
@@ -455,7 +456,7 @@ export function StaticWorldScreen({ movement }: Props) {
                 theme={theme}
                 accentColor={t.accent}
                 movementName={logMove.name}
-                unitLabel="s"
+                unitLabel={isArabic ? ' ث' : 's'}
                 currentBest={pbs[logMove.id] ?? 0}
                 attemptValue={pendingOverwrite ?? 0}
                 saving={saving}
@@ -505,7 +506,7 @@ export function StaticWorldScreen({ movement }: Props) {
         subtitle="NEW PR"
         stat={celebrationData.stat}
         emoji="💎"
-        userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
+        userName={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
         onDismiss={() => setShowCelebration(false)}
         headerText="STATIC WORLD"
         showLeapLogo
@@ -530,14 +531,14 @@ function SkillCard({ tokens: t, category, n, active, pbs, loaded, onOpen }: {
     }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10 }}>
         <View style={{ flexShrink: 1 }}>
-          <Text style={kt('medium', 10.5, t.textMuted, 2, 13)}>{`SKILL ${n} OF 4`}</Text>
+          <Text style={kt('medium', 10.5, t.textMuted, 2, 13)}>{tr('staticWorld.skillOf', { n })}</Text>
           <Text style={[kt('bold', 30, t.text, 1.2, 33), { marginTop: 4 }]} numberOfLines={1} adjustsFontSizeToFit>
             {STATIC_CATEGORIES[category].name.toUpperCase()}
           </Text>
         </View>
         <View style={{ alignItems: 'flex-end' }}>
           <Text style={kt('bold', 22, t.accentText, 0, 24)}>{fmt2(pts)}</Text>
-          <Text style={[kt('medium', 10, t.textFaint, 1.6), { marginTop: 3 }]}>PTS</Text>
+          <Text style={[kt('medium', 10, t.textFaint, 1.6), { marginTop: 3 }]}>{tr('worlds.pts')}</Text>
         </View>
       </View>
       <View style={{ gap: 8, marginTop: 'auto' }}>
@@ -556,7 +557,7 @@ function HoldRow({ tokens: t, movement: m, pb, loaded, onPress }: {
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${m.name}${logged ? `, best ${pb} seconds` : ''}. Time a hold`}
+      accessibilityLabel={logged ? tr('staticWorld.holdA11yBest', { name: m.name, seconds: pb }) : tr('staticWorld.holdA11y', { name: m.name })}
       disabled={!onPress}
       onPress={onPress}
       style={({ pressed }) => ({
@@ -574,7 +575,7 @@ function HoldRow({ tokens: t, movement: m, pb, loaded, onPress }: {
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={kt('semibold', 15, t.text, 1, 18)} numberOfLines={1}>{m.name.toUpperCase()}</Text>
         <Text style={[kt('medium', 11.5, logged ? t.textSecondary : t.textFaint, logged ? 0.6 : 1.6), { marginTop: 1 }]} numberOfLines={1}>
-          {!loaded ? ' ' : logged ? `PB ${fs(pb)} · ${fmt2(holdPts(m, pb))} pts` : 'TAP TO TIME'}
+          {!loaded ? ' ' : logged ? tr('staticWorld.pbLine', { time: fs(pb), pts: fmt2(holdPts(m, pb)) }) : tr('staticWorld.tapToTime')}
         </Text>
       </View>
       <View style={{ paddingVertical: 2, paddingHorizontal: 7, borderRadius: 6, borderWidth: 1, borderColor: t.tintBorder }}>
@@ -603,21 +604,21 @@ function TimerSheetBody({
 
   let label: string; let big: string; let sub: string; let progress: number;
   if (manual) {
-    label = 'YOUR HOLD'; big = fs(manualSecs); sub = `${fmt2(holdPts(m, manualSecs))} PTS${isNewPb ? ' · NEW PB' : ''}`; progress = manualSecs / target;
+    label = tr('staticWorld.yourHold'); big = fs(manualSecs); sub = `${fmt2(holdPts(m, manualSecs))} ${tr('worlds.pts')}${isNewPb ? tr('worlds.newPbSuffix') : ''}`; progress = manualSecs / target;
   } else if (phase === 'ready') {
-    label = 'GET READY'; big = String(countdown); sub = 'GET INTO POSITION'; progress = (4 - countdown) / 3;
+    label = tr('worlds.getReady'); big = String(countdown); sub = tr('staticWorld.getIntoPosition'); progress = (4 - countdown) / 3;
   } else if (phase === 'run') {
-    label = 'HOLDING'; big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} PTS`; progress = seconds / target;
+    label = tr('staticWorld.holding'); big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} ${tr('worlds.pts')}`; progress = seconds / target;
   } else if (phase === 'stopped') {
-    label = 'YOUR HOLD'; big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} PTS${isNewPb ? ' · NEW PB' : ''}`; progress = seconds / target;
+    label = tr('staticWorld.yourHold'); big = fs(seconds); sub = `${fmt2(holdPts(m, seconds))} ${tr('worlds.pts')}${isNewPb ? tr('worlds.newPbSuffix') : ''}`; progress = seconds / target;
   } else {
-    label = pb > 0 ? 'PERSONAL BEST' : 'NO TIME YET'; big = pb > 0 ? fs(pb) : '0.0s'; sub = `${fmt2(holdPts(m, pb))} PTS`; progress = pb > 0 ? 1 : 0;
+    label = pb > 0 ? tr('staticWorld.personalBest') : tr('staticWorld.noTimeYet'); big = pb > 0 ? fs(pb) : fs(0); sub = `${fmt2(holdPts(m, pb))} ${tr('worlds.pts')}`; progress = pb > 0 ? 1 : 0;
   }
 
   const stepBtn = (text: string, onPress: () => void) => (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={text === '−1s' ? 'Minus one second' : 'Plus one second'}
+      accessibilityLabel={text.startsWith('−') ? tr('worlds.minusSecond') : tr('worlds.plusSecond')}
       onPress={onPress}
       style={({ pressed }) => ({ width: 48, height: 44, borderRadius: 12, backgroundColor: t.mode === 'dark' ? '#141414' : t.button, borderWidth: 1, borderColor: t.mode === 'dark' ? '#242424' : t.border, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
     >
@@ -626,9 +627,9 @@ function TimerSheetBody({
   );
   const adjustRow = (caption: string, onStep: (d: number) => void) => (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 14 }}>
-      {stepBtn('−1s', () => onStep(-1))}
+      {stepBtn(`−${tr('units.secLower', { value: 1 })}`, () => onStep(-1))}
       <Text style={[kt('medium', 11, t.textMuted, 2), { width: 84, textAlign: 'center' }]}>{caption}</Text>
-      {stepBtn('+1s', () => onStep(1))}
+      {stepBtn(`+${tr('units.secLower', { value: 1 })}`, () => onStep(1))}
     </View>
   );
   const setManualClamped = (n: number) => setManualSecs(Math.max(0, Math.min(MAX_SECONDS, n)));
@@ -640,10 +641,10 @@ function TimerSheetBody({
       <View style={{ marginTop: 16 }}>
         <SegmentedSwitch
           tokens={t}
-          items={[{ key: 'log', label: 'LOG TIME' }, { key: 'timer', label: 'TIMER' }]}
+          items={[{ key: 'log', label: tr('worlds.logTime') }, { key: 'timer', label: tr('worlds.timer') }]}
           active={manual ? 'log' : 'timer'}
           onChange={(k) => onMode(k === 'log')}
-          accessibilityLabel="Log mode"
+          accessibilityLabel={tr('worlds.logMode')}
         />
       </View>
 
@@ -665,17 +666,17 @@ function TimerSheetBody({
                   maxLength={3}
                   selectionColor={t.accent}
                   cursorColor={t.accent}
-                  accessibilityLabel="Hold time in seconds"
+                  accessibilityLabel={tr('staticWorld.holdInputA11y')}
                   style={{ fontFamily: WORLD_FONTS.bold, fontSize: 50, lineHeight: 56, color: t.text, padding: 0, margin: 0, textAlign: 'center', minWidth: 30, includeFontPadding: false }}
                 />
-                <Text style={kt('bold', 30, t.textMuted)}>s</Text>
+                <Text style={kt('bold', 30, t.textMuted)}>{tr('staticWorld.secondsUnit')}</Text>
               </View>
             ) : (
               <Text style={kt('bold', phase === 'ready' ? 72 : 50, phase === 'idle' && pb <= 0 ? t.textDisabled : t.text, 0, phase === 'ready' ? 78 : 56)} numberOfLines={1} adjustsFontSizeToFit>
                 {big}
               </Text>
             )}
-            <Text style={kt('medium', 12, t.accentText, 1.4)} numberOfLines={1}>{manual ? `${sub} · TAP TO TYPE` : sub}</Text>
+            <Text style={kt('medium', 12, t.accentText, 1.4)} numberOfLines={1}>{manual ? tr('worlds.tapToType', { sub }) : sub}</Text>
           </View>
         </AnimatedRing>
       </View>
@@ -689,47 +690,47 @@ function TimerSheetBody({
                 <Pressable
                   key={v}
                   accessibilityRole="button"
-                  accessibilityLabel={`${v} seconds`}
+                  accessibilityLabel={tr('worlds.nSeconds', { n: v })}
                   onPress={() => setManualSecs(v)}
                   style={{ height: 38, paddingHorizontal: 14, borderRadius: 10, justifyContent: 'center', backgroundColor: on ? t.accent : t.mode === 'dark' ? '#141414' : t.button, borderWidth: 1, borderColor: on ? t.accent : t.mode === 'dark' ? '#242424' : t.border }}
                 >
-                  <Text style={kt('semibold', 13, on ? t.onAccent : t.textSecondary)}>{`${v}s`}</Text>
+                  <Text style={kt('semibold', 13, on ? t.onAccent : t.textSecondary)}>{tr('units.secLower', { value: v })}</Text>
                 </Pressable>
               );
             })}
           </View>
-          {adjustRow('FINE TUNE', d => setManualClamped(manualSecs + d))}
-          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={manualSecs <= 0} />
+          {adjustRow(tr('worlds.fineTune'), d => setManualClamped(manualSecs + d))}
+          <KitButton tokens={t} label={tr('worlds.logPerformance')} onPress={onLog} loading={saving} disabled={manualSecs <= 0} />
         </View>
       ) : phase === 'idle' ? (
-        <KitButton tokens={t} label="START TIMER" icon="play" onPress={timer.start} />
+        <KitButton tokens={t} label={tr('worlds.startTimer')} icon="play" onPress={timer.start} />
       ) : phase === 'ready' ? (
-        <KitButton tokens={t} label="CANCEL" variant="outline" onPress={timer.reset} />
+        <KitButton tokens={t} label={tr('worlds.cancelCaps')} variant="outline" onPress={timer.reset} />
       ) : phase === 'run' ? (
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Stop and log"
+          accessibilityLabel={tr('worlds.stopAndLogA11y')}
           onPress={timer.stop}
           style={({ pressed }) => ({ height: 56, borderRadius: 16, backgroundColor: t.mode === 'dark' ? '#ffffff' : t.text, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, opacity: pressed ? 0.85 : 1 })}
         >
           <View style={{ width: 12, height: 12, borderRadius: 2, backgroundColor: t.mode === 'dark' ? '#000000' : '#ffffff' }} />
-          <Text style={kt('bold', 17, t.mode === 'dark' ? '#000000' : '#ffffff', 2.6)}>STOP & LOG</Text>
+          <Text style={kt('bold', 17, t.mode === 'dark' ? '#000000' : '#ffffff', 2.6)}>{tr('worlds.stopAndLog')}</Text>
         </Pressable>
       ) : (
         <View style={{ gap: 12 }}>
-          {adjustRow('ADJUST', timer.adjust)}
-          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={seconds <= 0} />
+          {adjustRow(tr('worlds.adjust'), timer.adjust)}
+          <KitButton tokens={t} label={tr('worlds.logPerformance')} onPress={onLog} loading={saving} disabled={seconds <= 0} />
           <View style={{ flexDirection: 'row', gap: 10 }}>
-            <KitButton tokens={t} label="RESTART" variant="outline" height={46} fontSize={13} onPress={timer.start} style={{ flex: 1, borderWidth: 1 }} />
-            <KitButton tokens={t} label="DISCARD" variant="outline" height={46} fontSize={13} onPress={timer.reset} style={{ flex: 1, borderWidth: 1 }} />
+            <KitButton tokens={t} label={tr('worlds.restart')} variant="outline" height={46} fontSize={13} onPress={timer.start} style={{ flex: 1, borderWidth: 1 }} />
+            <KitButton tokens={t} label={tr('worlds.discard')} variant="outline" height={46} fontSize={13} onPress={timer.reset} style={{ flex: 1, borderWidth: 1 }} />
           </View>
         </View>
       )}
       {isSlowSave && (
-        <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>Still submitting — hang tight...</Text>
+        <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>{tr('worlds.stillSubmitting')}</Text>
       )}
 
-      <TopList tokens={t} title="TOP HOLDS" rightLabel={`×${m.multiplier} PTS / SEC`} rows={topRows} emptyText="NO HOLD TIMES RECORDED YET" />
+      <TopList tokens={t} title={tr('staticWorld.topHolds')} rightLabel={tr('staticWorld.ptsPerSec', { mult: m.multiplier })} rows={topRows} emptyText={tr('staticWorld.noHolds')} />
     </View>
   );
 }

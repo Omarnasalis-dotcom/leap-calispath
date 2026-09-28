@@ -17,6 +17,7 @@ import * as MediaLibrary from 'expo-media-library';
 import { useTheme } from '../contexts/ThemeContext';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
 import { LeapLogo } from './LeapLogo';
+import { t } from '../i18n';
 
 const { height } = Dimensions.get('window');
 
@@ -43,29 +44,54 @@ interface CelebrationProps {
 }
 
 const POWER_QUOTES = [
-  "DEFEAT GRAVITY WITH PURE POWER.",
-  "HEAVY WEIGHTS BUILD HEAVY WARRIORS.",
-  "POWER IS THE ONLY TRUTH.",
-  "LIMITS ARE BORN TO BE BROKEN.",
-  "THE BAR WILL ALWAYS BEND TO RESOLVE.",
-  "UNLEASH THE WARRIOR WITHIN."
+  t('celebration.power1'),
+  t('celebration.power2'),
+  t('celebration.power3'),
+  t('celebration.power4'),
+  t('celebration.power5'),
+  t('celebration.power6'),
 ];
 
 const STATIC_QUOTES = [
-  "FIND PEACE IN THE HOLD.",
-  "DEFY GRAVITY WITH STILLNESS.",
-  "STRENGTH IS CONTROL.",
-  "HOLD THE LINE.",
-  "MIND OVER BODY."
+  t('celebration.static1'),
+  t('celebration.static2'),
+  t('celebration.static3'),
+  t('celebration.static4'),
+  t('celebration.static5'),
 ];
 
 const ENDURANCE_QUOTES = [
-  "LEAP PAST YOUR LIMITS. ENDURE.",
-  "EMBRACE THE BURN.",
-  "ONE MORE REP. EVERY TIME.",
-  "DIG DEEPER THAN THE PAIN.",
-  "OUTLAST THE OPPOSITION."
+  t('celebration.endurance1'),
+  t('celebration.endurance2'),
+  t('celebration.endurance3'),
+  t('celebration.endurance4'),
+  t('celebration.endurance5'),
 ];
+
+// Callers pass these fixed English phrases (the banner's own logic matches
+// on 'STATIC WORLD', 'NEW PR' etc.), so they're translated only for display.
+const DISPLAY_KEYS: Record<string, string> = {
+  'STATIC WORLD': 'celebration.staticWorld',
+  'POWER WORLD': 'celebration.powerWorld',
+  'ENDURANCE WORLD': 'celebration.enduranceWorld',
+  'LEAP ARENA': 'celebration.leapArena',
+  'NEW PR': 'celebration.newPr',
+  'WEEKLY WARRIOR': 'celebration.weeklyWarrior',
+  'CHALLENGE COMPLETE': 'celebration.challengeComplete',
+  'WEEKLY CHALLENGE CONQUERED': 'celebration.challengeConquered',
+  'BEAT THE PLANK': 'celebration.beatThePlank',
+  'LADDER CLEARED': 'celebration.ladderCleared',
+  'CHAIN BROKEN': 'celebration.chainBroken',
+  'SOLO CLIMB': 'celebration.soloClimb',
+  'GUESS THE SKILL': 'celebration.guessTheSkill',
+  'NEW BEST SCORE': 'celebration.newBestScore',
+  'SKILL KNOWLEDGE': 'celebration.skillKnowledge',
+};
+const display = (text: string | undefined) => {
+  if (!text) return text;
+  const key = DISPLAY_KEYS[text.toUpperCase()];
+  return key ? t(key as 'celebration.newPr') : text;
+};
 
 export function CelebrationBanner({
   visible,
@@ -204,10 +230,10 @@ export function CelebrationBanner({
           await navigator.share({ files: [file], title: 'LEAP ARENA' });
         } catch (e) {
           console.error('Share failed:', e);
-          window.alert('Use the SAVE button to download the card, then share it manually.');
+          window.alert(t('celebration.shareWeb'));
         }
       } else {
-        window.alert('Use the SAVE button to download the card, then share it manually.');
+        window.alert(t('celebration.shareWeb'));
       }
       return;
     }
@@ -220,11 +246,11 @@ export function CelebrationBanner({
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri);
       } else {
-        Alert.alert('Sharing not available', 'Sharing is not supported on this platform.');
+        Alert.alert(t('celebration.shareUnavailableTitle'), t('celebration.shareUnavailable'));
       }
     } catch (error) {
       console.error('Error sharing celebration:', error);
-      Alert.alert('Error', 'Failed to generate sharing image.');
+      Alert.alert(t('celebration.error'), t('celebration.shareFailed'));
     }
   };
 
@@ -246,7 +272,7 @@ export function CelebrationBanner({
       // Play Store rejected under the Photo and Video Permissions policy.
       const { status } = await MediaLibrary.requestPermissionsAsync(true);
       if (status !== 'granted') {
-        Alert.alert('Permission Denied', 'We need permission to save images to your gallery.');
+        Alert.alert(t('celebration.permissionTitle'), t('celebration.permission'));
         return;
       }
 
@@ -256,10 +282,10 @@ export function CelebrationBanner({
       });
 
       await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert('Saved!', 'Achievement saved to your gallery.');
+      Alert.alert(t('celebration.savedTitle'), t('celebration.saved'));
     } catch (error) {
       console.error('Error saving celebration:', error);
-      Alert.alert('Error', 'Failed to save image.');
+      Alert.alert(t('celebration.error'), t('celebration.saveFailed'));
     }
   };
 
@@ -303,7 +329,7 @@ export function CelebrationBanner({
               }
             ]}
           >
-            <Text style={[styles.logoText, { color: cardAccent }]}>{headerText || 'LEAP ARENA'}</Text>
+            <Text style={[styles.logoText, { color: cardAccent }]}>{display(headerText || 'LEAP ARENA')}</Text>
             
             <Animated.View style={{ transform: [{ scale: logoScale }] }}>
               {showLeapLogo ? (
@@ -318,17 +344,17 @@ export function CelebrationBanner({
             <SectionDivider />
 
             <View style={styles.mainInfoSection}>
-              <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
+              <Text style={[styles.title, { color: theme.text.primary }]}>{display(title)}</Text>
               {subtitle && subtitle.toUpperCase() !== 'NEW PR' ? (
                 <View style={[styles.badgeContainer, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
                   <Text style={[styles.subtitleText, { color: cardAccent }]} numberOfLines={1}>
-                    {subtitle.toUpperCase()}
+                    {display(subtitle)?.toUpperCase()}
                   </Text>
                 </View>
               ) : null}
               <View style={[styles.userNameTag, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
                 <View style={[styles.cornerPrBadge, { backgroundColor: cardAccent }]}>
-                  <Text style={styles.cornerPrText}>PR</Text>
+                  <Text style={styles.cornerPrText}>{t('celebration.pr')}</Text>
                 </View>
                 <Text style={[styles.userName, { color: theme.text.primary }]} numberOfLines={1}>
                   {userName?.toUpperCase()}
@@ -343,13 +369,13 @@ export function CelebrationBanner({
                 {subtitle && subtitle.toUpperCase() === 'NEW PR' ? (
                   <View style={[styles.statBox, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
                     <Text style={[styles.statBoxText, { color: cardAccent }]}>
-                      {subtitle.toUpperCase()}
+                      {display(subtitle)?.toUpperCase()}
                     </Text>
                   </View>
                 ) : null}
                 <View style={[styles.statBox, { borderColor: cardAccent, backgroundColor: getAccentAlpha(cardAccent, '15') }]}>
                   <Text style={[styles.statBoxText, { color: cardAccent }]}>
-                    {stat}
+                    {display(stat)}
                   </Text>
                 </View>
               </Animated.View>
@@ -362,7 +388,7 @@ export function CelebrationBanner({
               <>
                 <SectionDivider />
                 <View style={styles.leaderboardSection}>
-                  <Text style={[styles.leaderboardTitle, { color: theme.text.tertiary }]}>LEADERBOARD</Text>
+                  <Text style={[styles.leaderboardTitle, { color: theme.text.tertiary }]}>{t('celebration.leaderboard')}</Text>
                   {leaderboard.map((entry, i) => (
                     <View key={i} style={styles.leaderboardRow}>
                       <Text style={[styles.lbRank, { color: cardAccent }]}>#{entry.rank}</Text>
@@ -392,18 +418,18 @@ export function CelebrationBanner({
               style={[styles.actionButton, { backgroundColor: cardAccent }]}
               onPress={handleShare}
             >
-              <Text style={styles.buttonText}>📸 SHARE</Text>
+              <Text style={styles.buttonText}>{t('celebration.share')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               style={[styles.actionButton, styles.outlineButton, { borderColor: cardAccent }]}
               onPress={handleSave}
             >
-              <Text style={[styles.buttonText, { color: cardAccent }]}>SAVE</Text>
+              <Text style={[styles.buttonText, { color: cardAccent }]}>{t('celebration.save')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity style={styles.dismissButton} onPress={handleDismiss}>
-              <Text style={[styles.dismissText, { color: 'rgba(255, 255, 255, 0.6)' }]}>DISMISS</Text>
+              <Text style={[styles.dismissText, { color: 'rgba(255, 255, 255, 0.6)' }]}>{t('celebration.dismiss')}</Text>
             </TouchableOpacity>
           </View>
         </Animated.View>

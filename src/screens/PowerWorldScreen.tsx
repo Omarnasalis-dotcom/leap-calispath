@@ -29,19 +29,20 @@ import {
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
   WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
+import { t as tr } from '../i18n';
 
 type Tier = 'all' | '1' | '2' | '3';
 type SheetState = { kind: 'log'; movementId: string } | { kind: 'board' } | null;
 
 const MAX_KG = 500;
-const QUOTE = 'TAKE THE LEAP. CLAIM YOUR POWER.';
+const QUOTE = tr('powerWorld.quote');
 
 /** Row labels per the handoff; squat is loaded as a barbell, the rest as added weight. */
 const MOVE_UI: Record<string, { name: string; note: string }> = {
-  pull_up: { name: 'PULL-UP', note: 'ADDED WEIGHT' },
-  dip: { name: 'DIP', note: 'ADDED WEIGHT' },
-  squat: { name: 'SQUAT', note: 'BARBELL' },
-  muscle_up: { name: 'MUSCLE-UP', note: 'ADDED WEIGHT' },
+  pull_up: { name: 'PULL-UP', note: tr('powerWorld.addedWeight') },
+  dip: { name: 'DIP', note: tr('powerWorld.addedWeight') },
+  squat: { name: 'SQUAT', note: tr('powerWorld.barbell') },
+  muscle_up: { name: 'MUSCLE-UP', note: tr('powerWorld.addedWeight') },
 };
 
 const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
@@ -162,21 +163,21 @@ export function PowerWorldScreen() {
 
   // Power's third circle is the LEVEL gap, not the gap to a person (§0.4).
   const gap = level.nextLevel
-    ? { label: 'LEVEL GAP', value: fmt2(level.gap), sub: `PTS TO ${level.nextLevel.name}`, progress: level.progress }
-    : { label: 'LEVEL GAP', value: 'MAX', sub: POWER_LEVELS[3].name, progress: 1 };
+    ? { label: tr('powerWorld.levelGap'), value: fmt2(level.gap), sub: tr('powerWorld.ptsToLevel', { level: level.nextLevel.name }), progress: level.progress }
+    : { label: tr('powerWorld.levelGap'), value: tr('powerWorld.max'), sub: POWER_LEVELS[3].name, progress: 1 };
 
   const goal = standing.isKing
-    ? { kicker: "YOU'RE #1", title: 'POWER KING ACHIEVED', bar: undefined }
+    ? { kicker: tr('worlds.youreFirst'), title: tr('powerWorld.kingAchieved'), bar: undefined }
     : standing.isRanked && above && standing.gapToPass != null
       ? {
-        kicker: 'NEXT TARGET',
-        title: `${fmt2(standing.gapToPass)} pts to steal Rank #${above.rank}`,
-        bar: { progress: standing.gapProgress, from: `YOU ${fmt2(score)}`, to: `#${above.rank} ${fmt2(above.score)}` },
+        kicker: tr('worlds.nextTarget'),
+        title: tr('worlds.stealRank', { pts: fmt2(standing.gapToPass), rank: above.rank }),
+        bar: { progress: standing.gapProgress, from: tr('worlds.youScore', { score: fmt2(score) }), to: `#${above.rank} ${fmt2(above.score)}` },
       }
       : {
-        kicker: 'YOUR NEXT MAJOR MILESTONE',
-        title: `${fmt2(POWER_LEVELS[2].minPoints)} points to ${titleCase(POWER_LEVELS[2].name)}`,
-        bar: { progress: score / POWER_LEVELS[2].minPoints, from: `YOU ${fmt2(score)}`, to: `${POWER_LEVELS[2].name} ${fmt2(POWER_LEVELS[2].minPoints)}` },
+        kicker: tr('powerWorld.nextMilestone'),
+        title: tr('powerWorld.pointsToLevel', { pts: fmt2(POWER_LEVELS[2].minPoints), level: titleCase(POWER_LEVELS[2].name) }),
+        bar: { progress: score / POWER_LEVELS[2].minPoints, from: tr('worlds.youScore', { score: fmt2(score) }), to: `${POWER_LEVELS[2].name} ${fmt2(POWER_LEVELS[2].minPoints)}` },
       };
 
   // ------------------------------------------------------------- sheets
@@ -221,7 +222,7 @@ export function PowerWorldScreen() {
     const movementId = forMovementId ?? (sheet?.kind === 'log' ? sheet.movementId : undefined);
     if (!user || !movementId || saving) return;
     if (isNaN(value) || value <= 0 || value > MAX_KG) {
-      Alert.alert('Invalid', `Please enter a valid weight (0.1 - ${MAX_KG} kg).`);
+      Alert.alert(tr('worlds.invalid'), tr('powerWorld.invalidWeight', { max: MAX_KG }));
       return;
     }
     const currentBest = pbs[movementId] ?? 0;
@@ -244,20 +245,20 @@ export function PowerWorldScreen() {
         const newLevel = getPowerLevel(before - calculatePowerPoints(movementId, currentBest) + calculatePowerPoints(movementId, value));
         if (isMounted.current) {
           setCelebrationProps({
-            title: isPromotion ? 'LEVEL PROMOTED!' : (MOVE_UI[movementId]?.name ?? movement?.name?.toUpperCase()),
-            subtitle: isPromotion ? `WELCOME TO ${newLevel.name}` : 'NEW PR',
-            stat: `${value} KG`,
+            title: isPromotion ? tr('powerWorld.levelPromoted') : (MOVE_UI[movementId]?.name ?? movement?.name?.toUpperCase()),
+            subtitle: isPromotion ? tr('powerWorld.welcomeTo', { level: newLevel.name }) : 'NEW PR',
+            stat: tr('powerWorld.kg', { value }),
             emoji: isPromotion ? '⚡' : '🔥',
-            rank: isPromotion ? `LEVEL ${newLevel.id}` : undefined,
+            rank: isPromotion ? tr('powerWorld.levelN', { n: newLevel.id }) : undefined,
           });
         }
         NotificationService.notify(
           user.id,
           'power_pb',
-          isPromotion ? 'Power Level Up!' : 'New Power PB!',
+          isPromotion ? tr('powerWorld.pushLevelTitle') : tr('powerWorld.pushPbTitle'),
           isPromotion
-            ? `${movement?.name ?? movementId}: ${value} KG — you've reached ${newLevel.name}.`
-            : `${movement?.name ?? movementId}: ${value} KG — a new personal record.`,
+            ? tr('powerWorld.pushLevelBody', { name: movement?.name ?? movementId, value, level: newLevel.name })
+            : tr('powerWorld.pushPbBody', { name: movement?.name ?? movementId, value }),
           { screen: 'power-world' },
         );
         if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
@@ -269,8 +270,8 @@ export function PowerWorldScreen() {
         setPendingOverwrite(null);
         setSheet(null);
         setToast(isPB
-          ? (currentBest > 0 ? `NEW 1RM · +${fmt2(gained)} PTS` : `FIRST 1RM · ${fmt2(calculatePowerPoints(movementId, value))} PTS`)
-          : force ? `1RM REPLACED · ${value} KG` : 'LOGGED · 1RM UNCHANGED');
+          ? (currentBest > 0 ? tr('powerWorld.newRm', { pts: fmt2(gained) }) : tr('powerWorld.firstRm', { pts: fmt2(calculatePowerPoints(movementId, value)) }))
+          : force ? tr('powerWorld.rmReplaced', { value }) : tr('powerWorld.loggedUnchanged'));
         fetchStats();
         refreshSummary();
         if (tier !== 'all') fetchElite(tier, scope);
@@ -282,9 +283,9 @@ export function PowerWorldScreen() {
       onError: (error: any) => {
         setPendingOverwrite(null);
         console.error('Power save error:', error);
-        Alert.alert('Error', describeSubmitError(error, 'Failed to save PR.'), [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Try Again', onPress: () => handleSave(value, force, movementId) },
+        Alert.alert(tr('worlds.error'), describeSubmitError(error, tr('powerWorld.saveFailed')), [
+          { text: tr('worlds.cancel'), style: 'cancel' },
+          { text: tr('worlds.tryAgain'), onPress: () => handleSave(value, force, movementId) },
         ]);
       },
     });
@@ -315,13 +316,13 @@ export function PowerWorldScreen() {
     ),
     [boardRows, gender],
   );
-  const you = youBarSubline(boardList, user?.id, score, 'Power');
+  const you = youBarSubline(boardList, user?.id, score, tr('powerWorld.nameForKing'));
   const unfiltered = scope === 'public' && gender === 'ALL';
   const youRankText = you.index >= 0 ? `#${you.index + 1}` : unfiltered && standing.isRanked ? `#${summary?.myRank ?? stats?.ranks.glory}` : '—';
   const youSub = you.index < 0
     ? (unfiltered && standing.isRanked && above && standing.gapToPass != null
-      ? `${fmt2(standing.gapToPass)} pts to pass ${above.name}`
-      : score > 0 ? 'Not in this filter' : 'Log a lift to join the board')
+      ? tr('staticWorld.passName', { pts: fmt2(standing.gapToPass), name: above.name })
+      : score > 0 ? tr('worlds.notInFilter') : tr('powerWorld.logToJoin'))
     : you.text;
 
   const toastNode = <WorldToast tokens={t} message={toast} onHide={() => setToast(null)} />;
@@ -333,7 +334,7 @@ export function PowerWorldScreen() {
         <WorldHeader
           tokens={t}
           icon="bolt"
-          title="POWER WORLD"
+          title={tr('powerWorld.title')}
           onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/power-world') : undefined}
         />
         <ScrollView
@@ -342,7 +343,7 @@ export function PowerWorldScreen() {
         >
           <DashboardRings
             tokens={t}
-            worldLabel="POWER"
+            worldLabel={tr('powerWorld.label')}
             rank={standing.isRanked ? (summary?.myRank ?? stats?.ranks.glory ?? null) : null}
             isKing={standing.isKing}
             rankProgress={standing.rankProgress}
@@ -370,9 +371,9 @@ export function PowerWorldScreen() {
               fontSize={12}
               active={tier}
               onChange={onPickTier}
-              accessibilityLabel="Power level"
+              accessibilityLabel={tr('powerWorld.levelA11y')}
               items={[
-                { key: 'all', label: 'ALL', crown: true },
+                { key: 'all', label: tr('powerWorld.all'), crown: true },
                 { key: '1', label: POWER_LEVELS[1].name },
                 { key: '2', label: POWER_LEVELS[2].name },
                 { key: '3', label: POWER_LEVELS[3].name },
@@ -411,18 +412,18 @@ export function PowerWorldScreen() {
         onClose={closeSheet}
         variant={shown.kind === 'board' ? 'board' : 'log'}
         kicker={shown.kind === 'board'
-          ? <BoardKicker tokens={t} icon="bolt" text="POWER WORLD" />
+          ? <BoardKicker tokens={t} icon="bolt" text={tr('powerWorld.title')} />
           : logMove && (pbs[logMove.id] ?? 0) > 0
-            ? `CURRENT 1RM ${pbs[logMove.id]} KG · ${fmt2(calculatePowerPoints(logMove.id, pbs[logMove.id]))} PTS`
-            : 'ONE REP MAX · NO LIFT YET'}
-        title={shown.kind === 'board' ? 'LEADERBOARD' : (logMove ? MOVE_UI[logMove.id]?.name ?? logMove.name.toUpperCase() : '')}
+            ? tr('powerWorld.currentRm', { kg: pbs[logMove.id], pts: fmt2(calculatePowerPoints(logMove.id, pbs[logMove.id])) })
+            : tr('powerWorld.noLiftYet')}
+        title={shown.kind === 'board' ? tr('worlds.leaderboard') : (logMove ? MOVE_UI[logMove.id]?.name ?? logMove.name.toUpperCase() : '')}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
             rankText={youRankText}
             king={you.index === 0}
             ranked={you.index >= 0 || (unfiltered && standing.isRanked)}
-            handle={profile?.display_name || 'You'}
+            handle={profile?.display_name || tr('worlds.you')}
             sub={youSub}
             scoreText={fmt2(score)}
           />
@@ -435,7 +436,7 @@ export function PowerWorldScreen() {
                 theme={theme}
                 accentColor={t.accent}
                 movementName={logMove.name}
-                unitLabel=" KG"
+                unitLabel={` ${tr('powerWorld.kgUnit')}`}
                 currentBest={pbs[logMove.id] ?? 0}
                 attemptValue={pendingOverwrite ?? 0}
                 saving={saving}
@@ -489,7 +490,7 @@ export function PowerWorldScreen() {
         stat={celebrationProps.stat}
         emoji={celebrationProps.emoji}
         rank={celebrationProps.rank}
-        userName={profile?.display_name || 'WARRIOR'}
+        userName={profile?.display_name || tr('worlds.warrior').toUpperCase()}
         onDismiss={() => setShowCelebration(false)}
         headerText="POWER WORLD"
         showLeapLogo
@@ -504,7 +505,7 @@ export function PowerWorldScreen() {
 function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
   tokens: WorldKitTokens; movement: PowerMovement; pb: number; worldBest?: number; onPress: () => void;
 }) {
-  const ui = MOVE_UI[movement.id] ?? { name: movement.name.toUpperCase(), note: 'ADDED WEIGHT' };
+  const ui = MOVE_UI[movement.id] ?? { name: movement.name.toUpperCase(), note: tr('powerWorld.addedWeight') };
   const logged = pb > 0;
   const best = Math.max(worldBest ?? 0, pb);
   return (
@@ -523,12 +524,12 @@ function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text style={kt('bold', 18, t.text, 1.2, 20)} numberOfLines={1}>{ui.name}</Text>
           <Text style={[kt('semibold', 11.5, logged ? t.accentText : t.textFaint, 1.2), { marginTop: 3 }]} numberOfLines={1}>
-            {logged ? `1RM · ${fmt2(calculatePowerPoints(movement.id, pb))} PTS` : 'TAP TO LOG 1RM'}
+            {logged ? tr('powerWorld.rmPts', { pts: fmt2(calculatePowerPoints(movement.id, pb)) }) : tr('powerWorld.tapToLog')}
           </Text>
         </View>
         <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4 }}>
           <Text style={kt('bold', 40, logged ? t.text : t.textEmpty, 0, 42)}>{logged ? String(pb) : '—'}</Text>
-          {logged && <Text style={kt('medium', 11, t.textMuted, 1.4)}>KG</Text>}
+          {logged && <Text style={kt('medium', 11, t.textMuted, 1.4)}>{tr('powerWorld.kgUnit')}</Text>}
         </View>
         <View style={{ width: 36, height: 36, borderRadius: 18, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
           <KitIcon name="plus" size={14} color="#ffffff" strokeWidth={3} />
@@ -537,8 +538,8 @@ function LiftRow({ tokens: t, movement, pb, worldBest, onPress }: {
       <View style={{ gap: 6 }}>
         <KitBar tokens={t} progress={best > 0 ? pb / best : 0} />
         <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-          <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{`×${movement.multiplier} · ${ui.note}`}</Text>
-          <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{best > 0 ? `WORLD BEST ${fmt0(best)} KG` : 'NO LIFTS YET'}</Text>
+          <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{tr('powerWorld.multNote', { mult: movement.multiplier, note: ui.note })}</Text>
+          <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{best > 0 ? tr('powerWorld.worldBest', { kg: fmt0(best) }) : tr('powerWorld.noLifts')}</Text>
         </View>
       </View>
     </Pressable>
@@ -558,14 +559,14 @@ function PlateLoaderBody({
   onClear: () => void; onLog: () => void; saving: boolean; isSlowSave: boolean;
   top: PowerMovementRanking[]; myId?: string;
 }) {
-  const ui = MOVE_UI[movement.id] ?? { name: movement.name, note: 'ADDED WEIGHT' };
+  const ui = MOVE_UI[movement.id] ?? { name: movement.name, note: tr('powerWorld.addedWeight') };
   const isPb = kg > 0 && (pb <= 0 || kg > pb);
   const chip = isPb
-    ? { text: pb > 0 ? 'NEW 1RM' : 'FIRST 1RM', filled: true }
-    : { text: pb > 0 ? `1RM ${pb} KG` : 'ADD WEIGHT', filled: false };
+    ? { text: pb > 0 ? tr('powerWorld.newRmChip') : tr('powerWorld.firstRmChip'), filled: true }
+    : { text: pb > 0 ? tr('powerWorld.rmChip', { kg: pb }) : tr('powerWorld.addWeight'), filled: false };
   const drawn = stack.slice(0, MAX_DRAWN_PLATES);
   const more = hiddenPlates(stack);
-  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: `${r.value} KG` }));
+  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: tr('powerWorld.kg', { value: r.value }) }));
 
   const plateView = (p: Plate, i: number) => {
     const st = PLATE_STYLE[p];
@@ -583,16 +584,16 @@ function PlateLoaderBody({
           tokens={t}
           value={kgRaw ?? (kg > 0 ? String(kg) : '')}
           onChangeText={onTyped}
-          unit="KG"
-          hint="TAP TO TYPE · OR LOAD PLATES"
+          unit={tr('powerWorld.kgUnit')}
+          hint={tr('powerWorld.inputHint')}
           decimal
           maxLength={6}
-          accessibilityLabel="One rep max in kilograms"
+          accessibilityLabel={tr('powerWorld.inputA11y')}
         />
 
         <View
           accessibilityRole="image"
-          accessibilityLabel={`Barbell loaded with ${stack.length} plates per side`}
+          accessibilityLabel={tr('powerWorld.barbellA11y', { count: stack.length })}
           style={{ height: 96, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 2, overflow: 'hidden' }}
         >
           {collar}
@@ -605,8 +606,8 @@ function PlateLoaderBody({
         </View>
 
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 10 }}>
-          <Text style={[kt('medium', 10.5, t.textFaint, 1.8), { textAlign: 'center' }]}>{`TAP A PLATE TO ADD · ${ui.note}`}</Text>
-          {more > 0 && <Text style={kt('medium', 10.5, t.accentText, 1.8)}>{`+${more} MORE PLATES`}</Text>}
+          <Text style={[kt('medium', 10.5, t.textFaint, 1.8), { textAlign: 'center' }]}>{tr('powerWorld.tapPlate', { note: ui.note })}</Text>
+          {more > 0 && <Text style={kt('medium', 10.5, t.accentText, 1.8)}>{tr('powerWorld.morePlates', { count: more })}</Text>}
         </View>
 
         <View style={{ flexDirection: 'row', gap: 6 }}>
@@ -614,39 +615,39 @@ function PlateLoaderBody({
             <Pressable
               key={p}
               accessibilityRole="button"
-              accessibilityLabel={`Add ${p} kilogram plate`}
+              accessibilityLabel={tr('powerWorld.addPlateA11y', { kg: p })}
               onPress={() => onPlate(p)}
               style={({ pressed }) => ({ flex: 1, minWidth: 0, height: 48, borderRadius: 14, backgroundColor: t.buttonTint, borderWidth: 1, borderColor: t.tintBorder, alignItems: 'center', justifyContent: 'center', gap: 1, opacity: pressed ? 0.7 : 1 })}
             >
               <Text style={kt('bold', 15, t.text)} numberOfLines={1} adjustsFontSizeToFit>{`+${p}`}</Text>
-              <Text style={kt('semibold', 9, t.textFaint, 1)}>KG</Text>
+              <Text style={kt('semibold', 9, t.textFaint, 1)}>{tr('powerWorld.kgUnit')}</Text>
             </Pressable>
           ))}
         </View>
 
         <View style={{ flexDirection: 'row', gap: 6 }}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Undo last plate" onPress={onUndo} style={outline}>
-            <Text style={kt('semibold', 12, t.textSecondary, 1.4)}>UNDO</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('powerWorld.undoA11y')} onPress={onUndo} style={outline}>
+            <Text style={kt('semibold', 12, t.textSecondary, 1.4)}>{tr('powerWorld.undo')}</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Minus 2.5 kilograms" onPress={() => onStep(-2.5)} style={outline}>
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('powerWorld.minusA11y')} onPress={() => onStep(-2.5)} style={outline}>
             <Text style={kt('semibold', 13, t.textSecondary)}>−2.5</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Plus 2.5 kilograms" onPress={() => onStep(2.5)} style={outline}>
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('powerWorld.plusA11y')} onPress={() => onStep(2.5)} style={outline}>
             <Text style={kt('semibold', 13, t.textSecondary)}>+2.5</Text>
           </Pressable>
-          <Pressable accessibilityRole="button" accessibilityLabel="Clear weight" onPress={onClear} style={outline}>
-            <Text style={kt('semibold', 12, t.textMuted, 1.4)}>CLEAR</Text>
+          <Pressable accessibilityRole="button" accessibilityLabel={tr('powerWorld.clearA11y')} onPress={onClear} style={outline}>
+            <Text style={kt('semibold', 12, t.textMuted, 1.4)}>{tr('powerWorld.clear')}</Text>
           </Pressable>
         </View>
       </View>
 
       <ThisSetRow tokens={t} points={fmt2(calculatePowerPoints(movement.id, kg))} chip={chip} />
-      <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={kg <= 0} />
+      <KitButton tokens={t} label={tr('worlds.logPerformance')} onPress={onLog} loading={saving} disabled={kg <= 0} />
       {isSlowSave && (
-        <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>Still submitting — hang tight...</Text>
+        <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>{tr('worlds.stillSubmitting')}</Text>
       )}
 
-      <TopList tokens={t} title="TOP LIFTS" rightLabel={`×${movement.multiplier} PTS / KG`} rows={topRows} emptyText="NO LIFTS LOGGED YET" />
+      <TopList tokens={t} title={tr('powerWorld.topLifts')} rightLabel={tr('powerWorld.ptsPerKg', { mult: movement.multiplier })} rows={topRows} emptyText={tr('powerWorld.noLiftsLogged')} />
     </View>
   );
 }

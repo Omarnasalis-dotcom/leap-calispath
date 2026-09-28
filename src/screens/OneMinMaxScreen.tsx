@@ -28,6 +28,7 @@ import {
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
   WorldPage, WorldSheet, WorldToast, YouBar, Gender,
 } from '../components/worlds/kit';
+import { t as tr } from '../i18n';
 
 type Level = 'entry' | 'main' | 'advanced';
 type SheetState =
@@ -39,7 +40,9 @@ const LEVELS: Level[] = ['entry', 'main', 'advanced'];
 /** Main/Advanced unlock at strength tier 5 (ONEMM_CATEGORIES tiers). */
 const LEVEL_UNLOCK_TIER = 5;
 const MAX_REPS = 150;
-const QUOTE = 'SIXTY SECONDS. NO EXCUSES.';
+const QUOTE = tr('enduranceWorld.quote');
+// Category names (ENTRY/MAIN/ADVANCED) shown in the user's language.
+const catName = (c: keyof typeof ONEMM_CATEGORIES) => tr(`enduranceWorld.cat_${c}` as 'enduranceWorld.cat_entry');
 
 const isLevelLocked = (level: Level, tier: number) => level !== 'entry' && tier < LEVEL_UNLOCK_TIER;
 
@@ -163,16 +166,16 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const above = summary?.above ?? null;
 
   const gap = standing.isKing
-    ? { label: 'STATUS', value: 'KING', sub: '#1 OF WORLD', progress: 1, gold: true }
+    ? { label: tr('worlds.status'), value: tr('worlds.king'), sub: tr('worlds.firstOfWorld'), progress: 1, gold: true }
     : standing.isRanked && above && standing.gapToPass != null
-      ? { label: `GAP TO #${above.rank}`, value: fmt2(standing.gapToPass), sub: 'PTS TO PASS', progress: standing.gapProgress }
-      : { label: 'GAP TO', value: '—', sub: 'RANK UP', progress: 0, empty: true };
+      ? { label: tr('worlds.gapTo', { rank: above.rank }), value: fmt2(standing.gapToPass), sub: tr('worlds.ptsToPass'), progress: standing.gapProgress }
+      : { label: tr('worlds.gapToEmpty'), value: '—', sub: tr('worlds.rankUp'), progress: 0, empty: true };
 
   // ------------------------------------------------------------- sheets
 
   const openLog = (m: OneMMMovement, sheetMode: 'log' | 'timer') => {
     if (isLevelLocked(m.categoryId, tier) || m.minTier > tier) {
-      setToast(`REACH TIER ${Math.max(m.minTier, LEVEL_UNLOCK_TIER)} TO UNLOCK`);
+      setToast(tr('enduranceWorld.reachTier', { tier: Math.max(m.minTier, LEVEL_UNLOCK_TIER) }));
       return;
     }
     const pb = stats?.pbs[m.id] ?? 0;
@@ -190,18 +193,18 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const timer = useOneMinuteTimer((taps) => {
     setRepsRaw(String(taps));
     setSheet(s => (s && s.kind === 'log' ? { ...s, mode: 'log' } : s));
-    setToast('TIME! CONFIRM YOUR REPS');
+    setToast(tr('enduranceWorld.timeUp'));
   });
 
   const closeSheet = () => {
     if (timer.phase !== 'idle') {
       const abandon = () => { timer.cancel(); setSheet(null); };
       if (Platform.OS === 'web') {
-        if (window.confirm('Abandon this 1MM sprint? Progress will be lost.')) abandon();
+        if (window.confirm(tr('enduranceWorld.abandonWeb'))) abandon();
       } else {
-        Alert.alert('ABANDON SPRINT', 'Abandon this 1MM sprint? Progress will be lost.', [
-          { text: 'KEEP FIGHTING', style: 'cancel' },
-          { text: 'ABANDON', style: 'destructive', onPress: abandon },
+        Alert.alert(tr('enduranceWorld.abandonTitle'), tr('enduranceWorld.abandonWeb'), [
+          { text: tr('enduranceWorld.keepFighting'), style: 'cancel' },
+          { text: tr('enduranceWorld.abandon'), style: 'destructive', onPress: abandon },
         ]);
       }
       return;
@@ -239,8 +242,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
       isPB = isNewPB;
       if (isNewPB) {
         const name = movement?.name || 'Movement';
-        if (isMounted.current) setCelebrationData({ stat: `${reps} REPS`, movement: name });
-        NotificationService.notify(user.id, 'one_mm_pb', 'New 1MM PB!', `${name}: ${reps} reps — a new personal record.`, { screen: 'one-min-max' });
+        if (isMounted.current) setCelebrationData({ stat: tr('enduranceWorld.repsValue', { reps }), movement: name });
+        NotificationService.notify(user.id, 'one_mm_pb', tr('enduranceWorld.pushTitle'), tr('enduranceWorld.pushBody', { name, reps }), { screen: 'one-min-max' });
         if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
         if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
       }
@@ -250,9 +253,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         setPendingOverwrite(null);
         setSheet(null);
         setToast(isPB
-          ? (currentBest > 0 ? `NEW PB · +${fmt2((reps - currentBest) * mult)} PTS` : `FIRST SET · ${fmt2(reps * mult)} PTS`)
+          ? (currentBest > 0 ? tr('worlds.newPb', { pts: fmt2((reps - currentBest) * mult) }) : tr('enduranceWorld.firstSet', { pts: fmt2(reps * mult) }))
           // A confirmed overwrite replaces the PB even though it isn't "new".
-          : force ? `PB REPLACED · ${reps} REPS` : 'LOGGED · PB UNCHANGED');
+          : force ? tr('enduranceWorld.pbReplaced', { reps }) : tr('enduranceWorld.loggedUnchanged'));
         fetchStats();
         refreshSummary();
         refreshProfile?.();
@@ -267,9 +270,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         if (!['P1001', 'P1002', 'P1003', 'P1004'].includes(error.code)) {
           console.error('Error saving 1MM result:', error);
         }
-        Alert.alert('Error', describeSubmitError(error, 'Failed to save result.'), [
-          { text: 'Cancel', style: 'cancel' },
-          { text: 'Try Again', onPress: () => handleSaveResult(reps, force, movementId) },
+        Alert.alert(tr('worlds.error'), describeSubmitError(error, tr('enduranceWorld.saveFailed')), [
+          { text: tr('worlds.cancel'), style: 'cancel' },
+          { text: tr('worlds.tryAgain'), onPress: () => handleSaveResult(reps, force, movementId) },
         ]);
       },
     });
@@ -278,7 +281,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const onLogPress = () => {
     const reps = parseInt(repsRaw, 10);
     if (isNaN(reps) || reps <= 0 || reps > MAX_REPS) {
-      Alert.alert('Invalid', `Please enter a valid number of reps (1-${MAX_REPS}).`);
+      Alert.alert(tr('worlds.invalid'), tr('enduranceWorld.invalidReps', { max: MAX_REPS }));
       return;
     }
     handleSaveResult(reps);
@@ -290,26 +293,26 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const levelTabs = LEVELS.map(l => {
     const moves = ONEMM_MOVEMENTS.filter(m => m.categoryId === l);
     const logged = moves.filter(m => (pbs[m.id] ?? 0) > 0).length;
-    return { key: l, label: ONEMM_CATEGORIES[l].name, sub: `${logged}/${moves.length} LOGGED`, locked: isLevelLocked(l, tier) };
+    return { key: l, label: catName(l), sub: tr('enduranceWorld.loggedOf', { logged, total: moves.length }), locked: isLevelLocked(l, tier) };
   });
 
   const onPickLevel = (l: Level) => {
     if (isLevelLocked(l, tier)) {
-      setToast(`REACH TIER ${LEVEL_UNLOCK_TIER} TO UNLOCK ${ONEMM_CATEGORIES[l].name}`);
+      setToast(tr('enduranceWorld.reachTierLevel', { tier: LEVEL_UNLOCK_TIER, level: catName(l) }));
       return;
     }
     setLevel(l);
   };
 
   const goal = standing.isKing
-    ? { kicker: "YOU'RE #1", title: 'ENDURANCE KING ACHIEVED', bar: undefined }
+    ? { kicker: tr('worlds.youreFirst'), title: tr('enduranceWorld.kingAchieved'), bar: undefined }
     : standing.isRanked && above && standing.gapToPass != null
       ? {
-        kicker: 'NEXT TARGET',
-        title: `${fmt2(standing.gapToPass)} pts to steal Rank #${above.rank}`,
-        bar: { progress: standing.gapProgress, from: `YOU ${fmt2(score)}`, to: `#${above.rank} ${fmt2(above.score)}` },
+        kicker: tr('worlds.nextTarget'),
+        title: tr('worlds.stealRank', { pts: fmt2(standing.gapToPass), rank: above.rank }),
+        bar: { progress: standing.gapProgress, from: tr('worlds.youScore', { score: fmt2(score) }), to: `#${above.rank} ${fmt2(above.score)}` },
       }
-      : { kicker: 'GET STARTED', title: 'Log your first 60s set to rank up', bar: undefined };
+      : { kicker: tr('worlds.getStarted'), title: tr('enduranceWorld.getStartedGoal'), bar: undefined };
 
   const boardList: BoardRow[] = useMemo(
     () => filterByGender(
@@ -318,11 +321,11 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     ),
     [boardRows, gender],
   );
-  const you = youBarSubline(boardList, user?.id, score, 'Endurance');
+  const you = youBarSubline(boardList, user?.id, score, tr('enduranceWorld.nameForKing'));
   const unfiltered = scope === 'public' && gender === 'ALL';
   const youRankText = you.index >= 0 ? `#${you.index + 1}` : unfiltered && standing.isRanked ? `#${summary?.myRank}` : '—';
   const youSub = you.index < 0 && unfiltered && standing.isRanked && above && standing.gapToPass != null
-    ? `${fmt2(standing.gapToPass)} pts to pass ${above.name}`
+    ? tr('staticWorld.passName', { pts: fmt2(standing.gapToPass), name: above.name })
     : you.text;
 
   const toastNode = <WorldToast tokens={t} message={toast} onHide={() => setToast(null)} />;
@@ -333,7 +336,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         <WorldHeader
           tokens={t}
           icon="stopwatch"
-          title="ENDURANCE WORLD"
+          title={tr('enduranceWorld.title')}
           onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/one-min-max') : undefined}
         />
         <ScrollView
@@ -356,7 +359,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           />
 
           <View style={{ paddingTop: 26, paddingHorizontal: 24, paddingBottom: 10 }}>
-            <SegmentedSwitch tokens={t} items={levelTabs} active={level} onChange={onPickLevel} height={50} fontSize={13} accessibilityLabel="Endurance level" />
+            <SegmentedSwitch tokens={t} items={levelTabs} active={level} onChange={onPickLevel} height={50} fontSize={13} accessibilityLabel={tr('enduranceWorld.levelA11y')} />
           </View>
 
           <View ref={movementGridRef} onLayout={onMovementGridLayout} collapsable={false} style={{ gap: 10, paddingHorizontal: 24 }}>
@@ -393,16 +396,16 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         closeRef={shown.kind === 'log' ? timerCloseRef : undefined}
         onCloseLayout={shown.kind === 'log' ? onTimerCloseLayout : undefined}
         kicker={shown.kind === 'board'
-          ? <BoardKicker tokens={t} icon="stopwatch" text="ENDURANCE WORLD · 1MM" />
+          ? <BoardKicker tokens={t} icon="stopwatch" text={tr('enduranceWorld.boardKicker')} />
           : logKicker(shown.movementId, pbs)}
-        title={shown.kind === 'board' ? 'LEADERBOARD' : (ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name ?? '').toUpperCase()}
+        title={shown.kind === 'board' ? tr('worlds.leaderboard') : (ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name ?? '').toUpperCase()}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
             rankText={youRankText}
             king={you.index === 0}
             ranked={you.index >= 0 || (unfiltered && standing.isRanked)}
-            handle={profile?.display_name || 'You'}
+            handle={profile?.display_name || tr('worlds.you')}
             sub={youSub}
             scoreText={fmt2(score)}
           />
@@ -417,7 +420,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
                   theme={theme}
                   accentColor={t.accent}
                   movementName={ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name || ''}
-                  unitLabel=" REPS"
+                  unitLabel={` ${tr('enduranceWorld.reps')}`}
                   currentBest={pbs[shown.movementId] ?? 0}
                   attemptValue={pendingOverwrite ?? 0}
                   saving={saving}
@@ -470,7 +473,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         subtitle="NEW PR"
         stat={celebrationData.stat}
         emoji="🔥"
-        userName={profile?.display_name || user?.email?.split('@')[0] || 'Warrior'}
+        userName={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
         onDismiss={() => setShowCelebration(false)}
         headerText="ENDURANCE WORLD"
         showLeapLogo
@@ -483,7 +486,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 function logKicker(movementId: string, pbs: Record<string, number>): string {
   const m = ONEMM_MOVEMENTS.find(x => x.id === movementId);
   const pb = pbs[movementId] ?? 0;
-  return `${m ? ONEMM_CATEGORIES[m.categoryId].name : ''} · 1 MINUTE MAX${pb > 0 ? ` · PB ${pb} REPS` : ''}`;
+  const category = m ? catName(m.categoryId as keyof typeof ONEMM_CATEGORIES) : '';
+  return pb > 0 ? tr('enduranceWorld.logKickerPb', { category, reps: pb }) : tr('enduranceWorld.logKicker', { category });
 }
 
 // ---------------------------------------------------------------- rows
@@ -500,7 +504,7 @@ function MovementRow({ tokens: t, movement, pb, worldBest, onLog, onTimer, timer
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel={`${movement.name}${logged ? `, best ${pb} reps` : ''}. Log reps`}
+      accessibilityLabel={logged ? tr('enduranceWorld.rowA11yBest', { name: movement.name, reps: pb }) : tr('enduranceWorld.rowA11y', { name: movement.name })}
       onPress={onLog}
       style={{
         flexDirection: 'row', alignItems: 'center', gap: 14, padding: 12, borderRadius: 20, minWidth: 0,
@@ -511,19 +515,19 @@ function MovementRow({ tokens: t, movement, pb, worldBest, onLog, onTimer, timer
       <AnimatedRing size={54} radius={24} strokeWidth={3} progress={ratio} color={t.accent} trackColor={t.track} delay={150} duration={900}>
         <View style={{ alignItems: 'center' }}>
           <Text style={kt('bold', logged ? 17 : 16, logged ? t.text : t.textEmpty, 0, logged ? 19 : 18)}>{logged ? String(pb) : '—'}</Text>
-          {logged && <Text style={kt('semibold', 8.5, t.textFaint, 1)}>REPS</Text>}
+          {logged && <Text style={kt('semibold', 8.5, t.textFaint, 1)}>{tr('enduranceWorld.reps')}</Text>}
         </View>
       </AnimatedRing>
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={kt('bold', 16, t.text, 1.1, 18.5)} numberOfLines={1}>{movement.name.toUpperCase()}</Text>
         <Text style={[kt('semibold', 11, logged ? t.accentText : t.textFaint, 1.1), { marginTop: 3 }]} numberOfLines={1}>
-          {logged ? `${fmt2(pts)} PTS · ${Math.round(clamp01(ratio) * 100)}% OF WORLD BEST` : 'TAP TO LOG · OR RUN TIMER'}
+          {logged ? tr('enduranceWorld.rowLogged', { pts: fmt2(pts), pct: Math.round(clamp01(ratio) * 100) }) : tr('enduranceWorld.rowEmpty')}
         </Text>
       </View>
       <View ref={timerRef} onLayout={onTimerLayout} collapsable={false}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel={`Run 60 second timer for ${movement.name}`}
+          accessibilityLabel={tr('enduranceWorld.runTimerA11y', { name: movement.name })}
           onPress={onTimer}
           hitSlop={6}
           style={({ pressed }) => ({ width: 42, height: 42, borderRadius: 21, backgroundColor: pressed ? t.accentHover : t.accent, alignItems: 'center', justifyContent: 'center' })}
@@ -551,43 +555,43 @@ function LogSheetBody({
   const reps = parseInt(repsRaw, 10) || 0;
   const isPb = reps > pb;
   const chip = isPb
-    ? { text: pb > 0 ? 'NEW PB' : 'FIRST SET', filled: true }
-    : { text: pb > 0 ? `PB ${pb} REPS` : 'ADD REPS', filled: false };
+    ? { text: pb > 0 ? tr('enduranceWorld.newPbChip') : tr('enduranceWorld.firstSetChip'), filled: true }
+    : { text: pb > 0 ? tr('enduranceWorld.pbChip', { reps: pb }) : tr('enduranceWorld.addReps'), filled: false };
   const adjust = (d: number) => setRepsRaw(String(Math.min(MAX_REPS, Math.max(0, reps + d))));
 
-  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: `${r.value} REPS` }));
+  const topRows = top.slice(0, 6).map(r => ({ key: r.user_id, name: r.display_name, you: r.user_id === myId, value: tr('enduranceWorld.repsValue', { reps: r.value }) }));
 
   return (
     <View style={{ paddingHorizontal: 24 }}>
       <View style={{ marginTop: 16 }}>
         <SegmentedSwitch
           tokens={t}
-          items={[{ key: 'log', label: 'LOG REPS' }, { key: 'timer', label: '60S TIMER' }]}
+          items={[{ key: 'log', label: tr('enduranceWorld.logReps') }, { key: 'timer', label: tr('enduranceWorld.timer60') }]}
           active={mode}
           onChange={onMode}
-          accessibilityLabel="Log mode"
+          accessibilityLabel={tr('worlds.logMode')}
         />
       </View>
 
       {mode === 'log' ? (
         <>
           <View style={{ marginTop: 14, borderRadius: 22, backgroundColor: t.tint, borderWidth: 1, borderColor: t.tintBorder, paddingVertical: 18, paddingHorizontal: 14, gap: 14, alignItems: 'center' }}>
-            <Text style={kt('medium', 10.5, t.textMuted, 2)}>REPS IN 60 SECONDS</Text>
+            <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('enduranceWorld.repsIn60')}</Text>
             <NumberField
               tokens={t}
               value={repsRaw}
               onChangeText={raw => setRepsRaw(raw.replace(/[^0-9]/g, '').slice(0, 3))}
               unit="REPS"
-              hint="TAP TO TYPE"
+              hint={tr('enduranceWorld.tapToType')}
               maxLength={3}
-              accessibilityLabel="Reps in 60 seconds"
+              accessibilityLabel={tr('enduranceWorld.repsIn60')}
             />
             <View style={{ flexDirection: 'row', gap: 8, width: '100%' }}>
               {[-5, -1, 1, 5].map(d => (
                 <Pressable
                   key={d}
                   accessibilityRole="button"
-                  accessibilityLabel={`${d > 0 ? 'Add' : 'Remove'} ${Math.abs(d)} reps`}
+                  accessibilityLabel={d > 0 ? tr('enduranceWorld.addRepsA11y', { n: Math.abs(d) }) : tr('enduranceWorld.removeRepsA11y', { n: Math.abs(d) })}
                   onPress={() => adjust(d)}
                   style={({ pressed }) => ({ flex: 1, height: 46, borderRadius: 12, backgroundColor: t.buttonTint, borderWidth: 1, borderColor: t.tintBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
                 >
@@ -597,16 +601,16 @@ function LogSheetBody({
             </View>
           </View>
           <ThisSetRow tokens={t} points={fmt2(reps * mult)} chip={chip} />
-          <KitButton tokens={t} label="LOG PERFORMANCE" onPress={onLog} loading={saving} disabled={reps <= 0} />
+          <KitButton tokens={t} label={tr('worlds.logPerformance')} onPress={onLog} loading={saving} disabled={reps <= 0} />
           {isSlowSave && (
-            <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>Still submitting — hang tight...</Text>
+            <Text style={[kt('regular', 13, t.textSecondary), { textAlign: 'center', marginTop: 8 }]}>{tr('worlds.stillSubmitting')}</Text>
           )}
         </>
       ) : (
         <TimerPanel tokens={t} timer={timer} startRef={startRef} onStartLayout={onStartLayout} />
       )}
 
-      <TopList tokens={t} title="TOP 60S SETS" rightLabel={`×${mult} PTS / REP`} rows={topRows} emptyText="NO SETS LOGGED YET" />
+      <TopList tokens={t} title={tr('enduranceWorld.top60')} rightLabel={tr('enduranceWorld.ptsPerRep', { mult })} rows={topRows} emptyText={tr('enduranceWorld.noSets')} />
     </View>
   );
 }
@@ -619,9 +623,9 @@ function TimerPanel({ tokens: t, timer, startRef, onStartLayout }: {
   const progress = phase === 'ready'
     ? (ONE_MINUTE_COUNTDOWN + 1 - countdown) / ONE_MINUTE_COUNTDOWN
     : phase === 'run' ? left / ONE_MINUTE_SECONDS : 1;
-  const label = phase === 'ready' ? 'GET READY' : phase === 'run' ? 'TIME LEFT' : '1 MINUTE MAX';
+  const label = phase === 'ready' ? tr('worlds.getReady') : phase === 'run' ? tr('enduranceWorld.timeLeft') : tr('enduranceWorld.oneMinuteMax');
   const big = phase === 'ready' ? String(countdown) : phase === 'run' ? String(Math.ceil(left)) : String(ONE_MINUTE_SECONDS);
-  const sub = phase === 'run' ? `${taps} REPS` : phase === 'ready' ? 'GET INTO POSITION' : 'SECONDS';
+  const sub = phase === 'run' ? tr('enduranceWorld.repsValue', { reps: taps }) : phase === 'ready' ? tr('staticWorld.getIntoPosition') : tr('enduranceWorld.seconds');
 
   const tapRep = () => {
     if (timer.addRep()) Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {});
@@ -654,16 +658,16 @@ function TimerPanel({ tokens: t, timer, startRef, onStartLayout }: {
       {phase === 'idle' && (
         <View style={{ gap: 10 }}>
           <View ref={startRef} onLayout={onStartLayout} collapsable={false}>
-            <KitButton tokens={t} label="START 60S" icon="play" onPress={timer.start} />
+            <KitButton tokens={t} label={tr('enduranceWorld.start60')} icon="play" onPress={timer.start} />
           </View>
-          <Text style={[kt('regular', 12, t.textMuted, 0.4), { textAlign: 'center' }]}>Tap the ring on every rep to count as you go.</Text>
+          <Text style={[kt('regular', 12, t.textMuted, 0.4), { textAlign: 'center' }]}>{tr('enduranceWorld.tapRing')}</Text>
         </View>
       )}
-      {phase === 'ready' && <KitButton tokens={t} label="CANCEL" variant="outline" onPress={timer.cancel} />}
+      {phase === 'ready' && <KitButton tokens={t} label={tr('worlds.cancelCaps')} variant="outline" onPress={timer.cancel} />}
       {phase === 'run' && (
         <View style={{ flexDirection: 'row', gap: 10 }}>
-          <KitButton tokens={t} label="+1 REP" height={64} fontSize={18} onPress={tapRep} style={{ flex: 2 }} />
-          <KitButton tokens={t} label="STOP" variant="outline" height={64} fontSize={14} onPress={timer.stop} style={{ flex: 1, borderWidth: 1 }} />
+          <KitButton tokens={t} label={tr('enduranceWorld.plusRep')} height={64} fontSize={18} onPress={tapRep} style={{ flex: 2 }} />
+          <KitButton tokens={t} label={tr('enduranceWorld.stop')} variant="outline" height={64} fontSize={14} onPress={timer.stop} style={{ flex: 1, borderWidth: 1 }} />
         </View>
       )}
     </View>
