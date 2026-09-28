@@ -95,14 +95,11 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={toggleTheme}>
             <View style={styles.rowLeft}>
-              <MaterialCommunityIcons name="theme-light-dark" size={18} color={theme.text.secondary} />
-              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.darkMode')}</Text>
+              <MaterialCommunityIcons name={isDark ? 'weather-night' : 'white-balance-sunny'} size={18} color={theme.text.secondary} />
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.appearance')}</Text>
             </View>
-            <MaterialCommunityIcons
-              name={isDark ? 'toggle-switch' : 'toggle-switch-off'}
-              size={26}
-              color={isDark ? theme.accent : theme.text.tertiary}
-            />
+            {/* The current mode, like the Sounds and Language rows; tap switches. */}
+            <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{isDark ? t('settings.dark') : t('settings.light')}</Text>
           </TouchableOpacity>
 
           {CAN_CHOOSE_ARABIC && Platform.OS !== 'web' && (
