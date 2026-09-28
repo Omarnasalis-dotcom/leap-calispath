@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { captureRef } from 'react-native-view-shot';
 import * as Sharing from 'expo-sharing';
 import { LeapLogo } from '../LeapLogo';
+import { t } from '../../i18n';
 
 interface SessionCompleteScreenProps {
   visible: boolean;
@@ -49,12 +50,12 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
   const completionPct = blocksTotal > 0 ? Math.round((blocksCompleted / blocksTotal) * 100) : 0;
 
   const stats = [
-    { value: `${blocksCompleted}/${blocksTotal}`, label: 'BLOCKS DONE' },
-    { value: `${completionPct}%`, label: 'COMPLETION' },
-    { value: `${exercisesDone}`, label: 'EXERCISES DONE' },
-    { value: `${totalReps}`, label: 'TOTAL REPS' },
-    { value: formatDuration(sessionSeconds), label: 'DURATION' },
-    ...(bodyweightKg !== null ? [{ value: `${bodyweightKg}KG`, label: 'BODYWEIGHT' }] : []),
+    { value: `${blocksCompleted}/${blocksTotal}`, label: t('sessionComplete.blocksDone') },
+    { value: `${completionPct}%`, label: t('sessionComplete.completion') },
+    { value: `${exercisesDone}`, label: t('sessionComplete.exercisesDone') },
+    { value: `${totalReps}`, label: t('sessionComplete.totalReps') },
+    { value: formatDuration(sessionSeconds), label: t('sessionComplete.duration') },
+    ...(bodyweightKg !== null ? [{ value: t('programDays.kg', { value: bodyweightKg }), label: t('sessionComplete.bodyweight') }] : []),
   ];
 
   const handleShare = async () => {
@@ -76,7 +77,7 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
           a.click();
         }
       } catch {
-        window.alert('Could not generate the workout card image.');
+        window.alert(t('sessionComplete.imageFailedWeb'));
       }
       return;
     }
@@ -86,10 +87,10 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
       if (await Sharing.isAvailableAsync()) {
         await Sharing.shareAsync(uri);
       } else {
-        Alert.alert('Sharing not available', 'Sharing is not supported on this platform.');
+        Alert.alert(t('sessionComplete.shareUnavailableTitle'), t('sessionComplete.shareUnavailable'));
       }
     } catch {
-      Alert.alert('Error', 'Failed to generate the workout card image.');
+      Alert.alert(t('sessionComplete.error'), t('sessionComplete.imageFailed'));
     }
   };
 
@@ -106,10 +107,10 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
           >
             <LeapLogo size={64} animated={false} />
             <Text style={[styles.eyebrow, { color: isAddressed ? '#4CAF50' : bronzeGold }]}>
-              {isAddressed ? 'WORKOUT DONE' : 'IN PROGRESS'}
+              {isAddressed ? t('sessionComplete.workoutDone') : t('sessionComplete.inProgress')}
             </Text>
             <Text style={[styles.heading, { color: theme.text.primary }]} numberOfLines={1}>
-              {programName || 'YOUR WORKOUT'}
+              {programName || t('sessionComplete.yourWorkout')}
             </Text>
             {!!dayName && (
               <Text style={[styles.dayName, { color: theme.text.secondary }]}>{dayName.toUpperCase()}</Text>
@@ -134,7 +135,7 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
 
           <View style={styles.btnRow}>
             <TouchableOpacity onPress={onClose} style={[styles.doneBtn, { borderColor: theme.card.border }]}>
-              <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>DONE</Text>
+              <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>{t('sessionComplete.done')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleShare} style={{ flex: 1 }}>
               <LinearGradient
@@ -142,7 +143,7 @@ export const SessionCompleteScreen: React.FC<SessionCompleteScreenProps> = ({
                 start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }}
                 style={styles.shareBtn}
               >
-                <Text style={styles.shareBtnText}>SHARE</Text>
+                <Text style={styles.shareBtnText}>{t('sessionComplete.share')}</Text>
               </LinearGradient>
             </TouchableOpacity>
           </View>

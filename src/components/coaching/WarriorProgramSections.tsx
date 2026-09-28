@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Accessibili
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t } from '../../i18n';
 
 const bronzeGold = '#C8A040';
 
@@ -151,26 +152,26 @@ export function ProgramIdentityCard({ programName, coachName, sessionsTotal, ses
       <LinearGradient colors={pd.identityGradient} start={{ x: 0.15, y: 0 }} end={{ x: 0.85, y: 1 }} style={StyleSheet.absoluteFillObject} />
       <View style={{ flexDirection: 'row' }}>
         <View style={{ flex: 1, paddingRight: 12 }}>
-          <Text style={styles.identityEyebrow}>ACTIVE PROGRAM</Text>
+          <Text style={styles.identityEyebrow}>{t('programDays.activeProgram')}</Text>
           {/* Real, user-authored casing — never uppercased, never truncated to one line. */}
           <Text style={styles.identityProgramName} numberOfLines={2}>{programName}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 10 }}>
             <PulseDot />
             <Text style={styles.identityMeta} numberOfLines={1}>
-              {sessionsTotal} session{sessionsTotal === 1 ? '' : 's'} · {sessionsDoneThisWeek} done this week
+              {t('programDays.sessionsMeta', { count: sessionsTotal, done: sessionsDoneThisWeek })}
             </Text>
           </View>
         </View>
         <View style={{ alignItems: 'flex-end', gap: 9 }}>
           <View style={styles.coachChip}>
             <MaterialCommunityIcons name="account" size={11} color={PD_BRAND.gold} />
-            <Text style={styles.coachChipLabel}>COACH</Text>
+            <Text style={styles.coachChipLabel}>{t('programDays.coach')}</Text>
             <Text style={styles.coachChipName}>{coachName.toUpperCase()}</Text>
           </View>
           <TouchableOpacity onPress={onSwitch} activeOpacity={0.8} style={styles.switchControl}>
             <Sheen borderRadius={9} />
             <MaterialCommunityIcons name="swap-horizontal" size={13} color={pd.purpleText} />
-            <Text style={styles.switchLabel}>SWITCH</Text>
+            <Text style={styles.switchLabel}>{t('programDays.switch')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -195,10 +196,10 @@ export function ProgramLoadPanel({ bodyweightKg, onEditBodyweight }: ProgramLoad
     <TouchableOpacity onPress={onEditBodyweight} activeOpacity={0.7} style={styles.bodyweightCard}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
         <MaterialCommunityIcons name="kettlebell" size={14} color={PD_BRAND.gold} />
-        <Text style={styles.bodyweightLabel}>BODYWEIGHT</Text>
-        <Text style={styles.bodyweightValue}>{bodyweightKg !== null ? `${bodyweightKg} KG` : '— —'}</Text>
+        <Text style={styles.bodyweightLabel}>{t('programDays.bodyweight')}</Text>
+        <Text style={styles.bodyweightValue}>{bodyweightKg !== null ? t('programDays.kg', { value: bodyweightKg }) : '— —'}</Text>
       </View>
-      <Text style={[styles.bodyweightEdit, { color: bodyweightKg !== null ? PD_BRAND.gold : PD_BRAND.coral }]}>EDIT</Text>
+      <Text style={[styles.bodyweightEdit, { color: bodyweightKg !== null ? PD_BRAND.gold : PD_BRAND.coral }]}>{t('programDays.edit')}</Text>
     </TouchableOpacity>
   );
 }

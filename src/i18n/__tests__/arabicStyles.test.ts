@@ -38,8 +38,12 @@ describe('translations', () => {
   const keys = (obj: object, prefix = ''): string[] =>
     Object.entries(obj).flatMap(([k, v]) => (typeof v === 'string' ? [prefix + k] : keys(v, `${prefix}${k}.`)));
 
-  it('Arabic has exactly the English keys, none empty', () => {
-    expect(keys(ar).sort()).toEqual(keys(en).sort());
+  it('Arabic has exactly the English keys (plus Arabic-only plural forms), none empty', () => {
+    const pluralForm = /_(zero|one|two|few|many|other)$/;
+    const base = (k: string) => k.replace(pluralForm, '');
+    // Every English key exists in Arabic, and Arabic adds nothing but plural
+    // forms of English keys.
+    expect(new Set(keys(ar).map(base))).toEqual(new Set(keys(en).map(base)));
     for (const key of keys(ar)) {
       const value = key.split('.').reduce<any>((o, k) => o[k], ar);
       expect(value.trim()).not.toBe('');

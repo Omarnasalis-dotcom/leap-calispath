@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
 import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
+import { t } from '../../i18n';
 
 interface BodyweightCheckInModalProps {
   visible: boolean;
@@ -48,13 +49,13 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
       <DismissKeyboardOnOutsideTap>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
           <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
-            <Text style={[styles.modalHeading, { color: theme.text.primary }]}>WEEKLY CHECK-IN</Text>
+            <Text style={[styles.modalHeading, { color: theme.text.primary }]}>{t('programDays.checkInTitle')}</Text>
             <Text style={[styles.modalSubtext, { color: theme.text.secondary }]}>
-              {isEditing ? 'UPDATE YOUR BODYWEIGHT FOR THIS WEEK' : 'LOG YOUR BODYWEIGHT FOR THIS WEEK (OPTIONAL)'}
+              {isEditing ? t('programDays.checkInUpdate') : t('programDays.checkInLog')}
             </Text>
 
             <View style={{ marginBottom: 24, width: '100%' }}>
-              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>BODYWEIGHT (KG)</Text>
+              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('programDays.bodyweightKg')}</Text>
               <TextInput
                 style={[styles.weightInput, { color: theme.text.primary, borderColor: theme.card.border }]}
                 keyboardType="decimal-pad"
@@ -71,14 +72,14 @@ export const BodyweightCheckInModal: React.FC<BodyweightCheckInModalProps> = ({
                 onPress={onSkip}
                 disabled={loading}
               >
-                <Text style={[styles.modalSkipBtnText, { color: theme.text.secondary }]}>{isEditing ? 'CANCEL' : 'SKIP'}</Text>
+                <Text style={[styles.modalSkipBtnText, { color: theme.text.secondary }]}>{isEditing ? t('programDays.cancel') : t('programDays.skip')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalSubmitBtn, { backgroundColor: bronzeGold, opacity: (!weight || loading) ? 0.5 : 1 }]}
                 onPress={handleSubmit}
                 disabled={!weight || loading}
               >
-                <Text style={styles.modalSubmitBtnText}>{loading ? 'SAVING...' : 'SAVE'}</Text>
+                <Text style={styles.modalSubmitBtnText}>{loading ? t('programDays.saving') : t('programDays.save')}</Text>
               </TouchableOpacity>
             </View>
           </View>

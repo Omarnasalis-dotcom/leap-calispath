@@ -45,6 +45,8 @@ import { DayBlocksProgressRing } from '../../components/coaching/DayBlocksProgre
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { DayCardList } from '../../components/coaching/DayCardList';
+import { t, FLIP_X } from '../../i18n';
+import { localizedErrorText } from '../../lib/asyncErrorHandler';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -361,12 +363,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       return;
     }
     Alert.alert(
-      unaddressedCount === 1 ? '1 BLOCK NOT LOGGED YET' : `${unaddressedCount} BLOCKS NOT LOGGED YET`,
-      'Mark them as completed or missed so your coach has the full picture — or continue anyway and they\'ll be marked as missed automatically.',
+      unaddressedCount === 1 ? t('workout.blocksNotLoggedOne') : t('workout.blocksNotLoggedMany', { count: unaddressedCount }),
+      t('workout.blocksNotLoggedBody'),
       [
-        { text: 'REVIEW', style: 'cancel' },
+        { text: t('workout.review'), style: 'cancel' },
         {
-          text: 'CONTINUE ANYWAY',
+          text: t('workout.continueAnyway'),
           onPress: async () => {
             await Promise.all(unaddressedBlocks.map(b => handleToggleBlockStatus(b.id, 'missed')));
             setShowSessionComplete(true);
@@ -381,12 +383,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   const handleEndLockedProgram = () => {
     Alert.alert(
-      'DELETE THIS PROGRAM?',
-      'This will end your current program so you can pick a free template instead. This can\'t be undone.',
+      t('workout.deleteProgramTitle'),
+      t('workout.deleteProgramBody'),
       [
-        { text: 'CANCEL', style: 'cancel' },
+        { text: t('workout.cancel'), style: 'cancel' },
         {
-          text: 'DELETE & CHOOSE FREE TEMPLATE',
+          text: t('workout.deleteAndChoose'),
           style: 'destructive',
           onPress: async () => {
             setEndingProgram(true);
@@ -395,7 +397,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               if (error) throw error;
               router.replace('/program-templates');
             } catch (err: any) {
-              Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO END PROGRAM.');
+              Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.endFailed')));
             } finally {
               setEndingProgram(false);
             }
@@ -419,7 +421,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       await selectLibraryTemplate(profile.free_library_template_id);
       await Promise.all([loadWarriorProgram(), refreshProfile()]);
     } catch (err: any) {
-      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO RESTORE YOUR FREE PROGRAM.');
+      Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.restoreFailed')));
     } finally {
       setEndingProgram(false);
     }
@@ -487,7 +489,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setBodyweightThisWeek(weightKg);
       setShowBodyweightCheckIn(false);
     } catch (err: any) {
-      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO SAVE BODYWEIGHT.');
+      Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.bodyweightFailed')));
     } finally {
       setBodyweightSaving(false);
     }
@@ -496,18 +498,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const handleClose = () => {
     if (activeTimerBlock !== null) {
       if (Platform.OS === 'web') {
-        if (window.confirm('You have an active workout in progress. Leaving this screen will reset it. Are you sure you want to leave?')) {
+        if (window.confirm(t('workout.activeWorkoutBody'))) {
           setActiveTimerBlock(null);
           if (onClose) onClose();
         }
       } else {
         Alert.alert(
-          'ACTIVE WORKOUT',
-          'You have an active workout in progress. Leaving this screen will reset it. Are you sure you want to leave?',
+          t('workout.activeWorkoutTitle'),
+          t('workout.activeWorkoutBody'),
           [
-            { text: 'STAY', style: 'cancel', onPress: () => {} },
+            { text: t('workout.stay'), style: 'cancel', onPress: () => {} },
             {
-              text: 'LEAVE',
+              text: t('workout.leave'),
               style: 'destructive',
               onPress: () => {
                 setActiveTimerBlock(null);
@@ -633,8 +635,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         : coachInfo?.display_name;
 
       const activeTemplateId = actualAssignment.template_id;
-      setProgramName(progName || 'ASSIGNED WORKOUT PROGRAM');
-      setCoachName(cName || 'COACH');
+      setProgramName(progName || t('workout.assignedProgram'));
+      setCoachName(cName || t('workout.coach'));
       setTemplateId(activeTemplateId);
       setWarriorProgramId(actualAssignment.id);
       setCoachId(actualAssignment.coach_id || null);
@@ -738,7 +740,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             : ex.exercise_library;
           return {
             id: ex.id,
-            name: lib?.name || 'UNNAMED EXERCISE',
+            name: lib?.name || t('workout.unnamedExercise'),
             youtube_url: lib?.youtube_url || '',
             sets: ex.sets || '0',
             reps: ex.reps || '0',
@@ -824,7 +826,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       }
 
     } catch (err: any) {
-      setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD ACTIVE PROGRAM.');
+      setErrorMsg(localizedErrorText(err, t('workout.loadFailed')));
     } finally {
       setLoading(false);
     }
@@ -1069,7 +1071,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     setLogMissedDetail('');
     setLogForTimeDuration(
       result.capped
-        ? `Reached round ${result.roundsCompleted} of ${result.totalRounds} (time cap reached)`
+        ? t('workout.timeCapReached', { round: result.roundsCompleted, total: result.totalRounds })
         : formatTimerString(result.elapsedSeconds)
     );
     setLogModalVisible(true);
@@ -1213,7 +1215,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       });
 
     } catch (err: any) {
-      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO LOG WORKOUT.');
+      Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.logFailed')));
       await loadWarriorProgram();
     } finally {
       setLogLoading(false);
@@ -1242,11 +1244,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       }
     } else {
       Alert.alert(
-        "LOG DETAILS (OPTIONAL)",
-        "Would you like to add custom notes and intensity rating to this workout?",
+        t('workout.logDetailsTitle'),
+        t('workout.logDetailsBody'),
         [
           {
-            text: "ADD DETAILS & NOTES",
+            text: t('workout.addDetails'),
             onPress: () => {
               setActiveLogBlockId(blockId);
               setLogStatus(status);
@@ -1264,7 +1266,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             }
           },
           {
-            text: "DISMISS / SUBMIT DIRECTLY",
+            text: t('workout.submitDirectly'),
             onPress: () => quickLogWorkout(blockId, status)
           }
         ],
@@ -1289,7 +1291,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
       let timerId: NodeJS.Timeout | null = null;
       const timeoutPromise = new Promise((_, reject) => {
-        timerId = setTimeout(() => reject(new Error('Network request timed out. Please check your connection.')), 10000);
+        timerId = setTimeout(() => reject(new Error(t('workout.timedOut'))), 10000);
       });
 
       const { data: quickLogResult, error } = await Promise.race([
@@ -1329,7 +1331,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       await loadWarriorProgram();
       setLogModalVisible(false);
     } catch (err: any) {
-      Alert.alert('ERROR', err.message?.toUpperCase() || 'FAILED TO LOG WORKOUT.');
+      Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.logFailed')));
     } finally {
       setLogLoading(false);
     }
@@ -1354,13 +1356,14 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // view) applied to a single-day array instead of a second implementation.
   const runnerDayState = activeDay ? deriveDayStates([activeDay])[0] : null;
   const runnerDayBadgeLabel = runnerDayState
-    ? runnerDayState.status === 'done' ? 'COMPLETE' : runnerDayState.status === 'in_progress' ? 'IN PROGRESS' : 'NOT STARTED'
-    : 'NOT STARTED';
+    ? runnerDayState.status === 'done' ? t('workout.stateComplete') : runnerDayState.status === 'in_progress' ? t('workout.stateInProgress') : t('workout.stateNotStarted')
+    : t('workout.stateNotStarted');
+  const runnerNotStarted = !runnerDayState || (runnerDayState.status !== 'done' && runnerDayState.status !== 'in_progress');
   const runnerNextBlock = activeDay?.blocks.find((b) => b.completedStatus === 'none') || null;
   const runnerNextBlockIndex = runnerNextBlock ? activeDay!.blocks.indexOf(runnerNextBlock) + 1 : null;
   const runnerFooterLabel = !runnerDayState || runnerDayState.progressPct === 0 || !runnerNextBlockIndex
-    ? 'START WORKOUT'
-    : `RESUME BLOCK ${runnerNextBlockIndex}`;
+    ? t('workout.startWorkout')
+    : t('workout.resumeBlock', { n: runnerNextBlockIndex });
   const runnerOpenBlockId = Object.keys(expandedBlocks).find((k) => expandedBlocks[k]);
   const runnerOpenBlock = activeDay?.blocks.find((b) => String(b.id) === runnerOpenBlockId) || null;
 
@@ -1385,8 +1388,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               progress source as the day-list view. */}
           <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <MaterialCommunityIcons name="chevron-left" size={18} color="#fff" />
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('workout.back')} onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <MaterialCommunityIcons name="chevron-left" size={18} color="#fff" style={FLIP_X} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1394,18 +1397,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   <View
                     style={[
                       dbRunnerStyles.stateBadge,
-                      runnerDayBadgeLabel === 'NOT STARTED'
+                      runnerNotStarted
                         ? { backgroundColor: 'rgba(255,255,255,.04)', borderColor: '#221c1c' }
                         : { backgroundColor: 'rgba(252,84,84,.12)', borderColor: '#3a1d1d' },
                     ]}
                   >
-                    <Text style={{ color: runnerDayBadgeLabel === 'NOT STARTED' ? '#7a7a7a' : '#FC5454', fontSize: 7.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.3 }}>
+                    <Text style={{ color: runnerNotStarted ? '#7a7a7a' : '#FC5454', fontSize: 7.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.3 }}>
                       {runnerDayBadgeLabel}
                     </Text>
                   </View>
                 </View>
                 <Text style={dbRunnerStyles.metaLine} numberOfLines={1}>
-                  {activeDay.blocks.length} BLOCKS · {countMovements(activeDay)} MOVEMENTS · ~{estimateSessionMinutes(activeDay)} MIN
+                  {t('workout.dayMeta', { blocks: activeDay.blocks.length, moves: countMovements(activeDay), min: estimateSessionMinutes(activeDay) })}
                 </Text>
               </View>
               <DayBlocksProgressRing pct={runnerDayState?.progressPct ?? 0} />
@@ -1475,7 +1478,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             pointerEvents="box-none"
           >
             <View style={dbRunnerStyles.footer} pointerEvents="box-none">
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Start timer"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('workout.startTimer')}
                 style={[dbRunnerStyles.restBtn, !runnerOpenBlock && { opacity: 0.35 }]}
                 disabled={!runnerOpenBlock}
                 onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
@@ -1492,7 +1495,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               >
                 <MaterialCommunityIcons name="play" size={14} color="#000" />
                 <Text style={dbRunnerStyles.primaryBtnText}>
-                  {isWorkoutAddressed ? 'FINISH SESSION' : runnerFooterLabel}
+                  {isWorkoutAddressed ? t('workout.finishSession') : runnerFooterLabel}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -1513,7 +1516,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               style={[styles.closeButton, { borderWidth: 0, backgroundColor: theme.card.background, paddingVertical: 4, paddingHorizontal: 12 }]}
               onPress={handleClose}
             >
-              <Text style={[styles.closeButtonText, { color: theme.text.primary, fontSize: 10 }]}>CLOSE</Text>
+              <Text style={[styles.closeButtonText, { color: theme.text.primary, fontSize: 10 }]}>{t('workout.close')}</Text>
             </TouchableOpacity>
           </LinearGradient>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -1535,7 +1538,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         {loading ? (
           <View style={styles.centerContainer}>
             <LeapLogo size={40} animated />
-            <Text style={[styles.loadingText, { color: theme.text.secondary }]}>FETCHING ASSIGNED WORKOUTS...</Text>
+            <Text style={[styles.loadingText, { color: theme.text.secondary }]}>{t('workout.fetching')}</Text>
           </View>
         ) : (
           <View style={{ width: '100%', gap: 20 }}>
@@ -1547,26 +1550,26 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
             {!templateId ? (
               <View style={[styles.emptyContainer, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
-                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>NO PROGRAM ASSIGNED YET</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>{t('workout.noProgramTitle')}</Text>
                 <Text style={[styles.emptySubtitle, { color: theme.text.secondary }]}>
-                  ASK YOUR COACH TO ASSIGN A CUSTOM PROGRAM, OR START ONE FROM OUR TEMPLATE LIBRARY.
+                  {t('workout.noProgramBody')}
                 </Text>
                 <TouchableOpacity
                   style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
                   onPress={() => router.push('/program-templates')}
                 >
                   <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
-                    BROWSE WORKOUT PROGRAMS
+                    {t('workout.browsePrograms')}
                   </Text>
                 </TouchableOpacity>
               </View>
             ) : isLockedByTier ? (
               <View style={[styles.emptyContainer, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
-                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>UPGRADE TO KEEP THIS PROGRAM</Text>
+                <Text style={[styles.emptyTitle, { color: theme.text.primary }]}>{t('workout.upgradeToKeep')}</Text>
                 <Text style={[styles.emptySubtitle, { color: theme.text.secondary }]}>
                   {minAccessTier === 'pro'
-                    ? 'THIS PROGRAM WAS BUILT USING A PRO FEATURE YOU NO LONGER HAVE ACCESS TO.'
-                    : 'THIS PROGRAM WAS BUILT USING AN AI COACH FEATURE YOU NO LONGER HAVE ACCESS TO.'}
+                    ? t('workout.lockedProCaps')
+                    : t('workout.lockedCoachCaps')}
                 </Text>
                 <TouchableOpacity
                   style={{ marginTop: 16, backgroundColor: bronzeGold, borderRadius: 8, paddingVertical: 14, paddingHorizontal: 24, alignItems: 'center' }}
@@ -1581,7 +1584,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   }}
                 >
                   <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
-                    UPGRADE
+                    {t('workout.upgrade')}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
@@ -1591,8 +1594,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                 >
                   <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1 }}>
                     {endingProgram
-                      ? (profile?.free_library_template_id ? 'RESTORING...' : 'ENDING...')
-                      : (profile?.free_library_template_id ? 'BACK TO YOUR FREE PROGRAM' : 'DELETE & CHOOSE A FREE TEMPLATE')}
+                      ? (profile?.free_library_template_id ? t('workout.restoring') : t('workout.ending'))
+                      : (profile?.free_library_template_id ? t('workout.backToFree') : t('workout.deleteAndChooseA'))}
                   </Text>
                 </TouchableOpacity>
               </View>
@@ -1657,7 +1660,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     disabled={addingWeek}
                   >
                     <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 15, letterSpacing: 1 }}>
-                      {addingWeek ? 'ADDING WEEK…' : 'ADD NEW WEEK'}
+                      {addingWeek ? t('workout.addingWeek') : t('workout.addNewWeek')}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -1706,13 +1709,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
         theme={theme}
-        title="UPGRADE TO KEEP THIS PROGRAM"
+        title={t('workout.upgradeToKeep')}
         body={
           minAccessTier === 'pro'
-            ? 'This program was built using a Pro feature you no longer have access to. Upgrade to keep training with it.'
-            : 'This program was built using an AI Coach feature you no longer have access to. Upgrade to keep training with it.'
+            ? t('workout.lockedPro')
+            : t('workout.lockedCoach')
         }
-        cancelLabel="NOT NOW"
+        cancelLabel={t('workout.notNow')}
         upgrading={upgrading}
         onUpgrade={() => {
           if (upgradingRef.current) return;

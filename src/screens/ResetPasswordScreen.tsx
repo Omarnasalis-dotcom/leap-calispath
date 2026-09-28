@@ -12,19 +12,10 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
-import { t, isArabic as isArabicUI } from '../i18n';
-import { getTranslatedAuthError } from '../lib/asyncErrorHandler';
+import { t } from '../i18n';
+import { localizedErrorText } from '../lib/asyncErrorHandler';
 import { Button } from '../components/Button';
 import { LeapLogo } from '../components/LeapLogo';
-
-// English shows the raw error in capitals (unchanged); Arabic shows a
-// translated message for known errors, else the fallback.
-function resetErrorText(err: any, fallback: string): string {
-  const translated = getTranslatedAuthError(err);
-  if (translated) return translated;
-  if (isArabicUI) return fallback;
-  return err?.message?.toUpperCase() ?? fallback;
-}
 
 interface ResetPasswordScreenProps {
   onComplete?: () => void;
@@ -118,7 +109,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       } catch (err: any) {
         if (isMounted.current) {
           setInlineError(
-            resetErrorText(err, t('resetPassword.sessionFailed'))
+            localizedErrorText(err, t('resetPassword.sessionFailed'))
           );
         }
       } finally {
@@ -168,7 +159,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     } catch (err: any) {
       if (isMounted.current) {
         setInlineError(
-          resetErrorText(err, t('resetPassword.linkInvalid'))
+          localizedErrorText(err, t('resetPassword.linkInvalid'))
         );
         setPendingVerify(null);
       }
@@ -225,7 +216,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       }, 2500);
     } catch (error: any) {
       if (isMounted.current) {
-        setInlineError(resetErrorText(error, t('resetPassword.unexpected')));
+        setInlineError(localizedErrorText(error, t('resetPassword.unexpected')));
       }
     } finally {
       if (isMounted.current) {

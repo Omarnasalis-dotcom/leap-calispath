@@ -4,6 +4,7 @@ import { I18nManager, Platform } from 'react-native';
 import en from './locales/en';
 import ar from './locales/ar';
 import { installArabicStyleSheet } from './arabicStyles';
+import { installPluralRules } from './pluralRules';
 
 export type AppLanguage = 'en' | 'ar';
 
@@ -21,6 +22,7 @@ export const currentLanguage: AppLanguage =
 export const isArabic = currentLanguage === 'ar';
 
 if (isArabic) installArabicStyleSheet();
+installPluralRules();
 
 i18n.use(initReactI18next).init({
   resources: { en: { translation: en }, ar: { translation: ar } },

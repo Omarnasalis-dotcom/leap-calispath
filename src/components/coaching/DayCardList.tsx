@@ -5,6 +5,7 @@ import { ProgramDay } from '../../types/warriorProgram';
 import { DayStateEntry, deriveDayStates, estimateSessionMinutes, countMovements } from '../../lib/warriorProgramDays';
 import { TC_COLORS, TC_MOTION } from '../../../constants/trainingCenterTokens';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t } from '../../i18n';
 
 // Program Days design (assets/design_handoff_program_days) §4 — day cards.
 // Every day stays tappable regardless of state (no lock — see
@@ -101,7 +102,7 @@ function DayCard({
   const done = status === 'done';
   const movementCount = countMovements(day);
   const estimatedMinutes = estimateSessionMinutes(day);
-  const statusLabel = done ? 'COMPLETED' : isNext ? 'UP NEXT' : 'SCHEDULED';
+  const statusLabel = done ? t('programDays.completed') : isNext ? t('programDays.upNext') : t('programDays.scheduled');
 
   const cardBorder = isNext ? pd.cardBorderNext : pd.cardBorderScheduled;
   const cardBg = isNext ? pd.cardBgNext : pd.cardBgScheduled;
@@ -129,7 +130,7 @@ function DayCard({
 
         <View style={styles.body}>
           <View style={[styles.plate, { borderColor: plateBorder, backgroundColor: plateBg }]}>
-            <Text style={[styles.plateLabel, { color: isNext ? pd.plateLabelNext : pd.plateLabelScheduled }]}>DAY</Text>
+            <Text style={[styles.plateLabel, { color: isNext ? pd.plateLabelNext : pd.plateLabelScheduled }]}>{t('programDays.day')}</Text>
             <Text style={[styles.plateNumber, { color: isNext ? PD_CORAL : pd.plateNumberScheduled }]}>{index + 1}</Text>
           </View>
 
@@ -144,10 +145,10 @@ function DayCard({
             </Text>
             <View style={styles.metaRow}>
               <MaterialCommunityIcons name="tune-variant" size={11} color={pd.metaText} />
-              <Text style={styles.metaText}>{movementCount} MOVEMENTS</Text>
+              <Text style={styles.metaText}>{t('programDays.movements', { count: movementCount })}</Text>
               <View style={styles.metaDivider} />
               <MaterialCommunityIcons name="clock-outline" size={11} color={pd.metaText} />
-              <Text style={styles.metaText}>~{estimatedMinutes} MIN</Text>
+              <Text style={styles.metaText}>{t('programDays.minutes', { count: estimatedMinutes })}</Text>
             </View>
           </View>
 
@@ -157,11 +158,11 @@ function DayCard({
             </View>
           ) : isNext ? (
             <View style={styles.startBtnNext}>
-              <Text style={styles.startBtnNextText}>START</Text>
+              <Text style={styles.startBtnNextText}>{t('programDays.start')}</Text>
             </View>
           ) : (
             <View style={styles.startBtnScheduled}>
-              <Text style={styles.startBtnScheduledText}>START</Text>
+              <Text style={styles.startBtnScheduledText}>{t('programDays.start')}</Text>
             </View>
           )}
         </View>
@@ -179,7 +180,7 @@ export function DayCardList({ days, nextIndex, onStartDay }: { days: ProgramDay[
   if (entries.length === 0) {
     return (
       <View style={[styles.card, { borderColor: c.border, backgroundColor: c.cardFlat, justifyContent: 'center', padding: 20 }]}>
-        <Text style={styles.emptyText}>NO SESSIONS SCHEDULED THIS WEEK.</Text>
+        <Text style={styles.emptyText}>{t('programDays.noSessions')}</Text>
       </View>
     );
   }
@@ -187,7 +188,7 @@ export function DayCardList({ days, nextIndex, onStartDay }: { days: ProgramDay[
   return (
     <View>
       <View style={styles.sectionRule}>
-        <Text style={styles.sectionEyebrow}>SESSIONS</Text>
+        <Text style={styles.sectionEyebrow}>{t('programDays.sessions')}</Text>
         <Text style={styles.sectionCount}>{entries.length} DAY{entries.length === 1 ? '' : 'S'}</Text>
       </View>
       <View style={{ gap: 12 }}>

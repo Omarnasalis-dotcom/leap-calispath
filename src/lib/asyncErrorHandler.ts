@@ -45,6 +45,22 @@ export function getFriendlyErrorMessage(error: any): string {
   return message;
 }
 
+// For screens that show "the error's own message in capitals, else a
+// fallback": English is unchanged; Arabic never shows the raw (English)
+// message — a known auth or network error gets its translation, anything
+// else the (translated) fallback.
+export function localizedErrorText(error: any, fallback: string, upperCase = true): string {
+  if (!isArabic) {
+    const message = error?.message;
+    return message ? (upperCase ? message.toUpperCase() : message) : fallback;
+  }
+  const translated = getTranslatedAuthError(error);
+  if (translated) return translated;
+  const raw = String(error?.message ?? '');
+  if (/Failed to fetch|Network request failed|timed out/i.test(raw)) return t('errors.network');
+  return fallback;
+}
+
 export function handleAsyncError(error: any, context?: string) {
   Alert.alert(context || t('errors.generic'), getFriendlyErrorMessage(error));
 }
