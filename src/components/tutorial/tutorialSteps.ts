@@ -6,7 +6,7 @@ import { t } from '../../i18n';
 const MAIN_TOUR: TutorialStep[] = [
   { targetId: 'profile.levelCircle', mode: 'decoy', caption: t('tour.step1') },
   { targetId: 'bottomTab.strength', mode: 'real', caption: t('tour.step2') },
-  { targetId: 'strength.tierChips', mode: 'real', caption: t('tour.step3') },
+  { targetId: 'strength.tierChips', mode: 'decoy', caption: t('tour.step3') },
   { targetId: 'strength.trialButton', mode: 'decoy', caption: t('tour.step4'), optional: true },
   { targetId: 'strength.leaderboardFirstRow', mode: 'decoy', caption: t('tour.step5'), optional: true },
   { targetId: 'bottomTab.profile', mode: 'real', caption: t('tour.step6') },

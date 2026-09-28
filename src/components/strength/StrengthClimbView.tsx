@@ -125,6 +125,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   }, [drawn]);
 
   const { ref: trialButtonRef, onLayout: onTrialButtonLayout } = useTutorialTarget('strength.trialButton', scrollRef, true);
+  // Tour targets for the redesigned screen: the tier cards replaced the old
+  // tier chips, and the podium replaced the first leaderboard row.
+  const { ref: tierCardsRef, onLayout: onTierCardsLayout } = useTutorialTarget('strength.tierChips', scrollRef, true);
+  const { ref: podiumRef, onLayout: onPodiumLayout } = useTutorialTarget('strength.leaderboardFirstRow', scrollRef, true);
 
   return (
     <WorldPage tokens={t}>
@@ -140,6 +144,8 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             cardHeight={isArabic ? 380 : 336}
             maxCardWidth={318}
             inactiveOpacity={0.45}
+            containerRef={tierCardsRef}
+            onContainerLayout={onTierCardsLayout}
             renderCard={(tier, active) => (
               <TierCard
                 tokens={t}
@@ -178,7 +184,9 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
           {list.length > 0 ? (
             <>
-              <Podium tokens={t} colors={c} rows={list} userId={userId} drawn={drawn} />
+              <View ref={podiumRef} onLayout={onPodiumLayout} collapsable={false}>
+                <Podium tokens={t} colors={c} rows={list} userId={userId} drawn={drawn} />
+              </View>
               <YouRow tokens={t} colors={c} rows={list} userId={userId} status={selectedStatus} />
               <Pressable
                 accessibilityRole="button"
