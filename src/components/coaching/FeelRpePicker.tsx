@@ -1,14 +1,15 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
+import { t } from '../../i18n';
 
 export type Feel = 'hard' | 'ok' | 'good' | 'strong' | 'beast';
 
 const FEEL_OPTIONS: { value: Feel; label: string }[] = [
-  { value: 'hard', label: 'HARD' },
-  { value: 'ok', label: 'OK' },
-  { value: 'good', label: 'GOOD' },
-  { value: 'strong', label: 'STRONG' },
-  { value: 'beast', label: 'BEAST' },
+  { value: 'hard', label: t('logModal.feel_hard') },
+  { value: 'ok', label: t('logModal.feel_ok') },
+  { value: 'good', label: t('logModal.feel_good') },
+  { value: 'strong', label: t('logModal.feel_strong') },
+  { value: 'beast', label: t('logModal.feel_beast') },
 ];
 
 interface FeelRpePickerProps {
@@ -31,7 +32,7 @@ export const FeelRpePicker: React.FC<FeelRpePickerProps> = ({
   return (
     <View style={{ width: '100%', gap: 20 }}>
       <View>
-        <Text style={[styles.label, { color: theme.text.secondary }]}>HOW DID IT FEEL?</Text>
+        <Text style={[styles.label, { color: theme.text.secondary }]}>{t('logModal.feelQuestion')}</Text>
         <View style={styles.feelRow}>
           {FEEL_OPTIONS.map(opt => (
             <TouchableOpacity
@@ -59,7 +60,7 @@ export const FeelRpePicker: React.FC<FeelRpePickerProps> = ({
       </View>
 
       <View>
-        <Text style={[styles.label, { color: theme.text.secondary }]}>RPE (EFFORT LEVEL, 1-10)</Text>
+        <Text style={[styles.label, { color: theme.text.secondary }]}>{t('logModal.rpe')}</Text>
         <View style={styles.rpeRow}>
           {Array.from({ length: 10 }).map((_, i) => {
             const dotVal = i + 1;

@@ -346,7 +346,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
               value={manualMins}
               onChangeText={t => setManualMins(t.replace(/[^0-9]/g, '').slice(0, 3))}
               keyboardType="number-pad"
-              placeholder="MM"
+              placeholder={t('timers.mm')}
               placeholderTextColor={theme.text.tertiary}
               style={[styles.manualInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
             />
@@ -355,7 +355,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
               value={manualSecs}
               onChangeText={t => setManualSecs(t.replace(/[^0-9]/g, '').slice(0, 2))}
               keyboardType="number-pad"
-              placeholder="SS"
+              placeholder={t('timers.ss')}
               placeholderTextColor={theme.text.tertiary}
               style={[styles.manualInput, { backgroundColor: theme.card.background, borderColor: theme.card.border, color: theme.text.primary }]}
             />

@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
+import { t } from '../../i18n';
 
 interface MinimalExercise {
   id: string | number;
@@ -144,7 +145,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
         <View style={styles.modalOverlay}>
           <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 0, maxWidth: 420, alignItems: 'center' }]}>
             <Text style={[styles.modalHeading, { color: theme.text.primary }]}>
-              {timerType === 'amrap' ? 'AMRAP COUNTDOWN' : timerType === 'fortime' ? 'FOR TIME STOPWATCH' : timerType === 'tabata' ? `TABATA — ROUND ${currentRound} OF ${totalRounds}` : totalRounds > 1 ? `REST INTERVAL (ROUND ${currentRound} OF ${totalRounds})` : 'REST INTERVAL'}
+              {timerType === 'amrap' ? t('timerModal.amrapCountdown') : timerType === 'fortime' ? t('timerModal.forTimeStopwatch') : timerType === 'tabata' ? t('timerModal.tabataRound', { round: currentRound, total: totalRounds }) : totalRounds > 1 ? t('timerModal.restIntervalRound', { round: currentRound, total: totalRounds }) : t('timerModal.restInterval')}
             </Text>
 
             {/* Timer visual circle using a gradient border trick */}
@@ -192,7 +193,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       : formatTimerString(elapsedTime)}
                 </Text>
                 <Text style={{ color: theme.text.secondary, fontSize: 10, fontFamily: 'BarlowCondensed-Bold', marginTop: 4 }}>
-                  {timerPrepCountdown !== null ? 'GET READY...' : timerRunning ? 'ACTIVE' : 'PAUSED'}
+                  {timerPrepCountdown !== null ? t('timerModal.getReady') : timerRunning ? t('timerModal.active') : t('timerModal.paused')}
                 </Text>
               </View>
             </LinearGradient>
@@ -234,7 +235,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                         textAlign: 'center',
                       }}
                       keyboardType="decimal-pad"
-                      placeholder="SECS"
+                      placeholder={t('timerModal.secs')}
                       placeholderTextColor={theme.text.tertiary}
                       value={holdInput}
                       onChangeText={setHoldInput}
@@ -243,13 +244,13 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       onPress={handleLogHold}
                       style={{ borderWidth: 1, borderColor: bronzeGold, borderRadius: 6, paddingVertical: 6, paddingHorizontal: 12 }}
                     >
-                      <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>LOG BEST HOLD</Text>
+                      <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>{t('timerModal.logBestHold')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}
                 {holdTimes.length > 0 && (
                   <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10 }}>
-                    BEST HOLD SO FAR: {Math.max(...holdTimes)}S
+                    {t('timerModal.bestHold', { sec: Math.max(...holdTimes) })}
                   </Text>
                 )}
               </View>
@@ -275,7 +276,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                   </LinearGradient>
                 </TouchableOpacity>
                 <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5 }}>
-                  ROUND
+                  {t('timerModal.round')}
                 </Text>
               </View>
             )}
@@ -297,11 +298,11 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 >
                   {timerPrepCountdown !== null ? (
                     <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.05)' }}>
-                      <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>PREPARING...</Text>
+                      <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.preparing')}</Text>
                     </View>
                   ) : timerRunning ? (
                     <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(230,70,70,0.15)', borderWidth: 1, borderColor: '#FF6B6B' }}>
-                      <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>PAUSE</Text>
+                      <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.pause')}</Text>
                     </View>
                   ) : (
                     <LinearGradient
@@ -310,7 +311,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', justifyContent: 'center' }}
                     >
                       <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1 }}>
-                        {timerType === 'rest' && !timerRunning && currentRound < totalRounds ? `START REST (ROUND ${currentRound + 1})` : 'RESUME'}
+                        {timerType === 'rest' && !timerRunning && currentRound < totalRounds ? t('timerModal.startRestRound', { round: currentRound + 1 }) : t('timerModal.resume')}
                       </Text>
                     </LinearGradient>
                   )}
@@ -348,7 +349,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                   color: theme.text.secondary,
                   fontFamily: 'BarlowCondensed-Bold',
                   fontSize: 10
-                }}>{timerType === 'fortime' ? 'COMPLETE' : (timerType === 'rest' && currentRound >= totalRounds - 1 && timeLeft === restSeconds) ? 'COMPLETE BLOCK' : 'CLOSE'}</Text>
+                }}>{timerType === 'fortime' ? t('timerModal.complete') : (timerType === 'rest' && currentRound >= totalRounds - 1 && timeLeft === restSeconds) ? t('timerModal.completeBlock') : t('timerModal.close')}</Text>
               </TouchableOpacity>
             </View>
 
@@ -357,12 +358,12 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 onPress={() => {
                   if (timerPrepCountdown !== null || timerRunning) {
                     Alert.alert(
-                      "WARNING",
-                      "Are you sure you want to cancel the timer?",
+                      t('timerModal.warning'),
+                      t('timerModal.cancelTimerConfirm'),
                       [
-                        { text: 'No', style: 'cancel' },
+                        { text: t('timerModal.no'), style: 'cancel' },
                         { 
-                          text: 'Cancel Timer', 
+                          text: t('timerModal.cancelTimer'),
                           style: 'destructive',
                           onPress: () => {
                             setTimerRunning(false);
@@ -379,7 +380,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 style={{ marginBottom: 20 }}
               >
                 <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, textDecorationLine: 'underline' }}>
-                  CANCEL TIMER
+                  {t('timerModal.cancelTimerCaps')}
                 </Text>
               </TouchableOpacity>
             )}
@@ -389,20 +390,20 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
               {activeBlock && (
                 <View style={{ gap: 8 }}>
                   <Text style={{ color: bronzeGold, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5, textAlign: 'center' }}>
-                    BLOCK: {activeBlock.name.toUpperCase()}{activeBlock.metadata?.rounds ? ` (${activeBlock.metadata.rounds} ROUNDS)` : ''}
+                    {t('timerModal.blockLabel', { name: activeBlock.name.toUpperCase() })}{activeBlock.metadata?.rounds ? t('timerModal.blockRounds', { rounds: activeBlock.metadata.rounds }) : ''}
                   </Text>
                   {activeBlock.exercises.map((ex, idx) => (
                     <View key={ex.id} style={{ flexDirection: 'column', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
                       <Text style={{ color: theme.text.primary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>
                         {idx + 1}. {ex.name}
-                        {ex.is_weighted && <Text style={{ color: theme.accent, fontSize: 11 }}> (WEIGHTED)</Text>}
+                        {ex.is_weighted && <Text style={{ color: theme.accent, fontSize: 11 }}>{t('timerModal.weighted')}</Text>}
                       </Text>
                       <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Medium' }}>
                         {timerType === 'tabata' 
-                          ? `${tabataWorkSecs}S WORK / ${tabataRestSecs}S REST` 
+                          ? t('timerModal.workRest', { work: tabataWorkSecs, rest: tabataRestSecs })
                           : activeBlock.metadata?.structure === 'ladder' 
                             ? BlockConceptParser.getLadderSequence(activeBlock.metadata || {}) 
-                            : `${ex.reps}${!String(ex.reps).toUpperCase().includes('REP') && !String(ex.reps).toUpperCase().includes('SEC') && !String(ex.reps).toUpperCase().includes('MIN') ? ' REPS' : ''}${ex.hold_seconds && parseInt(String(ex.hold_seconds)) > 0 ? ` + HOLD ${ex.hold_seconds} SEC` : ''}`}
+                            : `${ex.reps}${!String(ex.reps).toUpperCase().includes('REP') && !String(ex.reps).toUpperCase().includes('SEC') && !String(ex.reps).toUpperCase().includes('MIN') ? t('timerModal.repsSuffix') : ''}${ex.hold_seconds && parseInt(String(ex.hold_seconds)) > 0 ? t('timerModal.plusHold', { sec: ex.hold_seconds }) : ''}`}
                       </Text>
                     </View>
                   ))}
@@ -416,10 +417,10 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
             <View style={styles.warningOverlay}>
               <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 1, borderColor: '#FF6B6B', maxWidth: 320, padding: 24 }]}>
                 <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, color: '#FF6B6B', textAlign: 'center', marginBottom: 12, letterSpacing: 1 }}>
-                  WARNING
+                  {t('timerModal.warning')}
                 </Text>
                 <Text style={{ color: theme.text.primary, fontSize: 14, fontFamily: 'Barlow-Regular', textAlign: 'center', marginBottom: 24 }}>
-                  Are you sure you want to end the timer early?
+                  {t('timerModal.endEarly')}
                 </Text>
                 
                 <View style={{ flexDirection: 'row', gap: 12 }}>
@@ -427,7 +428,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                     style={{ flex: 1, paddingVertical: 12, borderRadius: 6, borderWidth: 1, borderColor: theme.card.border, alignItems: 'center' }}
                     onPress={() => setShowEndWarning(false)}
                   >
-                    <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
+                    <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.cancel')}</Text>
                   </TouchableOpacity>
                   
                   <TouchableOpacity
@@ -438,7 +439,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       onClose();
                     }}
                   >
-                    <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>END TIMER</Text>
+                    <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.endTimer')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

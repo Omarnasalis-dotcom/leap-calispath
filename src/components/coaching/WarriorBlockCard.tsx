@@ -653,7 +653,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       }}
                     >
                       <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
-                        START TIMER (TABATA)
+                        {t('blocks.startTimerTabata')}
                       </Text>
                     </TouchableOpacity>
                   </LinearGradient>

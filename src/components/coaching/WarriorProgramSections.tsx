@@ -236,7 +236,7 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek }: WeekNavig
               }}
             >
               <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8, color: isActive ? PD_BRAND.coral : pd.weekChipText }}>
-                WEEK {wNum} {allCompleted ? '✓' : ''}
+                {t('programDays.week', { week: wNum })} {allCompleted ? '✓' : ''}
               </Text>
             </TouchableOpacity>
           );

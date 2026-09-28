@@ -5,6 +5,7 @@ import { LeapLogo } from '../../components/LeapLogo';
 import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
 import { FeelRpePicker, Feel } from './FeelRpePicker';
 import { MissedReasonPicker, MissedReason } from './MissedReasonPicker';
+import { t } from '../../i18n';
 
 interface MinimalBlock {
   id: string | number;
@@ -90,11 +91,11 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
       <DismissKeyboardOnOutsideTap>
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderColor: bronzeGold }]}>
-          <Text style={[styles.modalHeading, { color: theme.text.primary }]}>LOG WORKOUT DETAILS</Text>
+          <Text style={[styles.modalHeading, { color: theme.text.primary }]}>{t('logModal.heading')}</Text>
 
           {/* Done vs. Missed Selection */}
           <View style={{ marginBottom: 20, width: '100%', gap: 8 }}>
-            <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WORKOUT STATUS</Text>
+            <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.status')}</Text>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <TouchableOpacity
                 style={{
@@ -108,7 +109,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 }}
                 onPress={() => setLogStatus('completed')}
               >
-                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'completed' ? '#4CAF50' : theme.text.secondary }}>COMPLETED</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'completed' ? '#4CAF50' : theme.text.secondary }}>{t('logModal.completed')}</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
@@ -123,7 +124,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 }}
                 onPress={() => setLogStatus('missed')}
               >
-                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'missed' ? '#FF6B6B' : theme.text.secondary }}>SKIPPED / MISSED</Text>
+                <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: logStatus === 'missed' ? '#FF6B6B' : theme.text.secondary }}>{t('logModal.missed')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -137,10 +138,10 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
               <View style={{ marginBottom: 20, width: '100%', gap: 12 }}>
                 {(meta?.timing_system === 'amrap' || meta?.type === 'amrap') && meta?.structure !== 'ladder' && (
                   <View>
-                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>ROUNDS / REPS COMPLETED</Text>
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.roundsReps')}</Text>
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                      placeholder="e.g. 5 Rounds + 4 Reps"
+                      placeholder={t('logModal.roundsRepsPlaceholder')}
                       placeholderTextColor={theme.text.tertiary}
                       value={logAmrapRounds}
                       onChangeText={setLogAmrapRounds}
@@ -149,10 +150,10 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 )}
                 {(meta?.timing_system === 'fortime' || meta?.type === 'fortime') && meta?.structure !== 'ladder' && (
                   <View>
-                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>TIME TO FINISH</Text>
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.timeToFinish')}</Text>
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                      placeholder="e.g. 14:32"
+                      placeholder={t('logModal.timePlaceholder')}
                       placeholderTextColor={theme.text.tertiary}
                       value={logForTimeDuration}
                       onChangeText={setLogForTimeDuration}
@@ -161,10 +162,10 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 )}
                 {meta?.is_weighted && (
                   <View>
-                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WEIGHT USED (KG)</Text>
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.weightUsed')}</Text>
                     <TextInput
                       style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
-                      placeholder="e.g. 20"
+                      placeholder={t('logModal.weightPlaceholder')}
                       placeholderTextColor={theme.text.tertiary}
                       keyboardType="numeric"
                       value={logWeightUsed}
@@ -174,7 +175,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 )}
                 {meta?.structure === 'ladder' && logLadderProgress ? (
                   <View>
-                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>LADDER RESULT</Text>
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.ladderResult')}</Text>
                     <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14 }}>
                       {logLadderProgress}
                     </Text>
@@ -213,10 +214,10 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
 
           {/* Performance notes */}
           <View style={styles.notesSection}>
-            <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>WORKOUT PERFORMANCE NOTES</Text>
+            <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.notes')}</Text>
             <TextInput
               style={[styles.notesInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-              placeholder="How did it feel? Any highlights or modifications..."
+              placeholder={t('logModal.notesPlaceholder')}
               placeholderTextColor={theme.text.tertiary}
               value={logNotes}
               onChangeText={(val: string) => setLogNotes(val)}
@@ -229,7 +230,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
               style={[styles.modalCloseBtn, { borderColor: theme.card.border }]}
               onPress={() => setLogModalVisible(false)}
             >
-              <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>CANCEL</Text>
+              <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('logModal.cancel')}</Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -250,7 +251,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                 {logLoading ? (
                   <LeapLogo size={40} animated />
                 ) : (
-                  <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1 }}>LOG WORKOUT</Text>
+                  <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 1 }}>{t('logModal.logWorkout')}</Text>
                 )}
               </LinearGradient>
             </TouchableOpacity>

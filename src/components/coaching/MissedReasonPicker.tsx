@@ -1,13 +1,14 @@
 import React from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet } from 'react-native';
+import { t } from '../../i18n';
 
 export type MissedReason = 'no_time' | 'too_tired' | 'injury' | 'other';
 
 const REASON_OPTIONS: { value: MissedReason; label: string }[] = [
-  { value: 'no_time', label: 'NO TIME' },
-  { value: 'too_tired', label: 'TOO TIRED' },
-  { value: 'injury', label: 'INJURY' },
-  { value: 'other', label: 'OTHER' },
+  { value: 'no_time', label: t('logModal.missed_no_time') },
+  { value: 'too_tired', label: t('logModal.missed_too_tired') },
+  { value: 'injury', label: t('logModal.missed_injury') },
+  { value: 'other', label: t('logModal.missed_other') },
 ];
 
 interface MissedReasonPickerProps {
@@ -27,7 +28,7 @@ export const MissedReasonPicker: React.FC<MissedReasonPickerProps> = ({
 }) => {
   return (
     <View style={{ width: '100%', gap: 12 }}>
-      <Text style={[styles.label, { color: theme.text.secondary }]}>WHY DID YOU MISS THIS BLOCK?</Text>
+      <Text style={[styles.label, { color: theme.text.secondary }]}>{t('logModal.missedQuestion')}</Text>
       <View style={styles.reasonGrid}>
         {REASON_OPTIONS.map(opt => (
           <TouchableOpacity
@@ -54,7 +55,7 @@ export const MissedReasonPicker: React.FC<MissedReasonPickerProps> = ({
       </View>
       <TextInput
         style={[styles.detailInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-        placeholder="ANY DETAILS? (OPTIONAL)"
+        placeholder={t('logModal.missedDetail')}
         placeholderTextColor="rgba(255,255,255,0.15)"
         value={missedDetail}
         onChangeText={setMissedDetail}

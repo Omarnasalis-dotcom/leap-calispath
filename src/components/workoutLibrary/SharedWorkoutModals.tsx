@@ -6,6 +6,7 @@ import { LeapLogo } from '../LeapLogo';
 import { TemplateDetailBlock } from '../../lib/templateLibrary';
 import { StandaloneWorkoutSummary, StandaloneWorkoutDetail } from '../../lib/workoutLibrary';
 import { TC_BUTTON_GRADIENT, TC_COLORS } from '../../../constants/trainingCenterTokens';
+import { t, FLIP_X } from '../../i18n';
 
 // Three modals shared across the Training Center's browse screens
 // (ProgramTemplatesScreen, CustomizeProgramScreen — QuickWorkoutScreen
@@ -82,7 +83,7 @@ export function StandaloneWorkoutDetailModal({
                 )}
                 <View style={[previewStyles.exercisePill, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
                   <Text style={[previewStyles.exercisePillText, { color: theme.text.primary }]}>
-                    {detail.blocks.length} BLOCK{detail.blocks.length === 1 ? '' : 'S'} · {detail.blocks.reduce((n, b) => n + b.exercises.length, 0)} MOVEMENTS
+                    {t('workoutModals.blocksMovements', { count: detail.blocks.length, moves: detail.blocks.reduce((n, b) => n + b.exercises.length, 0) })}
                   </Text>
                 </View>
               </View>
@@ -133,7 +134,7 @@ export function StandaloneWorkoutDetailModal({
                           isBlockExpanded && (
                             <View style={[previewStyles.pillWrap, { marginTop: 8 }]}>
                               {block.exercises.map((ex) => {
-                                const metric = ex.sets && ex.reps ? `${ex.sets}×${ex.reps}` : ex.work_seconds ? `${ex.work_seconds}S` : ex.hold_seconds ? `${ex.hold_seconds}S` : '';
+                                const metric = ex.sets && ex.reps ? `${ex.sets}×${ex.reps}` : ex.work_seconds ? t('units.sec', { value: ex.work_seconds }) : ex.hold_seconds ? t('units.sec', { value: ex.hold_seconds }) : '';
                                 return (
                                   <View key={ex.exercise_id + String(ex.order_index)} style={[previewStyles.exercisePill, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}>
                                     {ex.is_weighted && <MaterialCommunityIcons name="dumbbell" size={10} color={bronzeGold} style={{ marginRight: 4 }} />}
@@ -147,7 +148,7 @@ export function StandaloneWorkoutDetailModal({
                           )
                         ) : (
                           <Text style={{ color: theme.text.secondary, fontFamily: 'Barlow-Regular', fontSize: 11.5, fontStyle: 'italic', marginTop: 4 }}>
-                            Exercises not listed yet.
+                            {t('workoutModals.noExercises')}
                           </Text>
                         )}
                       </View>
@@ -169,7 +170,7 @@ export function StandaloneWorkoutDetailModal({
                 <View style={[localStyles.emptyBox, { borderColor: theme.card.border }]}>
                   <MaterialCommunityIcons name="clipboard-text-outline" size={20} color={theme.text.secondary} style={{ marginBottom: 8 }} />
                   <Text style={[previewStyles.emptyText, { color: theme.text.secondary }]}>
-                    NO STRUCTURE AVAILABLE FOR THIS ONE YET.
+                    {t('workoutModals.noStructure')}
                   </Text>
                 </View>
               )}
@@ -178,12 +179,12 @@ export function StandaloneWorkoutDetailModal({
           {mode === 'select' ? (
             <View style={[previewStyles.actions, { marginTop: 12 }]}>
               <TouchableOpacity style={[previewStyles.cancelBtn, { borderColor: theme.card.border }]} onPress={onClose}>
-                <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
+                <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{t('workoutModals.cancel')}</Text>
               </TouchableOpacity>
               {isSelected ? (
                 <TouchableOpacity style={previewStyles.removeBtn} onPress={onRemove}>
                   <MaterialCommunityIcons name="close-circle-outline" size={16} color="#FF6B6B" />
-                  <Text style={previewStyles.removeBtnText}>REMOVE FROM PROGRAM</Text>
+                  <Text style={previewStyles.removeBtnText}>{t('workoutModals.removeFromProgram')}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={previewStyles.startBtn} onPress={onAdd}>
@@ -195,16 +196,16 @@ export function StandaloneWorkoutDetailModal({
           ) : detail?.kind === 'quick_workout' ? (
             <View style={[previewStyles.actions, { marginTop: 12 }]}>
               <TouchableOpacity style={[previewStyles.cancelBtn, { borderColor: theme.card.border }]} onPress={onClose}>
-                <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CLOSE</Text>
+                <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{t('workoutModals.close')}</Text>
               </TouchableOpacity>
               <TouchableOpacity style={previewStyles.startBtn} onPress={onStartWorkout}>
-                <Text style={previewStyles.startBtnText}>START WORKOUT</Text>
+                <Text style={previewStyles.startBtnText}>{t('workoutModals.startWorkout')}</Text>
                 <MaterialCommunityIcons name="play" size={16} color="#000" />
               </TouchableOpacity>
             </View>
           ) : (
             <TouchableOpacity style={[previewStyles.cancelBtn, { borderColor: theme.card.border, marginTop: 12 }]} onPress={onClose}>
-              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CLOSE</Text>
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{t('workoutModals.close')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -250,7 +251,7 @@ export function BuildSummaryModal({
       <View style={previewStyles.overlay}>
         <View style={[previewStyles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
           <View style={previewStyles.header}>
-            <Text style={[previewStyles.title, { color: theme.text.primary }]}>YOUR CUSTOM WEEK</Text>
+            <Text style={[previewStyles.title, { color: theme.text.primary }]}>{t('workoutModals.customWeek')}</Text>
             <Text style={previewStyles.subtitle}>
               {days.length} DAY{days.length === 1 ? '' : 'S'} SELECTED
             </Text>
@@ -269,7 +270,7 @@ export function BuildSummaryModal({
           >
             {days.length === 0 ? (
               <Text style={[previewStyles.emptyText, { color: theme.text.tertiary }]}>
-                NO DAYS SELECTED YET.
+                {t('workoutModals.noDays')}
               </Text>
             ) : (
               days.map((d, i) => (
@@ -294,7 +295,7 @@ export function BuildSummaryModal({
               onPress={onAddAnother}
               disabled={creating}
             >
-              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>ADD ANOTHER DAY</Text>
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{t('workoutModals.addAnotherDay')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[previewStyles.startBtn, { opacity: creating || days.length === 0 ? 0.7 : 1 }]}
@@ -305,8 +306,8 @@ export function BuildSummaryModal({
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={previewStyles.startBtnText}>START MY PROGRAM</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
+                  <Text style={previewStyles.startBtnText}>{t('workoutModals.startMyProgram')}</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" style={FLIP_X} />
                 </>
               )}
             </TouchableOpacity>
@@ -409,8 +410,8 @@ export function UpgradeToSaveModal({
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={upgradeStyles.startBtnText}>UPGRADE TO START</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" />
+                  <Text style={upgradeStyles.startBtnText}>{t('workoutModals.upgradeToStart')}</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" style={FLIP_X} />
                 </>
               )}
             </TouchableOpacity>
@@ -577,7 +578,7 @@ export function ProgramPreviewModal({
               {templateName.toUpperCase()}
             </Text>
             <Text style={previewStyles.subtitle}>
-              WEEK 1 OF {weekCount} — WHAT YOU'LL START WITH
+              {t('workoutModals.week1Of', { count: weekCount })}
             </Text>
           </View>
 
@@ -595,11 +596,11 @@ export function ProgramPreviewModal({
             {loading ? (
               <View style={previewStyles.loadingBox}>
                 <LeapLogo size={32} animated />
-                <Text style={[previewStyles.loadingText, { color: theme.text.tertiary }]}>LOADING PREVIEW...</Text>
+                <Text style={[previewStyles.loadingText, { color: theme.text.tertiary }]}>{t('workoutModals.loadingPreview')}</Text>
               </View>
             ) : days.length === 0 ? (
               <Text style={[previewStyles.emptyText, { color: theme.text.tertiary }]}>
-                PREVIEW UNAVAILABLE — YOU CAN STILL START THE PROGRAM.
+                {t('workoutModals.previewUnavailable')}
               </Text>
             ) : (
               days.map(d => (
@@ -618,7 +619,7 @@ export function ProgramPreviewModal({
               onPress={onCancel}
               disabled={starting}
             >
-              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>CANCEL</Text>
+              <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{t('workoutModals.cancel')}</Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[previewStyles.startBtn, { opacity: starting ? 0.7 : 1 }]}
@@ -629,8 +630,8 @@ export function ProgramPreviewModal({
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={previewStyles.startBtnText}>START NOW</Text>
-                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" />
+                  <Text style={previewStyles.startBtnText}>{t('workoutModals.startNow')}</Text>
+                  <MaterialCommunityIcons name="arrow-right" size={16} color="#000" style={FLIP_X} />
                 </>
               )}
             </TouchableOpacity>
