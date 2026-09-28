@@ -12,6 +12,7 @@ import { TouchableOpacity, Text, StyleSheet } from 'react-native';
 import { ScrollView } from 'react-native-gesture-handler';
 import { TC_COLORS } from '../../../constants/trainingCenterTokens';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t } from '../../i18n';
 
 // Shared horizontal filter-chip row — was duplicated byte-for-byte across
 // ProgramTemplatesScreen, CustomizeProgramScreen, and QuickWorkoutScreen.
@@ -38,7 +39,7 @@ export function ChipRow({
           ]}
         >
           <Text style={[styles.chipText, { color: selected === opt ? c.coral : c.textMuted }]}>
-            {opt.toUpperCase().replace('_', ' ')}
+            {t(`chips.${opt.toLowerCase()}` as 'chips.all', { defaultValue: opt.toUpperCase().replace('_', ' ') })}
           </Text>
         </TouchableOpacity>
       ))}

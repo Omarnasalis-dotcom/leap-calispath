@@ -4,6 +4,7 @@
 // tested without mounting any UI.
 
 import { groupRawBlocksIntoDays } from './warriorProgramDays';
+import { t } from '../i18n';
 
 export interface HubBlock {
   id: string;
@@ -165,30 +166,28 @@ export function computeAllTimeStats(allBlocks: HubBlock[], allLogs: HubWorkoutLo
 }
 
 export function formatSessionsLeftSubline(hasActiveProgram: boolean, sessionsLeftThisWeek: number, currentDisplayWeek: number): string {
-  if (!hasActiveProgram) return 'NOTHING SCHEDULED YET';
-  const noun = sessionsLeftThisWeek === 1 ? 'SESSION' : 'SESSIONS';
-  return `WEEK ${currentDisplayWeek} · ${sessionsLeftThisWeek} ${noun} LEFT`;
+  if (!hasActiveProgram) return t('trainingCenter.nothingScheduled');
+  return t('trainingCenter.sessionsLeft', { count: sessionsLeftThisWeek, week: currentDisplayWeek });
 }
 
 export function formatWeekMeta(currentDisplayWeek: number, totalWeeks: number, frequencyThisWeek: number): string {
-  const freqNoun = `${frequencyThisWeek}×/WEEK`;
-  return `WEEK ${currentDisplayWeek} OF ${totalWeeks} · ${freqNoun}`;
+  return t('trainingCenter.weekMeta', { week: currentDisplayWeek, total: totalWeeks, freq: frequencyThisWeek });
 }
 
 export function formatTemplatesSub(count: number): string {
-  return `${count} READY PLAN${count === 1 ? '' : 'S'}`;
+  return t('trainingCenter.readyPlanCount', { count });
 }
 
 export function formatMovementsSub(count: number): string {
-  return `${count}+ MOVEMENTS`;
+  return t('trainingCenter.movementsCount', { count });
 }
 
 export function formatQuickWorkoutSub(minMinutes: number | null, maxMinutes: number | null): string {
-  if (minMinutes === null || maxMinutes === null) return 'READY SESSIONS';
-  if (minMinutes === maxMinutes) return `${minMinutes} MIN`;
-  return `${minMinutes}–${maxMinutes} MIN`;
+  if (minMinutes === null || maxMinutes === null) return t('trainingCenter.readySessions');
+  if (minMinutes === maxMinutes) return t('trainingCenter.minutes', { min: minMinutes });
+  return t('trainingCenter.minutesRange', { min: minMinutes, max: maxMinutes });
 }
 
 export function formatActiveProgramSub(hasActiveProgram: boolean, currentDisplayWeek: number, totalWeeks: number): string {
-  return hasActiveProgram ? `WEEK ${currentDisplayWeek} OF ${totalWeeks}` : 'NO PROGRAM ASSIGNED';
+  return hasActiveProgram ? t('trainingCenter.weekOf', { week: currentDisplayWeek, total: totalWeeks }) : t('trainingCenter.noProgramAssigned');
 }

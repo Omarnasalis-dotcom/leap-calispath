@@ -27,6 +27,8 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
+import { t, FLIP_X } from '../i18n';
+import { localizedErrorText } from '../lib/asyncErrorHandler';
 
 // getRecommendations/getAllPublishedTemplates/selectLibraryTemplate own the
 // data/mutations; the preview/confirm step is ProgramPreviewModal, shared
@@ -39,7 +41,7 @@ import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterT
 // getCardImage always resolves to a real image, so there's no gradient
 // fallback branch needed here, unlike Workouts/Quick Workouts).
 const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced'];
-const LEVEL_LABEL: Record<DifficultyBand, string> = { beginner: 'BEGINNER', intermediate: 'INTERMEDIATE', advanced: 'ADVANCED' };
+const LEVEL_LABEL: Record<DifficultyBand, string> = { beginner: t('chips.beginner'), intermediate: t('chips.intermediate'), advanced: t('chips.advanced') };
 
 // Same cover-photo resolution as WorkoutLibraryScreen's getCardImage — an
 // admin-uploaded cover_image_url always wins; otherwise real athlete
@@ -65,7 +67,7 @@ function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFi
     return (
       <View style={styles.activeBadge}>
         <MaterialCommunityIcons name="check-circle" size={10} color="#000" />
-        <Text style={styles.activeBadgeText}>ACTIVE</Text>
+        <Text style={styles.activeBadgeText}>{t('templates.active')}</Text>
       </View>
     );
   }
@@ -73,7 +75,7 @@ function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFi
     return (
       <View style={styles.freeBadge}>
         <MaterialCommunityIcons name="gift-outline" size={10} color="#000" />
-        <Text style={styles.freeBadgeText}>FREE</Text>
+        <Text style={styles.freeBadgeText}>{t('templates.free')}</Text>
       </View>
     );
   }
@@ -81,7 +83,7 @@ function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFi
     return (
       <View style={styles.proBadge}>
         <MaterialCommunityIcons name="crown" size={9} color="#FFFFFF" />
-        <Text style={styles.proBadgeText}>PRO</Text>
+        <Text style={styles.proBadgeText}>{t('templates.pro')}</Text>
       </View>
     );
   }
@@ -133,7 +135,7 @@ function RecommendedCard({
         </View>
         <View style={styles.gridBottom}>
           <Text style={styles.gridTitle} numberOfLines={2}>{rec.template_name.toUpperCase()}</Text>
-          {isSelecting && <Text style={styles.gridStatus}>STARTING...</Text>}
+          {isSelecting && <Text style={styles.gridStatus}>{t('templates.starting')}</Text>}
         </View>
       </ImageBackground>
     </TouchableOpacity>
@@ -202,9 +204,9 @@ function TemplateRowCard({
           <View style={{ flex: 1 }}>
             <Text style={styles.rowTitle} numberOfLines={1}>{rec.template_name.toUpperCase()}</Text>
             <View style={styles.rowMetaLine}>
-              <Text style={styles.rowMetaText}>{rec.week_count} WEEK{rec.week_count === 1 ? '' : 'S'}</Text>
+              <Text style={styles.rowMetaText}>{t('templates.weeks', { count: rec.week_count })}</Text>
               <View style={styles.rowMetaDot} />
-              <Text style={styles.rowMetaText}>{rec.training_days_per_week}×/WK</Text>
+              <Text style={styles.rowMetaText}>{t('templates.perWeek', { count: rec.training_days_per_week })}</Text>
               <View style={styles.rowMetaDot} />
               <Text style={styles.rowMetaText}>{LEVEL_LABEL[level]}</Text>
             </View>
@@ -212,7 +214,7 @@ function TemplateRowCard({
 
           {isCurrent ? (
             <View style={styles.selectBtnGhost}>
-              <Text style={styles.selectBtnGhostText}>ACTIVE</Text>
+              <Text style={styles.selectBtnGhostText}>{t('templates.active')}</Text>
             </View>
           ) : locked ? (
             <View style={styles.lockCircle}>
@@ -225,7 +227,7 @@ function TemplateRowCard({
                 <ActivityIndicator size="small" color="#000" />
               ) : (
                 <>
-                  <Text style={styles.selectBtnText}>SELECT</Text>
+                  <Text style={styles.selectBtnText}>{t('templates.select')}</Text>
                   <MaterialCommunityIcons name="arrow-right" size={13} color="#000" />
                 </>
               )}
@@ -278,7 +280,7 @@ export function ProgramTemplatesScreen() {
       .then(({ data }) => {
         const templateInfo: any = data?.program_templates;
         const name = Array.isArray(templateInfo) ? templateInfo[0]?.name : templateInfo?.name;
-        setCurrentProgramName(name || (data ? 'YOUR CURRENT PROGRAM' : null));
+        setCurrentProgramName(name || (data ? t('templates.yourCurrent') : null));
       });
   }, [user?.id]);
 
@@ -293,7 +295,7 @@ export function ProgramTemplatesScreen() {
         setRecommendations(recs);
         setAllTemplates(all);
       })
-      .catch((err: any) => { if (!cancelled) setErrorMsg(err.message?.toUpperCase() || 'FAILED TO LOAD PROGRAMS.'); })
+      .catch((err: any) => { if (!cancelled) setErrorMsg(localizedErrorText(err, t('templates.loadFailed'))); })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   }, [profile?.strength_tier]);
@@ -358,17 +360,17 @@ export function ProgramTemplatesScreen() {
   };
 
   const templateLockedUpgradeCopy = (rec: LibraryTemplateRecommendation) => ({
-    title: 'START THIS PROGRAM',
-    body: 'Coach-built programs are a Pro and Max feature. Upgrade to unlock the full library and start training today.',
-    pillLabel: `${rec.week_count}-WEEK PROGRAM`,
+    title: t('templates.startTitle'),
+    body: t('templates.startBody'),
+    pillLabel: t('templates.weekPill', { count: rec.week_count }),
   });
 
   const handleCardPress = (rec: LibraryTemplateRecommendation) => {
     if (isProgramLocked(rec)) { openUpgradeModal(templateLockedUpgradeCopy(rec)); return; }
     if (!isPro && !!currentProgramName) {
       openUpgradeModal({
-        title: 'SWITCH YOUR PROGRAM',
-        body: 'Switching your active program is a Pro and Max feature. Upgrade to pick a new program anytime.',
+        title: t('templates.switchTitle'),
+        body: t('templates.switchBody'),
       });
       return;
     }
@@ -409,7 +411,7 @@ export function ProgramTemplatesScreen() {
         setPreviewWeek1([]);
         return;
       }
-      Alert.alert('SELECTION FAILED', err.message?.toUpperCase() || 'FAILED TO START THIS PROGRAM.');
+      Alert.alert(t('templates.selectFailedTitle'), localizedErrorText(err, t('templates.selectFailed')));
     } finally {
       setSelectingId(null);
     }
@@ -422,12 +424,12 @@ export function ProgramTemplatesScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: c.screenBg }}>
       <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('templates.back')} onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} style={FLIP_X} />
         </TouchableOpacity>
         <View style={{ flex: 1, marginLeft: 6 }}>
-          <Text style={styles.headerTitle}>PROGRAM TEMPLATES</Text>
-          <Text style={styles.headerSubline}>{filteredAllTemplates.length} OF {allTemplates.length} SHOWN</Text>
+          <Text style={styles.headerTitle}>{t('templates.title')}</Text>
+          <Text style={styles.headerSubline}>{t('templates.shown', { shown: filteredAllTemplates.length, total: allTemplates.length })}</Text>
         </View>
         <TourHelpButton onPress={replayTour} color={c.textMuted} />
       </View>
@@ -441,7 +443,7 @@ export function ProgramTemplatesScreen() {
           {currentProgramName && (
             <View style={styles.currentProgramBanner}>
               <Text style={styles.currentProgramText}>
-                CURRENTLY ACTIVE: <Text style={{ color: c.coral }}>{currentProgramName.toUpperCase()}</Text> — SELECTING A NEW PROGRAM WILL SWITCH YOU OVER
+                {t('templates.currentlyActive')}<Text style={{ color: c.coral }}>{currentProgramName.toUpperCase()}</Text>{t('templates.switchNote')}
               </Text>
             </View>
           )}
@@ -454,7 +456,7 @@ export function ProgramTemplatesScreen() {
 
           {recommendations.length > 0 && (
             <>
-              <Text style={styles.sectionLabel}>RECOMMENDED FOR YOU</Text>
+              <Text style={styles.sectionLabel}>{t('templates.recommended')}</Text>
               <View ref={recommendedTourRef} onLayout={onRecommendedTourLayout} style={styles.grid}>
                 {recommendations.map((rec, index) => (
                   <RecommendedCard
@@ -474,7 +476,7 @@ export function ProgramTemplatesScreen() {
             </>
           )}
 
-          <Text style={styles.sectionLabel}>OTHER TEMPLATES</Text>
+          <Text style={styles.sectionLabel}>{t('templates.other')}</Text>
           <TourTarget id="templates.difficultyFilter" scrollRef={scrollRef}>
             <ChipRow options={DIFFICULTY_OPTIONS} selected={difficultyFilter} onSelect={(v) => setDifficultyFilter(v as DifficultyBand | 'all')} />
           </TourTarget>
@@ -482,7 +484,7 @@ export function ProgramTemplatesScreen() {
 
           {!errorMsg && filteredAllTemplates.length === 0 ? (
             <View style={styles.emptyBox}>
-              <Text style={styles.emptyText}>NO PROGRAMS MATCH THIS FILTER YET.</Text>
+              <Text style={styles.emptyText}>{t('templates.noMatch')}</Text>
             </View>
           ) : (
             <View style={{ gap: 12 }}>
@@ -517,7 +519,7 @@ export function ProgramTemplatesScreen() {
         starting={!!previewRec && selectingId === previewRec.id}
         switchWarning={
           currentProgramName
-            ? `Switching will mark "${currentProgramName}" as completed. Your logged workout history is kept.`
+            ? t('templates.switchWarning', { name: currentProgramName })
             : null
         }
         onCancel={closePreview}
@@ -530,7 +532,7 @@ export function ProgramTemplatesScreen() {
         theme={StealthTheme.dark}
         title={upgradeModalContent?.title || ''}
         body={upgradeModalContent?.body || ''}
-        cancelLabel="MAYBE LATER"
+        cancelLabel={t('templates.maybeLater')}
         pillLabel={upgradeModalContent?.pillLabel}
         upgrading={upgrading}
         onUpgrade={() => {

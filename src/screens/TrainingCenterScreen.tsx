@@ -39,6 +39,7 @@ import {
   formatQuickWorkoutSub,
   formatActiveProgramSub,
 } from '../lib/trainingCenter';
+import { t, FLIP_X } from '../i18n';
 
 interface HubData {
   hasActiveProgram: boolean;
@@ -269,7 +270,7 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
                 { color: def.badge === 'LIVE' || def.badge === 'PRO' ? '#000' : c.textMuted },
               ]}
             >
-              {def.badge}
+              {t(`trainingCenter.badge_${def.badge}`)}
             </Text>
           </View>
         )}
@@ -460,7 +461,7 @@ export function TrainingCenterScreen() {
 
       setData({
         hasActiveProgram: true,
-        programName: programName || 'YOUR PROGRAM',
+        programName: programName || t('trainingCenter.yourProgram'),
         currentDisplayWeek,
         totalWeeks,
         frequencyThisWeek: weekStats.frequencyThisWeek,
@@ -479,7 +480,7 @@ export function TrainingCenterScreen() {
       hasLoadedData.current = true;
     } catch (err: any) {
       console.error('TrainingCenterScreen load failed:', err);
-      setErrorMsg('COULD NOT LOAD YOUR TRAINING CENTER.');
+      setErrorMsg(t('trainingCenter.loadFailed'));
     } finally {
       setLoading(false);
       isLoadingRef.current = false;
@@ -502,7 +503,7 @@ export function TrainingCenterScreen() {
         {
           key: 'active',
           icon: 'calendar-check-outline',
-          title: 'ACTIVE\nPROGRAM',
+          title: t('trainingCenter.tileActive'),
           sub: formatActiveProgramSub(data.hasActiveProgram, data.currentDisplayWeek, data.totalWeeks),
           locked: !data.hasActiveProgram,
           badge: data.hasActiveProgram ? 'LIVE' : 'LOCKED',
@@ -514,8 +515,8 @@ export function TrainingCenterScreen() {
           key: 'templates',
           tourTargetId: 'train.tile.templates',
           icon: 'layers-outline',
-          title: 'PROGRAM\nTEMPLATES',
-          sub: data.templatesCount != null ? formatTemplatesSub(data.templatesCount) : 'READY PLANS',
+          title: t('trainingCenter.tileTemplates'),
+          sub: data.templatesCount != null ? formatTemplatesSub(data.templatesCount) : t('trainingCenter.readyPlans'),
           locked: false,
           badge: null,
           accent: '#8b5cf6',
@@ -526,8 +527,8 @@ export function TrainingCenterScreen() {
           key: 'customize',
           tourTargetId: 'train.tile.customize',
           icon: 'tune-vertical',
-          title: 'CUSTOMIZE\nPROGRAM',
-          sub: data.movementsCount != null ? formatMovementsSub(data.movementsCount) : 'MOVEMENTS',
+          title: t('trainingCenter.tileCustomize'),
+          sub: data.movementsCount != null ? formatMovementsSub(data.movementsCount) : t('trainingCenter.movements'),
           locked: false,
           badge: canAccessCustomizeProgram(profile, paywallEnabled) ? null : 'PRO',
           accent: '#C9A227',
@@ -538,7 +539,7 @@ export function TrainingCenterScreen() {
           key: 'quick',
           tourTargetId: 'train.tile.quick',
           icon: 'lightning-bolt-outline',
-          title: 'QUICK\nWORKOUT',
+          title: t('trainingCenter.tileQuick'),
           sub: formatQuickWorkoutSub(data.quickMin, data.quickMax),
           locked: false,
           badge: null,
@@ -552,11 +553,11 @@ export function TrainingCenterScreen() {
   return (
     <View style={styles.screen}>
       <View style={styles.header}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
-          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} />
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('trainingCenter.back')} onPress={() => router.back()} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}>
+          <MaterialCommunityIcons name="chevron-left" size={26} color={c.textPrimary} style={FLIP_X} />
         </TouchableOpacity>
         <View style={{ flex: 1, alignItems: 'center' }}>
-          <Text style={styles.headerTitle}>TRAINING CENTER</Text>
+          <Text style={styles.headerTitle}>{t('trainingCenter.title')}</Text>
           {data && (
             <Text style={styles.headerSubline}>
               {formatSessionsLeftSubline(data.hasActiveProgram, data.sessionsLeftThisWeek, data.currentDisplayWeek)}
@@ -576,7 +577,7 @@ export function TrainingCenterScreen() {
         <View style={styles.centerFill}>
           <Text style={styles.errorText}>{errorMsg}</Text>
           <TouchableOpacity style={styles.retryBtn} onPress={load}>
-            <Text style={styles.retryBtnText}>RETRY</Text>
+            <Text style={styles.retryBtnText}>{t('trainingCenter.retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -590,13 +591,13 @@ export function TrainingCenterScreen() {
                 <View style={{ flexDirection: 'row', gap: 16 }}>
                   <ProgressDonut percent={data.percentCompleteThisWeek} />
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.heroEyebrow}>ACTIVE PROGRAM</Text>
+                    <Text style={styles.heroEyebrow}>{t('trainingCenter.activeProgram')}</Text>
                     <Text style={styles.heroProgramName} numberOfLines={2}>{data.programName.toUpperCase()}</Text>
                     <Text style={styles.heroMeta}>{formatWeekMeta(data.currentDisplayWeek, data.totalWeeks, data.frequencyThisWeek)}</Text>
                     {data.nextUpBlockName && (
                       <View style={styles.heroNextRow}>
                         <View style={styles.heroDot} />
-                        <Text style={styles.heroNextText} numberOfLines={1}>Next up · {data.nextUpBlockName}</Text>
+                        <Text style={styles.heroNextText} numberOfLines={1}>{t('trainingCenter.nextUp', { name: data.nextUpBlockName })}</Text>
                       </View>
                     )}
                   </View>
@@ -604,7 +605,7 @@ export function TrainingCenterScreen() {
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                   <TouchableOpacity style={styles.continueBtn} onPress={() => router.push('/warrior-program')}>
                     <MaterialCommunityIcons name="play" size={16} color="#000" />
-                    <Text style={styles.continueBtnText}>CONTINUE</Text>
+                    <Text style={styles.continueBtnText}>{t('trainingCenter.continue')}</Text>
                   </TouchableOpacity>
                   {/* Same visual identity as the Leap Coach FAB on Profile
                       (CoachFab.tsx) — circular, coral fill, coral glow, the
@@ -612,7 +613,7 @@ export function TrainingCenterScreen() {
                       composer's send button) — just docked inline here
                       instead of floating, and without the FAB's own
                       breathing-ring/bob/greeting-bubble behavior. */}
-                  <TouchableOpacity style={styles.coachEntryBtn} onPress={() => router.push('/coach')} accessibilityLabel="Open Leap Coach">
+                  <TouchableOpacity style={styles.coachEntryBtn} onPress={() => router.push('/coach')} accessibilityLabel={t('trainingCenter.openCoach')}>
                     {[8, 14, 10, 6].map((h, i) => (
                       <View key={i} style={[styles.coachEntryBar, { height: h }]} />
                     ))}
@@ -624,10 +625,10 @@ export function TrainingCenterScreen() {
                 <View style={styles.heroEmptyIconWrap}>
                   <MaterialCommunityIcons name="calendar-blank-outline" size={28} color={c.textFaint} />
                 </View>
-                <Text style={styles.heroEmptyTitle}>No program assigned</Text>
-                <Text style={styles.heroEmptySub}>Pick a template or build your own to unlock your plan.</Text>
+                <Text style={styles.heroEmptyTitle}>{t('trainingCenter.noProgramTitle')}</Text>
+                <Text style={styles.heroEmptySub}>{t('trainingCenter.noProgramSub')}</Text>
                 <TouchableOpacity style={[styles.continueBtn, { alignSelf: 'stretch', justifyContent: 'center' }]} onPress={() => router.push('/program-templates')}>
-                  <Text style={styles.continueBtnText}>BROWSE TEMPLATES</Text>
+                  <Text style={styles.continueBtnText}>{t('trainingCenter.browseTemplates')}</Text>
                 </TouchableOpacity>
               </View>
             )}
@@ -638,20 +639,20 @@ export function TrainingCenterScreen() {
             <RowIn index={1} style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
               <View style={styles.statCard}>
                 <Text style={styles.statValue}>{data.sessionsDone}</Text>
-                <Text style={styles.statLabel}>SESSIONS DONE</Text>
+                <Text style={styles.statLabel}>{t('trainingCenter.sessionsDone')}</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={[styles.statValue, { color: c.coral }]}>{data.adherencePct ?? 0}%</Text>
-                <Text style={styles.statLabel}>ADHERENCE</Text>
+                <Text style={styles.statLabel}>{t('trainingCenter.adherence')}</Text>
               </View>
               <View style={styles.statCard}>
                 <Text style={styles.statValue}>{data.streakDays}</Text>
-                <Text style={styles.statLabel}>WEEK STREAK</Text>
+                <Text style={styles.statLabel}>{t('trainingCenter.weekStreak')}</Text>
               </View>
             </RowIn>
           )}
 
-          <Text style={styles.sectionEyebrow}>CHOOSE YOUR PATH</Text>
+          <Text style={styles.sectionEyebrow}>{t('trainingCenter.choosePath')}</Text>
           <View style={styles.tileGrid}>
             {tiles.map((t, i) => (
               <PathTile key={t.key} def={t} index={i + 2} scrollRef={scrollRef} />

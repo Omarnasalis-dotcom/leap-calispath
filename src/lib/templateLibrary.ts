@@ -3,6 +3,7 @@
 // day/block names are read as "DAY | BLOCK" strings rather than columns.
 
 import { supabase } from './supabase';
+import { t } from '../i18n';
 
 export interface TierRange {
   min: number;
@@ -226,7 +227,7 @@ export async function getTemplateDetails(templateId: string): Promise<TemplateDe
     const exercises = (Array.isArray(block.block_exercises) ? block.block_exercises : [])
       .sort((a: any, b: any) => (a.order_index ?? 0) - (b.order_index ?? 0))
       .map((ex: any) => ({
-        name: ex.exercise_library?.name || 'UNNAMED EXERCISE',
+        name: ex.exercise_library?.name || t('workout.unnamedExercise'),
         sets: ex.sets,
         reps: ex.reps,
         restSeconds: ex.rest_seconds,
