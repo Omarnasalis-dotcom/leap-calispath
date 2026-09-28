@@ -55,13 +55,15 @@ export const MOVEMENT_POINTS: Record<string, number> = {
 
 export const GROUP_NAMES = {
   1: { name: 'RECRUITS', tiers: '0-2', color: '#CD7F32' },
-  2: { name: 'WARRIORS', tiers: '3-5', color: '#C0C0C0' },
-  3: { name: 'LEGENDS', tiers: '6-8', color: '#FFD700' },
+  2: { name: 'WARRIORS', tiers: '3-6', color: '#C0C0C0' },
+  3: { name: 'LEGENDS', tiers: '7-9', color: '#FFD700' },
 };
 
+// Must match the server's CASE in get_weekly_challenge_target_users /
+// get_weekly_challenge_users_without_entry and tier_in_group.
 export function getUserGroup(strengthTier: number): 1 | 2 | 3 {
   if (strengthTier <= 2) return 1;
-  if (strengthTier <= 5) return 2;
+  if (strengthTier <= 6) return 2;
   return 3;
 }
 

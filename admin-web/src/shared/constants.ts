@@ -52,8 +52,8 @@ export function subscriptionTierLabel(
 
 export const CHALLENGE_GROUPS = [
   { id: 1, name: 'Recruits', tiers: 'Tiers 0–2' },
-  { id: 2, name: 'Warriors', tiers: 'Tiers 3–5' },
-  { id: 3, name: 'Legends', tiers: 'Tiers 6–8' },
+  { id: 2, name: 'Warriors', tiers: 'Tiers 3–6' },
+  { id: 3, name: 'Legends', tiers: 'Tiers 7–9' },
 ] as const;
 
 // Fixed display order for the four disciplines — never re-sort by value.

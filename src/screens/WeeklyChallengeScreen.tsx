@@ -35,13 +35,14 @@ interface WeeklyEntry {
 
 const GROUP_NAMES: Record<number, { name: string; tiers: string }> = {
   1: { name: tr('weekly.novices'), tiers: '0-2' },
-  2: { name: tr('weekly.warriors'), tiers: '3-5' },
-  3: { name: tr('weekly.legends'), tiers: '6-8' },
+  2: { name: tr('weekly.warriors'), tiers: '3-6' },
+  3: { name: tr('weekly.legends'), tiers: '7-9' },
 };
 
+// Same boundaries as getUserGroup in src/lib/weeklyChallenge.ts.
 function getUserGroup(tier: number): 1 | 2 | 3 {
   if (tier < 3) return 1;
-  if (tier < 6) return 2;
+  if (tier < 7) return 2;
   return 3;
 }
 
