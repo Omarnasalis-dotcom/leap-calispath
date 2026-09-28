@@ -32,6 +32,7 @@ import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
+import { t, isArabic } from '../i18n';
 
 
 
@@ -244,18 +245,18 @@ export function TrialScreen({
   }
 
   function handleBack() {
-    const title = hasStarted ? 'Abandon Trial?' : 'Exit Trial?';
-    const message = hasStarted 
-      ? 'Abandon Trial? This attempt will be logged as incomplete. Your rank will not change.'
-      : 'Exit Trial?';
+    const title = hasStarted ? t('trial.abandonTitle') : t('trial.exitTitle');
+    const message = hasStarted
+      ? t('trial.abandonBody')
+      : t('trial.exitTitle');
     
     Alert.alert(
       title,
       message,
       [
-        { text: hasStarted ? 'Continue Trial' : 'Cancel', style: 'cancel' },
+        { text: hasStarted ? t('trial.continueTrial') : t('trial.cancel'), style: 'cancel' },
         {
-          text: hasStarted ? 'Abandon' : 'Exit',
+          text: hasStarted ? t('trial.abandon') : t('trial.exit'),
           style: 'destructive',
           onPress: () => {
             if (hasStarted) doAbandon();
@@ -301,8 +302,8 @@ export function TrialScreen({
           NotificationService.notify(
             user.id,
             'tier_promotion',
-            'Tier Up!',
-            `You've risen to ${newTierName} — Tier ${newTier}.`,
+            t('trial.tierUpTitle'),
+            t('trial.tierUpBody', { name: newTierName, tier: newTier }),
             { screen: 'profile' }
           );
         } else if (result?.is_first_completion) {
@@ -317,8 +318,8 @@ export function TrialScreen({
           NotificationService.notify(
             user.id,
             'new_best_time',
-            'New Best Time!',
-            `${TIER_NAMES[trial.tier] ?? `Tier ${trial.tier}`}: ${formatTime(timeSeconds)} — a new personal best.`,
+            t('trial.bestTimeTitle'),
+            t('trial.bestTimeBody', { name: TIER_NAMES[trial.tier] ?? `Tier ${trial.tier}`, time: formatTime(timeSeconds) }),
             { screen: 'profile' }
           );
           if (result.overtaken_notification_id) {
@@ -343,9 +344,9 @@ export function TrialScreen({
           // Timer's already stopped and timeSeconds is already captured, so a
           // retry re-sends the same result rather than forcing the trial to
           // be redone just because the network blipped after the work was done.
-          Alert.alert('Error', describeSubmitError(error, 'Failed to save time'), [
-            { text: 'Cancel', style: 'cancel' },
-            { text: 'Try Again', onPress: handleClaimRank },
+          Alert.alert(t('trial.error'), describeSubmitError(error, t('trial.saveFailed')), [
+            { text: t('trial.cancel'), style: 'cancel' },
+            { text: t('trial.tryAgain'), onPress: handleClaimRank },
           ]);
         }
       }
@@ -358,11 +359,14 @@ export function TrialScreen({
     return (
       <GlobalErrorBoundary>
         <View style={styles.container}>
-          <Text style={[styles.loadingText, { color: theme.text.secondary }]}>Loading trial...</Text>
+          <Text style={[styles.loadingText, { color: theme.text.secondary }]}>{t('trial.loading')}</Text>
         </View>
       </GlobalErrorBoundary>
     );
   }
+
+  // Trial names are "<Tier> Trial"; Arabic reads "اختبار <Tier>".
+  const trialDisplayName = isArabic ? t('trial.name', { tier: TIER_NAMES[trial.tier] ?? trial.tier }) : trial.name;
 
   if (showDishonor) {
     return (
@@ -429,7 +433,7 @@ export function TrialScreen({
             marginBottom: 8,
             textAlign: 'center',
           }}>
-            DISHONOR
+            {t('trial.dishonor')}
           </Text>
 
           {/* Subtitle */}
@@ -439,7 +443,7 @@ export function TrialScreen({
             letterSpacing: 4,
             marginBottom: 20,
           }}>
-            TRIAL INVALIDATED
+            {t('trial.invalidated')}
           </Text>
 
           {/* Animated bottom line */}
@@ -463,16 +467,13 @@ export function TrialScreen({
             opacity: textOpacity,
             fontStyle: 'italic',
           }}>
-            A true warrior earns their rank.{'\n'}
-            Your time defies human limits —{'\n'}
-            this trial has been struck from{'\n'}
-            the records.
+            {t('trial.dishonorBody')}
           </Animated.Text>
 
           {/* Time Breakdown */}
           <Animated.View style={{ opacity: textOpacity, alignItems: 'center', marginBottom: 40 }}>
             <Text style={{ color: theme.text.secondary, fontSize: 13, letterSpacing: 1 }}>
-              YOUR TIME: <Text style={{ color: '#FF4444', fontWeight: 'bold' }}>{formatTime(timeSeconds)}</Text>
+              {t('trial.yourTime')}<Text style={{ color: '#FF4444', fontWeight: 'bold' }}>{formatTime(timeSeconds)}</Text>
             </Text>
           </Animated.View>
 
@@ -496,7 +497,7 @@ export function TrialScreen({
                 letterSpacing: 4,
                 fontSize: 13,
               }}>
-                RETURN TO TRAINING
+                {t('trial.returnToTraining')}
               </Text>
             </TouchableOpacity>
           </Animated.View>
@@ -511,7 +512,7 @@ export function TrialScreen({
       <GlobalErrorBoundary>
         <RankUpReveal
           tier={trial.tier + 1}
-          trialName={trial.name}
+          trialName={trialDisplayName}
           timeSeconds={timeSeconds}
           onContinue={onComplete}
         />
@@ -528,11 +529,11 @@ export function TrialScreen({
     <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       {/* Header */}
       <View style={[styles.header, { borderBottomColor: theme.card.border }]}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" style={styles.backButton} onPress={handleBack}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('trial.back')} style={styles.backButton} onPress={handleBack}>
           <MaterialCommunityIcons name="chevron-left" size={32} color={accentColor} />
         </TouchableOpacity>
         <View style={[styles.headerTitleFrame, { borderColor: accentColor }]}>
-          <Text style={[styles.title, { color: theme.text.primary }]}>{trial.name.toUpperCase()}</Text>
+          <Text style={[styles.title, { color: theme.text.primary }]}>{trialDisplayName.toUpperCase()}</Text>
         </View>
         <View style={styles.headerRightSlot}>
           {hasStarted && (
@@ -550,12 +551,12 @@ export function TrialScreen({
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
           {initialMode === 'practice' && (
             <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>PRACTICE MODE</Text>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>{t('trial.practiceMode')}</Text>
             </View>
           )}
           {initialMode === 'eternal' && (
             <View style={[styles.badge, { backgroundColor: accentColor }]}>
-              <Text style={[styles.badgeText, { color: '#FFF' }]}>ETERNAL</Text>
+              <Text style={[styles.badgeText, { color: '#FFF' }]}>{t('trial.eternal')}</Text>
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
@@ -567,7 +568,7 @@ export function TrialScreen({
         <View style={styles.timerFrameContainer}>
           <Animated.View style={[styles.timerContainer, { transform: [{ scale: pulseAnim }] }]}>
             <Text style={[styles.timerLabel, { color: theme.text.tertiary, marginBottom: 4 }]}>
-              {hasStarted ? 'TRIAL CLOCK' : 'READY'}
+              {hasStarted ? t('trial.trialClock') : t('trial.ready')}
             </Text>
             <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
           </Animated.View>
@@ -576,7 +577,7 @@ export function TrialScreen({
         {/* Trial Overview (Before Start) */}
         {!hasStarted && prepCountdown === null && (
           <View style={styles.overviewContainer}>
-            <Text style={[styles.overviewTitle, { color: theme.text.tertiary }]}>TRIAL OVERVIEW</Text>
+            <Text style={[styles.overviewTitle, { color: theme.text.tertiary }]}>{t('trial.overview')}</Text>
             {trial.movements.map((movement, idx) => (
               <View key={idx} style={[styles.overviewRow, { borderBottomColor: theme.card.border }]}>
                 <Text style={[styles.overviewNum, { color: accentColor }]}>{idx + 1}</Text>
@@ -593,7 +594,7 @@ export function TrialScreen({
             style={[styles.mainStartButton, { backgroundColor: accentColor }]}
             onPress={startTrial}
           >
-            <Text style={styles.mainStartButtonText}>BEGIN TRIAL</Text>
+            <Text style={styles.mainStartButtonText}>{t('trial.begin')}</Text>
             <MaterialCommunityIcons name="sword-cross" size={20} color="#FFF" />
           </TouchableOpacity>
         )}
@@ -602,14 +603,14 @@ export function TrialScreen({
         {!hasStarted && prepCountdown !== null && (
           <View style={styles.countdownContainer}>
             <Text style={[styles.countdownText, { color: accentColor }]}>
-              {prepCountdown === 0 ? 'GO!' : prepCountdown}
+              {prepCountdown === 0 ? t('trial.go') : prepCountdown}
             </Text>
-            <Text style={{ color: theme.text.tertiary, fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 }}>GET READY</Text>
+            <Text style={{ color: theme.text.tertiary, fontSize: 12, fontWeight: '900', letterSpacing: 2, marginTop: 10 }}>{t('trial.getReady')}</Text>
             <TouchableOpacity 
               style={[styles.cancelBtn, { borderColor: theme.text.tertiary, marginTop: 40, paddingHorizontal: 20 }]} 
               onPress={cancelPreparation}
             >
-              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>CANCEL PREPARATION</Text>
+              <Text style={[styles.cancelBtnText, { color: theme.text.tertiary }]}>{t('trial.cancelPrep')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -624,7 +625,7 @@ export function TrialScreen({
 
             {/* Current Step Card */}
             <View style={[styles.currentStepCard, { backgroundColor: theme.card.background, borderColor: accentColor }]}>
-              <Text style={[styles.stepCounter, { color: accentColor }]}>STEP {currentStepIdx + 1} OF {trial.movements.length}</Text>
+              <Text style={[styles.stepCounter, { color: accentColor }]}>{t('trial.stepOf', { n: currentStepIdx + 1, total: trial.movements.length })}</Text>
               <Text style={[styles.currentStepName, { color: theme.text.primary }]}>{currentStep.name.toUpperCase()}</Text>
               <View style={styles.currentStepStats}>
                 <Text style={[styles.currentStepReps, { color: theme.text.primary }]}>{currentStep.reps}x</Text>
@@ -634,7 +635,7 @@ export function TrialScreen({
             {/* Upcoming Steps Preview */}
             {(nextStep1 || nextStep2) && (
               <View style={styles.upcomingSection}>
-                <Text style={[styles.nextLabel, { color: theme.text.tertiary, marginBottom: 8 }]}>UPCOMING</Text>
+                <Text style={[styles.nextLabel, { color: theme.text.tertiary, marginBottom: 8 }]}>{t('trial.upcoming')}</Text>
                 
                 {nextStep1 && (
                   <View style={[styles.nextStepCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
@@ -665,18 +666,18 @@ export function TrialScreen({
                 <ActivityIndicator color="#FFF" />
               ) : (
                 <Text style={styles.completeStepText}>
-                  {currentStepIdx === trial.movements.length - 1 ? 'FINISH TRIAL' : 'STEP COMPLETED'}
+                  {currentStepIdx === trial.movements.length - 1 ? t('trial.finishTrial') : t('trial.stepCompleted')}
                 </Text>
               )}
             </TouchableOpacity>
             {isSlowSubmit && currentStepIdx === trial.movements.length - 1 && (
               <Text style={[styles.slowNotice, { color: theme.text.secondary }]}>
-                Still submitting — hang tight...
+                {t('trial.stillSubmitting')}
               </Text>
             )}
 
             <TouchableOpacity style={styles.abandonBottomButton} onPress={handleAbandon}>
-              <Text style={[styles.abandonBottomText, { color: theme.text.tertiary }]}>ABANDON TRIAL</Text>
+              <Text style={[styles.abandonBottomText, { color: theme.text.tertiary }]}>{t('trial.abandonTrial')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -728,8 +729,8 @@ function TrialFeedbackModal({
   }, [visible]);
 
   const tierName = TIER_NAMES[tier];
-  const label = kind === 'first_completion' ? 'MILESTONE' : kind === 'new_best' ? 'PERSONAL RECORD' : 'RESULT';
-  const title = kind === 'first_completion' ? 'TIER COMPLETE' : kind === 'new_best' ? 'NEW BEST TIME' : 'TRIAL COMPLETE';
+  const label = kind === 'first_completion' ? t('trial.milestone') : kind === 'new_best' ? t('trial.personalRecord') : t('trial.result');
+  const title = kind === 'first_completion' ? t('trial.tierComplete') : kind === 'new_best' ? t('trial.newBestTime') : t('trial.trialComplete');
   const icon = kind === 'first_completion' ? 'shield-star' : kind === 'new_best' ? 'trophy-award' : 'timer-outline';
   const showImprovementComparison = kind === 'new_best' && previousTimeSeconds != null;
   const showBestComparison = kind === 'attempt' && previousTimeSeconds != null;
@@ -743,7 +744,7 @@ function TrialFeedbackModal({
           </View>
           <Text style={styles.feedbackLabel}>{label}</Text>
           <Text style={styles.feedbackTitle}>{title}</Text>
-          <Text style={styles.feedbackSubtitle}>{tierName?.toUpperCase()} · TIER {tier}</Text>
+          <Text style={styles.feedbackSubtitle}>{t('trial.tierLine', { name: tierName?.toUpperCase(), tier })}</Text>
 
           {showImprovementComparison ? (
             <View style={styles.feedbackTimeRow}>
@@ -754,11 +755,11 @@ function TrialFeedbackModal({
           ) : showBestComparison ? (
             <View style={styles.feedbackCompareRow}>
               <View style={styles.feedbackCompareBox}>
-                <Text style={styles.feedbackCompareLabel}>YOUR BEST</Text>
+                <Text style={styles.feedbackCompareLabel}>{t('trial.yourBest')}</Text>
                 <Text style={styles.feedbackCompareValue}>{formatTime(previousTimeSeconds!)}</Text>
               </View>
               <View style={[styles.feedbackCompareBox, styles.feedbackCompareBoxAttempt]}>
-                <Text style={[styles.feedbackCompareLabel, styles.feedbackCompareLabelAttempt]}>THIS ATTEMPT</Text>
+                <Text style={[styles.feedbackCompareLabel, styles.feedbackCompareLabelAttempt]}>{t('trial.thisAttempt')}</Text>
                 <Text style={styles.feedbackCompareValue}>{formatTime(timeSeconds)}</Text>
               </View>
             </View>
@@ -767,7 +768,7 @@ function TrialFeedbackModal({
           )}
 
           <TouchableOpacity style={styles.feedbackButton} onPress={onDismiss}>
-            <Text style={styles.feedbackButtonText}>CONTINUE</Text>
+            <Text style={styles.feedbackButtonText}>{t('trial.continue')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
