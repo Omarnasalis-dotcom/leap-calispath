@@ -34,7 +34,7 @@ import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { TargetId } from '../types/tutorial';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
-import { t, FLIP_X, isArabic } from '../i18n';
+import { t, FLIP_X, isArabic, isRTL } from '../i18n';
 import { localizedErrorText } from '../lib/asyncErrorHandler';
 
 // Browse standalone Workouts, pick up to MAX_CUSTOM_PROGRAM_DAYS as your
@@ -1234,8 +1234,11 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   // — absolute + top:0/left:0 so its animated x/y translate directly in
   // screen-window coordinates, matching measureInWindow/absoluteX-Y used
   // for slot hit-testing everywhere else in this file.
+  // In right-to-left layouts React Native swaps left/right, so the ghost is
+  // pinned with `right: 0` there — which lands on the physical left edge,
+  // the origin absoluteX is measured from.
   dragGhost: {
-    position: 'absolute', top: 0, left: 0,
+    position: 'absolute', top: 0, ...(isRTL ? { right: 0 } : { left: 0 }),
     borderRadius: 16, borderWidth: 1.5, borderColor: c.coral, overflow: 'hidden',
     backgroundColor: c.cardRaised,
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.5, shadowRadius: 20, elevation: 20,
