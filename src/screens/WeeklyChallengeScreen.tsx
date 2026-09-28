@@ -778,7 +778,8 @@ const WeeklyChallengeSubmitModal: React.FC<WeeklyChallengeSubmitModalProps> = ({
           Alert.alert(tr('weekly.newBestTitle'), tr('weekly.newBestBody'));
           const scoreLabel = challenge.scoring_type === 'time'
             ? `${Math.floor(finalScore / 60)}:${String(finalScore % 60).padStart(2, '0')}`
-            : tr('weekly.repsScore', { reps: finalScore });
+            // Reps challenges are scored in points (reps × points per movement).
+            : tr('weekly.pts', { pts: finalScore });
           NotificationService.notify(
             user.id,
             'weekly_challenge_pb',
