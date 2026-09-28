@@ -39,7 +39,7 @@ import {
   formatQuickWorkoutSub,
   formatActiveProgramSub,
 } from '../lib/trainingCenter';
-import { t, FLIP_X } from '../i18n';
+import { t, FLIP_X, isArabic } from '../i18n';
 
 interface HubData {
   hasActiveProgram: boolean;
@@ -285,7 +285,11 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
           { color: def.locked ? c.textFaint3 : '#FFFFFF' },
           hasPhoto && { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
         ]}
-        numberOfLines={2}
+        // Arabic titles fit on one line (shrinking if needed); English keeps
+        // its designed two-line split.
+        numberOfLines={isArabic ? 1 : 2}
+        adjustsFontSizeToFit={isArabic}
+        minimumFontScale={0.7}
       >
         {def.title}
       </Text>
