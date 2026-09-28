@@ -152,7 +152,7 @@ function ProgressDonut({ percent, size = 96, strokeWidth = 5 }: { percent: numbe
         />
       </Svg>
       <Text style={{ color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24 }}>{percent}%</Text>
-      <Text style={{ color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.4 }}>COMPLETE</Text>
+      <Text style={{ color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.4 }}>{t('trainingCenter.ringComplete')}</Text>
     </View>
   );
 }

@@ -121,6 +121,7 @@ import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
 import { syncLanguageDirection } from '../src/i18n/language';
+import { t } from '../src/i18n';
 
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
@@ -249,13 +250,13 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', gap: 16, paddingHorizontal: 32, backgroundColor: theme.background.primary }}>
           <LeapLogo size={120} animated={false} />
           <Text style={{ color: theme.text.secondary, textAlign: 'center' }}>
-            Couldn't load your profile. Check your connection and try again.
+            {t('system.profileLoadFailed')}
           </Text>
           <TouchableOpacity
             onPress={() => refreshProfile()}
             style={{ paddingVertical: 10, paddingHorizontal: 24, borderRadius: 8, borderWidth: 1, borderColor: theme.text.secondary }}
           >
-            <Text style={{ color: theme.text.primary, fontWeight: '600' }}>Retry</Text>
+            <Text style={{ color: theme.text.primary, fontWeight: '600' }}>{t('system.retry')}</Text>
           </TouchableOpacity>
         </View>
       );

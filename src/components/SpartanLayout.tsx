@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '../contexts/ThemeContext';
+import { t } from '../i18n';
 
 interface SpartanLayoutProps {
   children: React.ReactNode;
@@ -44,7 +45,7 @@ export function SpartanLayout({ children, hideToggle, noBottomInset }: SpartanLa
       />
       {isOffline && (
         <View style={[styles.offlineBanner, { top: insets.top }]}>
-          <Text style={styles.offlineText}>NO CONNECTION — RESULTS WON'T SAVE</Text>
+          <Text style={styles.offlineText}>{t('system.offline')}</Text>
         </View>
       )}
       <View style={[styles.content, {

@@ -1225,6 +1225,7 @@ const en = {
     tileTemplates: 'PROGRAM\nTEMPLATES',
     tileCustomize: 'CUSTOMIZE\nPROGRAM',
     tileQuick: 'QUICK\nWORKOUT',
+    ringComplete: 'COMPLETE',
     readyPlans: 'READY PLANS',
     movements: 'MOVEMENTS',
     badge_LIVE: 'LIVE',
@@ -1619,6 +1620,9 @@ const en = {
     routeErrorTitle: 'SOMETHING WENT WRONG',
     routeErrorBody: 'This screen hit an error. The rest of the app is fine.',
     tryAgain: 'TRY AGAIN',
+    offline: "NO CONNECTION — RESULTS WON'T SAVE",
+    profileLoadFailed: "Couldn't load your profile. Check your connection and try again.",
+    retry: 'Retry',
     goHome: 'GO HOME',
   },
   ladderGame: {
@@ -1688,6 +1692,20 @@ const en = {
     perfectRun: 'PERFECT RUN',
     reachedRound: 'REACHED ROUND {{round}}',
     player: 'PLAYER',
+  },
+  bonusWheel: {
+    title: 'BONUS CHALLENGE',
+    subtitle: 'Spin for a small extra to go do',
+    easy: 'EASY',
+    medium: 'MEDIUM',
+    hard: 'HARD',
+    random: 'RANDOM',
+    yourTask: 'YOUR TASK',
+    spinAgain: 'SPIN AGAIN ({{n}} LEFT)',
+    done: 'DONE',
+    spinning: 'SPINNING…',
+    spin: 'SPIN',
+    skip: 'SKIP',
   },
   // Tier names (Helot … Eternity) stay in English in every language; this is
   // the short description shown with them.

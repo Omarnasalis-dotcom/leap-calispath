@@ -4,6 +4,7 @@ import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '../contexts/ThemeContext';
 import { Button } from './Button';
 import { BonusTask, BonusTaskTier, getBonusTasksByTier, pickRandomBonusTask } from '../lib/beatTheLadder';
+import { t } from '../i18n';
 
 const WHEEL_SIZE = 280;
 const RADIUS = 130;
@@ -13,10 +14,10 @@ const SPIN_DURATION = 2600;
 const FULL_SPINS = 4;
 
 const TIER_OPTIONS: { key: BonusTaskTier | 'random'; label: string }[] = [
-  { key: 'easy', label: 'EASY' },
-  { key: 'medium', label: 'MEDIUM' },
-  { key: 'hard', label: 'HARD' },
-  { key: 'random', label: 'RANDOM' },
+  { key: 'easy', label: t('bonusWheel.easy') },
+  { key: 'medium', label: t('bonusWheel.medium') },
+  { key: 'hard', label: t('bonusWheel.hard') },
+  { key: 'random', label: t('bonusWheel.random') },
 ];
 
 // Same polar-coordinate approach as src/components/ProgressRing.tsx, extended
@@ -98,8 +99,8 @@ export function BonusTaskWheel({ visible, onDismiss }: BonusTaskWheelProps) {
   return (
     <View style={styles.overlay}>
       <View style={[styles.card, { backgroundColor: theme.background.primary, borderColor: theme.card.border }]}>
-        <Text style={[styles.title, { color: theme.text.primary }]}>BONUS CHALLENGE</Text>
-        <Text style={[styles.subtitle, { color: theme.text.tertiary }]}>Spin for a small extra to go do</Text>
+        <Text style={[styles.title, { color: theme.text.primary }]}>{t('bonusWheel.title')}</Text>
+        <Text style={[styles.subtitle, { color: theme.text.tertiary }]}>{t('bonusWheel.subtitle')}</Text>
 
         {!task && !spinning && (
           <View style={styles.tierRow}>
@@ -172,23 +173,23 @@ export function BonusTaskWheel({ visible, onDismiss }: BonusTaskWheelProps) {
         {task ? (
           <>
             <View style={[styles.resultBox, { borderColor: theme.accent, backgroundColor: `${theme.accent}15` }]}>
-              <Text style={[styles.resultLabel, { color: theme.text.tertiary }]}>YOUR TASK</Text>
+              <Text style={[styles.resultLabel, { color: theme.text.tertiary }]}>{t('bonusWheel.yourTask')}</Text>
               <Text style={[styles.resultValue, { color: theme.accent }]}>{task.label}</Text>
             </View>
             {rerollsLeft > 0 && (
               <Button
-                title={`SPIN AGAIN (${rerollsLeft} LEFT)`}
+                title={t('bonusWheel.spinAgain', { n: rerollsLeft })}
                 onPress={handleReroll}
                 variant="secondary"
                 disabled={spinning}
               />
             )}
-            <Button title="DONE" onPress={onDismiss} disabled={spinning} />
+            <Button title={t('bonusWheel.done')} onPress={onDismiss} disabled={spinning} />
           </>
         ) : (
           <>
-            <Button title={spinning ? 'SPINNING…' : 'SPIN'} onPress={spin} disabled={spinning} />
-            <Button title="SKIP" onPress={onDismiss} variant="secondary" disabled={spinning} />
+            <Button title={spinning ? t('bonusWheel.spinning') : t('bonusWheel.spin')} onPress={spin} disabled={spinning} />
+            <Button title={t('bonusWheel.skip')} onPress={onDismiss} variant="secondary" disabled={spinning} />
           </>
         )}
       </View>
