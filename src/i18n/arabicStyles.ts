@@ -1,4 +1,6 @@
-import { StyleSheet } from 'react-native';
+import React from 'react';
+import * as ReactNative from 'react-native';
+import { StyleSheet, type TextProps } from 'react-native';
 
 // Arabic-mode style fixes (audit M16), applied app-wide:
 // - letterSpacing pulls apart Arabic letters that must join, so it is dropped.
@@ -40,4 +42,23 @@ export function installArabicStyleSheet() {
     for (const key of Object.keys(styles)) next[key] = arabicStyle(styles[key]);
     return originalCreate(next);
   }) as typeof StyleSheet.create;
+}
+
+let textInstalled = false;
+
+// Inline text styles (style={{ letterSpacing: 2, fontFamily: ... }} and the
+// worlds kit's kt()) never pass through StyleSheet.create, so in Arabic the
+// Text component itself applies the same two rules to whatever style it
+// gets. Screens import Text from 'react-native' and read it at render time,
+// so replacing the export before any screen renders covers all of them.
+export function installArabicText() {
+  if (textInstalled) return;
+  textInstalled = true;
+  const OriginalText = ReactNative.Text;
+  const ArabicText = React.forwardRef<React.ElementRef<typeof OriginalText>, TextProps>((props, ref) => {
+    const flat = StyleSheet.flatten(props.style);
+    return React.createElement(OriginalText, { ...props, ref, style: flat ? arabicStyle(flat as StyleObject) : props.style });
+  });
+  ArabicText.displayName = 'Text';
+  Object.defineProperty(ReactNative, 'Text', { configurable: true, enumerable: true, get: () => ArabicText });
 }

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, PanResponder, Pressable, useWindowDimensions, View } from 'react-native';
 import { KIT_EASE } from './kit/AnimatedRing';
+import { isRTL } from '../../i18n';
 
 interface Props {
   count: number;
@@ -19,6 +20,9 @@ interface Props {
 }
 
 const GAP = 12;
+// The card row mirrors in right-to-left layouts (card 0 on the right), so
+// the slide offset and swipe direction flip with it.
+const DIR = isRTL ? 1 : -1;
 const SWIPE_THRESHOLD = 40;
 
 /**
@@ -38,31 +42,31 @@ export function SkillCarousel({
   const step = cardW + GAP;
   const offset = (width - cardW) / 2;
 
-  const pos = useRef(new Animated.Value(-index * step)).current;
+  const pos = useRef(new Animated.Value(DIR * index * step)).current;
   const indexRef = useRef(index);
   indexRef.current = index;
   const stepRef = useRef(step);
   stepRef.current = step;
 
   useEffect(() => {
-    Animated.timing(pos, { toValue: -index * step, duration: 450, easing: KIT_EASE, useNativeDriver: true }).start();
+    Animated.timing(pos, { toValue: DIR * index * step, duration: 450, easing: KIT_EASE, useNativeDriver: true }).start();
   }, [index, step, pos]);
 
   const responder = useMemo(() => PanResponder.create({
     // Only claim clearly-horizontal drags so the page still scrolls vertically.
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
     onPanResponderMove: (_, g) => {
-      pos.setValue(-indexRef.current * stepRef.current + g.dx);
+      pos.setValue(DIR * indexRef.current * stepRef.current + g.dx);
     },
     onPanResponderRelease: (_, g) => {
       const i = indexRef.current;
       let next = i;
-      if (Math.abs(g.dx) > SWIPE_THRESHOLD) next = Math.max(0, Math.min(count - 1, i + (g.dx < 0 ? 1 : -1)));
+      if (Math.abs(g.dx) > SWIPE_THRESHOLD) next = Math.max(0, Math.min(count - 1, i + (g.dx * DIR > 0 ? 1 : -1)));
       if (next !== i) onIndexChange(next);
-      else Animated.timing(pos, { toValue: -i * stepRef.current, duration: 300, easing: KIT_EASE, useNativeDriver: true }).start();
+      else Animated.timing(pos, { toValue: DIR * i * stepRef.current, duration: 300, easing: KIT_EASE, useNativeDriver: true }).start();
     },
     onPanResponderTerminate: () => {
-      Animated.timing(pos, { toValue: -indexRef.current * stepRef.current, duration: 300, easing: KIT_EASE, useNativeDriver: true }).start();
+      Animated.timing(pos, { toValue: DIR * indexRef.current * stepRef.current, duration: 300, easing: KIT_EASE, useNativeDriver: true }).start();
     },
   }), [count, onIndexChange, pos]);
 
@@ -70,7 +74,7 @@ export function SkillCarousel({
     <View ref={containerRef} onLayout={onContainerLayout} collapsable={false} style={{ height: cardHeight + 12, overflow: 'hidden' }} {...responder.panHandlers}>
       <Animated.View style={{ position: 'absolute', top: 6, left: offset, flexDirection: 'row', gap: GAP, transform: [{ translateX: pos }] }}>
         {Array.from({ length: count }).map((_, i) => {
-          const range = [-(i + 1) * step, -i * step, -(i - 1) * step];
+          const range = [DIR * i * step - step, DIR * i * step, DIR * i * step + step];
           const scale = pos.interpolate({ inputRange: range, outputRange: [0.92, 1, 0.92], extrapolate: 'clamp' });
           const opacity = pos.interpolate({ inputRange: range, outputRange: [inactiveOpacity, 1, inactiveOpacity], extrapolate: 'clamp' });
           const active = i === index;

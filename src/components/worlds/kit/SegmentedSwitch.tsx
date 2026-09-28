@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { KitIcon } from './KitIcon';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 export interface SegmentItem<K extends string> {
   key: K;
@@ -49,7 +50,7 @@ export function SegmentedSwitch<K extends string>({
             key={item.key}
             accessibilityRole="tab"
             accessibilityState={{ selected: on }}
-            accessibilityLabel={`${item.label}${item.locked ? ', locked' : ''}`}
+            accessibilityLabel={`${item.label}${item.locked ? tr('kit.lockedSuffix') : ''}`}
             onPress={() => onChange(item.key)}
             style={{ flex: 1, minWidth: 0, height: h, borderRadius: 11, backgroundColor: on ? t.accent : 'transparent', alignItems: 'center', justifyContent: 'center', gap: 2, paddingHorizontal: 2 }}
           >

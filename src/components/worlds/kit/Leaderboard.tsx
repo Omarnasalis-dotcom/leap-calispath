@@ -6,6 +6,7 @@ import { BoardRow, fmt2, initials } from '../../../lib/worldStanding';
 import { KitIcon, KitIconName } from './KitIcon';
 import { rankColor, YouBadge } from './SetRows';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 export type Scope = 'public' | 'community';
 export type Gender = 'ALL' | 'MALE' | 'FEMALE';
@@ -55,12 +56,12 @@ export function BoardFilters({ tokens: t, inCommunity, scope, onScope, gender, o
     <View style={[{ flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }, style]}>
       {inCommunity && (
         <Pills tokens={t} active={scope} onChange={onScope}
-          options={[{ key: 'public', label: 'PUBLIC' }, { key: 'community', label: 'MY COMMUNITY' }]} />
+          options={[{ key: 'public', label: tr('kit.public') }, { key: 'community', label: tr('kit.myCommunity') }]} />
       )}
       {showGender && (
         <View style={{ marginLeft: 'auto' }}>
           <Pills tokens={t} active={gender} onChange={onGender}
-            options={[{ key: 'ALL', label: 'ALL' }, { key: 'MALE', label: 'MALE' }, { key: 'FEMALE', label: 'FEMALE' }]} />
+            options={[{ key: 'ALL', label: tr('kit.all') }, { key: 'MALE', label: tr('kit.male') }, { key: 'FEMALE', label: tr('kit.female') }]} />
         </View>
       )}
     </View>
@@ -106,7 +107,7 @@ function Podium({ tokens: t, rows, myId }: { tokens: WorldKitTokens; rows: Board
             }}>
               <Text style={kt('bold', first ? 30 : 24, place, 0, first ? 32 : 26)}>{i + 1}</Text>
               <Text style={kt('semibold', 15, t.text, 0.4)}>{fmt2(r.points)}</Text>
-              <Text style={kt('semibold', 9.5, t.textFaint, 1.4)}>{r.level ?? 'PTS'}</Text>
+              <Text style={kt('semibold', 9.5, t.textFaint, 1.4)}>{r.level ?? tr('kit.pts')}</Text>
             </View>
           </View>
         );
@@ -149,7 +150,7 @@ export function LeaderboardBody({ tokens: t, rows, myId, loading }: {
   if (rows.length === 0) {
     return (
       <Text style={[kt('medium', 13, t.textFaint, 1.2), { textAlign: 'center', paddingTop: 48 }]}>
-        {loading ? 'LOADING…' : 'No warriors on this board yet.'}
+        {loading ? tr('kit.loading') : tr('kit.emptyBoard')}
       </Text>
     );
   }
@@ -188,7 +189,7 @@ export function YouBar({ tokens: t, rankText, king, ranked, handle, sub, scoreTe
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={kt('bold', 18, t.text, 0, 20)}>{scoreText}</Text>
-        <Text style={[kt('semibold', 9.5, t.textFaint, 1.4), { marginTop: 3 }]}>PTS</Text>
+        <Text style={[kt('semibold', 9.5, t.textFaint, 1.4), { marginTop: 3 }]}>{tr('kit.pts')}</Text>
       </View>
     </View>
   );
@@ -214,7 +215,7 @@ export function EliteList({ tokens: t, title, rows, loading, myId, filters }: {
       ) : (
         <View style={{ borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong, paddingVertical: 28, paddingHorizontal: 20 }}>
           <Text style={[kt('regular', 13, t.textMuted), { textAlign: 'center' }]}>
-            {loading ? 'LOADING…' : 'No warriors at this level yet.'}
+            {loading ? tr('kit.loading') : tr('kit.emptyLevel')}
           </Text>
         </View>
       )}

@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useTheme } from '../contexts/ThemeContext';
+import { t } from '../i18n';
 
 const SIZE = 48;
 const MARGIN = 16;
@@ -32,8 +33,8 @@ const WAVE_GAP = 500;
 const WAVE_STAGGER = 600;
 
 const GAMES: { icon: string; label: string; route: string }[] = [
-  { icon: '🪜', label: 'Beat the Plank', route: '/beat-the-plank' },
-  { icon: '🧠', label: 'Guess the Skill', route: '/guess-the-skill' },
+  { icon: '🪜', label: t('games.beatThePlank'), route: '/beat-the-plank' },
+  { icon: '🧠', label: t('games.guessTheSkill'), route: '/guess-the-skill' },
 ];
 
 export function FloatingGamesButton() {

@@ -18,6 +18,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { COACH_COLORS } from './coachTokens';
 import { computeCoachTeaser } from './coachTeaser';
+import { t } from '../../i18n';
 
 const FAB_SIZE = 48;
 
@@ -109,8 +110,8 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
     <>
       {showGreeting && !open && (
         <View pointerEvents="none" style={[fabStyles.greeting, { top: fabTop + FAB_SIZE + 8, backgroundColor: c.bubbleBg, borderColor: c.bubbleBorder }]}>
-          <Text style={[fabStyles.greetingTitle, { color: c.bodyText }]}>I'M YOUR COACH</Text>
-          <Text style={[fabStyles.greetingSub, { color: c.secondaryText }]}>Here to help you any time.</Text>
+          <Text style={[fabStyles.greetingTitle, { color: c.bodyText }]}>{t('coachFab.title')}</Text>
+          <Text style={[fabStyles.greetingSub, { color: c.secondaryText }]}>{t('coachFab.sub')}</Text>
         </View>
       )}
 
@@ -125,7 +126,7 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
             onPress={() => setOpen(true)}
             style={[fabStyles.button, { backgroundColor: theme.accent }]}
             accessibilityRole="button"
-            accessibilityLabel="Open Leap Coach"
+            accessibilityLabel={t('coachFab.open')}
           >
             <Animated.View pointerEvents="none" style={[fabStyles.sheen, { transform: [{ translateX: sheenX }] }]} />
             {wave.map((v, i) => (
@@ -147,10 +148,10 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
             <View style={[fabStyles.panelAvatarRing, { borderColor: theme.accent }]}>
               <View style={[fabStyles.panelAvatarDot, { backgroundColor: theme.accent }]} />
             </View>
-            <Text style={[fabStyles.panelTitle, { color: c.bodyText }]}>LEAP COACH</Text>
+            <Text style={[fabStyles.panelTitle, { color: c.bodyText }]}>{t('coachFab.panelTitle')}</Text>
           </View>
-          <Text style={[fabStyles.panelHeadline, { color: c.bodyText }]}>I'M YOUR COACH</Text>
-          <Text style={[fabStyles.panelSub, { color: c.secondaryText }]}>Here to help you any time.</Text>
+          <Text style={[fabStyles.panelHeadline, { color: c.bodyText }]}>{t('coachFab.title')}</Text>
+          <Text style={[fabStyles.panelSub, { color: c.secondaryText }]}>{t('coachFab.sub')}</Text>
           {teaser && (
             <>
               <Text style={[fabStyles.panelLine, { color: c.bodyText }]}>{teaser.line}</Text>
@@ -164,7 +165,7 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
             </>
           )}
           <TouchableOpacity style={[fabStyles.panelOpenBtn, { borderColor: c.chipBorder }]} onPress={() => { setOpen(false); onOpenCoach(); }}>
-            <Text style={[fabStyles.panelOpenBtnText, { color: c.secondaryText }]}>OPEN CHAT</Text>
+            <Text style={[fabStyles.panelOpenBtnText, { color: c.secondaryText }]}>{t('coachFab.openChat')}</Text>
           </TouchableOpacity>
         </View>
       </Modal>

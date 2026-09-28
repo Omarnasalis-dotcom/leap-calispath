@@ -8,6 +8,7 @@
  */
 
 import { TIER_NAMES } from '../types';
+import { t } from '../i18n';
 
 export const MAX_STRENGTH_TIER = 9;
 export const TIER_COUNT = MAX_STRENGTH_TIER + 1;
@@ -47,10 +48,10 @@ export function tierBarFill(status: TierStatus): number {
 
 export function tierCaption(tier: number, currentTier: number, completedTiers?: ReadonlySet<number>): string {
   const status = tierStatus(tier, currentTier, completedTiers);
-  if (status === 'complete') return 'Tier complete';
-  if (status === 'placed') return 'Placed by your assessment';
-  if (status === 'locked') return `Complete ${tierTitle(tier - 1)} to unlock`;
-  return tier >= MAX_STRENGTH_TIER ? 'The final trial' : `Pass the trial to reach ${tierTitle(tier + 1)}`;
+  if (status === 'complete') return t('strength.captionComplete');
+  if (status === 'placed') return t('strength.captionPlaced');
+  if (status === 'locked') return t('strength.captionLocked', { tier: tierTitle(tier - 1) });
+  return tier >= MAX_STRENGTH_TIER ? t('strength.captionFinal') : t('strength.captionNext', { tier: tierTitle(tier + 1) });
 }
 
 /** Overall climb: how many tiers are behind you, out of 9. */
@@ -78,19 +79,19 @@ export function cardStats(entries: TimeEntry[], userId: string | undefined, stat
   if (idx >= 0) {
     return {
       rank: `#${idx + 1}`,
-      rankOf: `of ${n}`,
-      gap: idx === 0 ? 'KING' : `+${fmtTime(entries[idx].best_time_seconds - entries[0].best_time_seconds)}`,
+      rankOf: t('strength.rankOf', { count: n }),
+      gap: idx === 0 ? t('strength.king') : `+${fmtTime(entries[idx].best_time_seconds - entries[0].best_time_seconds)}`,
       ranked: true,
       king: idx === 0,
     };
   }
   return {
     rank: '—',
-    rankOf: n === 0 ? 'no entries yet' : status !== 'locked' ? `unranked · ${n}` : `of ${n}`,
+    rankOf: n === 0 ? t('strength.noEntries') : status !== 'locked' ? t('strength.unranked', { count: n }) : t('strength.rankOf', { count: n }),
     gap: '—',
     ranked: false,
     king: false,
   };
 }
 
-export const warriorsLabel = (n: number) => `${n} ${n === 1 ? 'WARRIOR' : 'WARRIORS'}`;
+export const warriorsLabel = (n: number) => t('strength.warriors', { count: n });

@@ -8,6 +8,7 @@ import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { KIT_EASE } from './AnimatedRing';
 import { KitCloseButton } from './KitButton';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 interface Props {
   tokens: WorldKitTokens;
@@ -74,7 +75,7 @@ export function WorldSheet({
     <Modal transparent visible animationType="none" statusBarTranslucent onRequestClose={onClose}>
       <Animated.View style={{ flex: 1, backgroundColor: t.scrim, opacity: anim }}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1, justifyContent: 'flex-end' }}>
-          <Pressable accessibilityLabel="Close sheet" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
+          <Pressable accessibilityLabel={tr('kit.closeSheet')} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={onClose} />
           <Animated.View
             style={{
               ...(board ? { height: '90%' } : { maxHeight }),

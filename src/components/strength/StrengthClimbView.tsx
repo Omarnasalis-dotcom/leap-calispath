@@ -18,6 +18,7 @@ import { SkillCarousel } from '../worlds/SkillCarousel';
 import {
   BoardFilters, filterByGender, KIT_EASE, kt, rankColor, WorldPage, WorldSheet, YouBadge, Gender, Scope,
 } from '../worlds/kit';
+import { t as tr } from '../../i18n';
 
 interface Props {
   profile: any;
@@ -179,16 +180,16 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
               <YouRow tokens={t} colors={c} rows={list} userId={userId} status={selectedStatus} />
               <Pressable
                 accessibilityRole="button"
-                accessibilityLabel="See the full leaderboard"
+                accessibilityLabel={tr('strength.seeFullBoard')}
                 onPress={() => setSheetOpen(true)}
                 style={({ pressed }) => ({ height: 48, borderRadius: 14, backgroundColor: t.pillTrack, borderWidth: 1, borderColor: c.divider, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.8 : 1 })}
               >
-                <Text style={kt('semibold', 13, t.textSecondary, 2)}>SEE MORE</Text>
+                <Text style={kt('semibold', 13, t.textSecondary, 2)}>{tr('strength.seeMore')}</Text>
                 <Svg width={14} height={14} viewBox="0 0 24 24"><Path d="M9 6l6 6-6 6" fill="none" stroke={t.textSecondary} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" /></Svg>
               </Pressable>
             </>
           ) : loading ? (
-            <Text style={[kt('medium', 13, t.textFaint, 1.2), { textAlign: 'center', paddingVertical: 24 }]}>LOADING…</Text>
+            <Text style={[kt('medium', 13, t.textFaint, 1.2), { textAlign: 'center', paddingVertical: 24 }]}>{tr('strength.loading')}</Text>
           ) : (
             <EmptyBoard tokens={t} colors={c} />
           )}
@@ -201,7 +202,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
         onClose={() => setSheetOpen(false)}
         variant="log"
         maxHeight="72%"
-        title={`${tierName(selected)} LEADERBOARD`}
+        title={tr('strength.leaderboardTitle', { tier: tierName(selected) })}
         titleSize={19}
         subtitle={warriorsLabel(list.length)}
       >
@@ -222,8 +223,8 @@ function ClimbHeader({ tokens: t }: { tokens: WorldKitTokens }) {
   // to the floating AI Coach button that already sits top-right here.
   return (
     <View style={{ paddingTop: 16, paddingHorizontal: 24, paddingBottom: 4 }}>
-      <Text style={kt('medium', 11, t.textMuted, 2.4)}>STRENGTH WORLD</Text>
-      <Text style={[kt('bold', 26, t.text, 1.4, 29), { marginTop: 2 }]}>THE CLIMB</Text>
+      <Text style={kt('medium', 11, t.textMuted, 2.4)}>{tr('strength.world')}</Text>
+      <Text style={[kt('bold', 26, t.text, 1.4, 29), { marginTop: 2 }]}>{tr('strength.theClimb')}</Text>
     </View>
   );
 }
@@ -246,13 +247,13 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
   const fill = tierBarFill(status);
 
   const chip = isCurrent
-    ? { text: 'CURRENT', bg: t.accent, fg: t.onAccent, border: 'transparent' }
+    ? { text: tr('strength.current'), bg: t.accent, fg: t.onAccent, border: 'transparent' }
     : status === 'complete'
-      ? { text: 'COMPLETE', bg: 'transparent', fg: c.green, border: c.greenBorder }
+      ? { text: tr('strength.complete'), bg: 'transparent', fg: c.green, border: c.greenBorder }
       : placed
         // Neutral, not green: behind you, but never earned by a trial.
-        ? { text: 'PLACED', bg: 'transparent', fg: t.textSecondary, border: t.borderStrong }
-        : { text: 'LOCKED', bg: 'transparent', fg: t.textDisabled, border: t.borderStrong };
+        ? { text: tr('strength.placed'), bg: 'transparent', fg: t.textSecondary, border: t.borderStrong }
+        : { text: tr('strength.locked'), bg: 'transparent', fg: t.textDisabled, border: t.borderStrong };
 
   return (
     <View style={{
@@ -279,7 +280,7 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
 
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`${name} tier details`}
+        accessibilityLabel={tr('strength.tierDetailsA11y', { name })}
         disabled={!active}
         onPress={onShowDetails}
         style={{ marginTop: 18, alignSelf: 'flex-start', maxWidth: '100%' }}
@@ -307,14 +308,14 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
 
       <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: c.divider, paddingTop: 14 }}>
         <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={kt('medium', 10.5, t.textMuted, 2)}>RANK</Text>
+          <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('strength.rank')}</Text>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 5, marginTop: 3 }}>
             <Text style={kt('semibold', 26, stats.ranked ? t.text : t.textDisabled, 0, 30)}>{stats.rank}</Text>
             <Text style={kt('regular', 12, t.textFaint)} numberOfLines={1}>{stats.rankOf}</Text>
           </View>
         </View>
         <View style={{ flex: 1, minWidth: 0, borderLeftWidth: 1, borderLeftColor: c.divider, paddingLeft: 16 }}>
-          <Text style={kt('medium', 10.5, t.textMuted, 2)}>GAP TO #1</Text>
+          <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('strength.gapToFirst')}</Text>
           <Text style={[kt('semibold', 26, stats.king ? t.gold : stats.ranked ? t.text : t.textDisabled, 0, 30), { marginTop: 3 }]}>{stats.gap}</Text>
         </View>
       </View>
@@ -333,7 +334,7 @@ function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, act
           })}
         >
           <Text style={kt('bold', 15, isCurrent ? t.onAccent : locked ? t.textDisabled : t.text, 2.4)} numberOfLines={1} adjustsFontSizeToFit>
-            {isCurrent ? `START ${name} TRIAL` : locked ? 'LOCKED' : `PRACTICE ${name}`}
+            {isCurrent ? tr('strength.startTrial', { name }) : locked ? tr('strength.locked') : tr('strength.practice', { name })}
           </Text>
         </Pressable>
       </View>
@@ -352,8 +353,8 @@ function ClimbLine({ tokens: t, colors: c, currentTier, completedTiers, selected
   return (
     <View style={{ paddingTop: 22, paddingHorizontal: 24, gap: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Text style={kt('medium', 11, t.textMuted, 2)}>YOUR CLIMB</Text>
-        <Text style={kt('medium', 12, t.textSecondary, 1.4)}>{`TIER ${currentTier} OF ${MAX_STRENGTH_TIER} · ${climbPercent(currentTier)}%`}</Text>
+        <Text style={kt('medium', 11, t.textMuted, 2)}>{tr('strength.yourClimb')}</Text>
+        <Text style={kt('medium', 12, t.textSecondary, 1.4)}>{tr('strength.climbProgress', { tier: currentTier, max: MAX_STRENGTH_TIER, pct: climbPercent(currentTier) })}</Text>
       </View>
       <View style={{ height: 34 }}>
         <View style={{ position: 'absolute', left: 17, right: 17, top: 16, height: 2, backgroundColor: c.divider }} />
@@ -477,7 +478,7 @@ function YouRow({ tokens: t, colors: c, rows, userId, status }: {
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, height: 62, paddingHorizontal: 16, borderRadius: 16, borderWidth: 1, borderStyle: 'dashed', borderColor: c.dashed }}>
         <Text style={[kt('bold', 18, t.textDisabled), { width: 34 }]}>—</Text>
         <Text style={[kt('regular', 13, t.textMuted), { flex: 1 }]}>
-          {status === 'current' ? 'Complete the trial to rank up in the leaderboard' : 'Practice this tier to set your time'}
+          {status === 'current' ? tr('strength.rankUpHint') : tr('strength.practiceHint')}
         </Text>
       </View>
     );
@@ -493,7 +494,7 @@ function EmptyBoard({ tokens: t, colors: c }: { tokens: WorldKitTokens; colors: 
           <View key={i} style={{ flex: 1, height: h, borderTopLeftRadius: 12, borderTopRightRadius: 12, borderWidth: 1, borderBottomWidth: 0, borderStyle: 'dashed', borderColor: c.dashed }} />
         ))}
       </View>
-      <Text style={[kt('regular', 13, t.textMuted, 0.3), { textAlign: 'center' }]}>No warriors have attempted this tier yet.</Text>
+      <Text style={[kt('regular', 13, t.textMuted, 0.3), { textAlign: 'center' }]}>{tr('strength.noAttempts')}</Text>
     </View>
   );
 }
@@ -514,7 +515,7 @@ function SheetRow({ tokens: t, row, index, leader, you }: { tokens: WorldKitToke
       </View>
       <View style={{ alignItems: 'flex-end' }}>
         <Text style={kt('semibold', 16, t.text)}>{fmtTime(row.points)}</Text>
-        <Text style={kt('medium', 11, t.textFaint, 0.4)}>{index === 0 ? 'LEADER' : `+${fmtTime(row.points - leader)}`}</Text>
+        <Text style={kt('medium', 11, t.textFaint, 0.4)}>{index === 0 ? tr('strength.leader') : `+${fmtTime(row.points - leader)}`}</Text>
       </View>
     </View>
   );

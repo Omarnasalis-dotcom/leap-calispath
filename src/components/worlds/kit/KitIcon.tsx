@@ -1,5 +1,6 @@
 import React from 'react';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { FLIP_X } from '../../../i18n';
 
 /** Icons drawn from the handoff's own SVG paths (24×24 viewBox). */
 export type KitIconName =
@@ -52,7 +53,7 @@ export function KitIcon({ name, size = 18, color, strokeWidth = 2.4 }: Props) {
       break;
   }
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24">
+    <Svg width={size} height={size} viewBox="0 0 24 24" style={name === 'back' ? FLIP_X : undefined}>
       {body}
     </Svg>
   );

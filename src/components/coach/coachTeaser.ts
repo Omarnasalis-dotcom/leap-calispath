@@ -4,17 +4,18 @@
 // (statics_tier/power_points/one_mm_points — same real columns
 // attach_stat_bars reads server-side, see supabase/functions/ai-coach/
 // tools/attachStatBars.ts), not a Claude call.
+import { t, isArabic } from '../../i18n';
 export interface CoachTeaser {
   line: string;
   prompts: string[];
 }
 
 type Discipline = 'static' | 'power' | 'one_min_max';
-const LABELS: Record<Discipline, string> = { static: 'Static', power: 'Power', one_min_max: '1MM' };
+const LABELS: Record<Discipline, string> = { static: t('coachFab.static'), power: t('coachFab.power'), one_min_max: '1MM' };
 const PROMPTS: Record<Discipline, string[]> = {
-  static: ['START STATIC', 'WHY THIS GAP?', 'SCALE FOR ME'],
-  power: ['START POWER', 'WHY THIS GAP?', 'SCALE FOR ME'],
-  one_min_max: ['START 1MM', 'WHY THIS GAP?', 'SCALE FOR ME'],
+  static: [t('coachFab.startStatic'), t('coachFab.whyGap'), t('coachFab.scale')],
+  power: [t('coachFab.startPower'), t('coachFab.whyGap'), t('coachFab.scale')],
+  one_min_max: [t('coachFab.start1mm'), t('coachFab.whyGap'), t('coachFab.scale')],
 };
 
 export function computeCoachTeaser(profile: {
@@ -32,11 +33,11 @@ export function computeCoachTeaser(profile: {
   if (entries.every(([, v]) => v === 0)) return null; // nothing to compare yet
 
   const [weakestKey, weakestValue] = entries.reduce((min, cur) => (cur[1] < min[1] ? cur : min));
-  const others = entries.filter(([k]) => k !== weakestKey).map(([k, v]) => `${v.toFixed(2)} ${LABELS[k]}`).join(', ');
-  const zeroPhrase = weakestValue === 0 ? 'your only zero' : 'lagging behind the other two';
+  const others = entries.filter(([k]) => k !== weakestKey).map(([k, v]) => `${v.toFixed(2)} ${LABELS[k]}`).join(isArabic ? '، ' : ', ');
+  const zeroPhrase = weakestValue === 0 ? t('coachFab.onlyZero') : t('coachFab.lagging');
 
   return {
-    line: `${LABELS[weakestKey]} is ${zeroPhrase} — ${others}, ${weakestValue.toFixed(2)} ${LABELS[weakestKey]}. Clear one ${LABELS[weakestKey]} entry this week and you'll be building real balance.`,
+    line: t('coachFab.line', { weak: LABELS[weakestKey], phrase: zeroPhrase, others, value: weakestValue.toFixed(2) }),
     prompts: PROMPTS[weakestKey],
   };
 }

@@ -12,6 +12,7 @@ import { getCountryFlag } from '../../constants/countries';
 import { LeapLogo } from '../LeapLogo';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../tutorial/TutorialOverlay';
+import { t } from '../../i18n';
 
 
 interface LeaderboardModalsProps {
@@ -71,8 +72,8 @@ export function LeaderboardModals({
                 <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
               </TouchableOpacity>
               <View style={styles.modalHeaderTitle}>
-                <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>GLOBAL WELL-ROUNDED ELITE</Text>
-                <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>THE ULTIMATE VERSATILE WARRIOR</Text>
+                <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>{t('leaderboards.wraTitle')}</Text>
+                <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>{t('leaderboards.wraSub')}</Text>
               </View>
             </View>
 
@@ -102,7 +103,7 @@ export function LeaderboardModals({
                           fontWeight: '900',
                           color: wraScope === scope ? '#FFF' : theme.text.secondary
                         }}>
-                          {scope === 'public' ? 'PUBLIC' : 'MY COMMUNITY'}
+                          {scope === 'public' ? t('leaderboards.public') : t('leaderboards.myCommunity')}
                         </Text>
                       </TouchableOpacity>
                     ))}
@@ -127,7 +128,7 @@ export function LeaderboardModals({
                         fontWeight: '900',
                         color: genderFilter === filter ? '#FFF' : theme.text.secondary
                       }}>
-                        {filter}
+                        {t(`leaderboards.${filter as 'ALL' | 'MALE' | 'FEMALE'}`)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -176,7 +177,7 @@ export function LeaderboardModals({
 
                       <View style={styles.lbScoreBox}>
                         <Text style={[styles.lbScoreText, { color: theme.accent }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
-                        <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>PTS</Text>
+                        <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>{t('leaderboards.pts')}</Text>
                       </View>
                     </View>
                   );
@@ -218,8 +219,8 @@ export function LeaderboardModals({
                 <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
               </TouchableOpacity>
               <View style={styles.modalHeaderTitle}>
-                <Text style={[styles.lbTitle, { color: '#FF5252', textAlign: 'center' }]}>GLOBAL GLORY RANKINGS</Text>
-                <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>THE LEGENDS OF THE ARENA</Text>
+                <Text style={[styles.lbTitle, { color: '#FF5252', textAlign: 'center' }]}>{t('leaderboards.gloryTitle')}</Text>
+                <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>{t('leaderboards.glorySub')}</Text>
               </View>
             </View>
 
@@ -248,7 +249,7 @@ export function LeaderboardModals({
                         fontWeight: '900', 
                         color: genderFilter === filter ? '#FFF' : theme.text.secondary 
                       }}>
-                        {filter}
+                        {t(`leaderboards.${filter as 'ALL' | 'MALE' | 'FEMALE'}`)}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -282,7 +283,7 @@ export function LeaderboardModals({
 
                     <View style={styles.lbScoreBox}>
                       <Text style={[styles.lbScoreText, { color: '#FF5252' }]}>{entry.total_score}</Text>
-                      <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>GLORY</Text>
+                      <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>{t('leaderboards.glory')}</Text>
                     </View>
                   </View>
                 ))}

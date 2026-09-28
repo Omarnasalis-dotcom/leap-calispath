@@ -2,15 +2,16 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 /** "THIS SET" points + PB chip (handoff §0.7). */
 export function ThisSetRow({ tokens: t, points, chip }: { tokens: WorldKitTokens; points: string; chip: { text: string; filled: boolean } }) {
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18, paddingHorizontal: 4 }}>
       <View>
-        <Text style={kt('medium', 10.5, t.textMuted, 2)}>THIS SET</Text>
+        <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('kit.thisSet')}</Text>
         <Text style={kt('bold', 30, t.text, 0, 34)}>
-          {points} <Text style={kt('medium', 13, t.textMuted, 1.4)}>PTS</Text>
+          {points} <Text style={kt('medium', 13, t.textMuted, 1.4)}>{tr('kit.pts')}</Text>
         </Text>
       </View>
       <View style={{
@@ -73,7 +74,7 @@ export function TopList({ tokens: t, title, rightLabel, rows, emptyText }: {
 export function YouBadge({ tokens: t }: { tokens: WorldKitTokens }) {
   return (
     <View style={{ paddingVertical: 1, paddingHorizontal: 6, borderRadius: 5, backgroundColor: t.accent }}>
-      <Text style={kt('bold', 10, t.onAccent, 1.2)}>YOU</Text>
+      <Text style={kt('bold', 10, t.onAccent, 1.2)}>{tr('kit.you')}</Text>
     </View>
   );
 }

@@ -4,6 +4,7 @@ import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { LeapLogo } from '../../LeapLogo';
 import { KitIcon, KitIconName } from './KitIcon';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 interface Props {
   tokens: WorldKitTokens;
@@ -66,7 +67,7 @@ export function KitCloseButton({ tokens: t, onPress }: { tokens: WorldKitTokens;
   return (
     <Pressable
       accessibilityRole="button"
-      accessibilityLabel="Close"
+      accessibilityLabel={tr('kit.close')}
       hitSlop={8}
       onPress={onPress}
       style={{ width: 40, height: 40, borderRadius: 20, backgroundColor: t.button, alignItems: 'center', justifyContent: 'center' }}

@@ -4,6 +4,7 @@ import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { AnimatedRing } from './AnimatedRing';
 import { KitIcon } from './KitIcon';
 import { kt } from './type';
+import { t as tr } from '../../../i18n';
 
 export interface GapCircle {
   label: string;
@@ -58,24 +59,24 @@ export function DashboardRings({
 
   return (
     <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 * s, paddingTop: 22, paddingHorizontal: 20 }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={`${worldLabel} rank, open leaderboard`} onPress={onOpenLeaderboard}>
+      <Pressable accessibilityRole="button" accessibilityLabel={tr('kit.rankA11y', { world: worldLabel })} onPress={onOpenLeaderboard}>
         <AnimatedRing size={side} radius={45 * s} strokeWidth={3} progress={rankProgress} color={isKing ? t.gold : t.accent} trackColor={t.track} delay={250}>
           <View style={[styles.content, { width: side * SIDE_TEXT_WIDTH, gap: 3 * s }]}>
-            <Text {...fit} style={[kt('medium', 9.5 * s, t.textMuted, 1.6, 12 * s), styles.center]}>{worldLabel} RANK</Text>
+            <Text {...fit} style={[kt('medium', 9.5 * s, t.textMuted, 1.6, 12 * s), styles.center]}>{tr('kit.worldRank', { world: worldLabel })}</Text>
             <Text {...fit} style={[kt('bold', 24 * s, ranked ? (isKing ? t.gold : t.text) : t.textDisabled, 0, 27 * s), styles.center]}>{ranked ? `#${rank}` : '—'}</Text>
-            <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.2, 12.5 * s), styles.center]}>{ranked ? 'OF WORLD' : 'UNRANKED'}</Text>
+            <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.2, 12.5 * s), styles.center]}>{ranked ? tr('kit.ofWorld') : tr('kit.unranked')}</Text>
           </View>
         </AnimatedRing>
       </Pressable>
 
       <View ref={scoreRef} onLayout={onScoreLayout} collapsable={false}>
-        <Pressable accessibilityRole="button" accessibilityLabel={`${worldLabel} score ${scoreText}, open leaderboard`} onPress={onOpenLeaderboard}>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('kit.scoreA11y', { world: worldLabel, score: scoreText })} onPress={onOpenLeaderboard}>
           <View style={{ position: 'absolute', top: 14 * s, left: 14 * s, right: 14 * s, bottom: 14 * s, borderRadius: center, backgroundColor: t.tintStrong }} />
           <AnimatedRing size={center} radius={75 * s} strokeWidth={6} progress={scoreProgress} color={t.accent} trackColor={t.track} delay={150}>
             <View style={[styles.content, { width: center * CENTER_TEXT_WIDTH, gap: 5 * s }]}>
-              <Text {...fit} style={[kt('semibold', 10.5 * s, t.accentText, 2, 13 * s), styles.center]}>{worldLabel} SCORE</Text>
+              <Text {...fit} style={[kt('semibold', 10.5 * s, t.accentText, 2, 13 * s), styles.center]}>{tr('kit.worldScore', { world: worldLabel })}</Text>
               <Text {...fit} style={[kt('bold', 34 * s, score > 0 ? t.text : t.textDisabled, 0, 38 * s), styles.center]}>{scoreText}</Text>
-              <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.6, 12.5 * s), styles.center]}>TOTAL PTS</Text>
+              <Text {...fit} style={[kt('medium', 10 * s, t.textFaint, 1.6, 12.5 * s), styles.center]}>{tr('kit.totalPts')}</Text>
             </View>
           </AnimatedRing>
         </Pressable>
