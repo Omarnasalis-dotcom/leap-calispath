@@ -5,7 +5,7 @@ import { TourId, TutorialStep } from '../../types/tutorial';
 const MAIN_TOUR: TutorialStep[] = [
   { targetId: 'profile.levelCircle', mode: 'decoy', caption: 'YOUR PROFILE SHOWS YOUR CURRENT LEVEL' },
   { targetId: 'bottomTab.strength', mode: 'real', caption: 'TAP STRENGTH TO ENTER STRENGTH WORLD' },
-  { targetId: 'strength.tierChips', mode: 'real', caption: 'BROWSE TIERS — TAP ONE TO SELECT IT' },
+  { targetId: 'strength.tierChips', mode: 'decoy', caption: 'SWIPE THE CARDS TO BROWSE ALL 10 TIERS — YOURS STARTS IN THE MIDDLE' },
   { targetId: 'strength.trialButton', mode: 'decoy', caption: 'START A TRIAL TO RANK UP THIS TIER', optional: true },
   { targetId: 'strength.leaderboardFirstRow', mode: 'decoy', caption: 'SEE HOW YOU RANK AGAINST OTHER WARRIORS', optional: true },
   { targetId: 'bottomTab.profile', mode: 'real', caption: 'TAP PROFILE TO HEAD BACK' },
