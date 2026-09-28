@@ -668,6 +668,7 @@ const en = {
     static: 'STATIC',
     train: 'TRAIN',
     journey: 'JOURNEY',
+    endurance: '1MM',
     worlds: 'WORLDS',
     lockedTitle: 'Locked',
     reachTier: 'Reach Tier {{tier}} to unlock {{tab}}.',

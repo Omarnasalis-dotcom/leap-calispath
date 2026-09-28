@@ -45,7 +45,7 @@ const TABS: TabDef[] = [
   { id: 'strength', label: t('tabs.strength'), icon: 'sword-cross', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
   { id: 'power', label: t('tabs.power'), icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
   { id: 'static', label: t('tabs.static'), icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
-  { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
+  { id: '1mm', label: t('tabs.endurance'), icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
   // Champions Arena's tab entry is held back for the next release (same
   // treatment as Tournament/Clash — see ProfileScreen.tsx's showV2Popup):
   // ChampionsArenaScreen and /champions-arena stay in the codebase, just

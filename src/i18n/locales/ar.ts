@@ -695,6 +695,7 @@ const ar: Translations = {
     static: 'الثبات',
     train: 'التدريب',
     journey: 'رحلتي',
+    endurance: 'التحمّل',
     worlds: 'العوالم',
     lockedTitle: 'مقفل',
     reachTier: 'ابلغ المستوى {{tier}} لفتح {{tab}}.',

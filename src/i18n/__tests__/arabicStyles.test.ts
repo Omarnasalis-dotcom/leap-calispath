@@ -34,7 +34,12 @@ describe('arabicStyle', () => {
 
   it('returns styles without text settings unchanged', () => {
     const style = { flex: 1, padding: 4 };
-    expect(arabicStyle(style)).toBe(style);
+    expect(arabicStyle(style)).toEqual(style);
+  });
+
+  it('gives Arabic room: raises a tight lineHeight and keeps font padding', () => {
+    expect(arabicStyle({ fontSize: 26, lineHeight: 29, includeFontPadding: false })).toEqual({ fontSize: 26, lineHeight: 38 });
+    expect(arabicStyle({ fontSize: 12, lineHeight: 30 })).toEqual({ fontSize: 12, lineHeight: 30 });
   });
 });
 

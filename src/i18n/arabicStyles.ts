@@ -27,11 +27,19 @@ export function arabicFontFor(family: string): string {
 
 type StyleObject = Record<string, unknown>;
 
+// Arabic letters (Cairo) reach well above and below Latin ones, so a tight
+// lineHeight tuned for Oswald/Barlow clips them (the Strength title).
+const MIN_ARABIC_LINE_HEIGHT = 1.45;
+
 export function arabicStyle<T extends StyleObject>(style: T): T {
-  if (!('letterSpacing' in style) && typeof style.fontFamily !== 'string') return style;
   const next: StyleObject = { ...style };
   delete next.letterSpacing;
   if (typeof next.fontFamily === 'string') next.fontFamily = arabicFontFor(next.fontFamily);
+  if (typeof next.fontSize === 'number' && typeof next.lineHeight === 'number') {
+    next.lineHeight = Math.max(next.lineHeight, Math.round(next.fontSize * MIN_ARABIC_LINE_HEIGHT));
+  }
+  // Android: without font padding the taller glyphs are cut off.
+  if (next.includeFontPadding === false) delete next.includeFontPadding;
   return next as T;
 }
 
