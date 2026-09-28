@@ -32,7 +32,6 @@ Sentry.init({
 // @sentry/core is only a transitive dependency.) Production only; reporting
 // must never break logging.
 if (!__DEV__) {
-  const originalConsoleError = console.error;
   const describe = (arg: unknown) => {
     if (typeof arg === 'string') return arg;
     try {
@@ -43,7 +42,8 @@ if (!__DEV__) {
   };
   let forwarding = false; // re-entry guard, in case Sentry itself logs an error
   console.error = (...args: unknown[]) => {
-    originalConsoleError(...args);
+    // Not printed on the device in production (see the log stripping
+    // below), only reported.
     if (forwarding) return;
     forwarding = true;
     try {
@@ -96,14 +96,12 @@ if (Platform.OS === 'android') {
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
 // Global guard: Strip all console logs in production to prevent data leaks.
-// Includes console.error — Supabase error objects logged at call sites
-// throughout the app can carry query/schema details, so this needs the
-// same treatment as log/warn/info, not just the "noisy" methods.
+// console.error is already replaced above: it goes to Sentry and is never
+// printed on the device. Reassigning it here used to silently undo that.
 if (!__DEV__) {
   console.log = () => { };
   console.warn = () => { };
   console.info = () => { };
-  console.error = () => { };
 }
 
 import { AuthProvider, useAuth } from '../src/contexts/AuthContext';
