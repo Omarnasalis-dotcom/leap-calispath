@@ -11,7 +11,7 @@ export const TIER_HARD_FLOORS: Record<number, number> = {
   6: 250,
   7: 360,
   8: 480,
-  9: 600, // Eternity Protocol: 12-labor trial, minimum 10 minutes
+  9: 420, // Eternity Protocol: 12-labor trial, minimum 7 minutes
 };
 
 export const TIER_REQUIREMENTS: Record<number, { desc: string; difficulty: number }> = {

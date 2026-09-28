@@ -12,7 +12,7 @@ const TIER_HARD_FLOORS: Record<number, number> = {
   6: 250,
   7: 360,
   8: 480,
-  9: 600,
+  9: 420,
 };
 
 // Minimum seconds between any two trial submissions from the same user
