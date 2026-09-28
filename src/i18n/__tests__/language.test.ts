@@ -9,7 +9,8 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
   }),
 }));
 jest.mock('expo', () => ({ reloadAppAsync: jest.fn(async () => {}) }));
-jest.mock('expo-localization', () => ({ getLocales: () => [{ languageCode: 'ar' }] }));
+let mockPhoneLanguage = 'ar';
+jest.mock('expo-localization', () => ({ getLocales: () => [{ languageCode: mockPhoneLanguage }] }));
 
 import { I18nManager } from 'react-native';
 import { reloadAppAsync } from 'expo';
@@ -23,19 +24,35 @@ beforeEach(() => {
   jest.spyOn(I18nManager, 'allowRTL').mockImplementation(() => {});
   jest.spyOn(I18nManager, 'forceRTL').mockImplementation(() => {});
   setRTL(false);
+  mockPhoneLanguage = 'ar';
 });
 
-it('while Arabic is unreleased, the phone language alone does not switch to Arabic', async () => {
+it('follows the phone language when nothing is saved', async () => {
+  expect(await getPreferredLanguage()).toBe('ar');
+  mockPhoneLanguage = 'en';
+  expect(await getPreferredLanguage()).toBe('en');
+});
+
+it('a saved choice wins over the phone language', async () => {
+  await setAppLanguage('en');
   expect(await getPreferredLanguage()).toBe('en');
 });
 
 it('does nothing but keep left-to-right when English already matches', async () => {
+  mockPhoneLanguage = 'en';
   await syncLanguageDirection();
   expect(I18nManager.forceRTL).toHaveBeenCalledWith(false);
   expect(reloadAppAsync).not.toHaveBeenCalled();
 });
 
+it('an Arabic phone switches to right-to-left on first start, restarting once', async () => {
+  await syncLanguageDirection();
+  expect(I18nManager.forceRTL).toHaveBeenCalledWith(true);
+  expect(reloadAppAsync).toHaveBeenCalledTimes(1);
+});
+
 it('restarts once to leave a right-to-left layout in English (Android on an Arabic phone)', async () => {
+  mockPhoneLanguage = 'en';
   setRTL(true);
   await syncLanguageDirection();
   expect(I18nManager.allowRTL).toHaveBeenCalledWith(false);

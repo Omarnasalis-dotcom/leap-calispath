@@ -8,9 +8,9 @@ import { installPluralRules } from './pluralRules';
 
 export type AppLanguage = 'en' | 'ar';
 
-// Arabic stays hidden from users until every screen is translated and
-// reviewed (audit M16). Development builds can already switch to it.
-export const ARABIC_ENABLED = false;
+// Arabic is released (audit M16): it follows the phone's language and can be
+// switched in Settings. Setting this to false hides it again (English only).
+export const ARABIC_ENABLED = true;
 export const CAN_CHOOSE_ARABIC = ARABIC_ENABLED || __DEV__;
 
 // React Native fixes the layout direction when the app starts, so the
