@@ -387,6 +387,7 @@ export function StaticWorldScreen({ movement }: Props) {
             onIndexChange={setSkill}
             containerRef={movementRowRef}
             onContainerLayout={onMovementRowLayout}
+            swipeHintKey="static"
             renderCard={(i, active) => (
               <SkillCard tokens={t} category={CATEGORIES[i]} n={i + 1} active={active} pbs={pbs} loaded={loaded} onOpen={openLogFromCard} />
             )}

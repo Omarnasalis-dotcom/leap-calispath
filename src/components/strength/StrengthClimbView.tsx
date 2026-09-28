@@ -161,6 +161,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             inactiveOpacity={0.45}
             containerRef={tierCardsRef}
             onContainerLayout={onTierCardsLayout}
+            swipeHintKey="strength"
             renderCard={(tier, active) => (
               <TierCard
                 tokens={t}

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, PanResponder, Pressable, useWindowDimensions, View } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { KIT_EASE } from './kit/AnimatedRing';
 import { isRTL } from '../../i18n';
 
@@ -21,6 +22,11 @@ interface Props {
   /** Tutorial target wrapper. */
   containerRef?: React.Ref<View>;
   onContainerLayout?: () => void;
+  /**
+   * Shows the "you can swipe" nudge (the row slides toward the next card
+   * and springs back) the first few times this carousel is opened.
+   */
+  swipeHintKey?: string;
 }
 
 const GAP = 12;
@@ -28,6 +34,9 @@ const GAP = 12;
 // the slide offset and swipe direction flip with it.
 const DIR = isRTL ? 1 : -1;
 const SWIPE_THRESHOLD = 40;
+const HINT_TIMES = 3;
+const HINT_DISTANCE = 36;
+const HINT_DELAY = 700;
 // Cards further than this from the centred one are off screen: they keep
 // their slot but aren't drawn (Strength has ten, each with a large SVG).
 const RENDER_WINDOW = 2;
@@ -47,7 +56,7 @@ const RENDER_WINDOW = 2;
  */
 export function SkillCarousel({
   count, index, onIndexChange, renderCard, cardHeight = 306, maxCardWidth = 326, inactiveOpacity = 0.42,
-  containerRef, onContainerLayout,
+  containerRef, onContainerLayout, swipeHintKey,
 }: Props) {
   const { width } = useWindowDimensions();
   const cardW = Math.min(maxCardWidth, width - 76);
@@ -76,6 +85,34 @@ export function SkillCarousel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [index, step]);
 
+  // Swipe hint: nudge toward the next card (the previous one on the last
+  // card) and spring back. Skipped once the person has touched the cards.
+  const touchedRef = useRef(false);
+  useEffect(() => {
+    if (!swipeHintKey || count < 2) return;
+    const key = `carousel_swipe_hint_v1_${swipeHintKey}`;
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    let cancelled = false;
+    AsyncStorage.getItem(key)
+      .then(raw => {
+        const shown = Number(raw) || 0;
+        if (cancelled || shown >= HINT_TIMES) return;
+        timer = setTimeout(() => {
+          if (touchedRef.current) return;
+          AsyncStorage.setItem(key, String(shown + 1)).catch(() => {});
+          const i = indexRef.current;
+          const toward = i < count - 1 ? 1 : -1;
+          const base = DIR * i * stepRef.current;
+          Animated.sequence([
+            Animated.timing(pos, { toValue: base + DIR * toward * HINT_DISTANCE, duration: 380, easing: KIT_EASE, useNativeDriver: true }),
+            Animated.spring(pos, { toValue: base, friction: 5, tension: 60, useNativeDriver: true }),
+          ]).start();
+        }, HINT_DELAY);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; if (timer) clearTimeout(timer); };
+  }, [swipeHintKey, count, pos]);
+
   const onIndexChangeRef = useRef(onIndexChange);
   onIndexChangeRef.current = onIndexChange;
 
@@ -83,6 +120,7 @@ export function SkillCarousel({
     // Only claim clearly-horizontal drags so the page still scrolls vertically.
     onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
     onPanResponderGrant: () => {
+      touchedRef.current = true;
       pos.stopAnimation();
     },
     onPanResponderMove: (_, g) => {
