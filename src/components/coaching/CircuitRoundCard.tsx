@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface CircuitExercise {
   id: string | number;
@@ -131,7 +132,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
     <View style={[styles.card, { borderColor: completed ? '#4CAF50' : theme.card.border, opacity: isLocked ? 0.5 : 1 }]}>
       <View style={styles.header}>
         <Text style={[styles.roundLabel, { color: completed ? '#4CAF50' : theme.text.primary }]}>
-          ROUND {roundNumber} OF {totalRounds}
+          {t('timers.roundOf', { round: roundNumber, total: totalRounds })}
         </Text>
         {isLocked && <Text style={{ fontSize: 12 }}>🔒</Text>}
       </View>
@@ -147,7 +148,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
               >
                 <Text style={{ color: '#FF5252', fontSize: 9 }}>{activeVideoExerciseId === ex.id ? '✕' : '▶'}</Text>
                 <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                  {activeVideoExerciseId === ex.id ? 'CLOSE' : 'WATCH'}
+                  {activeVideoExerciseId === ex.id ? t('timers.close') : t('timers.watch')}
                 </Text>
               </TouchableOpacity>
             ) : null}
@@ -175,13 +176,13 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
       {restActive ? (
         <View style={[styles.actionBtn, { marginTop: 4, borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.03)' }]}>
           <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16 }}>
-            RESTING {formatRest(restTimeLeft)}
+            {t('timers.restingTime', { time: formatRest(restTimeLeft) })}
           </Text>
         </View>
       ) : completed ? (
         <View style={[styles.actionBtn, { marginTop: 4, borderColor: '#4CAF50', backgroundColor: 'rgba(76,175,80,0.1)' }]}>
           <Text style={{ color: '#4CAF50', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-            ROUND DONE ✓
+            {t('timers.roundDone')}
           </Text>
         </View>
       ) : (
@@ -194,7 +195,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
           >
             <View style={[styles.actionBtn, { borderWidth: 0, backgroundColor: theme.card.background }]}>
               <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-                COMPLETE ROUND + REST
+                {t('timers.completeRoundRest')}
               </Text>
             </View>
           </LinearGradient>

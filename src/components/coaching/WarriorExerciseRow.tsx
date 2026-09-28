@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface ExerciseDetail {
   id: string | number;
@@ -108,7 +109,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     <View style={[styles.exerciseRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
       <View style={[styles.exInfoRow, { justifyContent: 'flex-start' }]}>
         <Text style={[styles.exTitle, { color: theme.text.primary, flex: 1 }]} numberOfLines={1}>
-          {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}> (WEIGHTED)</Text>}
+          {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}>{t('blocks.weighted')}</Text>}
         </Text>
 
         {exercise.youtube_url ? (
@@ -132,7 +133,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
             >
               <Text style={{ color: '#FF5252', fontSize: 9 }}>{isVideoActive ? '✕' : '▶'}</Text>
               <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                {isVideoActive ? 'CLOSE' : 'WATCH'}
+                {isVideoActive ? t('blocks.close') : t('blocks.watch')}
               </Text>
             </TouchableOpacity>
           </LinearGradient>
@@ -143,48 +144,48 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
       <View style={styles.exDetailsRow}>
         {(blockMetadata?.timing_system === 'amrap' || blockMetadata?.timing_system === 'fortime' || blockMetadata?.type === 'amrap' || blockMetadata?.type === 'fortime') ? (
           <View style={[styles.detailBadge, { borderColor: theme.card.border, flex: 1, alignItems: 'flex-start' }]}>
-            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS PER ROUND</Text>
+            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.repsPerRound')}</Text>
             <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>{exercise.reps}</Text>
           </View>
         ) : blockMetadata?.timing_system === 'tabata' ? (
           <View style={[styles.detailBadge, { borderColor: '#FF5252', flex: 1, alignItems: 'center', backgroundColor: 'rgba(255,82,82,0.05)' }]}>
-            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>TABATA INTERVAL</Text>
+            <Text style={[styles.detailLabel, { color: '#FF5252' }]}>{t('blocks.tabataInterval')}</Text>
             <Text style={[styles.detailValue, { color: '#FF5252', fontSize: 13, marginTop: 2 }]}>
-              {blockMetadata.tabata_work_seconds || '20'}S WORK / {blockMetadata.tabata_rest_seconds || '10'}S REST
+              {t('blocks.tabataWorkRest', { work: blockMetadata.tabata_work_seconds || '20', rest: blockMetadata.tabata_rest_seconds || '10' })}
             </Text>
           </View>
         ) : (blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit' || blockMetadata?.type === 'superset' || blockMetadata?.type === 'circuit') ? (
           <>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.reps')}</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
             </View>
             {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
               <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
-                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
-                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
+                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>{t('blocks.hold')}</Text>
+                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{t('units.sec', { value: exercise.hold_seconds })}</Text>
               </View>
             )}
           </>
         ) : (!blockMetadata || (!blockMetadata.type && !blockMetadata.structure) || blockMetadata.type === 'single' || blockMetadata.structure === 'single') ? (
           <>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>SETS</Text>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.sets')}</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.sets}</Text>
             </View>
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REPS</Text>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.reps')}</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
             </View>
             {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
               <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
-                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>HOLD</Text>
-                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{exercise.hold_seconds}S</Text>
+                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>{t('blocks.hold')}</Text>
+                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{t('units.sec', { value: exercise.hold_seconds })}</Text>
               </View>
             )}
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
-              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>REST</Text>
-              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.rest_seconds}S</Text>
+              <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.rest')}</Text>
+              <Text style={[styles.detailValue, { color: theme.text.primary }]}>{t('units.sec', { value: exercise.rest_seconds })}</Text>
             </View>
             {!hideSetControls && restSecs > 0 && (
               <TouchableOpacity
@@ -196,25 +197,25 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
                 }]}
               >
                 <Text style={[styles.detailLabel, { color: restActive ? '#FF7043' : restCompleted ? '#4CAF50' : '#7E57C2' }]}>
-                  {restActive ? 'RESTING' : restCompleted ? 'DONE ✓' : 'START REST'}
+                  {restActive ? t('blocks.resting') : restCompleted ? t('blocks.restDone') : t('blocks.startRest')}
                 </Text>
                 <Text style={[styles.detailValue, { color: restActive ? '#FF7043' : restCompleted ? '#4CAF50' : '#7E57C2', fontSize: restActive ? 16 : 11 }]}>
-                  {restActive ? formatRest(restTimeLeft) : restCompleted ? 'NEXT SET' : '▶'}
+                  {restActive ? formatRest(restTimeLeft) : restCompleted ? t('blocks.nextSet') : '▶'}
                 </Text>
               </TouchableOpacity>
             )}
           </>
         ) : blockMetadata?.structure === 'ladder' ? (
           <View style={[styles.detailBadge, { borderColor: bronzeGold, flex: 1, alignItems: 'flex-start', backgroundColor: 'rgba(200,160,64,0.05)' }]}>
-            <Text style={[styles.detailLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>
+            <Text style={[styles.detailLabel, { color: bronzeGold }]}>{t('blocks.ladderSequence')}</Text>
             <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>
               {BlockConceptParser.getLadderSequence(blockMetadata || {})}
             </Text>
           </View>
         ) : (
           <View style={[styles.detailBadge, { borderColor: theme.card.border, flex: 1, alignItems: 'flex-start' }]}>
-            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>TARGET REPS / WORK DETAILS</Text>
-            <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>{exercise.reps || 'AS ASSIGNED'}</Text>
+            <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.targetDetails')}</Text>
+            <Text style={[styles.detailValue, { color: theme.text.primary, fontSize: 13, marginTop: 2 }]}>{exercise.reps || t('blocks.asAssigned')}</Text>
           </View>
         )}
       </View>

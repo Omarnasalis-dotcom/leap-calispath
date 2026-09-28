@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Text, TouchableOpacity, View, Animated, Easing, AccessibilityInfo, LayoutChangeEvent } from 'react-native';
+import { t } from '../../i18n';
 
 // Day Blocks v2 COMPLETE button (assets/design_handoff_day,blocks §4) —
 // shipped choice is tap-triggered slide, not drag. A single tap runs a
@@ -28,6 +29,8 @@ interface SlideToCompleteButtonProps {
   pending?: boolean;
   accentColor: string;
   label?: string; // e.g. "COMPLETE" — becomes "COMPLETED" once done
+  // Shown once done; defaults to label + "D", which only works in English.
+  doneLabel?: string;
   onComplete: () => void;
   onUndo: () => void;
 }
@@ -45,6 +48,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
   pending,
   accentColor,
   label = 'COMPLETE',
+  doneLabel,
   onComplete,
   onUndo,
 }) => {
@@ -101,7 +105,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
       onPress={handlePress}
       onLayout={onLayout}
       accessibilityRole="button"
-      accessibilityLabel={done ? 'Undo complete' : 'Complete block'}
+      accessibilityLabel={done ? t('timers.undoComplete') : t('timers.completeBlock')}
       accessibilityState={{ disabled: !!disabled, selected: done }}
       style={{
         flex: 1,
@@ -129,7 +133,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
       />
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingLeft: done ? 0 : THUMB_WIDTH, paddingRight: done ? THUMB_WIDTH : 0 }}>
         <Text style={{ color: done ? accentColor : '#fff', fontSize: 11.5, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.4 }}>
-          {done ? `${label}D` : label}
+          {done ? (doneLabel ?? `${label}D`) : label}
         </Text>
       </View>
       <Animated.View

@@ -1,3 +1,4 @@
+import { t } from '../i18n';
 export interface ConceptMetadata {
   timing_system?: 'amrap' | 'fortime' | 'straight_set' | 'tabata';
   time_cap_min?: string | number;
@@ -54,23 +55,23 @@ export class BlockConceptParser {
     const timeCap = metadata.time_cap_min || metadata.timer_seconds;
 
     if (timing === 'amrap') {
-      return `AMRAP (${timeCap || 10} MIN)`;
+      return t('blocks.amrapBadge', { min: timeCap || 10 });
     } else if (timing === 'fortime') {
-      return `FOR TIME (${timeCap ? timeCap + ' MIN CAP' : 'NO CAP'})`;
+      return timeCap ? t('blocks.forTimeCap', { min: timeCap }) : t('blocks.forTimeNoCap');
     } else if (timing === 'tabata') {
       const w = metadata.tabata_work_seconds || 20;
       const r = metadata.tabata_rest_seconds || 10;
       const rounds = metadata.tabata_rounds || 8;
-      return `TABATA (${rounds} ROUNDS: ${w}S WORK / ${r}S REST)`;
+      return t('blocks.tabataBadge', { rounds, work: w, rest: r });
     } else {
       if (struct === 'ladder') {
-        return 'LADDER';
+        return t('blocks.ladder');
       } else if (struct === 'circuit') {
-        return `${metadata.rounds || 3} ROUND CIRCUIT`;
+        return t('blocks.circuitBadge', { rounds: metadata.rounds || 3 });
       } else if (struct === 'superset') {
-        return `${metadata.rounds || 3} ROUND SUPERSET`;
+        return t('blocks.supersetBadge', { rounds: metadata.rounds || 3 });
       } else {
-        return 'STRAIGHT SETS';
+        return t('blocks.straightSets');
       }
     }
   }
@@ -123,7 +124,7 @@ export class BlockConceptParser {
   static getLadderSequence(metadata: ConceptMetadata): string {
     const sequence = this.getLadderRungs(metadata);
     if (sequence.length === 0) return '';
-    return sequence.join(', ') + ' REPS';
+    return t('blocks.ladderReps', { sequence: sequence.join(', ') });
   }
 
   static stringify(metadata: ConceptMetadata, cleanNotes: string): string {

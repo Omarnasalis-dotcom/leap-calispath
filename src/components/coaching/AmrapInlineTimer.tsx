@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface AmrapExercise {
   id: string | number;
@@ -110,12 +111,12 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
 
   const handleTimerTap = () => {
     Alert.alert(
-      'AMRAP TIMER',
-      'Do you want to reset the timer or continue?',
+      t('timers.amrapTimer'),
+      t('timers.resetOrContinue'),
       [
-        { text: 'CONTINUE', style: 'cancel' },
+        { text: t('timers.continue'), style: 'cancel' },
         {
-          text: 'RESET',
+          text: t('timers.reset'),
           style: 'destructive',
           onPress: () => {
             clearInterval(intervalRef.current);
@@ -156,13 +157,13 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
     const stillRunning = timerRunning && !finished;
     if (stillRunning || roundsCompleted === 0) {
       Alert.alert(
-        stillRunning ? 'END THIS AMRAP?' : 'LOG ZERO ROUNDS?',
+        stillRunning ? t('timers.endAmrapTitle') : t('timers.logZeroTitle'),
         stillRunning
-          ? `The timer is still running. This logs ${roundsCompleted} ${roundsCompleted === 1 ? 'round' : 'rounds'} and ends the workout.`
-          : 'This records no rounds completed. Your coach sees this as your real result.',
+          ? t('timers.endAmrapBody', { count: roundsCompleted })
+          : t('timers.logZeroBody'),
         [
-          { text: 'CANCEL', style: 'cancel' },
-          { text: 'LOG IT', style: 'destructive', onPress: submit },
+          { text: t('timers.cancel'), style: 'cancel' },
+          { text: t('timers.logIt'), style: 'destructive', onPress: submit },
         ]
       );
       return;
@@ -198,7 +199,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
                   >
                     <Text style={{ color: '#FF5252', fontSize: 9 }}>{activeVideoExerciseId === ex.id ? '✕' : '▶'}</Text>
                     <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                      {activeVideoExerciseId === ex.id ? 'CLOSE' : 'WATCH'}
+                      {activeVideoExerciseId === ex.id ? t('timers.close') : t('timers.watch')}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -216,7 +217,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
                 }]}
                 onPress={handleTimerTap}
               >
-                <Text style={[styles.timerLabel, { color: finished ? '#FF6B6B' : theme.text.primary }]}>{finished ? 'TIME UP' : 'AMRAP'}</Text>
+                <Text style={[styles.timerLabel, { color: finished ? '#FF6B6B' : theme.text.primary }]}>{finished ? t('timers.timeUp') : 'AMRAP'}</Text>
                 <Text style={{ color: finished ? '#FF6B6B' : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                   {formatTime(timeLeft)}
                 </Text>
@@ -230,7 +231,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
                   style={styles.plusOneGradientBorder}
                 >
                   <View style={[styles.timerBox, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                    <Text style={[styles.timerLabel, { color: theme.text.primary }]}>START</Text>
+                    <Text style={[styles.timerLabel, { color: theme.text.primary }]}>{t('timers.start')}</Text>
                     <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                       {formatTime(timeCapSeconds)}
                     </Text>
@@ -240,7 +241,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
             )}
 
             <View style={styles.roundsGroup}>
-              <Text style={[styles.roundLabel, { color: theme.text.secondary }]}>ROUNDS</Text>
+              <Text style={[styles.roundLabel, { color: theme.text.secondary }]}>{t('timers.rounds')}</Text>
               <Text style={[styles.roundValue, { color: theme.text.primary }]}>{roundsCompleted}</Text>
             </View>
             <TouchableOpacity
@@ -251,7 +252,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
               disabled={roundsCompleted === 0}
               onPress={handleRemoveRound}
             >
-              <Text style={[styles.timerLabel, { color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B' }]}>ROUND</Text>
+              <Text style={[styles.timerLabel, { color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B' }]}>{t('timers.round')}</Text>
               <Text style={{ color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>−1</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogRound}>
@@ -262,7 +263,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
                 style={styles.plusOneGradientBorder}
               >
                 <View style={[styles.plusOneBtn, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                  <Text style={[styles.timerLabel, { color: theme.text.primary }]}>ROUND</Text>
+                  <Text style={[styles.timerLabel, { color: theme.text.primary }]}>{t('timers.round')}</Text>
                   <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>+1</Text>
                 </View>
               </LinearGradient>
@@ -279,7 +280,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
           style={styles.logBtn}
         >
           <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-            LOG WORKOUT
+            {t('timers.logWorkout')}
           </Text>
         </LinearGradient>
       </TouchableOpacity>

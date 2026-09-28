@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface ForTimeExercise {
   id: string | number;
@@ -136,12 +137,12 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
 
   const handleTimerTap = () => {
     Alert.alert(
-      'FOR TIME TIMER',
-      'Do you want to reset the timer or continue?',
+      t('timers.forTimeTimer'),
+      t('timers.resetOrContinue'),
       [
-        { text: 'CONTINUE', style: 'cancel' },
+        { text: t('timers.continue'), style: 'cancel' },
         {
-          text: 'RESET',
+          text: t('timers.reset'),
           style: 'destructive',
           onPress: () => {
             clearInterval(intervalRef.current);
@@ -198,11 +199,11 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
 
     if (!capped && effectiveSeconds < IMPLAUSIBLY_FAST_SECONDS) {
       Alert.alert(
-        'LOG THIS TIME?',
-        `This will record all ${totalRounds} ${totalRounds === 1 ? 'round' : 'rounds'} completed in ${formatTime(effectiveSeconds)}. Your coach sees this as your real result.`,
+        t('timers.logTimeTitle'),
+        t('timers.logTimeBody', { count: totalRounds, time: formatTime(effectiveSeconds) }),
         [
-          { text: 'CANCEL', style: 'cancel' },
-          { text: 'LOG IT', style: 'destructive', onPress: submit },
+          { text: t('timers.cancel'), style: 'cancel' },
+          { text: t('timers.logIt'), style: 'destructive', onPress: submit },
         ]
       );
       return;
@@ -238,7 +239,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
                   >
                     <Text style={{ color: '#FF5252', fontSize: 9 }}>{activeVideoExerciseId === ex.id ? '✕' : '▶'}</Text>
                     <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                      {activeVideoExerciseId === ex.id ? 'CLOSE' : 'WATCH'}
+                      {activeVideoExerciseId === ex.id ? t('timers.close') : t('timers.watch')}
                     </Text>
                   </TouchableOpacity>
                 ) : null}
@@ -262,7 +263,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
                 }]}
                 onPress={handleTimerTap}
               >
-                <Text style={[styles.timerLabel, { color: capped ? '#FF6B6B' : theme.text.primary }]}>{capped ? 'CAP REACHED' : 'FOR TIME'}</Text>
+                <Text style={[styles.timerLabel, { color: capped ? '#FF6B6B' : theme.text.primary }]}>{capped ? t('timers.capReached') : 'FOR TIME'}</Text>
                 <Text style={{ color: capped ? '#FF6B6B' : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                   {formatTime(elapsedTime)}
                 </Text>
@@ -276,7 +277,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
                   style={styles.startGradientBorder}
                 >
                   <View style={[styles.timerBox, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                    <Text style={[styles.timerLabel, { color: theme.text.primary }]}>START</Text>
+                    <Text style={[styles.timerLabel, { color: theme.text.primary }]}>{t('timers.start')}</Text>
                     <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                       0:00
                     </Text>
@@ -288,7 +289,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
             {hasRounds ? (
               <>
                 <View style={styles.capGroup}>
-                  <Text style={[styles.capLabel, { color: theme.text.secondary }]}>ROUND</Text>
+                  <Text style={[styles.capLabel, { color: theme.text.secondary }]}>{t('timers.round')}</Text>
                   <Text style={[styles.capValue, { color: theme.text.primary }]}>{roundsCompleted} / {totalRounds}</Text>
                 </View>
                 <TouchableOpacity
@@ -316,7 +317,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
               </>
             ) : (
               <View style={styles.capGroup}>
-                <Text style={[styles.capLabel, { color: theme.text.secondary }]}>TIME CAP</Text>
+                <Text style={[styles.capLabel, { color: theme.text.secondary }]}>{t('timers.timeCap')}</Text>
                 <Text style={[styles.capValue, { color: theme.text.primary }]}>{formatTime(timeCapSeconds)}</Text>
               </View>
             )}
@@ -330,7 +331,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
       {!hasStarted && !manualMode && (
         <TouchableOpacity onPress={() => setManualMode(true)} style={{ alignSelf: 'center', paddingVertical: 6 }}>
           <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 }}>
-            DIDN'T USE THE TIMER? ENTER TIME MANUALLY
+            {t('timers.enterManually')}
           </Text>
         </TouchableOpacity>
       )}
@@ -338,7 +339,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
       {manualMode && (
         <View style={{ gap: 6 }}>
           <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, textAlign: 'center' }}>
-            YOUR TIME
+            {t('timers.yourTime')}
           </Text>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
             <TextInput
@@ -361,7 +362,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           </View>
           <TouchableOpacity onPress={() => { setManualMode(false); setManualMins(''); setManualSecs(''); }} style={{ alignSelf: 'center', paddingVertical: 4 }}>
             <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>
-              USE THE TIMER INSTEAD
+              {t('timers.useTimer')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -375,7 +376,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           style={styles.logBtn}
         >
           <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-            {canLog ? 'LOG WORKOUT' : 'ENTER OR RECORD A TIME FIRST'}
+            {canLog ? t('timers.logWorkout') : t('timers.enterTimeFirst')}
           </Text>
         </LinearGradient>
       </TouchableOpacity>

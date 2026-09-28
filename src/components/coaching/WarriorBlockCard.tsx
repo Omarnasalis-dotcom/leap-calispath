@@ -14,6 +14,7 @@ import { AmrapInlineTimer } from './AmrapInlineTimer';
 import { ForTimeInlineTimer, ForTimeResult } from './ForTimeInlineTimer';
 import { InlineVideoPlayer } from './InlineVideoPlayer';
 import { SlideToCompleteButton } from './SlideToCompleteButton';
+import { t } from '../../i18n';
 
 // Design handoff (assets/design_handoff_workout_runner, "Day Blocks") — was
 // a fixed dark-only palette independent of the app's own theme toggle; now
@@ -103,9 +104,9 @@ function schemeLabel(block: ProgramBlock, isAmrap: boolean, isForTime: boolean, 
   if (isAmrap) return 'AMRAP';
   if (isForTime) return 'FOR TIME';
   if (timingSystem === 'tabata') return 'TABATA';
-  if (isLadder) return 'LADDER';
+  if (isLadder) return t('blocks.ladder');
   const usesHolds = block.exercises.length > 0 && block.exercises.every((ex) => !!ex.hold_seconds && !ex.reps);
-  return usesHolds ? 'HOLDS' : 'STRAIGHT SETS';
+  return usesHolds ? t('blocks.holds') : t('blocks.straightSets');
 }
 
 interface WarriorBlockCardProps {
@@ -230,7 +231,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const railColor = skipped ? db.skippedRail : accent.color;
   const scheme = schemeLabel(block, isAmrap, isForTime, isLadder);
   const estMinutes = estimateSessionMinutes({ name: block.name, blocks: [block] });
-  const stateLabel = isDone ? 'DONE' : skipped ? 'SKIPPED' : isExpanded ? 'OPEN' : '';
+  const stateLabel = isDone ? t('blocks.done') : skipped ? t('blocks.skipped') : isExpanded ? t('blocks.open') : '';
   // Design handoff shipped choice: pills, one row, max 2 names + a
   // separate "+N" pill (not folded into the last name pill's label).
   const previewChips = [
@@ -294,7 +295,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           ]}
         >
           <Text style={{ color: skipped ? '#fff' : db.textMuted, fontSize: 12, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.5 }}>
-            {skipped ? 'UNDO SKIP' : 'SKIP'}
+            {skipped ? t('blocks.undoSkip') : t('blocks.skip')}
           </Text>
         </TouchableOpacity>
       )}
@@ -304,7 +305,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           disabled={isTogglingStatus || isLocked}
           pending={isLogPending}
           accentColor={accent.color}
-          label="COMPLETE"
+          label={t('blocks.complete')}
+          doneLabel={t('timers.completed')}
           onComplete={() => handleOpenLogging(block.id, 'completed')}
           onUndo={() => handleToggleBlockStatus(block.id, 'none')}
         />
@@ -345,10 +347,10 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           }}
         >
           <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 24, color: theme.text.primary, letterSpacing: 2 }}>
-            PRACTICE TIER {tierTrialTargetTier}
+            {t('blocks.practiceTier', { tier: tierTrialTargetTier })}
           </Text>
           <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1, marginTop: 4 }}>
-            START OFFICIAL TIER ASSESSMENT
+            {t('blocks.officialTrial')}
           </Text>
         </TouchableOpacity>
       </LinearGradient>
@@ -380,11 +382,11 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             onPress={() => {
               if (isExpanded && hasActiveTimedSession) {
                 Alert.alert(
-                  'Collapse this block?',
-                  'This section tracks elapsed time, rounds and reps locally — collapsing it now will lose that progress.',
+                  t('blocks.collapseTitle'),
+                  t('blocks.collapseBody'),
                   [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'Collapse Anyway', style: 'destructive', onPress: () => toggleBlockExpanded(block.id) },
+                    { text: t('blocks.cancel'), style: 'cancel' },
+                    { text: t('blocks.collapseAnyway'), style: 'destructive', onPress: () => toggleBlockExpanded(block.id) },
                   ],
                 );
                 return;
@@ -425,9 +427,9 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
               <View style={styles.dbMetaRow}>
                 <Text style={[styles.dbSchemeText, { color: skipped ? '#8A8A8A' : accent.color }]} numberOfLines={1}>{scheme}</Text>
                 <View style={styles.dbDivider} />
-                <Text style={styles.dbMetaText} numberOfLines={1}>{block.exercises.length} MOVES</Text>
+                <Text style={styles.dbMetaText} numberOfLines={1}>{t('blocks.moves', { count: block.exercises.length })}</Text>
                 <View style={styles.dbDivider} />
-                <Text style={styles.dbMetaText} numberOfLines={1}>~{estMinutes} MIN</Text>
+                <Text style={styles.dbMetaText} numberOfLines={1}>{t('programDays.minutes', { count: estMinutes })}</Text>
               </View>
             </View>
 

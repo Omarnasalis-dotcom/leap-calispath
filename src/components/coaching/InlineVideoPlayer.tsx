@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { WebView } from 'react-native-webview';
+import { t } from '../../i18n';
 
 interface InlineVideoPlayerProps {
   url: string;
@@ -51,7 +52,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({ url, theme
     >
       <View style={[styles.card, { backgroundColor: theme.card.background }]}>
         <View style={styles.header}>
-          <Text style={[styles.label, { color: theme.text.primary }]}>EXERCISE DEMO</Text>
+          <Text style={[styles.label, { color: theme.text.primary }]}>{t('timers.exerciseDemo')}</Text>
           <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
             <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>
               ✕ CLOSE
@@ -68,7 +69,7 @@ export const InlineVideoPlayer: React.FC<InlineVideoPlayerProps> = ({ url, theme
               style: { width: '100%', height: '100%', border: 0 },
               allow: 'autoplay; encrypted-media; picture-in-picture',
               allowFullScreen: true,
-              title: 'Exercise demo',
+              title: t('timers.exerciseDemoTitle'),
             })
           ) : (
             <WebView

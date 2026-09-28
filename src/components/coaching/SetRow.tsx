@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, TextInput, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface SetLogEntry {
   setIndex: number;
@@ -138,14 +139,14 @@ export const SetRow: React.FC<SetRowProps> = ({
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
         </TouchableOpacity>
-        <Text style={[styles.repsLabel, { color: theme.text.tertiary }]}>REPS</Text>
+        <Text style={[styles.repsLabel, { color: theme.text.tertiary }]}>{t('blocks.reps')}</Text>
       </View>
 
       {isWeighted && (
         <TextInput
           style={[styles.weightInput, { color: theme.text.primary, borderColor: theme.card.border }]}
           keyboardType="decimal-pad"
-          placeholder="KG"
+          placeholder={t('blocks.kg')}
           placeholderTextColor={theme.text.tertiary}
           value={weight}
           editable={!isFullyDone}
@@ -155,7 +156,7 @@ export const SetRow: React.FC<SetRowProps> = ({
 
       {restActive ? (
         <View style={[styles.checkBtn, { borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.03)' }]}>
-          <Text style={[styles.checkBtnLabel, { color: theme.text.primary }]}>REST</Text>
+          <Text style={[styles.checkBtnLabel, { color: theme.text.primary }]}>{t('blocks.rest')}</Text>
           <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13 }}>{formatRest(restTimeLeft)}</Text>
         </View>
       ) : isFullyDone ? (
@@ -171,8 +172,8 @@ export const SetRow: React.FC<SetRowProps> = ({
             style={styles.checkBtnGradientBorder}
           >
             <View style={[styles.checkBtn, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-              <Text style={[styles.checkBtnLabel, { color: theme.text.primary }]}>START</Text>
-              <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 9 }}>REST</Text>
+              <Text style={[styles.checkBtnLabel, { color: theme.text.primary }]}>{t('blocks.start')}</Text>
+              <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-Bold', fontSize: 9 }}>{t('blocks.rest')}</Text>
             </View>
           </LinearGradient>
         </TouchableOpacity>

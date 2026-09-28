@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { t } from '../../i18n';
 
 export interface LadderExercise {
   id: string | number;
@@ -117,12 +118,12 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   const handleTimerTap = () => {
     if (!supportsTapReset) return;
     Alert.alert(
-      `${timerLabel} TIMER`,
-      'Do you want to reset the timer or continue?',
+      timerLabel === 'REST' ? t('timers.restTimer') : timerLabel === 'AMRAP' ? t('timers.amrapTimer') : t('timers.forTimeTimer'),
+      t('timers.resetOrContinue'),
       [
-        { text: 'CONTINUE', style: 'cancel' },
+        { text: t('timers.continue'), style: 'cancel' },
         {
-          text: 'RESET',
+          text: t('timers.reset'),
           style: 'destructive',
           onPress: () => {
             clearInterval(intervalRef.current);
@@ -137,16 +138,16 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   const buildSummary = (index: number, extra: number) => {
     const rungValue = sequence[index];
     let summary = extra > 0
-      ? `Reached rung of ${rungValue} reps, plus ${extra} extra reps`
-      : `Reached rung of ${rungValue} reps`;
+      ? t('timers.rungReachedExtra', { reps: rungValue, extra })
+      : t('timers.rungReached', { reps: rungValue });
 
     // FOR TIME ladders: append how long it took, or that the cap ran out first —
     // submitting before the cap is a finish time, hitting the cap means "how far did you get."
     if (countUp) {
       const capped = !!restSeconds && restTimeLeft >= restSeconds;
       summary += capped
-        ? ` (time cap reached at ${formatRest(restTimeLeft)})`
-        : ` in ${formatRest(restTimeLeft)}`;
+        ? t('timers.capReachedAt', { time: formatRest(restTimeLeft) })
+        : t('timers.inTime', { time: formatRest(restTimeLeft) });
     }
 
     return summary;
@@ -216,7 +217,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                 >
                   <Text style={{ color: '#FF5252', fontSize: 9 }}>{activeVideoExerciseId === ex.id ? '✕' : '▶'}</Text>
                   <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5, color: theme.text.primary }}>
-                    {activeVideoExerciseId === ex.id ? 'CLOSE' : 'WATCH'}
+                    {activeVideoExerciseId === ex.id ? t('timers.close') : t('timers.watch')}
                   </Text>
                 </TouchableOpacity>
               ) : null}
@@ -224,7 +225,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
           ))}
           <View style={styles.sequenceBadge}>
             <View style={{ flex: 1 }}>
-              <Text style={[styles.sequenceLabel, { color: bronzeGold }]}>LADDER SEQUENCE</Text>
+              <Text style={[styles.sequenceLabel, { color: bronzeGold }]}>{t('timers.ladderSequence')}</Text>
               <Text style={[styles.sequenceValue, { color: theme.text.primary }]}>
                 {sequence.join(', ')} REPS
               </Text>
@@ -246,7 +247,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                   onPress={handleTimerTap}
                   style={[styles.timerSquare, { borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.03)' }]}
                 >
-                  <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{timerLabel}</Text>
+                  <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{timerLabel === 'REST' ? t('timers.rest') : timerLabel}</Text>
                   <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14 }}>
                     {formatRest(restTimeLeft)}
                   </Text>
@@ -262,9 +263,9 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                     style={styles.timerSquareGradientBorder}
                   >
                     <View style={[styles.timerSquare, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>LAST ROUND</Text>
+                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{t('timers.lastRound')}</Text>
                       <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14 }}>
-                        FINISH
+                        {t('timers.finish')}
                       </Text>
                     </View>
                   </LinearGradient>
@@ -278,7 +279,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                     style={styles.timerSquareGradientBorder}
                   >
                     <View style={[styles.timerSquare, { borderWidth: 0, backgroundColor: theme.card.background }]}>
-                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{isRestMode ? 'START REST' : 'START TIME'}</Text>
+                      <Text style={[styles.timerSquareLabel, { color: theme.text.primary }]}>{isRestMode ? t('timers.startRest') : t('timers.startTime')}</Text>
                       <Text style={{ color: theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14 }}>
                         {countUp ? '0:00' : formatRest(restSeconds)}
                       </Text>
@@ -289,7 +290,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
             )}
           </View>
 
-          <Text style={[styles.reachedLabel, { color: theme.text.tertiary }]}>HOW FAR DID YOU REACH?</Text>
+          <Text style={[styles.reachedLabel, { color: theme.text.tertiary }]}>{t('timers.howFar')}</Text>
 
           <View style={styles.rungRow}>
             {sequence.map((val, index) => {
@@ -321,7 +322,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
 
           {selectedIndex !== null && (
             <View style={styles.extraRow}>
-              <Text style={[styles.extraLabel, { color: theme.text.secondary }]}>EXTRA REPS IN THAT ROUND</Text>
+              <Text style={[styles.extraLabel, { color: theme.text.secondary }]}>{t('timers.extraReps')}</Text>
               <View style={styles.stepperGroup}>
                 <TouchableOpacity style={[styles.stepperBtn, { borderColor: theme.card.border }]} onPress={() => adjustExtra(-1)}>
                   <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>−</Text>
@@ -346,13 +347,13 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
               style={styles.actionBtn}
             >
               <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-                LOG BLOCK
+                {t('timers.logBlock')}
               </Text>
             </LinearGradient>
           ) : (
             <View style={[styles.actionBtn, { borderWidth: 1, borderColor: theme.card.border }]}>
               <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-                LOG BLOCK
+                {t('timers.logBlock')}
               </Text>
             </View>
           )}
