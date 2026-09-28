@@ -33,7 +33,6 @@ const ar: Translations = {
     invalidEmail: 'أدخل بريدًا إلكترونيًا صحيحًا.',
   },
   auth: {
-    tagline: 'تمارين وزن الجسم',
     enterTab: 'دخول',
     joinTab: 'انضمام',
     signUpHeadingLead: 'اصنع ',
