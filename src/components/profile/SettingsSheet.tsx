@@ -7,6 +7,9 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { DeleteAccountModal } from './DeleteAccountModal';
+import { useTranslation } from 'react-i18next';
+import { CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from '../../i18n';
+import { setAppLanguage } from '../../i18n/language';
 
 interface SettingsSheetProps {
   visible: boolean;
@@ -19,6 +22,23 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { start: startTutorial } = useTutorial();
   const isDark = mode === 'dark';
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
+  const { t } = useTranslation();
+
+  const handleChooseLanguage = () => {
+    const switchTo = (language: AppLanguage) => {
+      if (language === currentLanguage) return;
+      Alert.alert(t('settings.restartTitle'), t('settings.restartMessage'), [
+        { text: t('common.cancel'), style: 'cancel' },
+        { text: t('settings.restart'), onPress: () => setAppLanguage(language) },
+      ]);
+    };
+    // Each language is always shown in its own script.
+    Alert.alert(t('settings.chooseLanguage'), undefined, [
+      { text: 'English', onPress: () => switchTo('en') },
+      { text: 'العربية', onPress: () => switchTo('ar') },
+      { text: t('common.cancel'), style: 'cancel' },
+    ]);
+  };
 
   const handleReplayTutorial = () => {
     onClose();
@@ -86,6 +106,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
               color={isDark ? theme.accent : theme.text.tertiary}
             />
           </TouchableOpacity>
+
+          {CAN_CHOOSE_ARABIC && Platform.OS !== 'web' && (
+            <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleChooseLanguage}>
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="translate" size={18} color={theme.text.secondary} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.language')}</Text>
+              </View>
+              <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{t('settings.languageName')}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleReplayTutorial}>
             <View style={styles.rowLeft}>

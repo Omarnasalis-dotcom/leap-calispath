@@ -178,7 +178,8 @@
           "organization": "omarnasser",
           "project": "react-native"
         }
-      ]
+      ],
+      "expo-localization"
     ],
     "extra": {
       "router": {},

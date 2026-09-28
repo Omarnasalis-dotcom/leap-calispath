@@ -1,4 +1,4 @@
-import { useFonts } from 'expo-font';
+import { useFonts, type FontSource } from 'expo-font';
 import {
   Orbitron_400Regular,
   Orbitron_500Medium,
@@ -27,6 +27,29 @@ import {
   Oswald_600SemiBold,
   Oswald_700Bold,
 } from '@expo-google-fonts/oswald';
+
+import {
+  Cairo_300Light,
+  Cairo_400Regular,
+  Cairo_500Medium,
+  Cairo_600SemiBold,
+  Cairo_700Bold,
+  Cairo_800ExtraBold,
+} from '@expo-google-fonts/cairo';
+import { isArabic } from '../src/i18n';
+
+// Arabic mode swaps every Latin font for Cairo (src/i18n/arabicStyles.ts),
+// so it is only loaded then.
+const ARABIC_FONTS: Record<string, FontSource> = isArabic
+  ? {
+      'Cairo-Light': Cairo_300Light,
+      'Cairo-Regular': Cairo_400Regular,
+      'Cairo-Medium': Cairo_500Medium,
+      'Cairo-SemiBold': Cairo_600SemiBold,
+      'Cairo-Bold': Cairo_700Bold,
+      'Cairo-ExtraBold': Cairo_800ExtraBold,
+    }
+  : {};
 
 export const useStealthFonts = () => {
   const [fontsLoaded] = useFonts({
@@ -59,6 +82,7 @@ export const useStealthFonts = () => {
     'Oswald-Medium': Oswald_500Medium,
     'Oswald-SemiBold': Oswald_600SemiBold,
     'Oswald-Bold': Oswald_700Bold,
+    ...ARABIC_FONTS,
   });
 
   return fontsLoaded;

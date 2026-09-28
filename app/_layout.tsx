@@ -95,6 +95,10 @@ if (Platform.OS === 'android') {
 // it surface as an uncaught promise rejection.
 SplashScreen.preventAutoHideAsync().catch(() => { });
 
+// Match the layout direction to the chosen language. If it doesn't match,
+// this restarts the app once, while the splash screen is still showing.
+syncLanguageDirection().catch(() => { });
+
 // Global guard: Strip all console logs in production to prevent data leaks.
 // console.error is already replaced above: it goes to Sentry and is never
 // printed on the device. Reassigning it here used to silently undo that.
@@ -116,6 +120,7 @@ import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
+import { syncLanguageDirection } from '../src/i18n/language';
 
 // Auth Guard Component
 function AuthGuard({ children }: { children: React.ReactNode }) {
