@@ -17,10 +17,45 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { CoachPalette } from './coachTokens';
+import { t } from '../../i18n';
 
 export interface Stage {
   verb: string;
   label: string;
+}
+
+// The ai-coach Edge Function sends these fixed English stage labels
+// (stageForTool in supabase/functions/ai-coach/index.ts); Arabic shows its
+// own version. Unknown labels are shown as sent.
+const STAGE_LABEL_KEYS: Record<string, string> = {
+  'Reading your profile and program': 'coachStages.profile',
+  'Searching the workout library': 'coachStages.searchLibrary',
+  "Checking that workout's details": 'coachStages.workoutDetails',
+  'Reading your logged workouts': 'coachStages.loggedWorkouts',
+  'Reading your current program': 'coachStages.currentProgram',
+  'Looking up exercises in the library': 'coachStages.exercises',
+  'Putting your program together': 'coachStages.program',
+  'Putting that day together': 'coachStages.day',
+  'Putting your next week together': 'coachStages.nextWeek',
+  'Applying that change': 'coachStages.applying',
+  'Swapping that exercise': 'coachStages.swapping',
+  'Adding that day': 'coachStages.addingDay',
+  "Checking if you're ready to test": 'coachStages.ready',
+  'Preparing that change': 'coachStages.preparing',
+  'Pulling your discipline scores': 'coachStages.scores',
+  'Writing your reply': 'coachStages.reply',
+  'Working on it': 'coachStages.working',
+};
+
+export function stageLabel(label: string): string {
+  const key = STAGE_LABEL_KEYS[label];
+  if (key) return t(key as 'coachStages.reply');
+  const focus = label.match(/^Looking for a (.+) day that fits$/)?.[1];
+  return focus ? t('coachStages.searchDay', { focus }) : label;
+}
+
+export function stageVerb(verb: string): string {
+  return t(`coachStages.${verb}` as 'coachStages.READING', { defaultValue: verb });
 }
 
 export function ActivityBubble({ stages, accent, colors }: { stages: Stage[]; accent: string; colors: CoachPalette }) {
@@ -68,7 +103,7 @@ export function ActivityBubble({ stages, accent, colors }: { stages: Stage[]; ac
     <View
       style={[styles.bubble, { backgroundColor: colors.bubbleBg, borderColor: colors.bubbleBorder }]}
       accessibilityLiveRegion="polite"
-      accessibilityLabel={current.label}
+      accessibilityLabel={stageLabel(current.label)}
     >
       {!reduceMotion && (
         <Animated.View
@@ -86,9 +121,9 @@ export function ActivityBubble({ stages, accent, colors }: { stages: Stage[]; ac
       </View>
 
       {reduceMotion ? (
-        <Text style={[styles.label, { color: colors.secondaryText }]}>{current.label}</Text>
+        <Text style={[styles.label, { color: colors.secondaryText }]}>{stageLabel(current.label)}</Text>
       ) : (
-        <Animated.Text style={[styles.label, { color: labelColor }]}>{current.label}</Animated.Text>
+        <Animated.Text style={[styles.label, { color: labelColor }]}>{stageLabel(current.label)}</Animated.Text>
       )}
 
       <View

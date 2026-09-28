@@ -42,6 +42,8 @@ import { FunctionsHttpError } from '@supabase/functions-js';
 import { canAccessPro, isProRequiredError } from '../lib/entitlement';
 import { track } from '../lib/analytics';
 import { FreeCoachIntake } from '../components/coach/FreeCoachIntake';
+import { t, FLIP_X } from '../i18n';
+import { stageVerb } from '../components/coach/ActivityBubble';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -62,10 +64,10 @@ const RECOMMENDATION_ROUTES: Record<Recommendation['world'], string> = {
 };
 
 const RECOMMENDATION_LABELS: Record<Recommendation['world'], string> = {
-  strength_trial: 'Try the Strength Trial',
-  power: 'Try Power World',
-  static: 'Try Static World',
-  one_min_max: 'Try 1-Minute Max',
+  strength_trial: t('coach.recStrength'),
+  power: t('coach.recPower'),
+  static: t('coach.recStatic'),
+  one_min_max: t('coach.recOneMin'),
 };
 
 // ai_coach_log_chat_request (supabase/migrations) raises one of these
@@ -76,18 +78,18 @@ const RECOMMENDATION_LABELS: Record<Recommendation['world'], string> = {
 // own copy; everything else falls back to the pre-existing generic string.
 function rateLimitCopy(message: string | undefined): string {
   if (message?.startsWith('RATE_LIMIT:BUDGET')) {
-    return "You've used this period's AI Coach budget — more opens up when your plan renews.";
+    return t('coach.quotaBudget');
   }
   if (message?.startsWith('RATE_LIMIT:CAP')) {
-    return "You've used this period's coaching messages — more opens up when your plan renews.";
+    return t('coach.quotaCap');
   }
   if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
-    return "You've used this week's coaching messages — more opens up next week.";
+    return t('coach.quotaWeekly');
   }
   if (message?.startsWith('RATE_LIMIT:DAY1') || message?.startsWith('RATE_LIMIT:DAILY')) {
-    return "You've used today's coaching messages. Your quota resets at midnight. Rest well, warrior.";
+    return t('coach.quotaDaily');
   }
-  return "You've used all your coaching messages for today. Your quota resets at midnight. Rest well, warrior.";
+  return t('coach.quotaDefault');
 }
 
 // Short-form variant of rateLimitCopy() for the input-area banner (replaces
@@ -95,12 +97,12 @@ function rateLimitCopy(message: string | undefined): string {
 // anything but the daily cap once BUDGET/WEEKLY/CAP became real reasons).
 function rateLimitBannerCopy(message: string | undefined): string {
   if (message?.startsWith('RATE_LIMIT:BUDGET') || message?.startsWith('RATE_LIMIT:CAP')) {
-    return '🏛️ AI Coach budget used for this period — resets on renewal';
+    return t('coach.bannerBudget');
   }
   if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
-    return '🏛️ Weekly sessions exhausted — resets next week';
+    return t('coach.bannerWeekly');
   }
-  return '🏛️ Daily sessions exhausted — resets at midnight';
+  return t('coach.bannerDaily');
 }
 
 // Real, verified RAISE EXCEPTION text from every RPC handleConfirmProgramAction
@@ -110,21 +112,21 @@ function rateLimitBannerCopy(message: string | undefined): string {
 // "RATE_LIMIT: CREATE_PROGRAM DAILY LIMIT REACHED" verbatim.
 function friendlyActionError(message: string): string {
   if (message.startsWith('RATE_LIMIT')) {
-    return "You've hit today's limit for this — try again tomorrow.";
+    return t('coach.errRateLimit');
   }
   if (message.includes('already has logged workout history')) {
-    return "That week already has logged workouts, so it can't be deleted.";
+    return t('coach.errWeekLogged');
   }
   if (message.includes('only week in this program')) {
-    return "That's the only week left — end the program instead if you want to stop it.";
+    return t('coach.errOnlyWeek');
   }
   if (message.includes('Not authorized to modify this program')) {
-    return "This program isn't one I can edit — it belongs to a coach.";
+    return t('coach.errNotAuthorized');
   }
   if (message.includes('could not be found') || message.includes('not available')) {
-    return "One of those isn't available anymore — ask me to try again.";
+    return t('coach.errNotAvailable');
   }
-  return 'Something went wrong. Try again.';
+  return t('coach.errGeneric');
 }
 
 interface StreamResult {
@@ -455,7 +457,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // never reaches here (handled above in callAiCoach). By this point
       // it's usually a real, if rare, server-side hiccup rather than the
       // athlete's own connection, so don't point the finger at their Wi-Fi.
-      setMessages([{ role: 'assistant', content: 'Something went wrong reaching your coach. Try again in a moment.' }]);
+      setMessages([{ role: 'assistant', content: t('coach.errReach') }]);
     } finally {
       setLoading(false);
       setStages([]);
@@ -469,7 +471,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     const now = Date.now();
     const secondsSinceLast = (now - lastMessageTime) / 1000;
     if (secondsSinceLast < 5) {
-      Alert.alert('Slow down, Warrior', `Wait ${Math.ceil(5 - secondsSinceLast)} more seconds before sending.`);
+      Alert.alert(t('coach.slowDownTitle'), t('coach.slowDown', { seconds: Math.ceil(5 - secondsSinceLast) }));
       return;
     }
 
@@ -504,7 +506,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // Same reasoning as the reworded startSession fallback above.
       setMessages((prev) => [...prev, {
         role: 'assistant',
-        content: 'Something went wrong reaching your coach. Try again in a moment.',
+        content: t('coach.errReach'),
       }]);
     } finally {
       setLoading(false);
@@ -558,8 +560,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           // since the program isn't really ready for the athlete to look
           // at yet with 3 more days still coming.
           content: buildComplete
-            ? `**${payload.name}** is live — check your Workout Program to see it.`
-            : `**${payload.dayName ?? 'Day 1'}** added.`,
+            ? t('coach.programLive', { name: payload.name })
+            : t('coach.dayAdded', { name: payload.dayName ?? t('coach.day1') }),
         }]);
       } else if (pendingProgramAction.type === 'delete_week') {
         if (!pendingProgramAction.warriorProgramId || pendingProgramAction.weekNumber == null) {
@@ -572,7 +574,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         if (error) throw error;
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `Week ${pendingProgramAction.weekNumber} has been deleted.`,
+          content: t('coach.weekDeleted', { week: pendingProgramAction.weekNumber }),
         }]);
       } else if (pendingProgramAction.type === 'create_from_workouts') {
         const payload = pendingProgramAction.payload as { name: string; workoutIds: string[]; dayTitles: string[] } | null;
@@ -586,7 +588,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         buildComplete = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${payload.name}** is live — check your Workout Program to see it.`,
+          content: t('coach.programLive', { name: payload.name }),
         }]);
       } else if (pendingProgramAction.type === 'append_week') {
         // Weekly review → new week card (2026-09-18): the only card type
@@ -647,7 +649,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_warrior_program_id: pendingProgramAction.warriorProgramId,
         });
         if (error) throw error;
-        setMessages(prev => [...prev, { role: 'assistant', content: 'Your program has been ended.' }]);
+        setMessages(prev => [...prev, { role: 'assistant', content: t('coach.programEnded') }]);
       }
       // Captured before pendingProgramAction is cleared below — needed for
       // the steady-state "Go to Program" card's title. Falls back to
@@ -671,7 +673,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       }
     } catch (error: any) {
       if (isProRequiredError(error)) { router.push('/paywall'); return; }
-      Alert.alert('COULD NOT COMPLETE THIS', friendlyActionError(error.message ?? '').toUpperCase());
+      Alert.alert(t('coach.actionFailed'), friendlyActionError(error.message ?? '').toUpperCase());
     } finally {
       setConfirmingAction(false);
     }
@@ -706,7 +708,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       await AsyncStorage.removeItem(STORAGE_KEY);
       startSession();
     };
-    if (Platform.OS === 'web') { if (window.confirm('Reset chat?')) performClear(); } else { Alert.alert('Clear?', 'Reset chat?', [{ text: 'Cancel', style: 'cancel' }, { text: 'Clear', style: 'destructive', onPress: performClear }]); }
+    if (Platform.OS === 'web') { if (window.confirm(t('coach.resetChat'))) performClear(); } else { Alert.alert(t('coach.clearTitle'), t('coach.resetChat'), [{ text: t('coach.cancel'), style: 'cancel' }, { text: t('coach.clear'), style: 'destructive', onPress: performClear }]); }
   };
 
   // App Store Guideline 4.7.1 requires chatbot features to include a
@@ -722,20 +724,20 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     });
     if (error) {
       console.error('[Coach] Failed to submit report:', error);
-      Alert.alert('Something went wrong', 'Could not submit your report. Please try again.');
+      Alert.alert(t('coach.reportFailedTitle'), t('coach.reportFailed'));
     } else {
-      Alert.alert('Reported', "Thanks — we'll review this.");
+      Alert.alert(t('coach.reportedTitle'), t('coach.reported'));
     }
   };
 
   const handleReportMessage = (index: number) => {
     const assistantMessage = messages[index]?.content ?? '';
     const precedingUserMessage = index > 0 ? messages[index - 1]?.content : undefined;
-    Alert.alert('Report this response?', 'What was wrong with it?', [
-      { text: 'Cancel', style: 'cancel' },
-      { text: 'Inaccurate', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inaccurate') },
-      { text: 'Inappropriate', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inappropriate') },
-      { text: 'Other', onPress: () => submitReport(assistantMessage, precedingUserMessage, 'other') },
+    Alert.alert(t('coach.reportTitle'), t('coach.reportBody'), [
+      { text: t('coach.cancel'), style: 'cancel' },
+      { text: t('coach.inaccurate'), onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inaccurate') },
+      { text: t('coach.inappropriate'), onPress: () => submitReport(assistantMessage, precedingUserMessage, 'inappropriate') },
+      { text: t('coach.other'), onPress: () => submitReport(assistantMessage, precedingUserMessage, 'other') },
     ]);
   };
 
@@ -755,10 +757,10 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
   if (!profile) return null;
 
-  const statusLine = connectionStatus === 'offline' ? 'OFFLINE'
-    : connectionStatus === 'reconnecting' ? 'RECONNECTING'
-    : loading && stages.length > 0 ? `ONLINE · ${stages[stages.length - 1].verb}`
-    : 'ONLINE';
+  const statusLine = connectionStatus === 'offline' ? t('coach.offline')
+    : connectionStatus === 'reconnecting' ? t('coach.reconnecting')
+    : loading && stages.length > 0 ? `${t('coach.online')} · ${stageVerb(stages[stages.length - 1].verb)}`
+    : t('coach.online');
 
   return (
     <GlobalErrorBoundary>
@@ -768,21 +770,21 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.container}>
         <View style={[styles.card, { backgroundColor: c.screenBg, borderColor: theme.accent + '30' }]}>
           <View style={[styles.header, { borderBottomColor: c.headerDivider }]}>
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Back" onPress={onBack} style={styles.iconBtn}>
-              <MaterialCommunityIcons name="chevron-left" size={26} color={c.secondaryText} />
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.back')} onPress={onBack} style={styles.iconBtn}>
+              <MaterialCommunityIcons name="chevron-left" size={26} color={c.secondaryText} style={FLIP_X} />
             </TouchableOpacity>
             <View style={styles.headerCenter}>
               <View style={styles.headerTitleRow}>
                 <PulsingAvatar accent={theme.accent} />
-                <Text style={[styles.headerTitle, { color: c.bodyText }]}>LEAP COACH</Text>
+                <Text style={[styles.headerTitle, { color: c.bodyText }]}>{t('coach.title')}</Text>
               </View>
               <Text style={[styles.headerSub, { color: theme.accent }]}>{statusLine}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {canAccessPro(profile, paywallEnabled) && (
                 <>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="New session" onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Clear chat" onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.newSession')} onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.clearChat')} onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
                 </>
               )}
             </View>
@@ -796,24 +798,24 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             {messages.length === 0 && !loading && (
               <View style={styles.welcomeContainer}>
                 <MaterialCommunityIcons name="brain" size={40} color={theme.accent} />
-                <Text style={[styles.welcomeTitle, { color: c.bodyText }]}>Hi, {profile.display_name || 'Warrior'}</Text>
-                <Text style={[styles.welcomeSub, { color: c.secondaryText }]}>Welcome to Coach Leap. How can I help you today?</Text>
+                <Text style={[styles.welcomeTitle, { color: c.bodyText }]}>{t('coach.hi', { name: profile.display_name || t('coach.warrior') })}</Text>
+                <Text style={[styles.welcomeSub, { color: c.secondaryText }]}>{t('coach.welcome')}</Text>
                 <View style={styles.welcomeOptions}>
                   <TouchableOpacity
                     style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}
-                    onPress={() => sendMessage('Analyze my current performance — give me my onboarding assessment status, current tier, and total points from each world.')}
+                    onPress={() => sendMessage(t('coach.analyzePrompt'))}
                     disabled={loading}
                   >
                     <MaterialCommunityIcons name="chart-line" size={22} color={theme.accent} />
-                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>Analyze your performance</Text>
+                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.analyze')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.welcomeOptionCard, { backgroundColor: c.cardBg, borderColor: c.cardBorder }]}
-                    onPress={() => sendMessage('I want to build a training program.')}
+                    onPress={() => sendMessage(t('coach.buildPrompt'))}
                     disabled={loading}
                   >
                     <MaterialCommunityIcons name="dumbbell" size={22} color={theme.accent} />
-                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>Build you a program</Text>
+                    <Text style={[styles.welcomeOptionText, { color: c.bodyText }]}>{t('coach.build')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -836,7 +838,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   ))}
                 </View>
                 {m.role === 'assistant' && m.content.length > 0 && (
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Report this message"
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.reportA11y')}
                     style={styles.reportButton}
                     onPress={() => handleReportMessage(i)}
                     hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
@@ -904,7 +906,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               // isLastConfirmedDay's completion check.
               const dayNumber = pendingProgramAction.displayDayNumber ?? pendingProgramAction.dayNumber ?? 1;
               const totalDays = pendingProgramAction.totalDays;
-              const dayVerb = pendingProgramAction.replacing ? 'Redo' : 'Add';
+              const dayVerb = pendingProgramAction.replacing ? t('coach.redo') : t('coach.add');
 
               return (
                 <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
@@ -924,14 +926,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     />
                     <Text style={[styles.actionCardTitle, { color: '#fff' }]}>
                       {isDayCard
-                        ? `${dayVerb} Day ${dayNumber}${totalDays ? ` of ${totalDays}` : ''}${dayName ? `: ${dayName}` : ''}?`
+                        ? t(totalDays ? (dayName ? 'coach.dayCardTitleOfNamed' : 'coach.dayCardTitleOf') : (dayName ? 'coach.dayCardTitleNamed' : 'coach.dayCardTitle'), { verb: dayVerb, n: dayNumber, total: totalDays, name: dayName })
                         : pendingProgramAction.type === 'create_from_workouts'
-                        ? `Start "${(pendingProgramAction.payload as { name?: string } | null)?.name}"?`
+                        ? t('coach.startNamed', { name: (pendingProgramAction.payload as { name?: string } | null)?.name })
                         : pendingProgramAction.type === 'delete_week'
-                        ? `Delete Week ${pendingProgramAction.weekNumber}?`
+                        ? t('coach.deleteWeekQ', { week: pendingProgramAction.weekNumber })
                         : isAppendWeekCard
-                        ? `Start Week ${pendingProgramAction.weekNumber ?? ''}`
-                        : 'End your current program?'}
+                        ? t('coach.startWeek', { week: pendingProgramAction.weekNumber ?? '' })
+                        : t('coach.endProgramQ')}
                     </Text>
                   </View>
                   <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{pendingProgramAction.reason}</Text>
@@ -945,7 +947,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     </View>
                   )}
                   {(isDayCard || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
-                    <Text style={styles.actionCardWarning}>⚠️ This is currently a program your coach assigned.</Text>
+                    <Text style={styles.actionCardWarning}>{t('coach.coachAssigned')}</Text>
                   )}
                   <View style={styles.actionCardButtons}>
                     {!isAppendWeekCard && (
@@ -955,7 +957,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                         disabled={confirmingAction}
                       >
                         <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>
-                          {isDayCard ? 'Change this day' : 'IGNORE'}
+                          {isDayCard ? t('coach.changeDay') : t('coach.ignore')}
                         </Text>
                       </TouchableOpacity>
                     )}
@@ -973,14 +975,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                       ) : (
                         <Text style={styles.actionCardConfirmText}>
                           {isDayCard
-                            ? `${dayVerb.toUpperCase()} DAY ${dayNumber}`
+                            ? t('coach.dayButton', { verb: dayVerb.toUpperCase(), n: dayNumber })
                             : pendingProgramAction.type === 'create_from_workouts'
-                            ? 'START PROGRAM'
+                            ? t('coach.startProgram')
                             : pendingProgramAction.type === 'delete_week'
-                            ? 'DELETE WEEK'
+                            ? t('coach.deleteWeek')
                             : isAppendWeekCard
-                            ? `START WEEK ${pendingProgramAction.weekNumber ?? ''}`
-                            : 'END PROGRAM'}
+                            ? t('coach.startWeekCaps', { week: pendingProgramAction.weekNumber ?? '' })
+                            : t('coach.endProgram')}
                         </Text>
                       )}
                     </TouchableOpacity>
@@ -995,13 +997,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   <MaterialCommunityIcons name="check-circle-outline" size={18} color={theme.accent} />
                   <Text style={[styles.actionCardTitle, { color: '#fff' }]}>"{justStartedProgram.name}" is ready</Text>
                 </View>
-                <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>Keep chatting with your coach, or jump straight into Day 1.</Text>
+                <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{t('coach.keepChatting')}</Text>
                 <View style={styles.actionCardButtons}>
                   <TouchableOpacity
                     style={[styles.actionCardIgnoreBtn, { borderColor: c.secondaryText + '40' }]}
                     onPress={() => setJustStartedProgram(null)}
                   >
-                    <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>CONTINUE CHAT</Text>
+                    <Text style={[styles.actionCardIgnoreText, { color: c.secondaryText }]}>{t('coach.continueChat')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.actionCardConfirmBtn, { backgroundColor: theme.accent }]}
@@ -1010,7 +1012,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                       router.replace('/my-journey');
                     }}
                   >
-                    <Text style={styles.actionCardConfirmText}>GO TO PROGRAM</Text>
+                    <Text style={styles.actionCardConfirmText}>{t('coach.goToProgram')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -1049,21 +1051,21 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               style={[styles.input, { color: c.bodyText, backgroundColor: c.inputBg, borderColor: c.inputBorder }]}
               value={inputText}
               onChangeText={setInputText}
-              placeholder="Ask your coach"
+              placeholder={t('coach.ask')}
               placeholderTextColor={c.faint}
               multiline
               editable={!rateLimited}
             />
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Send message"
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.send')}
               onPress={() => sendMessage()}
               disabled={loading || !inputText.trim() || rateLimited}
               style={[styles.sendBtn, { backgroundColor: theme.accent, opacity: (loading || rateLimited) ? 0.5 : 1 }]}
             >
-              <MaterialCommunityIcons name={inputText.trim() ? 'send' : 'microphone'} size={18} color="#fff" />
+              <MaterialCommunityIcons name={inputText.trim() ? 'send' : 'microphone'} size={18} color="#fff" style={inputText.trim() ? FLIP_X : undefined} />
             </TouchableOpacity>
           </View>
           <Text style={[styles.disclaimer, { color: c.secondaryText }]}>
-            Leap Coach can make mistakes. Check important info.
+            {t('coach.disclaimer')}
           </Text>
           </>
           )}
@@ -1133,7 +1135,7 @@ function WaveLoadingIndicator({ accent, colors }: { accent: string; colors: Coac
           style={[waveStyles.bar, { backgroundColor: accent, height: v.interpolate({ inputRange: [0, 1], outputRange: [6, 16] }) }]}
         />
       ))}
-      <Text style={[waveStyles.label, { color: colors.secondaryText }]}>LEAPING</Text>
+      <Text style={[waveStyles.label, { color: colors.secondaryText }]}>{t('coach.leaping')}</Text>
     </View>
   );
 }

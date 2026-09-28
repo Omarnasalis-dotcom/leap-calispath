@@ -14,6 +14,7 @@ import { supabase } from '../../lib/supabase';
 import { GOALS, EQUIPMENT } from '../../screens/GoalsEquipmentScreen';
 import { UpgradeToSaveModal } from '../workoutLibrary/SharedWorkoutModals';
 import { CoachPalette } from './coachTokens';
+import { t } from '../../i18n';
 
 const OTHER_GOAL_MAX_LEN = 200;
 const DAY_OPTIONS = [1, 2, 3, 4, 5, 6, 7];
@@ -97,7 +98,7 @@ export function FreeCoachIntake({
     router.push('/paywall');
   };
 
-  const dayCountLabel = daysPerWeek ? `${daysPerWeek} DAY${daysPerWeek > 1 ? 'S' : ''}/WEEK` : undefined;
+  const dayCountLabel = daysPerWeek ? t('intake.daysPerWeek', { count: daysPerWeek }) : undefined;
 
   return (
     <View style={styles.wrap}>
@@ -110,9 +111,9 @@ export function FreeCoachIntake({
 
         {step === 1 && (
           <View>
-            <Text style={[styles.heading, { color: c.bodyText }]}>What's your goal?</Text>
+            <Text style={[styles.heading, { color: c.bodyText }]}>{t('intake.goalQ')}</Text>
             <Text style={[styles.subheading, { color: c.secondaryText }]}>
-              {goals.length ? "Here's what you've told us — change anything, or skip ahead." : 'Pick as many as apply.'}
+              {goals.length ? t('intake.prefilled') : t('intake.pickAny')}
             </Text>
             <View style={styles.chipWrap}>
               {GOALS.map((g) => {
@@ -134,7 +135,7 @@ export function FreeCoachIntake({
               <TextInput
                 value={otherText}
                 onChangeText={setOtherText}
-                placeholder="Describe your goal further..."
+                placeholder={t('intake.describe')}
                 placeholderTextColor={c.faint}
                 maxLength={OTHER_GOAL_MAX_LEN}
                 multiline
@@ -142,7 +143,7 @@ export function FreeCoachIntake({
               />
             )}
 
-            <Text style={[styles.heading, { color: c.bodyText, marginTop: 24 }]}>Equipment</Text>
+            <Text style={[styles.heading, { color: c.bodyText, marginTop: 24 }]}>{t('intake.equipment')}</Text>
             <View style={styles.chipWrap}>
               {EQUIPMENT.map((e) => {
                 const selected = equipment.includes(e.id);
@@ -160,14 +161,14 @@ export function FreeCoachIntake({
 
             <View style={styles.stepButtons}>
               <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(2)} disabled={saving}>
-                <Text style={[styles.skipText, { color: c.secondaryText }]}>SKIP</Text>
+                <Text style={[styles.skipText, { color: c.secondaryText }]}>{t('intake.skip')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.continueBtn, { backgroundColor: theme.accent, opacity: goals.length === 0 || saving ? 0.5 : 1 }]}
                 onPress={saveGoalsAndEquipment}
                 disabled={goals.length === 0 || saving}
               >
-                <Text style={styles.continueText}>CONTINUE</Text>
+                <Text style={styles.continueText}>{t('intake.continue')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -175,8 +176,8 @@ export function FreeCoachIntake({
 
         {step === 2 && (
           <View>
-            <Text style={[styles.heading, { color: c.bodyText }]}>How many days a week?</Text>
-            <Text style={[styles.subheading, { color: c.secondaryText }]}>We'll build your program around this.</Text>
+            <Text style={[styles.heading, { color: c.bodyText }]}>{t('intake.daysQ')}</Text>
+            <Text style={[styles.subheading, { color: c.secondaryText }]}>{t('intake.daysSub')}</Text>
             <View style={styles.chipWrap}>
               {DAY_OPTIONS.map((n) => {
                 const selected = daysPerWeek === n;
@@ -193,14 +194,14 @@ export function FreeCoachIntake({
             </View>
             <View style={styles.stepButtons}>
               <TouchableOpacity style={styles.skipBtn} onPress={() => setStep(1)} disabled={saving}>
-                <Text style={[styles.skipText, { color: c.secondaryText }]}>BACK</Text>
+                <Text style={[styles.skipText, { color: c.secondaryText }]}>{t('intake.back')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.continueBtn, { backgroundColor: theme.accent, opacity: !daysPerWeek || saving ? 0.5 : 1 }]}
                 onPress={saveDaysPerWeek}
                 disabled={!daysPerWeek || saving}
               >
-                <Text style={styles.continueText}>CONTINUE</Text>
+                <Text style={styles.continueText}>{t('intake.continue')}</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -209,15 +210,15 @@ export function FreeCoachIntake({
         {step === 3 && (
           <View style={styles.finalCard}>
             <MaterialCommunityIcons name="brain" size={34} color={theme.accent} />
-            <Text style={[styles.heading, { color: c.bodyText, textAlign: 'center', marginTop: 12 }]}>Ready to build your program</Text>
+            <Text style={[styles.heading, { color: c.bodyText, textAlign: 'center', marginTop: 12 }]}>{t('intake.ready')}</Text>
             <Text style={[styles.subheading, { color: c.secondaryText, textAlign: 'center' }]}>
               Your AI Coach has your goal, equipment, and {daysPerWeek}-day split — upgrade to start the build and keep chatting with your coach.
             </Text>
             <TouchableOpacity style={[styles.createBtn, { backgroundColor: theme.accent }]} onPress={openUpgradeModal}>
-              <Text style={styles.continueText}>CREATE YOUR PROGRAM</Text>
+              <Text style={styles.continueText}>{t('intake.create')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => setStep(2)}>
-              <Text style={[styles.skipText, { color: c.secondaryText, marginTop: 14 }]}>BACK</Text>
+              <Text style={[styles.skipText, { color: c.secondaryText, marginTop: 14 }]}>{t('intake.back')}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -226,9 +227,9 @@ export function FreeCoachIntake({
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
         theme={theme}
-        title="BUILD YOUR PROGRAM"
-        body="Your AI Coach is ready to build your program and keep coaching you week to week. That's a Pro and Max feature — upgrade to start."
-        cancelLabel="NOT YET"
+        title={t('intake.upgradeTitle')}
+        body={t('intake.upgradeBody')}
+        cancelLabel={t('intake.notYet')}
         pillLabel={dayCountLabel}
         pillIcon="calendar-check"
         upgrading={upgrading}
