@@ -19,12 +19,13 @@ import { Button } from '../components/Button';
 import { COUNTRIES } from '../constants/countries';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { track } from '../lib/analytics';
+import { t } from '../i18n';
 
 // Mirrors the database rule profiles_display_name_format (1-30 chars, no @).
 const USERNAME_MAX_LENGTH = 30;
-const USERNAME_TAKEN_MESSAGE = 'This username is already taken. Please choose another one.';
-const USERNAME_RULES_MESSAGE = `Usernames can be up to ${USERNAME_MAX_LENGTH} characters and can't contain @.`;
-const SAVE_FAILED_MESSAGE = 'Failed to save your profile. Please try again.';
+const USERNAME_TAKEN_MESSAGE = t('profileSetup.usernameTaken');
+const USERNAME_RULES_MESSAGE = t('profileSetup.usernameRules', { max: USERNAME_MAX_LENGTH });
+const SAVE_FAILED_MESSAGE = t('profileSetup.saveFailed');
 
 // Reached only when AuthGuard detects a signed-in user with no display_name —
 // which today only happens after a first-time Google/Apple sign-in, since the
@@ -72,12 +73,12 @@ export function CompleteProfileScreen() {
     const cleanDisplayName = displayName.trim();
     if (!cleanDisplayName) {
       track('complete_profile_error', { reason: 'missing_username' });
-      Alert.alert('Missing Username', 'Please choose a username to continue.');
+      Alert.alert(t('profileSetup.missingUsernameTitle'), t('profileSetup.missingUsername'));
       return;
     }
     if (cleanDisplayName.includes('@')) {
       track('complete_profile_error', { reason: 'contains_at' });
-      Alert.alert('Invalid Username', 'Your username cannot contain the @ symbol. Please choose a different username.');
+      Alert.alert(t('profileSetup.invalidUsernameTitle'), t('profileSetup.usernameHasAt'));
       return;
     }
 
@@ -129,27 +130,27 @@ export function CompleteProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.panel}>
           <Text style={[styles.heading, { color: theme.text.primary }]}>
-            COMPLETE YOUR <Text style={{ color: theme.accent }}>PROFILE</Text>
+            {t('profileSetup.headingLead')}<Text style={{ color: theme.accent }}>{t('profileSetup.headingAccent')}</Text>
           </Text>
           <Text style={[styles.subheading, { color: theme.text.secondary }]}>
-            Choose a username to finish setting up your account.
+            {t('profileSetup.subheading')}
           </Text>
 
           {needsName && (
             <View style={styles.row}>
               <View style={{ flex: 1 }}>
-                <Input label="First Name" placeholder="Alex" value={firstName} onChangeText={setFirstName} />
+                <Input label={t('profileSetup.firstName')} placeholder={t('profileSetup.firstNamePlaceholder')} value={firstName} onChangeText={setFirstName} />
               </View>
               <View style={{ width: 12 }} />
               <View style={{ flex: 1 }}>
-                <Input label="Last Name" placeholder="Warrior" value={lastName} onChangeText={setLastName} />
+                <Input label={t('profileSetup.lastName')} placeholder={t('profileSetup.lastNamePlaceholder')} value={lastName} onChangeText={setLastName} />
               </View>
             </View>
           )}
 
           <Input
-            label="Username"
-            placeholder="alex_warrior"
+            label={t('profileSetup.username')}
+            placeholder={t('profileSetup.usernamePlaceholder')}
             value={displayName}
             onChangeText={setDisplayName}
             autoCapitalize="none"
@@ -157,7 +158,7 @@ export function CompleteProfileScreen() {
           />
 
           <View style={{ marginBottom: 16 }}>
-            <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>Gender (optional)</Text>
+            <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>{t('profileSetup.genderOptional')}</Text>
             <View style={styles.row}>
               <TouchableOpacity
                 style={[
@@ -167,7 +168,7 @@ export function CompleteProfileScreen() {
                 ]}
                 onPress={() => setGender(gender === 'Male' ? null : 'Male')}
               >
-                <Text style={[styles.genderText, { color: gender === 'Male' ? '#FFF' : theme.text.secondary }]}>MALE</Text>
+                <Text style={[styles.genderText, { color: gender === 'Male' ? '#FFF' : theme.text.secondary }]}>{t('profileSetup.male')}</Text>
               </TouchableOpacity>
               <View style={{ width: 12 }} />
               <TouchableOpacity
@@ -178,24 +179,24 @@ export function CompleteProfileScreen() {
                 ]}
                 onPress={() => setGender(gender === 'Female' ? null : 'Female')}
               >
-                <Text style={[styles.genderText, { color: gender === 'Female' ? '#FFF' : theme.text.secondary }]}>FEMALE</Text>
+                <Text style={[styles.genderText, { color: gender === 'Female' ? '#FFF' : theme.text.secondary }]}>{t('profileSetup.female')}</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           <View style={{ marginBottom: 16 }}>
-            <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>Country (optional)</Text>
+            <Text style={[styles.label, { color: theme.text.primary, marginBottom: 8 }]}>{t('profileSetup.countryOptional')}</Text>
             <TouchableOpacity
               style={[styles.countryButton, { borderColor: theme.card.border, backgroundColor: theme.card.background }]}
               onPress={() => setIsCountryModalVisible(true)}
             >
               <Text style={[styles.countryText, { color: country ? theme.text.primary : theme.text.secondary }]}>
-                {country || 'Select your country'}
+                {country || t('profileSetup.selectYourCountry')}
               </Text>
             </TouchableOpacity>
           </View>
 
-          <Button title="CONTINUE" onPress={handleContinue} loading={isMutating} />
+          <Button title={t('profileSetup.continue')} onPress={handleContinue} loading={isMutating} />
         </View>
       </ScrollView>
 
@@ -208,10 +209,10 @@ export function CompleteProfileScreen() {
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
           <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.8)' }]}>
             <View style={[styles.countryModalContent, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>Select Country</Text>
+              <Text style={[styles.modalTitle, { color: theme.text.primary }]}>{t('profileSetup.selectCountry')}</Text>
               <Input
                 label=""
-                placeholder="Search..."
+                placeholder={t('profileSetup.search')}
                 value={countrySearch}
                 onChangeText={setCountrySearch}
               />
@@ -236,7 +237,7 @@ export function CompleteProfileScreen() {
                 style={{ marginTop: 16, alignItems: 'center', padding: 8 }}
                 onPress={() => setIsCountryModalVisible(false)}
               >
-                <Text style={{ color: theme.text.secondary, fontWeight: '700' }}>CANCEL</Text>
+                <Text style={{ color: theme.text.secondary, fontWeight: '700' }}>{t('profileSetup.cancel')}</Text>
               </TouchableOpacity>
             </View>
           </View>

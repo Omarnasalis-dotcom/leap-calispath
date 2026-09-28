@@ -29,6 +29,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
 import * as AppleAuthentication from 'expo-apple-authentication';
+import { t, isRTL } from '../i18n';
 
 // Accent is brand-fixed (matches theme.accent — same value in both modes,
 // per constants/Theme.ts), so it's pulled out once here rather than living
@@ -184,17 +185,17 @@ function SegmentedToggle({ isSignUp, onChange, c }: { isSignUp: boolean; onChang
             {
               width: segmentWidth,
               transform: [{
-                translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, segmentWidth] }),
+                translateX: slide.interpolate({ inputRange: [0, 1], outputRange: [0, isRTL ? -segmentWidth : segmentWidth] }),
               }],
             },
           ]}
         />
       )}
       <Pressable style={styles.segment} onPress={() => onChange(false)} hitSlop={8}>
-        <Text style={[styles.segmentText, { color: c.inkSecondary }, !isSignUp && styles.segmentTextActive]}>ENTER</Text>
+        <Text style={[styles.segmentText, { color: c.inkSecondary }, !isSignUp && styles.segmentTextActive]}>{t('auth.enterTab')}</Text>
       </Pressable>
       <Pressable style={styles.segment} onPress={() => onChange(true)} hitSlop={8}>
-        <Text style={[styles.segmentText, { color: c.inkSecondary }, isSignUp && styles.segmentTextActive]}>JOIN</Text>
+        <Text style={[styles.segmentText, { color: c.inkSecondary }, isSignUp && styles.segmentTextActive]}>{t('auth.joinTab')}</Text>
       </Pressable>
     </View>
   );
@@ -330,9 +331,9 @@ export function AuthScreen() {
 
   async function handleResetPassword() {
     if (!resetEmail) {
-      const msg = 'Please enter your email to reset your password.';
+      const msg = t('auth.resetEmailRequired');
       if (Platform.OS === 'web') window.alert(msg);
-      else Alert.alert('Missing Field', msg);
+      else Alert.alert(t('auth.missingFieldTitle'), msg);
       return;
     }
 
@@ -349,7 +350,7 @@ export function AuthScreen() {
     } catch (error: any) {
       const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
-      else Alert.alert('Arena Error', message);
+      else Alert.alert(t('errors.title'), message);
     } finally {
       setResetLoading(false);
     }
@@ -357,13 +358,13 @@ export function AuthScreen() {
 
   async function handleSubmit() {
     if (!email || !password || (isSignUp && INVITE_CODE_ENABLED && INVITE_CODE_REQUIRED && !inviteCode)) {
-      Alert.alert('Missing Fields', `Please fill in all fields${INVITE_CODE_REQUIRED ? ' (including Invite Code)' : ''} to continue.`);
+      Alert.alert(t('auth.missingFieldsTitle'), INVITE_CODE_REQUIRED ? t('auth.fillAllFieldsWithInvite') : t('auth.fillAllFields'));
       return;
     }
     // New passwords only — existing accounts with shorter passwords can
     // still sign in (audit 2026-09-25, M10).
     if (isSignUp && password.length < MIN_NEW_PASSWORD_LENGTH) {
-      Alert.alert('Password Too Short', `Please use at least ${MIN_NEW_PASSWORD_LENGTH} characters.`);
+      Alert.alert(t('auth.passwordTooShortTitle'), t('auth.passwordTooShort', { count: MIN_NEW_PASSWORD_LENGTH }));
       return;
     }
 
@@ -408,9 +409,9 @@ export function AuthScreen() {
 
             if (redeemError || !redeemData || redeemData.success === false) {
               console.error('Redeem Error:', redeemError || redeemData.error);
-              const msg = 'Failed to finalize invite code redemption. Please contact support.';
+              const msg = t('auth.inviteRedeemFailed');
               if (Platform.OS === 'web') window.alert(msg);
-              else Alert.alert('Arena Error', msg);
+              else Alert.alert(t('errors.title'), msg);
               setLoading(false);
               return;
             }
@@ -419,9 +420,9 @@ export function AuthScreen() {
           }
         }
 
-        const msg = 'Welcome to the Arena! You can now sign in.';
+        const msg = t('auth.registered');
         if (Platform.OS === 'web') window.alert(msg);
-        else Alert.alert('Warrior Registered', msg);
+        else Alert.alert(t('auth.registeredTitle'), msg);
         setIsSignUp(false);
         setSignupStep('choose');
       } else {
@@ -436,7 +437,7 @@ export function AuthScreen() {
       if (Platform.OS === 'web') {
         window.alert(message);
       } else {
-        Alert.alert('Arena Error', message);
+        Alert.alert(t('errors.title'), message);
       }
     } finally {
       setLoading(false);
@@ -451,7 +452,7 @@ export function AuthScreen() {
     } catch (error: any) {
       const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
-      else Alert.alert('Arena Error', message);
+      else Alert.alert(t('errors.title'), message);
     } finally {
       setGoogleLoading(false);
     }
@@ -465,7 +466,7 @@ export function AuthScreen() {
     } catch (error: any) {
       const message = getFriendlyErrorMessage(error);
       if (Platform.OS === 'web') window.alert(message);
-      else Alert.alert('Arena Error', message);
+      else Alert.alert(t('errors.title'), message);
     } finally {
       setAppleLoading(false);
     }
@@ -477,7 +478,7 @@ export function AuthScreen() {
     <View style={styles.socialRow}>
       <SocialButton
         icon={<GoogleLogo />}
-        label="Continue with Google"
+        label={t('auth.continueWithGoogle')}
         onPress={handleGoogleSignIn}
         loading={googleLoading}
         disabled={appleLoading}
@@ -485,7 +486,7 @@ export function AuthScreen() {
       {isAppleAuthAvailable && (
         <SocialButton
           icon={<MaterialCommunityIcons name="apple" size={22} color="#1F1F1F" />}
-          label="Continue with Apple"
+          label={t('auth.continueWithApple')}
           onPress={handleAppleSignIn}
           loading={appleLoading}
           disabled={googleLoading}
@@ -497,7 +498,7 @@ export function AuthScreen() {
   const renderDivider = () => (
     <View style={styles.dividerRow}>
       <View style={[styles.dividerLine, { backgroundColor: c.dividerLine }]} />
-      <Text style={[styles.dividerText, { color: c.inkTertiary }]}>OR</Text>
+      <Text style={[styles.dividerText, { color: c.inkTertiary }]}>{t('auth.or')}</Text>
       <View style={[styles.dividerLine, { backgroundColor: c.dividerLine }]} />
     </View>
   );
@@ -511,15 +512,15 @@ export function AuthScreen() {
         onChangeText={setEmail}
         keyboardType="email-address"
         autoCapitalize="none"
-        accessibilityLabel="Email"
+        accessibilityLabel={t('auth.email')}
         c={c}
       />
       <GlassInput
-        placeholder={isSignUp ? `Min ${MIN_NEW_PASSWORD_LENGTH} characters` : 'Password'}
+        placeholder={isSignUp ? t('auth.passwordMin', { count: MIN_NEW_PASSWORD_LENGTH }) : t('auth.password')}
         value={password}
         onChangeText={setPassword}
         secureTextEntry
-        accessibilityLabel="Password"
+        accessibilityLabel={t('auth.password')}
         c={c}
       />
     </View>
@@ -560,11 +561,11 @@ export function AuthScreen() {
                   />
 
                   <Text style={[styles.heading, { color: c.ink }]}>
-                    {isSignUp ? 'Claim your ' : 'Welcome back, '}
-                    <Text style={{ color: ACCENT }}>{isSignUp ? 'destiny' : 'Warrior'}</Text>
+                    {isSignUp ? t('auth.signUpHeadingLead') : t('auth.signInHeadingLead')}
+                    <Text style={{ color: ACCENT }}>{isSignUp ? t('auth.signUpHeadingAccent') : t('auth.signInHeadingAccent')}</Text>
                   </Text>
                   <Text style={[styles.subheading, { color: c.inkSecondary }]}>
-                    {isSignUp ? 'Begin your calisthenics journey' : 'Return to your training grounds'}
+                    {isSignUp ? t('auth.signUpSubheading') : t('auth.signInSubheading')}
                   </Text>
 
                   {isSignUp && signupStep === 'choose' && (
@@ -573,7 +574,7 @@ export function AuthScreen() {
                       {renderDivider()}
                       <SocialButton
                         icon={<MaterialCommunityIcons name="email-outline" size={20} color="#1F1F1F" />}
-                        label="Continue with Email"
+                        label={t('auth.continueWithEmail')}
                         onPress={() => setSignupStep('email')}
                       />
                     </>
@@ -582,7 +583,7 @@ export function AuthScreen() {
                   {isSignUp && signupStep === 'email' && (
                     <>
                       <TouchableOpacity style={styles.backButton} onPress={() => setSignupStep('choose')} hitSlop={8}>
-                        <Text style={[styles.backText, { color: c.inkSecondary }]}>← Back</Text>
+                        <Text style={[styles.backText, { color: c.inkSecondary }]}>{t('auth.back')}</Text>
                       </TouchableOpacity>
 
                       {renderEmailPasswordFields()}
@@ -591,11 +592,11 @@ export function AuthScreen() {
                       {INVITE_CODE_ENABLED && (
                         <View style={styles.inviteCodeGroup}>
                           <GlassInput
-                            placeholder={INVITE_CODE_REQUIRED ? 'Invite Code' : 'Invite Code (Optional)'}
+                            placeholder={INVITE_CODE_REQUIRED ? t('auth.inviteCode') : t('auth.inviteCodeOptional')}
                             value={inviteCode}
                             onChangeText={setInviteCode}
                             autoCapitalize="characters"
-                            accessibilityLabel="Invite code"
+                            accessibilityLabel={t('auth.inviteCodeA11y')}
                             c={c}
                           />
                           {INVITE_CODE_REQUIRED ? (
@@ -603,20 +604,20 @@ export function AuthScreen() {
                               onPress={() => Linking.openURL('https://leap-arena.com/request')}
                               style={{ marginTop: 6, alignSelf: 'flex-start' }}
                             >
-                              <Text style={styles.linkText}>Don't have an invite code? Request one here</Text>
+                              <Text style={styles.linkText}>{t('auth.requestInvite')}</Text>
                             </TouchableOpacity>
                           ) : (
-                            <Text style={[styles.hintText, { color: c.inkTertiary }]}>Have one? Add it for trial/membership perks. Not required to join.</Text>
+                            <Text style={[styles.hintText, { color: c.inkTertiary }]}>{t('auth.inviteHint')}</Text>
                           )}
                         </View>
                       )}
 
-                      <GlassButton title="CLAIM YOUR DESTINY" onPress={handleSubmit} loading={loading} />
+                      <GlassButton title={t('auth.claimDestiny')} onPress={handleSubmit} loading={loading} />
 
                       <TouchableOpacity onPress={() => Linking.openURL('https://leap-arena.com/privacy')}>
                         <Text style={[styles.privacyText, { color: c.inkTertiary }]}>
-                          By signing up, you agree to our{' '}
-                          <Text style={styles.privacyLink}>Privacy Policy</Text>
+                          {t('auth.agreePrefix')}
+                          <Text style={styles.privacyLink}>{t('auth.privacyPolicy')}</Text>
                         </Text>
                       </TouchableOpacity>
                     </>
@@ -627,10 +628,10 @@ export function AuthScreen() {
                       {renderEmailPasswordFields()}
 
                       <TouchableOpacity style={styles.forgotButton} onPress={() => setIsResetModalVisible(true)} hitSlop={8}>
-                        <Text style={[styles.forgotText, { color: c.inkSecondary }]}>Forgot password?</Text>
+                        <Text style={[styles.forgotText, { color: c.inkSecondary }]}>{t('auth.forgotPassword')}</Text>
                       </TouchableOpacity>
 
-                      <GlassButton title="ENTER THE ARENA" onPress={handleSubmit} loading={loading} />
+                      <GlassButton title={t('auth.enterArena')} onPress={handleSubmit} loading={loading} />
 
                       {renderDivider()}
                       {renderSocialButtons()}
@@ -645,9 +646,9 @@ export function AuthScreen() {
                 hitSlop={8}
               >
                 <Text style={[styles.switchText, { color: c.inkTertiary }]}>
-                  {isSignUp ? 'Already a warrior? ' : 'New here? '}
+                  {isSignUp ? t('auth.haveAccount') : t('auth.newHere')}
                   <Text style={styles.switchLinkAccent}>
-                    {isSignUp ? 'Return to battle →' : 'Begin your journey →'}
+                    {isSignUp ? t('auth.returnToBattle') : t('auth.beginJourney')}
                   </Text>
                 </Text>
               </TouchableOpacity>
@@ -669,7 +670,7 @@ export function AuthScreen() {
             <BlurView intensity={50} tint={c.blurTint} style={[styles.modalGlassCard, { borderColor: c.glassBorder }]}>
               <View style={[styles.modalGlassCardContent, { backgroundColor: c.glassFill }]}>
                 <Text style={[styles.modalHeading, { color: c.ink }]}>
-                  Reset <Text style={{ color: ACCENT }}>Password</Text>
+                  {t('auth.resetLead')}<Text style={{ color: ACCENT }}>{t('auth.resetAccent')}</Text>
                 </Text>
 
                 {resetSent ? (
@@ -678,13 +679,13 @@ export function AuthScreen() {
                       <Text style={{ color: ACCENT, fontSize: 28 }}>✓</Text>
                     </View>
 
-                    <Text style={[styles.resetSentTitle, { color: c.ink }]}>CHECK YOUR EMAIL</Text>
+                    <Text style={[styles.resetSentTitle, { color: c.ink }]}>{t('auth.checkEmail')}</Text>
                     <Text style={[styles.resetSentSubtext, { color: c.inkSecondary }]}>
-                      We sent a password reset link to
+                      {t('auth.resetSentTo')}
                     </Text>
                     <Text style={styles.resetSentEmail}>{resetEmail}</Text>
                     <Text style={[styles.resetSentSubtext, { marginTop: 8, color: c.inkTertiary }]}>
-                      If you don't see it, check your spam folder.
+                      {t('auth.checkSpam')}
                     </Text>
 
                     {/* Resend button with cooldown */}
@@ -695,10 +696,10 @@ export function AuthScreen() {
                     >
                       <Text style={[styles.resendButtonText, resendCooldown > 0 && { color: c.inkTertiary }]}>
                         {resetLoading
-                          ? 'SENDING...'
+                          ? t('auth.sending')
                           : resendCooldown > 0
-                            ? `RESEND IN ${resendCooldown}S`
-                            : 'RESEND EMAIL'}
+                            ? t('auth.resendIn', { seconds: resendCooldown })
+                            : t('auth.resendEmail')}
                       </Text>
                     </TouchableOpacity>
 
@@ -707,14 +708,14 @@ export function AuthScreen() {
                       style={{ marginTop: 12, padding: 8 }}
                       onPress={() => setResetSent(false)}
                     >
-                      <Text style={modalLinkStyle}>USE A DIFFERENT EMAIL</Text>
+                      <Text style={modalLinkStyle}>{t('auth.differentEmail')}</Text>
                     </TouchableOpacity>
 
                     <TouchableOpacity
                       style={{ marginTop: 16, alignItems: 'center', padding: 8 }}
                       onPress={() => { setIsResetModalVisible(false); setResetSent(false); setResetEmail(''); }}
                     >
-                      <Text style={modalLinkStyle}>CLOSE</Text>
+                      <Text style={modalLinkStyle}>{t('auth.close')}</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -725,19 +726,19 @@ export function AuthScreen() {
                       onChangeText={setResetEmail}
                       keyboardType="email-address"
                       autoCapitalize="none"
-                      accessibilityLabel="Email"
+                      accessibilityLabel={t('auth.email')}
                       c={c}
                     />
 
                     <View style={{ marginTop: 12 }}>
-                      <GlassButton title="SEND RESET LINK" onPress={handleResetPassword} loading={resetLoading} />
+                      <GlassButton title={t('auth.sendResetLink')} onPress={handleResetPassword} loading={resetLoading} />
                     </View>
 
                     <TouchableOpacity
                       style={{ marginTop: 16, alignItems: 'center', padding: 8 }}
                       onPress={() => { setIsResetModalVisible(false); setResetEmail(''); }}
                     >
-                      <Text style={modalLinkStyle}>CANCEL</Text>
+                      <Text style={modalLinkStyle}>{t('auth.cancel')}</Text>
                     </TouchableOpacity>
                   </View>
                 )}

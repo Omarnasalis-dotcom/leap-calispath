@@ -1,5 +1,6 @@
 import { useState, useCallback, useRef } from 'react';
 import { Alert } from 'react-native';
+import { t } from '../i18n';
 import { useMountedRef } from './useMountedRef';
 
 interface SafeMutationOptions<T> {
@@ -45,8 +46,8 @@ export function useSafeMutation() {
           options.onError(error);
         } else if (!options?.skipAlert) {
           Alert.alert(
-            'Error',
-            options?.errorMessage || error?.message || 'An error occurred while saving. Please try again.'
+            t('errors.generic'),
+            options?.errorMessage || error?.message || t('errors.saveFailedGeneric')
           );
         }
         return { data: null, error };
@@ -69,8 +70,8 @@ export function useSafeMutation() {
         options.onError(err);
       } else if (!options?.skipAlert) {
         Alert.alert(
-          'Error',
-          options?.errorMessage || err?.message || 'An unexpected error occurred. Please try again.'
+          t('errors.generic'),
+          options?.errorMessage || err?.message || t('errors.unexpected')
         );
       }
       return { data: null, error: err };

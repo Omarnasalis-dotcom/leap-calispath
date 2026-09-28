@@ -31,3 +31,12 @@ i18n.use(initReactI18next).init({
 });
 
 export default i18n;
+
+// The language never changes while the app is running (switching restarts
+// it), so screens can call t() directly instead of the useTranslation hook.
+export const t = i18n.t.bind(i18n);
+
+// Right-to-left for this run. Most layout mirrors on its own; use this for
+// what doesn't: slide animations (translateX), and arrow icons via FLIP_X.
+export const isRTL = isArabic;
+export const FLIP_X = isRTL ? ({ transform: [{ scaleX: -1 }] } as const) : undefined;

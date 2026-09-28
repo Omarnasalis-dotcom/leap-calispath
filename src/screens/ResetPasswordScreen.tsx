@@ -12,9 +12,19 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { Input } from '../components/Input';
+import { t, isArabic as isArabicUI } from '../i18n';
+import { getTranslatedAuthError } from '../lib/asyncErrorHandler';
 import { Button } from '../components/Button';
 import { LeapLogo } from '../components/LeapLogo';
 
+// English shows the raw error in capitals (unchanged); Arabic shows a
+// translated message for known errors, else the fallback.
+function resetErrorText(err: any, fallback: string): string {
+  const translated = getTranslatedAuthError(err);
+  if (translated) return translated;
+  if (isArabicUI) return fallback;
+  return err?.message?.toUpperCase() ?? fallback;
+}
 
 interface ResetPasswordScreenProps {
   onComplete?: () => void;
@@ -101,14 +111,14 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
         } else {
           if (isMounted.current) {
             setInlineError(
-              'NO ACTIVE RESET SESSION.\nPLEASE TAP THE RESET LINK IN YOUR EMAIL AGAIN.'
+              t('resetPassword.noSession')
             );
           }
         }
       } catch (err: any) {
         if (isMounted.current) {
           setInlineError(
-            err.message?.toUpperCase() ?? 'FAILED TO ESTABLISH PASSWORD RESET SESSION.'
+            resetErrorText(err, t('resetPassword.sessionFailed'))
           );
         }
       } finally {
@@ -158,7 +168,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     } catch (err: any) {
       if (isMounted.current) {
         setInlineError(
-          err.message?.toUpperCase() ?? 'THIS RESET LINK IS INVALID OR HAS EXPIRED.'
+          resetErrorText(err, t('resetPassword.linkInvalid'))
         );
         setPendingVerify(null);
       }
@@ -185,17 +195,17 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     setInlineSuccess(null);
 
     if (!newPassword || !confirmPassword) {
-      setInlineError('PLEASE FILL IN ALL FIELDS.');
+      setInlineError(t('resetPassword.fillAll'));
       return;
     }
 
     if (newPassword !== confirmPassword) {
-      setInlineError('PASSWORDS DO NOT MATCH.');
+      setInlineError(t('resetPassword.mismatch'));
       return;
     }
 
     if (newPassword.length < MIN_NEW_PASSWORD_LENGTH) {
-      setInlineError(`PASSWORD MUST BE AT LEAST ${MIN_NEW_PASSWORD_LENGTH} CHARACTERS.`);
+      setInlineError(t('resetPassword.tooShort', { count: MIN_NEW_PASSWORD_LENGTH }));
       return;
     }
 
@@ -205,7 +215,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       if (error) throw error;
 
       if (isMounted.current) {
-        setInlineSuccess('PASSWORD UPDATED! YOU CAN NOW SIGN IN.');
+        setInlineSuccess(t('resetPassword.updated'));
       }
 
       // Give the user a moment to see the success message, then clear reset state
@@ -215,7 +225,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
       }, 2500);
     } catch (error: any) {
       if (isMounted.current) {
-        setInlineError(error.message?.toUpperCase() ?? 'AN UNEXPECTED ERROR OCCURRED.');
+        setInlineError(resetErrorText(error, t('resetPassword.unexpected')));
       }
     } finally {
       if (isMounted.current) {
@@ -232,14 +242,14 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     >
       <View style={[styles.panel, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
         <Text style={[styles.heading, { color: theme.text.primary }]}>
-          RESET <Text style={{ color: theme.accent }}>PASSWORD</Text>
+          {t('resetPassword.headingLead')}<Text style={{ color: theme.accent }}>{t('resetPassword.headingAccent')}</Text>
         </Text>
 
         {sessionLoading ? (
           <View style={styles.loadingContainer}>
             <LeapLogo size={40} animated />
             <Text style={[styles.statusText, { color: theme.text.secondary }]}>
-              ESTABLISHING RESET SESSION...
+              {t('resetPassword.establishing')}
             </Text>
           </View>
         ) : inlineSuccess ? (
@@ -251,13 +261,13 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               style={[styles.actionButton, { backgroundColor: theme.accent }]}
               onPress={exitToLogin}
             >
-              <Text style={styles.actionButtonText}>CONTINUE TO LOGIN</Text>
+              <Text style={styles.actionButtonText}>{t('resetPassword.continueToLogin')}</Text>
             </TouchableOpacity>
           </View>
         ) : pendingVerify ? (
           <View style={styles.feedbackContainer}>
             <Text style={[styles.subheading, { color: theme.text.secondary, textAlign: 'center', marginBottom: 24 }]}>
-              For your security, tap below to continue with your password reset.
+              {t('resetPassword.tapToContinue')}
             </Text>
             {inlineError && (
               <View style={styles.errorBanner}>
@@ -270,14 +280,14 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
               disabled={verifying}
             >
               <Text style={styles.actionButtonText}>
-                {verifying ? 'VERIFYING...' : 'CONTINUE RESET'}
+                {verifying ? t('resetPassword.verifying') : t('resetPassword.continueReset')}
               </Text>
             </TouchableOpacity>
           </View>
         ) : (
           <View style={{ width: '100%' }}>
             <Text style={[styles.subheading, { color: theme.text.secondary }]}>
-              Enter your new password below.
+              {t('resetPassword.enterNew')}
             </Text>
 
             {inlineError && (
@@ -287,8 +297,8 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             )}
 
             <Input
-              label="NEW PASSWORD"
-              placeholder={`Min ${MIN_NEW_PASSWORD_LENGTH} characters`}
+              label={t('resetPassword.newPassword')}
+              placeholder={t('resetPassword.minChars', { count: MIN_NEW_PASSWORD_LENGTH })}
               value={newPassword}
               onChangeText={setNewPassword}
               secureTextEntry
@@ -297,8 +307,8 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             />
 
             <Input
-              label="CONFIRM PASSWORD"
-              placeholder={`Min ${MIN_NEW_PASSWORD_LENGTH} characters`}
+              label={t('resetPassword.confirmPassword')}
+              placeholder={t('resetPassword.minChars', { count: MIN_NEW_PASSWORD_LENGTH })}
               value={confirmPassword}
               onChangeText={setConfirmPassword}
               secureTextEntry
@@ -308,7 +318,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
             <View style={{ marginTop: 16 }}>
               <Button
-                title="UPDATE PASSWORD"
+                title={t('resetPassword.update')}
                 onPress={handleSubmit}
                 loading={loading}
                 disabled={!hasSession || loading}
