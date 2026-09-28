@@ -19,6 +19,7 @@ import * as Sentry from '@sentry/react-native';
 import { trackAppOpened } from '../lib/analytics';
 import { checkPaywallEnabled } from '../lib/appVersion';
 import { withNetworkRetry, isTransientNetworkError } from '../lib/submitErrors';
+import { currentLanguage } from '../i18n';
 
 let googleSigninConfigured = false;
 function ensureGoogleSigninConfigured() {
@@ -287,6 +288,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }
 
+  // The server writes some notifications (overtakes, reminders, coach
+  // updates) and translates them by profiles.language. Best-effort: a failed
+  // write just leaves those notifications in the previous language.
+  async function syncProfileLanguage(userId: string, saved: Profile['language']) {
+    if (saved === currentLanguage) return;
+    try {
+      await supabase.from('profiles').update({ language: currentLanguage }).eq('id', userId);
+    } catch (error) {
+      console.error('[Language] profile sync failed:', error);
+    }
+  }
+
   async function fetchProfile(userId: string): Promise<Profile | null> {
     setProfileLoading(true);
     setProfileLoadFailed(false);
@@ -345,6 +358,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(fetched);
       setProfileLoadFailed(false);
       registerPushToken(userId);
+      syncProfileLanguage(userId, fetched.language);
       return fetched;
     } catch (err) {
       // Reached only on the timeout race rejecting (or any other unexpected

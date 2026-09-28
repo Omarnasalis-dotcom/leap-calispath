@@ -49,6 +49,8 @@ export interface Profile {
   goals?: string[] | null;
   goal_other_text?: string | null;
   training_days_per_week?: number | null;
+  /** Language the app runs in; the server uses it for push notification text. */
+  language?: 'en' | 'ar';
 }
 
 export type TierRank =
