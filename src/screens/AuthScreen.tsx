@@ -549,7 +549,7 @@ export function AuthScreen() {
                 <Text style={[styles.brandName, { color: c.brand }]}>
                   LEAP <Text style={{ color: ACCENT }}>ARENA</Text>
                 </Text>
-                <Text style={styles.brandTagline}>CALISTHENICS</Text>
+                <Text style={styles.brandTagline}>{t('auth.tagline')}</Text>
               </View>
 
               <BlurView intensity={50} tint={c.blurTint} style={[styles.glassCard, { borderColor: c.glassBorder }]}>

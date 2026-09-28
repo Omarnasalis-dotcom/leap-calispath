@@ -21,7 +21,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Tier | المستوى |
 | Tier 3 of 9 | المستوى 3 من 9 |
 | Rank up | ترقية المستوى |
-| Placed (tier set by the assessment) | محدد بالتقييم |
+| Placed (tier set by the assessment) | مُحدَّد مبدئيًا |
 | Locked | مقفل |
 | Unlocked | مفتوح |
 
@@ -85,7 +85,7 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Edit log | تعديل السجل | |
 | Workout complete | اكتمل التمرين | |
 | Personal best / New PR | أفضل رقم شخصي / رقم قياسي جديد | |
-| Assessment | التقييم | |
+| Assessment | تحديد المستوى | owner's choice |
 | Trial | الاختبار | the tier trial |
 | Abandon trial | الانسحاب من الاختبار | |
 | Practice | تدريب حر | |

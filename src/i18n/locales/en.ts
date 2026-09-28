@@ -33,6 +33,7 @@ const en = {
     invalidEmail: 'Please enter a valid email address.',
   },
   auth: {
+    tagline: 'CALISTHENICS',
     enterTab: 'ENTER',
     joinTab: 'JOIN',
     signUpHeadingLead: 'Claim your ',
