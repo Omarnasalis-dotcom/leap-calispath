@@ -10,17 +10,18 @@ import {
 import { useTheme } from '../contexts/ThemeContext';
 import { TIER_NAMES, Profile } from '../types';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
+import { t, tierLevelLabel } from '../i18n';
 
 const TIER_DESCRIPTIONS: Record<number, { desc: string; difficulty: number }> = {
-  0: { desc: 'The starting point of every warrior', difficulty: 1 },
-  1: { desc: 'Basic strength foundation established', difficulty: 2 },
-  2: { desc: 'Emerging physical capability', difficulty: 3 },
-  3: { desc: 'Solid strength base achieved', difficulty: 4 },
-  4: { desc: 'Intermediate warrior strength', difficulty: 5 },
-  5: { desc: 'Advanced calisthenics mastery', difficulty: 6 },
-  6: { desc: 'Elite strength tier unlocked', difficulty: 7 },
-  7: { desc: 'Exceptional warrior capacity', difficulty: 8 },
-  8: { desc: 'Near-legendary strength attained', difficulty: 9 },
+  0: { desc: t('rankReveal.tierDesc0'), difficulty: 1 },
+  1: { desc: t('rankReveal.tierDesc1'), difficulty: 2 },
+  2: { desc: t('rankReveal.tierDesc2'), difficulty: 3 },
+  3: { desc: t('rankReveal.tierDesc3'), difficulty: 4 },
+  4: { desc: t('rankReveal.tierDesc4'), difficulty: 5 },
+  5: { desc: t('rankReveal.tierDesc5'), difficulty: 6 },
+  6: { desc: t('rankReveal.tierDesc6'), difficulty: 7 },
+  7: { desc: t('rankReveal.tierDesc7'), difficulty: 8 },
+  8: { desc: t('rankReveal.tierDesc8'), difficulty: 9 },
 };
 
 interface RankRevealScreenProps {
@@ -72,30 +73,30 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
           {/* Title Frame */}
           <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
             <Text style={[styles.welcomeTitle, { color: theme.accent }]}>
-              WELCOME{profile.display_name ? ` ${profile.display_name.toUpperCase()}` : ''}
+              {profile.display_name ? t('rankReveal.welcomeName', { name: profile.display_name.toUpperCase() }) : t('rankReveal.welcome')}
             </Text>
           </View>
 
           <Text style={[styles.helotRank, { color: theme.text.primary }]}>HELOT</Text>
           
           <Text style={[styles.helotDifficulty, { color: theme.text.tertiary }]}>
-            Difficulty: Beginner • Tier 0
+            {t('rankReveal.helotDifficulty')}
           </Text>
 
           {/* Story Card */}
           <View style={[styles.storyCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
             <Text style={[styles.storyQuote, { color: theme.text.secondary }]}>
-              "Every Eternity started exactly here."
+              {t('rankReveal.helotQuote')}
             </Text>
             <View style={[styles.divider, { backgroundColor: theme.accent }]} />
             <Text style={[styles.storyText, { color: theme.text.tertiary }]}>
-              The path does not open with victory. It opens with the first step forward.
+              {t('rankReveal.helotStory')}
             </Text>
           </View>
 
           {/* CTA */}
           <Text style={[styles.helotCta, { color: theme.text.secondary }]}>
-            Your first trial awaits.
+            {t('rankReveal.helotCta')}
           </Text>
 
           {/* LEAP NOW Button */}
@@ -103,7 +104,7 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
             style={[styles.leapButton, { backgroundColor: theme.accent }]} 
             onPress={onContinue}
           >
-            <Text style={styles.leapButtonText}>LEAP NOW</Text>
+            <Text style={styles.leapButtonText}>{t('rankReveal.leapNow')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>
@@ -127,20 +128,20 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
 
         {/* Title Frame */}
         <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
-          <Text style={[styles.rankFrameTitle, { color: theme.accent }]}>RANK ASSIGNED</Text>
+          <Text style={[styles.rankFrameTitle, { color: theme.accent }]}>{t('rankReveal.rankAssigned')}</Text>
         </View>
 
         <Text style={[styles.assignedTier, { color: theme.text.primary }]}>{tierName.toUpperCase()}</Text>
-        <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>Tier {currentTier}</Text>
+        <Text style={[styles.tierLabel, { color: theme.text.secondary }]}>{tierLevelLabel(currentTier)}</Text>
 
         {/* Tier Description & Difficulty */}
         <View style={[styles.tierInfoCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
           <Text style={[styles.tierDesc, { color: theme.text.secondary }]}>
-            {TIER_DESCRIPTIONS[currentTier]?.desc || 'Warrior rank achieved'}
+            {TIER_DESCRIPTIONS[currentTier]?.desc || t('rankReveal.tierDescFallback')}
           </Text>
           
           <View style={styles.difficultyRow}>
-            <Text style={[styles.difficultyLabel, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
+            <Text style={[styles.difficultyLabel, { color: theme.text.tertiary }]}>{t('rankReveal.difficulty')}</Text>
             <View style={[styles.difficultyBar, { backgroundColor: theme.background.secondary }]}>
               <View 
                 style={[
@@ -161,35 +162,35 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
         {/* Achievement Card */}
         <View style={[styles.achievementCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
           <Text style={[styles.achievementText, { color: theme.text.secondary }]}>
-            You have proven your strength. The arena welcomes you.
+            {t('rankReveal.proven')}
           </Text>
           {currentTier >= 6 && category === 'strength' && (
             <View style={[styles.bonusBadge, { backgroundColor: theme.accent }]}>
-              <Text style={styles.bonusText}>POWER WORLD UNLOCKED</Text>
+              <Text style={styles.bonusText}>{t('rankReveal.powerUnlocked')}</Text>
             </View>
           )}
         </View>
 
         {/* What's Next Section */}
         <View style={[styles.whatsNextCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
-          <Text style={[styles.whatsNextTitle, { color: theme.text.tertiary }]}>WHAT HAPPENS NEXT</Text>
+          <Text style={[styles.whatsNextTitle, { color: theme.text.tertiary }]}>{t('rankReveal.whatsNext')}</Text>
           {currentTier === 8 ? (
             <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
-              You have reached the pinnacle. Enter ETERNITY and compete for the top spot.
+              {t('rankReveal.nextPinnacle')}
             </Text>
           ) : currentTier >= 6 && category === 'strength' ? (
             <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
-              Power World is now unlocked. Complete trials to climb higher in Strength, or explore Power World.
+              {t('rankReveal.nextPower')}
             </Text>
           ) : (
             <Text style={[styles.whatsNextBody, { color: theme.text.secondary }]}>
-              Complete the {tierName} trial to advance to the next tier. Your time will be recorded on the leaderboard.
+              {t('rankReveal.nextTrial', { tier: tierName })}
             </Text>
           )}
           <View style={styles.whatsNextSteps}>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>① Start your trial</Text>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>② Beat the clock</Text>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>③ Claim your rank</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step1')}</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step2')}</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step3')}</Text>
           </View>
         </View>
 
@@ -199,7 +200,7 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
           onPress={onContinue}
         >
           <Text style={styles.leapButtonText}>
-            {currentTier === 6 && category === 'strength' ? 'LEAP TO POWER WORLD' : 'LEAP NOW'}
+            {currentTier === 6 && category === 'strength' ? t('rankReveal.leapToPower') : t('rankReveal.leapNow')}
           </Text>
         </TouchableOpacity>
       </Animated.View>

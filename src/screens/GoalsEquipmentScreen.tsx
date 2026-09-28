@@ -7,28 +7,29 @@ import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { Button } from '../components/Button';
 import { useSafeMutation } from '../hooks/useSafeMutation';
+import { t } from '../i18n';
 
 const ACCENT = '#FF5252';
 const OTHER_GOAL_MAX_LEN = 200;
 
 export const GOALS = [
-  { id: 'learn_skills', label: 'Learn Skills', icon: 'school-outline' },
-  { id: 'master_basics', label: 'Master Basics', icon: 'checkbox-marked-circle-outline' },
-  { id: 'weight_loss', label: 'Lose Weight', icon: 'fire' },
-  { id: 'strength', label: 'Increase Strength', icon: 'arm-flex-outline' },
-  { id: 'compete', label: 'Compete', icon: 'trophy-outline' },
-  { id: 'muscle', label: 'Gain Muscle', icon: 'weight-lifter' },
-  { id: 'other', label: 'Other', icon: 'dots-horizontal-circle-outline' },
+  { id: 'learn_skills', label: t('goals.learn_skills'), icon: 'school-outline' },
+  { id: 'master_basics', label: t('goals.master_basics'), icon: 'checkbox-marked-circle-outline' },
+  { id: 'weight_loss', label: t('goals.weight_loss'), icon: 'fire' },
+  { id: 'strength', label: t('goals.strength'), icon: 'arm-flex-outline' },
+  { id: 'compete', label: t('goals.compete'), icon: 'trophy-outline' },
+  { id: 'muscle', label: t('goals.muscle'), icon: 'weight-lifter' },
+  { id: 'other', label: t('goals.other'), icon: 'dots-horizontal-circle-outline' },
 ] as const;
 
 export const EQUIPMENT = [
-  { id: 'free_weights', label: 'Free Weights' },
-  { id: 'weight_belt', label: 'Weight Belt' },
-  { id: 'resistance_bands', label: 'Resistance Bands' },
-  { id: 'rings', label: 'Rings' },
-  { id: 'pull_up_bar', label: 'Pull-Up Bar' },
-  { id: 'dip_bar', label: 'Dip Bar' },
-  { id: 'low_parallettes', label: 'Low Parallettes' },
+  { id: 'free_weights', label: t('equipment.free_weights') },
+  { id: 'weight_belt', label: t('equipment.weight_belt') },
+  { id: 'resistance_bands', label: t('equipment.resistance_bands') },
+  { id: 'rings', label: t('equipment.rings') },
+  { id: 'pull_up_bar', label: t('equipment.pull_up_bar') },
+  { id: 'dip_bar', label: t('equipment.dip_bar') },
+  { id: 'low_parallettes', label: t('equipment.low_parallettes') },
 ] as const;
 
 const EQUIPMENT_IDS = EQUIPMENT.map((e) => e.id);
@@ -83,7 +84,7 @@ export function GoalsEquipmentScreen() {
           await refreshProfile();
           router.back();
         },
-        errorMessage: 'Failed to save your goals. Please try again.',
+        errorMessage: t('goalsScreen.saveFailed'),
       }
     );
   }
@@ -91,17 +92,17 @@ export function GoalsEquipmentScreen() {
   return (
     <ScrollView contentContainerStyle={styles.scrollContent}>
       <View style={styles.panel}>
-        <Text style={[styles.eyebrow, { color: ACCENT }]}>MILESTONE 2</Text>
-        <Text style={[styles.heading, { color: theme.text.primary }]}>Goals & Equipment</Text>
+        <Text style={[styles.eyebrow, { color: ACCENT }]}>{t('goalsScreen.eyebrow')}</Text>
+        <Text style={[styles.heading, { color: theme.text.primary }]}>{t('goalsScreen.heading')}</Text>
         <Text style={[styles.subheading, { color: theme.text.secondary }]}>
-          Tell us your goals and what you train with — we'll use it to shape your program.
+          {t('goalsScreen.subheading')}
         </Text>
 
         <View style={styles.sectionHeader}>
           <MaterialCommunityIcons name="target" size={16} color={ACCENT} />
-          <Text style={[styles.label, { color: theme.text.primary }]}>What are your goals?</Text>
+          <Text style={[styles.label, { color: theme.text.primary }]}>{t('goalsScreen.goalsQuestion')}</Text>
         </View>
-        <Text style={[styles.labelSub, { color: theme.text.tertiary }]}>Pick as many as apply.</Text>
+        <Text style={[styles.labelSub, { color: theme.text.tertiary }]}>{t('goalsScreen.pickAny')}</Text>
         <View style={styles.chipWrap}>
           {GOALS.map((g) => {
             const selected = goals.includes(g.id);
@@ -132,7 +133,7 @@ export function GoalsEquipmentScreen() {
             <TextInput
               value={otherText}
               onChangeText={setOtherText}
-              placeholder="Tell us your goal..."
+              placeholder={t('goalsScreen.otherPlaceholder')}
               placeholderTextColor={theme.text.tertiary}
               maxLength={OTHER_GOAL_MAX_LEN}
               multiline
@@ -149,9 +150,9 @@ export function GoalsEquipmentScreen() {
 
         <View style={[styles.sectionHeader, { marginTop: 28 }]}>
           <MaterialCommunityIcons name="dumbbell" size={16} color={ACCENT} />
-          <Text style={[styles.label, { color: theme.text.primary }]}>What equipment do you have?</Text>
+          <Text style={[styles.label, { color: theme.text.primary }]}>{t('goalsScreen.equipmentQuestion')}</Text>
         </View>
-        <Text style={[styles.labelSub, { color: theme.text.tertiary }]}>Optional — pick as many as apply.</Text>
+        <Text style={[styles.labelSub, { color: theme.text.tertiary }]}>{t('goalsScreen.equipmentOptional')}</Text>
         <View style={styles.chipWrap}>
           <TouchableOpacity
             onPress={toggleAllEquipment}
@@ -163,7 +164,7 @@ export function GoalsEquipmentScreen() {
               },
             ]}
           >
-            <Text style={[styles.chipText, { color: allEquipmentSelected ? '#FFFFFF' : theme.text.secondary }]}>All Above</Text>
+            <Text style={[styles.chipText, { color: allEquipmentSelected ? '#FFFFFF' : theme.text.secondary }]}>{t('goalsScreen.allAbove')}</Text>
             {allEquipmentSelected && <MaterialCommunityIcons name="check" size={14} color="#FFFFFF" style={styles.chipCheck} />}
           </TouchableOpacity>
           {EQUIPMENT.map((e) => {
@@ -185,7 +186,7 @@ export function GoalsEquipmentScreen() {
         </View>
 
         <View style={{ marginTop: 32 }}>
-          <Button title="CONTINUE" onPress={handleContinue} loading={isMutating} disabled={!canContinue} />
+          <Button title={t('goalsScreen.continue')} onPress={handleContinue} loading={isMutating} disabled={!canContinue} />
         </View>
       </View>
     </ScrollView>

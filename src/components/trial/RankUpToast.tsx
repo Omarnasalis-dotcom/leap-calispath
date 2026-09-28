@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { t } from '../../i18n';
 
 const ACCENT = '#FF5252';
 const AUTO_DISMISS_MS = 3000;
@@ -43,7 +44,7 @@ export function RankUpToast({ tierName, onDismiss }: RankUpToastProps) {
       >
         <Text style={styles.emoji}>🎉</Text>
         <Text style={styles.text}>
-          You're now a <Text style={styles.tierName}>{tierName}</Text>! Keep it up.
+          {t('rankUp.toastLead')}<Text style={styles.tierName}>{tierName}</Text>{t('rankUp.toastTail')}
         </Text>
       </Animated.View>
     </TouchableOpacity>

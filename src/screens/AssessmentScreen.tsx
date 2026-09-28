@@ -28,6 +28,7 @@ import {
 import { preloadExerciseMedia } from '../data/exerciseMedia';
 import { Button } from '../components/Button';
 import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
+import { t } from '../i18n';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -134,8 +135,8 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
     
     if (reps < 0) {
       Alert.alert(
-        "Invalid Input",
-        "You must enter at least 0 reps. If you cannot do any, you can enter 0 or go BACK and select NO."
+        t('assessment.invalidTitle'),
+        t('assessment.invalidReps')
       );
       return;
     }
@@ -229,7 +230,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
       onComplete();
     } catch (error: any) {
       console.error('Assessment error:', error);
-      Alert.alert('Error', getFriendlyErrorMessage(error));
+      Alert.alert(t('errors.generic'), getFriendlyErrorMessage(error));
     } finally {
       setLoading(false);
       isSubmittingRef.current = false;
@@ -255,7 +256,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
         
         <View style={styles.header}>
           <TouchableOpacity onPress={handleBack} style={styles.backButton}>
-            <Text style={[styles.backText, { color: theme.text.secondary }]}>← BACK</Text>
+            <Text style={[styles.backText, { color: theme.text.secondary }]}>{t('assessment.back')}</Text>
           </TouchableOpacity>
 
           <View style={styles.progressBar}>
@@ -284,7 +285,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
           {!askingReps ? (
             <View style={styles.questionCard}>
               <Text style={[styles.questionPrompt, { color: theme.text.primary }]}>
-                Can you perform a {currentOption.label}?
+                {t('assessment.canYouDo', { label: currentOption.label })}
               </Text>
               <Text style={[styles.questionDesc, { color: theme.text.tertiary }]}>
                 {currentOption.description}
@@ -295,20 +296,20 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
                   style={[styles.decisionButton, { backgroundColor: theme.background.secondary, borderColor: theme.card.border }]} 
                   onPress={handleNo}
                 >
-                  <Text style={[styles.decisionText, { color: theme.text.secondary }]}>NO</Text>
+                  <Text style={[styles.decisionText, { color: theme.text.secondary }]}>{t('assessment.no')}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity 
                   style={[styles.decisionButton, { backgroundColor: theme.text.primary, borderColor: theme.text.primary }]} 
                   onPress={handleYes}
                 >
-                  <Text style={[styles.decisionText, { color: theme.background.primary }]}>YES</Text>
+                  <Text style={[styles.decisionText, { color: theme.background.primary }]}>{t('assessment.yes')}</Text>
                 </TouchableOpacity>
               </View>
             </View>
           ) : (
             <View style={styles.questionCard}>
               <Text style={[styles.questionPrompt, { color: theme.text.primary }]}>
-                How many {currentOption.label}s can you do?
+                {t('assessment.howMany', { label: currentOption.label })}
               </Text>
               
               <TextInput
@@ -343,7 +344,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
               </View>
 
               <Button
-                title={currentStep === STEPS.length - 1 ? 'COMPLETE' : 'NEXT'}
+                title={currentStep === STEPS.length - 1 ? t('assessment.complete') : t('assessment.next')}
                 onPress={handleNextFromReps}
                 loading={loading}
               />

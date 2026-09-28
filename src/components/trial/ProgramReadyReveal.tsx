@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t } from '../../i18n';
 
 const ACCENT = '#FF5252';
 
@@ -42,9 +43,9 @@ export function ProgramReadyReveal({ onExplore, onStartProgram, submitting }: Pr
         <MaterialCommunityIcons name="check-decagram" size={56} color={ACCENT} />
       </Animated.View>
 
-      <Animated.Text style={[styles.headline, popStyle, { color: palette.ink }]}>YOUR PROGRAM IS READY</Animated.Text>
+      <Animated.Text style={[styles.headline, popStyle, { color: palette.ink }]}>{t('rankUp.programReady')}</Animated.Text>
       <Animated.Text style={[styles.subtext, popStyle, { color: palette.muted }]}>
-        Everything's built and waiting for you — pick up where you'd like to go next.
+        {t('rankUp.programReadySub')}
       </Animated.Text>
 
       <View style={styles.ctaStack}>
@@ -53,14 +54,14 @@ export function ProgramReadyReveal({ onExplore, onStartProgram, submitting }: Pr
           onPress={onStartProgram}
           disabled={submitting}
         >
-          <Text style={styles.ctaPrimaryText}>START PROGRAM</Text>
+          <Text style={styles.ctaPrimaryText}>{t('rankUp.startProgram')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={[styles.cta, styles.ctaSecondary, { borderColor: isDark ? 'rgba(255,255,255,0.2)' : 'rgba(23,7,7,0.15)' }, submitting && styles.ctaDisabled]}
           onPress={onExplore}
           disabled={submitting}
         >
-          <Text style={[styles.ctaSecondaryText, { color: palette.muted }]}>EXPLORE APP</Text>
+          <Text style={[styles.ctaSecondaryText, { color: palette.muted }]}>{t('rankUp.exploreApp')}</Text>
         </TouchableOpacity>
       </View>
     </View>

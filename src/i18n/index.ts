@@ -40,3 +40,9 @@ export const t = i18n.t.bind(i18n);
 // what doesn't: slide animations (translateX), and arrow icons via FLIP_X.
 export const isRTL = isArabic;
 export const FLIP_X = isRTL ? ({ transform: [{ scaleX: -1 }] } as const) : undefined;
+
+// "Tier 3" in English, "المستوى الثالث" in Arabic (tiers 0-9). Tier names
+// themselves (Helot … Eternity) are never translated.
+export function tierLevelLabel(tier: number): string {
+  return tier >= 0 && tier <= 9 ? t(`tiers.level${tier}` as 'tiers.level0') : `Tier ${tier}`;
+}

@@ -1,5 +1,6 @@
 // Spartan Agoge - Tier Calculation Logic
 // Weakest Link Rule: Your tier is your lowest performing movement
+import { t } from '../i18n';
 
 export type MovementVariant =
   | 'inverted_row' | 'assisted_pullup' | 'strict_pullup'
@@ -174,21 +175,21 @@ function calculateMuscleUpTier(assessment: MovementAssessment): number {
 // Movement variant options for UI
 export const MOVEMENT_OPTIONS = {
   pullups: [
-    { value: 'strict_pullup', label: 'Strict Pull-up', description: 'Dead hang to chin over bar, no swing' },
-    { value: 'assisted_pullup', label: 'Assisted Pull-up', description: 'Band or machine assistance' },
-    { value: 'inverted_row', label: 'Inverted Row', description: 'Body horizontal, pull chest to bar' },
+    { value: 'strict_pullup', label: 'Strict Pull-up', description: t('assessment.strict_pullup') },
+    { value: 'assisted_pullup', label: 'Assisted Pull-up', description: t('assessment.assisted_pullup') },
+    { value: 'inverted_row', label: 'Inverted Row', description: t('assessment.inverted_row') },
   ],
   dips: [
-    { value: 'standard_dip', label: 'Parallel Bar Dip', description: 'Full range on parallel bars' },
-    { value: 'bench_dip', label: 'Bench Dip', description: 'Feet on ground, hands on bench behind you' },
+    { value: 'standard_dip', label: 'Parallel Bar Dip', description: t('assessment.standard_dip') },
+    { value: 'bench_dip', label: 'Bench Dip', description: t('assessment.bench_dip') },
   ],
   pushups: [
-    { value: 'standard_pushup', label: 'Standard Push-up', description: 'Full plank position' },
-    { value: 'knee_pushup', label: 'Knee Push-up', description: 'Knees on ground, full push-up motion' },
+    { value: 'standard_pushup', label: 'Standard Push-up', description: t('assessment.standard_pushup') },
+    { value: 'knee_pushup', label: 'Knee Push-up', description: t('assessment.knee_pushup') },
   ],
   muscleups: [
-    { value: 'strict_mu', label: 'Strict Muscle-up', description: 'No assistance, full control' },
-    { value: 'banded_mu', label: 'Banded Muscle-up', description: 'Band assistance for transition' },
-    { value: 'jumping_mu', label: 'Jumping Muscle-up', description: 'Use jump to assist transition' },
+    { value: 'strict_mu', label: 'Strict Muscle-up', description: t('assessment.strict_mu') },
+    { value: 'banded_mu', label: 'Banded Muscle-up', description: t('assessment.banded_mu') },
+    { value: 'jumping_mu', label: 'Jumping Muscle-up', description: t('assessment.jumping_mu') },
   ],
 };

@@ -4,6 +4,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { TIER_NAMES } from '../../types';
 import { formatTime } from '../../lib/trials';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t } from '../../i18n';
 
 const ACCENT = '#FF5252'; // matches worldThemes.strength.accent / DESIGN.md ember-red — same in both modes
 
@@ -50,7 +51,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
   const tierName = TIER_NAMES[tier] ?? `Tier ${tier}`;
   const maxTier = TIER_NAMES.length - 1;
   const milestoneCaption =
-    tier === 6 ? 'POWER WORLD UNLOCKED' : tier === maxTier ? 'ETERNITY REACHED' : 'RANK SECURED';
+    tier === 6 ? t('rankUp.powerUnlocked') : tier === maxTier ? t('rankUp.eternityReached') : t('rankUp.rankSecured');
 
   // Single master clock (0→1 over TOTAL_MS) — every beat below derives its
   // opacity/scale/position from this one value so skip-to-end is just
@@ -214,7 +215,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
         <Animated.View style={[styles.flash, { backgroundColor: palette.flash, opacity: flashOpacity }]} pointerEvents="none" />
 
         <View style={styles.body}>
-          <Animated.Text style={[styles.rankUpLabel, enter(150, 450)]}>RANK UP</Animated.Text>
+          <Animated.Text style={[styles.rankUpLabel, enter(150, 450)]}>{t('rankUp.label')}</Animated.Text>
 
           <View style={styles.stage}>
             <Animated.View style={[styles.glowWrap, { opacity: glowOpacity }]} pointerEvents="none">
@@ -265,14 +266,14 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
             {tierName.toUpperCase()}
           </Animated.Text>
           <Animated.Text style={[styles.tierSubLabel, subEnter]}>
-            TIER {tier} OF {maxTier}
+            {t('rankUp.tierOf', { tier, max: maxTier })}
           </Animated.Text>
 
           <Animated.Text style={[styles.trialLine, trialEnter, { color: palette.ink }]}>
-            <Text style={[styles.trialLineMuted, { color: palette.muted }]}>CHALLENGE COMPLETED · </Text>
+            <Text style={[styles.trialLineMuted, { color: palette.muted }]}>{t('rankUp.challengeCompleted')}</Text>
             {trialName.toUpperCase()}
           </Animated.Text>
-          <Animated.Text style={[styles.timeLine, timeEnter, { color: palette.muted }]}>Time: {formatTime(timeSeconds)}</Animated.Text>
+          <Animated.Text style={[styles.timeLine, timeEnter, { color: palette.muted }]}>{t('rankUp.time', { time: formatTime(timeSeconds) })}</Animated.Text>
 
           <View style={styles.progressWrap}>
             {confetti.map((c, i) => (
@@ -300,7 +301,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
 
         <Animated.View style={[styles.ctaWrap, ctaStyle]} pointerEvents={ctaReady ? 'auto' : 'none'}>
           <TouchableOpacity style={styles.cta} onPress={onContinue} disabled={!ctaReady}>
-            <Text style={styles.ctaText}>CONTINUE</Text>
+            <Text style={styles.ctaText}>{t('rankUp.continue')}</Text>
           </TouchableOpacity>
         </Animated.View>
       </View>

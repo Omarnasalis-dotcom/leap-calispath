@@ -19,6 +19,7 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
 import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
+import { t, FLIP_X } from '../i18n';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
 // as one pool per category under assets/Milestone Cards/{push,pull,lower
@@ -468,7 +469,7 @@ function JourneyCard({
         </View>
       ) : showHereBadge ? (
         <Animated.View style={[styles.milestoneHereBadge, { opacity: badgeOpacity }]}>
-          <Text style={styles.milestoneHereBadgeText}>YOU ARE HERE</Text>
+          <Text style={styles.milestoneHereBadgeText}>{t('journey.youAreHere')}</Text>
         </Animated.View>
       ) : null}
       <View style={[styles.milestoneCardTextWrap, !locked && styles.milestoneCardTextWrapCentered]}>
@@ -630,7 +631,7 @@ function GhostNode() {
         <View style={styles.ghostCircle} />
       </View>
       <View style={[styles.rowRight, { justifyContent: 'center' }]}>
-        <Text style={styles.ghostLabel}>YOUR JOURNEY CONTINUES</Text>
+        <Text style={styles.ghostLabel}>{t('journey.continues')}</Text>
       </View>
     </View>
   );
@@ -661,7 +662,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
           style={styles.proBadgeCorner}
         >
           <MaterialCommunityIcons name="crown" size={9} color="#2B2000" />
-          <Text style={styles.proBadgeCornerText}>PRO</Text>
+          <Text style={styles.proBadgeCornerText}>{t('journey.pro')}</Text>
         </LinearGradient>
       )}
       {/* Same green FREE badge as the top-pick template inside Program
@@ -670,7 +671,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
       {showFreeBadge && (
         <View style={styles.freeBadgeCorner}>
           <MaterialCommunityIcons name="gift-outline" size={9} color="#000" />
-          <Text style={styles.freeBadgeCornerText}>FREE</Text>
+          <Text style={styles.freeBadgeCornerText}>{t('journey.free')}</Text>
         </View>
       )}
       <View style={styles.choiceIconWrap}>
@@ -680,7 +681,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
         <Text style={styles.choiceTitle}>{title}</Text>
         <Text style={styles.choiceDesc}>{desc}</Text>
       </View>
-      <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.2)" />
+      <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.2)" style={FLIP_X} />
     </TouchableOpacity>
   );
 }
@@ -715,9 +716,9 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
         number={number}
         state={state}
         title={title}
-        desc={state === 'complete' ? 'Completed.' : state === 'active' ? 'Up next in your program.' : 'Unlocks once the step before it is done.'}
+        desc={state === 'complete' ? t('journey.dayCompleted') : state === 'active' ? t('journey.dayUpNext') : t('journey.dayLocked')}
         image={pickDayCardImage(day, seed)}
-        ctaLabel={state === 'active' ? 'START NOW' : undefined}
+        ctaLabel={state === 'active' ? t('journey.startNow') : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
         staggerIndex={number}
@@ -745,29 +746,29 @@ const SIDE_QUEST_DEFS: Record<SideQuestKind, {
 }> = {
   '1mm': {
     icon: 'timer-outline',
-    title: 'SIDE QUEST · TEST YOUR ENDURANCE',
-    desc: '1-Minute Max — optional, skip it and move on any time.',
+    title: t('journey.questEnduranceTitle'),
+    desc: t('journey.questEnduranceDesc'),
     pathname: '/one-min-max',
     params: { category: 'entry' },
   },
   static: {
     icon: 'hand-back-left-outline',
-    title: 'SIDE QUEST · TEST YOUR HOLD',
-    desc: 'Static World wall handstand — optional, skip it and move on any time.',
+    title: t('journey.questHoldTitle'),
+    desc: t('journey.questHoldDesc'),
     pathname: '/static-world',
     params: { movement: 'wall_handstand' },
   },
   power: {
     icon: 'lightning-bolt-outline',
-    title: 'SIDE QUEST · TEST YOUR POWER',
-    desc: 'Power World — optional, skip it and move on any time.',
+    title: t('journey.questPowerTitle'),
+    desc: t('journey.questPowerDesc'),
     pathname: '/power-world',
     params: {},
   },
   weekly: {
     icon: 'trophy-outline',
-    title: 'SIDE QUEST · WEEKLY CHALLENGE',
-    desc: "This week's community challenge — optional, skip it and move on any time.",
+    title: t('journey.questWeeklyTitle'),
+    desc: t('journey.questWeeklyDesc'),
     pathname: '/weekly-challenge',
     params: {},
   },
@@ -877,11 +878,11 @@ function QuestNode({ size = QUEST_NODE_SIZE }: { size?: number }) {
 // was SideQuestNode's old job; quests are never a separate list row anymore,
 // see buildWeekSequence's afterDayIndex and the render loop below).
 const DAY_CHEER_MESSAGES = [
-  'Nice work! Keep the momentum going.',
-  "Crushing it — on to the next one.",
-  "Great job! You're building real consistency.",
-  "Solid work. Let's keep this streak alive.",
-  "That's the way! Next step unlocked.",
+  t('journey.cheer1'),
+  t('journey.cheer2'),
+  t('journey.cheer3'),
+  t('journey.cheer4'),
+  t('journey.cheer5'),
 ];
 
 // Shown inline between the just-finished card and the newly-unlocked one
@@ -922,14 +923,14 @@ function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
         />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.attachedQuestLabel, locked && styles.attachedQuestLabelLocked]}>SIDE QUEST</Text>
+        <Text style={[styles.attachedQuestLabel, locked && styles.attachedQuestLabelLocked]}>{t('journey.sideQuest')}</Text>
         <Text
           style={[styles.attachedQuestTitle, locked && styles.attachedQuestTitleLocked, resolved && styles.attachedQuestTitleResolved]}
           numberOfLines={1}
         >
-          {def.title.replace('SIDE QUEST · ', '')}
+          {def.title}
         </Text>
-        {resolved && <Text style={styles.attachedQuestDesc}>{skipped ? 'Skipped.' : 'Done — nice work.'}</Text>}
+        {resolved && <Text style={styles.attachedQuestDesc}>{skipped ? t('journey.skipped') : t('journey.doneNiceWork')}</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -956,7 +957,7 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
             into the node -- flipped from the first version, which bulged
             the opposite way (right first, then down) and read as curving
             away from the node instead of into it. */}
-        <Svg width={QUEST_BRANCH_WRAP_WIDTH} height={QUEST_NODE_SIZE} style={StyleSheet.absoluteFill}>
+        <Svg width={QUEST_BRANCH_WRAP_WIDTH} height={QUEST_NODE_SIZE} style={[StyleSheet.absoluteFill, FLIP_X]}>
           <Path
             d={`M4,2 Q4,${QUEST_NODE_SIZE / 2} ${QUEST_BRANCH_WRAP_WIDTH - QUEST_NODE_SIZE / 2},${QUEST_NODE_SIZE / 2}`}
             stroke={ACCENT}
@@ -971,20 +972,20 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
         </View>
       </View>
       <View style={styles.questBubble}>
-        <Text style={styles.questBubbleLabel}>SIDE QUEST</Text>
+        <Text style={styles.questBubbleLabel}>{t('journey.sideQuest')}</Text>
         <Text style={styles.questBubbleTitle} numberOfLines={1}>
-          {def.title.replace('SIDE QUEST · ', '')}
+          {def.title}
         </Text>
         <Text style={styles.questBubbleDesc} numberOfLines={1}>
           {def.desc}
         </Text>
         <View style={styles.questBubbleCtaRow}>
           <TouchableOpacity style={styles.questBubbleCta} onPress={onPress}>
-            <Text style={styles.questBubbleCtaText}>START</Text>
+            <Text style={styles.questBubbleCtaText}>{t('journey.start')}</Text>
           </TouchableOpacity>
           {onSkip && (
             <TouchableOpacity style={styles.questBubbleCtaSecondary} onPress={onSkip}>
-              <Text style={styles.questBubbleCtaSecondaryText}>SKIP</Text>
+              <Text style={styles.questBubbleCtaSecondaryText}>{t('journey.skip')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -1420,7 +1421,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
       const freshData: JourneyProgramData = {
         warriorProgramId: (program as any).id,
-        programName: programName || 'Your Program',
+        programName: programName || t('journey.yourProgram'),
         currentWeek: rawCurrentWeek,
         hasNextWeek,
         canAddWeek: (program as any).coach_id === LEAP_SYSTEM_PROFILE_ID,
@@ -1532,7 +1533,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (error) {
         setPostOnboardingDestination(null);
         setSubmittingProgramReady(false);
-        Alert.alert('SOMETHING WENT WRONG', 'Please try again.');
+        Alert.alert(t('journey.errorTitle'), t('journey.tryAgain'));
         return;
       }
       await refreshProfile();
@@ -1876,7 +1877,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     return (
       <RankUpReveal
         tier={profile.strength_tier}
-        trialName="Assessment"
+        trialName={t('journey.assessment')}
         timeSeconds={0}
         onContinue={dismissReveal}
       />
@@ -1900,7 +1901,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // for accounts that only ever set that one.
   const goalLabel = profile?.goals?.length
     ? profile.goals
-        .map((g) => (g === 'other' ? profile.goal_other_text?.trim() || 'Other' : GOAL_LABELS[g] ?? g))
+        .map((g) => (g === 'other' ? profile.goal_other_text?.trim() || t('goals.other') : GOAL_LABELS[g] ?? g))
         .join(', ')
     : profile?.primary_goal
     ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
@@ -1910,7 +1911,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     <View style={styles.screen}>
     {showRankToast && (
       <RankUpToast
-        tierName={TIER_NAMES[profile?.strength_tier ?? 0] ?? `Tier ${profile?.strength_tier ?? 0}`}
+        tierName={TIER_NAMES[profile?.strength_tier ?? 0] ?? t('journey.tierFallback', { tier: profile?.strength_tier ?? 0 })}
         onDismiss={() => setShowRankToast(false)}
       />
     )}
@@ -1922,17 +1923,17 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       }}
       scrollEventThrottle={16}
     >
-      <Text style={styles.header}>MY JOURNEY</Text>
+      <Text style={styles.header}>{t('journey.header')}</Text>
 
       <View style={styles.lane}>
         <>
             <NodeRow
               number={1}
               state={milestone1State}
-              title="01 ASSESSMENT"
-              desc={milestone1State === 'complete' ? 'Starting tier set.' : 'Find your starting tier.'}
+              title={t('journey.step1Title')}
+              desc={milestone1State === 'complete' ? t('journey.step1Done') : t('journey.step1Todo')}
               image={ASSESSMENT_IMAGE}
-              ctaLabel="START"
+              ctaLabel={t('journey.start')}
               onPressCta={() => router.push('/assessment')}
               isLast={false}
               isFirst
@@ -1942,16 +1943,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             <NodeRow
               number={2}
               state={milestone2State}
-              title="02 GOALS & EQUIPMENT"
+              title={t('journey.step2Title')}
               desc={
                 milestone2State === 'complete'
-                  ? goalLabel ?? 'Saved.'
+                  ? goalLabel ?? t('journey.saved')
                   : milestone2State === 'active'
-                  ? 'Tell us your goal and equipment.'
-                  : 'Unlocks after your assessment.'
+                  ? t('journey.step2Todo')
+                  : t('journey.step2Locked')
               }
               image={GOALS_EQUIPMENT_IMAGE}
-              ctaLabel="START"
+              ctaLabel={t('journey.start')}
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
               staggerIndex={2}
@@ -1960,15 +1961,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             <NodeRow
               number={3}
               state={milestone3State}
-              title="03 BUILD YOUR PROGRAM"
+              title={t('journey.step3Title')}
               desc={
                 milestone3State === 'complete'
-                  ? `${journeyData?.programName ?? 'Your program'} — underway.`
+                  ? t('journey.step3Done', { name: journeyData?.programName ?? t('journey.yourProgramLower') })
                   : milestone3State !== 'active'
-                  ? 'Unlocks after your goals.'
+                  ? t('journey.step3Locked')
                   : showLegacyMilestones
-                  ? 'Pick up where you left off, or start something new.'
-                  : 'Choose how you want to train. This is where onboarding ends.'
+                  ? t('journey.step3Legacy')
+                  : t('journey.step3Todo')
               }
               image={BUILD_PROGRAM_IMAGE}
               isLast
@@ -1979,15 +1980,15 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 {showLegacyMilestones && journeyData ? (
                   <ProgramChoiceCard
                     icon="map-marker-path"
-                    title="CONTINUE ACTIVE PROGRAM"
-                    desc={`Jump back in — ${journeyData.programName}, Week ${journeyData.currentWeek}.`}
+                    title={t('journey.continueActive')}
+                    desc={t('journey.continueActiveDesc', { name: journeyData.programName, week: journeyData.currentWeek })}
                     onPress={acknowledgeLegacyOnboarding}
                   />
                 ) : (
                   <ProgramChoiceCard
                     icon="creation"
-                    title="AI COACH"
-                    desc="A day-by-day plan that adapts as you progress."
+                    title={t('journey.aiCoach')}
+                    desc={t('journey.aiCoachDesc')}
                     showProBadge={!canAccessPro(profile, paywallEnabled)}
                     onPress={() => {
                       acknowledgeLegacyOnboarding();
@@ -1997,8 +1998,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 )}
                 <ProgramChoiceCard
                   icon="tune-vertical"
-                  title="CUSTOMIZE PROGRAM"
-                  desc="Pick your focus, frequency and equipment."
+                  title={t('journey.customize')}
+                  desc={t('journey.customizeDesc')}
                   showProBadge={!canAccessCustomizeProgram(profile, paywallEnabled)}
                   onPress={() => {
                     acknowledgeLegacyOnboarding();
@@ -2007,8 +2008,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 />
                 <ProgramChoiceCard
                   icon="view-grid-outline"
-                  title="READY TEMPLATE"
-                  desc="Start an expert-built program today."
+                  title={t('journey.template')}
+                  desc={t('journey.templateDesc')}
                   showFreeBadge
                   onPress={() => {
                     acknowledgeLegacyOnboarding();
@@ -2034,8 +2035,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       disabled={submittingProgramReady}
                       onPress={handleSkipProgramForLater}
                     >
-                      <Text style={styles.skipOnboardingBtnText}>SKIP FOR NOW</Text>
-                      <MaterialCommunityIcons name="chevron-right" size={12} color="rgba(255,255,255,0.6)" />
+                      <Text style={styles.skipOnboardingBtnText}>{t('journey.skipForNow')}</Text>
+                      <MaterialCommunityIcons name="chevron-right" size={12} color="rgba(255,255,255,0.6)" style={FLIP_X} />
                     </TouchableOpacity>
                     {!canAccessPro(profile, paywallEnabled) && (
                       <TouchableOpacity
@@ -2044,7 +2045,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         onPress={() => router.push('/paywall')}
                       >
                         <MaterialCommunityIcons name="crown" size={12} color="#000" />
-                        <Text style={styles.upgradeNowBtnText}>GET PRO NOW</Text>
+                        <Text style={styles.upgradeNowBtnText}>{t('journey.getProNow')}</Text>
                       </TouchableOpacity>
                     )}
                   </View>
@@ -2059,7 +2060,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 already shows the saved goal, so the old summary banner's
                 job is redundant now. */}
             {mode === 'journey' && (journeyLoading ? (
-              <Text style={styles.journeyMuted}>Loading your program…</Text>
+              <Text style={styles.journeyMuted}>{t('journey.loadingProgram')}</Text>
             ) : journeyData ? (
               <>
                 {journeyData.weeks.map((week, weekIdx) => {
@@ -2170,8 +2171,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   return (
                     <View key={week.weekNumber}>
                       <Text style={styles.journeySectionLabel}>
-                        {journeyData.programName.toUpperCase()} · WEEK {week.weekNumber}
-                        {!isLatestWeek ? ' — COMPLETE' : ''}
+                        {t('journey.weekLabel', { name: journeyData.programName.toUpperCase(), week: week.weekNumber })}
+                        {!isLatestWeek ? t('journey.weekDoneSuffix') : ''}
                       </Text>
                       {rows}
                     </View>
@@ -2181,27 +2182,27 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   state={trialResolved ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
-                  title="STRENGTH TRIAL"
+                  title={t('journey.strengthTrial')}
                   desc={
                     trialSkipped
-                      ? 'Skipped.'
+                      ? t('journey.skipped')
                       : trialResolved
-                      ? 'Done — nice work.'
+                      ? t('journey.doneNiceWork')
                       : !isTrialWeek
-                      ? `Every 2 weeks — next available Week ${journeyData.currentWeek + 1}.`
+                      ? t('journey.trialEvery2Weeks', { week: journeyData.currentWeek + 1 })
                       : weekComplete
-                      ? "Test your current tier now that this week's days are done."
-                      : 'Unlocks after every day this week is done.'
+                      ? t('journey.trialReady')
+                      : t('journey.trialLocked')
                   }
                   image={pickFromPool(RANDOM_IMAGES, `strength-trial-${journeyData.currentWeek}`)}
-                  ctaLabel="START"
+                  ctaLabel={t('journey.start')}
                   onPressCta={() =>
                     router.push({
                       pathname: '/trial',
                       params: { mode: 'progression', returnTo: 'journey', questSlotKey: trialSlotKey },
                     })
                   }
-                  secondaryCtaLabel={!trialResolved ? 'SKIP' : undefined}
+                  secondaryCtaLabel={!trialResolved ? t('journey.skip') : undefined}
                   onPressSecondaryCta={!trialResolved ? () => handleSkipQuest(trialSlotKey) : undefined}
                   isLast
                   staggerIndex={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
@@ -2219,8 +2220,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
                     <Text style={styles.weekCompleteText}>
                       {journeyData.hasNextWeek || journeyData.canAddWeek
-                        ? 'Week complete — nice work.'
-                        : "Week complete — that's every week in this program."}
+                        ? t('journey.weekComplete')
+                        : t('journey.weekCompleteLast')}
                     </Text>
                     <TouchableOpacity
                       style={[styles.weekCompletePill, advancingWeek && { opacity: 0.6 }]}
@@ -2229,19 +2230,19 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     >
                       <Text style={styles.weekCompletePillText}>
                         {advancingWeek
-                          ? (journeyData.hasNextWeek ? 'STARTING NEXT WEEK…' : journeyData.canAddWeek ? 'ADDING WEEK…' : 'STARTING NEXT WEEK…')
+                          ? (journeyData.hasNextWeek ? t('journey.startingNextWeek') : journeyData.canAddWeek ? t('journey.addingWeek') : t('journey.startingNextWeek'))
                           : journeyData.hasNextWeek
-                          ? 'START WEEK ' + (journeyData.currentWeek + 1)
+                          ? t('journey.startWeek', { week: journeyData.currentWeek + 1 })
                           : journeyData.canAddWeek
-                          ? 'ADD NEW WEEK'
-                          : 'VIEW PROGRAM'}
+                          ? t('journey.addNewWeek')
+                          : t('journey.viewProgram')}
                       </Text>
                     </TouchableOpacity>
                   </View>
                 )}
               </>
             ) : (
-              <Text style={styles.journeyMuted}>No active program yet — build one above to see your daily journey here.</Text>
+              <Text style={styles.journeyMuted}>{t('journey.noProgram')}</Text>
             ))}
 
             <GhostNode />

@@ -9,6 +9,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
+import { t } from '../i18n';
 
 type Step = 'context' | 'presenting' | 'confirming' | 'fallback';
 
@@ -197,13 +198,15 @@ export function PaywallScreen() {
         <View style={styles.content}>
           <LeapLogo size={100} animated={false} />
           <Text style={styles.currentPlanBadge}>{currentTier.toUpperCase()}</Text>
-          <Text style={styles.title}>Change Your Plan</Text>
+          <Text style={styles.title}>{t('paywall.changePlan')}</Text>
           <Text style={styles.message}>
-            You're currently on {currentTier.toUpperCase()}{expiresLabel ? ` (renews ${expiresLabel})` : ''}. Picking a plan on the next screen upgrades your existing subscription — it replaces what you have now, it doesn't stack on top of it.
+            {expiresLabel
+              ? t('paywall.currentPlanRenews', { tier: currentTier.toUpperCase(), date: expiresLabel })
+              : t('paywall.currentPlan', { tier: currentTier.toUpperCase() })}
           </Text>
-          <Button title="Continue" onPress={present} />
+          <Button title={t('paywall.continue')} onPress={present} />
           <Button
-            title="Cancel"
+            title={t('paywall.cancel')}
             variant="secondary"
             onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
           />
@@ -219,7 +222,7 @@ export function PaywallScreen() {
           <LeapLogo size={100} animated />
           <ActivityIndicator color="#FF5252" style={styles.spinner} />
           <Text style={styles.message}>
-            {step === 'confirming' ? 'Confirming your purchase...' : 'Loading your plans...'}
+            {step === 'confirming' ? t('paywall.confirming') : t('paywall.loading')}
           </Text>
         </View>
       </SafeAreaView>
@@ -230,14 +233,14 @@ export function PaywallScreen() {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
         <LeapLogo size={100} animated={false} />
-        <Text style={styles.title}>Couldn't Load Plans</Text>
+        <Text style={styles.title}>{t('paywall.loadFailedTitle')}</Text>
         <Text style={styles.message}>
-          Something went wrong loading the available plans. Check your connection and try again, or continue with free access for now.
+          {t('paywall.loadFailed')}
         </Text>
-        <Button title="Try Again" onPress={present} />
-        <Button title="Restore Purchases" variant="secondary" onPress={handleRestore} />
+        <Button title={t('paywall.tryAgain')} onPress={present} />
+        <Button title={t('paywall.restore')} variant="secondary" onPress={handleRestore} />
         <Button
-          title="Continue Free"
+          title={t('paywall.continueFree')}
           variant="secondary"
           onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
         />
