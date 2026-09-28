@@ -1446,6 +1446,10 @@ const ar: Translations = {
   },
   tour: {
     help: 'أرني كيف تعمل هذه الشاشة',
+    offerTitle: 'هل تريد جولة سريعة؟',
+    offerBody: 'تعرّف على طريقة عمل Leap Arena في دقيقة تقريبًا. يمكنك إعادتها في أي وقت من الإعدادات.',
+    offerStart: 'ابدأ الجولة',
+    offerSkip: 'تخطَّ',
     skip: 'تخطَّ',
     gotIt: 'فهمت',
     next: 'التالي',

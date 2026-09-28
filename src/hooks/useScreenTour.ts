@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { Alert, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
 import { useTutorial } from '../contexts/TutorialContext';
 import { useMountedRef } from './useMountedRef';
 import { TourId } from '../types/tutorial';
+import { t } from '../i18n';
 
 // Tours only auto-start for users who finished onboarding this recently.
 // Keyed off onboarding_completed_at (not assessed_at): onboarding runs Goals
@@ -19,11 +21,27 @@ function seenKey(tourId: TourId, profileId: string) {
   return tourId === 'main' ? `seen_profile_tutorial_${profileId}` : `seen_tour_${tourId}_${profileId}`;
 }
 
+// Tours that ask first ("Take the tour" / "Skip") instead of starting on
+// their own: the main Profile tour, the first thing a new member lands on
+// after onboarding.
+const ASK_FIRST: ReadonlySet<TourId> = new Set<TourId>(['main']);
+
+function offerTour(onStart: () => void) {
+  if (Platform.OS === 'web') {
+    if (window.confirm(`${t('tour.offerTitle')}\n\n${t('tour.offerBody')}`)) onStart();
+    return;
+  }
+  Alert.alert(t('tour.offerTitle'), t('tour.offerBody'), [
+    { text: t('tour.offerSkip'), style: 'cancel' },
+    { text: t('tour.offerStart'), onPress: onStart },
+  ]);
+}
+
 /**
  * Auto-starts `tourId` the first time its screen is focused (for recently
- * onboarded users), and returns `replay` for the screen's help button.
- * `ready` should be false until the screen's tour targets have rendered
- * (e.g. while its data is still loading).
+ * onboarded users) — or, for ASK_FIRST tours, offers it — and returns
+ * `replay` for the screen's help button. `ready` should be false until the
+ * screen's tour targets have rendered (e.g. while its data is still loading).
  */
 export function useScreenTour(tourId: TourId, ready: boolean) {
   const { profile } = useAuth();
@@ -52,10 +70,14 @@ export function useScreenTour(tourId: TourId, ready: boolean) {
     (async () => {
       try {
         if ((await AsyncStorage.getItem(key)) === 'true') return;
-        // Marked seen up front so skipping partway (or backgrounding the
-        // app mid-tour) never re-triggers it; the help button replays it.
+        // Marked seen up front so skipping (the offer or the tour partway)
+        // or backgrounding the app mid-tour never re-triggers it; the help
+        // button and Settings replay it.
         await AsyncStorage.setItem(key, 'true');
-        if (mountedRef.current) tutorial.start(tourId);
+        if (!mountedRef.current) return;
+        const begin = () => { if (mountedRef.current) tutorial.start(tourId); };
+        if (ASK_FIRST.has(tourId)) offerTour(begin);
+        else begin();
       } catch (e) {
         console.warn(`[useScreenTour] Failed to read tour storage (${tourId}):`, e);
       }

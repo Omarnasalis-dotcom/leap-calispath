@@ -1397,6 +1397,10 @@ const en = {
   },
   tour: {
     help: 'Show me how this screen works',
+    offerTitle: 'Take a quick tour?',
+    offerBody: 'See how Leap Arena works in about a minute. You can replay it anytime from Settings.',
+    offerStart: 'Take the tour',
+    offerSkip: 'Skip',
     skip: 'SKIP',
     gotIt: 'GOT IT',
     next: 'NEXT',
