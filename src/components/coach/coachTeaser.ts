@@ -11,7 +11,7 @@ export interface CoachTeaser {
 }
 
 type Discipline = 'static' | 'power' | 'one_min_max';
-const LABELS: Record<Discipline, string> = { static: t('coachFab.static'), power: t('coachFab.power'), one_min_max: '1MM' };
+const LABELS: Record<Discipline, string> = { static: t('coachFab.static'), power: t('coachFab.power'), one_min_max: t('profile.endurance') };
 const PROMPTS: Record<Discipline, string[]> = {
   static: [t('coachFab.startStatic'), t('coachFab.whyGap'), t('coachFab.scale')],
   power: [t('coachFab.startPower'), t('coachFab.whyGap'), t('coachFab.scale')],

@@ -162,15 +162,15 @@ export function LeaderboardModals({
                         <View style={styles.lbBreakdown}>
                           <View style={styles.lbBreakdownItem}>
                             <View style={[styles.lbDot, { backgroundColor: '#9FC5E8' }]} />
-                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.static_pts || 0).toFixed(2)}S</Text>
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{t('leaderboards.staticShort', { pts: Number(entry.static_pts || 0).toFixed(2) })}</Text>
                           </View>
                           <View style={styles.lbBreakdownItem}>
                             <View style={[styles.lbDot, { backgroundColor: '#FF5722' }]} />
-                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.power_pts || 0).toFixed(2)}P</Text>
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{t('leaderboards.powerShort', { pts: Number(entry.power_pts || 0).toFixed(2) })}</Text>
                           </View>
                           <View style={styles.lbBreakdownItem}>
                             <View style={[styles.lbDot, { backgroundColor: '#4CAF50' }]} />
-                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{Number(entry.endurance_pts || 0).toFixed(2)}E</Text>
+                            <Text style={[styles.lbBreakdownText, { color: theme.text.secondary }]}>{t('leaderboards.enduranceShort', { pts: Number(entry.endurance_pts || 0).toFixed(2) })}</Text>
                           </View>
                         </View>
                       </View>

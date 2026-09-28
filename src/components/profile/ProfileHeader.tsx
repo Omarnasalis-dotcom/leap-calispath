@@ -326,7 +326,7 @@ export function ProfileHeader({
           {[
             { key: 'static', label: t('profile.static'), value: staticPts, color: WORLD_THEMES.static.accent },
             { key: 'power', label: t('profile.power'), value: powerPts, color: WORLD_THEMES.power.accent },
-            { key: '1mm', label: '1MM', value: mmPts, color: WORLD_THEMES.onemm.accent },
+            { key: '1mm', label: t('profile.endurance'), value: mmPts, color: WORLD_THEMES.onemm.accent },
           ].map((d) => (
             <View key={d.key} style={styles.wraLegendItem}>
               <View style={[styles.wraLegendDot, { backgroundColor: d.color }]} />
