@@ -12,6 +12,7 @@ import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { TIER_REQUIREMENTS, POWER_TIER_REQUIREMENTS } from '../../constants/Progression';
 import { RITES_OF_PASSAGE } from '../../lib/trials';
 import { WarriorButton } from '../../components/atoms/WarriorButton';
+import { t, tierLevelLabel } from '../../i18n';
 
 interface TierDetailsModalProps {
   showTierModal: boolean;
@@ -49,7 +50,7 @@ export function TierDetailsModal({
             <View style={styles.modalHeader}>
               <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
                 <Text style={[styles.modalTitle, { color: theme.accent }]}>
-                  {modalTier !== null ? ((category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]) || 'UNKNOWN').toUpperCase() : 'TIER'}
+                  {modalTier !== null ? ((category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]) || t('tierDetails.unknown')).toUpperCase() : t('tierDetails.tier')}
                 </Text>
               </View>
               <TouchableOpacity
@@ -61,13 +62,13 @@ export function TierDetailsModal({
             </View>
 
             <Text style={[styles.modalTierLabel, { color: theme.text.secondary }]}>
-              Tier {modalTier}
+              {modalTier !== null ? tierLevelLabel(modalTier) : ''}
             </Text>
 
             <ScrollView contentContainerStyle={{ paddingBottom: 4 }}>
             {/* Difficulty Section */}
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>DIFFICULTY</Text>
+              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>{t('tierDetails.difficulty')}</Text>
               <View style={styles.modalDifficultyRow}>
                 <View style={[styles.modalDifficultyBar, { backgroundColor: theme.background.secondary }]}>
                   <View
@@ -88,16 +89,16 @@ export function TierDetailsModal({
 
             {/* Requirements Section */}
             <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>REQUIREMENTS</Text>
+              <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>{t('tierDetails.requirements')}</Text>
               <Text style={[styles.modalDesc, { color: theme.text.secondary }]}>
-                {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.desc : 'Complete the trial to advance'}
+                {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.desc : t('tierDetails.completeTrial')}
               </Text>
             </View>
 
             {/* Trial Movements Preview */}
             {category === 'strength' && modalTier !== null && RITES_OF_PASSAGE[modalTier] && (
               <View style={[styles.modalSection, { borderColor: theme.card.border }]}>
-                <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>TRIAL MOVEMENTS</Text>
+                <Text style={[styles.modalSectionTitle, { color: theme.text.tertiary }]}>{t('tierDetails.trialMovements')}</Text>
                 <View style={styles.movementsList}>
                   {RITES_OF_PASSAGE[modalTier].movements.map((movement, idx) => (
                     <View key={idx} style={styles.movementItem}>
@@ -115,7 +116,7 @@ export function TierDetailsModal({
             {/* LEAP NOW Button - Only show if tier is not locked */}
             {modalTier !== null && modalTier <= activeCurrentTier && (
               <WarriorButton
-                title="LEAP NOW"
+                title={t('tierDetails.leapNow')}
                 onPress={() => {
                   setShowTierModal(false);
                   if (category === 'power') {

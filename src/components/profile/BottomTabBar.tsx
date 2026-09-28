@@ -10,6 +10,7 @@ import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { TargetId } from '../../types/tutorial';
 import { WorldsIcon } from './WorldsIcon';
+import { t } from '../../i18n';
 
 // 'champions' kept alive (not rendered as a tab below) so ChampionsArenaScreen's
 // own BottomTabBar usage still type-checks — same "leave the screen intact,
@@ -40,23 +41,23 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: 'profile', label: 'PROFILE', icon: 'account', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
-  { id: 'strength', label: 'STRENGTH', icon: 'sword-cross', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
-  { id: 'power', label: 'POWER', icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
-  { id: 'static', label: 'STATIC', icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
+  { id: 'profile', label: t('tabs.profile'), icon: 'account', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'strength', label: t('tabs.strength'), icon: 'sword-cross', unlockTier: 0, route: '/profile', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'power', label: t('tabs.power'), icon: 'lightning-bolt', unlockTier: 6, route: '/power-world', accentColor: WORLD_THEMES.power.accent },
+  { id: 'static', label: t('tabs.static'), icon: 'snowflake', unlockTier: 1, route: '/static-world', accentColor: WORLD_THEMES.static.accent },
   { id: '1mm', label: '1MM', icon: 'timer-outline', unlockTier: ONEMM_UNLOCK_TIER, route: '/one-min-max', accentColor: WORLD_THEMES.onemm.accent },
   // Champions Arena's tab entry is held back for the next release (same
   // treatment as Tournament/Clash — see ProfileScreen.tsx's showV2Popup):
   // ChampionsArenaScreen and /champions-arena stay in the codebase, just
   // reachable by nothing in the nav. This slot now points at Training Center
   // instead. unlockTier 0 / Ember Red: same reasoning as journey below.
-  { id: 'trainingCenter', label: 'TRAIN', icon: 'dumbbell', unlockTier: 0, route: '/training-center', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'trainingCenter', label: t('tabs.train'), icon: 'dumbbell', unlockTier: 0, route: '/training-center', accentColor: WORLD_THEMES.strength.accent },
   // unlockTier 0: AuthGuard already fully gates pre-onboarding users away
   // from every tab-bar screen (see app/_layout.tsx), so this tab is only
   // ever reachable once onboarding is complete — no separate lock needed.
   // Cross-world/neutral, so it borrows strength's Ember Red rather than
   // owning a discipline color of its own (same reasoning as training center above).
-  { id: 'journey', label: 'JOURNEY', icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
+  { id: 'journey', label: t('tabs.journey'), icon: 'map-marker-path', unlockTier: 0, route: '/my-journey', accentColor: WORLD_THEMES.strength.accent },
 ];
 
 // The 3 "world" tabs collapse into a single WORLDS button in the bar (was 7
@@ -129,9 +130,9 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
 
     const isUnlocked = strengthTier >= tab.unlockTier;
     if (!isUnlocked) {
-      const message = `Reach Tier ${tab.unlockTier} to unlock ${tab.label}.`;
+      const message = t('tabs.reachTier', { tier: tab.unlockTier, tab: tab.label });
       if (Platform.OS === 'web') window.alert(message);
-      else Alert.alert('Locked', message);
+      else Alert.alert(t('tabs.lockedTitle'), message);
       return;
     }
 
@@ -264,7 +265,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
               <WorldsIcon size={22} activeKey={activeWorldTab ? WORLD_THEME_KEY[activeWorldTab.id] : undefined} />
             </View>
             <Text style={[styles.label, { color: worldsColor }]} numberOfLines={1}>
-              WORLDS
+              {t('tabs.worlds')}
             </Text>
           </TouchableOpacity>
         </View>

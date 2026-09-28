@@ -1,5 +1,6 @@
 import React from 'react';
 import { PhotoActionCard } from './PhotoActionCard';
+import { t } from '../../i18n';
 
 const COVER = require('../../../assets/Milestone Cards/random/handstand.jpg');
 
@@ -27,17 +28,17 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
   return hasActiveProgram ? (
     <PhotoActionCard
       photo={COVER}
-      eyebrow="ACTIVE PROGRAM · UP NEXT"
-      title={(nextUpDayName || 'WEEK COMPLETE').toUpperCase()}
-      cta="CONTINUE PROGRAM"
+      eyebrow={t('profile.activeUpNext')}
+      title={(nextUpDayName || t('profile.weekComplete')).toUpperCase()}
+      cta={t('profile.continueProgram')}
       onPress={onContinue}
     />
   ) : (
     <PhotoActionCard
       photo={COVER}
-      eyebrow="NO ACTIVE PROGRAM"
-      title="START YOUR TRAINING"
-      cta="CREATE YOUR FIRST PROGRAM"
+      eyebrow={t('profile.noActiveProgram')}
+      title={t('profile.startTraining')}
+      cta={t('profile.createFirst')}
       onPress={onCreateProgram}
     />
   );

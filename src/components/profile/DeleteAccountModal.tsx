@@ -4,6 +4,8 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { hasActiveAccess } from '../../lib/entitlement';
 import { useTheme } from '../../contexts/ThemeContext';
+import { t, isArabic } from '../../i18n';
+import { localizedErrorText } from '../../lib/asyncErrorHandler';
 
 export function DeleteAccountModal() {
   const { theme } = useTheme();
@@ -26,7 +28,7 @@ export function DeleteAccountModal() {
 
   const handleDeleteAccount = async () => {
     if (!isSocialAccount && !deletePassword.trim()) {
-      setDeleteError('Please enter your password.');
+      setDeleteError(t('deleteAccount.enterPassword'));
       return;
     }
     setDeleteLoading(true);
@@ -44,7 +46,7 @@ export function DeleteAccountModal() {
         // with no verification at all.
         const verified = provider === 'google' ? await signInWithGoogle() : await signInWithApple();
         if (!verified) {
-          setDeleteError(`Verification with ${provider === 'google' ? 'Google' : 'Apple'} was cancelled.`);
+          setDeleteError(t('deleteAccount.verifyCancelled', { provider: provider === 'google' ? 'Google' : 'Apple' }));
           setDeleteLoading(false);
           return;
         }
@@ -57,9 +59,9 @@ export function DeleteAccountModal() {
 
         if (signInError) {
           if (signInError.status === 400 || signInError.message.toLowerCase().includes('invalid')) {
-            setDeleteError('Incorrect password. Please try again.');
+            setDeleteError(t('deleteAccount.wrongPassword'));
           } else {
-            setDeleteError(signInError.message || 'Authentication failed. Please try again.');
+            setDeleteError(localizedErrorText(signInError, t('deleteAccount.authFailed'), false));
           }
           setDeleteLoading(false);
           return;
@@ -69,7 +71,7 @@ export function DeleteAccountModal() {
       // Step 2: Get fresh session token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        setDeleteError('Session expired. Please restart the app.');
+        setDeleteError(t('deleteAccount.sessionExpired'));
         setDeleteLoading(false);
         return;
       }
@@ -89,7 +91,7 @@ export function DeleteAccountModal() {
       const result = await response.json();
 
       if (!response.ok) {
-        setDeleteError(result.error || 'Deletion failed. Please try again.');
+        setDeleteError(isArabic ? t('deleteAccount.deletionFailed') : result.error || t('deleteAccount.deletionFailed'));
         setDeleteLoading(false);
         return;
       }
@@ -98,7 +100,7 @@ export function DeleteAccountModal() {
       await supabase.auth.signOut();
 
     } catch (error) {
-      setDeleteError('Something went wrong. Please try again.');
+      setDeleteError(t('deleteAccount.generic'));
       setDeleteLoading(false);
     }
   };
@@ -127,13 +129,13 @@ export function DeleteAccountModal() {
       >
         <View style={{ flex: 1 }}>
           <Text style={{ color: '#e24b4a', fontSize: 13, fontWeight: '700', letterSpacing: 1 }}>
-            DELETE ACCOUNT
+            {t('deleteAccount.rowTitle')}
           </Text>
           <Text style={{ color: 'rgba(226,75,74,0.6)', fontSize: 11, marginTop: 2 }}>
-            Permanently removes all your data
+            {t('deleteAccount.rowSub')}
           </Text>
         </View>
-        <Text style={{ color: 'rgba(226,75,74,0.4)', fontSize: 16 }}>›</Text>
+        <Text style={{ color: 'rgba(226,75,74,0.4)', fontSize: 16 }}>{isArabic ? '‹' : '›'}</Text>
       </TouchableOpacity>
 
       <Modal
@@ -166,7 +168,7 @@ export function DeleteAccountModal() {
               textTransform: 'uppercase',
               marginBottom: 16,
             }}>
-              Delete Account
+              {t('deleteAccount.title')}
             </Text>
 
             <Text style={{
@@ -176,9 +178,7 @@ export function DeleteAccountModal() {
               lineHeight: 20,
               marginBottom: 24,
             }}>
-              This is permanent and cannot be undone.{'\n'}
-              All your tiers, trial history, rankings,{'\n'}
-              and progress will be deleted forever.
+              {t('deleteAccount.warning')}
             </Text>
 
             {hasSubscription && (
@@ -190,8 +190,7 @@ export function DeleteAccountModal() {
                 marginTop: -12,
                 marginBottom: 24,
               }}>
-                Deleting your account does not cancel your subscription.{'\n'}
-                Cancel it first in {Platform.OS === 'android' ? 'Google Play → Payments & subscriptions' : 'Settings → your name → Subscriptions'}, or you'll keep being charged.
+                {Platform.OS === 'android' ? t('deleteAccount.subscriptionAndroid') : t('deleteAccount.subscriptionIos')}
               </Text>
             )}
 
@@ -204,8 +203,8 @@ export function DeleteAccountModal() {
               textAlign: isSocialAccount ? 'center' : 'left',
             }}>
               {isSocialAccount
-                ? `Verify with ${provider === 'google' ? 'Google' : 'Apple'} to continue`
-                : 'Confirm your password to continue'}
+                ? t('deleteAccount.verifyWith', { provider: provider === 'google' ? 'Google' : 'Apple' })
+                : t('deleteAccount.confirmPassword')}
             </Text>
             {!isSocialAccount && (
               <TextInput
@@ -214,7 +213,7 @@ export function DeleteAccountModal() {
                   setDeletePassword(text);
                   setDeleteError('');
                 }}
-                placeholder="Enter your password"
+                placeholder={t('deleteAccount.passwordPlaceholder')}
                 placeholderTextColor={theme.text.tertiary}
                 secureTextEntry
                 style={{
@@ -261,7 +260,7 @@ export function DeleteAccountModal() {
                 letterSpacing: 1.5,
                 textTransform: 'uppercase',
               }}>
-                {deleteLoading ? 'Deleting...' : isSocialAccount ? `Verify & Delete` : 'Permanently Delete'}
+                {deleteLoading ? t('deleteAccount.deleting') : isSocialAccount ? t('deleteAccount.verifyDelete') : t('deleteAccount.permanentlyDelete')}
               </Text>
             </TouchableOpacity>
 
@@ -282,7 +281,7 @@ export function DeleteAccountModal() {
                 fontSize: 13,
                 fontWeight: '600',
               }}>
-                Cancel
+                {t('deleteAccount.cancel')}
               </Text>
             </TouchableOpacity>
           </View>

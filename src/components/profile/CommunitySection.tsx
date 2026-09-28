@@ -10,6 +10,7 @@ import { getMyCommunity, getCommunityById, getMyCommunityJoinCode, createCommuni
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
+import { t } from '../../i18n';
 
 const W = WORLD_THEMES.strength;
 const NAME_MAX = 30;
@@ -193,7 +194,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
   const handleJoin = async () => {
     setFormError(null);
     if (!joinCode.trim()) {
-      setFormError('Enter a join code.');
+      setFormError(t('community.enterCode'));
       return;
     }
     await safeMutate(async () => {
@@ -228,13 +229,13 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
   };
 
   const confirmLeave = () => {
-    const warning = `You'll lose access to ${community?.name || 'this community'}'s leaderboards until you rejoin with a code.`;
+    const warning = t('community.leaveWarning', { name: community?.name || t('community.thisCommunity') });
     if (Platform.OS === 'web') {
       if (window.confirm(warning)) handleLeave();
     } else {
-      Alert.alert('LEAVE COMMUNITY?', warning, [
-        { text: 'CANCEL', style: 'cancel' },
-        { text: 'LEAVE', style: 'destructive', onPress: handleLeave },
+      Alert.alert(t('community.leaveTitle'), warning, [
+        { text: t('community.cancel'), style: 'cancel' },
+        { text: t('community.leave'), style: 'destructive', onPress: handleLeave },
       ]);
     }
   };
@@ -267,7 +268,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
           disabled={!onOpenCommunityLeaderboard}
           onPress={onOpenCommunityLeaderboard}
           accessibilityRole="button"
-          accessibilityLabel={`${community.name} community${rankInfo?.rank ? `, rank ${rankInfo.rank} of ${rankInfo.ranked}` : ''}. Open community leaderboard`}
+          accessibilityLabel={rankInfo?.rank ? t('community.rankA11y', { name: community.name, rank: rankInfo.rank, total: rankInfo.ranked }) : t('community.nameA11y', { name: community.name })}
         >
           <MaterialCommunityIcons name="account-group-outline" size={18} color={neutrals.textSecondary} />
           <View style={styles.nameWrap}>
@@ -285,7 +286,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
           ) : rankInfo ? (
             <View style={[styles.pill, { backgroundColor: subtleOverlayStrong }]}>
               <Text style={[styles.pillText, { color: neutrals.textSecondary }]}>
-                {rankInfo.rank ? `#${rankInfo.rank} of ${rankInfo.ranked}${rankInfo.ranked >= 100 ? '+' : ''}` : 'UNRANKED'}
+                {rankInfo.rank ? `${t('community.rankOf', { rank: rankInfo.rank, total: rankInfo.ranked })}${rankInfo.ranked >= 100 ? '+' : ''}` : t('community.unranked')}
               </Text>
             </View>
           ) : null}
@@ -297,7 +298,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
               style={styles.iconBtn}
               hitSlop={6}
               accessibilityRole="button"
-              accessibilityLabel={leaderCode ? 'Hide join code' : 'Show join code'}
+              accessibilityLabel={leaderCode ? t('community.hideCode') : t('community.showCode')}
             >
               {codeLoading ? <LeapLogo size={14} animated /> : (
                 <MaterialCommunityIcons name={leaderCode ? 'eye-off-outline' : 'key-outline'} size={16} color={neutrals.textMuted} />
@@ -310,7 +311,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
             style={[styles.iconBtn, { marginRight: -5 }]}
             hitSlop={6}
             accessibilityRole="button"
-            accessibilityLabel="Leave community"
+            accessibilityLabel={t('community.leaveA11y')}
           >
             {isMutating ? <LeapLogo size={14} animated /> : (
               <MaterialCommunityIcons name="logout" size={16} color={neutrals.textMuted} />
@@ -323,7 +324,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
         <View style={[styles.statusCard, { borderColor: neutrals.border, backgroundColor: subtleOverlay }]}>
           <MaterialCommunityIcons name="account-group-outline" size={18} color={neutrals.textSecondary} />
           <View style={styles.nameWrap}>
-            <Text style={[styles.statusName, { color: neutrals.textPrimary }]} numberOfLines={1}>COMMUNITY</Text>
+            <Text style={[styles.statusName, { color: neutrals.textPrimary }]} numberOfLines={1}>{t('community.community')}</Text>
           </View>
           <TouchableOpacity
             ref={createButtonRef}
@@ -331,10 +332,10 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
             style={[styles.actionPill, { borderColor: neutrals.border, borderWidth: 1 }]}
             onPress={openCreateModal}
             accessibilityRole="button"
-            accessibilityLabel="Create community"
+            accessibilityLabel={t('community.createA11y')}
           >
             <MaterialCommunityIcons name="plus" size={13} color={neutrals.textPrimary} />
-            <Text style={[styles.actionPillText, { color: neutrals.textPrimary }]}>CREATE</Text>
+            <Text style={[styles.actionPillText, { color: neutrals.textPrimary }]}>{t('community.create')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             ref={joinButtonRef}
@@ -342,10 +343,10 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
             style={[styles.actionPill, { backgroundColor: W.accent, marginRight: -4 }]}
             onPress={() => { setFormError(null); setShowJoinModal(true); }}
             accessibilityRole="button"
-            accessibilityLabel="Join community"
+            accessibilityLabel={t('community.joinA11y')}
           >
             <MaterialCommunityIcons name="login" size={13} color="#FFFFFF" />
-            <Text style={[styles.actionPillText, { color: '#FFFFFF' }]}>JOIN</Text>
+            <Text style={[styles.actionPillText, { color: '#FFFFFF' }]}>{t('community.join')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -355,19 +356,19 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>CREATE COMMUNITY</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowCreateModal(false)}>
+              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>{t('community.createTitle')}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('community.close')} style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowCreateModal(false)}>
                 <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.fieldLabelRow}>
-              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>COMMUNITY NAME</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>{t('community.nameLabel')}</Text>
               <Text style={[styles.fieldCounter, { color: neutrals.textMuted }]}>{createName.length}/{NAME_MAX}</Text>
             </View>
             <TextInput
               style={[styles.input, { borderColor: neutrals.borderStrong, color: neutrals.textPrimary }]}
-              placeholder="e.g. Iron Warriors Gym"
+              placeholder={t('community.namePlaceholder')}
               placeholderTextColor={neutrals.textMuted}
               value={createName}
               onChangeText={(t) => setCreateName(t.slice(0, NAME_MAX))}
@@ -375,7 +376,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
             />
 
             <View style={[styles.fieldLabelRow, { marginTop: 20 }]}>
-              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>JOIN CODE</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>{t('community.codeLabel')}</Text>
             </View>
             <View style={[styles.codeRow, { borderColor: neutrals.borderStrong }]}>
               <TextInput
@@ -385,13 +386,12 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
                 autoCapitalize="characters"
                 autoCorrect={false}
                 maxLength={20}
-                placeholder="e.g. IRONWARRIORS"
+                placeholder={t('community.codePlaceholder')}
                 placeholderTextColor={neutrals.textMuted}
               />
             </View>
             <Text style={[styles.hint, { color: neutrals.textMuted }]}>
-              Pick a code and share it with people you want to join. As the community leader, you can view it
-              again anytime from your profile.
+              {t('community.codeHint')}
             </Text>
 
             {formError && <Text style={styles.errorText}>{formError.toUpperCase()}</Text>}
@@ -405,7 +405,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
               disabled={!canCreate || isMutating}
             >
               {isMutating ? <LeapLogo size={24} animated /> : (
-                <Text style={[styles.submitBtnText, { color: canCreate ? W.ctaText : neutrals.textMuted }]}>CREATE</Text>
+                <Text style={[styles.submitBtnText, { color: canCreate ? W.ctaText : neutrals.textMuted }]}>{t('community.create')}</Text>
               )}
             </TouchableOpacity>
           </View>
@@ -417,18 +417,18 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
         <View style={styles.sheetOverlay}>
           <View style={[styles.sheet, { borderColor: worldRgba(W.accent, 0.25), backgroundColor: theme.background.primary }]}>
             <View style={styles.sheetHeader}>
-              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>JOIN COMMUNITY</Text>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Close" style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowJoinModal(false)}>
+              <Text style={[styles.sheetTitle, { color: neutrals.textPrimary }]}>{t('community.joinTitle')}</Text>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('community.close')} style={[styles.sheetClose, { backgroundColor: subtleOverlayStrong }]} onPress={() => setShowJoinModal(false)}>
                 <MaterialCommunityIcons name="close" size={18} color={neutrals.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.fieldLabelRow}>
-              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>JOIN CODE</Text>
+              <Text style={[styles.fieldLabel, { color: neutrals.textCaption }]}>{t('community.codeLabel')}</Text>
             </View>
             <TextInput
               style={[styles.input, { borderColor: neutrals.borderStrong, color: neutrals.textPrimary }]}
-              placeholder="Enter the code you were given"
+              placeholder={t('community.joinPlaceholder')}
               placeholderTextColor={neutrals.textMuted}
               value={joinCode}
               onChangeText={setJoinCode}
@@ -444,7 +444,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
               disabled={isMutating}
             >
               {isMutating ? <LeapLogo size={24} animated /> : (
-                <Text style={[styles.submitBtnText, { color: W.ctaText }]}>JOIN</Text>
+                <Text style={[styles.submitBtnText, { color: W.ctaText }]}>{t('community.join')}</Text>
               )}
             </TouchableOpacity>
           </View>

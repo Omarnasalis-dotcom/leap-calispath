@@ -6,6 +6,7 @@
 // RPC that lets a community's creator read their own code back.
 
 import { supabase } from './supabase';
+import { t, isArabic } from '../i18n';
 
 export interface CommunityActionResult {
   success: boolean;
@@ -105,16 +106,17 @@ export async function leaveCommunity(): Promise<CommunityActionResult> {
 export function formatCommunityError(code?: string): string {
   switch (code) {
     case 'NAME_TAKEN':
-      return 'That community name is already taken.';
+      return t('community.nameTaken');
     case 'CODE_TAKEN':
-      return 'That join code is already in use — pick a different one.';
+      return t('community.codeTaken');
     case 'NAME_AND_CODE_REQUIRED':
-      return 'Enter a name and join code.';
+      return t('community.nameAndCode');
     case 'CODE_NOT_FOUND':
-      return 'No community found with that code.';
+      return t('community.codeNotFound');
     case 'FORBIDDEN':
-      return 'You must be signed in.';
+      return t('community.signInRequired');
     default:
-      return code || 'Something went wrong. Please try again.';
+      // Arabic never shows an untranslated server code.
+      return isArabic ? t('community.generic') : code || t('community.generic');
   }
 }

@@ -18,6 +18,7 @@ import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
 import { wraMilestoneProgress } from '../../lib/worldProgress';
 import { getSubscriptionTier, hasExpiredSubscription, SubscriptionTier } from '../../lib/entitlement';
+import { t, FLIP_X } from '../../i18n';
 
 const SUBSCRIPTION_TIER_COLORS: Record<SubscriptionTier, string> = {
   free: '#8a8a8a',
@@ -200,10 +201,10 @@ export function ProfileHeader({
   const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef, true);
   const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef, true);
 
-  const tierName = (category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || 'UNKNOWN';
+  const tierName = (category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || t('profile.unknownTier');
   const displayName = profile.first_name || profile.last_name
     ? [profile.first_name, profile.last_name].filter(Boolean).join(' ').toUpperCase()
-    : 'WARRIOR';
+    : t('profile.warriorCaps');
   const subscriptionTier = getSubscriptionTier(profile, paywallEnabled);
   const isExpiredSubscriber = hasExpiredSubscription(profile, paywallEnabled);
   const wraMilestone = wraMilestoneProgress(wraScore);
@@ -224,7 +225,7 @@ export function ProfileHeader({
       {/* Admin shield - Top Left */}
       <View style={{ position: 'absolute', top: 12, left: 12, zIndex: 100, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         {profile?.is_admin && (
-          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Open admin panel"
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('profile.openAdmin')}
             activeOpacity={0.7}
             onPress={onOpenAdmin}
             style={{
@@ -260,7 +261,7 @@ export function ProfileHeader({
               { backgroundColor: isExpiredSubscriber ? EXPIRED_BADGE_COLOR : SUBSCRIPTION_TIER_COLORS[subscriptionTier] },
             ]}
           >
-            <Text style={styles.subscriptionBadgeText}>{isExpiredSubscriber ? 'EXPIRED' : subscriptionTier.toUpperCase()}</Text>
+            <Text style={styles.subscriptionBadgeText}>{isExpiredSubscriber ? t('profile.expired') : subscriptionTier.toUpperCase()}</Text>
           </TouchableOpacity>
 
           {/* Only makes sense while "Pro" is actually an upgrade — hidden
@@ -271,7 +272,7 @@ export function ProfileHeader({
           {(subscriptionTier === 'free' || subscriptionTier === 'first') && (
             <TouchableOpacity activeOpacity={0.7} onPress={onOpenPaywall} style={styles.upgradePill}>
               <MaterialCommunityIcons name="crown-outline" size={9} color="#FC5454" />
-              <Text style={styles.upgradePillText}>{isExpiredSubscriber ? 'RENEW' : 'UPGRADE'}</Text>
+              <Text style={styles.upgradePillText}>{isExpiredSubscriber ? t('profile.renew') : t('profile.upgrade')}</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -290,7 +291,7 @@ export function ProfileHeader({
         </TouchableOpacity>
 
         <Text style={[styles.tierLine, { color: W.accent, marginTop: 8 }]}>
-          {tierName} · TIER {activeCurrentTier} OF {category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1}
+          {t('profile.tierLine', { name: tierName, tier: activeCurrentTier, max: category === 'strength' ? TIER_NAMES.length - 1 : POWER_TIER_NAMES.length - 1 })}
         </Text>
       </View>
 
@@ -307,15 +308,15 @@ export function ProfileHeader({
       >
         <View style={styles.wraHeaderRow}>
           <MaterialCommunityIcons name="trophy-outline" size={14} color={W.accent} />
-          <Text style={[styles.wraTitle, { color: neutrals.textPrimary }]}>Well-Rounded Athlete</Text>
+          <Text style={[styles.wraTitle, { color: neutrals.textPrimary }]}>{t('profile.wraTitle')}</Text>
           <Text style={[styles.wraTotal, { color: W.accent }]}>{wraScore.toFixed(2)}</Text>
           {/* Card opens the WRA leaderboard. */}
-          <MaterialCommunityIcons name="chevron-right" size={16} color={neutrals.textMuted} style={{ marginLeft: -3, marginRight: -4 }} />
+          <MaterialCommunityIcons name="chevron-right" size={16} color={neutrals.textMuted} style={[{ marginLeft: -3, marginRight: -4 }, FLIP_X]} />
         </View>
         <Text style={[styles.wraSubcaption, { color: neutrals.textMuted }]}>
           {wraMilestone.maxed
-            ? 'Top milestone reached'
-            : `Next milestone ${wraMilestone.target} · ${formatPts(wraMilestone.remaining)} to go`}
+            ? t('profile.topMilestone')
+            : t('profile.nextMilestone', { target: wraMilestone.target, remaining: formatPts(wraMilestone.remaining) })}
         </Text>
         {/* Honest bar: fills from the real total toward the next milestone
             (never a hard-coded full bar at 0 — the original app's recurring
@@ -323,11 +324,11 @@ export function ProfileHeader({
         <WraMilestoneBar segments={wraSegments} trackColor={subtleOverlay} />
         <View style={styles.wraLegend}>
           {[
-            { label: 'Static', value: staticPts, color: WORLD_THEMES.static.accent },
-            { label: 'Power', value: powerPts, color: WORLD_THEMES.power.accent },
-            { label: '1MM', value: mmPts, color: WORLD_THEMES.onemm.accent },
+            { key: 'static', label: t('profile.static'), value: staticPts, color: WORLD_THEMES.static.accent },
+            { key: 'power', label: t('profile.power'), value: powerPts, color: WORLD_THEMES.power.accent },
+            { key: '1mm', label: '1MM', value: mmPts, color: WORLD_THEMES.onemm.accent },
           ].map((d) => (
-            <View key={d.label} style={styles.wraLegendItem}>
+            <View key={d.key} style={styles.wraLegendItem}>
               <View style={[styles.wraLegendDot, { backgroundColor: d.color }]} />
               <Text style={[styles.wraLegendValue, { color: neutrals.textPrimary }]}>{d.value.toFixed(2)}</Text>
               <Text style={[styles.wraLegendLabel, { color: neutrals.textSecondary }]}>{d.label}</Text>
@@ -363,7 +364,7 @@ export function ProfileHeader({
               onPress={onOpenCoachingCenter}
             >
               <MaterialCommunityIcons name="brain" size={16} color={W.accent} />
-              <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>COACHING CENTER</Text>
+              <Text style={[styles.programButtonText, { color: neutrals.textPrimary }]}>{t('profile.coachingCenter')}</Text>
             </TouchableOpacity>
           </LinearGradient>
         </View>

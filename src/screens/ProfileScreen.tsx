@@ -37,6 +37,7 @@ import { getUserGroup } from '../lib/weeklyChallenge';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
+import { t, FLIP_X } from '../i18n';
 
 // Trophy gold (same as GROUP_NAMES' Legends color) for the Weekly Challenge card.
 const WEEKLY_CHALLENGE_GOLD = '#FFD700';
@@ -77,8 +78,8 @@ export function ProfileScreen({
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');
   const showV2Popup = () => {
-    if (Platform.OS === 'web') window.alert('Locked: This feature is coming in V2.');
-    else Alert.alert('Locked', 'This feature is coming in V2.');
+    if (Platform.OS === 'web') window.alert(t('profile.lockedV2Web'));
+    else Alert.alert(t('profile.lockedTitle'), t('profile.comingV2'));
   };
 
   const onOpenClash = showV2Popup;
@@ -293,7 +294,7 @@ export function ProfileScreen({
       setWRALeaderboard(data);
     } catch (e) {
       console.error('Failed to fetch WRA leaderboard:', e);
-      Alert.alert('Error', 'Failed to fetch WRA leaderboard.');
+      Alert.alert(t('profile.error'), t('profile.wraFailed'));
     } finally {
       setLoadingLB(false);
     }
@@ -312,7 +313,7 @@ export function ProfileScreen({
       setGloryLeaderboard(data);
     } catch (e) {
       console.error('Failed to fetch Glory leaderboard:', e);
-      Alert.alert('Error', 'Failed to fetch Glory leaderboard.');
+      Alert.alert(t('profile.error'), t('profile.gloryFailed'));
     } finally {
       setLoadingLB(false);
     }
@@ -333,7 +334,7 @@ export function ProfileScreen({
         <ScrollView ref={mainScrollRef} contentContainerStyle={{ paddingBottom: 24 }}>
           {activeTab === 'profile' && (
             <>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Settings"
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('profile.settings')}
                 style={styles.settingsGearButton}
                 onPress={() => setShowSettings(true)}
               >
@@ -372,17 +373,17 @@ export function ProfileScreen({
                 <MaterialCommunityIcons name="trophy-outline" size={24} color={WEEKLY_CHALLENGE_GOLD} />
                 <View style={styles.weeklyChallengeTextCol}>
                   <Text style={[styles.weeklyChallengeText, { color: getWorldNeutrals(mode).textPrimary }]} numberOfLines={1}>
-                    WEEKLY CHALLENGE
+                    {t('profile.weeklyChallenge')}
                   </Text>
                   {/* Blank line while loading (reserves the height, no flash
                       of the "none" copy); a fetch error keeps the last value. */}
                   <Text style={[styles.weeklyChallengeSubtitle, { color: getWorldNeutrals(mode).textMuted }]} numberOfLines={1}>
                     {weeklyChallengeTitle === undefined
                       ? ' '
-                      : (weeklyChallengeTitle ?? 'NO CHALLENGE THIS WEEK').toUpperCase()}
+                      : (weeklyChallengeTitle ?? t('profile.noChallenge')).toUpperCase()}
                   </Text>
                 </View>
-                <MaterialCommunityIcons name="chevron-right" size={22} color={getWorldNeutrals(mode).textSecondary} />
+                <MaterialCommunityIcons name="chevron-right" size={22} color={getWorldNeutrals(mode).textSecondary} style={FLIP_X} />
               </TouchableOpacity>
 
               {/* Active program "up next" + continue — Profile's one training
@@ -425,8 +426,8 @@ export function ProfileScreen({
             <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Text style={[styles.modalTitle, { color: theme.accent }]}>WARRIOR PROFILE</Text>
-                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Edit profile" onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
+                  <Text style={[styles.modalTitle, { color: theme.accent }]}>{t('profile.warriorProfile')}</Text>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('profile.editProfile')} onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
                     <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
                   </TouchableOpacity>
                 </View>
@@ -437,19 +438,19 @@ export function ProfileScreen({
 
               <View style={styles.warriorInfoList}>
                 <View style={styles.warriorInfoItem}>
-                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>DISPLAY NAME</Text>
-                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.display_name || 'Warrior'}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>{t('profile.displayName')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{profile.display_name || t('profile.warrior')}</Text>
                 </View>
                 <View style={styles.warriorInfoItem}>
-                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>EMAIL</Text>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>{t('profile.email')}</Text>
                   <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.email}</Text>
                 </View>
                 <View style={styles.warriorInfoItem}>
-                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>JOINED ARENA</Text>
-                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'Unknown'}</Text>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>{t('profile.joined')}</Text>
+                  <Text style={[styles.infoValue, { color: theme.text.primary }]}>{user?.created_at ? new Date(user.created_at).toLocaleDateString() : t('profile.unknown')}</Text>
                 </View>
                 <View style={styles.warriorInfoItem}>
-                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>TIMEZONE</Text>
+                  <Text style={[styles.infoLabel, { color: theme.text.tertiary }]}>{t('profile.timezone')}</Text>
                   <Text style={[styles.infoValue, { color: theme.text.primary }]}>{Intl.DateTimeFormat().resolvedOptions().timeZone}</Text>
                 </View>
               </View>
@@ -458,7 +459,7 @@ export function ProfileScreen({
                 style={[styles.modalButton, { backgroundColor: theme.accent }]}
                 onPress={() => setShowWarriorModal(false)}
               >
-                <Text style={styles.modalButtonText}>CLOSE</Text>
+                <Text style={styles.modalButtonText}>{t('profile.close')}</Text>
               </TouchableOpacity>
             </View>
           </View>

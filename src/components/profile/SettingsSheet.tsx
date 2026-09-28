@@ -7,8 +7,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { DeleteAccountModal } from './DeleteAccountModal';
-import { useTranslation } from 'react-i18next';
-import { CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from '../../i18n';
+import { t, FLIP_X, CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from '../../i18n';
 import { setAppLanguage } from '../../i18n/language';
 
 interface SettingsSheetProps {
@@ -22,7 +21,6 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { start: startTutorial } = useTutorial();
   const isDark = mode === 'dark';
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
-  const { t } = useTranslation();
 
   const handleChooseLanguage = () => {
     const switchTo = (language: AppLanguage) => {
@@ -56,7 +54,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
       await Purchases.showManageSubscriptions();
     } catch (error) {
       console.error('[Settings] showManageSubscriptions failed:', error);
-      Alert.alert('COULD NOT OPEN', 'MANAGE YOUR SUBSCRIPTION FROM YOUR DEVICE SETTINGS INSTEAD.');
+      Alert.alert(t('settings.couldNotOpen'), t('settings.manageFromDevice'));
     }
   };
 
@@ -78,7 +76,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           onPress={(e) => e.stopPropagation()}
         >
           <View style={styles.handle} />
-          <Text style={[styles.title, { color: theme.text.tertiary }]}>SETTINGS</Text>
+          <Text style={[styles.title, { color: theme.text.tertiary }]}>{t('settings.title')}</Text>
 
           <TouchableOpacity
             style={[styles.row, { borderBottomColor: theme.card.border }]}
@@ -90,15 +88,15 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           >
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name={isMuted ? 'volume-off' : 'volume-high'} size={18} color={theme.text.secondary} />
-              <Text style={[styles.rowText, { color: theme.text.primary }]}>Arena Sounds</Text>
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.sounds')}</Text>
             </View>
-            <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{isMuted ? 'MUTED' : 'ON'}</Text>
+            <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{isMuted ? t('settings.muted') : t('settings.on')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={toggleTheme}>
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name="theme-light-dark" size={18} color={theme.text.secondary} />
-              <Text style={[styles.rowText, { color: theme.text.primary }]}>Dark Mode</Text>
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.darkMode')}</Text>
             </View>
             <MaterialCommunityIcons
               name={isDark ? 'toggle-switch' : 'toggle-switch-off'}
@@ -120,7 +118,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleReplayTutorial}>
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name="lightbulb-on-outline" size={18} color={theme.text.secondary} />
-              <Text style={[styles.rowText, { color: theme.text.primary }]}>Replay Tutorial</Text>
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.replayTutorial')}</Text>
             </View>
           </TouchableOpacity>
 
@@ -128,16 +126,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleManageSubscription}>
               <View style={styles.rowLeft}>
                 <MaterialCommunityIcons name="credit-card-outline" size={18} color={theme.text.secondary} />
-                <Text style={[styles.rowText, { color: theme.text.primary }]}>Manage Subscription</Text>
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.manageSubscription')}</Text>
               </View>
-              <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} />
+              <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} style={FLIP_X} />
             </TouchableOpacity>
           )}
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleSignOut}>
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name="logout" size={18} color={theme.text.secondary} />
-              <Text style={[styles.rowText, { color: theme.text.primary }]}>Leave the Arena</Text>
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.signOut')}</Text>
             </View>
           </TouchableOpacity>
 
@@ -146,7 +144,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
           </View>
 
           <TouchableOpacity style={[styles.closeButton, { borderColor: theme.card.border }]} onPress={onClose}>
-            <Text style={[styles.closeButtonText, { color: theme.text.secondary }]}>CLOSE</Text>
+            <Text style={[styles.closeButtonText, { color: theme.text.secondary }]}>{t('settings.close')}</Text>
           </TouchableOpacity>
         </TouchableOpacity>
       </TouchableOpacity>
