@@ -60,6 +60,10 @@ Every translated screen uses these words. Change anything in the **Arabic** colu
 | Week | الأسبوع | |
 | Exercise | تمرين | same word as workout; context makes it clear |
 | Movement | حركة | |
+| Block (a section of a workout day) | قسم / أقسام | added with the workout screen |
+| Session | حصة | |
+| Ladder | السلّم | |
+| Log (verb) | سجّل | |
 | Set / Sets | مجموعة / مجموعات | |
 | Rep / Reps | تكرار / تكرارات | |
 | Round / Rounds | جولة / جولات | |
