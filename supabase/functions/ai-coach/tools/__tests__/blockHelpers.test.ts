@@ -1279,6 +1279,13 @@ describe("inheritBlockMetadata (found in live logs 2026-09-29)", () => {
     expect(inheritBlockMetadata({ timing_system: "amrap" }, prior)).toEqual({ timing_system: "amrap" });
   });
 
+  it("a circuit rewritten as a superset keeps its rounds and rest, nothing else", () => {
+    const circuit = { timing_system: "straight_set", structure: "circuit", rounds: "2", rest_after_round: 60, focus_tag: "LEGS" };
+    expect(inheritBlockMetadata({ timing_system: "straight_set", structure: "superset", focus_tag: "LEGS" }, circuit)).toEqual({
+      timing_system: "straight_set", structure: "superset", focus_tag: "LEGS", rounds: "2", rest_after_round: 60,
+    });
+  });
+
   it("a rewritten superset keeps last week's rounds through the new-week build", async () => {
     const client = {
       from: (table: string) => ({

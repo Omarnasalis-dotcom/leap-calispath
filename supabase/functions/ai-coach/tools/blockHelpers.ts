@@ -195,6 +195,8 @@ export function computeWeekOrderIndex(
 // replaces last week's block keeps last week's settings for anything the
 // model left out — only while the block keeps the same structure and
 // timing system; a block moved to a different format inherits nothing.
+// Structures that repeat a group of exercises by metadata.rounds.
+const ROUND_STRUCTURES = new Set(["circuit", "superset", "ladder"]);
 const isUnset = (v: unknown) => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
 
 export function inheritBlockMetadata(
@@ -203,7 +205,18 @@ export function inheritBlockMetadata(
 ): Record<string, unknown> {
   const own = next ?? {};
   const sameFormat = (key: string) => isUnset(own[key]) || isUnset(prior[key]) || own[key] === prior[key];
-  if (!sameFormat("structure") || !sameFormat("timing_system")) return own;
+  if (!sameFormat("timing_system")) return own;
+  if (!sameFormat("structure")) {
+    // Circuit, superset and ladder all repeat by rounds (seen live: a
+    // 2-round circuit rewritten as a superset with no rounds), so moving
+    // between them keeps the round count and the rest between rounds.
+    if (!ROUND_STRUCTURES.has(String(own.structure)) || !ROUND_STRUCTURES.has(String(prior.structure))) return own;
+    const kept: Record<string, unknown> = { ...own };
+    for (const key of ["rounds", "rest_after_round"]) {
+      if (isUnset(kept[key]) && !isUnset(prior[key])) kept[key] = prior[key];
+    }
+    return kept;
+  }
   const merged: Record<string, unknown> = { ...own };
   for (const [key, value] of Object.entries(prior)) {
     if (isUnset(merged[key]) && !isUnset(value)) merged[key] = value;
@@ -218,7 +231,6 @@ export function inheritBlockMetadata(
 // block's rounds, or the rounds it forgot to set — that is the same
 // workout written the other way, so it's rewritten as rounds with 1 set
 // each. Mixed or conflicting counts are left for validation to reject.
-const ROUND_STRUCTURES = new Set(["circuit", "superset", "ladder"]);
 
 export function normalizeRoundSets<B extends ClaudeBlock>(block: B): B {
   const meta = block.metadata ?? {};

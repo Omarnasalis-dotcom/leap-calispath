@@ -1,4 +1,5 @@
 import { ToolDefinition } from "./types.ts";
+import { isUuid } from "./blockHelpers.ts";
 
 // Thin wrapper over get_warrior_progress — already patched (see
 // 20260821171000_allow_warrior_self_access_progress.sql) to allow the
@@ -31,8 +32,24 @@ export const getWorkoutLogs: ToolDefinition = {
     required: ["warrior_program_id"],
   },
   handler: async (userClient, input) => {
+    // Seen live (2026-09-30): called in parallel with get_user_context
+    // before the id was known, with "placeholder" as the id — failed, and
+    // had to be called again. Anything that isn't a real id means the
+    // athlete's own active program.
+    let programId = input.warrior_program_id as string | undefined;
+    if (!isUuid(programId)) {
+      const { data: auth } = await userClient.auth.getUser();
+      const { data: active } = await userClient
+        .from("warrior_programs")
+        .select("id")
+        .eq("warrior_id", auth.user?.id ?? "")
+        .eq("status", "active")
+        .limit(1);
+      programId = (active as Array<{ id: string }> | null)?.[0]?.id;
+      if (!programId) return { logs: [], note: "No active program found for this athlete." };
+    }
     const { data, error } = await userClient.rpc("get_warrior_progress", {
-      p_warrior_program_id: input.warrior_program_id,
+      p_warrior_program_id: programId,
     });
     if (error) throw new Error(`get_workout_logs failed: ${error.message}`);
 
