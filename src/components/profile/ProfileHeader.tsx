@@ -135,7 +135,7 @@ interface ProfileHeaderProps {
  * from ~0.22 opacity innermost toward ~0.5, and the outermost ring is solid
  * full-opacity accent. Only the tier number sits inside.
  */
-function TierRingBadge({ tierLevel }: { tierLevel: number }) {
+export function TierRingBadge({ tierLevel }: { tierLevel: number }) {
   const OUTER_R = 64;
   const INNER_R = 30;
   const ringCount = Math.max(1, tierLevel);
