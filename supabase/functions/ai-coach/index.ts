@@ -7,6 +7,7 @@ import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing
 import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
+import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -150,7 +151,7 @@ async function buildProgramAction(
       weekNumber: (result.week_number as number | null | undefined) ?? null,
       payload: {
         blocks: result.resolved_blocks ?? [],
-        removedBlockNames: (input.removed_block_names as string[] | undefined) ?? null,
+        removedBlockNames: (result.removed_block_names as string[] | undefined) ?? (input.removed_block_names as string[] | undefined) ?? null,
         carryOrderOverrides: (result.carry_order_overrides as Record<string, number> | undefined) ?? {},
       },
       ...base,
@@ -415,7 +416,9 @@ serve(async (req: Request) => {
   // Captured into its own const here, not read as `body.messages` inside
   // the sseResponse callback below — TS's narrowing above doesn't survive
   // into a nested closure over the mutable `body` binding.
-  const initialMessages = body.messages;
+  // The app's own usage-limit notices are swapped for a neutral note (see
+  // usageNotices.ts) so the model never repeats them as if still true.
+  const initialMessages = neutralizeUsageNotices(body.messages);
 
   const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
   if (profileError || !profile) {

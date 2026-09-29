@@ -40,14 +40,32 @@ export function isUuid(value: unknown): value is string {
 // for grouping, without requiring day_name/block_name specifically. Exported
 // so addProgramDay.ts can cross-check a block's own derived day against the
 // day_name argument it's being staged under (see that file's own comment).
+//
+// Real bug found live (2026-09-29): the model copied stored names
+// ("PULL DAY | Warm-Up", as get_workout_logs returns them) into block_name,
+// so the stored name became "PULL DAY | PULL DAY | Warm-Up". A name like
+// that matches nothing from the prior week, so append_week both carried the
+// old block forward and added the new one — duplicated, doubled-up days.
+// A phase never contains "|": the day is the first part and the phase the
+// last, and a day repeated in front of the phase is dropped.
+const nameParts = (s: string) => s.split("|").map((p) => p.trim()).filter(Boolean);
+const sameName = (a: string, b: string) => normalizeBlockNameKey(a) === normalizeBlockNameKey(b);
+
+/** Case- and spacing-insensitive key for comparing block names. */
+export function normalizeBlockNameKey(name: string): string {
+  return nameParts(name).map((p) => p.replace(/\s+/g, " ").toLowerCase()).join(" | ");
+}
+
 export function getBlockParts(block: ClaudeBlock): { day: string; phase: string } {
   if (block.day_name) {
-    return { day: block.day_name.trim(), phase: (block.block_name ?? block.name ?? "").trim() };
+    const day = block.day_name.trim();
+    const parts = nameParts(block.block_name ?? block.name ?? "");
+    return { day, phase: parts.length > 0 ? parts[parts.length - 1] : "" };
   }
-  const combined = (block.name ?? block.block_name ?? "").trim();
-  const pipeIndex = combined.indexOf("|");
-  if (pipeIndex === -1) return { day: combined || "?", phase: combined };
-  return { day: combined.slice(0, pipeIndex).trim(), phase: combined.slice(pipeIndex + 1).trim() };
+  const parts = nameParts(block.name ?? block.block_name ?? "");
+  if (parts.length === 0) return { day: "?", phase: "" };
+  if (parts.length === 1) return { day: parts[0], phase: parts[0] };
+  return { day: parts[0], phase: parts[parts.length - 1] };
 }
 
 // The exact "DAY | PHASE" (or day_name+block_name combo) name a block will
@@ -56,10 +74,14 @@ export function getBlockParts(block: ClaudeBlock): { day: string; phase: string 
 // for a not-yet-inserted block that the DB will end up storing, and match
 // it against program_blocks.name for the previous week's real rows.
 export function getBlockName(block: ClaudeBlock): string {
-  return (
-    block.name ??
-    (block.day_name && block.block_name ? `${block.day_name} | ${block.block_name}` : block.day_name ?? block.block_name ?? "WORKOUT ROUTINE")
-  );
+  const raw = block.name ?? (block.day_name && block.block_name ? `${block.day_name} | ${block.block_name}` : block.day_name ?? block.block_name);
+  if (!raw || !raw.trim()) return "WORKOUT ROUTINE";
+  // Already-clean names are kept exactly as written ("WORKOUT ROUTINE",
+  // "PULL DAY | Warm-Up"), so they still equal the stored program_blocks.name.
+  const parts = nameParts(raw);
+  if (parts.length < 2 || (parts.length === 2 && !sameName(parts[0], parts[1]))) return raw.trim();
+  const { day, phase } = getBlockParts(block);
+  return sameName(day, phase) ? day : `${day} | ${phase}`;
 }
 
 // Day-by-day build (2026-09-17): pure logic behind index.ts's buildProgramAction
@@ -149,8 +171,8 @@ export async function computeAppendWeekOrdering(
   warriorProgramId: string,
   newBlocks: ClaudeBlock[],
   removedBlockNames: string[] | null | undefined
-): Promise<{ orderedBlocks: ClaudeBlock[]; carryOrderOverrides: Record<string, number>; newWeekNumber: number | null }> {
-  const noop = { orderedBlocks: newBlocks, carryOrderOverrides: {}, newWeekNumber: null };
+): Promise<{ orderedBlocks: ClaudeBlock[]; carryOrderOverrides: Record<string, number>; newWeekNumber: number | null; removedBlockNames: string[] }> {
+  const noop = { orderedBlocks: newBlocks, carryOrderOverrides: {}, newWeekNumber: null, removedBlockNames: removedBlockNames ?? [] };
 
   const { data: programRows } = await userClient.from("warrior_programs").select("template_id").eq("id", warriorProgramId);
   const templateId = ((programRows ?? []) as Array<{ template_id?: string }>)[0]?.template_id;
@@ -172,13 +194,22 @@ export async function computeAppendWeekOrdering(
   // Exact same predicate ai_coach_append_week's own SQL uses to decide what
   // carries forward — kept in lockstep so this always ranks precisely the
   // set of names the RPC is actually about to write.
-  const removedSet = new Set(removedBlockNames ?? []);
-  const newNames = new Set(newBlocks.map(getBlockName));
+  // Names are matched to the prior week ignoring case and spacing, then
+  // rewritten to that week's exact stored name — the RPC's carry-forward
+  // test is an exact comparison, so "Pull Day | warm-up" would otherwise
+  // count as a new block next to the carried-forward "PULL DAY | Warm-Up".
+  const exactByKey = new Map(previousWeekBlocks.map((r) => [normalizeBlockNameKey(r.name), r.name]));
+  const canonical = (name: string) => exactByKey.get(normalizeBlockNameKey(name)) ?? name;
+  const canonicalBlocks = newBlocks.map((block) => ({ ...block, name: canonical(getBlockName(block)) }));
+  const canonicalRemoved = (removedBlockNames ?? []).map(canonical);
+
+  const removedSet = new Set(canonicalRemoved);
+  const newNames = new Set(canonicalBlocks.map(getBlockName));
   const carriedForwardNames = previousWeekBlocks.map((r) => r.name).filter((n) => !newNames.has(n) && !removedSet.has(n));
 
-  const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...newBlocks.map(getBlockName)], previousWeekDayOrder);
+  const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...canonicalBlocks.map(getBlockName)], previousWeekDayOrder);
 
-  const orderedBlocks = newBlocks.map((block) => ({ ...block, order_index: orderMap.get(getBlockName(block)) ?? block.order_index }));
+  const orderedBlocks = canonicalBlocks.map((block) => ({ ...block, order_index: orderMap.get(getBlockName(block)) ?? block.order_index }));
 
   const carryOrderOverrides: Record<string, number> = {};
   for (const name of carriedForwardNames) {
@@ -186,7 +217,7 @@ export async function computeAppendWeekOrdering(
     if (rank !== undefined) carryOrderOverrides[name] = rank;
   }
 
-  return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1 };
+  return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1, removedBlockNames: canonicalRemoved };
 }
 
 // Real bug found live (2026-08-26): the model left blocks with zero
@@ -1505,7 +1536,7 @@ export const BLOCKS_SCHEMA = {
     type: "object" as const,
     properties: {
       day_name: { type: "string", description: 'e.g. "PULL DAY 1"' },
-      block_name: { type: "string", description: 'e.g. "Strength"' },
+      block_name: { type: "string", description: 'Just the block, e.g. "Strength" — never the day again. A stored name like "PULL DAY 1 | Strength" (from get_workout_logs / get_program_structure) splits into day_name "PULL DAY 1" and block_name "Strength".' },
       order_index: { type: "integer", description: "Unique within this week only" },
       week_number: { type: "integer", description: "Only meaningful for propose_new_program — defaults to 1, and should stay 1 unless the athlete explicitly asked for multiple weeks written upfront. propose_append_week always builds the next week automatically; add_block_to_week ignores this and always lands in the week you specified." },
       metadata: {

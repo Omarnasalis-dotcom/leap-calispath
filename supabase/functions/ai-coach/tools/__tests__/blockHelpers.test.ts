@@ -21,6 +21,7 @@ import {
   validateAthleteFit,
   validateBuildBrief,
   getBlockParts,
+  getBlockName,
   computeDayPosition,
   parseConceptNotes,
   normalizeBlockStructure,
@@ -1202,6 +1203,59 @@ describe("computeAppendWeekOrdering (added 2026-09-18)", () => {
     const { carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", [] as never, undefined);
     expect(carryOrderOverrides).toEqual({ "PULL DAY 1 | Warm-Up": 0 });
     expect(carryOrderOverrides).not.toHaveProperty("OLD DAY | Warm-Up");
+  });
+});
+
+describe("block names copied with their day (bug found live 2026-09-29)", () => {
+  function makeAppendWeekClient(previousWeekRows: Array<{ name: string; order_index: number; week_number: number }>) {
+    return {
+      from: (table: string) => ({
+        select: (_cols: string) => ({
+          eq: (_col: string, _val: string) =>
+            Promise.resolve({ data: table === "warrior_programs" ? [{ template_id: "tmpl-1" }] : previousWeekRows }),
+        }),
+      }),
+    };
+  }
+  const week1 = [
+    { name: "PULL DAY | Warm-Up", order_index: 0, week_number: 1 },
+    { name: "PULL DAY | Strength", order_index: 1, week_number: 1 },
+    { name: "PULL DAY | Cool-Down", order_index: 2, week_number: 1 },
+  ];
+
+  it("a block_name that already contains the day is not prefixed with it again", () => {
+    expect(getBlockName({ day_name: "PULL DAY", block_name: "PULL DAY | Strength", exercises: [] } as never)).toBe("PULL DAY | Strength");
+    expect(getBlockName({ name: "PULL DAY | PULL DAY | Strength", exercises: [] } as never)).toBe("PULL DAY | Strength");
+    expect(getBlockParts({ day_name: "PULL DAY", block_name: "PULL DAY | Strength", exercises: [] } as never)).toEqual({ day: "PULL DAY", phase: "Strength" });
+  });
+
+  it("clean names are kept exactly as written", () => {
+    expect(getBlockName({ name: "PULL DAY | Warm-Up", exercises: [] } as never)).toBe("PULL DAY | Warm-Up");
+    expect(getBlockName({ day_name: "LEGS DAY", block_name: "Strength", exercises: [] } as never)).toBe("LEGS DAY | Strength");
+    expect(getBlockName({ exercises: [] } as never)).toBe("WORKOUT ROUTINE");
+  });
+
+  it("a doubled-up name replaces last week's block instead of duplicating it", async () => {
+    const client = makeAppendWeekClient(week1);
+    const newBlocks = [{ day_name: "PULL DAY", block_name: "PULL DAY | Strength", metadata: {}, exercises: [{ name: "Pull Ups", sets: "3", reps: "6" }] }];
+    const { orderedBlocks, carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
+    expect(getBlockName(orderedBlocks[0] as never)).toBe("PULL DAY | Strength");
+    expect(Object.keys(carryOrderOverrides)).toEqual(["PULL DAY | Warm-Up", "PULL DAY | Cool-Down"]);
+  });
+
+  it("matches last week's names ignoring case and spacing, and uses the stored name", async () => {
+    const client = makeAppendWeekClient(week1);
+    const newBlocks = [{ day_name: "Pull  Day", block_name: "strength", metadata: {}, exercises: [{ name: "Pull Ups", sets: "3", reps: "6" }] }];
+    const { orderedBlocks, carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
+    expect(getBlockName(orderedBlocks[0] as never)).toBe("PULL DAY | Strength");
+    expect(carryOrderOverrides).not.toHaveProperty("PULL DAY | Strength");
+  });
+
+  it("removed names are matched the same way", async () => {
+    const client = makeAppendWeekClient(week1);
+    const { carryOrderOverrides, removedBlockNames } = await computeAppendWeekOrdering(client, "wp-1", [] as never, ["pull day | cool-down"]);
+    expect(removedBlockNames).toEqual(["PULL DAY | Cool-Down"]);
+    expect(carryOrderOverrides).not.toHaveProperty("PULL DAY | Cool-Down");
   });
 });
 

@@ -43,7 +43,7 @@ export const proposeAppendWeek: ToolDefinition = {
     // blocks it sent this turn, not the whole week. Computes the real
     // order server-side instead of trusting it, and the trusted week
     // number (never the model's own claim) for the card's title.
-    const { orderedBlocks, carryOrderOverrides, newWeekNumber } = await computeAppendWeekOrdering(
+    const { orderedBlocks, carryOrderOverrides, newWeekNumber, removedBlockNames } = await computeAppendWeekOrdering(
       userClient,
       input.warrior_program_id as string,
       (input.blocks as never[]) ?? [],
@@ -56,6 +56,8 @@ export const proposeAppendWeek: ToolDefinition = {
       week_number: newWeekNumber,
       resolved_blocks: resolvedBlocks,
       carry_order_overrides: carryOrderOverrides,
+      // Matched to the prior week's exact names (see computeAppendWeekOrdering).
+      removed_block_names: removedBlockNames,
     };
   },
 };
