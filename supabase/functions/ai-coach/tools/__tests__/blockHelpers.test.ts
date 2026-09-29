@@ -23,6 +23,8 @@ import {
   getBlockParts,
   getBlockName,
   inheritBlockMetadata,
+  normalizeRoundSets,
+  phaseRank,
   computeDayPosition,
   parseConceptNotes,
   normalizeBlockStructure,
@@ -1292,6 +1294,56 @@ describe("inheritBlockMetadata (found in live logs 2026-09-29)", () => {
     const newBlocks = [{ day_name: "PULL DAY", block_name: "PULL DAY | Strength - 2", metadata: { structure: "superset" }, exercises: [{ name: "Pull Ups", sets: "3", reps: "6" }] }];
     const { orderedBlocks } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
     expect((orderedBlocks[0] as { metadata: Record<string, unknown> }).metadata.rounds).toBe("3");
+  });
+});
+
+describe("week order and superset sets (found live 2026-09-30)", () => {
+  it("numbered and respelled phases rank as their phase, never after Cool-Down", () => {
+    expect(phaseRank("Strength - 2")).toBe(phaseRank("Strength"));
+    expect(phaseRank("Cool down")).toBe(phaseRank("Cool-Down"));
+    expect(phaseRank("Warmup")).toBe(0);
+    const order = computeWeekOrderIndex(
+      ["PUSH DAY | Cool-Down", "PUSH DAY | Strength - 2", "PUSH DAY | Warm-Up", "PUSH DAY | Strength - 1", "PUSH DAY | Accessories"],
+      ["PUSH DAY"],
+    );
+    expect([...order.entries()].sort((a, b) => a[1] - b[1]).map(([n]) => n)).toEqual([
+      "PUSH DAY | Warm-Up", "PUSH DAY | Strength - 1", "PUSH DAY | Strength - 2", "PUSH DAY | Accessories", "PUSH DAY | Cool-Down",
+    ]);
+  });
+
+  it("the rebuilt Week 2 keeps Week 1's order", async () => {
+    const week1 = ["Warm-Up", "Strength", "Strength - 2", "Accessories", "Cool-Down"].map((p, i) => ({ name: `PULL DAY | ${p}`, order_index: i, week_number: 1 }));
+    const client = {
+      from: (table: string) => ({
+        select: () => ({ eq: () => Promise.resolve({ data: table === "warrior_programs" ? [{ template_id: "t" }] : week1 }) }),
+      }),
+    };
+    const sent = [
+      { day_name: "PULL DAY", block_name: "Strength", metadata: {}, exercises: [{ name: "Pull Ups", sets: "3", reps: "6" }] },
+      { day_name: "PULL DAY", block_name: "Accessories", metadata: {}, exercises: [{ name: "Hollow Hold", sets: "3", reps: "20" }] },
+    ];
+    const { orderedBlocks, carryOrderOverrides } = await computeAppendWeekOrdering(client, "wp-1", sent as never, undefined);
+    const all = { ...carryOrderOverrides };
+    orderedBlocks.forEach((b) => { all[getBlockName(b as never)] = (b as { order_index: number }).order_index; });
+    expect(Object.entries(all).sort((a, b) => a[1] - b[1]).map(([n]) => n)).toEqual(week1.map((r) => r.name));
+  });
+
+  it("a superset written as N sets per exercise becomes N rounds of 1 set", () => {
+    const block = { metadata: { structure: "superset", rounds: "3" }, exercises: [{ name: "Inverted Row", sets: "3" }, { name: "Ring Row", sets: "3" }] };
+    const out = normalizeRoundSets(block as never) as typeof block;
+    expect(out.metadata.rounds).toBe("3");
+    expect(out.exercises.map((e) => e.sets)).toEqual(["1", "1"]);
+    const noRounds = normalizeRoundSets({ metadata: { structure: "circuit" }, exercises: [{ name: "A", sets: "4" }, { name: "B", sets: "4" }] } as never) as typeof block;
+    expect(noRounds.metadata.rounds).toBe("4");
+  });
+
+  it("leaves mixed or conflicting set counts alone, and single blocks untouched", () => {
+    const mixed = { metadata: { structure: "superset", rounds: "3" }, exercises: [{ name: "A", sets: "3" }, { name: "B", sets: "2" }] };
+    expect(normalizeRoundSets(mixed as never)).toBe(mixed);
+    const conflict = { metadata: { structure: "superset", rounds: "4" }, exercises: [{ name: "A", sets: "3" }, { name: "B", sets: "3" }] };
+    expect(normalizeRoundSets(conflict as never)).toBe(conflict);
+    const single = { metadata: { structure: "single" }, exercises: [{ name: "Deadlift", sets: "3" }] };
+    expect(normalizeRoundSets(single as never)).toBe(single);
   });
 });
 

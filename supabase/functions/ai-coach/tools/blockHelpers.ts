@@ -128,23 +128,45 @@ export const PHASE_ORDER = ["warm-up", "mobility", "skills", "strength", "access
 // first appears in `blockNames`; an unrecognized phase sorts last within
 // its day. Stable — ties keep their original relative order rather than
 // shuffling again on every call.
-export function computeWeekOrderIndex(blockNames: string[], previousWeekDayOrder: string[]): Map<string, number> {
+//
+// Found live (2026-09-30): numbered phases ("Strength - 1", "Strength - 2")
+// matched no PHASE_ORDER entry exactly, so they sorted after Cool-Down. A
+// phase now ranks by the PHASE_ORDER entry it starts with ("strength - 2",
+// "cool down" → cool-down); ties keep the previous week's order
+// (`previousOrder`, name → order_index), then a numeric name order.
+// Letters only, so "Warm-Up", "warm up" and "Warmup" compare the same.
+const phaseKey = (phase: string) => phase.trim().toLowerCase().replace(/[^a-z]/g, "");
+
+export function phaseRank(phase: string): number {
+  const key = phaseKey(phase);
+  const idx = PHASE_ORDER.findIndex((p) => key.startsWith(phaseKey(p)));
+  return idx === -1 ? PHASE_ORDER.length : idx;
+}
+
+export function computeWeekOrderIndex(
+  blockNames: string[],
+  previousWeekDayOrder: string[],
+  previousOrder: Map<string, number> = new Map()
+): Map<string, number> {
   const dayRank = new Map<string, number>();
   previousWeekDayOrder.forEach((day, i) => dayRank.set(day, i));
   let nextNewDayRank = previousWeekDayOrder.length;
 
-  const phaseRank = (phase: string): number => {
-    const idx = PHASE_ORDER.indexOf(phase.trim().toLowerCase());
-    return idx === -1 ? PHASE_ORDER.length : idx;
-  };
-
   const ranked = blockNames.map((name, originalIndex) => {
     const { day, phase } = getBlockParts({ name, exercises: [] });
     if (!dayRank.has(day)) dayRank.set(day, nextNewDayRank++);
-    return { name, originalIndex, dayRank: dayRank.get(day)!, phaseRank: phaseRank(phase) };
+    return {
+      name, originalIndex, dayRank: dayRank.get(day)!, phaseRank: phaseRank(phase),
+      previous: previousOrder.get(name) ?? Number.MAX_SAFE_INTEGER,
+    };
   });
 
-  ranked.sort((a, b) => a.dayRank - b.dayRank || a.phaseRank - b.phaseRank || a.originalIndex - b.originalIndex);
+  ranked.sort((a, b) =>
+    a.dayRank - b.dayRank ||
+    a.phaseRank - b.phaseRank ||
+    a.previous - b.previous ||
+    a.name.localeCompare(b.name, undefined, { numeric: true }) ||
+    a.originalIndex - b.originalIndex);
 
   const result = new Map<string, number>();
   ranked.forEach((entry, i) => result.set(entry.name, i));
@@ -189,6 +211,31 @@ export function inheritBlockMetadata(
   return merged;
 }
 
+// Found in live logs (2026-09-30): the model wrote a 3-round superset as
+// "3 sets" on each exercise, which validateBlockStructure rightly rejects
+// (rounds × sets would be 9), costing a full rewrite of the week. When
+// every exercise of a circuit/superset/ladder repeats one set count — the
+// block's rounds, or the rounds it forgot to set — that is the same
+// workout written the other way, so it's rewritten as rounds with 1 set
+// each. Mixed or conflicting counts are left for validation to reject.
+const ROUND_STRUCTURES = new Set(["circuit", "superset", "ladder"]);
+
+export function normalizeRoundSets<B extends ClaudeBlock>(block: B): B {
+  const meta = block.metadata ?? {};
+  if (!ROUND_STRUCTURES.has(String(meta.structure ?? "")) || block.exercises.length === 0) return block;
+  const sets = block.exercises.map((ex) => String(ex.sets ?? "").trim());
+  if (sets.every((s) => s === "1")) return block;
+  const shared = sets[0];
+  if (!/^[1-9][0-9]?$/.test(shared) || !sets.every((s) => s === shared)) return block;
+  const rounds = isUnset(meta.rounds) ? shared : String(meta.rounds).trim();
+  if (rounds !== shared) return block;
+  return {
+    ...block,
+    metadata: { ...meta, rounds },
+    exercises: block.exercises.map((ex) => ({ ...ex, sets: "1" })),
+  };
+}
+
 export async function computeAppendWeekOrdering(
   userClient: { from: (t: string) => any },
   warriorProgramId: string,
@@ -227,11 +274,11 @@ export async function computeAppendWeekOrdering(
   const canonicalBlocks = newBlocks.map((block) => {
     const name = canonical(getBlockName(block));
     const prior = priorByName.get(name);
-    return {
+    return normalizeRoundSets({
       ...block,
       name,
       metadata: prior ? inheritBlockMetadata(block.metadata, parseConceptNotes(prior.notes).metadata) : block.metadata,
-    };
+    });
   });
   const canonicalRemoved = (removedBlockNames ?? []).map(canonical);
 
@@ -239,7 +286,8 @@ export async function computeAppendWeekOrdering(
   const newNames = new Set(canonicalBlocks.map(getBlockName));
   const carriedForwardNames = previousWeekBlocks.map((r) => r.name).filter((n) => !newNames.has(n) && !removedSet.has(n));
 
-  const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...canonicalBlocks.map(getBlockName)], previousWeekDayOrder);
+  const previousOrder = new Map(previousWeekBlocks.map((r) => [r.name, r.order_index ?? 0]));
+  const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...canonicalBlocks.map(getBlockName)], previousWeekDayOrder, previousOrder);
 
   const orderedBlocks = canonicalBlocks.map((block) => ({ ...block, order_index: orderMap.get(getBlockName(block)) ?? block.order_index }));
 
