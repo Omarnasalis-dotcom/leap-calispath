@@ -166,6 +166,29 @@ export function computeWeekOrderIndex(blockNames: string[], previousWeekDayOrder
 // null) if there's no previous week to order against (the program's very
 // first append, or a bad id) — nothing to compute from, and the RPC's own
 // carry-forward logic is a no-op in that case too.
+// Found in live logs (2026-09-29): when the model rewrote a superset or
+// circuit block for the new week it often dropped metadata it wasn't
+// changing (rounds), the build was rejected, and the whole week had to be
+// written again (~15s and ~1,900 output tokens every time). A block that
+// replaces last week's block keeps last week's settings for anything the
+// model left out — only while the block keeps the same structure and
+// timing system; a block moved to a different format inherits nothing.
+const isUnset = (v: unknown) => v === undefined || v === null || (typeof v === "string" && v.trim() === "");
+
+export function inheritBlockMetadata(
+  next: Record<string, unknown> | undefined,
+  prior: Record<string, unknown>
+): Record<string, unknown> {
+  const own = next ?? {};
+  const sameFormat = (key: string) => isUnset(own[key]) || isUnset(prior[key]) || own[key] === prior[key];
+  if (!sameFormat("structure") || !sameFormat("timing_system")) return own;
+  const merged: Record<string, unknown> = { ...own };
+  for (const [key, value] of Object.entries(prior)) {
+    if (isUnset(merged[key]) && !isUnset(value)) merged[key] = value;
+  }
+  return merged;
+}
+
 export async function computeAppendWeekOrdering(
   userClient: { from: (t: string) => any },
   warriorProgramId: string,
@@ -178,8 +201,8 @@ export async function computeAppendWeekOrdering(
   const templateId = ((programRows ?? []) as Array<{ template_id?: string }>)[0]?.template_id;
   if (!templateId) return noop;
 
-  const { data: rows } = await userClient.from("program_blocks").select("name, order_index, week_number").eq("template_id", templateId);
-  const allRows = (rows ?? []) as Array<{ name: string; order_index: number | null; week_number: number | null }>;
+  const { data: rows } = await userClient.from("program_blocks").select("name, notes, order_index, week_number").eq("template_id", templateId);
+  const allRows = (rows ?? []) as Array<{ name: string; notes?: string | null; order_index: number | null; week_number: number | null }>;
   if (allRows.length === 0) return noop;
 
   const maxWeek = Math.max(...allRows.map((r) => r.week_number ?? 1));
@@ -200,7 +223,16 @@ export async function computeAppendWeekOrdering(
   // count as a new block next to the carried-forward "PULL DAY | Warm-Up".
   const exactByKey = new Map(previousWeekBlocks.map((r) => [normalizeBlockNameKey(r.name), r.name]));
   const canonical = (name: string) => exactByKey.get(normalizeBlockNameKey(name)) ?? name;
-  const canonicalBlocks = newBlocks.map((block) => ({ ...block, name: canonical(getBlockName(block)) }));
+  const priorByName = new Map(previousWeekBlocks.map((r) => [r.name, r]));
+  const canonicalBlocks = newBlocks.map((block) => {
+    const name = canonical(getBlockName(block));
+    const prior = priorByName.get(name);
+    return {
+      ...block,
+      name,
+      metadata: prior ? inheritBlockMetadata(block.metadata, parseConceptNotes(prior.notes).metadata) : block.metadata,
+    };
+  });
   const canonicalRemoved = (removedBlockNames ?? []).map(canonical);
 
   const removedSet = new Set(canonicalRemoved);

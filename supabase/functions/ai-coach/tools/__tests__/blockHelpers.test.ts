@@ -22,6 +22,7 @@ import {
   validateBuildBrief,
   getBlockParts,
   getBlockName,
+  inheritBlockMetadata,
   computeDayPosition,
   parseConceptNotes,
   normalizeBlockStructure,
@@ -1256,6 +1257,41 @@ describe("block names copied with their day (bug found live 2026-09-29)", () => 
     const { carryOrderOverrides, removedBlockNames } = await computeAppendWeekOrdering(client, "wp-1", [] as never, ["pull day | cool-down"]);
     expect(removedBlockNames).toEqual(["PULL DAY | Cool-Down"]);
     expect(carryOrderOverrides).not.toHaveProperty("PULL DAY | Cool-Down");
+  });
+});
+
+describe("inheritBlockMetadata (found in live logs 2026-09-29)", () => {
+  const prior = { timing_system: "straight_set", structure: "superset", rounds: "3", focus_tag: "PULL" };
+
+  it("fills settings the model left out when the format is unchanged", () => {
+    expect(inheritBlockMetadata({ structure: "superset", focus_tag: "PULL" }, prior)).toEqual(prior);
+    expect(inheritBlockMetadata(undefined, prior)).toEqual(prior);
+  });
+
+  it("never overrides what the model sent", () => {
+    expect(inheritBlockMetadata({ structure: "superset", rounds: "4" }, prior).rounds).toBe("4");
+  });
+
+  it("inherits nothing when the block moves to a different structure or timing", () => {
+    expect(inheritBlockMetadata({ structure: "single" }, prior)).toEqual({ structure: "single" });
+    expect(inheritBlockMetadata({ timing_system: "amrap" }, prior)).toEqual({ timing_system: "amrap" });
+  });
+
+  it("a rewritten superset keeps last week's rounds through the new-week build", async () => {
+    const client = {
+      from: (table: string) => ({
+        select: (_cols: string) => ({
+          eq: () => Promise.resolve({
+            data: table === "warrior_programs"
+              ? [{ template_id: "tmpl-1" }]
+              : [{ name: "PULL DAY | Strength - 2", notes: '[CONCEPT:{"timing_system":"straight_set","structure":"superset","rounds":"3"}] Keep it tight', order_index: 0, week_number: 1 }],
+          }),
+        }),
+      }),
+    };
+    const newBlocks = [{ day_name: "PULL DAY", block_name: "PULL DAY | Strength - 2", metadata: { structure: "superset" }, exercises: [{ name: "Pull Ups", sets: "3", reps: "6" }] }];
+    const { orderedBlocks } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined);
+    expect((orderedBlocks[0] as { metadata: Record<string, unknown> }).metadata.rounds).toBe("3");
   });
 });
 

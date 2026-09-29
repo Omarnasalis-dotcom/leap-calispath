@@ -36,7 +36,6 @@ export const proposeAppendWeek: ToolDefinition = {
     // means a day's Warm-Up/Cool-Down legitimately being absent from THIS
     // call (unchanged from last week) is correct, not a bug. A block that
     // IS sent still can't be empty, though.
-    validateBlockStructure((input.blocks as never[]) ?? [], { requireDayPhases: false });
     // Real bug fixed 2026-09-18 (live build): the new week used to come
     // back with blocks in a shuffled order because the model edited some
     // blocks and not others — its order_index is only ever relative to the
@@ -49,6 +48,9 @@ export const proposeAppendWeek: ToolDefinition = {
       (input.blocks as never[]) ?? [],
       input.removed_block_names as string[] | undefined
     );
+    // Validated after matching to last week, so a replaced block's
+    // inherited settings (rounds etc.) count — see inheritBlockMetadata.
+    validateBlockStructure(orderedBlocks as never[], { requireDayPhases: false });
     const idMap = await resolveExerciseIds(userClient, orderedBlocks as never[]);
     const resolvedBlocks = transformBlocksForInsert(orderedBlocks as never[], idMap);
     return {
