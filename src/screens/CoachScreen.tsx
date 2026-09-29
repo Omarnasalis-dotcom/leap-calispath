@@ -39,7 +39,7 @@ import { ProgramAction, getChangeDayMessage, isLastConfirmedDay } from '../compo
 
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
-import { canAccessPro, isProRequiredError } from '../lib/entitlement';
+import { canAccessPro, getSubscriptionTier, isProRequiredError } from '../lib/entitlement';
 import { track } from '../lib/analytics';
 import { FreeCoachIntake } from '../components/coach/FreeCoachIntake';
 import { t, FLIP_X } from '../i18n';
@@ -233,6 +233,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'reconnecting'>('online');
   const [rateLimited, setRateLimited] = useState(false);
   const [rateLimitReason, setRateLimitReason] = useState<string | undefined>(undefined);
+  // A limit is lifted by a plan change (upgrade or gift), so the input
+  // unlocks as soon as the plan does — the server re-checks every message.
+  const planTier = getSubscriptionTier(profile, paywallEnabled);
+  useEffect(() => {
+    setRateLimited(false);
+    setRateLimitReason(undefined);
+  }, [planTier, profile?.access_expires_at]);
   const [lastMessageTime, setLastMessageTime] = useState(0);
   const scrollViewRef = useRef<ScrollView>(null);
 
@@ -1043,6 +1050,16 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <Text style={[styles.quotaExhaustedText, { color: c.secondaryText }]}>
                 {rateLimitBannerCopy(rateLimitReason)}
               </Text>
+              {/* Every plan below Max has higher limits to move up to. */}
+              {planTier !== 'max' && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  onPress={() => router.push('/paywall')}
+                  style={[styles.quotaUpgradeBtn, { backgroundColor: theme.accent }]}
+                >
+                  <Text style={styles.quotaUpgradeText}>{t('coach.upgradeForMore')}</Text>
+                </TouchableOpacity>
+              )}
             </View>
           )}
 
@@ -1309,5 +1326,17 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
     letterSpacing: 0.3,
+  },
+  quotaUpgradeBtn: {
+    marginTop: 10,
+    paddingVertical: 10,
+    paddingHorizontal: 18,
+    borderRadius: 10,
+  },
+  quotaUpgradeText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '800',
+    letterSpacing: 1,
   },
 });

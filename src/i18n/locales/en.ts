@@ -1507,6 +1507,7 @@ const en = {
     bannerBudget: '🏛️ AI Coach budget used for this period — resets on renewal',
     bannerWeekly: '🏛️ Weekly sessions exhausted — resets next week',
     bannerDaily: '🏛️ Daily sessions exhausted — resets at midnight',
+    upgradeForMore: 'UPGRADE FOR MORE COACHING',
     errRateLimit: "You've hit today's limit for this — try again tomorrow.",
     errWeekLogged: "That week already has logged workouts, so it can't be deleted.",
     errOnlyWeek: "That's the only week left — end the program instead if you want to stop it.",
