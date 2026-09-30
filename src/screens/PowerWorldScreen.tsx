@@ -12,7 +12,7 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { useWorldSummary } from '../hooks/useWorldSummary';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useReturnTo } from '../hooks/useReturnTo';
-import { CelebrationBanner } from '../components/CelebrationBanner';
+import { PRCelebration } from '../components/celebration/PRCelebration';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
@@ -86,7 +86,7 @@ export function PowerWorldScreen() {
   const [scope, setScope] = useState<'public' | 'community'>('public');
 
   const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationProps, setCelebrationProps] = useState<any>({});
+  const [celebrationData, setCelebrationData] = useState({ movement: '', value: 0, previous: null as number | null });
 
   // ------------------------------------------------------------------ data
 
@@ -235,6 +235,7 @@ export function PowerWorldScreen() {
     }
 
     let isPB = false;
+    let showCard = false;
     const before = stats?.totalPoints ?? 0;
     runSafeSave(async () => {
       const { isNewPB, isPromotion, overtakenNotificationId, wraOvertakenNotificationId } =
@@ -243,13 +244,12 @@ export function PowerWorldScreen() {
       if (isNewPB) {
         const movement = POWER_MOVEMENTS.find(m => m.id === movementId);
         const newLevel = getPowerLevel(before - calculatePowerPoints(movementId, currentBest) + calculatePowerPoints(movementId, value));
+        showCard = true;
         if (isMounted.current) {
-          setCelebrationProps({
-            title: isPromotion ? tr('powerWorld.levelPromoted') : (MOVE_UI[movementId]?.name ?? movement?.name?.toUpperCase()),
-            subtitle: isPromotion ? tr('powerWorld.welcomeTo', { level: newLevel.name }) : 'NEW PR',
-            stat: tr('powerWorld.kg', { value }),
-            emoji: isPromotion ? '⚡' : '🔥',
-            rank: isPromotion ? tr('powerWorld.levelN', { n: newLevel.id }) : undefined,
+          setCelebrationData({
+            movement: MOVE_UI[movementId]?.name ?? movement?.name ?? movementId,
+            value,
+            previous: currentBest > 0 ? currentBest : null,
           });
         }
         NotificationService.notify(
@@ -277,8 +277,9 @@ export function PowerWorldScreen() {
         if (tier !== 'all') fetchElite(tier, scope);
         refreshProfile?.();
         // Wait for the sheet Modal to finish leaving before another Modal mounts.
-        if (isPB) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
-        setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
+        // A PR card returns to the Journey quest on dismiss; otherwise after the toast.
+        if (showCard) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
+        else setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
       },
       onError: (error: any) => {
         setPendingOverwrite(null);
@@ -483,18 +484,14 @@ export function PowerWorldScreen() {
         ) : null}
       </WorldSheet>
 
-      <CelebrationBanner
+      <PRCelebration
         visible={showCelebration}
-        title={celebrationProps.title}
-        subtitle={celebrationProps.subtitle}
-        stat={celebrationProps.stat}
-        emoji={celebrationProps.emoji}
-        rank={celebrationProps.rank}
-        userName={profile?.display_name || tr('worlds.warrior').toUpperCase()}
-        onDismiss={() => setShowCelebration(false)}
-        headerText="POWER WORLD"
-        showLeapLogo
-        accentColor={t.accent}
+        world="power"
+        movement={celebrationData.movement}
+        value={celebrationData.value}
+        previous={celebrationData.previous}
+        handle={profile?.display_name || tr('worlds.warrior')}
+        onDismiss={() => { setShowCelebration(false); completeQuestAndReturn(); }}
       />
     </GlobalErrorBoundary>
   );

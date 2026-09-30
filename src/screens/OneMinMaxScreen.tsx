@@ -14,7 +14,7 @@ import { useWorldSummary } from '../hooks/useWorldSummary';
 import { useOneMinuteTimer, ONE_MINUTE_COUNTDOWN, ONE_MINUTE_SECONDS } from '../hooks/useOneMinuteTimer';
 import { Skeleton } from '../components/Skeleton';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
-import { CelebrationBanner } from '../components/CelebrationBanner';
+import { PRCelebration } from '../components/celebration/PRCelebration';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../components/tutorial/TutorialOverlay';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
@@ -95,7 +95,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const scope: 'public' | 'community' = manualScope ?? (profile?.community_id ? 'community' : 'public');
 
   const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
+  const [celebrationData, setCelebrationData] = useState({ movement: '', value: 0, previous: null as number | null });
 
   // ------------------------------------------------------------------ data
 
@@ -236,13 +236,16 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     }
 
     let isPB = false;
+    let showCard = false;
     runSafeSave(async () => {
       const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } =
         await OneMMService.saveLog(user.id, movementId, reps, force);
       isPB = isNewPB;
       if (isNewPB) {
         const name = movement?.name || 'Movement';
-        if (isMounted.current) setCelebrationData({ stat: tr('enduranceWorld.repsValue', { reps }), movement: name });
+        // A tie counts as a PB on the server but gets no card (owner decision).
+        showCard = !(currentBest > 0 && reps <= currentBest);
+        if (isMounted.current) setCelebrationData({ movement: name, value: reps, previous: currentBest > 0 ? currentBest : null });
         NotificationService.notify(user.id, 'one_mm_pb', tr('enduranceWorld.pushTitle'), tr('enduranceWorld.pushBody', { name, reps }), { screen: 'one-min-max' });
         if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
         if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
@@ -259,11 +262,12 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         fetchStats();
         refreshSummary();
         refreshProfile?.();
-        // The sheet's Modal must be fully gone before CelebrationBanner's
-        // Modal mounts (iOS overlapping-modal freeze / Android swap crash).
-        if (isPB) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
-        // Came from a My Journey side quest — return after the result is seen.
-        setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
+        // The sheet's Modal must be fully gone before the PR card's Modal
+        // mounts (iOS overlapping-modal freeze / Android swap crash).
+        // Came from a My Journey side quest: a PR card returns on dismiss,
+        // otherwise return after the toast has been seen.
+        if (showCard) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
+        else setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
       },
       onError: (error: any) => {
         setPendingOverwrite(null);
@@ -467,17 +471,14 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
         )}
       </WorldSheet>
 
-      <CelebrationBanner
+      <PRCelebration
         visible={showCelebration}
-        title={celebrationData.movement?.toUpperCase()}
-        subtitle="NEW PR"
-        stat={celebrationData.stat}
-        emoji="🔥"
-        userName={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
-        onDismiss={() => setShowCelebration(false)}
-        headerText="ENDURANCE WORLD"
-        showLeapLogo
-        accentColor={t.accent}
+        world="endurance"
+        movement={celebrationData.movement}
+        value={celebrationData.value}
+        previous={celebrationData.previous}
+        handle={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
+        onDismiss={() => { setShowCelebration(false); completeQuestAndReturn(); }}
       />
     </GlobalErrorBoundary>
   );

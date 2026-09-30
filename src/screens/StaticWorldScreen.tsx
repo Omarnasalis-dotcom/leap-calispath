@@ -15,7 +15,7 @@ import { useWorldSummary } from '../hooks/useWorldSummary';
 import { useHoldTimer } from '../hooks/useHoldTimer';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { useReturnTo } from '../hooks/useReturnTo';
-import { CelebrationBanner } from '../components/CelebrationBanner';
+import { PRCelebration } from '../components/celebration/PRCelebration';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { PBOverwriteConfirmModal } from '../components/PBOverwriteConfirmModal';
 import { NotificationService } from '../services/NotificationService';
@@ -101,7 +101,7 @@ export function StaticWorldScreen({ movement }: Props) {
   const communityIdFor = (s: 'public' | 'community') => (s === 'community' ? profile?.community_id ?? null : null);
 
   const [showCelebration, setShowCelebration] = useState(false);
-  const [celebrationData, setCelebrationData] = useState({ stat: '', movement: '' });
+  const [celebrationData, setCelebrationData] = useState({ movement: '', value: 0, previous: null as number | null });
 
   // ------------------------------------------------------------------ data
 
@@ -260,11 +260,13 @@ export function StaticWorldScreen({ movement }: Props) {
     }
 
     let isPB = false;
+    let showCard = false;
     runSafeSave(async () => {
       const { isNewPB, overtakenNotificationId, wraOvertakenNotificationId } = await StaticService.saveHold(user.id, m.id, seconds, force);
       isPB = isNewPB;
       if (isNewPB) {
-        if (isMounted.current) setCelebrationData({ stat: tr('units.secLower', { value: seconds }), movement: m.name });
+        showCard = true;
+        if (isMounted.current) setCelebrationData({ movement: m.name, value: seconds, previous: currentBest > 0 ? currentBest : null });
         NotificationService.notify(user.id, 'static_pb', tr('staticWorld.pbPushTitle'), tr('staticWorld.pbPushBody', { name: m.name, seconds }), { screen: 'static-world' });
         if (overtakenNotificationId) NotificationService.sendOvertakeNotificationPush(overtakenNotificationId);
         if (wraOvertakenNotificationId) NotificationService.sendOvertakeNotificationPush(wraOvertakenNotificationId);
@@ -281,8 +283,9 @@ export function StaticWorldScreen({ movement }: Props) {
         refreshSummary();
         if (tier !== 'overall') fetchElite(tier, scope);
         refreshProfile?.();
-        if (isPB) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
-        setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
+        // A PB card returns to the Journey quest on dismiss; otherwise after the toast.
+        if (showCard) setTimeout(() => { if (isMounted.current) setShowCelebration(true); }, 450);
+        else setTimeout(() => { if (isMounted.current) completeQuestAndReturn(); }, 1800);
       },
       onError: (error: any) => {
         setPendingOverwrite(null);
@@ -512,17 +515,14 @@ export function StaticWorldScreen({ movement }: Props) {
         ) : null}
       </WorldSheet>
 
-      <CelebrationBanner
+      <PRCelebration
         visible={showCelebration}
-        title={celebrationData.movement?.toUpperCase()}
-        subtitle="NEW PR"
-        stat={celebrationData.stat}
-        emoji="💎"
-        userName={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
-        onDismiss={() => setShowCelebration(false)}
-        headerText="STATIC WORLD"
-        showLeapLogo
-        accentColor={t.accent}
+        world="static"
+        movement={celebrationData.movement}
+        value={celebrationData.value}
+        previous={celebrationData.previous}
+        handle={profile?.display_name || user?.email?.split('@')[0] || tr('worlds.warrior')}
+        onDismiss={() => { setShowCelebration(false); completeQuestAndReturn(); }}
       />
     </GlobalErrorBoundary>
   );
@@ -680,7 +680,8 @@ function TimerSheetBody({
                   selectionColor={t.accent}
                   cursorColor={t.accent}
                   accessibilityLabel={tr('staticWorld.holdInputA11y')}
-                  style={{ fontFamily: WORLD_FONTS.bold, fontSize: 50, lineHeight: 56, color: t.text, padding: 0, margin: 0, textAlign: 'center', minWidth: 30, includeFontPadding: false }}
+                  // No lineHeight: on iOS a line box shorter than Oswald's pushes the digits up and clips them.
+                  style={{ fontFamily: WORLD_FONTS.bold, fontSize: 50, height: 66, marginVertical: -7, color: t.text, padding: 0, textAlign: 'center', minWidth: 30, includeFontPadding: false }}
                 />
                 <Text style={kt('bold', 30, t.textMuted)}>{tr('staticWorld.secondsUnit')}</Text>
               </View>
