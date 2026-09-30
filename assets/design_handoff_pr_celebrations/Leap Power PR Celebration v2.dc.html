@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FF4A3D;}
+a:hover{color:#ff6e63;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Michroma&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">POWER PR · PLATE DROP</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Your lift gets loaded plate by plate. Old best plates land dim, the new plates land bright past the PREV line, then the number slams down on top.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">0.0s card rises<br>0.6s old-best plates drop fast<br>· PREV line marks your old total<br>new plates drop slower, bright + heavier thud<br>then the number slams: squash, shake, dust, shockwave<br>details + actions follow</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="height:44px;border-radius:12px;border:1px solid #3a1a18;background:#1a0b0a;color:#FF4A3D;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ replay }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+      REPLAY
+    </div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);flex-shrink:0;">
+
+    <div style="position:absolute;inset:0;padding:60px 24px 0;display:grid;gap:14px;align-content:start;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="#FF4A3D"><path d="M13 2L4 14h6l-1 8 9-12h-6z"></path></svg>
+        <div style="color:#fff;font-size:34px;font-weight:700;letter-spacing:1.4px;">POWER WORLD</div>
+      </div>
+      <div style="height:120px;border-radius:22px;background:#0d0d0d;border:1px solid #1a1a1a;margin-top:20px;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+    </div>
+
+    <div style="{{ overlayStyle }}"></div>
+
+    <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;">
+      <div>11:52</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <div style="{{ cardStyle }}">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 42%,rgba(255,74,61,.14),transparent 62%);pointer-events:none;"></div>
+      <div style="{{ flashStyle }}"></div>
+
+      <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="#FF4A3D"><path d="M13 2L4 14h6l-1 8 9-12h-6z"></path></svg>
+          <div style="color:#FF4A3D;font-size:11px;font-weight:600;letter-spacing:2.4px;">POWER WORLD</div>
+        </div>
+        <div style="color:#6a6a6a;font-size:11px;font-weight:500;letter-spacing:1.6px;">SEP 30, 2026</div>
+      </div>
+
+      <div style="{{ a1 }}">NEW PERSONAL RECORD</div>
+
+      <div style="position:relative;height:232px;margin-top:4px;">
+        <div style="{{ loadedStyle }}">{{ loadedLabel }}</div>
+        <div style="{{ pinStyle }}"></div>
+        <div style="position:absolute;left:30px;right:30px;bottom:6px;height:2px;border-radius:1px;background:#2a1614;"></div>
+        <div style="position:absolute;left:60px;right:60px;bottom:0;height:10px;border-radius:50%;background:radial-gradient(ellipse,rgba(255,74,61,.18),transparent 70%);"></div>
+        <sc-for list="{{ plates }}" as="p" hint-placeholder-count="7">
+          <div style="{{ p.style }}">
+            <div style="{{ p.labelStyle }}">{{ p.label }}</div>
+          </div>
+        </sc-for>
+        <sc-for list="{{ dust }}" as="d" hint-placeholder-count="0">
+          <div style="{{ d.style }}"></div>
+        </sc-for>
+        <div style="{{ waveStyle }}"></div>
+        <div style="{{ numWrap }}">
+          <div style="{{ numStyle }}">{{ kgVal }}</div>
+          <div style="color:#FF4A3D;font-size:18px;font-weight:600;letter-spacing:2px;padding-bottom:9px;">KG</div>
+        </div>
+      </div>
+
+      <div style="{{ a2 }}">
+        <div style="color:#fff;font-size:30px;font-weight:700;letter-spacing:1.4px;line-height:1.05;text-align:center;">{{ movement }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">
+          <div style="width:22px;height:22px;border-radius:50%;background:#141414;border:1.5px solid #FF4A3D;color:#fff;font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;">ON</div>
+          <div style="color:#a0a0a0;font-size:13px;font-weight:500;letter-spacing:1.6px;">@OMARNASALI</div>
+        </div>
+      </div>
+
+      <div style="{{ a3 }}">
+        <div style="padding:0 18px;">
+          <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">PREVIOUS BEST</div>
+          <div style="color:#a0a0a0;font-size:22px;font-weight:600;margin-top:4px;white-space:nowrap;text-decoration:line-through;text-decoration-color:#4a4a4a;">{{ prevVal }}</div>
+        </div>
+        <div style="padding:0 18px;border-left:1px solid #2a1614;">
+          <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">GAIN</div>
+          <div style="display:flex;align-items:baseline;flex-wrap:wrap;column-gap:6px;margin-top:4px;">
+            <div style="{{ gainStyle }}">{{ gainVal }}</div>
+            <div style="color:#6a6a6a;font-size:12px;font-weight:500;">{{ gainPct }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="{{ a4 }}">
+        <div style="height:30px;padding:0 14px;border-radius:15px;border:1px solid #3a1a18;display:flex;align-items:center;color:#fff;font-family:'Michroma','Oswald',sans-serif;font-size:11px;letter-spacing:2px;">LEAP ARENA</div>
+      </div>
+    </div>
+
+    <div style="position:absolute;left:24px;right:24px;bottom:40px;display:grid;gap:12px;">
+      <div style="{{ b1 }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+        SHARE
+      </div>
+      <div style="{{ b2 }}">SAVE TO PHOTOS</div>
+      <div style="{{ b3 }}" onClick="{{ replay }}">DISMISS</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;weight&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:100,&quot;min&quot;:1,&quot;max&quot;:300,&quot;step&quot;:0.25,&quot;unit&quot;:&quot;kg&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Result&quot;},&quot;previousBest&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:92.5,&quot;min&quot;:0,&quot;max&quot;:299,&quot;step&quot;:0.25,&quot;unit&quot;:&quot;kg&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Result&quot;},&quot;movement&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;WEIGHTED PULL UP&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Result&quot;}}">
+const RED = '#FF4A3D';
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const eOut = (t) => 1 - Math.pow(1 - t, 3);
+const eIn = (t) => t * t;
+const eBack = (t) => { const c = 1.5; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const fmtKg = (v) => { const r = Math.round(v * 4) / 4; return String(r % 1 ? r : Math.round(r)); };
+const SIZES = [20, 10, 5, 2.5, 1.25];
+const SPEC = { 20: [220, 24], 10: [188, 19], 5: [158, 15], 2.5: [128, 12], 1.25: [104, 10] };
+const breakdown = (kg) => { const out = []; let r = Math.round(kg * 4) / 4; for (const s of SIZES) while (r >= s - 1e-6 && out.length < 80) { out.push(s); r -= s; } return out; };
+const H = 232, FLOOR = H - 7, W = 314;
+const DUST = Array.from({ length: 12 }, (_, i) => ({ side: i % 2 ? 1 : -1, sp: 50 + (i % 4) * 22, up: 10 + (i % 3) * 10, s: 3 + (i % 3) }));
+
+class Component extends DCLogic {
+  state = { t: 0 };
+  componentDidMount() {
+    this.t0 = performance.now();
+    const loop = () => { this.setState({ t: (performance.now() - this.t0) / 1000 }); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  renderVals() {
+    const T = this.state.t;
+    const kg = Math.max(1, this.props.weight ?? 100);
+    const prev = Math.min(kg - 0.25, Math.max(0, this.props.previousBest ?? 92.5));
+    const oldP = [], newP = breakdown(kg);
+    const all = newP.map((w) => ({ w, isNew: true, lbl: fmtKg(w) }));
+    const rawH = all.reduce((a, p) => a + SPEC[p.w][1] + 3, 0);
+    const k = Math.min(1, 128 / rawH);
+
+    const DROP = 0.26;
+    let t = 0.6, y = FLOOR, run = 0, loaded = 0, lastLand = -1, lastNew = false, prevY = FLOOR;
+    const plates = all.map((p, i) => {
+      const [w0, h0] = SPEC[p.w];
+      const h = Math.max(3, h0 * k), w = w0;
+      const start = t; t += Math.min(0.3, 1.5 / Math.max(1, all.length));
+      const land = start + DROP;
+      const top = y - h; y = top - 3 * k;
+      run += p.w;
+      if (!p.isNew) prevY = y + 1.5 * k;
+      if (T >= land) { loaded = run; lastLand = land; lastNew = p.isNew; }
+      const dp = clamp((T - start) / DROP);
+      const settle = T > land ? Math.sin(clamp((T - land) / 0.16) * Math.PI) * (p.isNew ? 3 : 1.5) : 0;
+      const cy = T < start ? -80 : dp < 1 ? -80 + (top + 80) * eIn(dp) : top + settle;
+      const squash = T > land && T < land + 0.14 ? 1 - Math.sin(((T - land) / 0.14) * Math.PI) * 0.18 : 1;
+      return {
+        label: h >= 12 ? p.lbl : '',
+        style: { position: 'absolute', left: (W - w) / 2, top: cy, width: w, height: h, borderRadius: Math.min(6, h / 2.4), boxSizing: 'border-box', background: `linear-gradient(180deg,#ff7a6f 0%,${RED} 35%,#c22a20 100%)`, border: '1px solid #ff8f86', boxShadow: '0 0 14px rgba(255,74,61,.35)', opacity: T < start ? 0 : 1, transform: `scaleY(${squash})`, transformOrigin: '50% 100%', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', paddingRight: 10 },
+        labelStyle: { color: '#fff', fontSize: Math.min(12, h - 4), fontWeight: 600, letterSpacing: 0.6, lineHeight: 1 },
+      };
+    });
+    const stackTop = y;
+    const numStart = t + 0.12, numLand = numStart + 0.3;
+    const lockT = numLand;
+    const locked = T >= lockT;
+    const imp = clamp((T - lockT) / 0.9);
+    const np = clamp((T - numStart) / 0.3);
+    const numBottom = stackTop - 2;
+    const numY = T < numStart ? -260 : np < 1 ? -260 + (numBottom + 260) * eIn(np) : numBottom;
+    const nsq = locked && T < lockT + 0.22 ? Math.sin(((T - lockT) / 0.22) * Math.PI) : 0;
+
+    const hit = lastLand > 0 && T - lastLand < 0.18 ? (1 - (T - lastLand) / 0.18) : 0;
+    const shake = (locked && T < lockT + 0.4 ? Math.sin((T - lockT) * 70) * 8 * (1 - (T - lockT) / 0.4) : 0) + (!locked ? Math.sin(T * 90) * hit * (lastNew ? 3 : 1.2) : 0);
+
+    const dust = locked && imp < 1 ? DUST.map((d) => {
+      const p = eOut(imp);
+      return { style: { position: 'absolute', left: W / 2 + d.side * (70 + p * d.sp) - d.s / 2, top: numBottom - 4 - Math.sin(p * Math.PI) * d.up, width: d.s, height: d.s, borderRadius: '50%', background: d.s > 4 ? '#ffb0a8' : RED, opacity: 1 - imp, boxShadow: `0 0 6px ${RED}`, pointerEvents: 'none' } };
+    }) : [];
+
+    const fade = (st, dy = 14, dur = 0.5) => { const p = eOut(clamp((T - st) / dur)); return { opacity: p, transform: `translateY(${(1 - p) * dy}px)` }; };
+    const btn = (st) => { const p = eOut(clamp((T - st) / 0.5)); return { opacity: p, transform: `translateY(${(1 - p) * 24}px)` }; };
+    const cardP = clamp((T - 0.05) / 0.55);
+    const glow = locked ? 0.3 + 0.25 * (1 - imp) : 0.12;
+    const passedPrev = loaded > prev + 1e-6;
+    const gain = kg - prev;
+    const D = lockT - 2.1;
+
+    return {
+      movement: this.props.movement ?? 'WEIGHTED PULL UP',
+      replay: () => { this.t0 = performance.now(); },
+      overlayStyle: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', opacity: clamp(T / 0.35) },
+      cardStyle: { position: 'absolute', top: 62, left: 24, right: 24, borderRadius: 30, padding: '22px 22px 24px', background: '#0e0808', border: `1px solid rgba(255,74,61,${locked ? 0.5 + 0.4 * (1 - imp) : 0.5})`, overflow: 'hidden', boxShadow: `0 0 ${60 + (locked ? 50 * (1 - imp) : 0)}px rgba(255,74,61,${glow})`, opacity: clamp(cardP * 1.6), transform: `translate(${shake}px, ${(1 - eOut(cardP)) * 40}px) scale(${0.9 + 0.1 * eBack(cardP)})` },
+      flashStyle: { position: 'absolute', inset: 0, background: '#ffd6d0', opacity: locked ? 0.2 * (1 - clamp((T - lockT) / 0.25)) : 0, pointerEvents: 'none' },
+      a1: { position: 'relative', marginTop: 20, textAlign: 'center', color: '#d0d0d0', fontSize: 12, fontWeight: 600, letterSpacing: 4, ...fade(0.35, 8) },
+      loadedStyle: { position: 'absolute', left: 0, top: 4, color: passedPrev ? RED : '#8a8a8a', fontSize: 12, fontWeight: 600, letterSpacing: 2, fontVariantNumeric: 'tabular-nums', opacity: T > 0.6 && !locked ? 1 : locked ? 1 - clamp((T - lockT) / 0.3) : 0 },
+      loadedLabel: `LOADED ${fmtKg(loaded)} KG`,
+      pinStyle: { position: 'absolute', left: W / 2 - 6, width: 12, bottom: 7, height: Math.max(0, FLOOR - stackTop + (T >= numStart ? -4 : 26)), borderRadius: '6px 6px 0 0', background: 'linear-gradient(90deg,#2a2a2a,#5a5a5a 45%,#2a2a2a)', opacity: clamp((T - 0.45) / 0.3) },
+      plates,
+      prevLine: { position: 'absolute', left: 0, right: 0, top: prevY - 1, borderTop: `1.5px dashed ${passedPrev ? '#fff' : '#6a3a36'}`, opacity: clamp((T - (0.6 + oldP.length * 0.17 + DROP)) / 0.25) * (locked ? 1 - imp * 0.5 : 1) },
+      prevTag: { position: 'absolute', right: 0, top: prevY - 20, color: passedPrev ? '#fff' : '#8a8a8a', fontSize: 10.5, fontWeight: 600, letterSpacing: 1.4, opacity: clamp((T - (0.6 + oldP.length * 0.17 + DROP)) / 0.25) * (locked ? 1 - imp * 0.5 : 1) },
+      prevKg: fmtKg(prev),
+      dust,
+      waveStyle: { position: 'absolute', left: W / 2 - 110, top: numBottom - 14, width: 220, height: 28, borderRadius: '50%', border: `2px solid ${RED}`, opacity: locked ? (1 - imp) * 0.8 : 0, transform: `scale(${0.4 + eOut(imp) * 1.1}, ${0.4 + eOut(imp) * 0.8})`, pointerEvents: 'none' },
+      numWrap: { position: 'absolute', left: 0, right: 0, top: numY, transform: 'translateY(-100%)', display: 'flex', alignItems: 'flex-end', justifyContent: 'center', gap: 6, opacity: T < numStart ? 0 : 1 },
+      numStyle: { color: '#fff', fontSize: 84, fontWeight: 700, lineHeight: 0.84, fontVariantNumeric: 'tabular-nums', transformOrigin: '50% 100%', transform: `scale(${1 + nsq * 0.14}, ${1 - nsq * 0.2})`, textShadow: locked ? `0 0 ${26 * (1 - imp) + 10}px rgba(255,74,61,.6)` : '0 6px 20px rgba(0,0,0,.6)' },
+      kgVal: fmtKg(kg),
+      a2: { position: 'relative', marginTop: 16, ...fade(2.35 + D) },
+      a3: { position: 'relative', marginTop: 20, display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', padding: '16px 0', borderRadius: 18, background: '#150b0a', border: '1px solid #2a1614', ...fade(2.5 + D) },
+      prevVal: `${fmtKg(prev)} KG`,
+      gainVal: `+${fmtKg(gain)} KG`,
+      gainPct: `+${Math.round((gain / Math.max(1, prev)) * 100)}%`,
+      gainStyle: { color: RED, fontSize: fmtKg(gain).length > 4 ? 20 : 24, fontWeight: 700, display: 'inline-block', whiteSpace: 'nowrap', transform: `scale(${T > 2.5 + D ? 1 + 0.25 * Math.sin(clamp((T - 2.5 - D) / 0.35) * Math.PI) : 1})` },
+      a4: { position: 'relative', marginTop: 18, display: 'flex', justifyContent: 'center', ...fade(2.7 + D, 6) },
+      b1: { height: 56, borderRadius: 16, background: RED, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 2.6, cursor: 'pointer', boxShadow: '0 10px 30px rgba(255,74,61,.3)', ...btn(2.9 + D) },
+      b2: { height: 52, borderRadius: 16, border: '1.5px solid #5a2622', color: '#ff9d94', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, letterSpacing: 2.4, cursor: 'pointer', ...btn(3.0 + D) },
+      b3: { height: 36, color: '#8a8a8a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, letterSpacing: 2.4, cursor: 'pointer', ...btn(3.1 + D) },
+    };
+  }
+}
+</script>
+</body>
+</html>

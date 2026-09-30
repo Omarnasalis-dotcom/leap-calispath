@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#8E6BFF;}
+a:hover{color:#a88cff;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Michroma&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">STATIC PR · CELEBRATION (A)</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">The hold ring fills to your new time, passes your old best, then locks with a frost burst.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">0.0s card rises<br>0.6s ring fills, counter runs<br>· passes PREV marker → it flips white<br>2.1s lock: pulse + crystal burst + number bump<br>2.3s gain chip pops, details fade in<br>2.9s actions slide up</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="height:44px;border-radius:12px;border:1px solid #2a2440;background:#110e1c;color:#8E6BFF;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ replay }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+      REPLAY
+    </div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);flex-shrink:0;">
+
+    <div style="position:absolute;inset:0;padding:60px 24px 0;display:grid;gap:14px;align-content:start;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v20M4 6.5l16 11M20 6.5l-16 11M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"></path></svg>
+        <div style="color:#fff;font-size:34px;font-weight:700;letter-spacing:1.4px;">STATIC WORLD</div>
+      </div>
+      <div style="height:120px;border-radius:22px;background:#0d0d0d;border:1px solid #1a1a1a;margin-top:20px;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+      <div style="height:84px;border-radius:18px;background:#0d0d0d;border:1px solid #1a1a1a;"></div>
+    </div>
+
+    <div style="{{ overlayStyle }}"></div>
+
+    <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;">
+      <div>11:26</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isA }}" hint-placeholder-val="{{ true }}">
+    <div style="{{ cardStyle }}">
+      <div style="position:absolute;inset:0;background:radial-gradient(ellipse at 50% 30%,rgba(142,107,255,.16),transparent 62%);pointer-events:none;"></div>
+      <sc-for list="{{ dust }}" as="d" hint-placeholder-count="0">
+        <div style="{{ d.style }}"></div>
+      </sc-for>
+
+      <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;gap:7px;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#8E6BFF" stroke-width="2.4" stroke-linecap="round"><path d="M12 2v20M4 6.5l16 11M20 6.5l-16 11M9 3.5l3 2.5 3-2.5M9 20.5l3-2.5 3 2.5"></path></svg>
+          <div style="color:#8E6BFF;font-size:11px;font-weight:600;letter-spacing:2.4px;">STATIC WORLD</div>
+        </div>
+        <div style="color:#6a6a6a;font-size:11px;font-weight:500;letter-spacing:1.6px;">SEP 30, 2026</div>
+      </div>
+
+      <div style="{{ a1 }}">NEW PERSONAL RECORD</div>
+
+      <div style="position:relative;width:220px;height:220px;margin:14px auto 0;">
+        <div style="{{ pulseStyle }}"></div>
+        <div style="{{ pulse2Style }}"></div>
+        <svg width="220" height="220" viewBox="0 0 220 220" style="position:absolute;inset:0;transform:rotate(-90deg);overflow:visible;">
+          <circle cx="110" cy="110" r="92" fill="none" stroke="#1c1830" stroke-width="10"></circle>
+          <circle cx="110" cy="110" r="92" fill="none" stroke="#8E6BFF" stroke-width="10" stroke-linecap="round" style="{{ arcStyle }}"></circle>
+        </svg>
+        <div style="{{ markerStyle }}"></div>
+        <div style="{{ markerLabelStyle }}">{{ prevLabel }}</div>
+        <sc-for list="{{ sparks }}" as="p" hint-placeholder-count="0">
+          <div style="{{ p.style }}"></div>
+        </sc-for>
+        <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+          <div style="{{ numStyle }}">{{ count }}</div>
+          <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:3px;margin-top:4px;">SECONDS</div>
+        </div>
+      </div>
+
+      <div style="{{ a2 }}">
+        <div style="color:#fff;font-size:30px;font-weight:700;letter-spacing:1.4px;line-height:1.05;text-align:center;">{{ movement }}</div>
+        <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-top:8px;">
+          <div style="width:22px;height:22px;border-radius:50%;background:#141414;border:1.5px solid #8E6BFF;color:#fff;font-size:9px;font-weight:600;display:flex;align-items:center;justify-content:center;">ON</div>
+          <div style="color:#a0a0a0;font-size:13px;font-weight:500;letter-spacing:1.6px;">@{{ handle }}</div>
+        </div>
+      </div>
+
+      <div style="{{ a3 }}">
+        <div style="padding:0 18px;">
+          <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">PREVIOUS BEST</div>
+          <div style="color:#a0a0a0;font-size:24px;font-weight:600;margin-top:4px;text-decoration:line-through;text-decoration-color:#4a4a4a;">{{ prevVal }}</div>
+        </div>
+        <div style="padding:0 18px;border-left:1px solid #1f1c2c;">
+          <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">GAIN</div>
+          <div style="display:flex;align-items:baseline;gap:6px;margin-top:4px;">
+            <div style="{{ gainStyle }}">{{ gainVal }}</div>
+            <div style="color:#6a6a6a;font-size:12px;font-weight:500;">{{ gainPct }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div style="{{ a4 }}">
+        <div style="height:30px;padding:0 14px;border-radius:15px;border:1px solid #2a2440;display:flex;align-items:center;color:#fff;font-family:'Michroma','Oswald',sans-serif;font-size:11px;letter-spacing:2px;font-style:normal;">LEAP ARENA</div>
+      </div>
+    </div>
+    </sc-if>
+
+    <div style="position:absolute;left:24px;right:24px;bottom:40px;display:grid;gap:12px;">
+      <div style="{{ b1 }}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+        SHARE
+      </div>
+      <div style="{{ b2 }}">SAVE TO PHOTOS</div>
+      <div style="{{ b3 }}" onClick="{{ replay }}">DISMISS</div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;time&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:11,&quot;min&quot;:2,&quot;max&quot;:120,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Result&quot;},&quot;previousBest&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:8,&quot;min&quot;:0,&quot;max&quot;:119,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Result&quot;},&quot;movement&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;WALL HANDSTAND&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Result&quot;}}">
+const P = '#8E6BFF';
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const eOut = (t) => 1 - Math.pow(1 - t, 3);
+const eInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const eBack = (t) => { const c = 1.5; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const R = 92, C = 2 * Math.PI * R;
+const SPARKS = Array.from({ length: 18 }, (_, i) => ({ a: (i / 18) * Math.PI * 2 + (i % 2 ? 0.12 : -0.08), d: 44 + (i % 3) * 16, s: i % 3 === 0 ? 8 : 5, w: i % 4 === 0 }));
+const DUST = Array.from({ length: 12 }, (_, i) => ({ x: (i * 53 + 17) % 330, y: (i * 97 + 40) % 560, s: 2 + (i % 3), v: 8 + (i % 4) * 4 }));
+
+class Component extends DCLogic {
+  state = { t: 0 };
+  componentDidMount() {
+    this.t0 = performance.now();
+    const loop = () => { this.setState({ t: (performance.now() - this.t0) / 1000 }); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  renderVals() {
+    const T = this.state.t;
+    const time = Math.max(1, this.props.time ?? 11);
+    const prev = Math.min(time - 1, Math.max(0, this.props.previousBest ?? 8));
+    const cardP = clamp((T - 0.05) / 0.55);
+    const fillP = eInOut(clamp((T - 0.6) / 1.5));
+    const lockT = 2.1;
+    const burst = clamp((T - lockT) / 0.9);
+    const passed = fillP * time >= prev;
+    const bump = T > lockT && T < lockT + 0.4 ? Math.sin(((T - lockT) / 0.4) * Math.PI) : 0;
+    const locked = T >= lockT;
+    const fade = (st, dy = 14, dur = 0.5) => { const p = eOut(clamp((T - st) / dur)); return { opacity: p, transform: `translateY(${(1 - p) * dy}px)` }; };
+
+    const ang = (prev / time) * Math.PI * 2 - Math.PI / 2;
+    const mx = 110 + R * Math.cos(ang), my = 110 + R * Math.sin(ang);
+    const lx = 110 + (R + 26) * Math.cos(ang), ly = 110 + (R + 26) * Math.sin(ang);
+    const markIn = clamp((T - 0.5) / 0.3);
+
+    const sparks = T > lockT && burst < 1 ? SPARKS.map((s) => {
+      const p = eOut(burst), r = R + p * s.d;
+      return { style: { position: 'absolute', left: 110 + r * Math.cos(s.a) - s.s / 2, top: 110 + r * Math.sin(s.a) - s.s / 2, width: s.s, height: s.s, background: s.w ? '#fff' : P, opacity: 1 - burst, transform: `rotate(${45 + p * 90}deg) scale(${1 - burst * 0.5})`, boxShadow: `0 0 8px ${P}` } };
+    }) : [];
+
+    const dust = DUST.map((d) => ({ style: { position: 'absolute', left: d.x, top: ((d.y - T * d.v) % 560 + 560) % 560, width: d.s, height: d.s, borderRadius: '50%', background: 'rgba(190,172,255,.5)', opacity: clamp((T - 2.2) / 1) * 0.6, pointerEvents: 'none' } }));
+
+    const glow = locked ? 0.28 + 0.2 * (1 - burst) : 0.12 + fillP * 0.1;
+    const btn = (st) => { const p = eOut(clamp((T - st) / 0.5)); return { opacity: p, transform: `translateY(${(1 - p) * 24}px)` }; };
+
+    return {
+      isA: true,
+      newVal: `${time}s`,
+      movement: this.props.movement ?? 'WALL HANDSTAND',
+      handle: this.props.handle ?? 'OMARNASALI',
+      replay: () => { this.t0 = performance.now(); },
+      overlayStyle: { position: 'absolute', inset: 0, background: 'rgba(0,0,0,.78)', backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', opacity: clamp(T / 0.35) },
+      cardStyle: { position: 'absolute', top: 70, left: 24, right: 24, borderRadius: 30, padding: '22px 22px 24px', background: '#0b0a12', border: '1px solid rgba(142,107,255,.5)', overflow: 'hidden', boxShadow: `0 0 ${60 + (locked ? 40 * (1 - burst) : 0)}px rgba(142,107,255,${glow})`, opacity: clamp(cardP * 1.6), transform: `translateY(${(1 - eOut(cardP)) * 40}px) scale(${0.9 + 0.1 * eBack(cardP)})` },
+      a1: { position: 'relative', marginTop: 20, textAlign: 'center', color: '#d0d0d0', fontSize: 12, fontWeight: 600, letterSpacing: 4, ...fade(0.35, 8) },
+      arcStyle: { strokeDasharray: C, strokeDashoffset: C * (1 - fillP), filter: `drop-shadow(0 0 ${6 + bump * 10}px rgba(142,107,255,.7))` },
+      pulseStyle: { position: 'absolute', inset: 13, borderRadius: '50%', border: `2px solid ${P}`, opacity: locked ? (1 - burst) * 0.7 : 0, transform: `scale(${1 + eOut(burst) * 0.45})` },
+      pulse2Style: { position: 'absolute', inset: 13, borderRadius: '50%', background: `radial-gradient(circle, rgba(142,107,255,${0.35 * (1 - burst)}) 0%, transparent 70%)`, opacity: locked ? 1 : 0 },
+      markerStyle: { position: 'absolute', left: mx - 7, top: my - 7, width: 14, height: 14, borderRadius: '50%', boxSizing: 'border-box', background: passed ? '#fff' : '#0b0a12', border: `2px solid ${passed ? '#fff' : '#5a5270'}`, opacity: markIn * (locked ? 1 - burst * 0.6 : 1), transform: `scale(${passed && !locked ? 1.25 : 1})`, transition: 'transform .2s, background .2s' },
+      markerLabelStyle: { position: 'absolute', left: lx - 30, top: ly - 9, width: 60, textAlign: 'center', color: passed ? '#fff' : '#6a6a6a', fontSize: 10.5, fontWeight: 600, letterSpacing: 1.4, opacity: markIn * (locked ? 1 - burst : 1) },
+      prevLabel: `PREV ${prev}s`,
+      sparks, dust,
+      count: Math.round(fillP * time),
+      numStyle: { color: '#fff', fontSize: 92, fontWeight: 700, lineHeight: 1, fontVariantNumeric: 'tabular-nums', transform: `scale(${1 + bump * 0.14})`, textShadow: locked ? `0 0 ${24 * (1 - burst) + 10}px rgba(142,107,255,.55)` : 'none' },
+      a2: { position: 'relative', marginTop: 18, ...fade(2.35) },
+      a3: { position: 'relative', marginTop: 20, display: 'grid', gridTemplateColumns: 'repeat(2,minmax(0,1fr))', padding: '16px 0', borderRadius: 18, background: '#100e1a', border: '1px solid #1f1c2c', ...fade(2.5) },
+      prevVal: `${prev}s`,
+      gainVal: `+${time - prev}s`,
+      gainPct: `+${Math.round(((time - prev) / Math.max(1, prev)) * 100)}%`,
+      gainStyle: { color: P, fontSize: 24, fontWeight: 700, display: 'inline-block', transform: `scale(${T > 2.5 ? 1 + 0.25 * Math.sin(clamp((T - 2.5) / 0.35) * Math.PI) : 1})` },
+      a4: { position: 'relative', marginTop: 18, display: 'flex', justifyContent: 'center', ...fade(2.7, 6) },
+      b1: { height: 56, borderRadius: 16, background: P, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: 2.6, cursor: 'pointer', boxShadow: '0 10px 30px rgba(142,107,255,.3)', ...btn(2.9) },
+      b2: { height: 52, borderRadius: 16, border: '1.5px solid #3a3160', color: '#c9bbff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, letterSpacing: 2.4, cursor: 'pointer', ...btn(3.0) },
+      b3: { height: 36, color: '#8a8a8a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 13, fontWeight: 500, letterSpacing: 2.4, cursor: 'pointer', ...btn(3.1) },
+    };
+  }
+}
+</script>
+</body>
+</html>
