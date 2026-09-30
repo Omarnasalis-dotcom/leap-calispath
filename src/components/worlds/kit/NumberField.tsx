@@ -55,7 +55,9 @@ export function NumberField({
             textAlign: 'center',
             fontFamily: WORLD_FONTS.bold,
             fontSize,
-            lineHeight: fontSize * 1.15,
+            // No lineHeight: on iOS a forced line box shorter than Oswald's
+            // natural one pushes the digits up past the box's top border.
+            height: Math.round(fontSize * 1.3),
             color: t.text,
             includeFontPadding: false,
           }}
