@@ -1,0 +1,566 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7b7b;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">WEEKLY CHALLENGE · V1</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">One challenge a week. The hero card tells you the format, the rule and where you stand.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">· FOR TIME: tick off each movement live. Fastest time ranks first.<br>· AMRAP: countdown + tap per round. When time's up, log rounds and the reps from the unfinished round. Points add up live.<br>· Leaderboard uses the same podium as the worlds.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">Switch format and timer speed in Tweaks. Tap ◀ to see last week's final standings.</div>
+  </div>
+
+  <div style="position:relative;width:402px;height:874px;border-radius:44px;overflow:hidden;background:#000;border:1px solid #1a1a1a;box-shadow:0 40px 90px rgba(0,0,0,.9);flex-shrink:0;">
+
+    <div style="position:absolute;top:0;left:0;right:0;z-index:5;display:flex;align-items:center;justify-content:space-between;padding:16px 30px 0;color:#fff;font-size:15px;font-weight:600;">
+      <div>11:12</div>
+      <div style="display:flex;gap:5px;align-items:center;">
+        <div style="width:16px;height:10px;border-radius:2px;background:#fff;"></div>
+        <div style="width:24px;height:11px;border-radius:3px;background:#fff;"></div>
+      </div>
+    </div>
+
+    <sc-if value="{{ isOverview }}" hint-placeholder-val="{{ true }}">
+      <div style="position:absolute;inset:0;">
+        <div style="position:absolute;top:44px;left:0;right:0;bottom:0;overflow-y:auto;overflow-x:hidden;padding-bottom:120px;box-sizing:border-box;">
+
+          <div style="display:flex;align-items:center;gap:14px;padding:14px 24px 0;">
+            <div style="width:40px;height:40px;border-radius:12px;background:#111;border:1px solid #1f1f1f;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+            </div>
+            <div>
+              <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2.4px;">LEAP ARENA</div>
+              <div style="color:#fff;font-size:24px;font-weight:700;letter-spacing:1.4px;line-height:1.1;margin-top:2px;">WEEKLY CHALLENGE</div>
+            </div>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:20px 24px 0;">
+            <div style="{{ prevBtn }}" onClick="{{ prevWeek }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"></path></svg>
+            </div>
+            <div style="display:grid;justify-items:center;gap:6px;">
+              <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:1.6px;">{{ weekRange }}</div>
+              <div style="{{ weekChip }}">{{ weekStatus }}</div>
+            </div>
+            <div style="{{ nextBtn }}" onClick="{{ nextWeek }}">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"></path></svg>
+            </div>
+          </div>
+
+          <div style="padding:18px 24px 0;">
+            <div style="{{ heroStyle }}">
+              <div style="{{ ghostStyle }}">{{ weekNum }}</div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+                <div style="padding:4px 10px;border-radius:8px;border:1px solid #2a2a2a;color:#d0d0d0;font-size:10.5px;font-weight:600;letter-spacing:1.6px;">WARRIORS · TIER 3–6</div>
+                <div style="padding:4px 10px;border-radius:8px;background:#FC5454;color:#000;font-size:10.5px;font-weight:700;letter-spacing:1.6px;">{{ ch.chip }}</div>
+              </div>
+              <div style="position:relative;margin-top:22px;color:#fff;font-size:44px;font-weight:700;letter-spacing:1.2px;line-height:1;">{{ ch.name }}</div>
+              <div style="position:relative;margin-top:8px;color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:3px;">{{ ch.level }}</div>
+              <div style="position:relative;margin-top:14px;color:#d0d0d0;font-size:14px;font-weight:300;line-height:1.5;text-wrap:pretty;">{{ ch.rule }}</div>
+              <div style="position:relative;margin-top:18px;display:grid;grid-template-columns:repeat(3,minmax(0,1fr));border-top:1px solid #1f1f1f;padding-top:14px;">
+                <div>
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">YOUR BEST</div>
+                  <div style="{{ bestStyle }}">{{ bestVal }}</div>
+                </div>
+                <div style="border-left:1px solid #1f1f1f;padding-left:14px;">
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">RANK</div>
+                  <div style="display:flex;align-items:baseline;gap:4px;margin-top:4px;">
+                    <div style="{{ rankStyle }}">{{ rankVal }}</div>
+                    <div style="color:#6a6a6a;font-size:11.5px;font-weight:400;">{{ rankOf }}</div>
+                  </div>
+                </div>
+                <div style="border-left:1px solid #1f1f1f;padding-left:14px;">
+                  <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">GAP TO #1</div>
+                  <div style="{{ gapStyle }}">{{ gapVal }}</div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div style="padding:28px 24px 0;display:grid;gap:10px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;">
+              <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">MOVEMENTS</div>
+              <div style="color:#d0d0d0;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ moveMeta }}</div>
+            </div>
+            <sc-for list="{{ moves }}" as="m" hint-placeholder-count="4">
+              <div style="display:flex;align-items:center;gap:14px;min-height:60px;padding:0 16px;border-radius:14px;background:#0d0d0d;border:1px solid #1a1a1a;">
+                <div style="width:26px;height:26px;border-radius:50%;background:#1a0f0f;color:#FC5454;font-size:12px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;">{{ m.i }}</div>
+                <div style="flex:1;min-width:0;">
+                  <div style="color:#fff;font-size:16px;font-weight:500;letter-spacing:.4px;">{{ m.name }}</div>
+                  <sc-if value="{{ m.isAmrap }}" hint-placeholder-val="{{ false }}">
+                    <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;margin-top:1px;">{{ m.rate }}</div>
+                  </sc-if>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:4px;">
+                  <div style="color:#fff;font-size:22px;font-weight:600;">{{ m.reps }}</div>
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">REPS</div>
+                </div>
+                <sc-if value="{{ m.isAmrap }}" hint-placeholder-val="{{ false }}">
+                  <div style="min-width:54px;text-align:right;color:#FC5454;font-size:14px;font-weight:600;letter-spacing:.6px;">{{ m.pts }}</div>
+                </sc-if>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="padding:32px 24px 0;display:grid;gap:16px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;">
+              <div style="color:#fff;font-size:19px;font-weight:600;letter-spacing:2px;">{{ boardTitle }}</div>
+              <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1.4px;">{{ boardCount }}</div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;align-items:end;padding-top:6px;">
+              <sc-for list="{{ podium }}" as="p" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;align-items:center;gap:8px;min-width:0;">
+                  <div style="{{ p.avatar }}">{{ p.init }}</div>
+                  <div style="display:grid;justify-items:center;gap:1px;max-width:100%;">
+                    <div style="{{ p.nameStyle }}">{{ p.name }}</div>
+                    <div style="color:#fff;font-size:16px;font-weight:600;">{{ p.val }}</div>
+                  </div>
+                  <div style="{{ p.block }}">
+                    <div style="{{ p.rankStyle }}">{{ p.rank }}</div>
+                    <div style="color:#6a6a6a;font-size:10px;font-weight:600;letter-spacing:1px;">{{ p.cc }}</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+            <sc-if value="{{ showYouRow }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;align-items:center;gap:12px;height:62px;padding:0 16px;border-radius:16px;background:rgba(252,84,84,.07);border:1px solid rgba(252,84,84,.4);">
+                <div style="width:34px;color:#FC5454;font-size:18px;font-weight:700;">{{ youRank }}</div>
+                <div style="flex:1;min-width:0;display:flex;align-items:center;gap:8px;">
+                  <div style="color:#fff;font-size:14px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">Omarnasali</div>
+                  <div style="padding:1px 6px;border-radius:5px;background:#FC5454;color:#000;font-size:10px;font-weight:700;letter-spacing:1.2px;">YOU</div>
+                </div>
+                <div style="text-align:right;">
+                  <div style="color:#fff;font-size:16px;font-weight:600;">{{ youVal }}</div>
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;">{{ youGap }}</div>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ showAll }}" hint-placeholder-val="{{ false }}">
+              <div style="border-radius:16px;border:1px solid #1a1a1a;overflow:hidden;background:#0a0a0a;">
+                <sc-for list="{{ rows }}" as="r" hint-placeholder-count="6">
+                  <div style="{{ r.row }}">
+                    <div style="{{ r.rankStyle }}">{{ r.rank }}</div>
+                    <div style="width:26px;height:18px;border-radius:4px;background:#1a1a1a;color:#a0a0a0;font-size:10px;font-weight:600;display:flex;align-items:center;justify-content:center;">{{ r.cc }}</div>
+                    <div style="{{ r.nameStyle }}">{{ r.name }}</div>
+                    <div style="text-align:right;">
+                      <div style="color:#fff;font-size:15px;font-weight:600;">{{ r.val }}</div>
+                      <div style="color:#6a6a6a;font-size:10.5px;font-weight:500;">{{ r.gap }}</div>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </sc-if>
+            <div style="height:48px;border-radius:14px;background:#111;border:1px solid #1f1f1f;display:flex;align-items:center;justify-content:center;gap:8px;color:#d0d0d0;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ toggleAll }}">{{ allLabel }}</div>
+          </div>
+        </div>
+
+        <sc-if value="{{ isLiveWeek }}" hint-placeholder-val="{{ true }}">
+          <div style="position:absolute;left:0;right:0;bottom:0;padding:26px 24px 32px;background:linear-gradient(rgba(0,0,0,0),#000 38%);">
+            <div style="height:56px;border-radius:16px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;font-weight:700;letter-spacing:2.6px;cursor:pointer;box-shadow:0 10px 30px rgba(252,84,84,.25);" onClick="{{ start }}">{{ ctaLabel }}</div>
+          </div>
+        </sc-if>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isActive }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:44px;left:0;right:0;bottom:0;display:flex;flex-direction:column;">
+        <div style="display:flex;align-items:center;justify-content:space-between;padding:14px 24px 0;">
+          <div style="width:40px;height:40px;border-radius:12px;background:#111;border:1px solid #1f1f1f;display:flex;align-items:center;justify-content:center;cursor:pointer;" onClick="{{ cancel }}">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#d0d0d0" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+          </div>
+          <div style="display:grid;justify-items:center;gap:2px;">
+            <div style="color:#FC5454;font-size:12px;font-weight:600;letter-spacing:3px;">{{ ch.chip }}</div>
+            <div style="color:#fff;font-size:15px;font-weight:600;letter-spacing:1.6px;">{{ ch.name }}</div>
+          </div>
+          <div style="width:40px;"></div>
+        </div>
+
+        <div style="display:grid;justify-items:center;padding:30px 24px 0;">
+          <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2.4px;">{{ timerLabel }}</div>
+          <div style="color:#fff;font-size:96px;font-weight:700;line-height:1;letter-spacing:2px;font-variant-numeric:tabular-nums;margin-top:6px;">{{ timerText }}</div>
+          <div style="width:100%;height:4px;border-radius:2px;background:#1f1f1f;margin-top:20px;overflow:hidden;">
+            <div style="{{ progStyle }}"></div>
+          </div>
+          <div style="color:#d0d0d0;font-size:12px;font-weight:500;letter-spacing:1.6px;margin-top:10px;">{{ progLabel }}</div>
+        </div>
+
+        <sc-if value="{{ isForTime }}" hint-placeholder-val="{{ true }}">
+          <div style="padding:26px 24px 0;display:grid;gap:8px;">
+            <sc-for list="{{ steps }}" as="s" hint-placeholder-count="4">
+              <div style="{{ s.row }}">
+                <div style="{{ s.idx }}">{{ s.idxLabel }}</div>
+                <div style="flex:1;min-width:0;">
+                  <sc-if value="{{ s.isCur }}" hint-placeholder-val="{{ false }}">
+                    <div style="color:#FC5454;font-size:10.5px;font-weight:600;letter-spacing:2px;">NOW</div>
+                  </sc-if>
+                  <div style="{{ s.nameStyle }}">{{ s.name }}</div>
+                </div>
+                <div style="display:flex;align-items:baseline;gap:4px;">
+                  <div style="{{ s.repsStyle }}">{{ s.reps }}</div>
+                  <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">REPS</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ isAmrap }}" hint-placeholder-val="{{ false }}">
+          <div style="margin:26px 24px 0;border-radius:22px;background:#0d0d0d;border:1px solid #1f1f1f;padding:20px;display:grid;gap:18px;">
+            <div style="display:flex;align-items:flex-end;justify-content:space-between;">
+              <div>
+                <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">ROUNDS DONE</div>
+                <div style="color:#fff;font-size:68px;font-weight:700;line-height:1;margin-top:4px;">{{ rounds }}</div>
+              </div>
+              <div style="text-align:right;">
+                <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">NOW ON</div>
+                <div style="color:#FC5454;font-size:20px;font-weight:600;letter-spacing:1.4px;margin-top:2px;">ROUND {{ roundNow }}</div>
+              </div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;">
+              <sc-for list="{{ moves }}" as="m" hint-placeholder-count="4">
+                <div style="padding:10px 12px;border-radius:12px;background:#141414;">
+                  <div style="color:#a0a0a0;font-size:12.5px;font-weight:400;letter-spacing:.4px;">{{ m.name }}</div>
+                  <div style="display:flex;align-items:baseline;gap:4px;margin-top:2px;">
+                    <div style="color:#fff;font-size:20px;font-weight:600;">{{ m.reps }}</div>
+                    <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:1.2px;">REPS</div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <div style="margin-top:auto;padding:0 24px 34px;display:grid;gap:14px;">
+          <div style="height:60px;border-radius:16px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:2.4px;cursor:pointer;" onClick="{{ activeAction }}">{{ activeCta }}</div>
+          <sc-if value="{{ isAmrap }}" hint-placeholder-val="{{ false }}">
+            <div style="text-align:center;color:#8a8a8a;font-size:13px;font-weight:500;letter-spacing:2px;cursor:pointer;" onClick="{{ endEarly }}">END &amp; LOG SCORE</div>
+          </sc-if>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isLogFT }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:44px;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:0 24px 34px;">
+        <div style="display:grid;justify-items:center;text-align:center;padding-top:110px;">
+          <div style="color:#FC5454;font-size:12px;font-weight:600;letter-spacing:3px;">FINISHED · {{ ch.name }}</div>
+          <div style="color:#fff;font-size:112px;font-weight:700;line-height:1;letter-spacing:2px;margin-top:14px;font-variant-numeric:tabular-nums;">{{ resultText }}</div>
+          <div style="{{ pillStyle }}">{{ pillText }}</div>
+        </div>
+        <div style="margin-top:44px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-radius:18px;background:#0d0d0d;border:1px solid #1f1f1f;padding:18px 0;">
+          <div style="padding:0 20px;">
+            <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">THIS RANKS</div>
+            <div style="display:flex;align-items:baseline;gap:5px;margin-top:4px;">
+              <div style="color:#fff;font-size:28px;font-weight:600;">{{ projRank }}</div>
+              <div style="color:#6a6a6a;font-size:12px;">of {{ projCount }}</div>
+            </div>
+          </div>
+          <div style="padding:0 20px;border-left:1px solid #1f1f1f;">
+            <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">GAP TO #1</div>
+            <div style="color:#fff;font-size:28px;font-weight:600;margin-top:4px;">{{ projGap }}</div>
+          </div>
+        </div>
+        <div style="margin-top:auto;display:grid;gap:14px;">
+          <div style="height:60px;border-radius:16px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:2.4px;cursor:pointer;" onClick="{{ submit }}">SUBMIT RESULT</div>
+          <div style="text-align:center;color:#8a8a8a;font-size:13px;font-weight:500;letter-spacing:2px;cursor:pointer;" onClick="{{ cancel }}">DISCARD</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isLogAM }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:44px;left:0;right:0;bottom:0;display:flex;flex-direction:column;">
+        <div style="flex:1;min-height:0;overflow-y:auto;padding:26px 24px 20px;display:grid;gap:14px;align-content:start;">
+          <div>
+            <div style="color:#FC5454;font-size:12px;font-weight:600;letter-spacing:3px;">TIME'S UP · {{ ch.name }}</div>
+            <div style="color:#fff;font-size:32px;font-weight:700;letter-spacing:1.4px;margin-top:4px;">LOG YOUR SCORE</div>
+          </div>
+
+          <div style="border-radius:20px;background:#0d0d0d;border:1px solid #1f1f1f;padding:18px 18px 16px;display:grid;gap:12px;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;">
+              <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">FULL ROUNDS</div>
+              <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1.2px;">× {{ roundPts }} PTS</div>
+            </div>
+            <div style="display:flex;align-items:center;justify-content:space-between;">
+              <div style="width:52px;height:52px;border-radius:14px;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:500;cursor:pointer;" onClick="{{ decRounds }}">−</div>
+              <div style="color:#fff;font-size:64px;font-weight:700;line-height:1;">{{ logRounds }}</div>
+              <div style="width:52px;height:52px;border-radius:14px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600;cursor:pointer;" onClick="{{ incRounds }}">+</div>
+            </div>
+            <div style="text-align:center;color:#d0d0d0;font-size:13px;font-weight:500;letter-spacing:1.4px;">{{ roundsPtsLabel }}</div>
+          </div>
+
+          <div style="border-radius:20px;background:#0d0d0d;border:1px solid #1f1f1f;padding:18px 18px 8px;">
+            <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">UNFINISHED ROUND</div>
+            <div style="color:#6a6a6a;font-size:12.5px;font-weight:300;margin-top:3px;">Reps you got done before the clock hit zero.</div>
+            <div style="display:grid;margin-top:8px;">
+              <sc-for list="{{ partials }}" as="q" hint-placeholder-count="4">
+                <div style="display:flex;align-items:center;gap:10px;height:58px;border-top:1px solid #181818;">
+                  <div style="flex:1;min-width:0;">
+                    <div style="color:#fff;font-size:15px;font-weight:500;">{{ q.name }}</div>
+                    <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:1.2px;">{{ q.rate }}</div>
+                  </div>
+                  <div style="width:36px;height:36px;border-radius:10px;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;" onClick="{{ q.dec }}">−</div>
+                  <div style="width:62px;text-align:center;display:flex;align-items:baseline;justify-content:center;gap:2px;">
+                    <div style="{{ q.valStyle }}">{{ q.val }}</div>
+                    <div style="color:#6a6a6a;font-size:12px;">/ {{ q.max }}</div>
+                  </div>
+                  <div style="width:36px;height:36px;border-radius:10px;background:#1a1a1a;color:#fff;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;" onClick="{{ q.inc }}">+</div>
+                  <div style="width:52px;text-align:right;color:#FC5454;font-size:14px;font-weight:600;">{{ q.pts }}</div>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+
+          <div style="border-radius:20px;background:#130909;border:1px solid rgba(252,84,84,.45);padding:18px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+            <div>
+              <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">TOTAL SCORE</div>
+              <div style="display:flex;align-items:baseline;gap:6px;margin-top:2px;">
+                <div style="color:#fff;font-size:44px;font-weight:700;line-height:1;">{{ totalPts }}</div>
+                <div style="color:#FC5454;font-size:14px;font-weight:600;letter-spacing:1.4px;">PTS</div>
+              </div>
+              <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:1px;margin-top:6px;">{{ totalBreak }}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:#8a8a8a;font-size:11px;font-weight:500;letter-spacing:2px;">RANKS</div>
+              <div style="color:#fff;font-size:30px;font-weight:600;line-height:1.1;margin-top:2px;">{{ projRank }}</div>
+              <div style="color:#6a6a6a;font-size:11.5px;">of {{ projCount }}</div>
+            </div>
+          </div>
+        </div>
+        <div style="padding:10px 24px 34px;display:grid;gap:14px;border-top:1px solid #111;">
+          <div style="height:60px;border-radius:16px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:2.4px;cursor:pointer;" onClick="{{ submit }}">SUBMIT SCORE</div>
+          <div style="text-align:center;color:#8a8a8a;font-size:13px;font-weight:500;letter-spacing:2px;cursor:pointer;" onClick="{{ cancel }}">DISCARD</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ isDone }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;top:44px;left:0;right:0;bottom:0;display:flex;flex-direction:column;padding:0 24px 34px;">
+        <div style="display:grid;justify-items:center;text-align:center;padding-top:96px;">
+          <div style="width:64px;height:64px;border-radius:50%;background:#FC5454;display:flex;align-items:center;justify-content:center;box-shadow:0 0 0 8px rgba(252,84,84,.14);">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="#000" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"></path></svg>
+          </div>
+          <div style="color:#8a8a8a;font-size:12px;font-weight:500;letter-spacing:3px;margin-top:28px;">YOUR RANK THIS WEEK</div>
+          <div style="color:#fff;font-size:128px;font-weight:700;line-height:1;margin-top:6px;">{{ doneRank }}</div>
+          <div style="{{ deltaStyle }}">{{ deltaText }}</div>
+        </div>
+        <div style="margin-top:40px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));border-radius:18px;background:#0d0d0d;border:1px solid #1f1f1f;padding:18px 0;">
+          <div style="padding:0 20px;">
+            <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">THIS RESULT</div>
+            <div style="color:#fff;font-size:26px;font-weight:600;margin-top:4px;">{{ doneScore }}</div>
+          </div>
+          <div style="padding:0 20px;border-left:1px solid #1f1f1f;">
+            <div style="color:#8a8a8a;font-size:10.5px;font-weight:500;letter-spacing:2px;">YOUR BEST</div>
+            <div style="color:#fff;font-size:26px;font-weight:600;margin-top:4px;">{{ doneBest }}</div>
+          </div>
+        </div>
+        <div style="text-align:center;color:#8a8a8a;font-size:13px;font-weight:300;margin-top:16px;">{{ doneNote }}</div>
+        <div style="margin-top:auto;height:60px;border-radius:16px;background:#FC5454;color:#000;display:flex;align-items:center;justify-content:center;font-size:16px;font-weight:700;letter-spacing:2.4px;cursor:pointer;" onClick="{{ backHome }}">BACK TO CHALLENGE</div>
+      </div>
+    </sc-if>
+
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;format&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;forTime&quot;,&quot;amrap&quot;],&quot;default&quot;:&quot;forTime&quot;,&quot;tsType&quot;:&quot;'forTime'|'amrap'&quot;,&quot;section&quot;:&quot;Challenge&quot;},&quot;hasEntry&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Challenge&quot;},&quot;timerSpeed&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;1x&quot;,&quot;10x&quot;,&quot;60x&quot;],&quot;default&quot;:&quot;10x&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Prototype&quot;}}">
+const CORAL = '#FC5454';
+const GOLD = '#E8B64C', SILVER = '#C9CED6', BRONZE = '#C98B5A';
+const RC = [GOLD, SILVER, BRONZE];
+const CH = {
+  forTime: { fmt: 'forTime', chip: 'FOR TIME', name: '100 CHALLENGE', level: 'INTERMEDIATE', rule: 'Finish every rep, in order. Fastest time takes #1.', moves: [['Pull ups', 20], ['Dips', 20], ['Push ups', 30], ['Squats', 30]], mine: 722 },
+  amrap: { fmt: 'amrap', chip: 'AMRAP · 12 MIN', name: 'ENGINE 12', level: 'INTERMEDIATE', rule: 'As many rounds as you can in 12:00. Every rep scores points — most points takes #1.', cap: 720, moves: [['Pull ups', 5, 3], ['Dips', 10, 2], ['Push ups', 15, 1], ['Squats', 20, 1]], mine: 386 },
+};
+const NAMES = ['Omar', 'Ali Alaa', 'Karim Saad', 'Youssef T', 'Hana Magdy', 'Mostafa R', 'Nour E', 'Ziad K', 'Laila F', 'Seif A', 'Malak H', 'Tarek M', 'Salma Z', 'Adham N', 'Farida S', 'Hassan B', 'Mariam O', 'Amr L', 'Rana G', 'Khaled W', 'Dina R', 'Hazem Y', 'Jana T'];
+const CC = ['EG', 'EG', 'SA', 'EG', 'AE', 'EG', 'JO', 'EG', 'LB', 'EG', 'KW', 'EG', 'EG', 'QA', 'EG', 'MA', 'EG', 'EG', 'TN', 'EG', 'EG', 'EG', 'BH'];
+const VALS = {
+  forTime: [508, 595, 760, 795, 842, 910, 955, 1002, 1060, 1094, 1130, 1188, 1215, 1262, 1300, 1345, 1390, 1432, 1480, 1530, 1590, 1655, 1720],
+  amrap: [482, 455, 420, 401, 372, 350, 338, 321, 305, 290, 276, 262, 250, 238, 225, 212, 200, 186, 170, 158, 140, 122, 96],
+};
+const WEEKS = [{ range: 'SEP 26 – OCT 2', num: '39' }, { range: 'SEP 19 – SEP 25', num: '38' }];
+const mmss = (s) => { s = Math.max(0, Math.round(s)); return Math.floor(s / 60) + ':' + String(s % 60).padStart(2, '0'); };
+const roundPts = (ch) => ch.moves.reduce((a, m) => a + m[1] * m[2], 0);
+
+class Component extends DCLogic {
+  state = { week: 0, screen: 'overview', t: 0, running: false, step: 0, rounds: 0, logRounds: 0, partial: [0, 0, 0, 0], best: {}, showAll: false, last: null, result: 0 };
+  componentDidMount() { this.iv = setInterval(() => this.tick(), 100); }
+  componentWillUnmount() { clearInterval(this.iv); }
+  liveFmt() { return this.props.format === 'amrap' ? 'amrap' : 'forTime'; }
+  speed() { const s = this.props.timerSpeed; return s === '1x' ? 1 : s === '60x' ? 60 : 10; }
+  tick() {
+    if (!this.state.running) return;
+    const ch = CH[this.liveFmt()], sp = this.speed();
+    this.setState((s) => {
+      const t = s.t + 0.1 * sp;
+      if (ch.cap && t >= ch.cap) return { t: ch.cap, running: false, screen: 'log', logRounds: s.rounds, partial: [0, 0, 0, 0] };
+      return { t };
+    });
+  }
+  mine(f, live) {
+    if (live && this.state.best[f] !== undefined) return this.state.best[f];
+    return this.props.hasEntry === false ? null : CH[f].mine;
+  }
+  board(f, mine) {
+    const L = NAMES.map((n, i) => ({ name: n, cc: CC[i], v: VALS[f][i] }));
+    if (mine != null) L.push({ name: 'Omarnasali', cc: 'EG', v: mine, you: true });
+    L.sort((a, b) => (f === 'forTime' ? a.v - b.v : b.v - a.v));
+    return L;
+  }
+  val(f, v) { return v == null ? '—' : f === 'forTime' ? mmss(v) : v + ' PTS'; }
+  gap(f, top, v) { return f === 'forTime' ? '+' + mmss(v - top) : '−' + (top - v) + ' PTS'; }
+  better(f, a, b) { return b == null || (f === 'forTime' ? a < b : a > b); }
+  rankOf(f, v) { return this.board(f, v).findIndex((e) => e.you) + 1; }
+  score() {
+    const s = this.state, f = this.liveFmt(), ch = CH[f];
+    if (f === 'forTime') return s.result;
+    return s.logRounds * roundPts(ch) + s.partial.reduce((a, r, i) => a + r * ch.moves[i][2], 0);
+  }
+
+  renderVals() {
+    const s = this.state;
+    const live = s.week === 0;
+    const f = live ? this.liveFmt() : (this.liveFmt() === 'amrap' ? 'forTime' : 'amrap');
+    const ch = CH[f];
+    const isAm = f === 'amrap';
+    const mine = this.mine(f, live);
+    const B = this.board(f, mine);
+    const top = B[0].v;
+    const myRank = mine != null ? B.findIndex((e) => e.you) + 1 : 0;
+    const isLead = myRank === 1;
+    const rp = isAm ? roundPts(ch) : 0;
+
+    const navBtn = (on) => ({ width: 36, height: 36, borderRadius: 11, background: on ? '#111' : 'transparent', border: `1px solid ${on ? '#1f1f1f' : '#141414'}`, color: on ? '#fff' : '#3a3a3a', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: on ? 'pointer' : 'default' });
+    const stat = (c) => ({ color: c, fontSize: 24, fontWeight: 600, lineHeight: 1, marginTop: 4 });
+
+    const moves = ch.moves.map((m, i) => ({ i: i + 1, name: m[0], reps: m[1], isAmrap: isAm, rate: isAm ? `${m[2]} PT${m[2] > 1 ? 'S' : ''} / REP` : '', pts: isAm ? `${m[1] * m[2]} PTS` : '' }));
+
+    const podium = [1, 0, 2].map((ix) => {
+      const e = B[ix], first = ix === 0, col = RC[ix];
+      return {
+        init: e.name.split(' ').map((w) => w[0]).join('').slice(0, 2).toUpperCase(),
+        name: e.you ? 'You' : e.name, val: this.val(f, e.v), rank: ix + 1, cc: e.cc,
+        avatar: { width: first ? 56 : 44, height: first ? 56 : 44, borderRadius: '50%', background: '#141414', border: `2px solid ${e.you ? CORAL : col}`, color: '#fff', fontSize: first ? 18 : 15, fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        nameStyle: { color: e.you ? CORAL : '#a0a0a0', fontSize: 12, fontWeight: e.you ? 600 : 400, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+        block: { width: '100%', height: first ? 84 : ix === 1 ? 60 : 46, borderRadius: '12px 12px 0 0', borderTop: `2px solid ${col}`, background: first ? 'linear-gradient(#1c1710,#0c0c0c)' : 'linear-gradient(#161616,#0c0c0c)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 2 },
+        rankStyle: { color: col, fontSize: first ? 26 : 20, fontWeight: 700, lineHeight: 1 },
+      };
+    });
+
+    const rows = B.map((e, i) => ({
+      rank: i + 1, cc: e.cc, name: e.you ? 'Omarnasali · YOU' : e.name, val: this.val(f, e.v), gap: i === 0 ? 'LEADER' : this.gap(f, top, e.v),
+      row: { display: 'flex', alignItems: 'center', gap: 12, height: 56, padding: '0 16px', borderTop: i ? '1px solid #161616' : 'none', background: e.you ? 'rgba(252,84,84,.07)' : 'transparent' },
+      rankStyle: { width: 22, color: i < 3 ? RC[i] : '#6a6a6a', fontSize: 16, fontWeight: 700 },
+      nameStyle: { flex: 1, minWidth: 0, color: e.you ? '#fff' : '#d0d0d0', fontSize: 14, fontWeight: e.you ? 500 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' },
+    }));
+
+    // active
+    const n = ch.moves.length;
+    const steps = ch.moves.map((m, i) => {
+      const done = i < s.step, cur = i === s.step;
+      return {
+        name: m[0], reps: m[1], isCur: cur, idxLabel: done ? '✓' : i + 1,
+        row: { display: 'flex', alignItems: 'center', gap: 14, minHeight: cur ? 84 : 52, padding: '0 16px', borderRadius: 16, background: cur ? '#130909' : done ? '#0a0a0a' : '#0d0d0d', border: cur ? `1.5px solid ${CORAL}` : `1px solid ${done ? '#161616' : '#1a1a1a'}`, opacity: done ? 0.55 : 1, transition: 'all .3s cubic-bezier(.4,0,.2,1)', boxSizing: 'border-box' },
+        idx: { width: 28, height: 28, borderRadius: '50%', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 12, fontWeight: 700, background: done ? 'rgba(76,195,138,.14)' : cur ? CORAL : '#1a1a1a', color: done ? '#4CC38A' : cur ? '#000' : '#8a8a8a' },
+        nameStyle: { color: done ? '#a0a0a0' : '#fff', fontSize: cur ? 24 : 16, fontWeight: cur ? 600 : 500, letterSpacing: 0.4, textDecoration: done ? 'line-through' : 'none' },
+        repsStyle: { color: '#fff', fontSize: cur ? 34 : 18, fontWeight: 600, lineHeight: 1 },
+      };
+    });
+    const pct = isAm ? Math.min(1, s.t / ch.cap) : s.step / n;
+
+    // log
+    const sc = live ? this.score() : 0;
+    const projB = this.board(f, sc);
+    const projRank = projB.findIndex((e) => e.you) + 1;
+    const nb = this.better(f, sc, mine);
+    const partials = isAm ? ch.moves.map((m, i) => ({
+      name: m[0], rate: `${m[2]} PT${m[2] > 1 ? 'S' : ''} / REP`, max: m[1], val: s.partial[i], pts: `+${s.partial[i] * m[2]}`,
+      valStyle: { color: s.partial[i] ? '#fff' : '#6a6a6a', fontSize: 20, fontWeight: 600 },
+      inc: () => this.setState((st) => { const p = st.partial.slice(); p[i] = Math.min(m[1], p[i] + 1); return { partial: p }; }),
+      dec: () => this.setState((st) => { const p = st.partial.slice(); p[i] = Math.max(0, p[i] - 1); return { partial: p }; }),
+    })) : [];
+    const partPts = isAm ? s.partial.reduce((a, r, i) => a + r * ch.moves[i][2], 0) : 0;
+
+    // done
+    const L = s.last;
+    let deltaText = '', deltaGood = false;
+    if (L) {
+      if (L.prevRank == null) { deltaText = 'FIRST ENTRY'; deltaGood = true; }
+      else if (!L.newBest) deltaText = 'NOT A NEW BEST';
+      else if (L.prevRank - L.newRank > 0) { const d = L.prevRank - L.newRank; deltaText = `▲ UP ${d} PLACE${d > 1 ? 'S' : ''}`; deltaGood = true; }
+      else { deltaText = 'NEW BEST · SAME RANK'; deltaGood = true; }
+    }
+
+    return {
+      ch, weekNum: WEEKS[s.week].num, weekRange: WEEKS[s.week].range,
+      weekStatus: live ? '● LIVE · ENDS IN 3D 14H' : 'ENDED · FINAL',
+      weekChip: live ? { padding: '3px 9px', borderRadius: 7, background: 'rgba(252,84,84,.12)', color: CORAL, fontSize: 10.5, fontWeight: 700, letterSpacing: 1.6 } : { padding: '3px 9px', borderRadius: 7, border: '1px solid #2a2a2a', color: '#8a8a8a', fontSize: 10.5, fontWeight: 700, letterSpacing: 1.6 },
+      prevBtn: navBtn(s.week === 0), nextBtn: navBtn(s.week === 1),
+      prevWeek: () => s.week === 0 && this.setState({ week: 1, showAll: false }),
+      nextWeek: () => s.week === 1 && this.setState({ week: 0, showAll: false }),
+      heroStyle: { position: 'relative', overflow: 'hidden', borderRadius: 26, padding: 22, background: live ? '#130909' : '#0d0d0d', border: `1px solid ${live ? 'rgba(252,84,84,.45)' : '#1f1f1f'}` },
+      ghostStyle: { position: 'absolute', right: -6, top: -30, fontSize: 170, fontWeight: 700, letterSpacing: -4, lineHeight: 1, color: 'transparent', WebkitTextStroke: `1.5px ${live ? 'rgba(252,84,84,.2)' : 'rgba(255,255,255,.06)'}`, pointerEvents: 'none' },
+      bestVal: mine == null ? '—' : isAm ? String(mine) : mmss(mine), bestStyle: stat(mine == null ? '#4a4a4a' : '#fff'),
+      rankVal: myRank ? '#' + myRank : '—', rankStyle: { ...stat(myRank ? '#fff' : '#4a4a4a'), marginTop: 0 }, rankOf: myRank ? `of ${B.length}` : 'unranked',
+      gapVal: !myRank ? '—' : isLead ? 'KING' : isAm ? '−' + (top - mine) : '+' + mmss(mine - top),
+      gapStyle: stat(!myRank ? '#4a4a4a' : isLead ? GOLD : '#fff'),
+      moves, moveMeta: isAm ? `1 ROUND = ${rp} PTS` : `${ch.moves.reduce((a, m) => a + m[1], 0)} REPS · IN ORDER`,
+      boardTitle: live ? 'LEADERBOARD' : 'FINAL STANDINGS', boardCount: `${B.length} WARRIORS`,
+      podium, rows, showAll: s.showAll, allLabel: s.showAll ? 'SHOW LESS' : `SEE ALL ${B.length}`,
+      toggleAll: () => this.setState((st) => ({ showAll: !st.showAll })),
+      showYouRow: myRank > 3 && !s.showAll, youRank: '#' + myRank, youVal: this.val(f, mine), youGap: myRank ? this.gap(f, top, mine) + ' TO #1' : '',
+      isLiveWeek: live, ctaLabel: mine == null ? 'START CHALLENGE' : 'START · BEAT ' + (isAm ? mine + ' PTS' : mmss(mine)),
+      isOverview: s.screen === 'overview', isActive: s.screen === 'active', isDone: s.screen === 'done',
+      isLogFT: s.screen === 'log' && !isAm, isLogAM: s.screen === 'log' && isAm,
+      isForTime: !isAm, isAmrap: isAm,
+      start: () => this.setState({ screen: 'active', t: 0, running: true, step: 0, rounds: 0, showAll: false }),
+      cancel: () => this.setState({ screen: 'overview', running: false }),
+      timerLabel: isAm ? 'TIME LEFT' : 'ELAPSED', timerText: isAm ? mmss(ch.cap - s.t) : mmss(s.t),
+      progStyle: { width: `${pct * 100}%`, height: '100%', background: CORAL, transition: 'width .3s linear' },
+      progLabel: isAm ? `${s.rounds} ROUNDS · ${s.rounds * rp} PTS` : `${s.step} OF ${n} MOVEMENTS DONE`,
+      steps, rounds: s.rounds, roundNow: s.rounds + 1,
+      activeCta: isAm ? '+1 ROUND' : s.step < n - 1 ? `DONE · NEXT ${ch.moves[s.step + 1][0].toUpperCase()}` : 'FINISH',
+      activeAction: () => {
+        if (isAm) return this.setState((st) => ({ rounds: st.rounds + 1 }));
+        if (s.step < n - 1) return this.setState({ step: s.step + 1 });
+        this.setState({ running: false, screen: 'log', result: Math.round(s.t) });
+      },
+      endEarly: () => this.setState((st) => ({ running: false, screen: 'log', logRounds: st.rounds, partial: [0, 0, 0, 0] })),
+      resultText: mmss(s.result),
+      pillText: mine == null ? 'FIRST ATTEMPT' : nb ? `NEW BEST · −${mmss(mine - sc)}` : `BEST STAYS ${mmss(mine)}`,
+      pillStyle: { marginTop: 18, padding: '6px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, letterSpacing: 1.6, color: nb ? '#4CC38A' : '#8a8a8a', border: `1px solid ${nb ? 'rgba(76,195,138,.45)' : '#2a2a2a'}` },
+      projRank: '#' + projRank, projCount: projB.length, projGap: projRank === 1 ? 'KING' : this.gap(f, projB[0].v, sc),
+      roundPts: rp, logRounds: s.logRounds, roundsPtsLabel: `${s.logRounds} × ${rp} = ${s.logRounds * rp} PTS`,
+      incRounds: () => this.setState((st) => ({ logRounds: st.logRounds + 1 })),
+      decRounds: () => this.setState((st) => ({ logRounds: Math.max(0, st.logRounds - 1) })),
+      partials, totalPts: sc, totalBreak: `${s.logRounds} RDS (${s.logRounds * rp}) + ${partPts} PTS`,
+      submit: () => {
+        const v = this.score(), old = mine, better = this.better(f, v, old);
+        const prevRank = old != null ? this.rankOf(f, old) : null;
+        const nextBest = better ? v : old;
+        this.setState((st) => ({ screen: 'done', running: false, best: { ...st.best, [f]: nextBest }, last: { v, newBest: better, prevRank, newRank: this.rankOf(f, nextBest), best: nextBest } }));
+      },
+      doneRank: L ? '#' + L.newRank : '', deltaText,
+      deltaStyle: { marginTop: 14, padding: '6px 14px', borderRadius: 10, fontSize: 12, fontWeight: 700, letterSpacing: 1.6, color: deltaGood ? '#4CC38A' : '#8a8a8a', border: `1px solid ${deltaGood ? 'rgba(76,195,138,.45)' : '#2a2a2a'}` },
+      doneScore: L ? this.val(f, L.v) : '', doneBest: L ? this.val(f, L.best) : '',
+      doneNote: L && L.newRank === 1 ? 'You hold #1. Defend it until the week closes.' : L ? `${this.gap(f, top, L.best)} to #1 · Week closes in 3d 14h` : '',
+      backHome: () => this.setState({ screen: 'overview' }),
+    };
+  }
+}
+</script>
+</body>
+</html>
