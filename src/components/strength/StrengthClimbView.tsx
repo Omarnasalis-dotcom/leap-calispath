@@ -83,6 +83,8 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   const [scope, setScope] = useState<Scope>('public');
   const [gender, setGender] = useState<Gender>('ALL');
   const [sheetOpen, setSheetOpen] = useState(false);
+  // Page scrolling is off while a tier card is being swiped (see SkillCarousel).
+  const [swiping, setSwiping] = useState(false);
 
   const loadBoards = useCallback(async () => {
     if (!userId) return;
@@ -148,7 +150,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   return (
     <WorldPage tokens={t}>
       <ClimbHeader tokens={t} />
-      <ScrollView ref={scrollRef} contentContainerStyle={{ paddingBottom: 100 }}>
+      <ScrollView ref={scrollRef} scrollEnabled={!swiping} contentContainerStyle={{ paddingBottom: 100 }}>
         <View style={{ marginTop: 14 }}>
           <SkillCarousel
             count={TIER_COUNT}
@@ -162,6 +164,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             containerRef={tierCardsRef}
             onContainerLayout={onTierCardsLayout}
             swipeHintKey="strength"
+            onSwipingChange={setSwiping}
             renderCard={(tier, active) => (
               <TierCard
                 tokens={t}

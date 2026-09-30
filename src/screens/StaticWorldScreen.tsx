@@ -66,6 +66,8 @@ export function StaticWorldScreen({ movement }: Props) {
   const { ref: movementRowRef, onLayout: onMovementRowLayout } = useTutorialTarget('static.movementRow');
 
   const deepLinked = movement ? STATIC_MOVEMENTS.find(m => m.id === movement) : undefined;
+  // Page scrolling is off while a skill card is being swiped (see SkillCarousel).
+  const [swiping, setSwiping] = useState(false);
   const [skill, setSkill] = useState(Math.max(0, CATEGORIES.indexOf((deepLinked?.category ?? 'handstand') as Category)));
 
   const [pbs, setPbs] = useState<Record<string, number>>({});
@@ -350,6 +352,7 @@ export function StaticWorldScreen({ movement }: Props) {
           onBackToJourney={returnTo === 'journey' ? () => goBackOrReturnTo('/static-world') : undefined}
         />
         <ScrollView
+          scrollEnabled={!swiping}
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={t.accent} />}
           contentContainerStyle={{ paddingBottom: 100 }}
         >
@@ -388,6 +391,7 @@ export function StaticWorldScreen({ movement }: Props) {
             containerRef={movementRowRef}
             onContainerLayout={onMovementRowLayout}
             swipeHintKey="static"
+            onSwipingChange={setSwiping}
             renderCard={(i, active) => (
               <SkillCard tokens={t} category={CATEGORIES[i]} n={i + 1} active={active} pbs={pbs} loaded={loaded} onOpen={openLogFromCard} />
             )}

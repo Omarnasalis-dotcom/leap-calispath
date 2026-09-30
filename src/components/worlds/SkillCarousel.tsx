@@ -27,6 +27,12 @@ interface Props {
    * and springs back) the first few times this carousel is opened.
    */
   swipeHintKey?: string;
+  /**
+   * True while a swipe is in progress. The screen should turn off its own
+   * vertical scrolling meanwhile (ScrollView scrollEnabled), or on a real
+   * phone the page takes the gesture over mid-swipe and the card snaps back.
+   */
+  onSwipingChange?: (swiping: boolean) => void;
 }
 
 const GAP = 12;
@@ -34,6 +40,14 @@ const GAP = 12;
 // the slide offset and swipe direction flip with it.
 const DIR = isRTL ? 1 : -1;
 const SWIPE_THRESHOLD = 40;
+// A short flick counts as a swipe when it's fast enough (px/ms), the way
+// people actually swipe on a phone.
+const FLICK_VELOCITY = 0.3;
+const FLICK_MIN_DISTANCE = 12;
+// Claim the drag as soon as it's more sideways than up/down, before the
+// page's own scrolling can start on a finger's natural vertical drift.
+const CLAIM_DISTANCE = 6;
+const isSideways = (dx: number, dy: number) => Math.abs(dx) > CLAIM_DISTANCE && Math.abs(dx) > Math.abs(dy);
 const HINT_TIMES = 3;
 const HINT_DISTANCE = 36;
 const HINT_DELAY = 700;
@@ -56,7 +70,7 @@ const RENDER_WINDOW = 2;
  */
 export function SkillCarousel({
   count, index, onIndexChange, renderCard, cardHeight = 306, maxCardWidth = 326, inactiveOpacity = 0.42,
-  containerRef, onContainerLayout, swipeHintKey,
+  containerRef, onContainerLayout, swipeHintKey, onSwipingChange,
 }: Props) {
   const { width } = useWindowDimensions();
   const cardW = Math.min(maxCardWidth, width - 76);
@@ -115,25 +129,35 @@ export function SkillCarousel({
 
   const onIndexChangeRef = useRef(onIndexChange);
   onIndexChangeRef.current = onIndexChange;
+  const onSwipingChangeRef = useRef(onSwipingChange);
+  onSwipingChangeRef.current = onSwipingChange;
 
   const responder = useMemo(() => PanResponder.create({
-    // Only claim clearly-horizontal drags so the page still scrolls vertically.
-    onMoveShouldSetPanResponder: (_, g) => Math.abs(g.dx) > 8 && Math.abs(g.dx) > Math.abs(g.dy) * 1.2,
+    // Only sideways drags; up/down still scrolls the page. Capture phase
+    // too, so a drag that starts on a card's button still swipes.
+    onMoveShouldSetPanResponderCapture: (_, g) => isSideways(g.dx, g.dy),
+    onMoveShouldSetPanResponder: (_, g) => isSideways(g.dx, g.dy),
+    // Once swiping, nothing else (a button, the page) takes the gesture.
+    onPanResponderTerminationRequest: () => false,
     onPanResponderGrant: () => {
       touchedRef.current = true;
       pos.stopAnimation();
+      onSwipingChangeRef.current?.(true);
     },
     onPanResponderMove: (_, g) => {
       pos.setValue(DIR * indexRef.current * stepRef.current + g.dx);
     },
     onPanResponderRelease: (_, g) => {
+      onSwipingChangeRef.current?.(false);
       const i = indexRef.current;
       let next = i;
-      if (Math.abs(g.dx) > SWIPE_THRESHOLD) next = Math.max(0, Math.min(count - 1, i + (g.dx * DIR > 0 ? 1 : -1)));
+      const flick = Math.abs(g.vx) > FLICK_VELOCITY && Math.abs(g.dx) > FLICK_MIN_DISTANCE && Math.sign(g.vx) === Math.sign(g.dx);
+      if (Math.abs(g.dx) > SWIPE_THRESHOLD || flick) next = Math.max(0, Math.min(count - 1, i + (g.dx * DIR > 0 ? 1 : -1)));
       slideTo(next, next !== i ? 380 : 300);
       if (next !== i) onIndexChangeRef.current(next);
     },
     onPanResponderTerminate: () => {
+      onSwipingChangeRef.current?.(false);
       slideTo(indexRef.current, 300);
     },
     // slideTo only reads refs and `pos`.
