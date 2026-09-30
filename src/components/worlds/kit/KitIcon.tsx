@@ -5,7 +5,7 @@ import { FLIP_X } from '../../../i18n';
 /** Icons drawn from the handoff's own SVG paths (24×24 viewBox). */
 export type KitIconName =
   | 'stopwatch' | 'bolt' | 'snowflake' | 'target' | 'podium' | 'crown'
-  | 'close' | 'back' | 'play' | 'plus' | 'pencil';
+  | 'close' | 'back' | 'forward' | 'play' | 'plus' | 'minus' | 'check' | 'pencil';
 
 interface Props {
   name: KitIconName;
@@ -42,6 +42,15 @@ export function KitIcon({ name, size = 18, color, strokeWidth = 2.4 }: Props) {
     case 'back':
       body = <Path d="M15 6l-6 6 6 6" {...stroke} />;
       break;
+    case 'forward':
+      body = <Path d="M9 6l6 6-6 6" {...stroke} />;
+      break;
+    case 'minus':
+      body = <Path d="M5 12h14" {...stroke} />;
+      break;
+    case 'check':
+      body = <Path d="M5 12.5l4.5 4.5L19 7.5" {...stroke} />;
+      break;
     case 'play':
       body = <Path d="M7 4l13 8-13 8z" fill={color} />;
       break;
@@ -53,7 +62,7 @@ export function KitIcon({ name, size = 18, color, strokeWidth = 2.4 }: Props) {
       break;
   }
   return (
-    <Svg width={size} height={size} viewBox="0 0 24 24" style={name === 'back' ? FLIP_X : undefined}>
+    <Svg width={size} height={size} viewBox="0 0 24 24" style={name === 'back' || name === 'forward' ? FLIP_X : undefined}>
       {body}
     </Svg>
   );

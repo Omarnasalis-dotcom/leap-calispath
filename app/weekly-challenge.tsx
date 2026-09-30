@@ -7,7 +7,7 @@ export default function Route() {
   const router = useRouter();
   
   return (
-    <SpartanLayout hideToggle>
+    <SpartanLayout hideToggle noBottomInset>
       <WeeklyChallengeScreen onClose={() => router.back()} />
     </SpartanLayout>
   );
