@@ -18,6 +18,16 @@ export interface WeeklyChallenge {
   is_active: boolean;
 }
 
+export interface WeeklyBoardRow {
+  user_id: string;
+  score: number;
+  submitted_at: string;
+  name: string;
+  country: string | null;
+  gender: string | null;
+  community_id: string | null;
+}
+
 export class ChallengeService {
   /**
    * Gets the stable Saturday start date for the current week using UTC
@@ -62,6 +72,51 @@ export class ChallengeService {
       return null;
     }
     return data;
+  }
+
+  /**
+   * Weeks (newest first) that have an active challenge for this group, up to
+   * the current week. Drives the week switcher's prev/next.
+   */
+  static async getChallengeWeeks(groupId: number): Promise<string[]> {
+    const { data, error } = await supabase
+      .from('weekly_challenges')
+      .select('week_start')
+      .eq('group_id', groupId)
+      .eq('is_active', true)
+      .lte('week_start', this.getCurrentWeekStart())
+      .order('week_start', { ascending: false })
+      .limit(104);
+
+    if (error) {
+      console.error('Error fetching challenge weeks:', error);
+      return [];
+    }
+    return Array.from(new Set((data || []).map(r => r.week_start as string)));
+  }
+
+  /**
+   * Every entry on a challenge with the profile fields the board shows and
+   * filters on. Sorting and ranking happen client-side (sortBoard).
+   */
+  static async getBoard(challengeId: string): Promise<WeeklyBoardRow[]> {
+    const { data, error } = await supabase
+      .from('weekly_entries')
+      .select('user_id, score, submitted_at, profiles!user_id (display_name, country, gender, community_id)')
+      .eq('challenge_id', challengeId)
+      .limit(2000);
+
+    if (error) throw error;
+
+    return (data || []).map((e: any) => ({
+      user_id: e.user_id,
+      score: Number(e.score),
+      submitted_at: e.submitted_at ?? '',
+      name: e.profiles?.display_name || 'Unknown',
+      country: e.profiles?.country ?? null,
+      gender: e.profiles?.gender ?? null,
+      community_id: e.profiles?.community_id ?? null,
+    }));
   }
 
   /**
