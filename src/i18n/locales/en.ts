@@ -1337,6 +1337,11 @@ const en = {
     restoreBody: '"{{name}}" becomes your active program again, right where you left off. Your progress is kept.',
     restoreFailedTitle: 'RESTORE FAILED',
     restoreFailed: 'COULD NOT RESTORE THIS PROGRAM.',
+    delete: 'Delete',
+    deleteTitle: 'Delete program?',
+    deleteBody: '"{{name}}" will be removed from your previous programs and can\'t be restored again. Workouts you logged still count in your history.',
+    deleteFailedTitle: 'DELETE FAILED',
+    deleteFailed: 'COULD NOT DELETE THIS PROGRAM.',
   },
   chips: {
     all: 'ALL',

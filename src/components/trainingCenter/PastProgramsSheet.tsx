@@ -10,9 +10,11 @@ interface PastProgramsSheetProps {
   visible: boolean;
   onClose: () => void;
   programs: PastProgram[];
-  /** Program whose restore is in flight — every row is disabled meanwhile. */
+  /** Program whose restore / delete is in flight — every row is disabled meanwhile. */
   restoringId: string | null;
+  deletingId: string | null;
   onRestore: (program: PastProgram) => void;
+  onDelete: (program: PastProgram) => void;
 }
 
 function formatMeta(program: PastProgram): string {
@@ -25,8 +27,9 @@ function formatMeta(program: PastProgram): string {
  * button: the warrior's most recent previous programs, each one tap from
  * being active again.
  */
-export function PastProgramsSheet({ visible, onClose, programs, restoringId, onRestore }: PastProgramsSheetProps) {
+export function PastProgramsSheet({ visible, onClose, programs, restoringId, deletingId, onRestore, onDelete }: PastProgramsSheetProps) {
   const { mode } = useTheme();
+  const busy = restoringId != null || deletingId != null;
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
 
@@ -49,9 +52,23 @@ export function PastProgramsSheet({ visible, onClose, programs, restoringId, onR
                   <Text style={styles.meta} numberOfLines={1}>{formatMeta(program)}</Text>
                 </View>
                 <TouchableOpacity
-                  style={[styles.restoreBtn, restoringId != null && { opacity: 0.5 }]}
+                  style={[styles.deleteBtn, busy && { opacity: 0.5 }]}
+                  onPress={() => onDelete(program)}
+                  disabled={busy}
+                  hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('trainingCenter.delete')} ${program.name}`}
+                >
+                  <MaterialCommunityIcons
+                    name={deletingId === program.id ? 'dots-horizontal' : 'trash-can-outline'}
+                    size={18}
+                    color={c.textMuted}
+                  />
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.restoreBtn, busy && { opacity: 0.5 }]}
                   onPress={() => onRestore(program)}
-                  disabled={restoringId != null}
+                  disabled={busy}
                   accessibilityRole="button"
                   accessibilityLabel={`${t('trainingCenter.restore')} ${program.name}`}
                 >
@@ -84,13 +101,14 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   title: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.7, textAlign: 'left' },
   sub: { color: c.textMuted, fontFamily: 'Barlow-Regular', fontSize: 12.5, marginTop: 4, marginBottom: 16, textAlign: 'left' },
   row: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
+    flexDirection: 'row', alignItems: 'center', gap: 10,
     borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.cardFlat,
     paddingVertical: 12, paddingHorizontal: 12,
   },
   iconWell: { width: 34, height: 34, borderRadius: 10, backgroundColor: c.iconWell, alignItems: 'center', justifyContent: 'center' },
   name: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 0.6, textAlign: 'left' },
   meta: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 1.2, marginTop: 3, textAlign: 'left' },
+  deleteBtn: { width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   restoreBtn: { borderWidth: 1, borderColor: c.coral, borderRadius: 10, paddingHorizontal: 12, height: 32, alignItems: 'center', justifyContent: 'center' },
   restoreText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1.4 },
   closeBtn: { marginTop: 16, height: 44, borderRadius: 12, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },

@@ -1396,6 +1396,11 @@ const ar: Translations = {
     restoreBody: 'سيعود «{{name}}» برنامجك الحالي من حيث توقفت. يُحفظ تقدّمك.',
     restoreFailedTitle: 'تعذّرت الاستعادة',
     restoreFailed: 'تعذّر استعادة هذا البرنامج.',
+    delete: 'حذف',
+    deleteTitle: 'حذف البرنامج؟',
+    deleteBody: 'سيُحذف «{{name}}» من برامجك السابقة ولا يمكن استعادته مرة أخرى. تبقى التمارين التي سجّلتها محسوبة في سجلّك.',
+    deleteFailedTitle: 'تعذّر الحذف',
+    deleteFailed: 'تعذّر حذف هذا البرنامج.',
   },
   chips: {
     all: 'الكل',

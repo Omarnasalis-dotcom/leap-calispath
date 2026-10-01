@@ -26,3 +26,9 @@ export async function restoreProgram(warriorProgramId: string): Promise<void> {
   const { error } = await supabase.rpc('restore_program', { p_warrior_program_id: warriorProgramId });
   if (error) throw error;
 }
+
+/** Permanently removes a past program from the list; it can't be restored afterwards. Its workout logs are kept. */
+export async function deletePastProgram(warriorProgramId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_past_program', { p_warrior_program_id: warriorProgramId });
+  if (error) throw error;
+}

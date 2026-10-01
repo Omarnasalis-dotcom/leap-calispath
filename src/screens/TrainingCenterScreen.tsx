@@ -23,7 +23,7 @@ import { TourTarget } from '../components/tutorial/TourTarget';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TargetId } from '../types/tutorial';
 import { canAccessCustomizeProgram, isProRequiredError } from '../lib/entitlement';
-import { getPastPrograms, restoreProgram, PastProgram } from '../lib/pastPrograms';
+import { getPastPrograms, restoreProgram, deletePastProgram, PastProgram } from '../lib/pastPrograms';
 import { localizedErrorText } from '../lib/asyncErrorHandler';
 import { PastProgramsSheet } from '../components/trainingCenter/PastProgramsSheet';
 import { ActivityStatsService } from '../services/ActivityStatsService';
@@ -66,7 +66,7 @@ interface HubData {
 }
 
 // The restore sheet only offers the most recent previous programs.
-const PAST_PROGRAMS_SHOWN = 2;
+const PAST_PROGRAMS_SHOWN = 3;
 
 // Staggered entrance (design handoff "rowIn": 0.4s cubic-bezier(.2,.9,.3,1.2),
 // Y+14 + scale .98 -> 1) — collapses to an instant, non-staggered render
@@ -514,6 +514,7 @@ export function TrainingCenterScreen() {
   );
 
   const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pastSheetVisible, setPastSheetVisible] = useState(false);
 
   const doRestore = async (program: PastProgram) => {
@@ -532,7 +533,7 @@ export function TrainingCenterScreen() {
   };
 
   const handleRestore = (program: PastProgram) => {
-    if (restoringId) return;
+    if (restoringId || deletingId) return;
     Alert.alert(
       t('trainingCenter.restoreTitle'),
       data?.hasActiveProgram
@@ -541,6 +542,34 @@ export function TrainingCenterScreen() {
       [
         { text: t('trainingCenter.cancel'), style: 'cancel' },
         { text: t('trainingCenter.restore'), onPress: () => doRestore(program) },
+      ]
+    );
+  };
+
+  const doDelete = async (program: PastProgram) => {
+    setDeletingId(program.id);
+    try {
+      await deletePastProgram(program.id);
+      // Drop it locally instead of a full reload, so the sheet stays put and
+      // the next older program (if any) slides into the shown slots.
+      const remaining = (data?.pastPrograms || []).filter((p) => p.id !== program.id);
+      setData((prev) => (prev ? { ...prev, pastPrograms: remaining } : prev));
+      if (remaining.length === 0) setPastSheetVisible(false);
+    } catch (err: any) {
+      Alert.alert(t('trainingCenter.deleteFailedTitle'), localizedErrorText(err, t('trainingCenter.deleteFailed')));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleDelete = (program: PastProgram) => {
+    if (restoringId || deletingId) return;
+    Alert.alert(
+      t('trainingCenter.deleteTitle'),
+      t('trainingCenter.deleteBody', { name: program.name }),
+      [
+        { text: t('trainingCenter.cancel'), style: 'cancel' },
+        { text: t('trainingCenter.delete'), style: 'destructive', onPress: () => doDelete(program) },
       ]
     );
   };
@@ -728,7 +757,9 @@ export function TrainingCenterScreen() {
           onClose={() => setPastSheetVisible(false)}
           programs={data.pastPrograms.slice(0, PAST_PROGRAMS_SHOWN)}
           restoringId={restoringId}
+          deletingId={deletingId}
           onRestore={handleRestore}
+          onDelete={handleDelete}
         />
       )}
 
