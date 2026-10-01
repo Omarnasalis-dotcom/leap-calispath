@@ -22,6 +22,8 @@ interface PhotoActionCardProps {
   onPress: () => void;
   /** Frame only (photo, stripe, empty button) at the final height — no text, not tappable. */
   loading?: boolean;
+  /** Photo opacity over the card's #0F0F0F — lower reads darker. Defaults to 0.7. */
+  photoOpacity?: number;
 }
 
 function ChevronRight() {
@@ -37,10 +39,10 @@ function ChevronRight() {
  * Challenge): dimmed photo, coral stripe, eyebrow + title header, and a
  * full-width CTA.
  */
-export function PhotoActionCard({ photo, eyebrow, title, cta, onPress, loading }: PhotoActionCardProps) {
+export function PhotoActionCard({ photo, eyebrow, title, cta, onPress, loading, photoOpacity }: PhotoActionCardProps) {
   return (
     <View style={styles.card}>
-      <Image source={photo} resizeMode="cover" style={styles.bgPhoto} />
+      <Image source={photo} resizeMode="cover" style={[styles.bgPhoto, photoOpacity != null && { opacity: photoOpacity }]} />
       <View style={styles.stripe} />
 
       <View>

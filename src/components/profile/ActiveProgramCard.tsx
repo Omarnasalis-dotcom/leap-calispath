@@ -1,8 +1,10 @@
 import React from 'react';
 import { PhotoActionCard } from './PhotoActionCard';
 import { t } from '../../i18n';
+import { useTheme } from '../../contexts/ThemeContext';
 
-const COVER = require('../../../assets/Milestone Cards/random/handstand.jpg');
+const COVER_DARK = require('../../../assets/Milestone Cards/random/handstand.jpg');
+const COVER_LIGHT = require('../../../assets/workouts/profile-program-light.png');
 
 interface ActiveProgramCardProps {
   hasActiveProgram: boolean;
@@ -20,14 +22,20 @@ interface ActiveProgramCardProps {
  * "up next" day + CONTINUE PROGRAM, or a create-your-first-program CTA.
  */
 export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue, onCreateProgram, loading }: ActiveProgramCardProps) {
+  const { mode } = useTheme();
+  const isLight = mode === 'light';
+  const COVER = isLight ? COVER_LIGHT : COVER_DARK;
+  // The light cover is a bright daytime shot; dim it a bit more than the default 0.7.
+  const photoOpacity = isLight ? 0.6 : undefined;
   // While the lookup runs: the card's frame at its final height, no text —
   // so nothing below it jumps and no wrong CTA flashes.
   if (loading) {
-    return <PhotoActionCard photo={COVER} eyebrow="" title="" cta="" onPress={() => {}} loading />;
+    return <PhotoActionCard photo={COVER} photoOpacity={photoOpacity} eyebrow="" title="" cta="" onPress={() => {}} loading />;
   }
   return hasActiveProgram ? (
     <PhotoActionCard
-      photo={COVER}
+      photo={COVER} photoOpacity={photoOpacity}
+     
       eyebrow={t('profile.activeUpNext')}
       title={(nextUpDayName || t('profile.weekComplete')).toUpperCase()}
       cta={t('profile.continueProgram')}
@@ -35,7 +43,8 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
     />
   ) : (
     <PhotoActionCard
-      photo={COVER}
+      photo={COVER} photoOpacity={photoOpacity}
+     
       eyebrow={t('profile.noActiveProgram')}
       title={t('profile.startTraining')}
       cta={t('profile.createFirst')}
