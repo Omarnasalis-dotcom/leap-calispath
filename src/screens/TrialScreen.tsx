@@ -15,6 +15,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { activateKeepAwakeAsync, deactivateKeepAwake } from 'expo-keep-awake';
 import { useAuth } from '../contexts/AuthContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
@@ -32,7 +33,8 @@ import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
-import { t, isArabic, FLIP_X, tierLevelLabel } from '../i18n';
+import { loadSavedTrial, saveTrialProgress, clearSavedTrial, resumedElapsedSeconds, MAX_TRIAL_SECONDS, RESUME_WINDOW_MS, SavedTrial } from '../lib/trialResume';
+import { t, isArabic, FLIP_X, tierLevelLabel, ltr } from '../i18n';
 
 
 
@@ -74,7 +76,7 @@ export function TrialScreen({
   const isSlowSubmit = useSlowSubmitNotice(isSubmitting);
 
   // Cache route params on mount to prevent background wipe out (Bug 4)
-  const [initialMode] = useState<TrialMode>(mode);
+  const [initialMode, setInitialMode] = useState<TrialMode>(mode);
   const [initialPracticeTier] = useState<number | null>(practiceTier);
 
   const getTierAccentColor = (tier: number) => {
@@ -94,7 +96,16 @@ export function TrialScreen({
   const textOpacity = useRef(new Animated.Value(0)).current;
   const buttonOpacity = useRef(new Animated.Value(0)).current;
 
-  const { seconds: timeSeconds, isRunning, start: startTimer, stop: stopTimer } = useTimer();
+  const { seconds: timeSeconds, isRunning, start: startTimer, stop: stopTimer, setSeconds: setTimerSeconds } = useTimer();
+
+  // Wall-clock moment the trial clock read 0 — used to save the elapsed time
+  // with the step index so an interrupted trial (crash, dead battery, app
+  // swiped away) can resume.
+  const startedAtRef = useRef<number | null>(null);
+  const resumeCheckedRef = useRef(false);
+  // Once FINISH is tapped the saved copy carries the final time; stop the
+  // per-step save below from overwriting it with an in-progress one.
+  const finishedRef = useRef(false);
 
   useEffect(() => {
     if (showDishonor) {
@@ -147,6 +158,106 @@ export function TrialScreen({
     }
   }, [isRunning]);
 
+  // Keep the phone from auto-locking mid-trial — a trial runs for minutes
+  // with no touches between movements, and iOS/Android would otherwise
+  // dim and lock the screen while the timer keeps counting.
+  const keepScreenOn = prepCountdown !== null || isRunning;
+  useEffect(() => {
+    if (!keepScreenOn) return;
+    activateKeepAwakeAsync('trial').catch(() => {});
+    return () => {
+      deactivateKeepAwake('trial').catch(() => {});
+    };
+  }, [keepScreenOn]);
+
+  // Save on every step, every 5s of clock, and when the app leaves the
+  // foreground — the last save is "when the app was closed" for resume.
+  const saveProgressRef = useRef<() => void>(() => {});
+  saveProgressRef.current = () => {
+    if (!hasStarted || !trial || !user || startedAtRef.current === null || finishedRef.current) return;
+    const now = Date.now();
+    saveTrialProgress(user.id, {
+      tier: trial.tier,
+      mode: initialMode,
+      elapsedSeconds: Math.floor((now - startedAtRef.current) / 1000),
+      savedAt: now,
+      stepIdx: currentStepIdx,
+    });
+  };
+  const saveTick = Math.floor(timeSeconds / 5);
+  useEffect(() => {
+    saveProgressRef.current();
+  }, [hasStarted, currentStepIdx, saveTick]);
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') saveProgressRef.current();
+    });
+    return () => sub.remove();
+  }, []);
+
+  // On open: offer to pick up a trial that was cut off part-way.
+  useEffect(() => {
+    if (resumeCheckedRef.current || !user || !profile || !trial || hasStarted || prepCountdown !== null) return;
+    resumeCheckedRef.current = true;
+    loadSavedTrial(user.id).then((saved) => {
+      if (!saved) return;
+      const savedTrial = getTrialForTier(saved.tier);
+      const elapsed = resumedElapsedSeconds(saved);
+      // Already ranked past it, left too long, or over the server's ceiling.
+      const stale = !savedTrial
+        || (saved.mode === 'progression' && saved.tier !== profile.strength_tier)
+        || saved.tier > profile.strength_tier
+        || Date.now() - saved.savedAt > RESUME_WINDOW_MS
+        || (saved.finishedSeconds === undefined && elapsed > MAX_TRIAL_SECONDS);
+      if (stale) {
+        clearSavedTrial(user.id);
+        return;
+      }
+      const name = isArabic ? t('trial.name', { tier: TIER_NAMES[saved.tier] ?? saved.tier }) : savedTrial!.name;
+      const discard = { text: t('trial.startOver'), style: 'destructive' as const, onPress: () => { clearSavedTrial(user.id); } };
+      if (saved.finishedSeconds !== undefined) {
+        Alert.alert(
+          t('trial.unsavedTitle'),
+          t('trial.unsavedBody', { name, time: ltr(formatTime(saved.finishedSeconds)) }),
+          [discard, { text: t('trial.saveNow'), onPress: () => resumeSavedTrial(saved) }],
+          { cancelable: false },
+        );
+      } else {
+        Alert.alert(
+          t('trial.interruptedTitle'),
+          t('trial.interruptedBody', {
+            name,
+            n: saved.stepIdx + 1,
+            total: savedTrial!.movements.length,
+            time: ltr(formatTime(elapsed)),
+          }),
+          [discard, { text: t('trial.continueTrial'), onPress: () => resumeSavedTrial(saved) }],
+          { cancelable: false },
+        );
+      }
+    });
+  }, [user, profile, trial, hasStarted, prepCountdown]);
+
+  function resumeSavedTrial(saved: SavedTrial) {
+    const savedTrial = getTrialForTier(saved.tier);
+    if (!savedTrial) return;
+    setTrial(savedTrial);
+    setInitialMode(saved.mode);
+    if (saved.finishedSeconds !== undefined) {
+      finishedRef.current = true;
+      setCurrentStepIdx(savedTrial.movements.length - 1);
+      setHasStarted(true);
+      setTimerSeconds(saved.finishedSeconds);
+      submitTrial(savedTrial, saved.finishedSeconds, saved.mode);
+      return;
+    }
+    const elapsed = Math.max(1, resumedElapsedSeconds(saved));
+    startedAtRef.current = Date.now() - elapsed * 1000;
+    setCurrentStepIdx(Math.min(saved.stepIdx, savedTrial.movements.length - 1));
+    setHasStarted(true);
+    startTimer(elapsed);
+  }
+
   function startTrial() {
     setPrepCountdown(5);
     prepStartTimeRef.current = Date.now();
@@ -179,6 +290,7 @@ export function TrialScreen({
     const handleTimeout = (offset: number = 0) => {
       setPrepCountdown(null);
       prepStartTimeRef.current = null;
+      startedAtRef.current = Date.now() - offset * 1000;
       setHasStarted(true);
       SoundService.playBoxingBell();
       Vibration.vibrate(100);
@@ -234,6 +346,7 @@ export function TrialScreen({
   }
 
   async function doAbandon() {
+    if (user) clearSavedTrial(user.id);
     if (user && trial) {
       try {
         await TrialService.logAbandon(user.id, trial.tier, timeSeconds);
@@ -276,19 +389,39 @@ export function TrialScreen({
     if (!user || !trial || !profile || isSubmitting) return;
 
     if (!TrialService.isTimeValid(trial.tier, timeSeconds)) {
+      stopTimer();
+      clearSavedTrial(user.id);
       setShowDishonor(true);
       return;
     }
 
     stopTimer();
+    finishedRef.current = true;
+    // The result is final now — if the save below never lands (network,
+    // app closed), the next open offers to save this exact time.
+    if (startedAtRef.current !== null) {
+      saveTrialProgress(user.id, {
+        tier: trial.tier,
+        mode: initialMode,
+        elapsedSeconds: timeSeconds,
+        savedAt: Date.now(),
+        stepIdx: currentStepIdx,
+        finishedSeconds: timeSeconds,
+      });
+    }
+    submitTrial(trial, timeSeconds, initialMode);
+  }
 
+  function submitTrial(trial: Trial, timeSeconds: number, submitMode: TrialMode) {
+    if (!user) return;
     runSafeSubmit(async () => {
       const result = await TrialService.submitResult({
         userId: user.id,
         tier: trial.tier,
         timeSeconds,
-        isProgression: initialMode === 'progression',
+        isProgression: submitMode === 'progression',
       });
+      clearSavedTrial(user.id);
 
       // CRITICAL: Await the profile refresh before showing victory
       await refreshProfile();
@@ -339,6 +472,7 @@ export function TrialScreen({
       },
       onError: (error: any) => {
         if (error.message?.includes('DISHONOR')) {
+          clearSavedTrial(user.id);
           setShowDishonor(true);
         } else {
           // Timer's already stopped and timeSeconds is already captured, so a
@@ -346,7 +480,7 @@ export function TrialScreen({
           // be redone just because the network blipped after the work was done.
           Alert.alert(t('trial.error'), describeSubmitError(error, t('trial.saveFailed')), [
             { text: t('trial.cancel'), style: 'cancel' },
-            { text: t('trial.tryAgain'), onPress: handleClaimRank },
+            { text: t('trial.tryAgain'), onPress: () => submitTrial(trial, timeSeconds, submitMode) },
           ]);
         }
       }
@@ -560,7 +694,7 @@ export function TrialScreen({
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
-            <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(targetTier).toUpperCase()}</Text>
+            <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(trial.tier).toUpperCase()}</Text>
           </View>
         </View>
 

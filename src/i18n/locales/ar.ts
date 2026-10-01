@@ -1632,6 +1632,12 @@ const ar: Translations = {
     yourBest: 'أفضل وقت لك',
     thisAttempt: 'هذه المحاولة',
     continue: 'متابعة',
+    interruptedTitle: 'توقف الاختبار',
+    interruptedBody: 'توقف {{name}} عند الخطوة {{n}} من {{total}}. سيستمر وقتك من {{time}} (تُحتسب دقيقة واحدة كحد أقصى من مدة إغلاق التطبيق). هل تريد المتابعة من حيث توقفت؟',
+    unsavedTitle: 'اختبار غير محفوظ',
+    unsavedBody: 'أنهيت {{name}} في {{time}} لكن النتيجة لم تُحفظ. هل تريد حفظها الآن؟',
+    startOver: 'البدء من جديد',
+    saveNow: 'حفظ',
   },
   coach: {
     recStrength: 'جرّب اختبار القوة',

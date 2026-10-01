@@ -1567,6 +1567,12 @@ const en = {
     yourBest: 'YOUR BEST',
     thisAttempt: 'THIS ATTEMPT',
     continue: 'CONTINUE',
+    interruptedTitle: 'Trial Interrupted',
+    interruptedBody: 'Your {{name}} was cut off at step {{n}} of {{total}}. Your time will continue from {{time}} (up to 1 minute of the time the app was closed counts). Continue where you left off?',
+    unsavedTitle: 'Unsaved Trial',
+    unsavedBody: 'Your {{name}} finished in {{time}} but was not saved. Save it now?',
+    startOver: 'Start Over',
+    saveNow: 'Save',
   },
   coach: {
     recStrength: 'Try the Strength Trial',
