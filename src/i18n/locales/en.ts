@@ -1283,6 +1283,15 @@ const en = {
     getReadyShort: 'GET READY',
     go: 'GO',
   },
+  welcome: {
+    hi: 'Hi, ',
+    hiFallback: 'there',
+    welcomeTo: 'Welcome to ',
+    steps: '3 steps',
+    toFirstWorkout: ' to your first workout',
+    skip: 'SKIP',
+    startJourney: 'START YOUR JOURNEY',
+  },
   trainingCenter: {
     title: 'TRAINING CENTER',
     back: 'Back',

@@ -1330,6 +1330,15 @@ const ar: Translations = {
     getReadyShort: 'استعد',
     go: 'انطلق',
   },
+  welcome: {
+    hi: 'مرحباً، ',
+    hiFallback: 'يا بطل',
+    welcomeTo: 'أهلاً بك في ',
+    steps: '3 خطوات',
+    toFirstWorkout: ' لأول تمرين لك',
+    skip: 'تخطَّ',
+    startJourney: 'ابدأ رحلتك',
+  },
   trainingCenter: {
     title: 'مركز التدريب',
     back: 'رجوع',

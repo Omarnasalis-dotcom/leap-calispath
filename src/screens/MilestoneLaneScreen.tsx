@@ -10,6 +10,8 @@ import { useTheme } from '../contexts/ThemeContext';
 import { RankUpReveal } from '../components/trial/RankUpReveal';
 import { RankUpToast } from '../components/trial/RankUpToast';
 import { ProgramReadyReveal } from '../components/trial/ProgramReadyReveal';
+import { WelcomeIntro } from '../components/onboarding/WelcomeIntro';
+import { track } from '../lib/analytics';
 import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
@@ -1103,6 +1105,7 @@ function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: 
 }
 
 const REVEAL_SHOWN_KEY_PREFIX = 'milestone_lane_reveal_shown_';
+const WELCOME_SHOWN_KEY_PREFIX = 'onboarding_welcome_shown_';
 const LEGACY_ACK_KEY_PREFIX = 'milestone_lane_legacy_ack_';
 const LEGACY_FLOW_KEY_PREFIX = 'milestone_lane_legacy_flow_';
 const SEEN_ACTIVE_DAY_KEY_PREFIX = 'milestone_lane_seen_active_day_';
@@ -1200,6 +1203,25 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { theme, mode: themeMode } = useTheme();
   const styles = useLaneStyles();
   const cardImages = useCardImages();
+  // Onboarding welcome (WelcomeIntro): once per user, before a new user's
+  // first look at the lane. 'checking' only while the "already shown" flag
+  // loads, so the lane never flashes underneath it.
+  const welcomeEligible = mode === 'onboarding' && !!profile?.id && !profile?.assessed_at;
+  const [welcomeState, setWelcomeState] = useState<'checking' | 'show' | 'done'>(welcomeEligible ? 'checking' : 'done');
+  useEffect(() => {
+    if (welcomeState !== 'checking') return;
+    if (!welcomeEligible) { setWelcomeState('done'); return; }
+    let cancelled = false;
+    AsyncStorage.getItem(`${WELCOME_SHOWN_KEY_PREFIX}${profile!.id}`)
+      .then((v) => { if (!cancelled) setWelcomeState(v ? 'done' : 'show'); })
+      .catch(() => { if (!cancelled) setWelcomeState('done'); });
+    return () => { cancelled = true; };
+  }, [welcomeState, welcomeEligible, profile?.id]);
+  const handleWelcomeDone = useCallback((how: 'completed' | 'skipped') => {
+    if (profile?.id) AsyncStorage.setItem(`${WELCOME_SHOWN_KEY_PREFIX}${profile.id}`, '1').catch(() => {});
+    track(how === 'completed' ? 'welcome_intro_completed' : 'welcome_intro_skipped');
+    setWelcomeState('done');
+  }, [profile?.id]);
   const [showReveal, setShowReveal] = useState(false);
   // Set once by any of the 3 "Build Your Program" flows (AI Coach/Customize
   // Program/Ready Template) finishing -- see ProgramReadyReveal below and
@@ -2001,6 +2023,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (dayCheerTimerRef.current) clearTimeout(dayCheerTimerRef.current);
     };
   }, [mode, profile?.id, journeyData?.currentWeek, latestWeek, latestDayPointer, dayGateBlockedByQuest]);
+
+  if (welcomeState === 'checking') {
+    return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+  }
+  if (welcomeState === 'show') {
+    return <WelcomeIntro name={profile?.display_name} onDone={handleWelcomeDone} />;
+  }
 
   if (showReveal && profile?.assessed_at) {
     return (

@@ -16,7 +16,9 @@ export type AnalyticsEvent =
   | 'purchase_restored'
   | 'purchase_cancelled'
   | 'paywall_failed'
-  | 'ai_coach_opened';
+  | 'ai_coach_opened'
+  | 'welcome_intro_completed'
+  | 'welcome_intro_skipped';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).
