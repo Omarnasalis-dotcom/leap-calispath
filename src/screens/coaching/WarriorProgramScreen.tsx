@@ -93,6 +93,10 @@ interface DBRPalette {
   tickMissed: string;
   tickScheduled: string;
   restBtnBg: string;
+  restBtnBorder: string;
+  restBtnIcon: string;
+  // Sticky footer's fade into the screen background (theme.background.primary).
+  footerFade: [string, string, string];
 }
 
 const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
@@ -103,6 +107,9 @@ const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
     tickMissed: '#3a3a3a',
     tickScheduled: '#1f1f1f',
     restBtnBg: '#141414',
+    restBtnBorder: 'transparent',
+    restBtnIcon: '#fff',
+    footerFade: ['rgba(0,0,0,0)', 'rgba(0,0,0,.94)', '#000'],
   },
   light: {
     backBtnBg: 'rgba(0,0,0,.03)',
@@ -110,7 +117,10 @@ const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
     metaLine: '#8A8A8A',
     tickMissed: '#E8C4C4',
     tickScheduled: '#EAE0E0',
-    restBtnBg: 'rgba(255,255,255,.85)',
+    restBtnBg: '#FFFFFF',
+    restBtnBorder: 'rgba(0,0,0,.08)',
+    restBtnIcon: '#2A2A2A',
+    footerFade: ['rgba(250,250,250,0)', 'rgba(250,250,250,.94)', '#FAFAFA'],
   },
 };
 
@@ -1485,7 +1495,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             stats), so nothing that worked before is lost. */}
         {blocksTotalCount > 0 && (
           <LinearGradient
-            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,.94)', '#000']}
+            colors={dbr.footerFade}
             locations={[0, 0.3, 1]}
             style={dbRunnerStyles.footerWrap}
             pointerEvents="box-none"
@@ -1496,7 +1506,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                 disabled={!runnerOpenBlock}
                 onPress={() => runnerOpenBlock && startTimerForBlock(runnerOpenBlock)}
               >
-                <MaterialCommunityIcons name="clock-outline" size={22} color="#fff" />
+                <MaterialCommunityIcons name="clock-outline" size={22} color={dbr.restBtnIcon} />
               </TouchableOpacity>
               <TouchableOpacity
                 style={dbRunnerStyles.primaryBtn}
@@ -1853,6 +1863,7 @@ const getDbRunnerStyles = (dbr: DBRPalette) => StyleSheet.create({
   restBtn: {
     width: 58, height: 58, borderRadius: 18,
     alignItems: 'center', justifyContent: 'center', backgroundColor: dbr.restBtnBg,
+    borderWidth: 1, borderColor: dbr.restBtnBorder,
   },
   primaryBtn: {
     flex: 1, height: 58, borderRadius: 18, flexDirection: 'row', gap: 10, alignItems: 'center', justifyContent: 'center',
