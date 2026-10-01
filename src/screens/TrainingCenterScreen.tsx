@@ -9,6 +9,7 @@ import {
   Easing,
   AccessibilityInfo,
   ImageBackground,
+  Image,
   Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -64,6 +65,15 @@ interface HubData {
   quickMax: number | null;
   pastPrograms: PastProgram[];
 }
+
+// Daytime tile covers for light mode, reusing the Journey's light photo set
+// (assets/Milestone Cards/light), each picked to match its tile.
+const TILE_PHOTOS_LIGHT = {
+  active: require('../../assets/Milestone Cards/light/onboarding/build-your-program.png'),
+  templates: require('../../assets/Milestone Cards/light/onboarding/assessment.jpeg'),
+  customize: require('../../assets/Milestone Cards/light/onboarding/goals-equipment.jpeg'),
+  quick: require('../../assets/Milestone Cards/light/random/sprint.jpeg'),
+};
 
 // The restore sheet only offers the most recent previous programs.
 const PAST_PROGRAMS_SHOWN = 3;
@@ -193,6 +203,11 @@ interface PathTileDef {
    * as photos are supplied; a tile with no bgImage keeps the flat
    * accent-card look. */
   bgImage?: number;
+  /** Horizontal crop of bgImage: 0 shows its left edge, 0.5 (default) its
+   * center, 1 its right edge. */
+  bgImageAlign?: number;
+  /** Extra zoom on top of the cover fit (1 = none). Used with bgImageAlign. */
+  bgImageZoom?: number;
   onPress: () => void;
 }
 
@@ -240,6 +255,33 @@ function TileSheen() {
   );
 }
 
+// ImageBackground's resizeMode="cover" always crops from the center; this
+// sizes the photo to cover the tile itself and slides it by `align` so a
+// tile can keep a different part of the photo in view.
+function AlignedCoverPhoto({ source, align, zoom = 1 }: { source: number; align: number; zoom?: number }) {
+  const [box, setBox] = useState<{ w: number; h: number } | null>(null);
+  const { width: iw, height: ih } = Image.resolveAssetSource(source);
+  let photoStyle = null;
+  if (box && iw && ih) {
+    const scale = Math.max(box.w / iw, box.h / ih) * zoom;
+    const w = iw * scale;
+    const h = ih * scale;
+    // In Arabic React Native applies `left` from the right edge, and the
+    // photo itself is mirrored (see PathTile) -- together that's an exact
+    // mirror of the English crop.
+    photoStyle = { position: 'absolute' as const, width: w, height: h, left: (box.w - w) * align, top: (box.h - h) / 2 };
+  }
+  return (
+    <View
+      pointerEvents="none"
+      style={[StyleSheet.absoluteFillObject, { overflow: 'hidden', borderRadius: 16 }]}
+      onLayout={(e) => setBox({ w: e.nativeEvent.layout.width, h: e.nativeEvent.layout.height })}
+    >
+      {photoStyle && <Image source={source} style={[photoStyle, FLIP_X]} />}
+    </View>
+  );
+}
+
 function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; scrollRef: React.RefObject<ScrollView | null> }) {
   const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(def.tourTargetId, scrollRef);
   const { mode } = useTheme();
@@ -248,6 +290,9 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
   const isPrimary = !!def.primary && !def.locked;
   const accent = def.accent ?? c.coral;
   const hasPhoto = !!def.bgImage && !def.locked;
+  // Light-mode covers are bright daytime shots, so the tile text goes a
+  // weight heavier with a stronger shadow to hold up against them.
+  const isLight = mode === 'light';
 
   const content = (
     <>
@@ -292,6 +337,7 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
           // CustomizeProgramScreen's own cover-photo card text.
           { color: def.locked ? c.textFaint3 : '#FFFFFF' },
           hasPhoto && { textShadowColor: 'rgba(0,0,0,0.6)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 4 },
+          hasPhoto && isLight && styles.tileTitleLight,
         ]}
         // Arabic titles fit on one line (shrinking if needed); English keeps
         // its designed two-line split.
@@ -301,7 +347,7 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
       >
         {def.title}
       </Text>
-      <Text style={[styles.tileSub, { color: def.locked ? c.textMuted : hexToRgba(accent, 0.9) }]} numberOfLines={1}>
+      <Text style={[styles.tileSub, { color: def.locked ? c.textMuted : hexToRgba(accent, 0.9) }, hasPhoto && isLight && styles.tileSubLight]} numberOfLines={1}>
         {def.sub}
       </Text>
     </>
@@ -333,7 +379,13 @@ function PathTile({ def, index, scrollRef }: { def: PathTileDef; index: number; 
     >
       {hasPhoto && (
         <>
-          <ImageBackground source={def.bgImage!} style={StyleSheet.absoluteFillObject} imageStyle={{ borderRadius: 16 }} />
+          {def.bgImageAlign != null ? (
+            <AlignedCoverPhoto source={def.bgImage!} align={def.bgImageAlign} zoom={def.bgImageZoom} />
+          ) : (
+            // Mirrored in Arabic (FLIP_X), like the rest of the tile, so the
+            // athlete stays clear of the icon now on the right.
+            <ImageBackground source={def.bgImage!} style={StyleSheet.absoluteFillObject} imageStyle={[{ borderRadius: 16 }, FLIP_X]} />
+          )}
           {/* Bottom-weighted scrim — the photo stays visible up top (the
               whole point of adding it), text/badges stay legible at the
               bottom where they actually sit. */}
@@ -373,6 +425,7 @@ async function fetchMovementsCount(): Promise<number | null> {
 export function TrainingCenterScreen() {
   const { user, profile, paywallEnabled } = useAuth();
   const { mode } = useTheme();
+  const isLight = mode === 'light';
   const c = TC_COLORS[mode];
   const styles = useMemo(() => getStyles(c), [c]);
   const [loading, setLoading] = useState(true);
@@ -596,7 +649,7 @@ export function TrainingCenterScreen() {
           locked: !data.hasActiveProgram,
           badge: data.hasActiveProgram ? 'LIVE' : 'LOCKED',
           primary: true,
-          bgImage: require('../../assets/active-program-bg.jpg'),
+          bgImage: isLight ? TILE_PHOTOS_LIGHT.active : require('../../assets/active-program-bg.jpg'),
           onPress: () => (data.hasActiveProgram ? router.push('/warrior-program') : router.push('/program-templates')),
         },
         {
@@ -608,7 +661,11 @@ export function TrainingCenterScreen() {
           locked: false,
           badge: null,
           accent: '#8b5cf6',
-          bgImage: require('../../assets/program-templates-bg.png'),
+          bgImage: isLight ? TILE_PHOTOS_LIGHT.templates : require('../../assets/program-templates-bg.png'),
+          // Zooms the light cover in a touch and slides it right so its
+          // left-side athletes stay in view.
+          bgImageAlign: isLight ? 0.05 : undefined,
+          bgImageZoom: isLight ? 1.12 : undefined,
           onPress: () => router.push('/program-templates'),
         },
         {
@@ -620,7 +677,7 @@ export function TrainingCenterScreen() {
           locked: false,
           badge: canAccessCustomizeProgram(profile, paywallEnabled) ? null : 'PRO',
           accent: '#C9A227',
-          bgImage: require('../../assets/customize-program-bg.png'),
+          bgImage: isLight ? TILE_PHOTOS_LIGHT.customize : require('../../assets/customize-program-bg.png'),
           onPress: () => router.push('/customize-program'),
         },
         {
@@ -632,7 +689,7 @@ export function TrainingCenterScreen() {
           locked: false,
           badge: null,
           accent: '#f97316',
-          bgImage: require('../../assets/quick-workout-bg.png'),
+          bgImage: isLight ? TILE_PHOTOS_LIGHT.quick : require('../../assets/quick-workout-bg.png'),
           onPress: () => router.push('/quick-workout'),
         },
       ]
@@ -825,8 +882,21 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   tileIconWell: { width: 36, height: 36, borderRadius: 10, backgroundColor: c.iconWell, alignItems: 'center', justifyContent: 'center' },
   tileBadge: { borderRadius: 5, paddingHorizontal: 6, paddingVertical: 2 },
   tileBadgeText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.1 },
-  tileTitle: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.1, lineHeight: 16, marginTop: 10 },
+  // 'left' is mirrored to the right in Arabic; without it the auto-shrunk
+  // one-line Arabic title sat on the left, away from its icon and subtitle.
+  tileTitle: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.1, lineHeight: 16, marginTop: 10, textAlign: 'left' },
   tileSub: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.4, marginTop: 4 },
+  tileTitleLight: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    textShadowColor: 'rgba(0,0,0,0.85)',
+    textShadowRadius: 6,
+  },
+  tileSubLight: {
+    fontFamily: 'BarlowCondensed-ExtraBold',
+    textShadowColor: 'rgba(0,0,0,0.8)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 4,
+  },
 
   restoreEntryBtn: {
     width: 46, height: 46, borderRadius: 23, borderWidth: 1, borderColor: c.borderStrong,
