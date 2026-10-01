@@ -19,7 +19,7 @@ import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
 import { CURRENT_TRIAL_QUEST_SENTINEL, consumeCurrentTrialDone } from '../hooks/useReturnTo';
-import { t, FLIP_X } from '../i18n';
+import { t, FLIP_X, isRTL } from '../i18n';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
 // as one pool per category under assets/Milestone Cards/{push,pull,lower
@@ -74,6 +74,68 @@ const ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Ca
 const GOALS_EQUIPMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/goals-equipment.png');
 const BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/build-your-program.png');
 
+// Light-mode covers: same categories, daytime versions, under
+// assets/Milestone Cards/light/. Same space-free filename rule as above.
+const LIGHT_PUSH_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/light/push/push-ups.jpeg'),
+  require('../../assets/Milestone Cards/light/push/incline-pushup.jpeg'),
+  require('../../assets/Milestone Cards/light/push/pike-pushup.jpeg'),
+  require('../../assets/Milestone Cards/light/push/dips.jpeg'),
+];
+const LIGHT_PULL_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/light/pull/pull-up.png'),
+  require('../../assets/Milestone Cards/light/pull/inverted-rows.jpeg'),
+];
+const LIGHT_LEGS_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/light/lower body/squats.jpeg'),
+  require('../../assets/Milestone Cards/light/lower body/weighted-squat.jpeg'),
+  require('../../assets/Milestone Cards/light/lower body/pistol-squat.jpeg'),
+  require('../../assets/Milestone Cards/light/lower body/runners-lunge.jpeg'),
+  require('../../assets/Milestone Cards/light/lower body/kneeling-lunge.jpeg'),
+];
+const LIGHT_RANDOM_IMAGES: ImageSourcePropType[] = [
+  require('../../assets/Milestone Cards/light/random/hanging-knee-raise.jpeg'),
+  require('../../assets/Milestone Cards/light/random/knee-tuck-hang.png'),
+  require('../../assets/Milestone Cards/light/random/sprint.jpeg'),
+];
+
+interface CardImageSet {
+  push: ImageSourcePropType[];
+  pull: ImageSourcePropType[];
+  legs: ImageSourcePropType[];
+  random: ImageSourcePropType[];
+  assessment: ImageSourcePropType;
+  goalsEquipment: ImageSourcePropType;
+  buildProgram: ImageSourcePropType;
+}
+
+const DARK_CARD_IMAGES: CardImageSet = {
+  push: PUSH_IMAGES,
+  pull: PULL_IMAGES,
+  legs: LEGS_IMAGES,
+  random: RANDOM_IMAGES,
+  assessment: ASSESSMENT_IMAGE,
+  goalsEquipment: GOALS_EQUIPMENT_IMAGE,
+  buildProgram: BUILD_PROGRAM_IMAGE,
+};
+
+// A light pool left empty (or a missing onboarding cover) falls back to its
+// dark counterpart, so adding light photos can happen one category at a time.
+const LIGHT_CARD_IMAGES: CardImageSet = {
+  push: LIGHT_PUSH_IMAGES.length ? LIGHT_PUSH_IMAGES : PUSH_IMAGES,
+  pull: LIGHT_PULL_IMAGES.length ? LIGHT_PULL_IMAGES : PULL_IMAGES,
+  legs: LIGHT_LEGS_IMAGES.length ? LIGHT_LEGS_IMAGES : LEGS_IMAGES,
+  random: LIGHT_RANDOM_IMAGES.length ? LIGHT_RANDOM_IMAGES : RANDOM_IMAGES,
+  assessment: require('../../assets/Milestone Cards/light/onboarding/assessment.jpeg'),
+  goalsEquipment: require('../../assets/Milestone Cards/light/onboarding/goals-equipment.jpeg'),
+  buildProgram: require('../../assets/Milestone Cards/light/onboarding/build-your-program.png'),
+};
+
+function useCardImages(): CardImageSet {
+  const { mode } = useTheme();
+  return mode === 'light' ? LIGHT_CARD_IMAGES : DARK_CARD_IMAGES;
+}
+
 function hashString(s: string): number {
   let h = 0;
   for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
@@ -94,15 +156,17 @@ function pickFromPool(pool: ImageSourcePropType[], seed: string): ImageSourcePro
 // keywords instead, then picks a stable photo from that category's pool.
 // Full-body/unmatched days fall through to the random pool.
 const PUSH_KEYWORDS = /push[\s-]?up|\bpush\b|\bdip\b|\bpress\b/i;
-const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\bleg\b|\bcalf|\bglute|\bnordic|step[\s-]?up/i;
+const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\blegs?\b|lower[\s-]?body|\bquads?\b|hamstring|\bdeadlift|\bcalf|\bcalves\b|\bglute|\bnordic|step[\s-]?up/i;
 const PULL_KEYWORDS = /pull[\s-]?up|\bpull\b|\brow\b|chin[\s-]?up|\blat\b|muscle[\s-]?up/i;
 
-function pickDayCardImage(day: ProgramDay, seed: string): ImageSourcePropType {
-  const text = day.blocks.map((b) => `${b.name} ${b.exercises.map((e) => e.name).join(' ')}`).join(' ');
-  if (PUSH_KEYWORDS.test(text)) return pickFromPool(PUSH_IMAGES, seed);
-  if (LOWER_BODY_KEYWORDS.test(text)) return pickFromPool(LEGS_IMAGES, seed);
-  if (PULL_KEYWORDS.test(text)) return pickFromPool(PULL_IMAGES, seed);
-  return pickFromPool(RANDOM_IMAGES, seed);
+function pickDayCardImage(day: ProgramDay, seed: string, images: CardImageSet): ImageSourcePropType {
+  // The day's own name too ("LEGS", "Lower Body") -- the Journey lane loads
+  // block names only (exercises: []), so for most days it's the only signal.
+  const text = `${day.name} ${day.blocks.map((b) => `${b.name} ${b.exercises.map((e) => e.name).join(' ')}`).join(' ')}`;
+  if (PUSH_KEYWORDS.test(text)) return pickFromPool(images.push, seed);
+  if (LOWER_BODY_KEYWORDS.test(text)) return pickFromPool(images.legs, seed);
+  if (PULL_KEYWORDS.test(text)) return pickFromPool(images.pull, seed);
+  return pickFromPool(images.random, seed);
 }
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
@@ -214,6 +278,8 @@ function useAchievementBurst(staggerIndex: number) {
 }
 
 function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number: number; staggerIndex: number }) {
+  const styles = useLaneStyles();
+  const isLight = useTheme().mode === 'light';
   const pulse = usePulse(state === 'active');
   const glowOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [0.45, 1] });
   const glowScale = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.18] });
@@ -267,7 +333,7 @@ function NodeCircle({ state, number, staggerIndex }: { state: NodeState; number:
   }
   return (
     <View style={[styles.nodeCircle, { borderWidth: 2, borderColor: ACCENT_DIM }]}>
-      <MaterialCommunityIcons name="lock-outline" size={11} color="rgba(255,255,255,0.3)" />
+      <MaterialCommunityIcons name="lock-outline" size={11} color={isLight ? 'rgba(0,0,0,0.3)' : 'rgba(255,255,255,0.3)'} />
     </View>
   );
 }
@@ -283,6 +349,8 @@ function Connector({
   // this against a measured card height rather than letting it flex-fill.
   style?: object;
 }) {
+  const styles = useLaneStyles();
+  const isLight = useTheme().mode === 'light';
   const fillOpacity = useMountPop(complete ? staggerIndex : -1);
   // The actual "route lights up and moves to the next step" ask — a small
   // glowing dot travels the length of the connector as it fills, matching
@@ -302,7 +370,7 @@ function Connector({
         // just dark past whatever's actually been opened (complete), which
         // is the only segment that gets the lit/glowing + traveling-dot
         // treatment below.
-        complete ? { backgroundColor: ACCENT, opacity: fillOpacity } : { backgroundColor: 'rgba(255,255,255,0.08)' },
+        complete ? { backgroundColor: ACCENT, opacity: fillOpacity } : { backgroundColor: isLight ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)' },
         style,
       ]}
     >
@@ -343,6 +411,7 @@ function useCtaSheen(width: number) {
 }
 
 function MilestoneCardCta({ label, secondary, onPress }: { label: string; secondary?: boolean; onPress: () => void }) {
+  const styles = useLaneStyles();
   const [width, setWidth] = useState(0);
   const sheen = useCtaSheen(secondary ? 0 : width);
   const translateX = sheen.interpolate({ inputRange: [0, 1], outputRange: [-width, width * 1.4] });
@@ -385,6 +454,7 @@ function JourneyCard({
   secondaryCtaLabel,
   onPressSecondaryCta,
   showHereBadge,
+  mirrorPhotoInRTL = true,
 }: {
   state: NodeState;
   // Active/locked render it full-bleed; complete renders a small rounded
@@ -402,7 +472,13 @@ function JourneyCard({
   secondaryCtaLabel?: string;
   onPressSecondaryCta?: () => void;
   showHereBadge?: boolean;
+  // Arabic flips the text to the right, but a photo doesn't flip itself,
+  // so its subject would sit under the text -- mirrored instead. Off for
+  // covers with readable text in them.
+  mirrorPhotoInRTL?: boolean;
 }) {
+  const styles = useLaneStyles();
+  const isLight = useTheme().mode === 'light';
   const locked = state === 'locked';
   const pulse = usePulse(state === 'active' && !!showHereBadge);
   const badgeOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
@@ -436,8 +512,11 @@ function JourneyCard({
                 instead of a hard vertical cut where it meets the text. */}
             <LinearGradient
               pointerEvents="none"
-              colors={['#111111', 'rgba(17,17,17,0)']}
-              start={{ x: 0, y: 0.5 }}
+              colors={isLight ? ['#FFFFFF', 'rgba(255,255,255,0)'] : ['#111111', 'rgba(17,17,17,0)']}
+              // Gradient coordinates are physical, not layout-mirrored: in
+              // Arabic the thumb sits on the left, so the text-facing edge
+              // is its right one.
+              start={{ x: isRTL ? 1 : 0, y: 0.5 }}
               end={{ x: 0.5, y: 0.5 }}
               style={StyleSheet.absoluteFill}
             />
@@ -446,26 +525,41 @@ function JourneyCard({
             </View>
           </View>
         )}
+        <View pointerEvents="none" style={styles.finishedCardBorder} />
       </View>
     );
   }
 
   return (
     <View style={[styles.milestoneCard, locked && styles.milestoneCardLocked]}>
-      <Image source={image} style={styles.milestoneCardImage} resizeMode="cover" />
+      <Image source={image} style={[styles.milestoneCardImage, isRTL && mirrorPhotoInRTL && FLIP_X]} resizeMode="cover" />
       {/* RN's Image has no CSS-filter equivalent (no grayscale/brightness) —
           a flat dark scrim is the native approximation for "locked, dimmed
           photo" the design spec asks for. */}
       {locked && <View style={styles.milestoneCardLockedScrim} />}
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(22,22,22,0)', 'rgba(22,22,22,0.45)', 'rgba(22,22,22,0.72)']}
-        locations={[0.42, 0.68, 1]}
-        style={StyleSheet.absoluteFill}
-      />
+      {isLight ? (
+        // White wash from the text side (right in Arabic) instead of the
+        // dark bottom scrim, so dark text sits on white and the photo
+        // stays bright on the far side.
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']}
+          locations={[0, 0.35, 0.66]}
+          start={{ x: isRTL ? 1 : 0, y: 0.5 }}
+          end={{ x: isRTL ? 0 : 1, y: 0.5 }}
+          style={StyleSheet.absoluteFill}
+        />
+      ) : (
+        <LinearGradient
+          pointerEvents="none"
+          colors={['rgba(22,22,22,0)', 'rgba(22,22,22,0.45)', 'rgba(22,22,22,0.72)']}
+          locations={[0.42, 0.68, 1]}
+          style={StyleSheet.absoluteFill}
+        />
+      )}
       {locked ? (
         <View style={styles.milestoneLockBadge}>
-          <MaterialCommunityIcons name="lock-outline" size={11} color="rgba(255,255,255,0.6)" />
+          <MaterialCommunityIcons name="lock-outline" size={11} color={isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)'} />
         </View>
       ) : showHereBadge ? (
         <Animated.View style={[styles.milestoneHereBadge, { opacity: badgeOpacity }]}>
@@ -507,6 +601,7 @@ function JourneyCard({
           </View>
         )}
       </View>
+      <View pointerEvents="none" style={[styles.milestoneCardBorder, locked && styles.milestoneCardBorderLocked]} />
     </View>
   );
 }
@@ -527,6 +622,7 @@ function NodeRow({
   containerRef,
   attachedQuest,
   children,
+  mirrorPhotoInRTL,
 }: {
   number: number;
   state: NodeState;
@@ -551,7 +647,9 @@ function NodeRow({
   // for milestones/Strength Trial, which have no paired quest.
   attachedQuest?: AttachedQuestData;
   children?: React.ReactNode;
+  mirrorPhotoInRTL?: boolean;
 }) {
+  const styles = useLaneStyles();
   // Same one-time mount-pop as NodeCircle (see useMountPop's comment for
   // why this animates on mount rather than on a state-change diff),
   // applied to the card side so the whole row visibly arrives together
@@ -605,6 +703,7 @@ function NodeRow({
             secondaryCtaLabel={secondaryCtaLabel}
             onPressSecondaryCta={onPressSecondaryCta}
             showHereBadge={state === 'active'}
+            mirrorPhotoInRTL={mirrorPhotoInRTL}
           />
           {state === 'active' && children}
         </View>
@@ -625,6 +724,7 @@ function NodeRow({
 }
 
 function GhostNode() {
+  const styles = useLaneStyles();
   return (
     <View style={styles.row}>
       <View style={styles.rowLeft}>
@@ -646,6 +746,8 @@ const GOAL_LABELS: Record<string, string> = Object.fromEntries(
 );
 
 function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean; showFreeBadge?: boolean }) {
+  const styles = useLaneStyles();
+  const isLight = useTheme().mode === 'light';
   return (
     <TouchableOpacity style={styles.choiceCard} onPress={onPress}>
       {/* Corner ribbon, not an inline chip -- gold metallic gradient (same
@@ -681,7 +783,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
         <Text style={styles.choiceTitle}>{title}</Text>
         <Text style={styles.choiceDesc}>{desc}</Text>
       </View>
-      <MaterialCommunityIcons name="chevron-right" size={20} color="rgba(255,255,255,0.2)" style={FLIP_X} />
+      <MaterialCommunityIcons name="chevron-right" size={20} color={isLight ? 'rgba(0,0,0,0.25)' : 'rgba(255,255,255,0.2)'} style={FLIP_X} />
     </TouchableOpacity>
   );
 }
@@ -710,6 +812,7 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   // afterDayIndex. Rendered below the card by NodeRow.
   attachedQuest?: AttachedQuestData;
 }) {
+  const cardImages = useCardImages();
   return (
     <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress} disabled={state === 'locked'}>
       <NodeRow
@@ -717,7 +820,7 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
         state={state}
         title={title}
         desc={state === 'complete' ? t('journey.dayCompleted') : state === 'active' ? t('journey.dayUpNext') : t('journey.dayLocked')}
-        image={pickDayCardImage(day, seed)}
+        image={pickDayCardImage(day, seed, cardImages)}
         ctaLabel={state === 'active' ? t('journey.startNow') : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         isLast={isLast}
@@ -859,6 +962,7 @@ interface AttachedQuestData {
 // floating node) and, previously, NodeCircle's side-quest variant, which no
 // longer exists now that quests are never their own left-rail row.
 function QuestNode({ size = QUEST_NODE_SIZE }: { size?: number }) {
+  const styles = useLaneStyles();
   const pulse = usePulse(true);
   const opacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.5] });
   return (
@@ -889,6 +993,7 @@ const DAY_CHEER_MESSAGES = [
 // for 10s (see the detection effect above) -- deterministic message pick
 // via hashString so it doesn't flicker to a different line on re-render.
 function DayCheerBanner({ seed }: { seed: string }) {
+  const styles = useLaneStyles();
   const pop = useMountPop(0);
   const message = DAY_CHEER_MESSAGES[hashString(seed) % DAY_CHEER_MESSAGES.length];
   return (
@@ -905,6 +1010,8 @@ function DayCheerBanner({ seed }: { seed: string }) {
 }
 
 function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
+  const styles = useLaneStyles();
+  const isLight = useTheme().mode === 'light';
   const def = SIDE_QUEST_DEFS[kind];
   const resolved = state === 'complete';
   const locked = state === 'locked';
@@ -919,7 +1026,7 @@ function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
         <MaterialCommunityIcons
           name={locked ? 'lock-outline' : 'check'}
           size={11}
-          color={locked ? 'rgba(255,255,255,0.35)' : '#FFFFFF'}
+          color={locked ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)') : '#FFFFFF'}
         />
       </View>
       <View style={{ flex: 1 }}>
@@ -943,6 +1050,7 @@ function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
 // measureInWindow-style dependency chain that caused real bugs earlier this
 // session (see the auto-scroll effect's own comment on why).
 function QuestBranch({ kind, onPress, onSkip }: { kind: SideQuestKind; onPress: () => void; onSkip?: () => void }) {
+  const styles = useLaneStyles();
   const def = SIDE_QUEST_DEFS[kind];
   return (
     <View style={styles.questBranchRow}>
@@ -1089,7 +1197,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile, paywallEnabled } = useAuth();
   const router = useRouter();
   const { questDone, programReady } = useLocalSearchParams<{ questDone?: string; programReady?: string }>();
-  const { theme } = useTheme();
+  const { theme, mode: themeMode } = useTheme();
+  const styles = useLaneStyles();
+  const cardImages = useCardImages();
   const [showReveal, setShowReveal] = useState(false);
   // Set once by any of the 3 "Build Your Program" flows (AI Coach/Customize
   // Program/Ready Template) finishing -- see ProgramReadyReveal below and
@@ -1951,7 +2061,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               state={milestone1State}
               title={t('journey.step1Title')}
               desc={milestone1State === 'complete' ? t('journey.step1Done') : t('journey.step1Todo')}
-              image={ASSESSMENT_IMAGE}
+              image={cardImages.assessment}
               ctaLabel={t('journey.start')}
               onPressCta={() => router.push('/assessment')}
               isLast={false}
@@ -1970,7 +2080,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? t('journey.step2Todo')
                   : t('journey.step2Locked')
               }
-              image={GOALS_EQUIPMENT_IMAGE}
+              image={cardImages.goalsEquipment}
               ctaLabel={t('journey.start')}
               onPressCta={() => router.push('/goals-equipment')}
               isLast={false}
@@ -1990,7 +2100,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   ? t('journey.step3Legacy')
                   : t('journey.step3Todo')
               }
-              image={BUILD_PROGRAM_IMAGE}
+              image={cardImages.buildProgram}
+              mirrorPhotoInRTL={false}
               isLast
               staggerIndex={3}
               containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 3 ? activeStepRef : undefined}
@@ -2055,7 +2166,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       onPress={handleSkipProgramForLater}
                     >
                       <Text style={styles.skipOnboardingBtnText}>{t('journey.skipForNow')}</Text>
-                      <MaterialCommunityIcons name="chevron-right" size={12} color="rgba(255,255,255,0.6)" style={FLIP_X} />
+                      <MaterialCommunityIcons name="chevron-right" size={12} color={themeMode === 'light' ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)'} style={FLIP_X} />
                     </TouchableOpacity>
                     {!canAccessPro(profile, paywallEnabled) && (
                       <TouchableOpacity
@@ -2213,7 +2324,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       ? t('journey.trialReady')
                       : t('journey.trialLocked')
                   }
-                  image={pickFromPool(RANDOM_IMAGES, `strength-trial-${journeyData.currentWeek}`)}
+                  image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel={t('journey.start')}
                   onPressCta={() =>
                     router.push({
@@ -2276,7 +2387,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   );
 }
 
-const styles = StyleSheet.create({
+const darkStyles = StyleSheet.create({
   screen: {
     flex: 1,
   },
@@ -2401,16 +2512,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'stretch',
     backgroundColor: '#111111',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.07)',
     borderRadius: 16,
     overflow: 'hidden',
-    // A real fixed height, not minHeight -- the thumbnail (width set, no
-    // height/aspectRatio) needs a bounded cross-axis to stretch against.
-    // minHeight left the row's height effectively undetermined, and the
-    // stretched Image blew up to fill whatever that resolved to, dragging
-    // the whole card to nearly full screen height (seen live on device).
     height: 84,
+  },
+  // Border drawn as a top layer (not on the card itself), so it runs evenly
+  // over the photo too instead of disappearing under it, and the photo's
+  // clipped corners can't fringe past it.
+  finishedCardBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.07)',
   },
   finishedCardBody: {
     flex: 1,
@@ -2604,18 +2717,20 @@ const styles = StyleSheet.create({
   },
   milestoneCard: {
     position: 'relative',
-    // Shorter than before (was 188) -- dropping the MIN/MOVEMENTS stat-pill
-    // row freed up real content height, so the fixed card height came down
-    // with it instead of leaving dead space above the CTA.
     height: 168,
     borderRadius: 16,
     overflow: 'hidden',
     backgroundColor: '#161616',
-    // Matches the Finished card's subtle border -- previously only the
-    // Finished card had a defined edge; the photo card just relied on the
-    // gradient scrim to read as a boundary against the screen background.
+  },
+  // Same top-layer border as finishedCardBorder.
+  milestoneCardBorder: {
+    ...StyleSheet.absoluteFillObject,
+    borderRadius: 16,
     borderWidth: 1,
     borderColor: 'rgba(255,255,255,0.08)',
+  },
+  milestoneCardBorderLocked: {
+    borderColor: 'rgba(255,255,255,0.06)',
   },
   milestoneCardLocked: {
     // Shorter than the active/current-day size -- a locked "next up"
@@ -2933,3 +3048,53 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
   },
 });
+
+// Light mode: same layout, recolored to clean white cards with dark text.
+// Built from darkStyles so only the color-bearing keys are restated here.
+const LIGHT_INK = '#151515';
+const LIGHT_CARD_BORDER = 'rgba(0,0,0,0.08)';
+const lightStyles = StyleSheet.create({
+  ...darkStyles,
+  ctaPillSecondary: { ...darkStyles.ctaPillSecondary, borderColor: 'rgba(0,0,0,0.18)' },
+  ctaPillSecondaryText: { ...darkStyles.ctaPillSecondaryText, color: 'rgba(0,0,0,0.65)' },
+  finishedCard: { ...darkStyles.finishedCard, backgroundColor: '#FFFFFF' },
+  finishedCardBorder: { ...darkStyles.finishedCardBorder, borderColor: LIGHT_CARD_BORDER },
+  finishedCardTitle: { ...darkStyles.finishedCardTitle, color: 'rgba(0,0,0,0.8)' },
+  finishedCardDesc: { ...darkStyles.finishedCardDesc, color: 'rgba(0,0,0,0.45)' },
+  dayCheerText: { ...darkStyles.dayCheerText, color: 'rgba(0,0,0,0.8)' },
+  attachedQuestIconLocked: { ...darkStyles.attachedQuestIconLocked, backgroundColor: 'rgba(0,0,0,0.06)' },
+  attachedQuestLabelLocked: { ...darkStyles.attachedQuestLabelLocked, color: 'rgba(0,0,0,0.3)' },
+  attachedQuestTitle: { ...darkStyles.attachedQuestTitle, color: 'rgba(0,0,0,0.8)' },
+  attachedQuestTitleLocked: { ...darkStyles.attachedQuestTitleLocked, color: 'rgba(0,0,0,0.3)' },
+  attachedQuestDesc: { ...darkStyles.attachedQuestDesc, color: 'rgba(0,0,0,0.45)' },
+  questBubble: { ...darkStyles.questBubble, backgroundColor: '#FFFFFF' },
+  questBubbleTitle: { ...darkStyles.questBubbleTitle, color: LIGHT_INK },
+  questBubbleDesc: { ...darkStyles.questBubbleDesc, color: 'rgba(0,0,0,0.5)' },
+  questBubbleCtaSecondary: { ...darkStyles.questBubbleCtaSecondary, borderColor: 'rgba(0,0,0,0.18)' },
+  questBubbleCtaSecondaryText: { ...darkStyles.questBubbleCtaSecondaryText, color: 'rgba(0,0,0,0.6)' },
+  milestoneCard: { ...darkStyles.milestoneCard, backgroundColor: '#FFFFFF' },
+  milestoneCardBorder: { ...darkStyles.milestoneCardBorder, borderColor: LIGHT_CARD_BORDER },
+  milestoneCardBorderLocked: { borderColor: 'rgba(0,0,0,0.06)' },
+  milestoneCardLockedScrim: { ...darkStyles.milestoneCardLockedScrim, backgroundColor: 'rgba(255,255,255,0.45)' },
+  milestoneLockBadge: { ...darkStyles.milestoneLockBadge, backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(0,0,0,0.1)' },
+  // Text keeps to the white-washed side; the photo shows through the rest.
+  milestoneCardTextWrap: { ...darkStyles.milestoneCardTextWrap, end: '28%' },
+  milestoneCardTitle: { ...darkStyles.milestoneCardTitle, color: LIGHT_INK, textShadowColor: 'transparent', textShadowRadius: 0 },
+  milestoneCardTitleLocked: { ...darkStyles.milestoneCardTitleLocked, color: 'rgba(0,0,0,0.35)' },
+  milestoneCardDesc: { ...darkStyles.milestoneCardDesc, color: 'rgba(0,0,0,0.65)' },
+  milestoneCardDescLocked: { ...darkStyles.milestoneCardDescLocked, color: 'rgba(0,0,0,0.3)' },
+  ghostCircle: { ...darkStyles.ghostCircle, borderColor: 'rgba(0,0,0,0.12)' },
+  ghostLabel: { ...darkStyles.ghostLabel, color: 'rgba(0,0,0,0.25)' },
+  journeyMuted: { ...darkStyles.journeyMuted, color: 'rgba(0,0,0,0.45)' },
+  weekCompleteText: { ...darkStyles.weekCompleteText, color: LIGHT_INK },
+  choiceCard: { ...darkStyles.choiceCard, backgroundColor: '#FFFFFF', borderColor: LIGHT_CARD_BORDER },
+  choiceTitle: { ...darkStyles.choiceTitle, color: LIGHT_INK },
+  choiceDesc: { ...darkStyles.choiceDesc, color: 'rgba(0,0,0,0.6)' },
+  skipOnboardingBtn: { ...darkStyles.skipOnboardingBtn, backgroundColor: 'rgba(255,255,255,0.9)', borderColor: 'rgba(0,0,0,0.12)' },
+  skipOnboardingBtnText: { ...darkStyles.skipOnboardingBtnText, color: 'rgba(0,0,0,0.7)' },
+});
+
+function useLaneStyles() {
+  const { mode } = useTheme();
+  return mode === 'light' ? lightStyles : darkStyles;
+}
