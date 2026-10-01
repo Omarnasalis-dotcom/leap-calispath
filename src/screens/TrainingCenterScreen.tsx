@@ -9,6 +9,7 @@ import {
   Easing,
   AccessibilityInfo,
   ImageBackground,
+  Alert,
 } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
@@ -21,7 +22,10 @@ import { LeapLogo } from '../components/LeapLogo';
 import { TourTarget } from '../components/tutorial/TourTarget';
 import { useTutorialTarget } from '../hooks/useTutorialTarget';
 import { TargetId } from '../types/tutorial';
-import { canAccessCustomizeProgram } from '../lib/entitlement';
+import { canAccessCustomizeProgram, isProRequiredError } from '../lib/entitlement';
+import { getPastPrograms, restoreProgram, PastProgram } from '../lib/pastPrograms';
+import { localizedErrorText } from '../lib/asyncErrorHandler';
+import { PastProgramsSheet } from '../components/trainingCenter/PastProgramsSheet';
 import { ActivityStatsService } from '../services/ActivityStatsService';
 import { getAllPublishedTemplates } from '../lib/templateLibrary';
 import { getStandaloneWorkouts } from '../lib/workoutLibrary';
@@ -58,7 +62,11 @@ interface HubData {
   movementsCount: number | null;
   quickMin: number | null;
   quickMax: number | null;
+  pastPrograms: PastProgram[];
 }
+
+// The restore sheet only offers the most recent previous programs.
+const PAST_PROGRAMS_SHOWN = 2;
 
 // Staggered entrance (design handoff "rowIn": 0.4s cubic-bezier(.2,.9,.3,1.2),
 // Y+14 + scale .98 -> 1) — collapses to an instant, non-staggered render
@@ -393,7 +401,7 @@ export function TrainingCenterScreen() {
     if (!hasLoadedData.current) setLoading(true);
     setErrorMsg(null);
     try {
-      const [assignmentRes, templatesRes, movementsCount, quickWorkouts, streakStats] = await Promise.all([
+      const [assignmentRes, templatesRes, movementsCount, quickWorkouts, streakStats, pastPrograms] = await Promise.all([
         supabase
           .from('warrior_programs')
           .select('id, template_id, current_week, program_templates:template_id ( name )')
@@ -404,6 +412,7 @@ export function TrainingCenterScreen() {
         fetchMovementsCount(),
         getStandaloneWorkouts('quick_workout').catch(() => []),
         ActivityStatsService.getWeeklyStats(user.id).catch(() => ({ streakDays: 0, pointsThisWeek: 0, workoutsCompleted: 0 })),
+        getPastPrograms().catch((err) => { console.error('getPastPrograms failed:', err); return [] as PastProgram[]; }),
       ]);
 
       const assignment = assignmentRes.data as any;
@@ -430,6 +439,7 @@ export function TrainingCenterScreen() {
           movementsCount,
           quickMin,
           quickMax,
+          pastPrograms,
         });
         hasLoadedData.current = true;
         return;
@@ -480,6 +490,7 @@ export function TrainingCenterScreen() {
         movementsCount,
         quickMin,
         quickMax,
+        pastPrograms,
       });
       hasLoadedData.current = true;
     } catch (err: any) {
@@ -500,6 +511,50 @@ export function TrainingCenterScreen() {
     useCallback(() => {
       load();
     }, [load])
+  );
+
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [pastSheetVisible, setPastSheetVisible] = useState(false);
+
+  const doRestore = async (program: PastProgram) => {
+    setRestoringId(program.id);
+    try {
+      await restoreProgram(program.id);
+      setPastSheetVisible(false);
+      await load();
+      router.push('/warrior-program');
+    } catch (err: any) {
+      if (isProRequiredError(err)) { setPastSheetVisible(false); router.push('/paywall'); return; }
+      Alert.alert(t('trainingCenter.restoreFailedTitle'), localizedErrorText(err, t('trainingCenter.restoreFailed')));
+    } finally {
+      setRestoringId(null);
+    }
+  };
+
+  const handleRestore = (program: PastProgram) => {
+    if (restoringId) return;
+    Alert.alert(
+      t('trainingCenter.restoreTitle'),
+      data?.hasActiveProgram
+        ? t('trainingCenter.restoreSwitchBody', { name: program.name, current: data.programName })
+        : t('trainingCenter.restoreBody', { name: program.name }),
+      [
+        { text: t('trainingCenter.cancel'), style: 'cancel' },
+        { text: t('trainingCenter.restore'), onPress: () => doRestore(program) },
+      ]
+    );
+  };
+
+  const hasPastPrograms = !!data && data.pastPrograms.length > 0;
+  const restoreButton = (style: any) => (
+    <TouchableOpacity
+      style={style}
+      onPress={() => setPastSheetVisible(true)}
+      accessibilityRole="button"
+      accessibilityLabel={t('trainingCenter.openPastPrograms')}
+    >
+      <MaterialCommunityIcons name="restore" size={20} color={c.textPrimary} />
+    </TouchableOpacity>
   );
 
   const tiles: PathTileDef[] = data
@@ -611,6 +666,7 @@ export function TrainingCenterScreen() {
                     <MaterialCommunityIcons name="play" size={16} color="#000" />
                     <Text style={styles.continueBtnText}>{t('trainingCenter.continue')}</Text>
                   </TouchableOpacity>
+                  {hasPastPrograms && restoreButton(styles.restoreEntryBtn)}
                   {/* Same visual identity as the Leap Coach FAB on Profile
                       (CoachFab.tsx) — circular, coral fill, coral glow, the
                       waveform-bar icon (its own shared motif with the chat
@@ -626,6 +682,7 @@ export function TrainingCenterScreen() {
               </View>
             ) : (
               <View style={[styles.heroCard, styles.heroCardEmpty]}>
+                {hasPastPrograms && restoreButton([styles.restoreEntryBtn, styles.restoreEntryCorner])}
                 <View style={styles.heroEmptyIconWrap}>
                   <MaterialCommunityIcons name="calendar-blank-outline" size={28} color={c.textFaint} />
                 </View>
@@ -663,6 +720,16 @@ export function TrainingCenterScreen() {
             ))}
           </View>
         </ScrollView>
+      )}
+
+      {data && (
+        <PastProgramsSheet
+          visible={pastSheetVisible}
+          onClose={() => setPastSheetVisible(false)}
+          programs={data.pastPrograms.slice(0, PAST_PROGRAMS_SHOWN)}
+          restoringId={restoringId}
+          onRestore={handleRestore}
+        />
       )}
 
       {/* BottomTabBar now renders once in app/(tabs)/_layout.tsx. */}
@@ -729,4 +796,10 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   tileBadgeText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8, letterSpacing: 1.1 },
   tileTitle: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.1, lineHeight: 16, marginTop: 10 },
   tileSub: { fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.4, marginTop: 4 },
+
+  restoreEntryBtn: {
+    width: 46, height: 46, borderRadius: 23, borderWidth: 1, borderColor: c.borderStrong,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  restoreEntryCorner: { position: 'absolute', top: 12, end: 12, width: 38, height: 38, borderRadius: 19 },
 });
