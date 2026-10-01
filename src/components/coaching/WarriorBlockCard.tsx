@@ -43,6 +43,7 @@ interface DBPalette {
   logCheckBorder: string;
   washFaint: string;
   washSoft: string;
+  btnBg: string;
 }
 
 const DB_COLORS: { dark: DBPalette; light: DBPalette } = {
@@ -67,6 +68,7 @@ const DB_COLORS: { dark: DBPalette; light: DBPalette } = {
     logCheckBorder: '#242424',
     washFaint: 'rgba(255,255,255,.02)',
     washSoft: 'rgba(255,255,255,.05)',
+    btnBg: '#1a1a1a',
   },
   light: {
     cardOpenBgEnd: '#FBF8F8',
@@ -80,15 +82,16 @@ const DB_COLORS: { dark: DBPalette; light: DBPalette } = {
     textMuted: '#8A8A8A',
     textFainter: '#B0A8A8',
     divider: '#E5DADA',
-    chipBg: 'rgba(0,0,0,.03)',
+    chipBg: '#F3EDED',
     chipBorder: '#E5DADA',
-    chipBorderDim: '#EEE4E4',
-    chipText: '#7A7A7A',
-    chipTextDim: '#B0A8A8',
+    chipBorderDim: '#E5DADA',
+    chipText: '#4A4A4A',
+    chipTextDim: '#7A7A7A',
     indexPlateBorderClosed: '#E5DADA',
     logCheckBorder: '#DDD0D0',
     washFaint: 'rgba(0,0,0,.03)',
     washSoft: 'rgba(0,0,0,.05)',
+    btnBg: 'rgba(0,0,0,.05)',
   },
 };
 
@@ -163,6 +166,10 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   onForTimeFinalize,
 }) => {
   const db = DB_COLORS[mode];
+  // theme.card.border is 5% black in light mode — invisible against this
+  // card's off-white background, so the exercise rows / set rows / timers
+  // inside lost their outlines. Give the children a visible border instead.
+  const innerTheme = mode === 'light' ? { ...theme, card: { ...theme.card, border: db.borderClosed } } : theme;
   const styles = getStyles(db);
   const timingSystem = block.metadata?.timing_system;
   const structure = block.metadata?.structure || block.metadata?.type;
@@ -294,7 +301,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             { opacity: (isTogglingStatus || isLocked) ? 0.4 : 1 },
           ]}
         >
-          <Text style={{ color: skipped ? '#fff' : db.textMuted, fontSize: 12, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.5 }}>
+          <Text style={{ color: skipped ? db.textPrimary : db.textMuted, fontSize: 12, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.5 }}>
             {skipped ? t('blocks.undoSkip') : t('blocks.skip')}
           </Text>
         </TouchableOpacity>
@@ -304,6 +311,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           done={isDone}
           disabled={isTogglingStatus || isLocked}
           pending={isLogPending}
+          mode={mode}
           accentColor={accent.color}
           label={t('blocks.complete')}
           doneLabel={t('timers.completed')}
@@ -455,12 +463,12 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                   style={[
                     styles.dbPreviewChip,
                     c.isMore
-                      ? { flexGrow: 0, flexShrink: 0, backgroundColor: 'transparent', borderColor: '#2A2A2A' }
-                      : { flexGrow: 0, flexShrink: 1, minWidth: 0, backgroundColor: '#1A1A1A', borderColor: '#242424' },
+                      ? { flexGrow: 0, flexShrink: 0, backgroundColor: 'transparent', borderColor: db.chipBorderDim }
+                      : { flexGrow: 0, flexShrink: 1, minWidth: 0, backgroundColor: db.chipBg, borderColor: db.chipBorder },
                   ]}
                 >
                   <Text
-                    style={[styles.dbPreviewChipText, { color: c.isMore ? '#A0A0A0' : '#E6E6E6' }]}
+                    style={[styles.dbPreviewChipText, { color: c.isMore ? db.chipTextDim : db.chipText }]}
                     numberOfLines={1}
                     ellipsizeMode="tail"
                   >
@@ -507,7 +515,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       <WarriorExerciseRow
                         exercise={ex}
                         blockMetadata={block.metadata}
-                        theme={theme}
+                        theme={innerTheme}
                         solidCardBg={solidCardBg}
                         bronzeGold={bronzeGold}
                         onToggleVideo={onToggleVideo}
@@ -526,7 +534,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                                 targetReps={parseInt(String(ex.reps || '0'), 10) || 0}
                                 isWeighted={!!ex.is_weighted}
                                 restSeconds={parseInt(String(ex.rest_seconds || '0'), 10) || 0}
-                                theme={theme}
+                                theme={innerTheme}
                                 bronzeGold={bronzeGold}
                                 completed={isSetLogged}
                                 onSetComplete={(entry) => onSetLogged?.(block.id, ex.id, entry)}
@@ -557,7 +565,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                             youtube_url: ex.youtube_url,
                           }))}
                           restSeconds={restAfterRound}
-                          theme={theme}
+                          theme={innerTheme}
                           bronzeGold={bronzeGold}
                           isLocked={roundLocked}
                           completed={roundCompleted}
@@ -576,7 +584,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 {isActiveForLadderLogging && (
                   <View style={{ marginTop: 4 }}>
                     <LadderRungPicker
-                      theme={theme}
+                      theme={innerTheme}
                       bronzeGold={bronzeGold}
                       sequence={BlockConceptParser.getLadderRungs(block.metadata || {})}
                       onChange={() => {}}
@@ -595,7 +603,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 {isActiveForAmrapLogging && (
                   <View style={{ marginTop: 4 }}>
                     <AmrapInlineTimer
-                      theme={theme}
+                      theme={innerTheme}
                       bronzeGold={bronzeGold}
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url }))}
                       timeCapSeconds={amrapTimeCapSeconds}
@@ -610,7 +618,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 {isActiveForForTimeLogging && (
                   <View style={{ marginTop: 4 }}>
                     <ForTimeInlineTimer
-                      theme={theme}
+                      theme={innerTheme}
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url }))}
                       timeCapSeconds={forTimeCapSeconds}
                       totalRounds={totalRounds}
@@ -707,7 +715,7 @@ const getStyles = (db: DBPalette) => StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 12,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: db.btnBg,
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
@@ -723,7 +731,7 @@ const getStyles = (db: DBPalette) => StyleSheet.create({
     flex: 1,
     height: 30,
     borderRadius: 9,
-    backgroundColor: '#1a1a1a',
+    backgroundColor: db.btnBg,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -732,7 +740,7 @@ const getStyles = (db: DBPalette) => StyleSheet.create({
     fontSize: 19,
     letterSpacing: 1.2,
     lineHeight: 19 * 1.1,
-    color: '#FFFFFF',
+    color: db.textPrimary,
   },
   dbStateChip: {
     paddingHorizontal: 6,

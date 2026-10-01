@@ -17,14 +17,17 @@ interface DayBlocksProgressRingProps {
   color?: string;
   trackColor?: string;
   size?: number;
+  mode?: 'light' | 'dark';
 }
 
 export const DayBlocksProgressRing: React.FC<DayBlocksProgressRingProps> = ({
   pct,
   color = '#FC5454',
-  trackColor = '#1f1f1f',
+  trackColor,
   size = 52,
+  mode = 'dark',
 }) => {
+  const track = trackColor ?? (mode === 'light' ? '#EAE0E0' : '#1f1f1f');
   const clamped = Math.max(0, Math.min(100, Math.round(pct)));
   const animated = useRef(new Animated.Value(clamped)).current;
 
@@ -49,7 +52,7 @@ export const DayBlocksProgressRing: React.FC<DayBlocksProgressRingProps> = ({
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} viewBox="0 0 52 52" style={{ transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={26} cy={26} r={22} fill="none" stroke={trackColor} strokeWidth={4} />
+        <Circle cx={26} cy={26} r={22} fill="none" stroke={track} strokeWidth={4} />
         <AnimatedCircle
           cx={26}
           cy={26}
@@ -64,10 +67,10 @@ export const DayBlocksProgressRing: React.FC<DayBlocksProgressRingProps> = ({
         />
       </Svg>
       <View style={{ position: 'absolute', flexDirection: 'row', alignItems: 'flex-end', paddingLeft: 3 }}>
-        <Text style={{ color: '#fff', fontSize: clamped === 100 ? 12.5 : 15, fontWeight: '700', lineHeight: clamped === 100 ? 14 : 16 }}>
+        <Text style={{ color: mode === 'light' ? '#2A2A2A' : '#fff', fontSize: clamped === 100 ? 12.5 : 15, fontWeight: '700', lineHeight: clamped === 100 ? 14 : 16 }}>
           {clamped}
         </Text>
-        <Text style={{ color: '#a0a0a0', fontSize: 8, lineHeight: 14 }}>%</Text>
+        <Text style={{ color: mode === 'light' ? '#8A8A8A' : '#a0a0a0', fontSize: 8, lineHeight: 14 }}>%</Text>
       </View>
     </View>
   );

@@ -28,6 +28,7 @@ interface SlideToCompleteButtonProps {
   // they submitted, back to idle if they cancelled.
   pending?: boolean;
   accentColor: string;
+  mode?: 'light' | 'dark';
   label?: string; // e.g. "COMPLETE" — becomes "COMPLETED" once done
   // Shown once done; defaults to label + "D", which only works in English.
   doneLabel?: string;
@@ -47,6 +48,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
   disabled,
   pending,
   accentColor,
+  mode = 'dark',
   label = 'COMPLETE',
   doneLabel,
   onComplete,
@@ -113,9 +115,9 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
         borderRadius: 9,
         overflow: 'hidden',
         position: 'relative',
-        backgroundColor: done ? hexAlpha(accentColor, 0.16) : '#1a1a1a',
+        backgroundColor: done ? hexAlpha(accentColor, 0.16) : mode === 'light' ? 'rgba(0,0,0,.05)' : '#1a1a1a',
         borderWidth: 1,
-        borderColor: done ? hexAlpha(accentColor, 0.4) : '#2a2a2a',
+        borderColor: done ? hexAlpha(accentColor, 0.4) : mode === 'light' ? '#E5DADA' : '#2a2a2a',
         opacity: disabled ? 0.4 : 1,
       }}
     >
@@ -132,7 +134,7 @@ export const SlideToCompleteButton: React.FC<SlideToCompleteButtonProps> = ({
         }}
       />
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingLeft: done ? 0 : THUMB_WIDTH, paddingRight: done ? THUMB_WIDTH : 0 }}>
-        <Text style={{ color: done ? accentColor : '#fff', fontSize: 11.5, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.4 }}>
+        <Text style={{ color: done ? accentColor : mode === 'light' ? '#2A2A2A' : '#fff', fontSize: 11.5, fontFamily: 'BarlowCondensed-ExtraBold', letterSpacing: 1.4 }}>
           {done ? (doneLabel ?? `${label}D`) : label}
         </Text>
       </View>

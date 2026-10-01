@@ -1402,7 +1402,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
               <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('workout.back')} onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-                <MaterialCommunityIcons name="chevron-left" size={18} color="#fff" style={FLIP_X} />
+                <MaterialCommunityIcons name="chevron-left" size={18} color={dbr.title} style={FLIP_X} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
@@ -1411,8 +1411,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     style={[
                       dbRunnerStyles.stateBadge,
                       runnerNotStarted
-                        ? { backgroundColor: 'rgba(255,255,255,.04)', borderColor: '#221c1c' }
-                        : { backgroundColor: 'rgba(252,84,84,.12)', borderColor: '#3a1d1d' },
+                        ? { backgroundColor: mode === 'light' ? 'rgba(0,0,0,.04)' : 'rgba(255,255,255,.04)', borderColor: mode === 'light' ? '#E5DADA' : '#221c1c' }
+                        : { backgroundColor: 'rgba(252,84,84,.12)', borderColor: mode === 'light' ? 'rgba(252,84,84,.35)' : '#3a1d1d' },
                     ]}
                   >
                     <Text style={{ color: runnerNotStarted ? '#7a7a7a' : '#FC5454', fontSize: 7.5, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 1.3 }}>
@@ -1424,7 +1424,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   {t('workout.dayMeta', { blocks: activeDay.blocks.length, moves: countMovements(activeDay), min: estimateSessionMinutes(activeDay) })}
                 </Text>
               </View>
-              <DayBlocksProgressRing pct={runnerDayState?.progressPct ?? 0} />
+              <DayBlocksProgressRing pct={runnerDayState?.progressPct ?? 0} mode={mode} />
             </View>
             <View style={dbRunnerStyles.tickBar}>
               {activeDay.blocks.map((b) => {
