@@ -68,12 +68,19 @@ export async function getTierLeaderboard(
   if (cached && Date.now() - cached.timestamp < LEADERBOARD_CACHE_TTL) {
     data = cached.data;
   } else {
-    // Use RPC function that bypasses RLS
-    const { data: fetched, error } = await supabase
+    // Use RPC function that bypasses RLS. RPCs are POSTs, which supabase-js
+    // never retries on its own (it only retries GETs) — a gateway blip comes
+    // back as an empty-bodied error, so give that one more try.
+    const fetchBoard = () => supabase
       .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
+    let { data: fetched, error, status } = await fetchBoard();
+    if (error && (!error.code || status >= 500)) {
+      await new Promise(resolve => setTimeout(resolve, 800));
+      ({ data: fetched, error, status } = await fetchBoard());
+    }
 
     if (error || !fetched) {
-      console.error('Error fetching leaderboard:', error);
+      console.error('Error fetching leaderboard:', { status, code: error?.code, message: error?.message });
       return { entries: [], personalBest: null };
     }
     data = Array.isArray(fetched) ? fetched : [];

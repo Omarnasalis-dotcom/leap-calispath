@@ -142,7 +142,7 @@ describe('getTierLeaderboard caching', () => {
 
   it('does not cache an errored fetch', async () => {
     (supabase.rpc as jest.Mock)
-      .mockResolvedValueOnce({ data: null, error: { message: 'boom' } })
+      .mockResolvedValueOnce({ data: null, error: { message: 'boom', code: 'P0001' }, status: 400 })
       .mockResolvedValueOnce({ data: strengthRows, error: null });
 
     const failed = await getTierLeaderboard(3, 'u1');
@@ -151,6 +151,17 @@ describe('getTierLeaderboard caching', () => {
     expect(failed.entries).toHaveLength(0);
     expect(ok.entries).toHaveLength(2);
     expect(supabase.rpc).toHaveBeenCalledTimes(2); // error wasn't cached, so retried
+  });
+
+  it('retries once on an empty-bodied gateway error', async () => {
+    (supabase.rpc as jest.Mock)
+      .mockResolvedValueOnce({ data: null, error: { message: '', code: '' }, status: 502 })
+      .mockResolvedValueOnce({ data: strengthRows, error: null, status: 200 });
+
+    const result = await getTierLeaderboard(3, 'u1');
+
+    expect(result.entries).toHaveLength(2);
+    expect(supabase.rpc).toHaveBeenCalledTimes(2);
   });
 });
 
