@@ -314,12 +314,18 @@ const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, curr
         accessibilityLabel={tr('strength.tierDetailsA11y', { name })}
         disabled={!active}
         onPress={onShowDetails}
-        style={{ marginTop: 18, alignSelf: 'flex-start', maxWidth: '100%' }}
+        // The card is a fixed height and the 46pt name (every tier but
+        // STRATEGOS, which drops to 40) overflowed it by a few points —
+        // the name got squeezed and adjustsFontSizeToFit shrank it to fit
+        // that squeezed height. Smaller top gap so it fits; flexShrink 0 so
+        // it's never the thing that gets squeezed.
+        style={{ marginTop: 10, alignSelf: 'stretch', flexShrink: 0 }}
       >
         <Text
           style={kt('bold', name.length > 8 ? 40 : 46, locked ? c.lockedName : t.text, 1.4, name.length > 8 ? 44 : 50)}
           numberOfLines={1}
           adjustsFontSizeToFit
+          minimumFontScale={0.6}
         >
           {name}
         </Text>
