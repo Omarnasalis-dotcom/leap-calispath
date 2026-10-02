@@ -41,7 +41,8 @@ export interface CompletionProgram {
 }
 
 export interface MovementWeek {
-  week_start: string; // Monday
+  program_id: string; // warrior program the sets were logged in
+  week: number; // program week (W1, W2, …)
   reps: number;
   best: number; // best single set
   variations: Record<string, number>; // reps per variation ('' = untagged)
@@ -186,21 +187,11 @@ export function fmtNum(v: number): string {
   return String(Math.round(v * 10) / 10);
 }
 
-/** Calendar weeks (Monday, YYYY-MM-DD) from the program start (or the
- * first logged week, if earlier) to this week, last `max` of them —
- * unlogged weeks stay as empty columns. */
-export function movementWeeks(weeks: MovementWeek[], max = 8, now = new Date(), programStart?: string): string[] {
+/** Program weeks to draw for one movement: W1 to the program's current
+ * week (or the last logged week, if later), last `max` of them — a week
+ * without this movement stays as an empty column. */
+export function movementWeeks(weeks: MovementWeek[], currentWeek = 1, max = 8): number[] {
   if (weeks.length === 0) return [];
-  const monday = (d: Date) => {
-    const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-    x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
-    return x;
-  };
-  const out: string[] = [];
-  const firstLog = new Date(weeks[0].week_start);
-  const start = programStart && new Date(programStart) < firstLog ? new Date(programStart) : firstLog;
-  for (let d = monday(start); d <= monday(now); d.setUTCDate(d.getUTCDate() + 7)) {
-    out.push(d.toISOString().slice(0, 10));
-  }
-  return out.slice(-max);
+  const last = Math.max(currentWeek, ...weeks.map((w) => w.week));
+  return Array.from({ length: last }, (_, i) => i + 1).slice(-max);
 }

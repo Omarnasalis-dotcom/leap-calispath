@@ -272,7 +272,8 @@ export interface WorldWeek {
 }
 
 export interface MovementWeek {
-  week_start: string; // Monday
+  program_id: string; // warrior program the sets were logged in
+  week: number; // program week (W1, W2, …)
   reps: number;
   best: number; // best single set
   variations: Record<string, number>; // reps per variation ('' = untagged)

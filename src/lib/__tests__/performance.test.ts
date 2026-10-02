@@ -83,23 +83,15 @@ describe('helpers', () => {
 });
 
 describe('movementWeeks', () => {
-  const w = (week_start: string) => ({ week_start, reps: 1, best: 1, variations: {} });
-  it('fills every Monday from the first log to this week', () => {
-    expect(movementWeeks([w('2026-09-14'), w('2026-09-28')], 8, new Date('2026-10-02T12:00:00Z'))).toEqual([
-      '2026-09-14',
-      '2026-09-21',
-      '2026-09-28',
-    ]);
+  const w = (week: number) => ({ program_id: 'p1', week, reps: 1, best: 1, variations: {} });
+  it('runs from W1 to the current program week, gaps included', () => {
+    expect(movementWeeks([w(1), w(3)], 4)).toEqual([1, 2, 3, 4]);
   });
-  it('starts at the program start when it is earlier than the first log', () => {
-    expect(movementWeeks([w('2026-09-28')], 8, new Date('2026-10-02T12:00:00Z'), '2026-09-15T08:00:00Z')).toEqual([
-      '2026-09-14',
-      '2026-09-21',
-      '2026-09-28',
-    ]);
+  it('extends to a logged week past the current one', () => {
+    expect(movementWeeks([w(2), w(6)], 3)).toEqual([1, 2, 3, 4, 5, 6]);
   });
   it('keeps only the latest weeks and handles no data', () => {
-    expect(movementWeeks([w('2026-01-05')], 3, new Date('2026-10-02T12:00:00Z'))).toHaveLength(3);
+    expect(movementWeeks([w(12)], 12, 8)).toEqual([5, 6, 7, 8, 9, 10, 11, 12]);
     expect(movementWeeks([])).toEqual([]);
   });
 });

@@ -703,6 +703,11 @@
 .pf-mv-col:hover .pf-mv-stack {
   filter: brightness(1.1);
 }
+.pf-mv-current .pf-mv-label,
+.pf-mv-current .pf-mv-value {
+  color: var(--pf-coral);
+  font-weight: 600;
+}
 .pf-mv-label {
   font-size: 11px;
   color: var(--pf-faint);

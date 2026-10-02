@@ -479,29 +479,26 @@ const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber
 const OTHER_COLOR = 'var(--pf-faint)';
 const MAX_MOVEMENT_WEEKS = 16;
 
-function mondayOf(d: Date): Date {
-  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
-  return x;
-}
-
 function MovementsCell({
   data,
-  programStart,
+  program,
   sel,
   setSel,
   print,
 }: {
   data: UserPerformance['movements'];
-  /** Selected program's start: the axis begins here (or at the first log,
-   * if earlier) so every training week shows, logged or not. */
-  programStart?: string;
+  /** Same program as Workouts completed (active by default): weeks are its
+   * program weeks, W1 to the current week, logged or not. */
+  program: CompletionProgram | undefined;
   sel: Selection;
   setSel: (s: Partial<Selection>) => void;
   print?: boolean;
 }) {
   const movements = MOVEMENT_FAMILIES.filter((m) => m.kind === 'reps')
-    .map((m) => ({ ...m, weeks: data?.find((d) => d.family === m.value)?.weeks ?? [] }))
+    .map((m) => ({
+      ...m,
+      weeks: (data?.find((d) => d.family === m.value)?.weeks ?? []).filter((w) => w.program_id === program?.program_id),
+    }))
     .filter((m) => m.weeks.length > 0);
 
   if (movements.length === 0) {
@@ -516,15 +513,11 @@ function MovementsCell({
   }
   const movement = movements.find((m) => m.value === sel.movement) ?? movements[0];
 
-  // Every week from the first log to this week (last 12), so a week with
-  // no sets shows as an empty column rather than disappearing.
-  const byWeek = new Map(movement.weeks.map((w) => [w.week_start.slice(0, 10), w]));
-  const last = mondayOf(new Date());
-  const firstLog = new Date(movement.weeks[0].week_start);
-  const first = mondayOf(programStart && new Date(programStart) < firstLog ? new Date(programStart) : firstLog);
-  const weeks: string[] = [];
-  for (let d = new Date(first); d <= last; d.setUTCDate(d.getUTCDate() + 7)) weeks.push(d.toISOString().slice(0, 10));
-  const shown = weeks.slice(-MAX_MOVEMENT_WEEKS);
+  // Every program week from W1 to the current week (or the last logged
+  // week), so a week without this movement shows as an empty column.
+  const byWeek = new Map(movement.weeks.map((w) => [w.week, w]));
+  const lastWeek = Math.max(program?.current_week ?? 1, ...movement.weeks.map((w) => w.week));
+  const shown = Array.from({ length: lastWeek }, (_, i) => i + 1).slice(-MAX_MOVEMENT_WEEKS);
 
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
@@ -560,7 +553,7 @@ function MovementsCell({
       <div className="pf-summary">
         <span className="pf-num">{latest.reps}</span>
         <span className="pf-summary-note">
-          reps in the week of {shortDate(latest.week_start)} · best set {latest.best}
+          reps in W{latest.week} · best set {latest.best}
         </span>
       </div>
       <div className="pf-mv-bars" role="list" aria-label={`${movement.label}: reps per week`}>
@@ -571,16 +564,16 @@ function MovementsCell({
                 .map(([v, n]) => ({ v, n }))
                 .sort((a, b) => (top.includes(a.v) ? top.indexOf(a.v) : 99) - (top.includes(b.v) ? top.indexOf(b.v) : 99))
             : [];
+          const current = wk === program?.current_week;
           return (
             <div
               key={wk}
-              className="pf-mv-col"
+              className={`pf-mv-col${current ? ' pf-mv-current' : ''}`}
               role="listitem"
               title={
                 w
-                  ? `Week of ${formatDate(wk)}: ${w.reps} reps, best set ${w.best}\n` +
-                    parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n')
-                  : `Week of ${formatDate(wk)}: no sets`
+                  ? `Week ${wk}: ${w.reps} reps, best set ${w.best}\n` + parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n')
+                  : `Week ${wk}: no ${movement.label.toLowerCase()} sets`
               }
             >
               <span className="pf-mv-value num">{w ? w.reps : ''}</span>
@@ -591,7 +584,7 @@ function MovementsCell({
                   ))}
                 </div>
               </div>
-              <span className="pf-mv-label">{shortDate(wk)}</span>
+              <span className="pf-mv-label">W{wk}</span>
             </div>
           );
         })}
@@ -755,7 +748,7 @@ function Cells({
       <BlocksCell data={data.completion} sel={sel} setSel={setSel} print={print} />
       <MovementsCell
         data={data.movements}
-        programStart={selectedProgram(data, sel)?.assigned_at}
+        program={selectedProgram(data, sel)}
         sel={sel}
         setSel={setSel}
         print={print}
@@ -888,7 +881,7 @@ function PrintReport({
               <BlocksCell data={data.completion} sel={sel} setSel={noop} print />
               <MovementsCell
                 data={data.movements}
-                programStart={selectedProgram(data, sel)?.assigned_at}
+                program={selectedProgram(data, sel)}
                 sel={sel}
                 setSel={noop}
                 print

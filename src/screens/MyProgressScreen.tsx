@@ -130,7 +130,7 @@ export function MyProgressScreen() {
         >
           <BodyweightCard data={data.bodyweight} c={c} styles={styles} chartColors={chartColors} />
           <BlocksCard program={program} c={c} styles={styles} />
-          <MovementsCard data={data} programStart={program?.assigned_at} c={c} styles={styles} />
+          <MovementsCard data={data} program={program} c={c} styles={styles} />
           <LiftsCard data={data} c={c} styles={styles} chartColors={chartColors} positive={positive} />
           <WorldsCard data={data} c={c} styles={styles} chartColors={chartColors} />
           <EffortCard program={program} c={c} styles={styles} chartColors={chartColors} />
@@ -302,24 +302,27 @@ function BlocksCard({ program, c, styles }: { program: CompletionProgram | undef
 
 function MovementsCard({
   data,
-  programStart,
+  program,
   c,
   styles,
 }: {
   data: Performance;
-  programStart?: string;
+  /** Same program as Workouts completed: bars are its program weeks. */
+  program: CompletionProgram | undefined;
   c: TCPalette;
   styles: Styles;
 }) {
   const [picked, setPicked] = useState<string | null>(null);
-  const [weekSel, setWeekSel] = useState<string | null>(null);
+  const [weekSel, setWeekSel] = useState<number | null>(null);
   // Variation colours in fixed order (most reps first); the rest are "Other".
   const varColors = [c.coral, c.static, c.oneMinMax];
   const otherColor = c.textFaint2;
 
   const movements = REP_MOVEMENTS.map((key) => ({
     key,
-    weeks: data.movements?.find((m) => m.family === key)?.weeks ?? [],
+    weeks: (data.movements?.find((m) => m.family === key)?.weeks ?? []).filter(
+      (w) => w.program_id === program?.program_id,
+    ),
   })).filter((m) => m.weeks.length > 0);
 
   if (movements.length === 0) {
@@ -330,8 +333,8 @@ function MovementsCard({
     );
   }
   const movement = movements.find((m) => m.key === picked) ?? movements[0];
-  const byWeek = new Map(movement.weeks.map((w) => [w.week_start.slice(0, 10), w]));
-  const weeks = movementWeeks(movement.weeks, 8, new Date(), programStart);
+  const byWeek = new Map(movement.weeks.map((w) => [w.week, w]));
+  const weeks = movementWeeks(movement.weeks, program?.current_week ?? 1);
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
     Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + n)),
@@ -367,13 +370,13 @@ function MovementsCard({
       </ScrollView>
       <Figure
         value={String(latest.reps)}
-        note={t('progress.movementsHeadline', { date: shortDate(latest.week_start), best: latest.best })}
+        note={t('progress.movementsHeadline', { week: latest.week, best: latest.best })}
         styles={styles}
       />
       <View style={styles.mvReadout}>
         {selWeek ? (
           <Text style={styles.mvReadoutText}>
-            {t('progress.movementsWeek', { date: shortDate(weekSel!), reps: selWeek.reps, best: selWeek.best })}
+            {t('progress.movementsWeek', { week: weekSel, reps: selWeek.reps, best: selWeek.best })}
             {' · '}
             {Object.entries(selWeek.variations)
               .map(([v, n]) => `${label(v)} ${n}`)
@@ -397,12 +400,12 @@ function MovementsCard({
               onPress={() => setWeekSel(on ? null : wk)}
               accessibilityRole="button"
               accessibilityLabel={
-                w
-                  ? t('progress.movementsWeek', { date: shortDate(wk), reps: w.reps, best: w.best })
-                  : shortDate(wk)
+                w ? t('progress.movementsWeek', { week: wk, reps: w.reps, best: w.best }) : t('progress.weekLong', { n: wk })
               }
             >
-              <Text style={[styles.mvValue, on && { color: c.coral }]}>{w ? w.reps : ''}</Text>
+              <Text style={[styles.mvValue, (on || wk === program?.current_week) && { color: c.coral }]}>
+                {w ? w.reps : ''}
+              </Text>
               <View style={styles.mvTrack}>
                 <View style={[styles.mvStack, { height: `${((w?.reps ?? 0) / max) * 100}%` }, on && styles.mvStackOn]}>
                   {parts.map(([v, n]) => (
@@ -410,8 +413,11 @@ function MovementsCard({
                   ))}
                 </View>
               </View>
-              <Text style={[styles.mvLabel, on && { color: c.textPrimary }]} numberOfLines={1}>
-                {shortDate(wk)}
+              <Text
+                style={[styles.mvLabel, on && { color: c.textPrimary }, wk === program?.current_week && { color: c.coral }]}
+                numberOfLines={1}
+              >
+                {t('progress.weekShort', { n: wk })}
               </Text>
             </Pressable>
           );
