@@ -21,6 +21,7 @@ import {
 } from '@/shared/constants';
 import { DataTable, type Column } from '@/components/DataTable';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
+import { PerformancePanel } from '@/components/performance/PerformancePanel';
 import type { TrialHistoryRow } from '@/shared/types';
 
 const TRIAL_COLUMNS: Column<TrialHistoryRow>[] = [
@@ -380,6 +381,8 @@ export function UserDetailPage() {
           </section>
         </div>
       )}
+
+      {u && <PerformancePanel userId={id} />}
 
       <section className="panel">
         <div className="panel-head">

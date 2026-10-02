@@ -3,6 +3,7 @@ import type {
   AdminUserProfile,
   AdminUserRow,
   TrialHistoryRow,
+  UserPerformance,
 } from '@/shared/types';
 
 export interface UserSearchParams {
@@ -39,6 +40,14 @@ export async function fetchUserTrialHistory(userId: string): Promise<TrialHistor
   });
   if (error) throw new Error(error.message);
   return (data ?? []) as TrialHistoryRow[];
+}
+
+export async function fetchUserPerformance(userId: string): Promise<UserPerformance> {
+  const { data, error } = await supabase.rpc('admin_get_user_performance', {
+    p_user_id: userId,
+  });
+  if (error) throw new Error(error.message);
+  return data as UserPerformance;
 }
 
 export async function grantRole(

@@ -222,3 +222,51 @@ export interface WellRoundedRow {
   rank?: number;
   [key: string]: unknown;
 }
+
+// admin_get_user_performance — see 20261002010000_add_admin_get_user_performance.sql
+export interface WeightedPoint {
+  date: string;
+  week: number | null;
+  weight: number;
+  reps: number | null;
+}
+
+export interface WeightedMovement {
+  exercise: string;
+  points: WeightedPoint[];
+}
+
+export interface BodyweightPoint {
+  date: string;
+  weight_kg: number;
+}
+
+export interface CompletionWeek {
+  week: number;
+  total: number;
+  completed: number;
+  missed: number;
+}
+
+export interface CompletionProgram {
+  program_id: string;
+  name: string;
+  status: string;
+  assigned_at: string;
+  current_week: number;
+  weeks: CompletionWeek[];
+}
+
+export interface WorldWeek {
+  week_start: string;
+  static: number;
+  onemm: number;
+  power: number;
+}
+
+export interface UserPerformance {
+  weighted: WeightedMovement[];
+  bodyweight: BodyweightPoint[];
+  completion: CompletionProgram[];
+  worlds: WorldWeek[];
+}

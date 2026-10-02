@@ -1,0 +1,120 @@
+/* Performance panel (UserDetailPage). Chart colors come from the
+   .dashboard-v2 tokens in DashboardPage.css, so light/dark already work. */
+
+.perf-grid {
+  gap: 16px;
+}
+
+.perf-card {
+  background: var(--dv-card-fill);
+  border: 1px solid var(--dv-card-border);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px 12px;
+  min-width: 0;
+}
+
+.perf-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.perf-sub {
+  margin: 2px 0 10px;
+  font-size: 12px;
+}
+
+.perf-select {
+  max-width: 100%;
+  margin-bottom: 10px;
+}
+
+.perf-empty {
+  font-size: 13px;
+  padding: 36px 0;
+  text-align: center;
+}
+
+.perf-chart {
+  margin-top: 8px;
+}
+
+.perf-y-labels {
+  position: absolute;
+  top: -6px;
+  bottom: -6px;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  font-size: 10.5px;
+  color: var(--ink-3);
+  pointer-events: none;
+}
+
+.perf-dot {
+  position: absolute;
+  border-radius: 50%;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 2px var(--surface);
+  pointer-events: none;
+}
+
+.perf-x-labels {
+  position: relative;
+  height: 16px;
+  margin-top: 6px;
+}
+.perf-x-labels .dv-week-label {
+  position: absolute;
+  transform: translateX(-50%);
+  white-space: nowrap;
+}
+.perf-x-labels .dv-week-label:first-child {
+  transform: none;
+}
+.perf-x-labels .dv-week-label:last-child {
+  transform: translateX(-100%);
+}
+
+.perf-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+.perf-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.perf-legend-swatch {
+  width: 10px;
+  height: 3px;
+  border-radius: 2px;
+  flex: none;
+}
+.perf-legend-last {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+.perf-tooltip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.perf-tooltip-label {
+  color: var(--ink-2);
+  font-weight: 600;
+  font-size: 11.5px;
+  margin-right: 4px;
+}
+
+/* Many program weeks: tighter bars. */
+.perf-vbar-list {
+  gap: 6px;
+  margin-top: 28px;
+}
