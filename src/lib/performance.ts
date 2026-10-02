@@ -186,9 +186,10 @@ export function fmtNum(v: number): string {
   return String(Math.round(v * 10) / 10);
 }
 
-/** Calendar weeks (Monday, YYYY-MM-DD) from the first logged week to this
- * week, last `max` of them — unlogged weeks stay as empty columns. */
-export function movementWeeks(weeks: MovementWeek[], max = 8, now = new Date()): string[] {
+/** Calendar weeks (Monday, YYYY-MM-DD) from the program start (or the
+ * first logged week, if earlier) to this week, last `max` of them —
+ * unlogged weeks stay as empty columns. */
+export function movementWeeks(weeks: MovementWeek[], max = 8, now = new Date(), programStart?: string): string[] {
   if (weeks.length === 0) return [];
   const monday = (d: Date) => {
     const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -196,7 +197,9 @@ export function movementWeeks(weeks: MovementWeek[], max = 8, now = new Date()):
     return x;
   };
   const out: string[] = [];
-  for (let d = monday(new Date(weeks[0].week_start)); d <= monday(now); d.setUTCDate(d.getUTCDate() + 7)) {
+  const firstLog = new Date(weeks[0].week_start);
+  const start = programStart && new Date(programStart) < firstLog ? new Date(programStart) : firstLog;
+  for (let d = monday(start); d <= monday(now); d.setUTCDate(d.getUTCDate() + 7)) {
     out.push(d.toISOString().slice(0, 10));
   }
   return out.slice(-max);

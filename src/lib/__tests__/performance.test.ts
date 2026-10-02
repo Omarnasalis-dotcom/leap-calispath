@@ -91,6 +91,13 @@ describe('movementWeeks', () => {
       '2026-09-28',
     ]);
   });
+  it('starts at the program start when it is earlier than the first log', () => {
+    expect(movementWeeks([w('2026-09-28')], 8, new Date('2026-10-02T12:00:00Z'), '2026-09-15T08:00:00Z')).toEqual([
+      '2026-09-14',
+      '2026-09-21',
+      '2026-09-28',
+    ]);
+  });
   it('keeps only the latest weeks and handles no data', () => {
     expect(movementWeeks([w('2026-01-05')], 3, new Date('2026-10-02T12:00:00Z'))).toHaveLength(3);
     expect(movementWeeks([])).toEqual([]);

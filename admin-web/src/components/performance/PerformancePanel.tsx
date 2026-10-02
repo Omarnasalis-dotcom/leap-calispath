@@ -477,7 +477,7 @@ function BlocksCell({
 // "Other" rather than getting a near-duplicate hue.
 const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber)'];
 const OTHER_COLOR = 'var(--pf-faint)';
-const MAX_MOVEMENT_WEEKS = 12;
+const MAX_MOVEMENT_WEEKS = 16;
 
 function mondayOf(d: Date): Date {
   const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
@@ -487,11 +487,15 @@ function mondayOf(d: Date): Date {
 
 function MovementsCell({
   data,
+  programStart,
   sel,
   setSel,
   print,
 }: {
   data: UserPerformance['movements'];
+  /** Selected program's start: the axis begins here (or at the first log,
+   * if earlier) so every training week shows, logged or not. */
+  programStart?: string;
   sel: Selection;
   setSel: (s: Partial<Selection>) => void;
   print?: boolean;
@@ -516,7 +520,8 @@ function MovementsCell({
   // no sets shows as an empty column rather than disappearing.
   const byWeek = new Map(movement.weeks.map((w) => [w.week_start.slice(0, 10), w]));
   const last = mondayOf(new Date());
-  const first = mondayOf(new Date(movement.weeks[0].week_start));
+  const firstLog = new Date(movement.weeks[0].week_start);
+  const first = mondayOf(programStart && new Date(programStart) < firstLog ? new Date(programStart) : firstLog);
   const weeks: string[] = [];
   for (let d = new Date(first); d <= last; d.setUTCDate(d.getUTCDate() + 7)) weeks.push(d.toISOString().slice(0, 10));
   const shown = weeks.slice(-MAX_MOVEMENT_WEEKS);
@@ -748,7 +753,13 @@ function Cells({
     <div className="pf-grid">
       <BodyweightCell data={data.bodyweight} />
       <BlocksCell data={data.completion} sel={sel} setSel={setSel} print={print} />
-      <MovementsCell data={data.movements} sel={sel} setSel={setSel} print={print} />
+      <MovementsCell
+        data={data.movements}
+        programStart={selectedProgram(data, sel)?.assigned_at}
+        sel={sel}
+        setSel={setSel}
+        print={print}
+      />
       <WeightedCell data={data.weighted} activeProgram={activeProgramId(data)} sel={sel} setSel={setSel} print={print} />
       <WorldsCell data={data.worlds} />
       <EffortCell data={data.completion} sel={sel} setSel={setSel} print={print} />
@@ -875,7 +886,13 @@ function PrintReport({
                   lift beside World points, then any extra lifts at the end. */}
               <BodyweightCell data={data.bodyweight} />
               <BlocksCell data={data.completion} sel={sel} setSel={noop} print />
-              <MovementsCell data={data.movements} sel={sel} setSel={noop} print />
+              <MovementsCell
+                data={data.movements}
+                programStart={selectedProgram(data, sel)?.assigned_at}
+                sel={sel}
+                setSel={noop}
+                print
+              />
               {lifts.slice(0, 1).map(liftCell)}
               <WorldsCell data={data.worlds} />
               <EffortCell data={data.completion} sel={sel} setSel={noop} print />

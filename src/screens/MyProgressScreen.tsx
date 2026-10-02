@@ -130,7 +130,7 @@ export function MyProgressScreen() {
         >
           <BodyweightCard data={data.bodyweight} c={c} styles={styles} chartColors={chartColors} />
           <BlocksCard program={program} c={c} styles={styles} />
-          <MovementsCard data={data} c={c} styles={styles} />
+          <MovementsCard data={data} programStart={program?.assigned_at} c={c} styles={styles} />
           <LiftsCard data={data} c={c} styles={styles} chartColors={chartColors} positive={positive} />
           <WorldsCard data={data} c={c} styles={styles} chartColors={chartColors} />
           <EffortCard program={program} c={c} styles={styles} chartColors={chartColors} />
@@ -300,7 +300,17 @@ function BlocksCard({ program, c, styles }: { program: CompletionProgram | undef
 
 // ---------- Main movements (bodyweight reps) ----------
 
-function MovementsCard({ data, c, styles }: { data: Performance; c: TCPalette; styles: Styles }) {
+function MovementsCard({
+  data,
+  programStart,
+  c,
+  styles,
+}: {
+  data: Performance;
+  programStart?: string;
+  c: TCPalette;
+  styles: Styles;
+}) {
   const [picked, setPicked] = useState<string | null>(null);
   const [weekSel, setWeekSel] = useState<string | null>(null);
   // Variation colours in fixed order (most reps first); the rest are "Other".
@@ -321,7 +331,7 @@ function MovementsCard({ data, c, styles }: { data: Performance; c: TCPalette; s
   }
   const movement = movements.find((m) => m.key === picked) ?? movements[0];
   const byWeek = new Map(movement.weeks.map((w) => [w.week_start.slice(0, 10), w]));
-  const weeks = movementWeeks(movement.weeks);
+  const weeks = movementWeeks(movement.weeks, 8, new Date(), programStart);
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
     Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + n)),
