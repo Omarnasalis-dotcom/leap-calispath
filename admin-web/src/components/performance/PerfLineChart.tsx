@@ -5,7 +5,10 @@ export interface PerfSeries {
   key: string;
   label: string;
   color: string; // CSS var, e.g. 'var(--dv-static)'
-  values: number[];
+  /** null = nothing logged at that x; the line breaks there. */
+  values: (number | null)[];
+  /** Optional tooltip text per x (e.g. "60 kg × 5"); defaults to the value. */
+  details?: (string | null)[];
 }
 
 // SVG viewBox units, same approach as WarriorGrowthChart.
@@ -38,9 +41,9 @@ export function PerfLineChart({
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
 
   const n = xLabels.length;
-  if (n === 0 || series.length === 0) return null;
+  const all = series.flatMap((s) => s.values).filter((v): v is number => v !== null);
+  if (n === 0 || all.length === 0) return null;
 
-  const all = series.flatMap((s) => s.values);
   const rawMax = Math.max(...all);
   const rawMin = Math.min(...all);
   const pad = (rawMax - rawMin) * 0.15 || Math.max(1, rawMax * 0.1);
@@ -52,6 +55,7 @@ export function PerfLineChart({
   const yAt = (v: number) => PAD_Y + (H - PAD_Y * 2) * (1 - (v - yMin) / span);
 
   const fmt = (v: number) => `${Number.isInteger(v) ? v : v.toFixed(1)} ${unit}`.trim();
+  const lastValue = (s: PerfSeries) => [...s.values].reverse().find((v) => v !== null) ?? null;
   const labelEvery = Math.ceil(n / MAX_X_LABELS);
 
   function handleMove(e: PointerEvent<SVGSVGElement>) {
@@ -70,21 +74,42 @@ export function PerfLineChart({
     setHoverIdx(nearest);
   }
 
+  // A line segment only joins two consecutive logged points; a null breaks it.
+  const pathFor = (values: (number | null)[]) => {
+    let d = '';
+    let pen = false;
+    values.forEach((v, i) => {
+      if (v === null) {
+        pen = false;
+        return;
+      }
+      d += `${pen ? 'L' : 'M'}${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)} `;
+      pen = true;
+    });
+    return d.trim();
+  };
+
   const hoverX = hoverIdx !== null ? xAt(hoverIdx) : null;
-  const tooltipY =
-    hoverIdx !== null ? Math.min(...series.map((s) => yAt(s.values[hoverIdx]))) : 0;
+  const hoverYs =
+    hoverIdx !== null
+      ? series.map((s) => s.values[hoverIdx]).filter((v): v is number => v !== null).map(yAt)
+      : [];
+  const tooltipY = hoverYs.length > 0 ? Math.min(...hoverYs) : PAD_Y;
 
   return (
     <div>
       {series.length > 1 && (
         <div className="perf-legend">
-          {series.map((s) => (
-            <span key={s.key} className="perf-legend-item">
-              <span className="perf-legend-swatch" style={{ background: s.color }} />
-              {s.label}
-              <span className="num perf-legend-last">{fmt(s.values[n - 1])}</span>
-            </span>
-          ))}
+          {series.map((s) => {
+            const last = lastValue(s);
+            return (
+              <span key={s.key} className="perf-legend-item">
+                <span className="perf-legend-swatch" style={{ background: s.color }} />
+                {s.label}
+                {last !== null && <span className="num perf-legend-last">{fmt(last)}</span>}
+              </span>
+            );
+          })}
         </div>
       )}
       <div className="dv-chart-wrap perf-chart">
@@ -109,28 +134,26 @@ export function PerfLineChart({
           {hoverX !== null && (
             <line x1={hoverX} x2={hoverX} y1={PAD_Y} y2={H - PAD_Y} stroke="var(--dv-crosshair)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
           )}
-          {series.map((s) => {
-            const d = s.values
-              .map((v, i) => `${i === 0 ? 'M' : 'L'}${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)}`)
-              .join(' ');
-            return (
-              <path
-                key={s.key}
-                d={d}
-                fill="none"
-                stroke={s.color}
-                strokeWidth={2}
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                vectorEffect="non-scaling-stroke"
-              />
-            );
-          })}
+          {series.map((s) => (
+            <path
+              key={s.key}
+              d={pathFor(s.values)}
+              fill="none"
+              stroke={s.color}
+              strokeWidth={2}
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
         </svg>
-        {/* Markers in HTML so they stay round under preserveAspectRatio="none". */}
-        {series.map((s) =>
-          s.values.map((v, i) =>
-            i === n - 1 || i === hoverIdx || n <= 12 ? (
+        {/* Markers in HTML so they stay round under preserveAspectRatio="none".
+            Always drawn when the series has gaps — a lone point has no line. */}
+        {series.map((s) => {
+          const gappy = s.values.some((v) => v === null);
+          const lastIdx = s.values.reduce<number>((acc, v, i) => (v !== null ? i : acc), -1);
+          return s.values.map((v, i) =>
+            v !== null && (gappy || i === lastIdx || i === hoverIdx || n <= 12) ? (
               <span
                 key={`${s.key}-${i}`}
                 className="perf-dot"
@@ -138,25 +161,29 @@ export function PerfLineChart({
                   left: `${(xAt(i) / W) * 100}%`,
                   top: `${(yAt(v) / H) * 190}px`,
                   background: s.color,
-                  width: i === hoverIdx || i === n - 1 ? 10 : 7,
-                  height: i === hoverIdx || i === n - 1 ? 10 : 7,
+                  width: i === hoverIdx || i === lastIdx ? 10 : 7,
+                  height: i === hoverIdx || i === lastIdx ? 10 : 7,
                 }}
               />
             ) : null,
-          ),
-        )}
+          );
+        })}
         {hoverIdx !== null && hoverX !== null && (
           <ChartTooltip left={`${(hoverX / W) * 100}%`} top={`${(tooltipY / H) * 190}px`} visible>
             <div className="dv-tooltip-title">{tooltipTitles[hoverIdx]}</div>
-            {series.map((s) => (
-              <div key={s.key} className="dv-tooltip-value perf-tooltip-row">
-                {series.length > 1 && (
-                  <span className="perf-legend-swatch" style={{ background: s.color }} />
-                )}
-                {series.length > 1 && <span className="perf-tooltip-label">{s.label}</span>}
-                {fmt(s.values[hoverIdx])}
-              </div>
-            ))}
+            {series.map((s) => {
+              const v = s.values[hoverIdx];
+              const text = v === null ? '—' : s.details?.[hoverIdx] ?? fmt(v);
+              return (
+                <div key={s.key} className="dv-tooltip-value perf-tooltip-row">
+                  {series.length > 1 && (
+                    <span className="perf-legend-swatch" style={{ background: s.color }} />
+                  )}
+                  {series.length > 1 && <span className="perf-tooltip-label">{s.label}</span>}
+                  {text}
+                </div>
+              );
+            })}
           </ChartTooltip>
         )}
       </div>

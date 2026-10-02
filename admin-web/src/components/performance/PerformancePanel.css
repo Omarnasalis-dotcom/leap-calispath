@@ -30,6 +30,21 @@
   margin-bottom: 10px;
 }
 
+.perf-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.perf-controls .perf-select {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.perf-slot-single {
+  margin: 0 0 4px;
+  color: var(--ink-2);
+}
+
 .perf-empty {
   font-size: 13px;
   padding: 36px 0;

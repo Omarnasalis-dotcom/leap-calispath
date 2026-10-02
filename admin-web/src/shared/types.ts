@@ -229,6 +229,9 @@ export interface WeightedPoint {
   week: number | null;
   weight: number;
   reps: number | null;
+  block: string | null; // program_blocks.name, e.g. "LEGS DAY3 | Strength -B"
+  program_id: string | null;
+  program: string | null;
 }
 
 export interface WeightedMovement {

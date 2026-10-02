@@ -16,39 +16,115 @@ function Empty({ children }: { children: string }) {
   return <div className="dim perf-empty">{children}</div>;
 }
 
+// Fixed categorical order for workout-slot lines (most-logged slot first).
+// Three distinct hues from the dashboard palette; a 4th (--dv-onemm) is too
+// close to --dv-accent to tell apart, so less-logged slots are listed instead.
+const SLOT_COLORS = ['var(--dv-accent)', 'var(--dv-static)', 'var(--dv-power)'];
+const MAX_SLOTS = SLOT_COLORS.length;
+
+/** "LEGS DAY3 | Strength -B" → "LEGS DAY3 · Strength -B" */
+function slotLabel(block: string): string {
+  return block.replace(/\s*\|\s*/g, ' · ');
+}
+
 function WeightedChart({ data }: { data: UserPerformance['weighted'] }) {
-  const [picked, setPicked] = useState<string | null>(null);
+  const [pickedExercise, setPickedExercise] = useState<string | null>(null);
+  const [pickedProgram, setPickedProgram] = useState<string | null>(null);
   if (data.length === 0) {
     return <Empty>No weighted sets logged yet. Weight is only recorded on exercises marked as weighted.</Empty>;
   }
-  const movement = data.find((m) => m.exercise === picked) ?? data[0];
-  const pts = movement.points;
+  const movement = data.find((m) => m.exercise === pickedExercise) ?? data[0];
+
+  // Week numbers restart per program, so one program at a time; default
+  // to the one with the most recent log of this movement.
+  const programs = new Map<string, { name: string; latest: string }>();
+  for (const p of movement.points) {
+    if (!p.program_id || p.week == null || !p.block) continue;
+    const cur = programs.get(p.program_id);
+    if (!cur || p.date > cur.latest) programs.set(p.program_id, { name: p.program ?? 'Program', latest: p.date });
+  }
+  const programList = [...programs.entries()].sort((a, b) => b[1].latest.localeCompare(a[1].latest));
+  const programId = programList.find(([id]) => id === pickedProgram)?.[0] ?? programList[0]?.[0];
+  const pts = movement.points.filter((p) => p.program_id === programId && p.week != null && p.block);
+
+  // One line per workout slot (block name): the same lift on a heavy day
+  // and a light day are compared week to week, never mixed. Within a slot
+  // and week, the heaviest set wins.
+  const slotCounts = new Map<string, number>();
+  pts.forEach((p) => slotCounts.set(p.block!, (slotCounts.get(p.block!) ?? 0) + 1));
+  const slots = [...slotCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_SLOTS).map(([b]) => b);
+  const hiddenSlots = slotCounts.size - slots.length;
+  const weeks = [...new Set(pts.filter((p) => slots.includes(p.block!)).map((p) => p.week!))].sort((a, b) => a - b);
+
+  const series: PerfSeries[] = slots.map((slot, i) => {
+    const best = weeks.map((wk) => {
+      const inWeek = pts.filter((p) => p.block === slot && p.week === wk);
+      if (inWeek.length === 0) return null;
+      return inWeek.reduce((a, b) => (Number(b.weight) > Number(a.weight) ? b : a));
+    });
+    return {
+      key: slot,
+      label: slotLabel(slot),
+      color: SLOT_COLORS[i],
+      values: best.map((p) => (p ? Number(p.weight) : null)),
+      details: best.map((p) =>
+        p ? `${Number(p.weight)} kg${p.reps != null ? ` × ${p.reps}` : ''} · ${shortDate(p.date)}` : null,
+      ),
+    };
+  });
+
   return (
     <>
-      <select
-        className="field perf-select"
-        value={movement.exercise}
-        onChange={(e) => setPicked(e.target.value)}
-        aria-label="Movement"
-      >
-        {data.map((m) => (
-          <option key={m.exercise} value={m.exercise}>
-            {m.exercise} ({m.points.length})
-          </option>
-        ))}
-      </select>
-      <PerfLineChart
-        ariaLabel={`${movement.exercise}: heaviest set per session`}
-        unit="kg"
-        xLabels={pts.map((p) => (p.week != null ? `W${p.week}` : shortDate(p.date)))}
-        tooltipTitles={pts.map(
-          (p) =>
-            `${p.week != null ? `Week ${p.week} · ` : ''}${formatDate(p.date)}${p.reps != null ? ` · ${p.reps} reps` : ''}`,
+      <div className="perf-controls">
+        <select
+          className="field perf-select"
+          value={movement.exercise}
+          onChange={(e) => {
+            setPickedExercise(e.target.value);
+            setPickedProgram(null);
+          }}
+          aria-label="Movement"
+        >
+          {data.map((m) => (
+            <option key={m.exercise} value={m.exercise}>
+              {m.exercise} ({m.points.length})
+            </option>
+          ))}
+        </select>
+        {programList.length > 1 && (
+          <select
+            className="field perf-select"
+            value={programId}
+            onChange={(e) => setPickedProgram(e.target.value)}
+            aria-label="Program"
+          >
+            {programList.map(([id, p]) => (
+              <option key={id} value={id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
         )}
-        series={[
-          { key: 'w', label: movement.exercise, color: 'var(--dv-accent)', values: pts.map((p) => Number(p.weight)) },
-        ]}
-      />
+      </div>
+      {series.length === 0 ? (
+        <Empty>No sets with a program week for this movement.</Empty>
+      ) : (
+        <>
+          {series.length === 1 && <p className="perf-sub dim perf-slot-single">{series[0].label}</p>}
+          <PerfLineChart
+            ariaLabel={`${movement.exercise}: heaviest set per workout slot, by program week`}
+            unit="kg"
+            xLabels={weeks.map((w) => `W${w}`)}
+            tooltipTitles={weeks.map((w) => `Week ${w}`)}
+            series={series}
+          />
+          {hiddenSlots > 0 && (
+            <p className="perf-sub dim">
+              +{hiddenSlots} less-logged workout slot{hiddenSlots > 1 ? 's' : ''} not shown
+            </p>
+          )}
+        </>
+      )}
     </>
   );
 }
@@ -158,7 +234,7 @@ export function PerformancePanel({ userId }: { userId: string }) {
           <div className="grid-2 perf-grid">
             <div className="perf-card">
               <h3 className="perf-title">Weighted lifts</h3>
-              <p className="perf-sub dim">Heaviest set per session</p>
+              <p className="perf-sub dim">Heaviest set per workout slot, week to week</p>
               <WeightedChart data={q.data.weighted} />
             </div>
             <div className="perf-card">
