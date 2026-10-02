@@ -370,16 +370,24 @@ function MovementsCard({
       </ScrollView>
       <Figure
         value={String(latest.reps)}
-        note={t('progress.movementsHeadline', { week: latest.week, best: latest.best })}
+        note={[
+          t('progress.movementsRepsIn', { week: latest.week }),
+          latest.assumed > 0 ? t('progress.movementsAssumed', { count: latest.assumed }) : null,
+          latest.best > 0 ? t('progress.movementsBest', { best: latest.best }) : null,
+        ]
+          .filter(Boolean)
+          .join(' · ')}
         styles={styles}
       />
       <View style={styles.mvReadout}>
         {selWeek ? (
           <Text style={styles.mvReadoutText}>
-            {t('progress.movementsWeek', { week: weekSel, reps: selWeek.reps, best: selWeek.best })}
-            {' · '}
-            {Object.entries(selWeek.variations)
-              .map(([v, n]) => `${label(v)} ${n}`)
+            {[
+              t('progress.movementsWeekReps', { week: weekSel, reps: selWeek.reps }),
+              ...Object.entries(selWeek.variations).map(([v, n]) => `${label(v)} ${n}`),
+              selWeek.assumed > 0 ? t('progress.movementsAssumed', { count: selWeek.assumed }) : null,
+            ]
+              .filter(Boolean)
               .join(' · ')}
           </Text>
         ) : null}
@@ -400,7 +408,7 @@ function MovementsCard({
               onPress={() => setWeekSel(on ? null : wk)}
               accessibilityRole="button"
               accessibilityLabel={
-                w ? t('progress.movementsWeek', { week: wk, reps: w.reps, best: w.best }) : t('progress.weekLong', { n: wk })
+                w ? t('progress.movementsWeekReps', { week: wk, reps: w.reps }) : t('progress.weekLong', { n: wk })
               }
             >
               <Text style={[styles.mvValue, (on || wk === program?.current_week) && { color: c.coral }]}>
@@ -411,6 +419,9 @@ function MovementsCard({
                   {parts.map(([v, n]) => (
                     <View key={v} style={{ flexGrow: n, flexBasis: 0, minHeight: 2, backgroundColor: colorOf(v) }} />
                   ))}
+                  {w && w.assumed > 0 && (
+                    <View style={[styles.mvAssumed, { flexGrow: w.assumed, borderColor: c.textFaint2 }]} />
+                  )}
                 </View>
               </View>
               <Text
@@ -434,6 +445,12 @@ function MovementsCard({
           <View style={styles.feelLegendItem}>
             <View style={[styles.dot8, { backgroundColor: otherColor }]} />
             <Text style={styles.feelLegendText}>{t('progress.movementOther')}</Text>
+          </View>
+        )}
+        {movement.weeks.some((w) => w.assumed > 0) && (
+          <View style={styles.feelLegendItem}>
+            <View style={[styles.dot8, styles.mvAssumed, { borderColor: c.textFaint2 }]} />
+            <Text style={styles.feelLegendText}>{t('progress.movementsAssumedLegend')}</Text>
           </View>
         )}
       </View>
@@ -867,6 +884,8 @@ const getStyles = (c: TCPalette) =>
     mvTrack: { width: '100%', flex: 1, justifyContent: 'flex-end', borderBottomWidth: 1, borderBottomColor: c.dividerStrong },
     mvStack: { width: '100%', flexDirection: 'column-reverse', gap: 2, borderTopLeftRadius: 5, borderTopRightRadius: 5, overflow: 'hidden' },
     mvStackOn: { opacity: 0.85 },
+    // Reps filled from the plan, not entered: hollow so they read apart.
+    mvAssumed: { flexBasis: 0, minHeight: 2, borderWidth: 1.5, borderStyle: 'dashed', backgroundColor: 'transparent' },
     mvLabel: { color: c.textFaint2, fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5 },
     feelStrip: { height: 36, marginTop: -6 },
     feelCol: { position: 'absolute', top: 0, bottom: 0, width: 16, flexDirection: 'column-reverse', gap: 2 },

@@ -274,9 +274,10 @@ export interface WorldWeek {
 export interface MovementWeek {
   program_id: string; // warrior program the sets were logged in
   week: number; // program week (W1, W2, …)
-  reps: number;
-  best: number; // best single set
-  variations: Record<string, number>; // reps per variation ('' = untagged)
+  reps: number; // logged + assumed
+  assumed: number; // filled from the plan on Complete (not entered)
+  best: number; // best single logged set
+  variations: Record<string, number>; // logged reps per variation ('' = untagged)
 }
 
 export interface MovementReps {

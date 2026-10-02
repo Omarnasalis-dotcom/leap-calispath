@@ -1,5 +1,5 @@
 import React from 'react';
-import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform } from 'react-native';
+import { Modal, View, Text, TextInput, TouchableOpacity, StyleSheet, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { LeapLogo } from '../../components/LeapLogo';
 import { DismissKeyboardOnOutsideTap } from '../DismissKeyboardOnOutsideTap';
@@ -36,6 +36,13 @@ interface WarriorLogModalProps {
   // block has 2+ weighted exercises.
   logExerciseWeights: Record<string, string>;
   setLogExerciseWeight: (exerciseId: string, val: string) => void;
+  /** Exercises with planned work but no sets entered — "Complete" asks
+   * whether they were all done as planned. */
+  plannedExercises: { id: string; name: string; sets: number }[];
+  plannedAll: boolean;
+  setPlannedAll: (val: boolean) => void;
+  plannedDone: Record<string, number>;
+  setPlannedDone: (exerciseId: string, n: number) => void;
   logLadderProgress: string;
   setLogLadderProgress: (val: string) => void;
   logRating: number;
@@ -71,6 +78,11 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
   setLogWeightUsed,
   logExerciseWeights,
   setLogExerciseWeight,
+  plannedExercises,
+  plannedAll,
+  setPlannedAll,
+  plannedDone,
+  setPlannedDone,
   logLadderProgress,
   setLogLadderProgress,
   logRating,
@@ -135,6 +147,77 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
               </TouchableOpacity>
             </View>
           </View>
+
+          {/* Sets check: did untouched exercises get all their planned sets? */}
+          {logStatus === 'completed' && plannedExercises.length > 0 && (
+            <View style={{ marginBottom: 20, width: '100%', gap: 8 }}>
+              <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.setsTitle')}</Text>
+              <Text style={{ color: theme.text.primary, fontSize: 13 }}>{t('logModal.setsQuestion')}</Text>
+              <View style={{ flexDirection: 'row', gap: 12 }}>
+                {([true, false] as const).map((all) => {
+                  const on = plannedAll === all;
+                  return (
+                    <TouchableOpacity
+                      key={String(all)}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      style={{
+                        flex: 1,
+                        paddingVertical: 10,
+                        borderRadius: 6,
+                        borderWidth: 1,
+                        borderColor: on ? bronzeGold : 'rgba(255,255,255,0.05)',
+                        backgroundColor: on ? 'rgba(201, 162, 39, 0.12)' : 'rgba(0,0,0,0.2)',
+                        alignItems: 'center',
+                      }}
+                      onPress={() => setPlannedAll(all)}
+                    >
+                      <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: on ? bronzeGold : theme.text.secondary }}>
+                        {all ? t('logModal.setsYes') : t('logModal.setsNo')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+              {!plannedAll && (
+                <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ gap: 8 }} nestedScrollEnabled>
+                  {plannedExercises.map((ex) => {
+                    const done = Math.min(ex.sets, plannedDone[ex.id] ?? ex.sets);
+                    return (
+                      <View key={ex.id} style={styles.setsRow}>
+                        <Text style={[styles.setsName, { color: theme.text.primary }]} numberOfLines={1}>
+                          {ex.name}
+                        </Text>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          accessibilityLabel={t('logModal.setsFewer')}
+                          disabled={done <= 0}
+                          onPress={() => setPlannedDone(ex.id, done - 1)}
+                          style={[styles.setsStep, { borderColor: theme.card.border, opacity: done <= 0 ? 0.35 : 1 }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={[styles.setsStepText, { color: theme.text.primary }]}>−</Text>
+                        </TouchableOpacity>
+                        <Text style={[styles.setsCount, { color: theme.text.primary }]}>
+                          {t('logModal.setsDone', { done, planned: ex.sets })}
+                        </Text>
+                        <TouchableOpacity
+                          accessibilityRole="button"
+                          accessibilityLabel={t('logModal.setsMore')}
+                          disabled={done >= ex.sets}
+                          onPress={() => setPlannedDone(ex.id, done + 1)}
+                          style={[styles.setsStep, { borderColor: theme.card.border, opacity: done >= ex.sets ? 0.35 : 1 }]}
+                          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                        >
+                          <Text style={[styles.setsStepText, { color: theme.text.primary }]}>+</Text>
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </ScrollView>
+              )}
+            </View>
+          )}
 
           {/* Conditional Auto-Log Fields */}
           {(() => {
@@ -286,6 +369,11 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  setsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  setsName: { flex: 1, fontSize: 13 },
+  setsStep: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
+  setsStepText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
+  setsCount: { minWidth: 70, textAlign: 'center', fontFamily: 'BarlowCondensed-Bold', fontSize: 14 },
   modalOverlay: {
     flex: 1,
     backgroundColor: 'rgba(0, 0, 0, 0.85)',

@@ -553,7 +553,9 @@ function MovementsCell({
       <div className="pf-summary">
         <span className="pf-num">{latest.reps}</span>
         <span className="pf-summary-note">
-          reps in W{latest.week} · best set {latest.best}
+          reps in W{latest.week}
+          {latest.assumed > 0 && ` · ${latest.assumed} assumed`}
+          {latest.best > 0 && ` · best set ${latest.best}`}
         </span>
       </div>
       <div className="pf-mv-bars" role="list" aria-label={`${movement.label}: reps per week`}>
@@ -572,7 +574,9 @@ function MovementsCell({
               role="listitem"
               title={
                 w
-                  ? `Week ${wk}: ${w.reps} reps, best set ${w.best}\n` + parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n')
+                  ? `Week ${wk}: ${w.reps} reps${w.best ? `, best set ${w.best}` : ''}\n` +
+                    parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n') +
+                    (w.assumed ? `\nAssumed from plan: ${w.assumed}` : '')
                   : `Week ${wk}: no ${movement.label.toLowerCase()} sets`
               }
             >
@@ -582,6 +586,7 @@ function MovementsCell({
                   {parts.map((p) => (
                     <div key={p.v} style={{ flexGrow: p.n, background: colorOf(p.v) }} />
                   ))}
+                  {w && w.assumed > 0 && <div className="pf-mv-assumed" style={{ flexGrow: w.assumed }} />}
                 </div>
               </div>
               <span className="pf-mv-label">W{wk}</span>
@@ -600,6 +605,12 @@ function MovementsCell({
           <li>
             <span className="pf-dot8" style={{ background: OTHER_COLOR }} />
             Other
+          </li>
+        )}
+        {movement.weeks.some((w) => w.assumed > 0) && (
+          <li title="Sets filled from the plan when a block was completed without tapping its sets">
+            <span className="pf-dot8 pf-mv-assumed" />
+            Assumed from plan
           </li>
         )}
       </ul>

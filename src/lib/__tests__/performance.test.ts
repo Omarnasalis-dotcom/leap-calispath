@@ -83,7 +83,7 @@ describe('helpers', () => {
 });
 
 describe('movementWeeks', () => {
-  const w = (week: number) => ({ program_id: 'p1', week, reps: 1, best: 1, variations: {} });
+  const w = (week: number) => ({ program_id: 'p1', week, reps: 1, assumed: 0, best: 1, variations: {} });
   it('runs from W1 to the current program week, gaps included', () => {
     expect(movementWeeks([w(1), w(3)], 4)).toEqual([1, 2, 3, 4]);
   });

@@ -270,6 +270,33 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const topSetWeightsByExercise = (blockId: string | number): Record<string, string> =>
     Object.fromEntries(weightedExercisesOf(blockId).map(ex => [String(ex.id), topSetWeight(blockId, ex.id)]));
 
+  // "Complete" check: exercises of the block with planned work but no sets
+  // entered. The log modal asks whether they were all done as planned; the
+  // answer becomes real set rows (buildSetsPayload), so charts don't have to
+  // assume — only blocks nobody confirmed fall back to the server's planned
+  // fill (20261003030000).
+  const [plannedAll, setPlannedAll] = useState(true);
+  const [plannedDone, setPlannedDoneState] = useState<Record<string, number>>({});
+  const setPlannedDone = (exerciseId: string, n: number) =>
+    setPlannedDoneState(prev => ({ ...prev, [exerciseId]: n }));
+
+  const untouchedExercises = (blockId: string | number) => {
+    const entered = blockSetEntries(blockId);
+    return (days.flatMap(d => d.blocks).find(b => b.id === blockId)?.exercises || [])
+      .map(ex => {
+        const reps = parseInt(String(ex.reps ?? ''), 10);
+        const hold = parseInt(String(ex.hold_seconds ?? ''), 10);
+        return {
+          id: String(ex.id),
+          name: ex.name,
+          sets: Math.max(1, parseInt(String(ex.sets ?? '1'), 10) || 1),
+          reps: Number.isNaN(reps) || reps <= 0 ? null : reps,
+          hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
+        };
+      })
+      .filter(ex => (ex.reps !== null || ex.hold !== null) && !(entered[ex.id]?.length));
+  };
+
   // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
   // progress only reached the server when a whole block was logged, so a
   // phone call or low-memory kill lost every set ticked so far. Kept per
@@ -1068,6 +1095,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const handleOpenLogModal = (blockId: string | number, initialStatus?: 'completed' | 'missed') => {
     if (isBlockLocked(blockId) && initialStatus !== 'missed') return;
     setActiveLogBlockId(blockId);
+    setPlannedAll(true);
+    setPlannedDoneState({});
     setLogRating(5);
 
     const existing = loggedDetails[blockId];
@@ -1221,7 +1250,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // popupWeights: the log modal's kg per weighted exercise id. For an
   // exercise with no logged set, it becomes one real set (reps from the
   // plan), so it reaches the charts instead of living in notes text alone.
-  const buildSetsPayload = (blockId: string | number, popupWeights?: Record<string, string>) => {
+  const buildSetsPayload = (
+    blockId: string | number,
+    popupWeights?: Record<string, string>,
+    confirmed?: { all: boolean; done: Record<string, number> },
+  ) => {
     const sets: { block_exercise_id: string | number | null; set_index: number; reps_completed: number | null; weight_used: number | null; hold_seconds: number | null }[] = [];
 
     const exerciseSets = blockSetEntries(blockId);
@@ -1237,19 +1270,30 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       });
     });
 
-    weightedExercisesOf(blockId).forEach(ex => {
-      const kg = parseKg(popupWeights?.[String(ex.id)] ?? '');
-      const hasSets = sets.some(s => String(s.block_exercise_id) === String(ex.id));
-      if (!kg || kg <= 0 || hasSets) return;
-      const plannedReps = parseInt(String(ex.reps ?? ''), 10);
-      sets.push({
-        block_exercise_id: ex.id,
-        set_index: 1,
-        reps_completed: Number.isNaN(plannedReps) ? null : plannedReps,
-        weight_used: kg,
-        hold_seconds: null,
+    // Completed block: every exercise with no sets entered gets the sets the
+    // athlete confirmed in the modal ("all as planned", or a count per
+    // exercise), at the planned reps / hold, with the modal's kg if given.
+    // Zero sets is saved as one 0-rep row, so the server doesn't fill in
+    // the plan for an exercise the athlete said they skipped.
+    if (confirmed) {
+      untouchedExercises(blockId).forEach(ex => {
+        const kg = parseKg(popupWeights?.[ex.id] ?? '') ?? null;
+        const n = confirmed.all ? ex.sets : Math.max(0, Math.min(ex.sets, confirmed.done[ex.id] ?? ex.sets));
+        if (n === 0) {
+          sets.push({ block_exercise_id: ex.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
+          return;
+        }
+        for (let i = 1; i <= n; i++) {
+          sets.push({
+            block_exercise_id: ex.id,
+            set_index: i,
+            reps_completed: ex.hold !== null ? null : ex.reps,
+            weight_used: kg && kg > 0 ? kg : null,
+            hold_seconds: ex.hold,
+          });
+        }
       });
-    });
+    }
 
     pendingHoldTimes.forEach((seconds, i) => {
       sets.push({
@@ -1305,7 +1349,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         p_notes: finalNotes,
         p_session_seconds: null,
         p_start_of_today: replaceLogsSince(activeLogBlockId),
-        p_sets: buildSetsPayload(activeLogBlockId, logStatus === 'completed' ? popupWeights : undefined),
+        p_sets: buildSetsPayload(
+          activeLogBlockId,
+          logStatus === 'completed' ? popupWeights : undefined,
+          logStatus === 'completed' ? { all: plannedAll, done: plannedDone } : undefined,
+        ),
       }).abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
@@ -1894,6 +1942,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogWeightUsed={setLogWeightUsed}
         logExerciseWeights={logExerciseWeights}
         setLogExerciseWeight={setLogExerciseWeight}
+        plannedExercises={activeLogBlockId ? untouchedExercises(activeLogBlockId) : []}
+        plannedAll={plannedAll}
+        setPlannedAll={setPlannedAll}
+        plannedDone={plannedDone}
+        setPlannedDone={setPlannedDone}
         logLadderProgress={logLadderProgress}
         setLogLadderProgress={setLogLadderProgress}
         logRating={logRating}
