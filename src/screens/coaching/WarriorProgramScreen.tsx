@@ -270,31 +270,36 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const topSetWeightsByExercise = (blockId: string | number): Record<string, string> =>
     Object.fromEntries(weightedExercisesOf(blockId).map(ex => [String(ex.id), topSetWeight(blockId, ex.id)]));
 
-  // "Complete" check: exercises of the block with planned work but no sets
-  // entered. The log modal asks whether they were all done as planned; the
-  // answer becomes real set rows (buildSetsPayload), so charts don't have to
-  // assume — only blocks nobody confirmed fall back to the server's planned
-  // fill (20261003030000).
+  // "Complete" check: exercises of the block with planned work where fewer
+  // sets were ticked than planned (none, or some). The log modal asks
+  // whether the rest were done; the answer becomes real set rows
+  // (buildSetsPayload). Only an exercise with every planned set ticked
+  // skips the question. Blocks nobody confirmed (older app versions) fall
+  // back to the server's planned fill (20261003030000).
   const [plannedAll, setPlannedAll] = useState(true);
   const [plannedDone, setPlannedDoneState] = useState<Record<string, number>>({});
   const setPlannedDone = (exerciseId: string, n: number) =>
     setPlannedDoneState(prev => ({ ...prev, [exerciseId]: n }));
 
-  const untouchedExercises = (blockId: string | number) => {
+  const unfinishedExercises = (blockId: string | number) => {
     const entered = blockSetEntries(blockId);
     return (days.flatMap(d => d.blocks).find(b => b.id === blockId)?.exercises || [])
       .map(ex => {
         const reps = parseInt(String(ex.reps ?? ''), 10);
         const hold = parseInt(String(ex.hold_seconds ?? ''), 10);
+        const done = entered[String(ex.id)] || [];
         return {
           id: String(ex.id),
           name: ex.name,
           sets: Math.max(1, parseInt(String(ex.sets ?? '1'), 10) || 1),
+          /** Sets already ticked (the stepper can't go below this). */
+          ticked: done.length,
+          usedIndexes: done.map(d => d.setIndex),
           reps: Number.isNaN(reps) || reps <= 0 ? null : reps,
           hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
         };
       })
-      .filter(ex => (ex.reps !== null || ex.hold !== null) && !(entered[ex.id]?.length));
+      .filter(ex => (ex.reps !== null || ex.hold !== null) && ex.ticked < ex.sets);
   };
 
   // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
@@ -1270,28 +1275,32 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       });
     });
 
-    // Completed block: every exercise with no sets entered gets the sets the
-    // athlete confirmed in the modal ("all as planned", or a count per
-    // exercise), at the planned reps / hold, with the modal's kg if given.
-    // Zero sets is saved as one 0-rep row, so the server doesn't fill in
-    // the plan for an exercise the athlete said they skipped.
+    // Completed block: every exercise with fewer sets ticked than planned
+    // gets the rest the athlete confirmed in the modal ("all as planned",
+    // or a total per exercise), at the planned reps / hold, with the
+    // modal's kg if given, in the set numbers not already used. An
+    // untouched exercise confirmed at 0 is saved as one 0-rep row, so the
+    // server doesn't fill in the plan for it.
     if (confirmed) {
-      untouchedExercises(blockId).forEach(ex => {
+      unfinishedExercises(blockId).forEach(ex => {
         const kg = parseKg(popupWeights?.[ex.id] ?? '') ?? null;
-        const n = confirmed.all ? ex.sets : Math.max(0, Math.min(ex.sets, confirmed.done[ex.id] ?? ex.sets));
-        if (n === 0) {
+        const total = confirmed.all
+          ? ex.sets
+          : Math.max(ex.ticked, Math.min(ex.sets, confirmed.done[ex.id] ?? ex.sets));
+        if (total === 0) {
           sets.push({ block_exercise_id: ex.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
           return;
         }
-        for (let i = 1; i <= n; i++) {
+        const freeIndexes = Array.from({ length: ex.sets }, (_, i) => i + 1).filter(i => !ex.usedIndexes.includes(i));
+        freeIndexes.slice(0, total - ex.ticked).forEach(setIndex => {
           sets.push({
             block_exercise_id: ex.id,
-            set_index: i,
+            set_index: setIndex,
             reps_completed: ex.hold !== null ? null : ex.reps,
             weight_used: kg && kg > 0 ? kg : null,
             hold_seconds: ex.hold,
           });
-        }
+        });
       });
     }
 
@@ -1942,7 +1951,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogWeightUsed={setLogWeightUsed}
         logExerciseWeights={logExerciseWeights}
         setLogExerciseWeight={setLogExerciseWeight}
-        plannedExercises={activeLogBlockId ? untouchedExercises(activeLogBlockId) : []}
+        plannedExercises={activeLogBlockId ? unfinishedExercises(activeLogBlockId) : []}
         plannedAll={plannedAll}
         setPlannedAll={setPlannedAll}
         plannedDone={plannedDone}

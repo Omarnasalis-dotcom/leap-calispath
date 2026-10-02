@@ -38,7 +38,7 @@ interface WarriorLogModalProps {
   setLogExerciseWeight: (exerciseId: string, val: string) => void;
   /** Exercises with planned work but no sets entered — "Complete" asks
    * whether they were all done as planned. */
-  plannedExercises: { id: string; name: string; sets: number }[];
+  plannedExercises: { id: string; name: string; sets: number; ticked: number }[];
   plannedAll: boolean;
   setPlannedAll: (val: boolean) => void;
   plannedDone: Record<string, number>;
@@ -182,18 +182,25 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
               {!plannedAll && (
                 <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ gap: 8 }} nestedScrollEnabled>
                   {plannedExercises.map((ex) => {
-                    const done = Math.min(ex.sets, plannedDone[ex.id] ?? ex.sets);
+                    const done = Math.max(ex.ticked, Math.min(ex.sets, plannedDone[ex.id] ?? ex.sets));
                     return (
                       <View key={ex.id} style={styles.setsRow}>
-                        <Text style={[styles.setsName, { color: theme.text.primary }]} numberOfLines={1}>
-                          {ex.name}
-                        </Text>
+                        <View style={{ flex: 1 }}>
+                          <Text style={[styles.setsName, { color: theme.text.primary }]} numberOfLines={1}>
+                            {ex.name}
+                          </Text>
+                          {ex.ticked > 0 && (
+                            <Text style={{ color: theme.text.tertiary, fontSize: 11 }}>
+                              {t('logModal.setsTicked', { count: ex.ticked })}
+                            </Text>
+                          )}
+                        </View>
                         <TouchableOpacity
                           accessibilityRole="button"
                           accessibilityLabel={t('logModal.setsFewer')}
-                          disabled={done <= 0}
+                          disabled={done <= ex.ticked}
                           onPress={() => setPlannedDone(ex.id, done - 1)}
-                          style={[styles.setsStep, { borderColor: theme.card.border, opacity: done <= 0 ? 0.35 : 1 }]}
+                          style={[styles.setsStep, { borderColor: theme.card.border, opacity: done <= ex.ticked ? 0.35 : 1 }]}
                           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                         >
                           <Text style={[styles.setsStepText, { color: theme.text.primary }]}>−</Text>
@@ -370,7 +377,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
 
 const styles = StyleSheet.create({
   setsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  setsName: { flex: 1, fontSize: 13 },
+  setsName: { fontSize: 13 },
   setsStep: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   setsStepText: { fontSize: 18, fontWeight: '600', lineHeight: 20 },
   setsCount: { minWidth: 70, textAlign: 'center', fontFamily: 'BarlowCondensed-Bold', fontSize: 14 },

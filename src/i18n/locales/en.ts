@@ -542,7 +542,9 @@ const en = {
   },
   logModal: {
     setsTitle: 'SETS',
-    setsQuestion: 'Did you do all sets as planned?',
+    setsQuestion: 'Some sets weren’t ticked. Did you do them all as planned?',
+    setsTicked_one: '{{count}} set ticked',
+    setsTicked_other: '{{count}} sets ticked',
     setsYes: 'YES, ALL',
     setsNo: 'NOT ALL',
     setsDone: '{{done}} / {{planned}} sets',
