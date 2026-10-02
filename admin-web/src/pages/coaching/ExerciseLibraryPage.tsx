@@ -7,6 +7,8 @@ import {
   fetchExercises,
   fetchProfilesByIds,
   saveExercise,
+  MOVEMENT_FAMILIES,
+  type MovementFamily,
   type Exercise,
 } from '@/api/coaching';
 import { useAuth } from '@/auth/AuthProvider';
@@ -256,6 +258,8 @@ interface Draft {
   category: string;
   concept: string;
   difficulty: string;
+  movement_family: MovementFamily | '';
+  movement_variation: string;
 }
 
 const EMPTY: Draft = {
@@ -264,7 +268,11 @@ const EMPTY: Draft = {
   category: CATEGORY_OPTIONS[0],
   concept: CONCEPT_OPTIONS[0],
   difficulty: '',
+  movement_family: '',
+  movement_variation: '',
 };
+
+const familyLabel = (f: string | null) => MOVEMENT_FAMILIES.find((m) => m.value === f)?.label;
 
 // Splits the raw "push,skill" column value into its two parts, matching each half
 // against its own enum independently (not positionally) since legacy rows may only
@@ -326,6 +334,8 @@ export function ExerciseLibraryPage() {
         youtube_url: d.youtube_url.trim() || null,
         category: [d.category, d.concept].filter(Boolean).join(',') || null,
         difficulty: d.difficulty.trim() || null,
+        movement_family: d.movement_family || null,
+        movement_variation: d.movement_family ? d.movement_variation.trim() || null : null,
         // Attribution only matters on create — an update never moves an
         // exercise to a different coach's library.
         ...(d.id ? {} : { created_by: newExerciseCoachId }),
@@ -365,6 +375,19 @@ export function ExerciseLibraryPage() {
       render: (e) => <span className="dim">{e.difficulty ?? '—'}</span>,
     },
     {
+      key: 'movement',
+      header: 'Main movement',
+      render: (e) =>
+        e.movement_family ? (
+          <span>
+            {familyLabel(e.movement_family)}
+            {e.movement_variation && <span className="dim"> · {e.movement_variation}</span>}
+          </span>
+        ) : (
+          <span className="dim">—</span>
+        ),
+    },
+    {
       key: 'video',
       header: 'Video',
       render: (e) =>
@@ -399,6 +422,8 @@ export function ExerciseLibraryPage() {
                   youtube_url: e.youtube_url ?? '',
                   ...parseCategoryConcept(e.category),
                   difficulty: e.difficulty ?? '',
+                  movement_family: e.movement_family ?? '',
+                  movement_variation: e.movement_variation ?? '',
                 });
               }}
             >
@@ -531,6 +556,33 @@ export function ExerciseLibraryPage() {
               onChange={(e) => setDraft({ ...draft, difficulty: e.target.value })}
               aria-label="Exercise difficulty"
             />
+            <select
+              className="field"
+              style={{ flex: 1, minWidth: 150 }}
+              value={draft.movement_family}
+              onChange={(e) =>
+                setDraft({ ...draft, movement_family: e.target.value as MovementFamily | '' })
+              }
+              aria-label="Main movement"
+              title="Counts this exercise in the Performance “Main movements” charts. Leave empty for assisted versions."
+            >
+              <option value="">No main movement</option>
+              {MOVEMENT_FAMILIES.map((m) => (
+                <option key={m.value} value={m.value}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+            {draft.movement_family && (
+              <input
+                className="field"
+                style={{ flex: 1, minWidth: 130 }}
+                placeholder="Variation (e.g. Tuck)"
+                value={draft.movement_variation}
+                onChange={(e) => setDraft({ ...draft, movement_variation: e.target.value })}
+                aria-label="Movement variation"
+              />
+            )}
             <input
               className="field"
               style={{ flex: 2, minWidth: 180 }}

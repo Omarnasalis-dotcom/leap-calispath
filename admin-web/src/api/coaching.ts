@@ -11,9 +11,29 @@ export interface Exercise {
   youtube_url: string | null;
   category: string | null;
   difficulty: string | null;
+  /** Main movement it trains, for the Performance "Main movements" charts. */
+  movement_family: MovementFamily | null;
+  /** The version done, e.g. "Tuck" or "Chin-up". */
+  movement_variation: string | null;
   created_by: string | null;
   created_at: string;
 }
+
+// 20261002090000_movement_families.sql — keep in sync with its CHECK list.
+export const MOVEMENT_FAMILIES = [
+  { value: 'pull_up', label: 'Pull-up', kind: 'reps' },
+  { value: 'dip', label: 'Dip', kind: 'reps' },
+  { value: 'squat', label: 'Squat', kind: 'reps' },
+  { value: 'pistol_squat', label: 'Pistol squat', kind: 'reps' },
+  { value: 'muscle_up', label: 'Muscle-up', kind: 'reps' },
+  { value: 'handstand_push_up', label: 'Handstand push-up', kind: 'reps' },
+  { value: 'front_lever_press', label: 'Front lever press', kind: 'reps' },
+  { value: 'front_lever', label: 'Front lever (hold)', kind: 'hold' },
+  { value: 'handstand', label: 'Handstand (hold)', kind: 'hold' },
+  { value: 'planche', label: 'Planche (hold)', kind: 'hold' },
+  { value: 'back_lever', label: 'Back lever (hold)', kind: 'hold' },
+] as const;
+export type MovementFamily = (typeof MOVEMENT_FAMILIES)[number]['value'];
 
 export interface ProgramTemplateRow {
   id: string;

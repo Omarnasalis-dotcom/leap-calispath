@@ -799,6 +799,24 @@ export function TrainingCenterScreen() {
             </RowIn>
           )}
 
+          {/* The athlete's own Performance charts (MyProgressScreen). */}
+          <TouchableOpacity
+            style={styles.progressEntry}
+            onPress={() => router.push('/my-progress')}
+            accessibilityRole="button"
+            accessibilityLabel={t('progress.entryTitle')}
+            accessibilityHint={t('progress.entrySub')}
+          >
+            <View style={styles.tileIconWell}>
+              <MaterialCommunityIcons name="chart-line" size={20} color={c.coral} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.progressEntryTitle}>{t('progress.entryTitle')}</Text>
+              <Text style={styles.progressEntrySub} numberOfLines={1}>{t('progress.entrySub')}</Text>
+            </View>
+            <MaterialCommunityIcons name="chevron-right" size={22} color={c.textMuted} style={FLIP_X} />
+          </TouchableOpacity>
+
           <Text style={styles.sectionEyebrow}>{t('trainingCenter.choosePath')}</Text>
           <View style={styles.tileGrid}>
             {tiles.map((t, i) => (
@@ -871,6 +889,20 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   statValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17 },
   statLabel: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.3 },
 
+  progressEntry: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: TC_LAYOUT.cardRadius,
+    backgroundColor: c.cardFlat,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+  },
+  progressEntryTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.3 },
+  progressEntrySub: { color: c.textMuted, fontSize: 11.5, marginTop: 2 },
   sectionEyebrow: { color: c.textFaint, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2.4, marginTop: 22, marginBottom: 10 },
   tileGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: TC_LAYOUT.tileGap, justifyContent: 'space-between' },
   tile: { borderWidth: 1, borderRadius: 16, padding: 14, minHeight: 118, justifyContent: 'space-between' },

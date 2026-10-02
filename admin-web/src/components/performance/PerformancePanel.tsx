@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { useQuery } from '@tanstack/react-query';
 import { fetchUserPerformance } from '@/api/users';
+import { MOVEMENT_FAMILIES } from '@/api/coaching';
 import { ErrorNote } from '@/components/bits';
 import { formatDate } from '@/shared/constants';
 import type { CompletionProgram, Feel, UserPerformance } from '@/shared/types';
@@ -40,6 +41,7 @@ interface Selection {
   weightedProgram: string | null;
   completionProgram: string | null;
   hiddenSlots: string[];
+  movement: string | null;
 }
 
 function Cell({
@@ -411,7 +413,7 @@ function BlocksCell({
   const withWeeks = data.filter((p) => p.weeks.length > 0);
   if (withWeeks.length === 0) {
     return (
-      <Cell title="Blocks completed" sub="Per program week">
+      <Cell title="Workouts completed" sub="Per program week">
         <EmptyBox title="No program yet" body="Completion appears once a program is assigned and logged." />
       </Cell>
     );
@@ -422,7 +424,7 @@ function BlocksCell({
 
   return (
     <Cell
-      title="Blocks completed"
+      title="Workouts completed"
       sub="Per program week"
       side={
         <Select
@@ -440,10 +442,10 @@ function BlocksCell({
       <div className="pf-summary">
         <span className="pf-num">{total ? Math.round((done / total) * 100) : 0}%</span>
         <span className="pf-summary-note">
-          {done} of {total} blocks · {program.weeks.length} week{program.weeks.length > 1 ? 's' : ''}
+          {done} of {total} workouts · {program.weeks.length} week{program.weeks.length > 1 ? 's' : ''}
         </span>
       </div>
-      <div className="pf-weeks" role="list" aria-label="Blocks completed per program week">
+      <div className="pf-weeks" role="list" aria-label="Workouts completed per program week">
         {program.weeks.map((w) => {
           const pct = w.total ? Math.round((w.completed / w.total) * 100) : 0;
           const current = w.week === program.current_week;
@@ -465,6 +467,144 @@ function BlocksCell({
           );
         })}
       </div>
+    </Cell>
+  );
+}
+
+// ---------- Main movements (bodyweight reps) ----------
+
+// Variation colours in fixed order (most reps first); the rest fold into
+// "Other" rather than getting a near-duplicate hue.
+const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber)'];
+const OTHER_COLOR = 'var(--pf-faint)';
+const MAX_MOVEMENT_WEEKS = 12;
+
+function mondayOf(d: Date): Date {
+  const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  x.setUTCDate(x.getUTCDate() - ((x.getUTCDay() + 6) % 7));
+  return x;
+}
+
+function MovementsCell({
+  data,
+  sel,
+  setSel,
+  print,
+}: {
+  data: UserPerformance['movements'];
+  sel: Selection;
+  setSel: (s: Partial<Selection>) => void;
+  print?: boolean;
+}) {
+  const movements = MOVEMENT_FAMILIES.filter((m) => m.kind === 'reps')
+    .map((m) => ({ ...m, weeks: data?.find((d) => d.family === m.value)?.weeks ?? [] }))
+    .filter((m) => m.weeks.length > 0);
+
+  if (movements.length === 0) {
+    return (
+      <Cell title="Main movements" sub="Total reps per week" wide>
+        <EmptyBox
+          title="No main-movement sets yet"
+          body="Reps logged on pull-ups, dips, squats, pistols, muscle-ups, handstand push-ups and front lever presses show up here."
+        />
+      </Cell>
+    );
+  }
+  const movement = movements.find((m) => m.value === sel.movement) ?? movements[0];
+
+  // Every week from the first log to this week (last 12), so a week with
+  // no sets shows as an empty column rather than disappearing.
+  const byWeek = new Map(movement.weeks.map((w) => [w.week_start.slice(0, 10), w]));
+  const last = mondayOf(new Date());
+  const first = mondayOf(new Date(movement.weeks[0].week_start));
+  const weeks: string[] = [];
+  for (let d = new Date(first); d <= last; d.setUTCDate(d.getUTCDate() + 7)) weeks.push(d.toISOString().slice(0, 10));
+  const shown = weeks.slice(-MAX_MOVEMENT_WEEKS);
+
+  const totals = new Map<string, number>();
+  movement.weeks.forEach((w) =>
+    Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + n)),
+  );
+  const named = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
+  const top = named.slice(0, VARIATION_COLORS.length);
+  const colorOf = (v: string) => (top.includes(v) ? VARIATION_COLORS[top.indexOf(v)] : OTHER_COLOR);
+  const label = (v: string) => v || 'Untagged';
+  const max = Math.max(1, ...shown.map((wk) => byWeek.get(wk)?.reps ?? 0));
+  const latest = movement.weeks[movement.weeks.length - 1];
+
+  const chips = print ? (
+    <span className="pf-static-control">{movement.label}</span>
+  ) : (
+    <div className="pf-seg" role="group" aria-label="Movement">
+      {movements.map((m) => (
+        <button
+          key={m.value}
+          type="button"
+          className="pf-seg-item"
+          aria-pressed={m.value === movement.value}
+          onClick={() => setSel({ movement: m.value })}
+        >
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <Cell title="Main movements" sub="Total reps per week" side={chips} wide>
+      <div className="pf-summary">
+        <span className="pf-num">{latest.reps}</span>
+        <span className="pf-summary-note">
+          reps in the week of {shortDate(latest.week_start)} · best set {latest.best}
+        </span>
+      </div>
+      <div className="pf-mv-bars" role="list" aria-label={`${movement.label}: reps per week`}>
+        {shown.map((wk) => {
+          const w = byWeek.get(wk);
+          const parts = w
+            ? Object.entries(w.variations)
+                .map(([v, n]) => ({ v, n }))
+                .sort((a, b) => (top.includes(a.v) ? top.indexOf(a.v) : 99) - (top.includes(b.v) ? top.indexOf(b.v) : 99))
+            : [];
+          return (
+            <div
+              key={wk}
+              className="pf-mv-col"
+              role="listitem"
+              title={
+                w
+                  ? `Week of ${formatDate(wk)}: ${w.reps} reps, best set ${w.best}\n` +
+                    parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n')
+                  : `Week of ${formatDate(wk)}: no sets`
+              }
+            >
+              <span className="pf-mv-value num">{w ? w.reps : ''}</span>
+              <div className="pf-mv-track">
+                <div className="pf-mv-stack" style={{ height: `${((w?.reps ?? 0) / max) * 100}%` }}>
+                  {parts.map((p) => (
+                    <div key={p.v} style={{ flexGrow: p.n, background: colorOf(p.v) }} />
+                  ))}
+                </div>
+              </div>
+              <span className="pf-mv-label">{shortDate(wk)}</span>
+            </div>
+          );
+        })}
+      </div>
+      <ul className="pf-feel-legend">
+        {top.map((v) => (
+          <li key={v}>
+            <span className="pf-dot8" style={{ background: colorOf(v) }} />
+            {label(v)}
+          </li>
+        ))}
+        {named.length > top.length && (
+          <li>
+            <span className="pf-dot8" style={{ background: OTHER_COLOR }} />
+            Other
+          </li>
+        )}
+      </ul>
     </Cell>
   );
 }
@@ -608,6 +748,7 @@ function Cells({
     <div className="pf-grid">
       <BodyweightCell data={data.bodyweight} />
       <BlocksCell data={data.completion} sel={sel} setSel={setSel} print={print} />
+      <MovementsCell data={data.movements} sel={sel} setSel={setSel} print={print} />
       <WeightedCell data={data.weighted} activeProgram={activeProgramId(data)} sel={sel} setSel={setSel} print={print} />
       <WorldsCell data={data.worlds} />
       <EffortCell data={data.completion} sel={sel} setSel={setSel} print={print} />
@@ -734,6 +875,7 @@ function PrintReport({
                   lift beside World points, then any extra lifts at the end. */}
               <BodyweightCell data={data.bodyweight} />
               <BlocksCell data={data.completion} sel={sel} setSel={noop} print />
+              <MovementsCell data={data.movements} sel={sel} setSel={noop} print />
               {lifts.slice(0, 1).map(liftCell)}
               <WorldsCell data={data.worlds} />
               <EffortCell data={data.completion} sel={sel} setSel={noop} print />
@@ -768,6 +910,7 @@ export function PerformancePanel({ userId, athleteName }: { userId: string; athl
     weightedProgram: null,
     completionProgram: null,
     hiddenSlots: [],
+    movement: null,
   });
   const setSel = (s: Partial<Selection>) => setSelState((prev) => ({ ...prev, ...s }));
   const [composing, setComposing] = useState(false);

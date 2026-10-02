@@ -271,7 +271,20 @@ export interface WorldWeek {
   power: number;
 }
 
+export interface MovementWeek {
+  week_start: string; // Monday
+  reps: number;
+  best: number; // best single set
+  variations: Record<string, number>; // reps per variation ('' = untagged)
+}
+
+export interface MovementReps {
+  family: string; // MOVEMENT_FAMILIES value
+  weeks: MovementWeek[];
+}
+
 export interface UserPerformance {
+  movements?: MovementReps[];
   weighted: WeightedMovement[];
   bodyweight: BodyweightPoint[];
   completion: CompletionProgram[];
