@@ -1126,16 +1126,19 @@ export async function fetchAthleteFitContext(
   // scoped to one program, since a brand-new build may have no active
   // program yet and a prior, now-ended one still tells us what they lifted.
   // RLS ("Warriors manage own set logs") already scopes this to the caller.
+  // The movement comes from the set's own exercise_id (20261002030000), not
+  // via block_exercises: program edits recreate block_exercises and null
+  // that link, which hid every weight logged before the last edit.
   const { data: weightRows } = await userClient
     .from("workout_set_logs")
-    .select("weight_used, created_at, block_exercises(exercise_library(name))")
+    .select("weight_used, created_at, exercise_library(name)")
     .not("weight_used", "is", null)
     .order("created_at", { ascending: false })
     .limit(300);
 
   const loggedWeights: Record<string, number> = {};
-  for (const row of (weightRows ?? []) as Array<{ weight_used: number; block_exercises?: { exercise_library?: { name?: string } } }>) {
-    const name = row.block_exercises?.exercise_library?.name;
+  for (const row of (weightRows ?? []) as Array<{ weight_used: number; exercise_library?: { name?: string } }>) {
+    const name = row.exercise_library?.name;
     if (!name) continue;
     const key = name.trim().toLowerCase();
     // First hit wins — rows are ordered most-recent-first.
