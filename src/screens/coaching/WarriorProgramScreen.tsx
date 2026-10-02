@@ -271,8 +271,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     Object.fromEntries(weightedExercisesOf(blockId).map(ex => [String(ex.id), topSetWeight(blockId, ex.id)]));
 
   // "Complete" check: exercises of the block with planned work where fewer
-  // sets were ticked than planned (none, or some). The log modal asks
-  // whether the rest were done; the answer becomes real set rows
+  // sets were ticked than planned (none, or some). The log modal confirms
+  // what was done — ticked exercises default to their ticked count,
+  // untouched ones to the full plan; the answer becomes real set rows
   // (buildSetsPayload). Only an exercise with every planned set ticked
   // skips the question. Blocks nobody confirmed (older app versions) fall
   // back to the server's planned fill (20261003030000).
@@ -283,7 +284,16 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   const unfinishedExercises = (blockId: string | number) => {
     const entered = blockSetEntries(blockId);
-    return (days.flatMap(d => d.blocks).find(b => b.id === blockId)?.exercises || [])
+    const block = days.flatMap(d => d.blocks).find(b => b.id === blockId);
+    // Circuits and supersets are done in rounds — every exercise once per
+    // round — so the plan per exercise is the block's round count, not the
+    // exercise's own sets field (often 1 there). Mirrors WarriorBlockCard.
+    const structure = block?.metadata?.structure || block?.metadata?.type;
+    const rounds =
+      structure === 'circuit' || structure === 'superset'
+        ? Math.max(1, parseInt(String(block?.metadata?.rounds || '1'), 10) || 1)
+        : null;
+    return (block?.exercises || [])
       .map(ex => {
         const reps = parseInt(String(ex.reps ?? ''), 10);
         const hold = parseInt(String(ex.hold_seconds ?? ''), 10);
@@ -291,9 +301,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         return {
           id: String(ex.id),
           name: ex.name,
-          sets: Math.max(1, parseInt(String(ex.sets ?? '1'), 10) || 1),
+          sets: rounds ?? Math.max(1, parseInt(String(ex.sets ?? '1'), 10) || 1),
           /** Sets already ticked (the stepper can't go below this). */
           ticked: done.length,
+          /** Shown in the modal so a wrong tick can be spotted. */
+          tickedSets: [...done]
+            .sort((a, b) => a.setIndex - b.setIndex)
+            .map(d => ({ setIndex: d.setIndex, reps: d.reps, weight: d.weight ?? null })),
           usedIndexes: done.map(d => d.setIndex),
           reps: Number.isNaN(reps) || reps <= 0 ? null : reps,
           hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
@@ -1284,9 +1298,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (confirmed) {
       unfinishedExercises(blockId).forEach(ex => {
         const kg = parseKg(popupWeights?.[ex.id] ?? '') ?? null;
+        // Default = what was ticked; an untouched exercise defaults to the
+        // full plan. "Adjust" overrides per exercise (never below ticked).
+        const def = ex.ticked > 0 ? ex.ticked : ex.sets;
         const total = confirmed.all
-          ? ex.sets
-          : Math.max(ex.ticked, Math.min(ex.sets, confirmed.done[ex.id] ?? ex.sets));
+          ? def
+          : Math.max(ex.ticked, Math.min(ex.sets, confirmed.done[ex.id] ?? def));
         if (total === 0) {
           sets.push({ block_exercise_id: ex.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
           return;

@@ -38,7 +38,13 @@ interface WarriorLogModalProps {
   setLogExerciseWeight: (exerciseId: string, val: string) => void;
   /** Exercises with planned work but no sets entered — "Complete" asks
    * whether they were all done as planned. */
-  plannedExercises: { id: string; name: string; sets: number; ticked: number }[];
+  plannedExercises: {
+    id: string;
+    name: string;
+    sets: number;
+    ticked: number;
+    tickedSets: { setIndex: number; reps: number; weight: number | null }[];
+  }[];
   plannedAll: boolean;
   setPlannedAll: (val: boolean) => void;
   plannedDone: Record<string, number>;
@@ -152,7 +158,44 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
           {logStatus === 'completed' && plannedExercises.length > 0 && (
             <View style={{ marginBottom: 20, width: '100%', gap: 8 }}>
               <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.setsTitle')}</Text>
-              <Text style={{ color: theme.text.primary, fontSize: 13 }}>{t('logModal.setsQuestion')}</Text>
+              {(() => {
+                // Confirm what was done: ticked exercises default to their
+                // ticked count, untouched ones to the full plan.
+                const partial = plannedExercises.filter((ex) => ex.ticked > 0);
+                const untouched = plannedExercises.filter((ex) => ex.ticked === 0);
+                const mode = partial.length === 0 ? 'untouched' : untouched.length === 0 ? 'ticked' : 'mixed';
+                const question =
+                  mode === 'untouched'
+                    ? t('logModal.setsQuestion')
+                    : mode === 'mixed'
+                      ? t('logModal.setsQuestionMixed')
+                      : partial.length === 1
+                        ? t('logModal.setsQuestionTicked', { ticked: partial[0].ticked, sets: partial[0].sets, name: partial[0].name })
+                        : t('logModal.setsQuestionTickedMany');
+                return (
+                  <>
+                    <Text style={{ color: theme.text.primary, fontSize: 13, lineHeight: 18 }}>{question}</Text>
+                    {/* What was ticked, set by set, so a wrong tick is easy to spot. */}
+                    {partial.length > 0 && (
+                      <View style={[styles.tickedBox, { borderColor: theme.card.border }]}>
+                        {partial.map((ex) => (
+                          <Text key={ex.id} style={{ color: theme.text.secondary, fontSize: 12, lineHeight: 17 }}>
+                            <Text style={{ color: theme.text.primary, fontWeight: '600' }}>{ex.name}</Text>
+                            {' — '}
+                            {ex.tickedSets
+                              .map((st) =>
+                                st.weight
+                                  ? t('logModal.tickedSetWeighted', { n: st.setIndex, reps: st.reps, kg: st.weight })
+                                  : t('logModal.tickedSet', { n: st.setIndex, reps: st.reps }),
+                              )
+                              .join(' · ')}
+                          </Text>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                );
+              })()}
               <View style={{ flexDirection: 'row', gap: 12 }}>
                 {([true, false] as const).map((all) => {
                   const on = plannedAll === all;
@@ -173,7 +216,13 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                       onPress={() => setPlannedAll(all)}
                     >
                       <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 12, color: on ? bronzeGold : theme.text.secondary }}>
-                        {all ? t('logModal.setsYes') : t('logModal.setsNo')}
+                        {(() => {
+                          const anyTicked = plannedExercises.some((ex) => ex.ticked > 0);
+                          const anyUntouched = plannedExercises.some((ex) => ex.ticked === 0);
+                          if (!anyTicked) return all ? t('logModal.setsYes') : t('logModal.setsNo');
+                          if (!anyUntouched) return all ? t('logModal.setsYesTicked') : t('logModal.setsMore');
+                          return all ? t('logModal.setsConfirm') : t('logModal.setsAdjust');
+                        })()}
                       </Text>
                     </TouchableOpacity>
                   );
@@ -182,7 +231,8 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
               {!plannedAll && (
                 <ScrollView style={{ maxHeight: 200 }} contentContainerStyle={{ gap: 8 }} nestedScrollEnabled>
                   {plannedExercises.map((ex) => {
-                    const done = Math.max(ex.ticked, Math.min(ex.sets, plannedDone[ex.id] ?? ex.sets));
+                    const def = ex.ticked > 0 ? ex.ticked : ex.sets;
+                    const done = Math.max(ex.ticked, Math.min(ex.sets, plannedDone[ex.id] ?? def));
                     return (
                       <View key={ex.id} style={styles.setsRow}>
                         <View style={{ flex: 1 }}>
@@ -197,7 +247,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                         </View>
                         <TouchableOpacity
                           accessibilityRole="button"
-                          accessibilityLabel={t('logModal.setsFewer')}
+                          accessibilityLabel={t('logModal.setsOneFewer')}
                           disabled={done <= ex.ticked}
                           onPress={() => setPlannedDone(ex.id, done - 1)}
                           style={[styles.setsStep, { borderColor: theme.card.border, opacity: done <= ex.ticked ? 0.35 : 1 }]}
@@ -210,7 +260,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                         </Text>
                         <TouchableOpacity
                           accessibilityRole="button"
-                          accessibilityLabel={t('logModal.setsMore')}
+                          accessibilityLabel={t('logModal.setsOneMore')}
                           disabled={done >= ex.sets}
                           onPress={() => setPlannedDone(ex.id, done + 1)}
                           style={[styles.setsStep, { borderColor: theme.card.border, opacity: done >= ex.sets ? 0.35 : 1 }]}
@@ -376,6 +426,7 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
 };
 
 const styles = StyleSheet.create({
+  tickedBox: { borderWidth: 1, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, gap: 4 },
   setsRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   setsName: { fontSize: 13 },
   setsStep: { width: 32, height: 32, borderRadius: 8, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
