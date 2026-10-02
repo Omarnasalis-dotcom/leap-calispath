@@ -505,7 +505,7 @@ function MovementsCell({
       <Cell title="Main movements" sub="Total reps per week" wide>
         <EmptyBox
           title="No main-movement sets yet"
-          body="Reps logged on pull-ups, dips, squats, pistols, muscle-ups, handstand push-ups and front lever presses show up here."
+          body="Reps logged on main movements (pull-ups, rows, dips, push-ups, squats, deadlifts, muscle-ups…) show up here."
         />
       </Cell>
     );

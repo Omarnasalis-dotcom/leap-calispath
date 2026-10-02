@@ -19,12 +19,17 @@ export interface Exercise {
   created_at: string;
 }
 
-// 20261002090000_movement_families.sql — keep in sync with its CHECK list.
+// Keep in sync with exercise_library_movement_family_check
+// (20261003020000_more_movement_families.sql).
 export const MOVEMENT_FAMILIES = [
   { value: 'pull_up', label: 'Pull-up', kind: 'reps' },
+  { value: 'inverted_row', label: 'Inverted row', kind: 'reps' },
   { value: 'dip', label: 'Dip', kind: 'reps' },
+  { value: 'push_up', label: 'Push-up', kind: 'reps' },
+  { value: 'pike_push_up', label: 'Pike push-up', kind: 'reps' },
   { value: 'squat', label: 'Squat', kind: 'reps' },
   { value: 'pistol_squat', label: 'Pistol squat', kind: 'reps' },
+  { value: 'deadlift', label: 'Deadlift', kind: 'reps' },
   { value: 'muscle_up', label: 'Muscle-up', kind: 'reps' },
   { value: 'handstand_push_up', label: 'Handstand push-up', kind: 'reps' },
   { value: 'front_lever_press', label: 'Front lever press', kind: 'reps' },

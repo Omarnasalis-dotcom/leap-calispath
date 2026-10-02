@@ -50,9 +50,13 @@ export interface MovementWeek {
 /** Main bodyweight movements, in display order (reps only; holds come later). */
 export const REP_MOVEMENTS = [
   'pull_up',
+  'inverted_row',
   'dip',
+  'push_up',
+  'pike_push_up',
   'squat',
   'pistol_squat',
+  'deadlift',
   'muscle_up',
   'handstand_push_up',
   'front_lever_press',
