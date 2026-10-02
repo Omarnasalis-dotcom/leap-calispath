@@ -947,3 +947,67 @@ dialog.confirm.video-modal {
     padding: 20px 16px 48px;
   }
 }
+
+/* ---------- segmented buttons (filters, view switches) ---------- */
+
+.seg {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+  padding: 3px;
+  background: var(--tint-05);
+  border: 1px solid var(--hairline);
+  border-radius: var(--radius);
+}
+.seg-item {
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 5px 12px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--ink-2);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.seg-item:hover {
+  color: var(--ink);
+}
+.seg-item[aria-pressed='true'] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 0 0 1px var(--hairline-strong);
+}
+.seg-item:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+/* ---------- table row that opens in place ---------- */
+
+table.data tr.row-open > td {
+  background: var(--tint-04);
+}
+table.data tr.row-expansion > td {
+  padding: 12px 12px 18px;
+  background: var(--tint-03);
+  white-space: normal;
+}
+.inline-client {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.inline-client-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .seg-item {
+    transition: none;
+  }
+}

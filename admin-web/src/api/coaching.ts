@@ -830,7 +830,8 @@ export async function removeAssistant(coachId: string, assistantId: string): Pro
 /** 'coach' = a real coach_id; 'self' = the Leap system profile
  * (LEAP_SYSTEM_PROFILE_ID) that owns self-service library selections;
  * null = both. */
-export type CoachSource = 'coach' | 'self' | null;
+/** 'self' = self-selected library program, 'ai' = AI Coach, 'coach' = a human coach. */
+export type CoachSource = 'coach' | 'ai' | 'self' | null;
 
 export async function fetchCoachingAnalytics(source: CoachSource = null): Promise<CoachingAnalytics> {
   const { data, error } = await supabase.rpc('admin_get_coaching_analytics', {

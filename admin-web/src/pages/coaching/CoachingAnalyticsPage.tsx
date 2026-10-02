@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Fragment, useEffect, useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
   fetchAssignment,
@@ -10,6 +10,7 @@ import {
 import { formatDate } from '@/shared/constants';
 import { Badge, ErrorNote } from '@/components/bits';
 import { ProgressDrawer } from './ProgressDrawer';
+import { PerformancePanel } from '@/components/performance/PerformancePanel';
 
 function KvList({ entries }: { entries: Array<[string, number]> }) {
   return (
@@ -31,36 +32,79 @@ function CompletionBadge({ row }: { row: ClientAdherenceRow }) {
   return <Badge tone={tone}>{pct}%</Badge>;
 }
 
-/** Expands inline under the adherence table instead of navigating away —
- * ClientAdherenceRow is a summary projection (no template_id), so unlike
- * ClientsPage's inline expand (which already has a full AssignmentRow in
- * hand from fetchAssignments), this fetches the complete assignment
- * ProgressDrawer needs before rendering it. */
-function InlineClientProgress({ assignmentId, warriorName, onClose }: { assignmentId: string; warriorName: string; onClose: () => void }) {
+/** Opens directly under the clicked client row (not at the bottom of the
+ * page): their week-by-week logs, or their Performance charts.
+ * ClientAdherenceRow is a summary projection (no template_id), so the logs
+ * tab fetches the complete assignment ProgressDrawer needs. */
+function InlineClient({ row, onClose }: { row: ClientAdherenceRow; onClose: () => void }) {
+  const [tab, setTab] = useState<'logs' | 'performance'>('logs');
   const assignmentQ = useQuery({
-    queryKey: ['assignment', assignmentId],
-    queryFn: () => fetchAssignment(assignmentId),
+    queryKey: ['assignment', row.assignment_id],
+    queryFn: () => fetchAssignment(row.assignment_id),
+    enabled: tab === 'logs',
   });
+  const name = row.warrior_name ?? 'warrior';
+
+  // The table can be wider than the page (it scrolls sideways), and this
+  // sits inside one of its cells — so size it to the scroll area's visible
+  // width and pin it to the left edge, keeping it fully on screen.
+  const ref = useRef<HTMLDivElement>(null);
+  const [fitWidth, setFitWidth] = useState<number | null>(null);
+  useEffect(() => {
+    const wrap = ref.current?.closest('.table-wrap');
+    if (!wrap) return;
+    const measure = () => setFitWidth(wrap.clientWidth - 24); // minus the cell's side padding
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap);
+    return () => ro.disconnect();
+  }, []);
 
   return (
-    <section className="panel">
-      <div className="panel-head">
-        <h2>Progress — {warriorName}</h2>
+    <div
+      ref={ref}
+      className="inline-client"
+      style={fitWidth ? { width: fitWidth, position: 'sticky', left: 12 } : undefined}
+    >
+      <div className="inline-client-head">
+        <div className="seg" role="group" aria-label="Client view">
+          <button type="button" className="seg-item" aria-pressed={tab === 'logs'} onClick={() => setTab('logs')}>
+            Week logs
+          </button>
+          <button
+            type="button"
+            className="seg-item"
+            aria-pressed={tab === 'performance'}
+            onClick={() => setTab('performance')}
+          >
+            Performance
+          </button>
+        </div>
         <button className="btn small" onClick={onClose}>
           Close
         </button>
       </div>
-      {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
-      {assignmentQ.isLoading && <div className="skeleton" style={{ height: 120 }} />}
-      {assignmentQ.data && <ProgressDrawer assignment={assignmentQ.data} />}
-    </section>
+      {tab === 'logs' && (
+        <section className="panel">
+          <div className="panel-head">
+            <h2>Week logs — {name}</h2>
+          </div>
+          {assignmentQ.error && <ErrorNote error={assignmentQ.error} />}
+          {assignmentQ.isLoading && <div className="skeleton" style={{ height: 120 }} />}
+          {assignmentQ.data && <ProgressDrawer assignment={assignmentQ.data} />}
+        </section>
+      )}
+      {tab === 'performance' && <PerformancePanel userId={row.warrior_id} athleteName={name} />}
+    </div>
   );
 }
 
-const SOURCE_OPTIONS: Array<{ value: string; label: string }> = [
-  { value: '', label: 'All sources' },
-  { value: 'coach', label: 'Coach assigned' },
+// Coach ids: …0001 = self-selected library programs, …0002 = AI Coach.
+const SOURCE_OPTIONS: Array<{ value: CoachSource; label: string }> = [
+  { value: null, label: 'All' },
   { value: 'self', label: 'Self selected' },
+  { value: 'ai', label: 'AI Coach' },
+  { value: 'coach', label: 'Coach assigned' },
 ];
 
 export function CoachingAnalyticsPage() {
@@ -82,20 +126,25 @@ export function CoachingAnalyticsPage() {
           <h1>Coaching analytics</h1>
           <div className="sub">Templates, assignments and adherence across every coach.</div>
         </div>
-        <label className="row" style={{ gap: 8 }}>
+        <div className="row" style={{ gap: 8 }}>
           <span className="label">Source</span>
-          <select
-            className="field"
-            value={source ?? ''}
-            onChange={(e) => setSource((e.target.value || null) as CoachSource)}
-          >
+          <div className="seg" role="group" aria-label="Source">
             {SOURCE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
+              <button
+                key={opt.label}
+                type="button"
+                className="seg-item"
+                aria-pressed={source === opt.value}
+                onClick={() => {
+                  setSource(opt.value);
+                  setExpandedId(null);
+                }}
+              >
                 {opt.label}
-              </option>
+              </button>
             ))}
-          </select>
-        </label>
+          </div>
+        </div>
       </div>
 
       {error && <ErrorNote error={error} />}
@@ -217,9 +266,10 @@ export function CoachingAnalyticsPage() {
                       </tr>
                     ))}
                   {adherenceQ.data?.map((row) => (
+                    <Fragment key={row.assignment_id}>
                     <tr
-                      key={row.assignment_id}
-                      className="clickable"
+                      className={`clickable${expandedId === row.assignment_id ? ' row-open' : ''}`}
+                      aria-expanded={expandedId === row.assignment_id}
                       onClick={() => setExpandedId((id) => (id === row.assignment_id ? null : row.assignment_id))}
                     >
                       <td style={{ fontWeight: 600 }}>{row.warrior_name ?? row.warrior_id.slice(0, 8)}</td>
@@ -237,6 +287,14 @@ export function CoachingAnalyticsPage() {
                       <td className="num" style={{ textAlign: 'right' }}>{row.missed_logs}</td>
                       <td className="dim">{row.last_logged_at ? formatDate(row.last_logged_at) : '—'}</td>
                     </tr>
+                    {expandedId === row.assignment_id && (
+                      <tr className="row-expansion">
+                        <td colSpan={8}>
+                          <InlineClient row={row} onClose={() => setExpandedId(null)} />
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>
@@ -249,15 +307,6 @@ export function CoachingAnalyticsPage() {
             </div>
           </section>
 
-          {expandedId && (
-            <InlineClientProgress
-              assignmentId={expandedId}
-              warriorName={
-                adherenceQ.data?.find((r) => r.assignment_id === expandedId)?.warrior_name ?? 'warrior'
-              }
-              onClose={() => setExpandedId(null)}
-            />
-          )}
         </>
       )}
     </div>
