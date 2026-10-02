@@ -36,6 +36,7 @@ import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
 import { SetLogEntry } from '../../components/coaching/SetRow';
+import { parseKg } from '../../lib/parseKg';
 import { Feel } from '../../components/coaching/FeelRpePicker';
 import { NotificationService } from '../../services/NotificationService';
 import { MissedReason } from '../../components/coaching/MissedReasonPicker';
@@ -221,6 +222,54 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     });
   };
 
+  // Reps/kg typed into sets that were never ticked, keyed blockId ->
+  // exerciseId -> setIndex. A draft with a weight counts as done when the
+  // block is logged (blockSetEntries), so the kg isn't lost for want of ✓.
+  const [blockSetDrafts, setBlockSetDrafts] = useState<Record<string | number, Record<string | number, Record<number, SetLogEntry>>>>({});
+
+  const handleSetDraft = (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => {
+    setBlockSetDrafts(prev => {
+      const blockEntry = prev[blockId] || {};
+      return { ...prev, [blockId]: { ...blockEntry, [exerciseId]: { ...(blockEntry[exerciseId] || {}), [entry.setIndex]: entry } } };
+    });
+  };
+
+  // Ticked sets plus unticked sets that have a weight typed in.
+  const blockSetEntries = (blockId: string | number): Record<string | number, SetLogEntry[]> => {
+    const merged: Record<string | number, SetLogEntry[]> = {};
+    Object.entries(blockSetProgress[blockId] || {}).forEach(([exId, entries]) => {
+      merged[exId] = [...entries];
+    });
+    Object.entries(blockSetDrafts[blockId] || {}).forEach(([exId, drafts]) => {
+      const list = merged[exId] || [];
+      Object.values(drafts).forEach((d) => {
+        if (d.weight && d.weight > 0 && !list.some((s) => s.setIndex === d.setIndex)) list.push(d);
+      });
+      if (list.length > 0) merged[exId] = list;
+    });
+    return merged;
+  };
+
+  // Heaviest kg across the block's sets (or one exercise's sets), pre-filled
+  // as the log modal's "Weight used" so the athlete doesn't type it twice.
+  const topSetWeight = (blockId: string | number, exerciseId?: string | number): string => {
+    const entries = blockSetEntries(blockId);
+    const sets = exerciseId !== undefined ? entries[exerciseId] || [] : Object.values(entries).flat();
+    const top = Math.max(0, ...sets.map((s) => s.weight ?? 0));
+    return top > 0 ? String(top) : '';
+  };
+
+  // Log modal's per-exercise kg, for blocks with 2+ weighted exercises.
+  const [logExerciseWeights, setLogExerciseWeights] = useState<Record<string, string>>({});
+  const setLogExerciseWeight = (exerciseId: string, val: string) =>
+    setLogExerciseWeights(prev => ({ ...prev, [exerciseId]: val }));
+
+  const weightedExercisesOf = (blockId: string | number) =>
+    (days.flatMap(d => d.blocks).find(b => b.id === blockId)?.exercises || []).filter(ex => ex.is_weighted);
+
+  const topSetWeightsByExercise = (blockId: string | number): Record<string, string> =>
+    Object.fromEntries(weightedExercisesOf(blockId).map(ex => [String(ex.id), topSetWeight(blockId, ex.id)]));
+
   // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
   // progress only reached the server when a whole block was logged, so a
   // phone call or low-memory kill lost every set ticked so far. Kept per
@@ -294,6 +343,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     notes: string; feel: string | null; rpe: number | null;
     missed_reason: string | null; missed_detail: string | null;
     first_logged_at: string;
+    // The latest log's per-set rows, by block_exercise_id. Re-saving a log
+    // replaces its sets, so reopening it puts these back into
+    // blockSetProgress — otherwise they'd be deleted on save.
+    saved_sets: Record<string, SetLogEntry[]>;
   }>>({});
 
   // Active Timer State (Extracted to Hook)
@@ -619,7 +672,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         // known yet), oldest first so the latest log per block wins.
         supabase
           .from('workout_logs')
-          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at')
+          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at, workout_set_logs(block_exercise_id, set_index, reps_completed, weight_used)')
           .eq('warrior_id', warriorId)
           .order('completed_at', { ascending: true }),
       ]);
@@ -684,6 +737,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           missed_reason: l.missed_reason,
           missed_detail: l.missed_detail,
           first_logged_at: firstLoggedAt.get(l.block_id) ?? l.completed_at,
+          saved_sets: ((l.workout_set_logs || []) as any[]).reduce((acc: Record<string, SetLogEntry[]>, s: any) => {
+            // Hold-time rows have no exercise and no reps; they can't be
+            // put back on a set row.
+            if (!s.block_exercise_id || s.reps_completed == null) return acc;
+            const key = String(s.block_exercise_id);
+            (acc[key] = acc[key] || []).push({
+              setIndex: s.set_index,
+              reps: s.reps_completed,
+              weight: s.weight_used != null ? Number(s.weight_used) : undefined,
+            });
+            return acc;
+          }, {}),
         }])
       ));
 
@@ -1021,6 +1086,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogForTimeDuration('');
         setLogLadderProgress('');
         setLogWeightUsed('');
+        setLogExerciseWeights({});
       } else {
         const parsed = parseLoggedNotes(existing.notes);
         setLogNotes(parsed.freeText);
@@ -1028,6 +1094,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogForTimeDuration(parsed.forTimeDuration);
         setLogLadderProgress(parsed.ladderProgress);
         setLogWeightUsed(parsed.weightUsed);
+        // Put the saved sets back so re-saving keeps them, unless sets were
+        // already entered on this block in this session.
+        const saved = existing.saved_sets || {};
+        if (Object.keys(saved).length > 0 && !blockSetProgress[blockId]) {
+          setBlockSetProgress(prev => ({ ...prev, [blockId]: saved }));
+        }
+        setLogExerciseWeights(Object.fromEntries(
+          weightedExercisesOf(blockId).map(ex => {
+            const top = Math.max(0, ...(saved[String(ex.id)] || []).map(s => s.weight ?? 0));
+            return [String(ex.id), top > 0 ? String(top) : ''];
+          })
+        ));
       }
     } else {
       setLogNotes('');
@@ -1039,7 +1117,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setLogAmrapRounds('');
       setLogForTimeDuration('');
       setLogLadderProgress('');
-      setLogWeightUsed('');
+      setLogWeightUsed(topSetWeight(blockId));
+      setLogExerciseWeights(topSetWeightsByExercise(blockId));
     }
 
     if (initialStatus) {
@@ -1126,7 +1205,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // (straight-set/circuit/superset/ladder); falls back to the prescribed
   // sets × reps when no detailed logging happened for this block at all.
   const sumBlockReps = (blockId: string | number): number => {
-    const exerciseSets = blockSetProgress[blockId] || {};
+    const exerciseSets = blockSetEntries(blockId);
     const logged = Object.values(exerciseSets).reduce(
       (sum, entries) => sum + entries.reduce((s, e: SetLogEntry) => s + (e.reps || 0), 0),
       0
@@ -1139,10 +1218,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // during the timer session. AMRAP round counts are captured in the notes
   // text (see finalNotes below) rather than as synthetic set rows, since
   // there's no per-round weight/reps detail worth storing structurally there.
-  const buildSetsPayload = (blockId: string | number) => {
+  // popupWeights: the log modal's kg per weighted exercise id. For an
+  // exercise with no logged set, it becomes one real set (reps from the
+  // plan), so it reaches the charts instead of living in notes text alone.
+  const buildSetsPayload = (blockId: string | number, popupWeights?: Record<string, string>) => {
     const sets: { block_exercise_id: string | number | null; set_index: number; reps_completed: number | null; weight_used: number | null; hold_seconds: number | null }[] = [];
 
-    const exerciseSets = blockSetProgress[blockId] || {};
+    const exerciseSets = blockSetEntries(blockId);
     Object.entries(exerciseSets).forEach(([exerciseId, entries]) => {
       entries.forEach((entry: SetLogEntry) => {
         sets.push({
@@ -1152,6 +1234,20 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           weight_used: entry.weight ?? null,
           hold_seconds: null,
         });
+      });
+    });
+
+    weightedExercisesOf(blockId).forEach(ex => {
+      const kg = parseKg(popupWeights?.[String(ex.id)] ?? '');
+      const hasSets = sets.some(s => String(s.block_exercise_id) === String(ex.id));
+      if (!kg || kg <= 0 || hasSets) return;
+      const plannedReps = parseInt(String(ex.reps ?? ''), 10);
+      sets.push({
+        block_exercise_id: ex.id,
+        set_index: 1,
+        reps_completed: Number.isNaN(plannedReps) ? null : plannedReps,
+        weight_used: kg,
+        hold_seconds: null,
       });
     });
 
@@ -1177,7 +1273,20 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
       if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
       if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
-      if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
+      // 2+ weighted exercises: the modal shows one kg per exercise, and the
+      // single notes line (read back by parseLoggedNotes) carries the top one.
+      const weighted = weightedExercisesOf(activeLogBlockId);
+      const multiWeights = weighted.length >= 2;
+      const popupWeights: Record<string, string> = multiWeights
+        ? logExerciseWeights
+        : weighted.length === 1 ? { [String(weighted[0].id)]: logWeightUsed } : {};
+      const notesWeight = multiWeights
+        ? (() => {
+            const top = Math.max(0, ...Object.values(logExerciseWeights).map(v => parseKg(v) ?? 0));
+            return top > 0 ? String(top) : '';
+          })()
+        : logWeightUsed;
+      if (notesWeight) finalNotes += `[LOG] Weight Used: ${notesWeight} KG\n`;
       if (logNotes) finalNotes += logNotes;
       finalNotes = finalNotes.trim();
 
@@ -1196,7 +1305,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         p_notes: finalNotes,
         p_session_seconds: null,
         p_start_of_today: replaceLogsSince(activeLogBlockId),
-        p_sets: buildSetsPayload(activeLogBlockId),
+        p_sets: buildSetsPayload(activeLogBlockId, logStatus === 'completed' ? popupWeights : undefined),
       }).abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
@@ -1215,6 +1324,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setLogModalVisible(false);
       setSessionTotalReps(prev => prev + sumBlockReps(activeLogBlockId));
       setBlockSetProgress(prev => {
+        const next = { ...prev };
+        delete next[activeLogBlockId];
+        return next;
+      });
+      setBlockSetDrafts(prev => {
         const next = { ...prev };
         delete next[activeLogBlockId];
         return next;
@@ -1262,7 +1376,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogMissedDetail('');
         setLogAmrapRounds('');
         setLogForTimeDuration('');
-        setLogWeightUsed('');
+        setLogWeightUsed(topSetWeight(blockId));
+        setLogExerciseWeights(topSetWeightsByExercise(blockId));
         setLogLadderProgress('');
         setLogModalVisible(true);
       } else {
@@ -1286,7 +1401,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setLogMissedDetail('');
               setLogAmrapRounds('');
               setLogForTimeDuration('');
-              setLogWeightUsed('');
+              setLogWeightUsed(topSetWeight(blockId));
+              setLogExerciseWeights(topSetWeightsByExercise(blockId));
               setLogLadderProgress('');
               setLogModalVisible(true);
             }
@@ -1305,12 +1421,15 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (!templateId) return;
     setLogLoading(true);
     try {
+      // "Submit directly" saves only this block's own data: its sets and
+      // their top weight. Every log-modal field (notes, AMRAP / For Time /
+      // ladder results, feel, RPE, missed reason) is shared state left over
+      // from whichever block last opened the modal, so none of it is sent —
+      // it used to copy one block's feel/RPE onto every quick-submitted
+      // block. Timer results never come through here (they open the modal).
       let finalNotes = '';
-      if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
-      if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
-      if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
-      if (logWeightUsed) finalNotes += `[LOG] Weight Used: ${logWeightUsed} KG\n`;
-      if (logNotes) finalNotes += logNotes;
+      const quickWeight = topSetWeight(blockId);
+      if (quickWeight) finalNotes += `[LOG] Weight Used: ${quickWeight} KG\n`;
 
       let timerId: NodeJS.Timeout | null = null;
       const timeoutPromise = new Promise((_, reject) => {
@@ -1323,10 +1442,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           p_warrior_program_id: warriorProgramId,
           p_block_id: blockId,
           p_status: status,
-          p_feel: status === 'completed' ? logFeel : null,
-          p_rpe: status === 'completed' ? logRpe : null,
-          p_missed_reason: status === 'missed' ? logMissedReason : null,
-          p_missed_detail: status === 'missed' ? logMissedDetail : null,
+          p_feel: null,
+          p_rpe: null,
+          p_missed_reason: null,
+          p_missed_detail: null,
           p_notes: finalNotes.trim(),
           p_session_seconds: null,
           p_start_of_today: replaceLogsSince(blockId),
@@ -1344,6 +1463,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
       setSessionTotalReps(prev => prev + sumBlockReps(blockId));
       setBlockSetProgress(prev => {
+        const next = { ...prev };
+        delete next[blockId];
+        return next;
+      });
+      setBlockSetDrafts(prev => {
         const next = { ...prev };
         delete next[blockId];
         return next;
@@ -1474,6 +1598,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   isLocked={isLocked}
                   loggedSetsByExercise={blockSetProgress[block.id]}
                   onSetLogged={handleSetLogged}
+                  onSetDraft={handleSetDraft}
                   onLadderFinalize={handleLadderFinalize}
                   onAmrapFinalize={handleAmrapFinalize}
                   onForTimeFinalize={handleForTimeFinalize}
@@ -1767,6 +1892,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         setLogForTimeDuration={setLogForTimeDuration}
         logWeightUsed={logWeightUsed}
         setLogWeightUsed={setLogWeightUsed}
+        logExerciseWeights={logExerciseWeights}
+        setLogExerciseWeight={setLogExerciseWeight}
         logLadderProgress={logLadderProgress}
         setLogLadderProgress={setLogLadderProgress}
         logRating={logRating}

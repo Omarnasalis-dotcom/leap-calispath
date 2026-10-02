@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, TextInput, StyleSheet, AppState } from 'r
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { parseKg } from '../../lib/parseKg';
 
 export interface SetLogEntry {
   setIndex: number;
@@ -19,6 +20,9 @@ interface SetRowProps {
   bronzeGold: string;
   completed: boolean;
   onSetComplete: (entry: SetLogEntry) => void;
+  // Reps/kg edits on a set that hasn't been ticked yet, so a typed weight
+  // still gets saved when the block is logged without tapping ✓.
+  onSetDraft?: (entry: SetLogEntry) => void;
 }
 
 export const SetRow: React.FC<SetRowProps> = ({
@@ -30,6 +34,7 @@ export const SetRow: React.FC<SetRowProps> = ({
   bronzeGold,
   completed,
   onSetComplete,
+  onSetDraft,
 }) => {
   const [reps, setReps] = useState(targetReps);
   const [weight, setWeight] = useState('');
@@ -85,7 +90,7 @@ export const SetRow: React.FC<SetRowProps> = ({
 
   const handleCheck = () => {
     if (completed) return;
-    const parsedWeight = weight ? parseFloat(weight) : undefined;
+    const parsedWeight = parseKg(weight);
     onSetComplete({ setIndex, reps, weight: parsedWeight });
     SoundServiceInstance.playBoxingBell();
     if (restSeconds > 0) {
@@ -101,17 +106,21 @@ export const SetRow: React.FC<SetRowProps> = ({
     if (isFullyDone) return;
     const next = Math.max(0, reps + delta);
     setReps(next);
+    const parsedWeight = parseKg(weight);
     if (restActive) {
-      const parsedWeight = weight ? parseFloat(weight) : undefined;
       onSetComplete({ setIndex, reps: next, weight: parsedWeight });
+    } else if (!completed) {
+      onSetDraft?.({ setIndex, reps: next, weight: parsedWeight });
     }
   };
 
   const handleWeightChange = (text: string) => {
     setWeight(text);
+    const parsedWeight = parseKg(text);
     if (restActive) {
-      const parsedWeight = text ? parseFloat(text) : undefined;
       onSetComplete({ setIndex, reps, weight: parsedWeight });
+    } else if (!completed) {
+      onSetDraft?.({ setIndex, reps, weight: parsedWeight });
     }
   };
 

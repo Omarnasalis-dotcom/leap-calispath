@@ -136,6 +136,7 @@ interface WarriorBlockCardProps {
   isLocked?: boolean;
   loggedSetsByExercise?: Record<string | number, SetLogEntry[]>;
   onSetLogged?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
+  onSetDraft?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
   onLadderFinalize?: (blockId: string | number, summary: string) => void;
   onAmrapFinalize?: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeFinalize?: (blockId: string | number, result: ForTimeResult) => void;
@@ -161,6 +162,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   isLocked,
   loggedSetsByExercise,
   onSetLogged,
+  onSetDraft,
   onLadderFinalize,
   onAmrapFinalize,
   onForTimeFinalize,
@@ -538,6 +540,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                                 bronzeGold={bronzeGold}
                                 completed={isSetLogged}
                                 onSetComplete={(entry) => onSetLogged?.(block.id, ex.id, entry)}
+                                onSetDraft={(entry) => onSetDraft?.(block.id, ex.id, entry)}
                               />
                             );
                           })}

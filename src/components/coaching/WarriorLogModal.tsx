@@ -10,6 +10,7 @@ import { t } from '../../i18n';
 interface MinimalBlock {
   id: string | number;
   metadata?: any;
+  exercises?: { id: string | number; name: string; is_weighted?: boolean }[];
 }
 
 interface MinimalDay {
@@ -31,6 +32,10 @@ interface WarriorLogModalProps {
   setLogForTimeDuration: (val: string) => void;
   logWeightUsed: string;
   setLogWeightUsed: (val: string) => void;
+  // One kg per weighted exercise, used instead of logWeightUsed when the
+  // block has 2+ weighted exercises.
+  logExerciseWeights: Record<string, string>;
+  setLogExerciseWeight: (exerciseId: string, val: string) => void;
   logLadderProgress: string;
   setLogLadderProgress: (val: string) => void;
   logRating: number;
@@ -64,6 +69,8 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
   setLogForTimeDuration,
   logWeightUsed,
   setLogWeightUsed,
+  logExerciseWeights,
+  setLogExerciseWeight,
   logLadderProgress,
   setLogLadderProgress,
   logRating,
@@ -134,6 +141,8 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
             const activeLogBlock = days.flatMap(d => d.blocks).find(b => b.id === activeLogBlockId);
             if (!activeLogBlock) return null;
             const meta = activeLogBlock.metadata;
+            const weightedExercises = (activeLogBlock.exercises || []).filter(ex => ex.is_weighted);
+            const perExerciseWeights = logStatus === 'completed' && weightedExercises.length >= 2;
             return (
               <View style={{ marginBottom: 20, width: '100%', gap: 12 }}>
                 {(meta?.timing_system === 'amrap' || meta?.type === 'amrap') && meta?.structure !== 'ladder' && (
@@ -160,7 +169,20 @@ export const WarriorLogModal: React.FC<WarriorLogModalProps> = ({
                     />
                   </View>
                 )}
-                {meta?.is_weighted && (
+                {perExerciseWeights && weightedExercises.map(ex => (
+                  <View key={ex.id}>
+                    <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{`${ex.name} (${t('blocks.kg')})`}</Text>
+                    <TextInput
+                      style={[styles.notesInput, { minHeight: 45, color: theme.text.primary, borderColor: theme.card.border }]}
+                      placeholder={t('logModal.weightPlaceholder')}
+                      placeholderTextColor={theme.text.tertiary}
+                      keyboardType="numeric"
+                      value={logExerciseWeights[String(ex.id)] ?? ''}
+                      onChangeText={(val) => setLogExerciseWeight(String(ex.id), val)}
+                    />
+                  </View>
+                ))}
+                {meta?.is_weighted && !perExerciseWeights && (
                   <View>
                     <Text style={[styles.modalLabel, { color: theme.text.secondary }]}>{t('logModal.weightUsed')}</Text>
                     <TextInput
