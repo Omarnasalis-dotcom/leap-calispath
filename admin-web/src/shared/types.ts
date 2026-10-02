@@ -244,11 +244,15 @@ export interface BodyweightPoint {
   weight_kg: number;
 }
 
+export type Feel = 'hard' | 'ok' | 'good' | 'strong' | 'beast';
+
 export interface CompletionWeek {
   week: number;
   total: number;
   completed: number;
   missed: number;
+  avg_rpe: number | null; // 1-10, from the week's logged blocks
+  feel: Partial<Record<Feel, number>>; // blocks per feel rating
 }
 
 export interface CompletionProgram {

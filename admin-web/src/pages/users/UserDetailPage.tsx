@@ -382,7 +382,7 @@ export function UserDetailPage() {
         </div>
       )}
 
-      {u && <PerformancePanel userId={id} />}
+      {u && <PerformancePanel userId={id} athleteName={u.display_name || [u.first_name, u.last_name].filter(Boolean).join(' ') || 'Athlete'} />}
 
       <section className="panel">
         <div className="panel-head">

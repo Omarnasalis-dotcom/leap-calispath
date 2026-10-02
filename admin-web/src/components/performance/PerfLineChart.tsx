@@ -1,205 +1,274 @@
-import { useRef, useState, type PointerEvent } from 'react';
-import { ChartTooltip } from '@/components/dashboard/ChartTooltip';
+import { createContext, useContext, useState, type PointerEvent } from 'react';
 
 export interface PerfSeries {
   key: string;
   label: string;
-  color: string; // CSS var, e.g. 'var(--dv-static)'
-  /** null = nothing logged at that x; the line breaks there. */
+  color: string; // CSS var, e.g. 'var(--pf-purple)'
+  /** null = nothing logged at that x; the line breaks there (never interpolated). */
   values: (number | null)[];
-  /** Optional tooltip text per x (e.g. "60 kg × 5"); defaults to the value. */
+  /** Optional tooltip text per x (e.g. "60 kg × 5"); defaults to "value unit". */
   details?: (string | null)[];
 }
 
-// SVG viewBox units, same approach as WarriorGrowthChart.
-const W = 600;
-const H = 180;
-const PAD_X = 8;
-const PAD_Y = 10;
-const MAX_X_LABELS = 8;
+const fmt = (v: number) => String(+v.toFixed(1));
 
-/** Multi-series line chart with a crosshair tooltip. One shared y-scale —
- * callers only pass series measured in the same unit. `zeroBaseline` pins
- * the axis to 0 (scores, loads); leave it off for values that never get
- * near 0 (bodyweight), so the change stays visible. */
+/** True inside the printed report: charts are drawn at their real A4 size
+ * so 11px labels stay 11px on paper instead of being scaled down. */
+export const PerfPrintContext = createContext(false);
+
+/** Line chart per design handoff (assets/design_handoff_admin_performance,
+ * chart()). `axis` = full chart with gridlines, labels, points and hover;
+ * without it, a sparkline (no axes, latest point only). */
 export function PerfLineChart({
-  xLabels,
-  tooltipTitles,
+  labels,
   series,
-  unit,
-  zeroBaseline = true,
+  unit = '',
+  step = 5,
+  floor,
+  domain,
+  axis = true,
+  width = 560,
+  height = 200,
   ariaLabel,
 }: {
-  xLabels: string[];
-  tooltipTitles: string[];
+  labels: string[];
   series: PerfSeries[];
-  unit: string;
-  zeroBaseline?: boolean;
+  unit?: string;
+  step?: number;
+  /** Lowest the axis may go (0 for loads and scores). */
+  floor?: number;
+  /** Fixed axis range instead of fitting the data (e.g. RPE 0-10). */
+  domain?: [number, number];
+  axis?: boolean;
+  width?: number;
+  height?: number;
   ariaLabel: string;
 }) {
-  const svgRef = useRef<SVGSVGElement>(null);
-  const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [hover, setHover] = useState<number | null>(null);
+  const print = useContext(PerfPrintContext);
+  // On paper a half-width cell is ~330 units and a full-width one ~680.
+  const W = print ? (axis ? (width > 600 ? 680 : 330) : 150) : width;
+  const H = print ? (axis ? 160 : 52) : height;
+  const pl = axis ? 6 : 4;
+  const pr = axis ? 6 : 4;
+  const pt = axis ? 18 : 6;
+  const pb = axis ? 26 : 6;
 
-  const n = xLabels.length;
   const all = series.flatMap((s) => s.values).filter((v): v is number => v !== null);
-  if (n === 0 || all.length === 0) return null;
+  if (all.length === 0) return <div style={{ height: axis ? 120 : 40 }} />;
 
-  const rawMax = Math.max(...all);
-  const rawMin = Math.min(...all);
-  const pad = (rawMax - rawMin) * 0.15 || Math.max(1, rawMax * 0.1);
-  const yMin = zeroBaseline ? 0 : rawMin - pad;
-  const yMax = rawMax + (zeroBaseline ? rawMax * 0.1 || 1 : pad);
-  const span = yMax - yMin || 1;
-  const stepX = n > 1 ? (W - PAD_X * 2) / (n - 1) : 0;
-  const xAt = (i: number) => (n > 1 ? PAD_X + i * stepX : W / 2);
-  const yAt = (v: number) => PAD_Y + (H - PAD_Y * 2) * (1 - (v - yMin) / span);
+  let lo = Math.min(...all);
+  let hi = Math.max(...all);
+  const pad = (hi - lo) * 0.18 || Math.max(1, hi * 0.08);
+  lo = Math.max(floor ?? -Infinity, Math.floor((lo - pad) / step) * step);
+  hi = Math.ceil((hi + pad) / step) * step;
+  if (hi === lo) hi = lo + step;
+  if (domain) [lo, hi] = domain;
 
-  const fmt = (v: number) => `${Number.isInteger(v) ? v : v.toFixed(1)} ${unit}`.trim();
-  const lastValue = (s: PerfSeries) => [...s.values].reverse().find((v) => v !== null) ?? null;
-  const labelEvery = Math.ceil(n / MAX_X_LABELS);
+  const n = labels.length;
+  const X = (i: number) => (n === 1 ? W / 2 : pl + (i * (W - pl - pr)) / (n - 1));
+  const Y = (v: number) => pt + (1 - (v - lo) / (hi - lo)) * (H - pt - pb);
 
-  function handleMove(e: PointerEvent<SVGSVGElement>) {
-    const rect = svgRef.current?.getBoundingClientRect();
-    if (!rect) return;
-    const px = ((e.clientX - rect.left) / rect.width) * W;
-    let nearest = 0;
-    let best = Infinity;
-    for (let i = 0; i < n; i++) {
-      const d = Math.abs(xAt(i) - px);
-      if (d < best) {
-        best = d;
-        nearest = i;
-      }
-    }
-    setHoverIdx(nearest);
-  }
-
-  // A line segment only joins two consecutive logged points; a null breaks it.
-  const pathFor = (values: (number | null)[]) => {
-    let d = '';
-    let pen = false;
+  // Consecutive logged points form a segment; a null breaks the line.
+  const segmentsOf = (values: (number | null)[]) => {
+    const segs: { i: number; v: number }[][] = [];
+    let cur: { i: number; v: number }[] = [];
     values.forEach((v, i) => {
       if (v === null) {
-        pen = false;
-        return;
-      }
-      d += `${pen ? 'L' : 'M'}${xAt(i).toFixed(1)} ${yAt(v).toFixed(1)} `;
-      pen = true;
+        if (cur.length) segs.push(cur);
+        cur = [];
+      } else cur.push({ i, v });
     });
-    return d.trim();
+    if (cur.length) segs.push(cur);
+    return segs;
   };
+  // Smooth monotone-ish curve: horizontal tangents at each point, so the
+  // line never overshoots a data point.
+  const pathOf = (seg: { i: number; v: number }[]) =>
+    seg
+      .map((p, k) => {
+        if (k === 0) return `M${X(p.i)},${Y(p.v)}`;
+        const a = seg[k - 1];
+        const m = (X(a.i) + X(p.i)) / 2;
+        return `C${m},${Y(a.v)} ${m},${Y(p.v)} ${X(p.i)},${Y(p.v)}`;
+      })
+      .join(' ');
 
-  const hoverX = hoverIdx !== null ? xAt(hoverIdx) : null;
-  const hoverYs =
-    hoverIdx !== null
-      ? series.map((s) => s.values[hoverIdx]).filter((v): v is number => v !== null).map(yAt)
-      : [];
-  const tooltipY = hoverYs.length > 0 ? Math.min(...hoverYs) : PAD_Y;
+  const lastIndex = (values: (number | null)[]) =>
+    values.reduce<number>((acc, v, i) => (v !== null ? i : acc), -1);
+
+  function onMove(e: PointerEvent<SVGSVGElement>) {
+    const r = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - r.left) / r.width) * W;
+    const i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((x - pl) / ((W - pl - pr) / (n - 1)))));
+    if (i !== hover) setHover(i);
+  }
+
+  const ticks = [lo, (lo + hi) / 2, hi];
+  // Thin x labels to what fits (~56 units each); always keep the last one
+  // and drop a regular label that would crowd it.
+  const every = Math.max(1, Math.ceil(n / Math.max(2, Math.floor(W / 56))));
+  const showLabel = (i: number) =>
+    hover === i || i === n - 1 || (i % every === 0 && n - 1 - i >= every);
 
   return (
-    <div>
-      {series.length > 1 && (
-        <div className="perf-legend">
+    <div className={`pf-chart${axis ? ' pf-chart-interactive' : ''}`}>
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        width="100%"
+        role="img"
+        aria-label={ariaLabel}
+        onPointerMove={axis ? onMove : undefined}
+        onPointerLeave={axis ? () => setHover(null) : undefined}
+      >
+        {axis &&
+          ticks.map((t, k) => (
+            <line
+              key={`g${k}`}
+              x1={0}
+              x2={W}
+              y1={Y(t)}
+              y2={Y(t)}
+              stroke="var(--pf-divider)"
+              strokeWidth={1}
+              strokeDasharray={k ? '3 4' : undefined}
+            />
+          ))}
+        {axis &&
+          labels.map((l, i) => showLabel(i) && (
+            <text
+              key={`x${i}`}
+              x={X(i)}
+              y={H - 6}
+              fill={hover === i ? 'var(--pf-ink)' : 'var(--pf-faint)'}
+              fontSize={11}
+              fontWeight={hover === i ? 600 : 400}
+              textAnchor={n === 1 ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle'}
+            >
+              {l}
+            </text>
+          ))}
+        {hover !== null && (
+          <line
+            x1={X(hover)}
+            x2={X(hover)}
+            y1={pt - 6}
+            y2={H - pb}
+            stroke="var(--pf-ink)"
+            strokeOpacity={0.15}
+            strokeWidth={1}
+          />
+        )}
+        {series.map((s) => {
+          const segs = segmentsOf(s.values);
+          const li = lastIndex(s.values);
+          return (
+            <g key={s.key}>
+              {segs.map((seg, k) =>
+                seg.length > 1 ? (
+                  <path
+                    key={`a${k}`}
+                    d={`${pathOf(seg)} L${X(seg[seg.length - 1].i)},${H - pb} L${X(seg[0].i)},${H - pb} Z`}
+                    fill={s.color}
+                    fillOpacity={axis ? 0.07 : 0.12}
+                  />
+                ) : null,
+              )}
+              {/* Unlogged weeks: a dashed bridge keeps the trend readable
+                  without pretending those weeks had data (no dot, no fill,
+                  tooltip still shows "—"). */}
+              {segs.slice(1).map((seg, k) => {
+                const a = segs[k][segs[k].length - 1];
+                const b = seg[0];
+                const m = (X(a.i) + X(b.i)) / 2;
+                return (
+                  <path
+                    key={`b${k}`}
+                    d={`M${X(a.i)},${Y(a.v)} C${m},${Y(a.v)} ${m},${Y(b.v)} ${X(b.i)},${Y(b.v)}`}
+                    fill="none"
+                    stroke={s.color}
+                    strokeOpacity={0.55}
+                    strokeWidth={axis ? 1.5 : 1.25}
+                    strokeDasharray="4 5"
+                    strokeLinecap="round"
+                  />
+                );
+              })}
+              {segs.map((seg, k) =>
+                seg.length > 1 ? (
+                  <path
+                    key={`p${k}`}
+                    d={pathOf(seg)}
+                    fill="none"
+                    stroke={s.color}
+                    strokeWidth={axis ? 2.5 : 2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                ) : null,
+              )}
+              {s.values.map((v, i) => {
+                if (v === null) return null;
+                const last = i === li;
+                const on = hover === i;
+                // Sparklines draw only the latest point; a lone point of a
+                // broken line is always drawn so it isn't invisible.
+                const lone = !segs.some((seg) => seg.length > 1 && seg.some((p) => p.i === i));
+                if (!axis && !last && !lone) return null;
+                return (
+                  <circle
+                    key={`c${i}`}
+                    cx={X(i)}
+                    cy={Y(v)}
+                    r={on || last ? 5 : 3}
+                    fill={last || on ? s.color : 'var(--pf-surface)'}
+                    stroke={last || on ? 'var(--pf-surface)' : s.color}
+                    strokeWidth={2}
+                  />
+                );
+              })}
+            </g>
+          );
+        })}
+        {/* Gridline values on top of the data, with a surface-coloured
+            halo so a line passing through never makes them unreadable. */}
+        {axis &&
+          ticks.map((t, k) => (
+            <text
+              key={`gt${k}`}
+              x={0}
+              y={Y(t) - 6}
+              fill="var(--pf-faint)"
+              fontSize={11}
+              stroke="var(--pf-surface)"
+              strokeWidth={3}
+              paintOrder="stroke"
+            >
+              {`${fmt(t)} ${unit}`.trim()}
+            </text>
+          ))}
+      </svg>
+      {axis && hover !== null && (
+        <div
+          className="pf-tip"
+          role="tooltip"
+          style={{
+            left: `${(X(hover) / W) * 100}%`,
+            transform: `translateX(${n === 1 ? '-50%' : hover === 0 ? '0' : hover === n - 1 ? '-100%' : '-50%'})`,
+          }}
+        >
+          <div className="pf-tip-title">{labels[hover]}</div>
           {series.map((s) => {
-            const last = lastValue(s);
+            const v = s.values[hover];
             return (
-              <span key={s.key} className="perf-legend-item">
-                <span className="perf-legend-swatch" style={{ background: s.color }} />
-                {s.label}
-                {last !== null && <span className="num perf-legend-last">{fmt(last)}</span>}
-              </span>
+              <div key={s.key} className="pf-tip-row">
+                <span className="pf-tip-dot" style={{ background: s.color }} />
+                {v === null ? '—' : s.details?.[hover] ?? `${fmt(v)} ${unit}`.trim()}
+              </div>
             );
           })}
         </div>
       )}
-      <div className="dv-chart-wrap perf-chart">
-        <div className="perf-y-labels" aria-hidden>
-          <span>{fmt(Math.round(yMax * 10) / 10)}</span>
-          <span>{fmt(Math.round(yMin * 10) / 10)}</span>
-        </div>
-        <svg
-          ref={svgRef}
-          viewBox={`0 0 ${W} ${H}`}
-          width="100%"
-          height={190}
-          preserveAspectRatio="none"
-          style={{ display: 'block', overflow: 'visible', cursor: 'crosshair' }}
-          onPointerMove={handleMove}
-          onPointerLeave={() => setHoverIdx(null)}
-          role="img"
-          aria-label={ariaLabel}
-        >
-          <line x1={0} x2={W} y1={PAD_Y} y2={PAD_Y} stroke="var(--dv-grid)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          <line x1={0} x2={W} y1={H - PAD_Y} y2={H - PAD_Y} stroke="var(--dv-grid)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          {hoverX !== null && (
-            <line x1={hoverX} x2={hoverX} y1={PAD_Y} y2={H - PAD_Y} stroke="var(--dv-crosshair)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-          )}
-          {series.map((s) => (
-            <path
-              key={s.key}
-              d={pathFor(s.values)}
-              fill="none"
-              stroke={s.color}
-              strokeWidth={2}
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </svg>
-        {/* Markers in HTML so they stay round under preserveAspectRatio="none".
-            Always drawn when the series has gaps — a lone point has no line. */}
-        {series.map((s) => {
-          const gappy = s.values.some((v) => v === null);
-          const lastIdx = s.values.reduce<number>((acc, v, i) => (v !== null ? i : acc), -1);
-          return s.values.map((v, i) =>
-            v !== null && (gappy || i === lastIdx || i === hoverIdx || n <= 12) ? (
-              <span
-                key={`${s.key}-${i}`}
-                className="perf-dot"
-                style={{
-                  left: `${(xAt(i) / W) * 100}%`,
-                  top: `${(yAt(v) / H) * 190}px`,
-                  background: s.color,
-                  width: i === hoverIdx || i === lastIdx ? 10 : 7,
-                  height: i === hoverIdx || i === lastIdx ? 10 : 7,
-                }}
-              />
-            ) : null,
-          );
-        })}
-        {hoverIdx !== null && hoverX !== null && (
-          <ChartTooltip left={`${(hoverX / W) * 100}%`} top={`${(tooltipY / H) * 190}px`} visible>
-            <div className="dv-tooltip-title">{tooltipTitles[hoverIdx]}</div>
-            {series.map((s) => {
-              const v = s.values[hoverIdx];
-              const text = v === null ? '—' : s.details?.[hoverIdx] ?? fmt(v);
-              return (
-                <div key={s.key} className="dv-tooltip-value perf-tooltip-row">
-                  {series.length > 1 && (
-                    <span className="perf-legend-swatch" style={{ background: s.color }} />
-                  )}
-                  {series.length > 1 && <span className="perf-tooltip-label">{s.label}</span>}
-                  {text}
-                </div>
-              );
-            })}
-          </ChartTooltip>
-        )}
-      </div>
-      <div className="perf-x-labels">
-        {xLabels.map((l, i) => (
-          <span
-            key={i}
-            className="dv-week-label"
-            style={{ left: `${(xAt(i) / W) * 100}%` }}
-          >
-            {/* Thin to ~8 labels; always keep the last, dropping a
-                regular one that would sit right next to it. */}
-            {i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= Math.max(2, labelEvery / 2)) ? l : ''}
-          </span>
-        ))}
-      </div>
     </div>
   );
 }

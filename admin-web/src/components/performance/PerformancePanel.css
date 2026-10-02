@@ -1,135 +1,890 @@
-/* Performance panel (UserDetailPage). Chart colors come from the
-   .dashboard-v2 tokens in DashboardPage.css, so light/dark already work. */
+/* Performance panel (UserDetailPage) — design handoff:
+   assets/design_handoff_admin_performance. Light values are the handoff's
+   exact tokens; dark mode maps the same roles onto the admin's dark
+   surfaces. Body text keeps the admin's sans; Oswald is for numbers and
+   display titles only (handoff §Design Tokens). */
 
-.perf-grid {
-  gap: 16px;
+@font-face {
+  font-family: 'Oswald';
+  src: url('/fonts/oswald/oswald-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Oswald';
+  src: url('/fonts/oswald/oswald-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
 }
 
-.perf-card {
-  background: var(--dv-card-fill);
-  border: 1px solid var(--dv-card-border);
-  border-radius: var(--radius-lg);
-  padding: 14px 16px 12px;
-  min-width: 0;
+/* Dark (admin default). */
+.pf-root {
+  --pf-display: 'Oswald', var(--font);
+  --pf-surface: var(--surface);
+  --pf-ink: rgba(255, 255, 255, 0.9);
+  --pf-muted: rgba(255, 255, 255, 0.58);
+  --pf-faint: rgba(255, 255, 255, 0.4);
+  --pf-border: rgba(255, 255, 255, 0.1);
+  --pf-divider: rgba(255, 255, 255, 0.07);
+  --pf-empty: rgba(255, 255, 255, 0.07);
+  --pf-track: rgba(255, 255, 255, 0.05);
+  --pf-coral: #ff5a5f;
+  --pf-coral-light: rgba(255, 90, 95, 0.45);
+  --pf-coral-outline: rgba(255, 90, 95, 0.4);
+  --pf-purple: #9b7bff;
+  --pf-purple-ink: #bba5ff;
+  --pf-purple-tint: rgba(155, 123, 255, 0.12);
+  --pf-orange: #ff8a3d;
+  --pf-orange-ink: #ffad75;
+  --pf-orange-tint: rgba(255, 138, 61, 0.12);
+  --pf-amber: #e9a83a;
+  --pf-amber-ink: #f2c46d;
+  --pf-amber-tint: rgba(233, 168, 58, 0.12);
+  --pf-positive: #3dd68c;
+  --pf-tip-bg: #2a2a31;
+  --pf-tip-ink: #ffffff;
+  --pf-tip-faint: rgba(255, 255, 255, 0.6);
+  --pf-active-shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.12);
+  --pf-active-bg: rgba(255, 255, 255, 0.1);
+  --pf-halo: rgba(255, 255, 255, 0.1);
+  --pf-dashed: rgba(255, 255, 255, 0.16);
 }
 
-.perf-title {
-  margin: 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--ink);
+/* Light: the handoff's exact values. The printed report always uses
+   these too. */
+:root[data-theme='light'] .pf-root,
+.pf-report {
+  --pf-surface: #ffffff;
+  --pf-ink: #17171c;
+  --pf-muted: #6b6b76;
+  --pf-faint: #9a9aa4;
+  --pf-border: #e8e8ec;
+  --pf-divider: #eeeef1;
+  --pf-empty: #f0f0f3;
+  --pf-track: #f2f2f4;
+  --pf-coral: #e5383b;
+  --pf-coral-light: #f08a8c;
+  --pf-coral-outline: #f6c9ca;
+  --pf-purple: #7b4dff;
+  --pf-purple-ink: #5b2fe0;
+  --pf-purple-tint: #f4f0ff;
+  --pf-orange: #e8661c;
+  --pf-orange-ink: #b5470c;
+  --pf-orange-tint: #fff3eb;
+  --pf-amber: #c98a12;
+  --pf-amber-ink: #8a5a00;
+  --pf-amber-tint: #fff6e5;
+  --pf-positive: #1e8a4c;
+  --pf-tip-bg: #17171c;
+  --pf-tip-ink: #ffffff;
+  --pf-tip-faint: #9a9aa4;
+  --pf-active-shadow: 0 1px 2px rgba(23, 23, 28, 0.08), 0 0 0 1px #e8e8ec;
+  --pf-active-bg: #ffffff;
+  --pf-halo: #ededf0;
+  --pf-dashed: #e1e1e6;
 }
 
-.perf-sub {
-  margin: 2px 0 10px;
-  font-size: 12px;
+/* ---------- panel ---------- */
+
+.pf-panel {
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: 20px;
+  overflow: hidden;
+  color: var(--pf-ink);
 }
 
-.perf-select {
-  max-width: 100%;
-  margin-bottom: 10px;
-}
-
-.perf-controls {
+.pf-head {
   display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   flex-wrap: wrap;
-  gap: 8px;
+  padding: 24px 28px 20px;
+  border-bottom: 1px solid var(--pf-divider);
 }
-.perf-controls .perf-select {
-  flex: 1 1 160px;
-  min-width: 0;
-}
-
-.perf-slot-single {
-  margin: 0 0 4px;
-  color: var(--ink-2);
-}
-
-.perf-empty {
-  font-size: 13px;
-  padding: 36px 0;
-  text-align: center;
-}
-
-.perf-chart {
-  margin-top: 8px;
-}
-
-.perf-y-labels {
-  position: absolute;
-  top: -6px;
-  bottom: -6px;
-  left: 0;
+.pf-head-titles {
   display: flex;
   flex-direction: column;
+  gap: 4px;
+}
+.pf-eyebrow {
+  font-family: var(--pf-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  color: var(--pf-coral);
+}
+.pf-heading {
+  margin: 0;
+  font-family: var(--pf-display);
+  font-weight: 600;
+  font-size: 26px;
+  letter-spacing: 0.3px;
+  line-height: 1.1;
+}
+.pf-head-side {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.pf-range {
+  font-size: 13px;
+  color: var(--pf-muted);
+}
+
+.pf-btn {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: 10px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+}
+.pf-btn:hover {
+  background: var(--pf-track);
+}
+.pf-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.pf-btn-primary {
+  background: var(--pf-coral);
+  border-color: var(--pf-coral);
+  color: #fff;
+}
+.pf-btn-primary:hover {
+  background: var(--pf-coral);
+  filter: brightness(1.08);
+}
+.pf-btn-ghost {
+  border-color: transparent;
+  background: transparent;
+  color: var(--pf-muted);
+}
+
+.pf-btn:focus-visible,
+.pf-seg-item:focus-visible,
+.pf-tile:focus-visible,
+.pf-select:focus-visible,
+.pf-composer-input:focus-visible {
+  outline: 2px solid var(--pf-coral);
+  outline-offset: 2px;
+}
+
+/* Hairline-divided cells: the 1px gap shows the divider colour through. */
+.pf-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr));
+  gap: 1px;
+  background: var(--pf-divider);
+}
+@media (max-width: 900px) {
+  .pf-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.pf-cell {
+  background: var(--pf-surface);
+  padding: 24px 28px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  min-width: 0;
+}
+
+.pf-cell-wide {
+  grid-column: 1 / -1;
+}
+
+.pf-cell-head {
+  display: flex;
   justify-content: space-between;
-  font-size: 10.5px;
-  color: var(--ink-3);
-  pointer-events: none;
+  align-items: flex-start;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pf-cell-titles {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.pf-cell-title {
+  margin: 0;
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--pf-ink);
+}
+.pf-cell-sub {
+  font-size: 13px;
+  color: var(--pf-muted);
 }
 
-.perf-dot {
-  position: absolute;
-  border-radius: 50%;
-  transform: translate(-50%, -50%);
-  box-shadow: 0 0 0 2px var(--surface);
-  pointer-events: none;
+.pf-num {
+  font-family: var(--pf-display);
+  font-weight: 500;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--pf-ink);
+}
+.pf-unit {
+  font-family: var(--font);
+  font-size: 14px;
+  color: var(--pf-muted);
+  margin-left: 3px;
 }
 
-.perf-x-labels {
-  position: relative;
-  height: 16px;
-  margin-top: 6px;
-}
-.perf-x-labels .dv-week-label {
-  position: absolute;
-  transform: translateX(-50%);
-  white-space: nowrap;
-}
-.perf-x-labels .dv-week-label:first-child {
-  transform: none;
-}
-.perf-x-labels .dv-week-label:last-child {
-  transform: translateX(-100%);
-}
+/* ---------- controls ---------- */
 
-.perf-legend {
+.pf-seg {
   display: flex;
   flex-wrap: wrap;
-  gap: 14px;
-  font-size: 12px;
-  color: var(--ink-2);
+  gap: 4px;
+  padding: 3px;
+  background: var(--pf-track);
+  border-radius: 10px;
 }
-.perf-legend-item {
+.pf-seg-item {
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--pf-muted);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, color 150ms ease-out;
+}
+.pf-seg-item:hover {
+  color: var(--pf-ink);
+}
+.pf-seg-item[aria-pressed='true'] {
+  background: var(--pf-active-bg);
+  color: var(--pf-ink);
+  box-shadow: var(--pf-active-shadow);
+}
+.pf-seg-count {
+  font-weight: 500;
+  color: var(--pf-faint);
+}
+
+.pf-select {
+  appearance: none;
+  -webkit-appearance: none;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pf-ink);
+  background-color: var(--pf-surface);
+  background-image: linear-gradient(45deg, transparent 50%, var(--pf-muted) 50%),
+    linear-gradient(135deg, var(--pf-muted) 50%, transparent 50%);
+  background-position: calc(100% - 16px) 52%, calc(100% - 11px) 52%;
+  background-size: 5px 5px;
+  background-repeat: no-repeat;
+  border: 1px solid var(--pf-border);
+  border-radius: 10px;
+  padding: 8px 32px 8px 12px;
+  max-width: 260px;
+  min-width: 0;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.pf-static-control {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--pf-muted);
+}
+
+/* ---------- weighted: slot tiles ---------- */
+
+.pf-tiles {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pf-tile {
+  flex: 1 1 180px;
+  min-width: 0;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  border: 1px solid var(--pf-divider);
+  background: var(--pf-surface);
+  border-radius: 12px;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: opacity 150ms ease-out, border-color 150ms ease-out;
+}
+.pf-tile:hover {
+  border-color: var(--pf-border);
+}
+.pf-tile[aria-pressed='false'] {
+  opacity: 0.45;
+}
+.pf-tile-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--pf-muted);
+  min-width: 0;
+}
+.pf-tile-name span:last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.pf-dot8 {
+  width: 8px;
+  height: 8px;
+  border-radius: 4px;
+  flex: none;
+}
+.pf-tile-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.pf-tile-value {
+  font-size: 26px;
+}
+.pf-delta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pf-muted);
+}
+.pf-delta-up {
+  color: var(--pf-positive);
+}
+.pf-note {
+  margin: -6px 0 0;
+  font-size: 12px;
+  color: var(--pf-muted);
+}
+
+/* ---------- line chart ---------- */
+
+.pf-chart {
+  position: relative;
+}
+.pf-chart svg {
+  display: block;
+  overflow: visible;
+}
+.pf-chart-interactive svg {
+  cursor: crosshair;
+}
+.pf-chart text {
+  font-family: var(--font);
+}
+.pf-tip {
+  position: absolute;
+  top: 0;
+  background: var(--pf-tip-bg);
+  color: var(--pf-tip-ink);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  white-space: nowrap;
+  z-index: 2;
+  font-variant-numeric: tabular-nums;
+}
+.pf-tip-title {
+  color: var(--pf-tip-faint);
+  font-weight: 600;
+}
+.pf-tip-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.pf-tip-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  flex: none;
+}
+
+/* ---------- world tiles ---------- */
+
+.pf-worlds {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+  gap: 12px;
+  flex: 1;
+}
+.pf-world {
+  border-radius: 14px;
+  padding: 16px 16px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+.pf-world-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+.pf-world-name {
+  font-family: var(--pf-display);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 2.5px;
+  text-transform: uppercase;
+}
+.pf-world-delta {
+  font-size: 12px;
+  font-weight: 600;
+}
+.pf-world-value {
+  font-size: 40px;
+}
+.pf-world-value .pf-unit {
+  font-size: 15px;
+  margin-left: 4px;
+}
+.pf-world-spark {
+  margin-top: auto;
+}
+
+/* ---------- bodyweight header figure ---------- */
+
+.pf-figure-side {
+  text-align: right;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+.pf-figure-side .pf-num {
+  font-size: 28px;
+}
+.pf-figure-note {
+  font-size: 12px;
+  color: var(--pf-muted);
+}
+
+/* ---------- empty states ---------- */
+
+.pf-empty {
+  flex: 1;
+  min-height: 150px;
+  border: 1.5px dashed var(--pf-dashed);
+  border-radius: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 20px;
+  text-align: center;
+}
+.pf-empty-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--pf-ink);
+  box-shadow: 0 0 0 5px var(--pf-halo);
+}
+.pf-empty-title {
+  margin: 8px 0 0;
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-empty-body {
+  margin: 0;
+  font-size: 12px;
+  color: var(--pf-muted);
+  max-width: 260px;
+  text-wrap: pretty;
+}
+
+/* ---------- blocks completed ---------- */
+
+.pf-summary {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.pf-summary .pf-num {
+  font-size: 28px;
+}
+.pf-summary-note {
+  font-size: 13px;
+  color: var(--pf-muted);
+}
+.pf-weeks {
+  display: flex;
+  gap: 10px;
+  align-items: flex-end;
+  overflow-x: auto;
+  padding: 2px 2px 4px;
+}
+.pf-week {
+  flex: 1 0 34px;
+  max-width: 64px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.pf-week-pct {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--pf-ink);
+  font-variant-numeric: tabular-nums;
+}
+.pf-week-stack {
+  width: 100%;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 3px;
+  padding: 4px;
+  border-radius: 10px;
+  box-sizing: border-box;
+  outline: 1.5px solid transparent;
+}
+.pf-week-stack-dense {
+  gap: 2px;
+}
+.pf-cell-block {
+  height: 8px;
+  border-radius: 3px;
+  background: var(--pf-empty);
+}
+.pf-week-stack-dense .pf-cell-block {
+  height: 5px;
+  border-radius: 2px;
+}
+.pf-cell-done {
+  background: var(--pf-coral-light);
+}
+.pf-week-label {
+  font-size: 12px;
+  color: var(--pf-faint);
+}
+.pf-week-current .pf-week-stack {
+  outline-color: var(--pf-coral-outline);
+}
+.pf-week-current .pf-cell-done {
+  background: var(--pf-coral);
+}
+.pf-week-current .pf-week-pct {
+  color: var(--pf-coral);
+}
+.pf-week-current .pf-week-label {
+  color: var(--pf-ink);
+  font-weight: 600;
+}
+
+/* ---------- effort & feel ---------- */
+
+/* One stacked column per week, positioned under that week's point on the
+   RPE line above (same ~0.6%-99.4% spread as the chart's x positions). */
+.pf-feel-strip {
+  position: relative;
+  height: 40px;
+  margin-top: -6px;
+}
+.pf-feel-col {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: clamp(10px, 3.2%, 26px);
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  cursor: default;
+}
+.pf-feel-seg {
+  flex-basis: 0;
+  min-height: 3px;
+  border-radius: 3px;
+}
+.pf-feel-none {
+  flex: 1;
+  border-radius: 3px;
+  border: 1px dashed var(--pf-dashed);
+}
+.pf-feel-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--pf-muted);
+}
+.pf-feel-legend li {
   display: inline-flex;
   align-items: center;
   gap: 6px;
 }
-.perf-legend-swatch {
-  width: 10px;
-  height: 3px;
-  border-radius: 2px;
-  flex: none;
-}
-.perf-legend-last {
-  color: var(--ink);
-  font-weight: 700;
+.pf-feel-legend-title {
+  font-weight: 600;
+  color: var(--pf-ink);
 }
 
-.perf-tooltip-row {
+/* ---------- export composer ---------- */
+
+.pf-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 18px 28px;
+  border-bottom: 1px solid var(--pf-divider);
+  background: var(--pf-track);
+}
+.pf-composer-label {
+  font-size: 13px;
+  font-weight: 600;
+}
+.pf-composer-label span {
+  font-weight: 400;
+  color: var(--pf-muted);
+  margin-left: 6px;
+}
+.pf-composer-input {
+  font: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--pf-ink);
+  background: var(--pf-surface);
+  border: 1px solid var(--pf-border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  resize: vertical;
+}
+.pf-composer-input::placeholder {
+  color: var(--pf-faint);
+}
+.pf-composer-field {
+  border: 0;
+  margin: 4px 0 0;
+  padding: 0;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.pf-composer-field legend {
+  padding: 0;
+  margin-bottom: 8px;
+}
+.pf-seg-wrap {
+  align-self: flex-start;
+  max-width: 100%;
+}
+.pf-week-range {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.pf-week-range label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--pf-muted);
+}
+.pf-composer-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
+  flex-wrap: wrap;
 }
-.perf-tooltip-label {
-  color: var(--ink-2);
-  font-weight: 600;
-  font-size: 11.5px;
-  margin-right: 4px;
+.pf-composer-hint {
+  margin-right: auto;
+  font-size: 12px;
+  color: var(--pf-muted);
 }
 
-/* Many program weeks: tighter bars. */
-.perf-vbar-list {
-  gap: 6px;
-  margin-top: 28px;
+@media (max-width: 520px) {
+  .pf-head,
+  .pf-cell,
+  .pf-composer {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pf-btn,
+  .pf-seg-item,
+  .pf-tile {
+    transition: none;
+  }
+}
+
+/* ---------- printed report ---------- */
+
+.pf-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+  html.pf-printing body > *:not(.pf-report) {
+    display: none !important;
+  }
+  html.pf-printing,
+  html.pf-printing body {
+    background: #fff !important;
+  }
+  .pf-report {
+    display: block;
+    color: var(--pf-ink);
+    font-family: var(--font);
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  /* overflow:hidden would make the panel one unbreakable box, pushing the
+     whole grid to page 2; on paper it must flow so rows break between
+     pages (never through a chart — see break-inside on .pf-cell). */
+  .pf-report .pf-panel {
+    border-radius: 14px;
+    overflow: visible;
+  }
+  .pf-report .pf-cell {
+    padding: 16px 18px 14px;
+    gap: 12px;
+    break-inside: avoid;
+  }
+  /* Chrome won't split a grid across pages here, so on paper the cells
+     are a wrapping two-column flow, which breaks cleanly between rows.
+     Hairlines come from cell borders instead of the grid gap. */
+  .pf-report .pf-grid {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    background: none;
+  }
+  .pf-report .pf-grid > .pf-cell {
+    width: 50%;
+    box-sizing: border-box;
+    border-bottom: 1px solid var(--pf-divider);
+  }
+  .pf-report .pf-grid > .pf-cell:nth-child(odd) {
+    border-right: 1px solid var(--pf-divider);
+  }
+  .pf-report .pf-grid-extra {
+    border-top: 1px solid var(--pf-divider);
+  }
+  .pf-report .pf-grid > .pf-cell-wide {
+    width: 100%;
+    border-right: 0;
+  }
+  /* Odd cell count (e.g. 3 movements): the last cell spans the full
+     width instead of leaving an empty slot. */
+  .pf-report .pf-grid > .pf-cell:last-child:nth-child(odd) {
+    width: 100%;
+    border-right: 0;
+  }
+  .pf-report .pf-grid > .pf-cell:last-child,
+  .pf-report .pf-grid > .pf-cell:nth-last-child(2):nth-child(odd) {
+    border-bottom: 0;
+  }
+  .pf-report .pf-world-value {
+    font-size: 30px;
+  }
+  .pf-report .pf-worlds {
+    grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+    gap: 8px;
+  }
+  .pf-report .pf-world {
+    padding: 12px 12px 8px;
+  }
+  .pf-report .pf-world-name {
+    letter-spacing: 1.2px;
+  }
+  .pf-report .pf-tile {
+    flex-basis: 130px;
+    padding: 8px 12px;
+  }
+  .pf-report .pf-tile-value {
+    font-size: 22px;
+  }
+  /* No scrolling on paper: every week shares the width. */
+  .pf-report .pf-weeks {
+    overflow: visible;
+    gap: 6px;
+  }
+  .pf-report .pf-week {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .pf-report .pf-week-pct,
+  .pf-report .pf-week-label {
+    font-size: 10.5px;
+  }
+  .pf-report-note {
+    margin: 14px 0 0;
+    padding: 12px 14px;
+    border: 1px solid var(--pf-border);
+    border-radius: 12px;
+    break-inside: avoid;
+  }
+  .pf-report-note h2 {
+    margin: 0 0 4px;
+    font-size: 11px;
+    font-family: var(--pf-display);
+    font-weight: 600;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--pf-coral);
+  }
+  .pf-report-note p {
+    margin: 0;
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    max-width: 75ch;
+  }
+  /* Pinned to the bottom margin of every printed page, so it never lands
+     alone on an extra page. */
+  .pf-report {
+    padding-bottom: 8mm;
+  }
+  .pf-report-foot {
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    font-size: 10.5px;
+    color: var(--pf-faint);
+    display: flex;
+    justify-content: space-between;
+  }
 }
