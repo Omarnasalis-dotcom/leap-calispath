@@ -54,7 +54,13 @@ function WeightedChart({ data }: { data: UserPerformance['weighted'] }) {
   pts.forEach((p) => slotCounts.set(p.block!, (slotCounts.get(p.block!) ?? 0) + 1));
   const slots = [...slotCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, MAX_SLOTS).map(([b]) => b);
   const hiddenSlots = slotCounts.size - slots.length;
-  const weeks = [...new Set(pts.filter((p) => slots.includes(p.block!)).map((p) => p.week!))].sort((a, b) => a - b);
+  // Every week from first to last log, so an unlogged week shows as a gap in
+  // the line instead of being skipped on the axis.
+  const loggedWeeks = pts.filter((p) => slots.includes(p.block!)).map((p) => p.week!);
+  const firstWeek = Math.min(...loggedWeeks);
+  const weeks = loggedWeeks.length
+    ? Array.from({ length: Math.max(...loggedWeeks) - firstWeek + 1 }, (_, i) => firstWeek + i)
+    : [];
 
   const series: PerfSeries[] = slots.map((slot, i) => {
     const best = weeks.map((wk) => {

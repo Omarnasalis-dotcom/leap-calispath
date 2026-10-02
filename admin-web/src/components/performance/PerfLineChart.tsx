@@ -196,7 +196,7 @@ export function PerfLineChart({
           >
             {/* Thin to ~8 labels; always keep the last, dropping a
                 regular one that would sit right next to it. */}
-            {i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= labelEvery / 2) ? l : ''}
+            {i === n - 1 || (i % labelEvery === 0 && n - 1 - i >= Math.max(2, labelEvery / 2)) ? l : ''}
           </span>
         ))}
       </div>
