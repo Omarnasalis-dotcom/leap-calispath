@@ -124,7 +124,10 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           }
           lastTickRef.current = now;
         }
-      } else if (nextAppState.match(/inactive|background/)) {
+      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
+        // Only when leaving the foreground: iOS returns via background →
+        // inactive → active, and resetting here on that step lost the time
+        // spent away (the timer looked stopped after a lock or app switch).
         lastTickRef.current = Date.now();
       }
       appState.current = nextAppState;
