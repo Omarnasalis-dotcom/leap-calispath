@@ -7,6 +7,9 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { t, isArabic } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
 
+const DELETE_REASONS = ['not_using', 'too_expensive', 'missing_features', 'privacy', 'other'] as const;
+type DeleteReason = (typeof DELETE_REASONS)[number];
+
 export function DeleteAccountModal() {
   const { theme } = useTheme();
   const { user, profile, signInWithGoogle, signInWithApple } = useAuth();
@@ -25,6 +28,10 @@ export function DeleteAccountModal() {
   const [deletePassword, setDeletePassword] = useState('');
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [deleteError, setDeleteError] = useState('');
+  // Optional, anonymous: kept with the deleted-account history (no name or
+  // email), never required to delete.
+  const [reason, setReason] = useState<DeleteReason | null>(null);
+  const [reasonNote, setReasonNote] = useState('');
 
   const handleDeleteAccount = async () => {
     if (!isSocialAccount && !deletePassword.trim()) {
@@ -85,6 +92,11 @@ export function DeleteAccountModal() {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json',
           },
+          body: JSON.stringify({
+            reason,
+            note: reason === 'other' ? reasonNote.trim().slice(0, 500) : null,
+            platform: Platform.OS,
+          }),
         }
       );
 
@@ -111,6 +123,8 @@ export function DeleteAccountModal() {
         onPress={() => {
           setDeletePassword('');
           setDeleteError('');
+          setReason(null);
+          setReasonNote('');
           setShowDeleteModal(true);
         }}
         style={{
@@ -192,6 +206,62 @@ export function DeleteAccountModal() {
               }}>
                 {Platform.OS === 'android' ? t('deleteAccount.subscriptionAndroid') : t('deleteAccount.subscriptionIos')}
               </Text>
+            )}
+
+            {/* Optional reason — one tap, never required. */}
+            <Text style={{
+              color: theme.text.tertiary,
+              fontSize: 11,
+              letterSpacing: 1.5,
+              textTransform: 'uppercase',
+              marginBottom: 8,
+            }}>
+              {t('deleteAccount.reasonLabel')}
+            </Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: reason === 'other' ? 8 : 20 }}>
+              {DELETE_REASONS.map((r) => {
+                const on = reason === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    disabled={deleteLoading}
+                    onPress={() => setReason(on ? null : r)}
+                    accessibilityRole="button"
+                    accessibilityState={{ selected: on }}
+                    style={{
+                      paddingVertical: 8,
+                      paddingHorizontal: 12,
+                      borderRadius: 16,
+                      borderWidth: 1,
+                      borderColor: on ? '#e24b4a' : theme.card.border,
+                      backgroundColor: on ? 'rgba(226,75,74,0.1)' : 'transparent',
+                    }}
+                  >
+                    <Text style={{ color: on ? '#e24b4a' : theme.text.secondary, fontSize: 12, fontWeight: '600' }}>
+                      {t(`deleteAccount.reason_${r}`)}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {reason === 'other' && (
+              <TextInput
+                value={reasonNote}
+                onChangeText={setReasonNote}
+                editable={!deleteLoading}
+                maxLength={500}
+                placeholder={t('deleteAccount.reasonNotePlaceholder')}
+                placeholderTextColor={theme.text.tertiary}
+                style={{
+                  borderWidth: 1,
+                  borderColor: theme.card.border,
+                  borderRadius: 8,
+                  padding: 12,
+                  color: theme.text.primary,
+                  fontSize: 13,
+                  marginBottom: 20,
+                }}
+              />
             )}
 
             <Text style={{

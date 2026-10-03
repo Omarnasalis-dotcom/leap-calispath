@@ -860,6 +860,13 @@ const ar: Translations = {
     cancel: 'إلغاء',
   },
   deleteAccount: {
+    reasonLabel: 'لماذا تغادر؟ (اختياري)',
+    reason_not_using: 'لا أستخدمه',
+    reason_too_expensive: 'مكلف جدًا',
+    reason_missing_features: 'ميزات ناقصة',
+    reason_privacy: 'الخصوصية',
+    reason_other: 'سبب آخر',
+    reasonNotePlaceholder: 'أخبرنا المزيد (اختياري)',
     enterPassword: 'أدخل كلمة المرور.',
     verifyCancelled: 'تم إلغاء التحقق عبر {{provider}}.',
     wrongPassword: 'كلمة المرور غير صحيحة. حاول مرة أخرى.',

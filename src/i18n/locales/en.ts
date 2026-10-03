@@ -829,6 +829,13 @@ const en = {
     cancel: 'CANCEL',
   },
   deleteAccount: {
+    reasonLabel: 'Why are you leaving? (optional)',
+    reason_not_using: 'Not using it',
+    reason_too_expensive: 'Too expensive',
+    reason_missing_features: 'Missing features',
+    reason_privacy: 'Privacy',
+    reason_other: 'Other',
+    reasonNotePlaceholder: 'Tell us more (optional)',
     enterPassword: 'Please enter your password.',
     verifyCancelled: 'Verification with {{provider}} was cancelled.',
     wrongPassword: 'Incorrect password. Please try again.',
