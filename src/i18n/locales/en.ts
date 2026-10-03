@@ -1434,6 +1434,7 @@ const en = {
     mv_pike_push_up: 'Pike push-ups',
     mv_squat: 'Squats',
     mv_pistol_squat: 'Pistol squats',
+    mv_lunge: 'Lunges',
     mv_deadlift: 'Deadlifts',
     mv_muscle_up: 'Muscle-ups',
     mv_handstand_push_up: 'Handstand push-ups',

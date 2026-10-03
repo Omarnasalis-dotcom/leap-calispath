@@ -1493,6 +1493,7 @@ const ar: Translations = {
     mv_pike_push_up: 'ضغط البايك',
     mv_squat: 'السكوات',
     mv_pistol_squat: 'البيستول سكوات',
+    mv_lunge: 'الطعنات',
     mv_deadlift: 'الرفعة الميتة',
     mv_muscle_up: 'المسل أب',
     mv_handstand_push_up: 'ضغط الوقوف على اليدين',

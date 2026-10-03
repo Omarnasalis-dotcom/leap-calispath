@@ -20,7 +20,7 @@ export interface Exercise {
 }
 
 // Keep in sync with exercise_library_movement_family_check
-// (20261003020000_more_movement_families.sql).
+// (20261003150000_lunge_family.sql).
 export const MOVEMENT_FAMILIES = [
   { value: 'pull_up', label: 'Pull-up', kind: 'reps' },
   { value: 'inverted_row', label: 'Inverted row', kind: 'reps' },
@@ -29,6 +29,7 @@ export const MOVEMENT_FAMILIES = [
   { value: 'pike_push_up', label: 'Pike push-up', kind: 'reps' },
   { value: 'squat', label: 'Squat', kind: 'reps' },
   { value: 'pistol_squat', label: 'Pistol squat', kind: 'reps' },
+  { value: 'lunge', label: 'Lunge', kind: 'reps' },
   { value: 'deadlift', label: 'Deadlift', kind: 'reps' },
   { value: 'muscle_up', label: 'Muscle-up', kind: 'reps' },
   { value: 'handstand_push_up', label: 'Handstand push-up', kind: 'reps' },

@@ -58,6 +58,7 @@ export const REP_MOVEMENTS = [
   'pike_push_up',
   'squat',
   'pistol_squat',
+  'lunge',
   'deadlift',
   'muscle_up',
   'handstand_push_up',
