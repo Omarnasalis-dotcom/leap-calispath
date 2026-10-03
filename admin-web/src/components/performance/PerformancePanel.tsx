@@ -41,8 +41,10 @@ interface Selection {
   weightedProgram: string | null;
   completionProgram: string | null;
   hiddenSlots: string[];
-  movement: string | null;
+  movement: string | null; // a family, or ALL_MOVEMENTS
   hold: string | null;
+  allWeek: number | null; // week shown in the All movements view
+  allHoldWeek: number | null; // week shown in the All skill holds view
 }
 
 function Cell({
@@ -192,6 +194,13 @@ function WeightedCell({
     };
   });
   const visible: PerfSeries[] = series.filter((s) => !sel.hiddenSlots.includes(s.key));
+  // A single logged week would be a lone dot: draw it as a line up from 0.
+  const oneWeek = weeks.length === 1;
+  const fromZero = (s: PerfSeries): PerfSeries => ({
+    ...s,
+    values: [s.values[0] != null ? 0 : null, ...s.values],
+    details: s.details ? [null, ...s.details] : s.details,
+  });
 
   const pickExercise = (name: string) => setSel({ exercise: name, weightedProgram: null, hiddenSlots: [] });
   const switcher =
@@ -278,8 +287,8 @@ function WeightedCell({
           </div>
           <PerfLineChart
             ariaLabel={`${movement.exercise}: heaviest set per workout slot, by program week`}
-            labels={weeks.map((w) => `W${w}`)}
-            series={visible}
+            labels={oneWeek ? ['Start', `W${weeks[0]}`] : weeks.map((w) => `W${w}`)}
+            series={oneWeek ? visible.map(fromZero) : visible}
             unit="kg"
             step={5}
             floor={0}
@@ -303,7 +312,41 @@ const WORLDS: { key: 'static' | 'onemm' | 'power'; name: string; line: string; i
   { key: 'power', name: 'Power', line: 'var(--pf-amber)', ink: 'var(--pf-amber-ink)', tint: 'var(--pf-amber-tint)' },
 ];
 
-function WorldsCell({ data }: { data: UserPerformance['worlds'] }) {
+/** 'adv_tuck_front_lever' → 'Adv tuck front lever'. */
+const prettyId = (id: string) => {
+  const s = id.replace(/_/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+/** The movements behind a world's score, with the result that counts. */
+function worldRows(key: 'static' | 'onemm' | 'power', bests?: UserPerformance['world_bests']) {
+  if (!bests) return [];
+  if (key === 'static') {
+    return bests.static.map((b) => ({ name: prettyId(b.movement), value: `${fmt(Number(b.seconds))} s`, pts: Number(b.points) }));
+  }
+  if (key === 'onemm') {
+    return bests.onemm.map((b) => ({ name: prettyId(b.movement), value: `${b.reps} reps`, pts: Number(b.points) }));
+  }
+  const p = bests.power;
+  if (!p) return [];
+  return (
+    [
+      ['Pull-up', p.pullup],
+      ['Dip', p.dip],
+      ['Squat', p.squat],
+      ['Muscle-up', p.muscleup],
+    ] as const
+  )
+    .filter(([, kg]) => kg != null && Number(kg) > 0)
+    // Squat is a barbell load; the others are weight added to bodyweight.
+    .map(([name, kg]) => ({
+      name,
+      value: `${name === 'Squat' ? '' : '+'}${fmt(Number(kg))} kg`,
+      pts: null as number | null,
+    }));
+}
+
+function WorldsCell({ data, bests }: { data: UserPerformance['worlds']; bests?: UserPerformance['world_bests'] }) {
   // A world's weeks before its first result are left out of its sparkline;
   // a world with no result at all gets no tile (most users never reach Power).
   const worlds = WORLDS.map((w) => {
@@ -338,6 +381,19 @@ function WorldsCell({ data }: { data: UserPerformance['worlds'] }) {
                   {fmt(last)}
                   <span className="pf-unit">pts</span>
                 </div>
+                {worldRows(w.key, bests).length > 0 && (
+                  <ul className="pf-world-moves" aria-label={`${w.name}: results that count`}>
+                    {worldRows(w.key, bests).map((r) => (
+                      <li key={r.name}>
+                        <span className="pf-world-move">{r.name}</span>
+                        <span className="pf-world-move-value num">
+                          {r.value}
+                          {r.pts != null && <span className="pf-world-move-pts"> · {fmt(r.pts)} pts</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
                 <div className="pf-world-spark">
                   <PerfLineChart
                     axis={false}
@@ -479,6 +535,8 @@ function BlocksCell({
 const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber)'];
 const OTHER_COLOR = 'var(--pf-faint)';
 const MAX_MOVEMENT_WEEKS = 16;
+/** Movement chip value for the every-movement view of one week. */
+const ALL_MOVEMENTS = 'all';
 
 /** One week of a movement chart, reps or hold seconds alike. */
 interface ChartWeek {
@@ -487,7 +545,11 @@ interface ChartWeek {
   assumed: number;
   best: number;
   bestVariation: string | null;
+  /** Sets done (reps mode only). */
+  sets: number;
   variations: Record<string, number>;
+  /** Assumed (filled-from-plan) volume per variation. */
+  assumedVariations: Record<string, number>;
 }
 
 function MovementsCell({
@@ -528,7 +590,9 @@ function MovementsCell({
               assumed: Number(w.assumed),
               best: Number(w.longest),
               bestVariation: w.longest_variation,
+              sets: Number(w.sets ?? 0),
               variations: w.variations,
+              assumedVariations: w.assumed_variations ?? {},
             }))
         : (data?.find((d) => d.family === m.value)?.weeks ?? [])
             .filter((w) => w.program_id === program?.program_id)
@@ -538,7 +602,9 @@ function MovementsCell({
               assumed: w.assumed,
               best: w.best,
               bestVariation: null,
+              sets: Number(w.sets ?? 0),
               variations: w.variations,
+              assumedVariations: w.assumed_variations ?? {},
             }));
       return { ...m, label: m.label.replace(' (hold)', ''), weeks };
     })
@@ -556,6 +622,19 @@ function MovementsCell({
           }
         />
       </Cell>
+    );
+  }
+  if (picked === ALL_MOVEMENTS) {
+    return (
+      <AllMovementsView
+        isHolds={isHolds}
+        title={title}
+        movements={movements}
+        program={program}
+        sel={sel}
+        setSel={setSel}
+        print={print}
+      />
     );
   }
   const movement = movements.find((m) => m.value === picked) ?? movements[0];
@@ -581,6 +660,16 @@ function MovementsCell({
     <span className="pf-static-control">{movement.label}</span>
   ) : (
     <div className="pf-seg" role="group" aria-label={isHolds ? 'Skill' : 'Movement'}>
+      {movements.length > 1 && (
+        <button
+          type="button"
+          className="pf-seg-item"
+          aria-pressed={false}
+          onClick={() => setSel(isHolds ? { hold: ALL_MOVEMENTS } : { movement: ALL_MOVEMENTS })}
+        >
+          All
+        </button>
+      )}
       {movements.map((m) => (
         <button
           key={m.value}
@@ -594,6 +683,12 @@ function MovementsCell({
       ))}
     </div>
   );
+
+  const assumedLines = (w: ChartWeek) =>
+    Object.entries(w.assumedVariations)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([v, n]) => `\n   ${label(v)}: ${fmtV(Number(n))}`)
+      .join('');
 
   const bestText = (w: ChartWeek) =>
     w.best > 0
@@ -633,7 +728,7 @@ function MovementsCell({
                 w
                   ? `Week ${wk}: ${fmtV(w.total)}${isHolds ? ' held' : ' reps'}${bestText(w) ? `, ${bestText(w)}` : ''}\n` +
                     parts.map((p) => `${label(p.v)}: ${fmtV(p.n)}`).join('\n') +
-                    (w.assumed ? `\nAssumed from plan: ${fmtV(w.assumed)}` : '')
+                    (w.assumed ? `\nAssumed from plan: ${fmtV(w.assumed)}` + assumedLines(w) : '')
                   : `Week ${wk}: no ${movement.label.toLowerCase()} ${isHolds ? 'holds' : 'sets'}`
               }
             >
@@ -671,6 +766,148 @@ function MovementsCell({
           </li>
         )}
       </ul>
+    </Cell>
+  );
+}
+
+/** Main movements → All: every movement side by side for one program week,
+ * with that week's total reps and sets. */
+function AllMovementsView({
+  isHolds,
+  title,
+  movements,
+  program,
+  sel,
+  setSel,
+  print,
+}: {
+  /** Skill holds: seconds instead of reps. */
+  isHolds: boolean;
+  title: string;
+  movements: { value: string; label: string; weeks: ChartWeek[] }[];
+  program: CompletionProgram | undefined;
+  sel: Selection;
+  setSel: (s: Partial<Selection>) => void;
+  print?: boolean;
+}) {
+  const logged = new Set(movements.flatMap((m) => m.weeks.map((w) => w.week)));
+  const lastWeek = Math.max(program?.current_week ?? 1, ...logged);
+  const shown = Array.from({ length: lastWeek }, (_, i) => i + 1).slice(-MAX_MOVEMENT_WEEKS);
+  // Default: the latest week with sets (also when the picked week is
+  // outside a PDF's week range).
+  const picked = isHolds ? sel.allHoldWeek : sel.allWeek;
+  const week = picked != null && logged.has(picked) ? picked : Math.max(...logged);
+  const pickWeek = (wk: number) => setSel(isHolds ? { allHoldWeek: wk } : { allWeek: wk });
+  const pickMovement = (value: string) => setSel(isHolds ? { hold: value } : { movement: value });
+  // Reps, or seconds for holds.
+  const fmtV = (n: number) => (isHolds ? `${n} s` : `${n} reps`);
+  const setWord = (n: number) => (isHolds ? (n === 1 ? 'hold' : 'holds') : n === 1 ? 'set' : 'sets');
+
+  const rows = movements
+    .map((m) => ({ m, w: m.weeks.find((x) => x.week === week) }))
+    .filter((r): r is { m: (typeof movements)[number]; w: ChartWeek } => !!r.w && r.w.total > 0)
+    .sort((a, b) => b.w.total - a.w.total);
+  const totalReps = rows.reduce((n, r) => n + r.w.total, 0);
+  const totalSets = rows.reduce((n, r) => n + r.w.sets, 0);
+  const assumedReps = rows.reduce((n, r) => n + r.w.assumed, 0);
+  const max = Math.max(1, ...rows.map((r) => r.w.total));
+  const assumedLines = (w: ChartWeek) =>
+    Object.entries(w.assumedVariations)
+      .sort((a, b) => Number(b[1]) - Number(a[1]))
+      .map(([v, n]) => `\n   ${v || 'Untagged'}: ${fmtV(Number(n))}`)
+      .join('');
+
+  const movementChips = print ? (
+    <span className="pf-static-control">{isHolds ? 'All skills' : 'All movements'} · W{week}</span>
+  ) : (
+    <div className="pf-seg" role="group" aria-label={isHolds ? 'Skill' : 'Movement'}>
+      <button type="button" className="pf-seg-item" aria-pressed>
+        All
+      </button>
+      {movements.map((m) => (
+        <button key={m.value} type="button" className="pf-seg-item" aria-pressed={false} onClick={() => pickMovement(m.value)}>
+          {m.label}
+        </button>
+      ))}
+    </div>
+  );
+
+  return (
+    <Cell title={title} sub={isHolds ? 'Every skill hold in one program week' : 'Every movement in one program week'} side={movementChips} wide>
+      {!print && (
+        <div className="pf-seg pf-mv-weeks" role="group" aria-label="Program week">
+          {shown.map((wk) => (
+            <button
+              key={wk}
+              type="button"
+              className="pf-seg-item"
+              aria-pressed={wk === week}
+              disabled={!logged.has(wk)}
+              title={logged.has(wk) ? undefined : `No ${isHolds ? 'skill holds' : 'main-movement sets'} in week ${wk}`}
+              onClick={() => pickWeek(wk)}
+            >
+              W{wk}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="pf-summary">
+        <span className="pf-num">
+          {totalReps}
+          {isHolds && <span className="pf-unit">s</span>}
+        </span>
+        <span className="pf-summary-note">{isHolds ? 'held' : 'reps'}</span>
+        <span className="pf-num">{totalSets}</span>
+        <span className="pf-summary-note">
+          {setWord(totalSets)} in W{week}
+          {assumedReps > 0 && ` · ${fmtV(assumedReps)} assumed`}
+        </span>
+      </div>
+      <ul className="pf-mv-all" aria-label={`All ${isHolds ? 'skill holds' : 'main movements'} in week ${week}`}>
+        {rows.map(({ m, w }) => {
+          const sets = w.sets;
+          const loggedReps = w.total - w.assumed;
+          return (
+            <li
+              key={m.value}
+              className="pf-mv-row"
+              title={`${m.label}, week ${week}: ${fmtV(w.total)} in ${sets} ${setWord(sets)}` +
+                (w.best
+                  ? isHolds
+                    ? `, longest ${w.best} s${w.bestVariation ? ` (${w.bestVariation})` : ''}`
+                    : `, best set ${w.best}`
+                  : '') +
+                (w.assumed ? `\nAssumed from plan: ${fmtV(w.assumed)}` + assumedLines(w) : '')}
+            >
+              <span className="pf-mv-row-name">{m.label}</span>
+              <div className="pf-mv-row-track">
+                <div className="pf-mv-row-bar" style={{ width: `${(w.total / max) * 100}%` }}>
+                  {loggedReps > 0 && <div style={{ flexGrow: loggedReps, background: 'var(--pf-coral)' }} />}
+                  {w.assumed > 0 && <div className="pf-mv-assumed" style={{ flexGrow: w.assumed }} />}
+                </div>
+              </div>
+              <span className="pf-mv-row-value num">
+                {isHolds ? `${w.total} s` : w.total}
+                <span className="pf-mv-row-sets">
+                  {isHolds ? '' : ' reps'} · {sets} {setWord(sets)}
+                </span>
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+      {rows.some((r) => r.w.assumed > 0) && (
+        <ul className="pf-feel-legend">
+          <li>
+            <span className="pf-dot8" style={{ background: 'var(--pf-coral)' }} />
+            Logged
+          </li>
+          <li title="Filled from the plan when a block was completed without confirming its sets">
+            <span className="pf-dot8 pf-mv-assumed" />
+            Assumed from plan
+          </li>
+        </ul>
+      )}
     </Cell>
   );
 }
@@ -830,7 +1067,7 @@ function Cells({
         print={print}
       />
       <WeightedCell data={data.weighted} activeProgram={activeProgramId(data)} sel={sel} setSel={setSel} print={print} />
-      <WorldsCell data={data.worlds} />
+      <WorldsCell data={data.worlds} bests={data.world_bests} />
       <EffortCell data={data.completion} sel={sel} setSel={setSel} print={print} />
     </div>
   );
@@ -971,7 +1208,7 @@ function PrintReport({
                 print
               />
               {lifts.slice(0, 1).map(liftCell)}
-              <WorldsCell data={data.worlds} />
+              <WorldsCell data={data.worlds} bests={data.world_bests} />
               <EffortCell data={data.completion} sel={sel} setSel={noop} print />
             </div>
             {/* Extra lifts in their own grid, so they pair up two per row
@@ -1006,6 +1243,8 @@ export function PerformancePanel({ userId, athleteName }: { userId: string; athl
     hiddenSlots: [],
     movement: null,
     hold: null,
+    allWeek: null,
+    allHoldWeek: null,
   });
   const setSel = (s: Partial<Selection>) => setSelState((prev) => ({ ...prev, ...s }));
   const [composing, setComposing] = useState(false);

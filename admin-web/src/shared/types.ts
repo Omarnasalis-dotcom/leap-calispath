@@ -277,6 +277,9 @@ export interface MovementWeek {
   reps: number; // logged + assumed
   assumed: number; // filled from the plan on Complete (not entered)
   best: number; // best single logged set
+  sets?: number; // sets done (logged + assumed)
+  assumed_sets?: number; // sets filled from the plan
+  assumed_variations?: Record<string, number>; // assumed volume per variation
   variations: Record<string, number>; // logged reps per variation ('' = untagged)
 }
 
@@ -292,6 +295,8 @@ export interface HoldWeek {
   assumed: number; // filled from the plan
   longest: number; // longest single logged hold
   longest_variation: string | null;
+  sets?: number; // holds done (logged + assumed)
+  assumed_variations?: Record<string, number>; // assumed volume per variation
   variations: Record<string, number>; // logged seconds per variation
 }
 
@@ -300,7 +305,15 @@ export interface HoldStats {
   weeks: HoldWeek[];
 }
 
+/** The results behind each world's score (see _world_bests_for). */
+export interface WorldBests {
+  static: { category: string; movement: string; seconds: number; points: number; at: string }[];
+  onemm: { category: string; movement: string; reps: number; points: number; at: string }[];
+  power: { pullup: number | null; dip: number | null; squat: number | null; muscleup: number | null; at: string } | null;
+}
+
 export interface UserPerformance {
+  world_bests?: WorldBests;
   movements?: MovementReps[];
   holds?: HoldStats[];
   weighted: WeightedMovement[];
