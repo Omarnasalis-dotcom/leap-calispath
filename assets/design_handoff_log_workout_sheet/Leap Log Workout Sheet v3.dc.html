@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Barlow:wght@400;500;600&display=swap">
+<style>body{margin:0;background:#1A1A1C;font-family:'Barlow',sans-serif}a{color:#FF6A4D}a:hover{color:#FF8A6D}button{font-family:inherit}textarea{font-family:inherit}</style>
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:center;justify-content:center;gap:40px;flex-wrap:wrap;padding:32px 16px;box-sizing:border-box">
+  <div style="display:flex;flex-direction:column;gap:10px;width:200px">
+    <div style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:2.5px;color:#8A8A94">SAMPLE BLOCK</div>
+    <sc-for list="{{ scenarios }}" as="s" hint-placeholder-count="8">
+      <button onClick="{{ s.pick }}" style="height:44px;border-radius:12px;text-align:left;padding:0 14px;cursor:pointer;font-size:14px;font-weight:600;border:{{ s.border }};background:{{ s.bg }};color:{{ s.fg }}">{{ s.label }}</button>
+    </sc-for>
+  </div>
+
+  <div style="width:402px;height:874px;border-radius:56px;background:#000;position:relative;overflow:hidden;box-shadow:0 0 0 10px #2A2A2E,0 30px 80px rgba(0,0,0,.5);flex-shrink:0">
+    <div style="position:absolute;inset:0;padding:110px 20px 0;display:flex;flex-direction:column;gap:14px;opacity:.3">
+      <div style="height:120px;border-radius:18px;border:1px solid #2A2A2E"></div>
+      <div style="height:160px;border-radius:18px;border:1px solid #2A2A2E"></div>
+    </div>
+    <div style="position:absolute;top:0;left:0;right:0;height:54px;display:flex;align-items:center;justify-content:space-between;padding:0 34px;color:#fff;font-weight:600;font-size:17px;z-index:3"><span>12:59</span><span style="width:26px;height:12px;border-radius:4px;border:1.5px solid #fff;box-sizing:border-box;padding:1.5px"><span style="display:block;height:100%;background:#fff;border-radius:2px"></span></span></div>
+    <div style="position:absolute;top:11px;left:50%;transform:translateX(-50%);width:124px;height:36px;border-radius:20px;background:#000;z-index:4"></div>
+    <div style="position:absolute;inset:0;background:rgba(0,0,0,.6);z-index:1"></div>
+
+    <div style="position:absolute;left:0;right:0;bottom:0;z-index:2;background:#141416;border-radius:28px 28px 0 0;border-top:1px solid #2A2A2E;max-height:800px;display:flex;flex-direction:column">
+      <div style="display:flex;justify-content:center;padding:10px 0 2px;flex-shrink:0"><div style="width:40px;height:5px;border-radius:3px;background:#3A3A40"></div></div>
+
+      <sc-if value="{{ isForm }}" hint-placeholder-val="{{ true }}">
+        <div style="padding:10px 22px 14px;display:flex;align-items:flex-start;gap:12px;flex-shrink:0">
+          <div style="display:flex;flex-direction:column;gap:8px;min-width:0;flex:1">
+            <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:28px;letter-spacing:.5px;color:#fff;line-height:1">{{ blockName }}</div>
+            <button onClick="{{ toggleStatus }}" style="align-self:flex-start;height:32px;padding:0 12px 0 10px;border-radius:16px;border:1px solid #2A2A2E;background:#1C1C20;cursor:pointer;display:flex;align-items:center;gap:8px">
+              <span style="width:8px;height:8px;border-radius:4px;background:{{ statusColor }}"></span>
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:1.5px;color:#fff">{{ statusLabel }}</span>
+              <span style="font-size:13px;color:#8A8A94">· change</span>
+            </button>
+          </div>
+          <button onClick="{{ close }}" style="width:44px;height:44px;border-radius:22px;border:0;background:#222226;color:#8A8A94;font-size:20px;cursor:pointer;flex-shrink:0">×</button>
+        </div>
+
+        <div style="flex:1;overflow-y:auto;padding:4px 22px 20px;display:flex;flex-direction:column;gap:14px">
+
+          <sc-if value="{{ showSets }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline;gap:8px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">{{ setsTitle }}</span>
+                <span style="font-size:12px;color:#6E6E78">Tap to set how many you did</span>
+              </div>
+              <sc-for list="{{ exercises }}" as="ex" hint-placeholder-count="1">
+                <div style="border-radius:20px;background:#0E0E10;border:1px solid #222226;padding:16px;display:flex;flex-direction:column;gap:12px">
+                  <div style="display:flex;justify-content:space-between;align-items:baseline;gap:10px">
+                    <span style="font-size:16px;font-weight:600;color:#fff">{{ ex.name }}</span>
+                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:22px;color:#fff;white-space:nowrap">{{ ex.count }}<span style="font-size:14px;color:#6E6E78"> / {{ ex.plan }}</span></span>
+                  </div>
+                  <div style="display:flex;gap:6px">
+                    <sc-for list="{{ ex.dots }}" as="d" hint-placeholder-count="4">
+                      <button onClick="{{ d.pick }}" style="flex:1;height:48px;border-radius:12px;cursor:{{ d.cursor }};display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;border:{{ d.border }};background:{{ d.bg }};transition:all .15s">
+                        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:17px;color:{{ d.fg }}">{{ d.top }}</span>
+                        <span style="font-size:10px;font-weight:600;color:{{ d.sub }}">{{ d.bottom }}</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+                    <span style="font-size:12px;font-weight:600;color:{{ ex.tagColor }}">{{ ex.tag }}</span>
+                    <sc-if value="{{ ex.hasStepper }}" hint-placeholder-val="{{ false }}">
+                      <div style="display:flex;align-items:center;gap:4px;background:#1C1C20;border-radius:12px;padding:3px">
+                        <span style="font-size:12px;color:#8A8A94;padding:0 8px">{{ ex.stepLabel }}</span>
+                        <button onClick="{{ ex.dec }}" style="width:36px;height:36px;border-radius:9px;border:0;background:#2A2A2E;color:#fff;font-size:18px;cursor:pointer">−</button>
+                        <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;color:#fff;min-width:58px;text-align:center">{{ ex.stepVal }}</span>
+                        <button onClick="{{ ex.inc }}" style="width:36px;height:36px;border-radius:9px;border:0;background:#2A2A2E;color:#fff;font-size:18px;cursor:pointer">+</button>
+                      </div>
+                    </sc-if>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showAmrap }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">YOUR SCORE · 12 MIN AMRAP</span>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+                <sc-for list="{{ bigSteppers }}" as="b" hint-placeholder-count="2">
+                  <div style="border-radius:20px;background:#0E0E10;border:1px solid #222226;padding:14px;display:flex;flex-direction:column;align-items:center;gap:8px">
+                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:12px;letter-spacing:2px;color:#8A8A94">{{ b.label }}</span>
+                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:52px;line-height:1;color:#fff">{{ b.val }}</span>
+                    <div style="display:flex;gap:6px;width:100%">
+                      <button onClick="{{ b.dec }}" style="flex:1;height:44px;border-radius:12px;border:0;background:#1C1C20;color:#fff;font-size:20px;cursor:pointer">−</button>
+                      <button onClick="{{ b.inc }}" style="flex:1;height:44px;border-radius:12px;border:0;background:#1C1C20;color:#fff;font-size:20px;cursor:pointer">+</button>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showTime }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">TIME TO FINISH</span>
+              <div style="border-radius:20px;background:#0E0E10;border:1px solid #222226;padding:16px;display:flex;flex-direction:column;gap:12px;opacity:{{ timeOpacity }}">
+                <div style="display:flex;align-items:center;justify-content:center;gap:6px">
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                    <button onClick="{{ tMin.inc }}" style="width:72px;height:32px;border-radius:10px;border:0;background:#1C1C20;color:#8A8A94;font-size:14px;cursor:pointer">▲</button>
+                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:56px;line-height:1;color:#fff;font-variant-numeric:tabular-nums">{{ tMin.val }}</span>
+                    <button onClick="{{ tMin.dec }}" style="width:72px;height:32px;border-radius:10px;border:0;background:#1C1C20;color:#8A8A94;font-size:14px;cursor:pointer">▼</button>
+                  </div>
+                  <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:48px;line-height:1;color:#6E6E78;padding-bottom:4px">:</span>
+                  <div style="display:flex;flex-direction:column;align-items:center;gap:4px">
+                    <button onClick="{{ tSec.inc }}" style="width:72px;height:32px;border-radius:10px;border:0;background:#1C1C20;color:#8A8A94;font-size:14px;cursor:pointer">▲</button>
+                    <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:56px;line-height:1;color:#fff;font-variant-numeric:tabular-nums">{{ tSec.val }}</span>
+                    <button onClick="{{ tSec.dec }}" style="width:72px;height:32px;border-radius:10px;border:0;background:#1C1C20;color:#8A8A94;font-size:14px;cursor:pointer">▼</button>
+                  </div>
+                </div>
+              </div>
+              <button onClick="{{ toggleCap }}" style="height:44px;border-radius:12px;cursor:pointer;font-size:14px;font-weight:600;border:{{ capBorder }};background:{{ capBg }};color:{{ capFg }}">{{ capLabel }}</button>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ showLadder }}" hint-placeholder-val="{{ false }}">
+            <div style="border-radius:20px;background:#0E0E10;border:1px solid #222226;padding:16px;display:flex;flex-direction:column;gap:6px">
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">LADDER RESULT</span>
+              <div style="display:flex;align-items:baseline;gap:10px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:44px;line-height:1;color:#fff">8<span style="font-size:18px;color:#6E6E78"> / 10 rungs</span></span>
+              </div>
+              <span style="font-size:13px;color:#8A8A94">36 total reps · saved from your ladder</span>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isDone }}" hint-placeholder-val="{{ true }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <div style="display:flex;justify-content:space-between;align-items:baseline">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">HOW DID IT FEEL?</span>
+                <span style="font-size:12px;color:#6E6E78">Optional</span>
+              </div>
+              <div style="display:flex;gap:6px">
+                <sc-for list="{{ feels }}" as="f" hint-placeholder-count="5">
+                  <button onClick="{{ f.pick }}" style="flex:1;height:48px;border-radius:12px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:1px;border:{{ f.border }};background:{{ f.bg }};color:{{ f.fg }};transition:all .15s">{{ f.label }}</button>
+                </sc-for>
+              </div>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-top:6px">
+                <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">EFFORT · RPE</span>
+                <span style="font-size:13px;font-weight:600;color:{{ rpeColor }}">{{ rpeLabel }}</span>
+              </div>
+              <div style="display:flex;gap:3px">
+                <sc-for list="{{ rpe }}" as="r" hint-placeholder-count="10">
+                  <button onClick="{{ r.pick }}" style="flex:1;height:44px;border:0;cursor:pointer;border-radius:{{ r.radius }};background:{{ r.bg }};color:{{ r.fg }};font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;transition:all .15s">{{ r.n }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ isSkip }}" hint-placeholder-val="{{ false }}">
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <span style="font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:14px;letter-spacing:2px;color:#8A8A94">WHY DID YOU MISS IT?</span>
+              <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+                <sc-for list="{{ reasons }}" as="r" hint-placeholder-count="4">
+                  <button onClick="{{ r.pick }}" style="height:56px;border-radius:14px;cursor:pointer;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:17px;letter-spacing:1px;border:{{ r.border }};background:{{ r.bg }};color:{{ r.fg }};transition:all .15s">{{ r.label }}</button>
+                </sc-for>
+              </div>
+            </div>
+          </sc-if>
+
+          <sc-if value="{{ noteClosed }}" hint-placeholder-val="{{ true }}">
+            <button onClick="{{ openNote }}" style="height:48px;border-radius:14px;border:1px dashed #33333A;background:transparent;color:#8A8A94;font-size:15px;font-weight:500;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:8px;flex-shrink:0"><span style="font-size:20px;line-height:1;color:#B0B0BA">+</span>{{ noteCta }}</button>
+          </sc-if>
+          <sc-if value="{{ noteOpen }}" hint-placeholder-val="{{ false }}">
+            <textarea value="{{ note }}" onChange="{{ setNote }}" placeholder="{{ notePh }}" style="height:84px;flex-shrink:0;border-radius:14px;border:1px solid #2E2E34;background:#0C0C0E;color:#fff;font-size:15px;padding:14px;box-sizing:border-box;resize:none;outline:none"></textarea>
+          </sc-if>
+        </div>
+
+        <div style="padding:14px 22px 34px;border-top:1px solid #1F1F23;flex-shrink:0">
+          <button onClick="{{ submit }}" style="width:100%;height:58px;border-radius:16px;border:0;cursor:{{ ctaCursor }};font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;letter-spacing:2.5px;color:{{ ctaFg }};background:{{ ctaBg }};transition:all .2s">{{ ctaLabel }}</button>
+        </div>
+      </sc-if>
+
+      <sc-if value="{{ isSaved }}" hint-placeholder-val="{{ false }}">
+        <div style="padding:36px 22px 44px;display:flex;flex-direction:column;align-items:center;gap:14px;text-align:center">
+          <div style="width:84px;height:84px;border-radius:42px;background:{{ savedBg }};display:flex;align-items:center;justify-content:center">
+            <div style="width:30px;height:16px;border-left:5px solid #fff;border-bottom:5px solid #fff;transform:rotate(-45deg) translate(3px,-3px)"></div>
+          </div>
+          <div style="font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:30px;letter-spacing:1px;color:#fff">{{ savedTitle }}</div>
+          <div style="font-size:15px;color:#8A8A94;max-width:290px;text-wrap:pretty">{{ savedSub }}</div>
+          <button onClick="{{ close }}" style="margin-top:10px;height:48px;padding:0 28px;border-radius:14px;border:1px solid #2E2E34;background:transparent;color:#fff;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:16px;letter-spacing:1.5px;cursor:pointer">START AGAIN</button>
+        </div>
+      </sc-if>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script>
+class Component extends DCLogic {
+  SC = {
+    straight: { label: 'Straight sets · weighted', block: 'Strength 1', kind: 'sets', ex: [{ name: 'Weighted Pull-up', plan: 4, ticked: 2, reps: 6, kg: 20 }] },
+    multi: { label: '2 weighted exercises', block: 'Strength 2', kind: 'sets', ex: [{ name: 'Weighted Pull-up', plan: 4, ticked: 4, reps: 6, kg: 20 }, { name: 'Weighted Dip', plan: 4, ticked: 0, reps: 8, kg: 30 }] },
+    circuit: { label: 'Circuit', block: 'Skills 2', kind: 'sets', rounds: true, ex: [{ name: 'Muscle-up · Dip · L-sit', plan: 3, ticked: 2 }] },
+    hold: { label: 'Hold exercise', block: 'Skills 1', kind: 'sets', ex: [{ name: 'Front Lever', plan: 4, ticked: 1, hold: 10 }] },
+    amrap: { label: 'AMRAP', block: 'Conditioning', kind: 'amrap' },
+    fortime: { label: 'For Time', block: 'Finisher', kind: 'fortime' },
+    ladder: { label: 'Ladder', block: 'Pull-up Ladder', kind: 'ladder' },
+    skipped: { label: 'Skipped', block: 'Strength 1', kind: 'sets', skip: true, ex: [{ name: 'Weighted Pull-up', plan: 4, ticked: 0, reps: 6, kg: 20 }] }
+  };
+  fresh(key) {
+    const s = this.SC[key], ex = s.ex || [];
+    return { scen: key, status: s.skip ? 'skip' : 'done', phase: 'form',
+      counts: ex.map(e => e.ticked > 0 ? e.ticked : e.plan), touched: ex.map(() => false),
+      kg: ex.map(e => e.kg ?? null), secs: ex.map(e => e.hold ?? null),
+      rounds: 5, reps: 4, min: 14, sec: 32, cap: false, feel: null, rpe: null, reason: null, noteOpen: false, note: '' };
+  }
+  state = this.fresh('straight');
+  componentWillUnmount() { clearTimeout(this.t); }
+  renderVals() {
+    const S = this.state, sc = this.SC[S.scen], go = p => this.setState(p);
+    const isDone = S.status === 'done', isSkip = !isDone;
+    const arr = (k, i, v) => this.setState(st => { const a = [...st[k]]; a[i] = v; return { [k]: a }; });
+    const exercises = (sc.ex || []).map((e, i) => {
+      const c = S.counts[i], min = e.ticked;
+      const dots = Array.from({ length: e.plan }, (_, k) => {
+        const n = k + 1, tk = n <= e.ticked, on = n <= c;
+        return {
+          top: tk ? '✓' : n, bottom: tk ? 'ticked' : on ? (e.hold ? `${S.secs[i]}s` : e.reps ? `${e.reps} reps` : 'done') : '—',
+          bg: tk ? '#4CD964' : on ? '#16301B' : '#18181B', border: tk ? '1.5px solid #4CD964' : on ? '1.5px solid #2F6B35' : '1.5px solid #26262A',
+          fg: tk ? '#0C0C0E' : on ? '#7FE08C' : '#5E5E68', sub: tk ? '#0C0C0E' : on ? '#5FB86B' : '#4A4A52', cursor: tk ? 'default' : 'pointer',
+          pick: () => { if (tk) return; arr('counts', i, c === n && n > min ? n - 1 : n); arr('touched', i, true); }
+        };
+      });
+      const tag = c === 0 ? 'Not done — counts as skipped' : !S.touched[i] && e.ticked === 0 ? 'Untouched · counted as planned' : c > e.ticked && e.ticked > 0 ? `${e.ticked} ticked + ${c - e.ticked} added` : c === e.plan ? 'All done' : `${c} of ${e.plan}`;
+      const wt = e.kg != null, hd = e.hold != null;
+      return { name: e.name, count: c, plan: e.plan, dots, tag, tagColor: c === 0 ? '#E0B54A' : '#8A8A94',
+        hasStepper: wt || hd, stepLabel: wt ? 'Top set' : 'Hold', stepVal: wt ? `${S.kg[i]} kg` : `${S.secs[i]} s`,
+        dec: () => wt ? arr('kg', i, Math.max(0, S.kg[i] - 2.5)) : arr('secs', i, Math.max(1, S.secs[i] - 1)),
+        inc: () => wt ? arr('kg', i, S.kg[i] + 2.5) : arr('secs', i, S.secs[i] + 1) };
+    });
+    const pad = n => String(n).padStart(2, '0');
+    const coral = '#FF6A4D', grad = 'linear-gradient(90deg,#8A5CD0,#FF5A55 60%,#FF7A45)';
+    const rpeWords = ['Very easy', 'Easy', 'Light', 'Moderate', 'Steady', 'Challenging', 'Hard', 'Very hard', 'Near max', 'All out'];
+    const ready = isDone || !!S.reason, saving = S.phase === 'saving';
+    const sel = (on, c = coral, bg = '#2A1512') => ({ border: on ? `1.5px solid ${c}` : '1.5px solid #26262A', bg: on ? bg : '#18181B', fg: on ? c : '#C8C8D0' });
+    const totalSets = exercises.reduce((a, e) => a + e.count, 0), planSets = exercises.reduce((a, e) => a + e.plan, 0);
+    const summary = sc.kind === 'amrap' ? `${S.rounds} rounds + ${S.reps} reps` : sc.kind === 'fortime' ? (S.cap ? 'Time cap reached' : `Finished in ${S.min}:${pad(S.sec)}`) : sc.kind === 'ladder' ? '8 of 10 rungs' : `${totalSets}/${planSets} ${sc.rounds ? 'rounds' : 'sets'}`;
+    return {
+      scenarios: Object.entries(this.SC).map(([k, v]) => ({ label: v.label, ...(o => ({ border: o ? '1.5px solid #FF6A4D' : '1px solid #2A2A2E', bg: o ? '#2A1512' : 'transparent', fg: o ? '#FF8A6D' : '#C8C8D0' }))(k === S.scen), pick: () => this.setState(this.fresh(k)) })),
+      isForm: S.phase !== 'saved', isSaved: S.phase === 'saved',
+      blockName: sc.block, statusLabel: isDone ? 'COMPLETED' : 'SKIPPED', statusColor: isDone ? '#4CD964' : '#E0B54A',
+      toggleStatus: () => go({ status: isDone ? 'skip' : 'done' }),
+      close: () => this.setState(this.fresh(S.scen)),
+      showSets: isDone && sc.kind === 'sets', setsTitle: sc.rounds ? 'ROUNDS' : 'SETS', exercises,
+      showAmrap: isDone && sc.kind === 'amrap',
+      bigSteppers: [['ROUNDS', 'rounds', 0], ['+ REPS', 'reps', 0]].map(([l, k]) => ({ label: l, val: S[k], dec: () => go({ [k]: Math.max(0, S[k] - 1) }), inc: () => go({ [k]: S[k] + 1 }) })),
+      showTime: isDone && sc.kind === 'fortime', timeOpacity: S.cap ? 0.35 : 1,
+      tMin: { val: pad(S.min), inc: () => go({ min: S.min + 1 }), dec: () => go({ min: Math.max(0, S.min - 1) }) },
+      tSec: { val: pad(S.sec), inc: () => go({ sec: (S.sec + 1) % 60 }), dec: () => go({ sec: (S.sec + 59) % 60 }) },
+      toggleCap: () => go({ cap: !S.cap }), capLabel: S.cap ? '✓ Hit the time cap' : 'Hit the time cap?',
+      capBorder: S.cap ? '1.5px solid #FF6A4D' : '1px solid #2A2A2E', capBg: S.cap ? '#2A1512' : 'transparent', capFg: S.cap ? '#FF8A6D' : '#8A8A94',
+      showLadder: isDone && sc.kind === 'ladder',
+      isDone, isSkip,
+      feels: ['HARD', 'OK', 'GOOD', 'STRONG', 'BEAST'].map(l => ({ label: l, ...sel(S.feel === l), pick: () => go({ feel: S.feel === l ? null : l }) })),
+      rpe: Array.from({ length: 10 }, (_, i) => {
+        const v = i + 1, lit = S.rpe != null && v <= S.rpe;
+        return { n: v, radius: i === 0 ? '12px 4px 4px 12px' : i === 9 ? '4px 12px 12px 4px' : '4px', bg: lit ? `rgba(255,106,77,${0.25 + v * 0.075})` : '#18181B', fg: lit ? '#fff' : '#6E6E78', pick: () => go({ rpe: S.rpe === v ? null : v }) };
+      }),
+      rpeLabel: S.rpe ? `${S.rpe} · ${rpeWords[S.rpe - 1]}` : 'Optional', rpeColor: S.rpe ? '#FF8A6D' : '#6E6E78',
+      reasons: ['NO TIME', 'TOO TIRED', 'INJURY', 'OTHER'].map(l => ({ label: l, ...sel(S.reason === l, '#E0B54A', '#2E2610'), pick: () => go({ reason: l }) })),
+      noteOpen: S.noteOpen, noteClosed: !S.noteOpen, note: S.note,
+      noteCta: isDone ? 'Add a note' : 'Add details (optional)',
+      notePh: isDone ? 'Highlights, pain, modifications…' : 'What happened?',
+      openNote: () => go({ noteOpen: true }), setNote: e => go({ note: e.target.value }),
+      ctaLabel: saving ? 'SAVING…' : !ready ? 'PICK A REASON' : isDone ? 'LOG BLOCK' : 'LOG AS MISSED',
+      ctaBg: !ready ? '#222226' : isDone ? grad : '#E0B54A', ctaFg: !ready ? '#5E5E68' : isDone ? '#fff' : '#1A1406',
+      ctaCursor: ready && !saving ? 'pointer' : 'default',
+      submit: () => { if (!ready || saving) return; go({ phase: 'saving' }); this.t = setTimeout(() => this.setState({ phase: 'saved' }), 900); },
+      savedBg: isDone ? grad : '#E0B54A',
+      savedTitle: isDone ? `${sc.block.toUpperCase()} LOGGED` : 'MISS LOGGED',
+      savedSub: isDone ? [summary, S.feel && S.feel[0] + S.feel.slice(1).toLowerCase(), S.rpe && `RPE ${S.rpe}`].filter(Boolean).join(' · ') : S.reason ? `${S.reason[0] + S.reason.slice(1).toLowerCase()}. Your plan will adjust around it.` : ''
+    };
+  }
+}
+</script>
+</body>
+</html>

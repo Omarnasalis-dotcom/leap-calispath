@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600&family=Barlow:wght@400;500;600&display=swap">
+<style>body{margin:0;background:#F2F2F4;font-family:'Barlow',sans-serif;color:#17171C}a{color:#E5383B}a:hover{color:#B8262A}select{font-family:inherit}</style>
+</helmet>
+<div style="padding:32px clamp(16px,4vw,48px);max-width:1240px;margin:0 auto;box-sizing:border-box">
+  <div style="background:#FFFFFF;border-radius:20px;border:1px solid #E8E8EC;overflow:hidden">
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;padding:24px 28px 20px;border-bottom:1px solid #EEEEF1">
+      <div style="display:flex;flex-direction:column;gap:4px">
+        <div style="font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:3px;color:#E5383B;text-transform:uppercase">Training</div>
+        <div style="font-family:'Oswald',sans-serif;font-weight:600;font-size:26px;letter-spacing:.3px">Performance</div>
+      </div>
+      <div style="font-size:13px;color:#6B6B76">{{ rangeLabel }}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,440px),1fr));gap:1px;background:#EEEEF1">
+
+      <div style="background:#FFFFFF;padding:24px 28px 20px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-weight:600;font-size:15px">Weighted lifts</div>
+            <div style="font-size:13px;color:#6B6B76">Heaviest set per workout slot</div>
+          </div>
+          <div style="display:flex;gap:4px;padding:3px;background:#F2F2F4;border-radius:10px">
+            <sc-for list="{{ exercises }}" as="ex" hint-placeholder-count="3">
+              <button onClick="{{ ex.pick }}" style="border:0;cursor:pointer;font-family:'Barlow',sans-serif;font-size:13px;font-weight:600;padding:6px 12px;border-radius:8px;display:flex;gap:6px;align-items:center;background:{{ ex.bg }};color:{{ ex.fg }};box-shadow:{{ ex.shadow }}">{{ ex.name }}<span style="font-weight:500;color:#9A9AA4">{{ ex.count }}</span></button>
+            </sc-for>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <sc-for list="{{ liftSeries }}" as="s" hint-placeholder-count="2">
+            <button onClick="{{ s.toggle }}" style="flex:1 1 180px;text-align:left;cursor:pointer;border:1px solid #EEEEF1;background:#FFFFFF;border-radius:12px;padding:10px 14px;display:flex;flex-direction:column;gap:4px;opacity:{{ s.opacity }};font-family:'Barlow',sans-serif">
+              <div style="display:flex;align-items:center;gap:8px;font-size:12px;color:#6B6B76;font-weight:500"><span style="width:8px;height:8px;border-radius:4px;background:{{ s.color }}"></span>{{ s.name }}</div>
+              <div style="display:flex;align-items:baseline;gap:8px">
+                <span style="font-family:'Oswald',sans-serif;font-weight:500;font-size:26px;color:#17171C">{{ s.last }}<span style="font-size:14px;color:#6B6B76;margin-left:3px">kg</span></span>
+                <span style="font-size:12px;font-weight:600;color:#1E8A4C">{{ s.delta }}</span>
+              </div>
+            </button>
+          </sc-for>
+        </div>
+        <div>{{ liftChart }}</div>
+      </div>
+
+      <div style="background:#FFFFFF;padding:24px 28px 20px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <div style="font-weight:600;font-size:15px">World points</div>
+          <div style="font-size:13px;color:#6B6B76">Score at the end of each week</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;flex:1">
+          <sc-for list="{{ worlds }}" as="w" hint-placeholder-count="2">
+            <div style="border-radius:14px;background:{{ w.tint }};padding:16px 16px 10px;display:flex;flex-direction:column;gap:6px;min-width:0">
+              <div style="display:flex;justify-content:space-between;align-items:center">
+                <span style="font-family:'Oswald',sans-serif;font-weight:600;font-size:11px;letter-spacing:2.5px;text-transform:uppercase;color:{{ w.ink }}">{{ w.name }}</span>
+                <span style="font-size:12px;font-weight:600;color:{{ w.ink }}">{{ w.delta }}</span>
+              </div>
+              <div style="font-family:'Oswald',sans-serif;font-weight:500;font-size:40px;line-height:1;color:#17171C">{{ w.last }}<span style="font-size:15px;color:#6B6B76;margin-left:4px">pts</span></div>
+              <div style="margin-top:auto">{{ w.chart }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:#FFFFFF;padding:24px 28px 20px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-weight:600;font-size:15px">Bodyweight</div>
+            <div style="font-size:13px;color:#6B6B76">Weekly log</div>
+          </div>
+          <div style="text-align:right;display:flex;flex-direction:column;align-items:flex-end;gap:2px">
+            <div style="font-family:'Oswald',sans-serif;font-weight:500;font-size:28px;line-height:1">{{ bw.last }}<span style="font-size:14px;color:#6B6B76;margin-left:3px">kg</span></div>
+            <div style="font-size:12px;color:#6B6B76">{{ bw.note }}</div>
+          </div>
+        </div>
+        <sc-if value="{{ bw.hasTrend }}" hint-placeholder-val="{{ true }}">
+          <div>{{ bw.chart }}</div>
+        </sc-if>
+        <sc-if value="{{ bw.empty }}" hint-placeholder-val="{{ false }}">
+          <div style="flex:1;min-height:150px;border:1.5px dashed #E1E1E6;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:20px;text-align:center">
+            <div style="width:10px;height:10px;border-radius:5px;background:#17171C;box-shadow:0 0 0 5px #EDEDF0"></div>
+            <div style="font-size:13px;font-weight:600;margin-top:8px">One log so far</div>
+            <div style="font-size:12px;color:#6B6B76;max-width:240px;text-wrap:pretty">The trend line appears after a second weekly weigh-in.</div>
+          </div>
+        </sc-if>
+      </div>
+
+      <div style="background:#FFFFFF;padding:24px 28px 20px;display:flex;flex-direction:column;gap:18px;min-width:0">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+          <div style="display:flex;flex-direction:column;gap:2px">
+            <div style="font-weight:600;font-size:15px">Blocks completed</div>
+            <div style="font-size:13px;color:#6B6B76">Per program week</div>
+          </div>
+          <select style="appearance:none;-webkit-appearance:none;border:1px solid #E8E8EC;background:#FFFFFF;border-radius:10px;padding:8px 32px 8px 12px;font-size:13px;font-weight:600;color:#17171C;cursor:pointer;background-image:linear-gradient(45deg,transparent 50%,#6B6B76 50%),linear-gradient(135deg,#6B6B76 50%,transparent 50%);background-position:calc(100% - 16px) 52%,calc(100% - 11px) 52%;background-size:5px 5px;background-repeat:no-repeat">
+            <option>Advanced A · active · Oct 2, 2026</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:baseline;gap:10px">
+          <span style="font-family:'Oswald',sans-serif;font-weight:500;font-size:28px;line-height:1">{{ blocks.avg }}</span>
+          <span style="font-size:13px;color:#6B6B76">{{ blocks.note }}</span>
+        </div>
+        <div style="display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding-bottom:2px">
+          <sc-for list="{{ blocks.weeks }}" as="wk" hint-placeholder-count="2">
+            <div style="flex:1 0 34px;max-width:64px;display:flex;flex-direction:column;align-items:center;gap:8px">
+              <div style="font-size:12px;font-weight:600;color:{{ wk.pctColor }}">{{ wk.pct }}</div>
+              <div style="width:100%;display:flex;flex-direction:column-reverse;gap:3px;padding:4px;border-radius:10px;box-sizing:border-box;outline:{{ wk.outline }}">
+                <sc-for list="{{ wk.cells }}" as="c" hint-placeholder-count="14">
+                  <div style="height:8px;border-radius:3px;background:{{ c.bg }}"></div>
+                </sc-for>
+              </div>
+              <div style="font-size:12px;color:{{ wk.labelColor }};font-weight:{{ wk.labelWeight }}">{{ wk.label }}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;dataset&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;2 weeks (current user)&quot;,&quot;8 weeks&quot;],&quot;default&quot;:&quot;2 weeks (current user)&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;curve&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;Smooth&quot;,&quot;Straight&quot;],&quot;default&quot;:&quot;Smooth&quot;,&quot;tsType&quot;:&quot;string&quot;},&quot;areaFill&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;}}">
+class Component extends DCLogic {
+  state = { ex: 'Dips', off: {}, hov: {} };
+
+  data(full) {
+    const lifts = full ? {
+      Dips: [{ name: 'Push Day 1 · Strength', color: '#E5383B', values: [50, 52.5, 55, 55, 57.5, 60, 62.5, 65] }, { name: 'Pull Day 3 · Dips', color: '#7B4DFF', values: [80, 82.5, 85, 87.5, 90, 92.5, 95, 100] }],
+      'Pull-up': [{ name: 'Pull Day 1 · Strength', color: '#7B4DFF', values: [10, 12.5, 12.5, 15, 17.5, 17.5, 20, 22.5] }],
+      Squat: [{ name: 'Legs Day 2 · Strength', color: '#E5383B', values: [60, 65, 70, 72.5, 75, 80, 82.5, 85] }]
+    } : {
+      Dips: [{ name: 'Push Day 1 · Strength', color: '#E5383B', values: [60, 65] }, { name: 'Pull Day 3 · Dips', color: '#7B4DFF', values: [95, 100] }],
+      'Pull-up': [{ name: 'Pull Day 1 · Strength', color: '#7B4DFF', values: [10, 12.5] }],
+      Squat: [{ name: 'Legs Day 2 · Strength', color: '#E5383B', values: [60, 65] }]
+    };
+    return {
+      weeks: full ? 8 : 2,
+      counts: full ? { Dips: 16, 'Pull-up': 8, Squat: 8 } : { Dips: 4, 'Pull-up': 2, Squat: 2 },
+      lifts,
+      worlds: [
+        { name: 'Static', color: '#7B4DFF', tint: '#F4F0FF', ink: '#5B2FE0', values: full ? [0, 2, 4, 6, 8, 10, 12, 15] : [0, 15] },
+        { name: 'One-Min-Max', color: '#E8661C', tint: '#FFF3EB', ink: '#B5470C', values: full ? [22, 30, 38, 45, 52, 58, 64, 70] : [60, 70] }
+      ],
+      bw: full ? [78.6, 78.2, 77.9, 77.4, 76.8, 76.1, 75.6, 75.0] : [75.0],
+      blocksPer: 14,
+      blocks: full ? [3, 3, 6, 8, 7, 10, 11, 9] : [3, 3]
+    };
+  }
+
+  chart(id, series, labels, o = {}) {
+    const h = React.createElement, W = o.w || 560, H = o.h || 200, pl = o.axis ? 6 : 4, pr = o.axis ? 6 : 4, pt = o.axis ? 18 : 6, pb = o.axis ? 26 : 6;
+    const vis = series.filter(s => !s.off), all = vis.flatMap(s => s.values);
+    if (!all.length) return h('div', { style: { height: 120 } });
+    let lo = Math.min(...all), hi = Math.max(...all);
+    const pad = (hi - lo) * 0.18 || Math.max(1, hi * 0.08), st = o.step || 5;
+    lo = Math.max(o.floor ?? -1e9, Math.floor((lo - pad) / st) * st); hi = Math.ceil((hi + pad) / st) * st;
+    const n = labels.length, X = i => n === 1 ? W / 2 : pl + i * (W - pl - pr) / (n - 1), Y = v => pt + (1 - (v - lo) / (hi - lo)) * (H - pt - pb);
+    const smooth = this.props.curve !== 'Straight';
+    const path = vals => vals.map((v, i) => {
+      if (!i) return `M${X(0)},${Y(v)}`;
+      const x0 = X(i - 1), y0 = Y(vals[i - 1]), x1 = X(i), y1 = Y(v), m = (x0 + x1) / 2;
+      return smooth ? `C${m},${y0} ${m},${y1} ${x1},${y1}` : `L${x1},${y1}`;
+    }).join(' ');
+    const hv = this.state.hov[id], kids = [];
+    const fillOn = this.props.areaFill ?? true;
+    if (o.axis) {
+      [lo, (lo + hi) / 2, hi].forEach((t, k) => {
+        kids.push(h('line', { key: 'g' + k, x1: 0, x2: W, y1: Y(t), y2: Y(t), stroke: '#EEEEF1', strokeWidth: 1, strokeDasharray: k ? '3 4' : null }));
+        kids.push(h('text', { key: 'gt' + k, x: 0, y: Y(t) - 6, fill: '#9A9AA4', fontSize: 11, fontFamily: 'Barlow' }, `${+t.toFixed(1)} ${o.unit || ''}`));
+      });
+      labels.forEach((l, i) => kids.push(h('text', { key: 'x' + i, x: X(i), y: H - 6, fill: hv === i ? '#17171C' : '#9A9AA4', fontSize: 11, fontWeight: hv === i ? 600 : 400, fontFamily: 'Barlow', textAnchor: n === 1 ? 'middle' : i === 0 ? 'start' : i === n - 1 ? 'end' : 'middle' }, l)));
+    }
+    if (hv != null) kids.push(h('line', { key: 'hl', x1: X(hv), x2: X(hv), y1: pt - 6, y2: H - pb, stroke: '#17171C', strokeOpacity: 0.15, strokeWidth: 1 }));
+    vis.forEach((s, si) => {
+      const d = path(s.values);
+      if (fillOn && n > 1) kids.push(h('path', { key: 'a' + si, d: `${d} L${X(n - 1)},${H - pb} L${X(0)},${H - pb} Z`, fill: s.color, fillOpacity: o.axis ? 0.07 : 0.12 }));
+      kids.push(h('path', { key: 'p' + si, d, fill: 'none', stroke: s.color, strokeWidth: o.axis ? 2.5 : 2, strokeLinecap: 'round', strokeLinejoin: 'round' }));
+      s.values.forEach((v, i) => {
+        const last = i === n - 1, on = hv === i;
+        if (!o.axis && !last) return;
+        kids.push(h('circle', { key: `c${si}-${i}`, cx: X(i), cy: Y(v), r: on || last ? 5 : 3, fill: last || on ? s.color : '#FFFFFF', stroke: last || on ? '#FFFFFF' : s.color, strokeWidth: 2 }));
+      });
+    });
+    const move = e => {
+      const r = e.currentTarget.getBoundingClientRect(), x = (e.clientX - r.left) / r.width * W;
+      const i = n === 1 ? 0 : Math.max(0, Math.min(n - 1, Math.round((x - pl) / ((W - pl - pr) / (n - 1)))));
+      if (this.state.hov[id] !== i) this.setState(st => ({ hov: { ...st.hov, [id]: i } }));
+    };
+    const leave = () => this.setState(st => ({ hov: { ...st.hov, [id]: null } }));
+    const tip = o.axis && hv != null ? h('div', { style: { position: 'absolute', left: `${X(hv) / W * 100}%`, top: 0, transform: `translateX(${hv === 0 ? '0' : hv === n - 1 ? '-100%' : '-50%'})`, background: '#17171C', color: '#fff', borderRadius: 8, padding: '6px 10px', fontSize: 12, fontFamily: 'Barlow', pointerEvents: 'none', display: 'flex', flexDirection: 'column', gap: 2, whiteSpace: 'nowrap', zIndex: 2 } },
+      h('div', { style: { color: '#9A9AA4', fontWeight: 600 } }, labels[hv]),
+      ...vis.map((s, k) => h('div', { key: k, style: { display: 'flex', alignItems: 'center', gap: 6 } }, h('span', { style: { width: 6, height: 6, borderRadius: 3, background: s.color } }), `${s.values[hv]} ${o.unit || ''}`))) : null;
+    return h('div', { style: { position: 'relative' } },
+      h('svg', { viewBox: `0 0 ${W} ${H}`, width: '100%', style: { display: 'block', overflow: 'visible', cursor: o.axis ? 'crosshair' : 'default' }, onMouseMove: o.axis ? move : null, onMouseLeave: o.axis ? leave : null }, kids),
+      tip);
+  }
+
+  renderVals() {
+    const full = (this.props.dataset ?? '2 weeks (current user)') !== '2 weeks (current user)';
+    const D = this.data(full), labels = Array.from({ length: D.weeks }, (_, i) => `W${i + 1}`);
+    const fmt = v => (Math.round(v * 10) / 10).toString();
+    const sign = v => (v > 0 ? '+' : v < 0 ? '−' : '±') + fmt(Math.abs(v));
+    const series = D.lifts[this.state.ex].map(s => ({ ...s, off: !!this.state.off[s.name] }));
+    const exercises = Object.keys(D.lifts).map(name => {
+      const on = name === this.state.ex;
+      return { name, count: D.counts[name], bg: on ? '#FFFFFF' : 'transparent', fg: on ? '#17171C' : '#6B6B76', shadow: on ? '0 1px 2px rgba(23,23,28,.08), 0 0 0 1px #E8E8EC' : 'none', pick: () => this.setState({ ex: name, off: {} }) };
+    });
+    const liftSeries = series.map(s => ({
+      name: s.name, color: s.color, last: fmt(s.values[s.values.length - 1]),
+      delta: `${sign(s.values[s.values.length - 1] - s.values[0])} kg since W1`,
+      opacity: s.off ? 0.45 : 1,
+      toggle: () => this.setState(st => ({ off: { ...st.off, [s.name]: !st.off[s.name] } }))
+    }));
+    const worlds = D.worlds.map((w, i) => {
+      const v = w.values, d = v[v.length - 1] - (v[v.length - 2] ?? v[0]);
+      return { ...w, last: v[v.length - 1], delta: `${sign(d)} this week`, chart: this.chart('w' + i, [w], labels, { w: 240, h: 70, step: 1, floor: 0 }) };
+    });
+    const bwv = D.bw, bwHas = bwv.length > 1;
+    const bw = {
+      last: fmt(bwv[bwv.length - 1]), hasTrend: bwHas, empty: !bwHas,
+      note: bwHas ? `${sign(bwv[bwv.length - 1] - bwv[0])} kg since W1` : 'Logged Oct 2',
+      chart: bwHas ? this.chart('bw', [{ name: 'Bodyweight', color: '#17171C', values: bwv }], labels, { axis: true, unit: 'kg', step: 1 }) : null
+    };
+    const P = D.blocksPer, cur = D.blocks.length - 1, total = D.blocks.reduce((a, b) => a + b, 0);
+    const blocks = {
+      avg: `${Math.round(total / (P * D.blocks.length) * 100)}%`,
+      note: `${total} of ${P * D.blocks.length} blocks · ${D.blocks.length} weeks`,
+      weeks: D.blocks.map((done, i) => ({
+        label: `W${i + 1}`, pct: `${Math.round(done / P * 100)}%`,
+        pctColor: i === cur ? '#E5383B' : '#17171C',
+        labelColor: i === cur ? '#17171C' : '#9A9AA4', labelWeight: i === cur ? 600 : 400,
+        outline: i === cur ? '1.5px solid #F6C9CA' : '1.5px solid transparent',
+        cells: Array.from({ length: P }, (_, k) => ({ bg: k < done ? (i === cur ? '#E5383B' : '#F08A8C') : '#F0F0F3' }))
+      }))
+    };
+    return {
+      rangeLabel: full ? 'W1 – W8 · Advanced A Program' : 'W1 – W2 · Advanced A Program',
+      exercises, liftSeries, worlds, bw, blocks,
+      liftChart: this.chart('lift', series, labels, { axis: true, unit: 'kg', step: 5, floor: 0 })
+    };
+  }
+}
+</script>
+</body>
+</html>
