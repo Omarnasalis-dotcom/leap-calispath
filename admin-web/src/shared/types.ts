@@ -285,8 +285,24 @@ export interface MovementReps {
   weeks: MovementWeek[];
 }
 
+export interface HoldWeek {
+  program_id: string;
+  week: number; // program week
+  seconds: number; // logged + assumed
+  assumed: number; // filled from the plan
+  longest: number; // longest single logged hold
+  longest_variation: string | null;
+  variations: Record<string, number>; // logged seconds per variation
+}
+
+export interface HoldStats {
+  family: string; // MOVEMENT_FAMILIES value (kind 'hold')
+  weeks: HoldWeek[];
+}
+
 export interface UserPerformance {
   movements?: MovementReps[];
+  holds?: HoldStats[];
   weighted: WeightedMovement[];
   bodyweight: BodyweightPoint[];
   completion: CompletionProgram[];

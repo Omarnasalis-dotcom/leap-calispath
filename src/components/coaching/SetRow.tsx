@@ -9,11 +9,15 @@ export interface SetLogEntry {
   setIndex: number;
   reps: number;
   weight?: number;
+  /** Hold exercises: seconds held (reps is then 0). */
+  hold?: number;
 }
 
 interface SetRowProps {
   setIndex: number;
   targetReps: number;
+  /** Planned hold (s): the row counts seconds instead of reps. */
+  holdSeconds?: number;
   isWeighted?: boolean;
   restSeconds: number;
   theme: any;
@@ -28,6 +32,7 @@ interface SetRowProps {
 export const SetRow: React.FC<SetRowProps> = ({
   setIndex,
   targetReps,
+  holdSeconds,
   isWeighted,
   restSeconds,
   theme,
@@ -36,7 +41,14 @@ export const SetRow: React.FC<SetRowProps> = ({
   onSetComplete,
   onSetDraft,
 }) => {
-  const [reps, setReps] = useState(targetReps);
+  // Hold exercises count seconds (starting at the planned hold), everything
+  // else counts reps; entries carry the value in the matching field.
+  const isHold = !!holdSeconds && holdSeconds > 0;
+  const [reps, setReps] = useState(isHold ? holdSeconds! : targetReps);
+  const entry = (value: number, weightText: string): SetLogEntry =>
+    isHold
+      ? { setIndex, reps: 0, hold: value, weight: parseKg(weightText) }
+      : { setIndex, reps: value, weight: parseKg(weightText) };
   const [weight, setWeight] = useState('');
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
@@ -90,8 +102,7 @@ export const SetRow: React.FC<SetRowProps> = ({
 
   const handleCheck = () => {
     if (completed) return;
-    const parsedWeight = parseKg(weight);
-    onSetComplete({ setIndex, reps, weight: parsedWeight });
+    onSetComplete(entry(reps, weight));
     SoundServiceInstance.playBoxingBell();
     if (restSeconds > 0) {
       setRestTimeLeft(restSeconds);
@@ -106,21 +117,19 @@ export const SetRow: React.FC<SetRowProps> = ({
     if (isFullyDone) return;
     const next = Math.max(0, reps + delta);
     setReps(next);
-    const parsedWeight = parseKg(weight);
     if (restActive) {
-      onSetComplete({ setIndex, reps: next, weight: parsedWeight });
+      onSetComplete(entry(next, weight));
     } else if (!completed) {
-      onSetDraft?.({ setIndex, reps: next, weight: parsedWeight });
+      onSetDraft?.(entry(next, weight));
     }
   };
 
   const handleWeightChange = (text: string) => {
     setWeight(text);
-    const parsedWeight = parseKg(text);
     if (restActive) {
-      onSetComplete({ setIndex, reps, weight: parsedWeight });
+      onSetComplete(entry(reps, text));
     } else if (!completed) {
-      onSetDraft?.({ setIndex, reps, weight: parsedWeight });
+      onSetDraft?.(entry(reps, text));
     }
   };
 
@@ -148,7 +157,7 @@ export const SetRow: React.FC<SetRowProps> = ({
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
         </TouchableOpacity>
-        <Text style={[styles.repsLabel, { color: theme.text.tertiary }]}>{t('blocks.reps')}</Text>
+        <Text style={[styles.repsLabel, { color: theme.text.tertiary }]}>{isHold ? t('blocks.sec') : t('blocks.reps')}</Text>
       </View>
 
       {isWeighted && (

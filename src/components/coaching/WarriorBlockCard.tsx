@@ -137,7 +137,7 @@ interface WarriorBlockCardProps {
   loggedSetsByExercise?: Record<string | number, SetLogEntry[]>;
   onSetLogged?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
   onSetDraft?: (blockId: string | number, exerciseId: string | number, entry: SetLogEntry) => void;
-  onLadderFinalize?: (blockId: string | number, summary: string) => void;
+  onLadderFinalize?: (blockId: string | number, summary: string, rungIndex: number | null, extraReps: number) => void;
   onAmrapFinalize?: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeFinalize?: (blockId: string | number, result: ForTimeResult) => void;
 }
@@ -289,6 +289,16 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   // ('completed'|'missed') / handleToggleBlockStatus(..., 'none'). Rendered
   // right under the pills when collapsed, or at the end of the expanded
   // content when open (see the two render sites below).
+  // Ladder / AMRAP / For Time finish with the same slide-to-Complete as every
+  // block: Complete asks the open inline logger to hand its result (rung,
+  // rounds, time) to the log sheet; with nothing to hand over yet, the sheet
+  // opens and asks.
+  const inlineFinalizeRef = useRef<(() => boolean) | null>(null);
+  const hasInlineFinish = isActiveForLadderLogging || isActiveForAmrapLogging || isActiveForForTimeLogging;
+  const handleSlideComplete = () => {
+    if (hasInlineFinish && inlineFinalizeRef.current?.()) return;
+    handleOpenLogging(block.id, 'completed');
+  };
   const actionRow = (
     <View style={styles.dbActionRow}>
       {!isDone && (
@@ -317,7 +327,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           accentColor={accent.color}
           label={t('blocks.complete')}
           doneLabel={t('timers.completed')}
-          onComplete={() => handleOpenLogging(block.id, 'completed')}
+          onComplete={handleSlideComplete}
           onUndo={() => handleToggleBlockStatus(block.id, 'none')}
         />
       )}
@@ -534,6 +544,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                                 key={setIndex}
                                 setIndex={setIndex}
                                 targetReps={parseInt(String(ex.reps || '0'), 10) || 0}
+                                holdSeconds={parseInt(String(ex.hold_seconds || '0'), 10) || 0}
                                 isWeighted={!!ex.is_weighted}
                                 restSeconds={parseInt(String(ex.rest_seconds || '0'), 10) || 0}
                                 theme={innerTheme}
@@ -594,7 +605,9 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       restSeconds={ladderRestSeconds}
                       timerLabel={ladderTimerLabel}
                       countUp={ladderCountUp}
-                      onFinalize={(summary) => onLadderFinalize?.(block.id, summary)}
+                      onFinalize={(summary, rungIndex, extraReps) => onLadderFinalize?.(block.id, summary, rungIndex, extraReps)}
+                      finalizeRef={inlineFinalizeRef}
+                      hideLogButton
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url }))}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
@@ -611,6 +624,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url }))}
                       timeCapSeconds={amrapTimeCapSeconds}
                       onFinalize={(roundsCompleted) => onAmrapFinalize?.(block.id, roundsCompleted)}
+                      finalizeRef={inlineFinalizeRef}
+                      hideLogButton
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
                       onActiveChange={setAmrapActive}
@@ -626,6 +641,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       timeCapSeconds={forTimeCapSeconds}
                       totalRounds={totalRounds}
                       onFinalize={(result) => onForTimeFinalize?.(block.id, result)}
+                      finalizeRef={inlineFinalizeRef}
+                      hideLogButton
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
                       onActiveChange={setForTimeActive}

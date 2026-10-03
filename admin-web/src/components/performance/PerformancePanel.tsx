@@ -42,6 +42,7 @@ interface Selection {
   completionProgram: string | null;
   hiddenSlots: string[];
   movement: string | null;
+  hold: string | null;
 }
 
 function Cell({
@@ -479,14 +480,29 @@ const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber
 const OTHER_COLOR = 'var(--pf-faint)';
 const MAX_MOVEMENT_WEEKS = 16;
 
+/** One week of a movement chart, reps or hold seconds alike. */
+interface ChartWeek {
+  week: number;
+  total: number;
+  assumed: number;
+  best: number;
+  bestVariation: string | null;
+  variations: Record<string, number>;
+}
+
 function MovementsCell({
   data,
+  holds,
+  mode = 'reps',
   program,
   sel,
   setSel,
   print,
 }: {
-  data: UserPerformance['movements'];
+  data?: UserPerformance['movements'];
+  holds?: UserPerformance['holds'];
+  /** reps = Main movements (pull-ups, dips…), holds = Skill holds (s). */
+  mode?: 'reps' | 'holds';
   /** Same program as Workouts completed (active by default): weeks are its
    * program weeks, W1 to the current week, logged or not. */
   program: CompletionProgram | undefined;
@@ -494,24 +510,55 @@ function MovementsCell({
   setSel: (s: Partial<Selection>) => void;
   print?: boolean;
 }) {
-  const movements = MOVEMENT_FAMILIES.filter((m) => m.kind === 'reps')
-    .map((m) => ({
-      ...m,
-      weeks: (data?.find((d) => d.family === m.value)?.weeks ?? []).filter((w) => w.program_id === program?.program_id),
-    }))
+  const isHolds = mode === 'holds';
+  const title = isHolds ? 'Skill holds' : 'Main movements';
+  const sub = isHolds ? 'Hold time per week' : 'Total reps per week';
+  const unit = isHolds ? 's' : '';
+  const fmtV = (n: number) => (isHolds ? `${n} s` : String(n));
+  const picked = isHolds ? sel.hold : sel.movement;
+
+  const movements = MOVEMENT_FAMILIES.filter((m) => m.kind === (isHolds ? 'hold' : 'reps'))
+    .map((m) => {
+      const weeks: ChartWeek[] = isHolds
+        ? (holds?.find((d) => d.family === m.value)?.weeks ?? [])
+            .filter((w) => w.program_id === program?.program_id)
+            .map((w) => ({
+              week: w.week,
+              total: Number(w.seconds),
+              assumed: Number(w.assumed),
+              best: Number(w.longest),
+              bestVariation: w.longest_variation,
+              variations: w.variations,
+            }))
+        : (data?.find((d) => d.family === m.value)?.weeks ?? [])
+            .filter((w) => w.program_id === program?.program_id)
+            .map((w) => ({
+              week: w.week,
+              total: w.reps,
+              assumed: w.assumed,
+              best: w.best,
+              bestVariation: null,
+              variations: w.variations,
+            }));
+      return { ...m, label: m.label.replace(' (hold)', ''), weeks };
+    })
     .filter((m) => m.weeks.length > 0);
 
   if (movements.length === 0) {
     return (
-      <Cell title="Main movements" sub="Total reps per week" wide>
+      <Cell title={title} sub={sub} wide>
         <EmptyBox
-          title="No main-movement sets yet"
-          body="Reps logged on main movements (pull-ups, rows, dips, push-ups, squats, deadlifts, muscle-ups…) show up here."
+          title={isHolds ? 'No skill holds yet' : 'No main-movement sets yet'}
+          body={
+            isHolds
+              ? 'Front lever, handstand, planche and back lever hold times show up here.'
+              : 'Reps logged on main movements (pull-ups, rows, dips, push-ups, squats, deadlifts, muscle-ups…) show up here.'
+          }
         />
       </Cell>
     );
   }
-  const movement = movements.find((m) => m.value === sel.movement) ?? movements[0];
+  const movement = movements.find((m) => m.value === picked) ?? movements[0];
 
   // Every program week from W1 to the current week (or the last logged
   // week), so a week without this movement shows as an empty column.
@@ -521,26 +568,26 @@ function MovementsCell({
 
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
-    Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + n)),
+    Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + Number(n))),
   );
   const named = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
   const top = named.slice(0, VARIATION_COLORS.length);
   const colorOf = (v: string) => (top.includes(v) ? VARIATION_COLORS[top.indexOf(v)] : OTHER_COLOR);
   const label = (v: string) => v || 'Untagged';
-  const max = Math.max(1, ...shown.map((wk) => byWeek.get(wk)?.reps ?? 0));
+  const max = Math.max(1, ...shown.map((wk) => byWeek.get(wk)?.total ?? 0));
   const latest = movement.weeks[movement.weeks.length - 1];
 
   const chips = print ? (
     <span className="pf-static-control">{movement.label}</span>
   ) : (
-    <div className="pf-seg" role="group" aria-label="Movement">
+    <div className="pf-seg" role="group" aria-label={isHolds ? 'Skill' : 'Movement'}>
       {movements.map((m) => (
         <button
           key={m.value}
           type="button"
           className="pf-seg-item"
           aria-pressed={m.value === movement.value}
-          onClick={() => setSel({ movement: m.value })}
+          onClick={() => setSel(isHolds ? { hold: m.value } : { movement: m.value })}
         >
           {m.label}
         </button>
@@ -548,22 +595,32 @@ function MovementsCell({
     </div>
   );
 
+  const bestText = (w: ChartWeek) =>
+    w.best > 0
+      ? isHolds
+        ? `longest ${w.best} s${w.bestVariation ? ` (${w.bestVariation})` : ''}`
+        : `best set ${w.best}`
+      : '';
+
   return (
-    <Cell title="Main movements" sub="Total reps per week" side={chips} wide>
+    <Cell title={title} sub={sub} side={chips} wide>
       <div className="pf-summary">
-        <span className="pf-num">{latest.reps}</span>
+        <span className="pf-num">
+          {latest.total}
+          {unit && <span className="pf-unit">{unit}</span>}
+        </span>
         <span className="pf-summary-note">
-          reps in W{latest.week}
-          {latest.assumed > 0 && ` · ${latest.assumed} assumed`}
-          {latest.best > 0 && ` · best set ${latest.best}`}
+          {isHolds ? 'held' : 'reps'} in W{latest.week}
+          {latest.assumed > 0 && ` · ${fmtV(latest.assumed)} assumed`}
+          {bestText(latest) && ` · ${bestText(latest)}`}
         </span>
       </div>
-      <div className="pf-mv-bars" role="list" aria-label={`${movement.label}: reps per week`}>
+      <div className="pf-mv-bars" role="list" aria-label={`${movement.label}: ${isHolds ? 'hold time' : 'reps'} per week`}>
         {shown.map((wk) => {
           const w = byWeek.get(wk);
           const parts = w
             ? Object.entries(w.variations)
-                .map(([v, n]) => ({ v, n }))
+                .map(([v, n]) => ({ v, n: Number(n) }))
                 .sort((a, b) => (top.includes(a.v) ? top.indexOf(a.v) : 99) - (top.includes(b.v) ? top.indexOf(b.v) : 99))
             : [];
           const current = wk === program?.current_week;
@@ -574,15 +631,15 @@ function MovementsCell({
               role="listitem"
               title={
                 w
-                  ? `Week ${wk}: ${w.reps} reps${w.best ? `, best set ${w.best}` : ''}\n` +
-                    parts.map((p) => `${label(p.v)}: ${p.n}`).join('\n') +
-                    (w.assumed ? `\nAssumed from plan: ${w.assumed}` : '')
-                  : `Week ${wk}: no ${movement.label.toLowerCase()} sets`
+                  ? `Week ${wk}: ${fmtV(w.total)}${isHolds ? ' held' : ' reps'}${bestText(w) ? `, ${bestText(w)}` : ''}\n` +
+                    parts.map((p) => `${label(p.v)}: ${fmtV(p.n)}`).join('\n') +
+                    (w.assumed ? `\nAssumed from plan: ${fmtV(w.assumed)}` : '')
+                  : `Week ${wk}: no ${movement.label.toLowerCase()} ${isHolds ? 'holds' : 'sets'}`
               }
             >
-              <span className="pf-mv-value num">{w ? w.reps : ''}</span>
+              <span className="pf-mv-value num">{w ? fmtV(w.total) : ''}</span>
               <div className="pf-mv-track">
-                <div className="pf-mv-stack" style={{ height: `${((w?.reps ?? 0) / max) * 100}%` }}>
+                <div className="pf-mv-stack" style={{ height: `${((w?.total ?? 0) / max) * 100}%` }}>
                   {parts.map((p) => (
                     <div key={p.v} style={{ flexGrow: p.n, background: colorOf(p.v) }} />
                   ))}
@@ -608,7 +665,7 @@ function MovementsCell({
           </li>
         )}
         {movement.weeks.some((w) => w.assumed > 0) && (
-          <li title="Sets filled from the plan when a block was completed without tapping its sets">
+          <li title="Filled from the plan when a block was completed without confirming its sets">
             <span className="pf-dot8 pf-mv-assumed" />
             Assumed from plan
           </li>
@@ -764,6 +821,14 @@ function Cells({
         setSel={setSel}
         print={print}
       />
+      <MovementsCell
+        mode="holds"
+        holds={data.holds}
+        program={selectedProgram(data, sel)}
+        sel={sel}
+        setSel={setSel}
+        print={print}
+      />
       <WeightedCell data={data.weighted} activeProgram={activeProgramId(data)} sel={sel} setSel={setSel} print={print} />
       <WorldsCell data={data.worlds} />
       <EffortCell data={data.completion} sel={sel} setSel={setSel} print={print} />
@@ -897,6 +962,14 @@ function PrintReport({
                 setSel={noop}
                 print
               />
+              <MovementsCell
+                mode="holds"
+                holds={data.holds}
+                program={selectedProgram(data, sel)}
+                sel={sel}
+                setSel={noop}
+                print
+              />
               {lifts.slice(0, 1).map(liftCell)}
               <WorldsCell data={data.worlds} />
               <EffortCell data={data.completion} sel={sel} setSel={noop} print />
@@ -932,6 +1005,7 @@ export function PerformancePanel({ userId, athleteName }: { userId: string; athl
     completionProgram: null,
     hiddenSlots: [],
     movement: null,
+    hold: null,
   });
   const setSel = (s: Partial<Selection>) => setSelState((prev) => ({ ...prev, ...s }));
   const [composing, setComposing] = useState(false);

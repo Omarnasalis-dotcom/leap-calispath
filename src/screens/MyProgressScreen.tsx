@@ -20,6 +20,7 @@ import {
   CompletionProgram,
   Feel,
   Performance,
+  HOLD_MOVEMENTS,
   REP_MOVEMENTS,
   defaultProgram,
   fmtNum,
@@ -131,6 +132,7 @@ export function MyProgressScreen() {
           <BodyweightCard data={data.bodyweight} c={c} styles={styles} chartColors={chartColors} />
           <BlocksCard program={program} c={c} styles={styles} />
           <MovementsCard data={data} program={program} c={c} styles={styles} />
+          <MovementsCard mode="holds" data={data} program={program} c={c} styles={styles} />
           <LiftsCard data={data} c={c} styles={styles} chartColors={chartColors} positive={positive} />
           <WorldsCard data={data} c={c} styles={styles} chartColors={chartColors} />
           <EffortCard program={program} c={c} styles={styles} chartColors={chartColors} />
@@ -302,11 +304,14 @@ function BlocksCard({ program, c, styles }: { program: CompletionProgram | undef
 
 function MovementsCard({
   data,
+  mode = 'reps',
   program,
   c,
   styles,
 }: {
   data: Performance;
+  /** reps = Main movements, holds = Skill holds (seconds). */
+  mode?: 'reps' | 'holds';
   /** Same program as Workouts completed: bars are its program weeks. */
   program: CompletionProgram | undefined;
   c: TCPalette;
@@ -318,17 +323,44 @@ function MovementsCard({
   const varColors = [c.coral, c.static, c.oneMinMax];
   const otherColor = c.textFaint2;
 
-  const movements = REP_MOVEMENTS.map((key) => ({
-    key,
-    weeks: (data.movements?.find((m) => m.family === key)?.weeks ?? []).filter(
-      (w) => w.program_id === program?.program_id,
-    ),
-  })).filter((m) => m.weeks.length > 0);
+  const isHolds = mode === 'holds';
+  const title = isHolds ? t('progress.holds') : t('progress.movements');
+  const sub = isHolds ? t('progress.holdsSub') : t('progress.movementsSub');
+  // Hold weeks take the reps weeks' shape: total seconds as "reps", the
+  // longest logged hold as "best".
+  const fmtV = (n: number) => (isHolds ? t('progress.secondsShort', { n }) : String(n));
+  const movements = (isHolds
+    ? HOLD_MOVEMENTS.map((key) => ({
+        key: key as (typeof HOLD_MOVEMENTS)[number] | (typeof REP_MOVEMENTS)[number],
+        weeks: (data.holds?.find((m) => m.family === key)?.weeks ?? [])
+          .filter((w) => w.program_id === program?.program_id)
+          .map((w) => ({
+            program_id: w.program_id,
+            week: w.week,
+            reps: Number(w.seconds),
+            assumed: Number(w.assumed),
+            best: Number(w.longest),
+            bestVariation: w.longest_variation,
+            variations: w.variations,
+          })),
+      }))
+    : REP_MOVEMENTS.map((key) => ({
+        key: key as (typeof HOLD_MOVEMENTS)[number] | (typeof REP_MOVEMENTS)[number],
+        weeks: (data.movements?.find((m) => m.family === key)?.weeks ?? [])
+          .filter((w) => w.program_id === program?.program_id)
+          .map((w) => ({ ...w, bestVariation: null as string | null })),
+      }))
+  ).filter((m) => m.weeks.length > 0);
 
   if (movements.length === 0) {
     return (
-      <Card title={t('progress.movements')} sub={t('progress.movementsSub')} styles={styles}>
-        <Empty title={t('progress.movementsEmptyTitle')} body={t('progress.movementsEmptyBody')} styles={styles} c={c} />
+      <Card title={title} sub={sub} styles={styles}>
+        <Empty
+          title={isHolds ? t('progress.holdsEmptyTitle') : t('progress.movementsEmptyTitle')}
+          body={isHolds ? t('progress.holdsEmptyBody') : t('progress.movementsEmptyBody')}
+          styles={styles}
+          c={c}
+        />
       </Card>
     );
   }
@@ -337,7 +369,7 @@ function MovementsCard({
   const weeks = movementWeeks(movement.weeks, program?.current_week ?? 1);
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
-    Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + n)),
+    Object.entries(w.variations).forEach(([v, n]) => totals.set(v, (totals.get(v) ?? 0) + Number(n))),
   );
   const named = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([v]) => v);
   const top = named.slice(0, varColors.length);
@@ -348,7 +380,7 @@ function MovementsCard({
   const selWeek = weekSel && byWeek.get(weekSel);
 
   return (
-    <Card title={t('progress.movements')} sub={t('progress.movementsSub')} styles={styles}>
+    <Card title={title} sub={sub} styles={styles}>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
         {movements.map((m) => {
           const on = m.key === movement.key;
@@ -370,10 +402,21 @@ function MovementsCard({
       </ScrollView>
       <Figure
         value={String(latest.reps)}
+        unit={isHolds ? t('progress.secondsUnit') : undefined}
         note={[
-          t('progress.movementsRepsIn', { week: latest.week }),
-          latest.assumed > 0 ? t('progress.movementsAssumed', { count: latest.assumed }) : null,
-          latest.best > 0 ? t('progress.movementsBest', { best: latest.best }) : null,
+          isHolds ? t('progress.holdsHeldIn', { week: latest.week }) : t('progress.movementsRepsIn', { week: latest.week }),
+          latest.assumed > 0
+            ? isHolds
+              ? t('progress.holdsAssumed', { n: latest.assumed })
+              : t('progress.movementsAssumed', { count: latest.assumed })
+            : null,
+          latest.best > 0
+            ? isHolds
+              ? latest.bestVariation
+                ? t('progress.holdsLongestVar', { n: latest.best, variation: latest.bestVariation })
+                : t('progress.holdsLongest', { n: latest.best })
+              : t('progress.movementsBest', { best: latest.best })
+            : null,
         ]
           .filter(Boolean)
           .join(' · ')}
@@ -383,9 +426,15 @@ function MovementsCard({
         {selWeek ? (
           <Text style={styles.mvReadoutText}>
             {[
-              t('progress.movementsWeekReps', { week: weekSel, reps: selWeek.reps }),
-              ...Object.entries(selWeek.variations).map(([v, n]) => `${label(v)} ${n}`),
-              selWeek.assumed > 0 ? t('progress.movementsAssumed', { count: selWeek.assumed }) : null,
+              isHolds
+                ? t('progress.holdsWeek', { week: weekSel, n: selWeek.reps })
+                : t('progress.movementsWeekReps', { week: weekSel, reps: selWeek.reps }),
+              ...Object.entries(selWeek.variations).map(([v, n]) => `${label(v)} ${fmtV(Number(n))}`),
+              selWeek.assumed > 0
+                ? isHolds
+                  ? t('progress.holdsAssumed', { n: selWeek.assumed })
+                  : t('progress.movementsAssumed', { count: selWeek.assumed })
+                : null,
             ]
               .filter(Boolean)
               .join(' · ')}
@@ -408,11 +457,15 @@ function MovementsCard({
               onPress={() => setWeekSel(on ? null : wk)}
               accessibilityRole="button"
               accessibilityLabel={
-                w ? t('progress.movementsWeekReps', { week: wk, reps: w.reps }) : t('progress.weekLong', { n: wk })
+                w
+                  ? isHolds
+                    ? t('progress.holdsWeek', { week: wk, n: w.reps })
+                    : t('progress.movementsWeekReps', { week: wk, reps: w.reps })
+                  : t('progress.weekLong', { n: wk })
               }
             >
               <Text style={[styles.mvValue, (on || wk === program?.current_week) && { color: c.coral }]}>
-                {w ? w.reps : ''}
+                {w ? fmtV(w.reps) : ''}
               </Text>
               <View style={styles.mvTrack}>
                 <View style={[styles.mvStack, { height: `${((w?.reps ?? 0) / max) * 100}%` }, on && styles.mvStackOn]}>

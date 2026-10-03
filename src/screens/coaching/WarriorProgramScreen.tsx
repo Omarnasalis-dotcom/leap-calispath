@@ -26,7 +26,7 @@ import { BlockConceptParser, ConceptMetadata } from '../../lib/BlockConceptParse
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { WarriorExerciseRow } from '../../components/coaching/WarriorExerciseRow';
 import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
-import { WarriorLogModal } from '../../components/coaching/WarriorLogModal';
+import { LogBlockSheet, SheetCard, SheetKind } from '../../components/coaching/LogBlockSheet';
 import { useWarriorTimer } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
@@ -270,50 +270,107 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const topSetWeightsByExercise = (blockId: string | number): Record<string, string> =>
     Object.fromEntries(weightedExercisesOf(blockId).map(ex => [String(ex.id), topSetWeight(blockId, ex.id)]));
 
-  // "Complete" check: exercises of the block with planned work where fewer
-  // sets were ticked than planned (none, or some). The log modal confirms
-  // what was done — ticked exercises default to their ticked count,
-  // untouched ones to the full plan; the answer becomes real set rows
-  // (buildSetsPayload). Only an exercise with every planned set ticked
-  // skips the question. Blocks nobody confirmed (older app versions) fall
-  // back to the server's planned fill (20261003030000).
-  const [plannedAll, setPlannedAll] = useState(true);
-  const [plannedDone, setPlannedDoneState] = useState<Record<string, number>>({});
-  const setPlannedDone = (exerciseId: string, n: number) =>
-    setPlannedDoneState(prev => ({ ...prev, [exerciseId]: n }));
+  // ---------- Log Block sheet (design_handoff_log_workout_sheet) ----------
+  // Per-exercise choices made in the sheet. Only overrides are stored; the
+  // defaults come from sheetModel (ticked count / full plan, heaviest ticked
+  // kg, planned hold).
+  const [sheetCounts, setSheetCounts] = useState<Record<string, number>>({});
+  const [sheetTouched, setSheetTouched] = useState<Record<string, boolean>>({});
+  const [sheetTopKg, setSheetTopKg] = useState<Record<string, number>>({});
+  const [sheetHoldSecs, setSheetHoldSecs] = useState<Record<string, number>>({});
+  const [sheetAmrap, setSheetAmrap] = useState({ rounds: 0, reps: 0 });
+  const [sheetForTime, setSheetForTime] = useState({ min: 0, sec: 0, cap: false });
+  const [sheetCapText, setSheetCapText] = useState<string | null>(null);
+  const [sheetNoteOpen, setSheetNoteOpen] = useState(false);
+  const [sheetPhase, setSheetPhase] = useState<'form' | 'saving' | 'saved'>('form');
+  const [sheetError, setSheetError] = useState<string | null>(null);
+  const [sheetSummary, setSheetSummary] = useState('');
+  // Ladder: the rung tapped in the inline logger (null = none tapped, the
+  // sheet then asks) plus its extra reps and the logger's result text.
+  const [sheetLadder, setSheetLadder] = useState<{ index: number | null; extra: number; summary: string }>({
+    index: null,
+    extra: 0,
+    summary: '',
+  });
 
-  const unfinishedExercises = (blockId: string | number) => {
-    const entered = blockSetEntries(blockId);
-    const block = days.flatMap(d => d.blocks).find(b => b.id === blockId);
-    // Circuits and supersets are done in rounds — every exercise once per
-    // round — so the plan per exercise is the block's round count, not the
-    // exercise's own sets field (often 1 there). Mirrors WarriorBlockCard.
-    const structure = block?.metadata?.structure || block?.metadata?.type;
-    const rounds =
-      structure === 'circuit' || structure === 'superset'
-        ? Math.max(1, parseInt(String(block?.metadata?.rounds || '1'), 10) || 1)
-        : null;
-    return (block?.exercises || [])
-      .map(ex => {
-        const reps = parseInt(String(ex.reps ?? ''), 10);
-        const hold = parseInt(String(ex.hold_seconds ?? ''), 10);
-        const done = entered[String(ex.id)] || [];
-        return {
-          id: String(ex.id),
-          name: ex.name,
-          sets: rounds ?? Math.max(1, parseInt(String(ex.sets ?? '1'), 10) || 1),
-          /** Sets already ticked (the stepper can't go below this). */
-          ticked: done.length,
-          /** Shown in the modal so a wrong tick can be spotted. */
-          tickedSets: [...done]
-            .sort((a, b) => a.setIndex - b.setIndex)
-            .map(d => ({ setIndex: d.setIndex, reps: d.reps, weight: d.weight ?? null })),
-          usedIndexes: done.map(d => d.setIndex),
-          reps: Number.isNaN(reps) || reps <= 0 ? null : reps,
-          hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
-        };
-      })
-      .filter(ex => (ex.reps !== null || ex.hold !== null) && ex.ticked < ex.sets);
+  /** Block type, round structure and one card per exercise (or one card for
+   * a circuit/superset's rounds), mirroring WarriorBlockCard's rules. */
+  const sheetModel = (blockId: string | number | null) => {
+    const block = blockId == null ? undefined : days.flatMap(d => d.blocks).find(b => b.id === blockId);
+    const meta = block?.metadata || {};
+    const timing = meta.timing_system;
+    const structure = meta.structure || meta.type;
+    const isLadder = structure === 'ladder';
+    const kind: SheetKind =
+      isLadder ? 'ladder'
+      : timing === 'amrap' || meta.type === 'amrap' ? 'amrap'
+      : timing === 'fortime' || meta.type === 'fortime' ? 'fortime'
+      : timing === 'tabata' ? 'timer'
+      : 'sets';
+    const isRounds = structure === 'circuit' || structure === 'superset';
+    const entered = blockId == null ? {} : blockSetEntries(blockId);
+    const exercises = (block?.exercises || []).map(ex => {
+      const reps = parseInt(String(ex.reps ?? ''), 10);
+      const hold = parseInt(String(ex.hold_seconds ?? ''), 10);
+      return {
+        ex,
+        id: String(ex.id),
+        reps: Number.isNaN(reps) || reps <= 0 ? null : reps,
+        hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
+        done: entered[String(ex.id)] || [],
+      };
+    }).filter(e => e.reps !== null || e.hold !== null);
+
+    let cards: SheetCard[] = [];
+    if (kind === 'sets' && isRounds && exercises.length > 0) {
+      const rounds = Math.max(1, parseInt(String(meta.rounds || '1'), 10) || 1);
+      let ticked = 0;
+      while (ticked < rounds && exercises.every(e => e.done.some(d => d.setIndex === ticked + 1))) ticked++;
+      cards = [{
+        id: 'rounds',
+        name: exercises.map(e => e.ex.name).join(' · '),
+        plan: rounds,
+        ticked,
+        repsLabel: null,
+        weighted: false,
+        hold: false,
+      }];
+    } else if (kind === 'sets') {
+      cards = exercises.map(e => ({
+        id: e.id,
+        name: e.ex.name,
+        plan: Math.max(1, parseInt(String(e.ex.sets ?? '1'), 10) || 1),
+        ticked: e.done.length,
+        repsLabel: e.reps !== null ? t('logSheet.repsShort', { n: e.reps }) : null,
+        weighted: !!e.ex.is_weighted && e.hold === null,
+        hold: e.hold !== null,
+      }));
+    }
+    // Ladder: one card, one tile per rung (e.g. 10 · 8 · 6 · 4). Default =
+    // the rung tapped in the logger, or the full ladder if none was.
+    const rungs = kind === 'ladder' ? BlockConceptParser.getLadderRungs(meta) : [];
+    if (kind === 'ladder' && rungs.length > 0) {
+      cards = [{
+        id: 'ladder',
+        name: (block?.exercises || []).map(ex => ex.name).join(' · '),
+        plan: rungs.length,
+        ticked: 0,
+        repsLabel: null,
+        weighted: false,
+        hold: false,
+        tileLabels: rungs.map(r => String(r)),
+        defaultCount: sheetLadder.index !== null ? sheetLadder.index + 1 : rungs.length,
+      }];
+    }
+    const topKgDefault: Record<string, number> = {};
+    const holdDefault: Record<string, number> = {};
+    exercises.forEach(e => {
+      const typed = Math.max(0, ...e.done.map(d => d.weight ?? 0));
+      const popup = parseKg(logExerciseWeights[e.id] ?? '') ?? (weightedExercisesOf(blockId ?? '').length === 1 ? parseKg(logWeightUsed) : undefined);
+      topKgDefault[e.id] = typed > 0 ? typed : popup && popup > 0 ? popup : 0;
+      if (e.hold !== null) holdDefault[e.id] = e.hold;
+    });
+    return { block, kind, isRounds, cards, exercises, topKgDefault, holdDefault, rungs };
   };
 
   // Survive the app being killed mid-workout (audit 2026-09-25, L15): set
@@ -1079,6 +1136,35 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // Reverses handleLogWorkout/quickLogWorkout's finalNotes composition — pulls
   // the AMRAP/FOR TIME/ladder/weight '[LOG] ...' lines back out of a saved
   // notes string so "EDIT LOG" can restore them instead of opening blank.
+  useEffect(() => {
+    if (!logModalVisible) {
+      setSheetLadder({ index: null, extra: 0, summary: '' });
+      return;
+    }
+    setSheetCounts({});
+    setSheetTouched({});
+    setSheetTopKg({});
+    setSheetHoldSecs({});
+    setSheetPhase('form');
+    setSheetError(null);
+    // AMRAP: "5" from a timer, or "5 + 4" / "5 Rounds + 4 Reps" from a saved log.
+    const am = (logAmrapRounds || '').match(/(\d+)\D*?(?:\+\s*(\d+))?/);
+    setSheetAmrap({ rounds: am ? parseInt(am[1], 10) : 0, reps: am && am[2] ? parseInt(am[2], 10) : 0 });
+    // For Time: "14:32", or the timer's "time cap reached" text.
+    const ft = (logForTimeDuration || '').match(/^(\d+):(\d{1,2})$/);
+    if (ft) {
+      setSheetForTime({ min: parseInt(ft[1], 10), sec: parseInt(ft[2], 10), cap: false });
+      setSheetCapText(null);
+    } else {
+      setSheetForTime({ min: 0, sec: 0, cap: !!logForTimeDuration });
+      setSheetCapText(logForTimeDuration || null);
+    }
+    // One note: the skipped "any details?" field is merged into it.
+    if (!logNotes && logMissedDetail) setLogNotes(logMissedDetail);
+    setSheetNoteOpen(!!(logNotes || logMissedDetail));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [logModalVisible]);
+
   const parseLoggedNotes = (notes: string) => {
     let amrapRounds = '';
     let forTimeDuration = '';
@@ -1114,8 +1200,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const handleOpenLogModal = (blockId: string | number, initialStatus?: 'completed' | 'missed') => {
     if (isBlockLocked(blockId) && initialStatus !== 'missed') return;
     setActiveLogBlockId(blockId);
-    setPlannedAll(true);
-    setPlannedDoneState({});
     setLogRating(5);
 
     const existing = loggedDetails[blockId];
@@ -1179,8 +1263,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // Fired when the inline ladder logger (rendered inside the block card)
   // finalizes an attempt — opens the log modal pre-filled with the ladder
   // progress summary so the warrior can still add feel/RPE before submitting.
-  const handleLadderFinalize = (blockId: string | number, summary: string) => {
+  const handleLadderFinalize = (blockId: string | number, summary: string, rungIndex: number | null = null, extraReps = 0) => {
     if (isBlockLocked(blockId)) return;
+    setSheetLadder({ index: rungIndex, extra: extraReps, summary });
     setActiveLogBlockId(blockId);
     setLogNotes('');
     setLogStatus('completed');
@@ -1269,11 +1354,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // popupWeights: the log modal's kg per weighted exercise id. For an
   // exercise with no logged set, it becomes one real set (reps from the
   // plan), so it reaches the charts instead of living in notes text alone.
-  const buildSetsPayload = (
-    blockId: string | number,
-    popupWeights?: Record<string, string>,
-    confirmed?: { all: boolean; done: Record<string, number> },
-  ) => {
+  const buildSetsPayload = (blockId: string | number, fromSheet: boolean) => {
     const sets: { block_exercise_id: string | number | null; set_index: number; reps_completed: number | null; weight_used: number | null; hold_seconds: number | null }[] = [];
 
     const exerciseSets = blockSetEntries(blockId);
@@ -1282,43 +1363,77 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         sets.push({
           block_exercise_id: exerciseId,
           set_index: entry.setIndex,
-          reps_completed: entry.reps,
+          reps_completed: entry.hold != null ? null : entry.reps,
           weight_used: entry.weight ?? null,
-          hold_seconds: null,
+          hold_seconds: entry.hold ?? null,
         });
       });
     });
 
-    // Completed block: every exercise with fewer sets ticked than planned
-    // gets the rest the athlete confirmed in the modal ("all as planned",
-    // or a total per exercise), at the planned reps / hold, with the
-    // modal's kg if given, in the set numbers not already used. An
-    // untouched exercise confirmed at 0 is saved as one 0-rep row, so the
-    // server doesn't fill in the plan for it.
-    if (confirmed) {
-      unfinishedExercises(blockId).forEach(ex => {
-        const kg = parseKg(popupWeights?.[ex.id] ?? '') ?? null;
-        // Default = what was ticked; an untouched exercise defaults to the
-        // full plan. "Adjust" overrides per exercise (never below ticked).
-        const def = ex.ticked > 0 ? ex.ticked : ex.sets;
-        const total = confirmed.all
-          ? def
-          : Math.max(ex.ticked, Math.min(ex.sets, confirmed.done[ex.id] ?? def));
-        if (total === 0) {
-          sets.push({ block_exercise_id: ex.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
-          return;
-        }
-        const freeIndexes = Array.from({ length: ex.sets }, (_, i) => i + 1).filter(i => !ex.usedIndexes.includes(i));
-        freeIndexes.slice(0, total - ex.ticked).forEach(setIndex => {
-          sets.push({
-            block_exercise_id: ex.id,
-            set_index: setIndex,
-            reps_completed: ex.hold !== null ? null : ex.reps,
-            weight_used: kg && kg > 0 ? kg : null,
-            hold_seconds: ex.hold,
-          });
+    // Completed sets-type block: the sheet's per-exercise counts become real
+    // set rows — sets added beyond the ticked ones at the planned reps (or
+    // the Hold stepper's seconds) with the Top set kg; ticked rows are never
+    // changed. An untouched exercise set to 0 is saved as one 0-rep row so
+    // the server doesn't fill in the plan for it.
+    if (fromSheet) {
+      const m = sheetModel(blockId);
+      // Ladder: each exercise gets one row per rung reached, at that rung's
+      // reps (+ the extra reps on the next rung, when the logger's rung was
+      // kept), so a ladder counts as logged work, not assumed.
+      if (m.kind === 'ladder' && m.cards[0]) {
+        const card = m.cards[0];
+        const n = sheetCounts[card.id] ?? card.defaultCount ?? card.plan;
+        const extra = sheetLadder.index !== null && n === sheetLadder.index + 1 ? sheetLadder.extra : 0;
+        (days.flatMap(d => d.blocks).find(b => b.id === blockId)?.exercises || []).forEach(ex => {
+          if (n === 0) {
+            sets.push({ block_exercise_id: ex.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
+            return;
+          }
+          m.rungs.slice(0, n).forEach((reps, i) =>
+            sets.push({ block_exercise_id: ex.id, set_index: i + 1, reps_completed: reps, weight_used: null, hold_seconds: null }),
+          );
+          if (extra > 0) {
+            sets.push({ block_exercise_id: ex.id, set_index: n + 1, reps_completed: extra, weight_used: null, hold_seconds: null });
+          }
         });
-      });
+      }
+      if (m.kind === 'sets') {
+        const add = (exId: string, setIndex: number, reps: number | null, hold: number | null, kg: number) =>
+          sets.push({
+            block_exercise_id: exId,
+            set_index: setIndex,
+            reps_completed: hold !== null ? null : reps,
+            weight_used: kg > 0 ? kg : null,
+            hold_seconds: hold,
+          });
+        if (m.isRounds && m.cards[0]) {
+          const card = m.cards[0];
+          const n = sheetCounts[card.id] ?? (card.ticked > 0 ? card.ticked : card.plan);
+          m.exercises.forEach(e => {
+            if (n === 0 && e.done.length === 0) {
+              sets.push({ block_exercise_id: e.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
+              return;
+            }
+            for (let r = 1; r <= n; r++) {
+              if (!e.done.some(d => d.setIndex === r)) add(e.id, r, e.reps, e.hold, 0);
+            }
+          });
+        } else {
+          m.cards.forEach(card => {
+            const e = m.exercises.find(x => x.id === card.id)!;
+            const n = sheetCounts[card.id] ?? (card.ticked > 0 ? card.ticked : card.plan);
+            if (n === 0 && card.ticked === 0) {
+              sets.push({ block_exercise_id: card.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
+              return;
+            }
+            const used = e.done.map(d => d.setIndex);
+            const free = Array.from({ length: card.plan }, (_, i) => i + 1).filter(i => !used.includes(i));
+            const kg = card.weighted ? sheetTopKg[card.id] ?? m.topKgDefault[card.id] ?? 0 : 0;
+            const hold = card.hold ? sheetHoldSecs[card.id] ?? m.holdDefault[card.id] ?? e.hold : null;
+            free.slice(0, Math.max(0, n - card.ticked)).forEach(i => add(card.id, i, e.reps, hold, kg));
+          });
+        }
+      }
     }
 
     pendingHoldTimes.forEach((seconds, i) => {
@@ -1336,28 +1451,48 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   const handleLogWorkout = async () => {
     if (!activeLogBlockId || !templateId) return;
+    const blockId = activeLogBlockId;
+    const done = logStatus === 'completed';
+    const m = sheetModel(blockId);
 
     setLogLoading(true);
+    setSheetPhase('saving');
+    setSheetError(null);
     try {
+      // Notes keep the "[LOG] …" lines that coach views and re-opening
+      // read back (parseLoggedNotes); the sheet's inputs are numbers now.
       let finalNotes = '';
-      if (logAmrapRounds) finalNotes += `[LOG] Completed: ${logAmrapRounds} Rounds/Reps\n`;
-      if (logForTimeDuration) finalNotes += `[LOG] Finished in: ${logForTimeDuration}\n`;
-      if (logLadderProgress) finalNotes += `[LOG] Ladder Progress: ${logLadderProgress}\n`;
-      // 2+ weighted exercises: the modal shows one kg per exercise, and the
-      // single notes line (read back by parseLoggedNotes) carries the top one.
-      const weighted = weightedExercisesOf(activeLogBlockId);
-      const multiWeights = weighted.length >= 2;
-      const popupWeights: Record<string, string> = multiWeights
-        ? logExerciseWeights
-        : weighted.length === 1 ? { [String(weighted[0].id)]: logWeightUsed } : {};
-      const notesWeight = multiWeights
-        ? (() => {
-            const top = Math.max(0, ...Object.values(logExerciseWeights).map(v => parseKg(v) ?? 0));
-            return top > 0 ? String(top) : '';
-          })()
-        : logWeightUsed;
-      if (notesWeight) finalNotes += `[LOG] Weight Used: ${notesWeight} KG\n`;
-      if (logNotes) finalNotes += logNotes;
+      if (done && m.kind === 'amrap') {
+        const v = sheetAmrap.reps > 0 ? `${sheetAmrap.rounds} + ${sheetAmrap.reps}` : `${sheetAmrap.rounds}`;
+        finalNotes += `[LOG] Completed: ${v} Rounds/Reps\n`;
+      }
+      if (done && m.kind === 'fortime') {
+        const time = sheetForTime.cap
+          ? sheetCapText || t('logSheet.capReachedNote')
+          : `${sheetForTime.min}:${String(sheetForTime.sec).padStart(2, '0')}`;
+        finalNotes += `[LOG] Finished in: ${time}\n`;
+      }
+      let ladderText = '';
+      if (done && m.kind === 'ladder' && m.cards[0]) {
+        const n = sheetCounts['ladder'] ?? m.cards[0].defaultCount ?? m.cards[0].plan;
+        ladderText =
+          n === 0
+            ? t('logSheet.ladderNone')
+            : sheetLadder.index !== null && n === sheetLadder.index + 1 && sheetLadder.summary
+              ? sheetLadder.summary
+              : t('timers.rungReached', { reps: m.rungs[n - 1] });
+      } else if (done && logLadderProgress) {
+        ladderText = logLadderProgress;
+      }
+      if (ladderText) finalNotes += `[LOG] Ladder Progress: ${ladderText}\n`;
+      if (done) {
+        const topKg = Math.max(
+          0,
+          ...m.cards.filter(c => c.weighted).map(c => sheetTopKg[c.id] ?? m.topKgDefault[c.id] ?? 0),
+        );
+        if (topKg > 0) finalNotes += `[LOG] Weight Used: ${topKg} KG\n`;
+        if (logNotes.trim()) finalNotes += logNotes.trim();
+      }
       finalNotes = finalNotes.trim();
 
       const controller = new AbortController();
@@ -1366,71 +1501,92 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       const { data: logResult, error } = await supabase.rpc('log_block_with_sets', {
         p_warrior_id: warriorId,
         p_warrior_program_id: warriorProgramId,
-        p_block_id: activeLogBlockId,
+        p_block_id: blockId,
         p_status: logStatus,
-        p_feel: logStatus === 'completed' ? logFeel : null,
-        p_rpe: logStatus === 'completed' ? logRpe : null,
-        p_missed_reason: logStatus === 'missed' ? logMissedReason : null,
-        p_missed_detail: logStatus === 'missed' ? logMissedDetail : null,
+        p_feel: done ? logFeel : null,
+        p_rpe: done ? logRpe : null,
+        p_missed_reason: done ? null : logMissedReason,
+        // The sheet has one note; for a skip it's the missed detail.
+        p_missed_detail: done ? null : logNotes.trim() || null,
         p_notes: finalNotes,
         p_session_seconds: null,
-        p_start_of_today: replaceLogsSince(activeLogBlockId),
-        p_sets: buildSetsPayload(
-          activeLogBlockId,
-          logStatus === 'completed' ? popupWeights : undefined,
-          logStatus === 'completed' ? { all: plannedAll, done: plannedDone } : undefined,
-        ),
+        p_start_of_today: replaceLogsSince(blockId),
+        p_sets: done ? buildSetsPayload(blockId, true) : [],
       }).abortSignal(controller.signal);
 
       clearTimeout(timeoutId);
 
       if (error) {
         if (error.message?.toLowerCase().includes('abort')) {
-          throw new Error('Network request timed out. Please check your connection.');
+          throw new Error(t('logSheet.timeout'));
         }
         throw error;
       }
 
-      if ((logStatus === 'completed' || logStatus === 'missed') && logResult?.workout_log_id) {
+      if (logResult?.workout_log_id) {
         NotificationService.notifyCoachWorkoutLogged(logResult.workout_log_id);
       }
 
-      setLogModalVisible(false);
-      setSessionTotalReps(prev => prev + sumBlockReps(activeLogBlockId));
+      // Saved-state summary, e.g. "6/8 sets · Strong · RPE 7".
+      const parts: string[] = [];
+      if (done) {
+        if (m.kind === 'ladder' && m.cards[0]) {
+          const n = sheetCounts['ladder'] ?? m.cards[0].defaultCount ?? m.cards[0].plan;
+          parts.push(t('logSheet.summaryLadder', { done: n, plan: m.cards[0].plan }));
+        } else if (m.kind === 'sets' && m.cards.length) {
+          const total = m.cards.reduce((sum, c) => sum + (sheetCounts[c.id] ?? (c.ticked > 0 ? c.ticked : c.plan)), 0);
+          const plan = m.cards.reduce((sum, c) => sum + c.plan, 0);
+          parts.push(t(m.isRounds ? 'logSheet.summaryRounds' : 'logSheet.summarySets', { done: total, plan }));
+        } else if (m.kind === 'amrap') {
+          parts.push(t('logSheet.summaryAmrap', { rounds: sheetAmrap.rounds, reps: sheetAmrap.reps }));
+        } else if (m.kind === 'fortime') {
+          parts.push(
+            sheetForTime.cap
+              ? t('logSheet.summaryCap')
+              : t('logSheet.summaryTime', { time: `${sheetForTime.min}:${String(sheetForTime.sec).padStart(2, '0')}` }),
+          );
+        }
+        if (logFeel) parts.push(t(`logModal.feel_${logFeel}`));
+        if (logRpe) parts.push(`RPE ${logRpe}`);
+      } else if (logMissedReason) {
+        parts.push(t('logSheet.summaryMissed', { reason: t(`logModal.missed_${logMissedReason}`) }));
+      }
+      setSheetSummary(parts.join(' · '));
+      setSheetPhase('saved');
+
+      setSessionTotalReps(prev => prev + sumBlockReps(blockId));
       setBlockSetProgress(prev => {
         const next = { ...prev };
-        delete next[activeLogBlockId];
+        delete next[blockId];
         return next;
       });
       setBlockSetDrafts(prev => {
         const next = { ...prev };
-        delete next[activeLogBlockId];
+        delete next[blockId];
         return next;
       });
       setPendingHoldTimes([]);
       // Collapse the just-logged block so the next unlocked block is easy to open.
-      setExpandedBlocks(prev => ({ ...prev, [activeLogBlockId]: false }));
+      setExpandedBlocks(prev => ({ ...prev, [blockId]: false }));
 
-      // Optimistically update UI
       const nextStatus = logStatus;
-      const updateBlockInDays = (dayList: ProgramDay[]) => {
-        return dayList.map(d => ({
-          ...d,
-          blocks: d.blocks.map(b => b.id === activeLogBlockId ? { ...b, completedStatus: nextStatus } : b)
-        }));
-      };
-
       setWeeksData(prev => {
         const next = { ...prev };
         if (next[activeWeek]) {
-          next[activeWeek] = updateBlockInDays(next[activeWeek]);
+          next[activeWeek] = next[activeWeek].map(d => ({
+            ...d,
+            blocks: d.blocks.map(b => (b.id === blockId ? { ...b, completedStatus: nextStatus } : b)),
+          }));
         }
         return next;
       });
 
+      // Saved state shows briefly, then the sheet closes on its own.
+      setTimeout(() => setLogModalVisible(false), 1200);
     } catch (err: any) {
-      Alert.alert(t('workout.error'), localizedErrorText(err, t('workout.logFailed')));
-      await loadWarriorProgram();
+      // Keep the sheet open with everything entered; retry from the button.
+      setSheetError(localizedErrorText(err, t('logSheet.saveFailed')));
+      setSheetPhase('form');
     } finally {
       setLogLoading(false);
     }
@@ -1523,7 +1679,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           p_notes: finalNotes.trim(),
           p_session_seconds: null,
           p_start_of_today: replaceLogsSince(blockId),
-          p_sets: buildSetsPayload(blockId),
+          p_sets: buildSetsPayload(blockId, false),
         }),
         timeoutPromise
       ]) as any;
@@ -1951,45 +2107,60 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       />
 
       {/* LOG DETAILS MODAL */}
-      <WarriorLogModal
-        logModalVisible={logModalVisible}
-        setLogModalVisible={setLogModalVisible}
-        theme={theme}
-        bronzeGold={bronzeGold}
-        logStatus={logStatus}
-        setLogStatus={setLogStatus}
-        days={days}
-        activeLogBlockId={activeLogBlockId}
-        logAmrapRounds={logAmrapRounds}
-        setLogAmrapRounds={setLogAmrapRounds}
-        logForTimeDuration={logForTimeDuration}
-        setLogForTimeDuration={setLogForTimeDuration}
-        logWeightUsed={logWeightUsed}
-        setLogWeightUsed={setLogWeightUsed}
-        logExerciseWeights={logExerciseWeights}
-        setLogExerciseWeight={setLogExerciseWeight}
-        plannedExercises={activeLogBlockId ? unfinishedExercises(activeLogBlockId) : []}
-        plannedAll={plannedAll}
-        setPlannedAll={setPlannedAll}
-        plannedDone={plannedDone}
-        setPlannedDone={setPlannedDone}
-        logLadderProgress={logLadderProgress}
-        setLogLadderProgress={setLogLadderProgress}
-        logRating={logRating}
-        setLogRating={setLogRating}
-        logNotes={logNotes}
-        setLogNotes={setLogNotes}
-        handleLogWorkout={handleLogWorkout}
-        logLoading={logLoading}
-        logFeel={logFeel}
-        setLogFeel={setLogFeel}
-        logRpe={logRpe}
-        setLogRpe={setLogRpe}
-        logMissedReason={logMissedReason}
-        setLogMissedReason={setLogMissedReason}
-        logMissedDetail={logMissedDetail}
-        setLogMissedDetail={setLogMissedDetail}
-      />
+      {(() => {
+        const m = sheetModel(activeLogBlockId);
+        return (
+          <LogBlockSheet
+            visible={logModalVisible}
+            onClose={() => {
+              if (sheetPhase !== 'saving') setLogModalVisible(false);
+            }}
+            blockName={m.block?.name ?? ''}
+            kind={m.kind}
+            isRounds={m.isRounds}
+            status={logStatus}
+            setStatus={(st) => {
+              setLogStatus(st);
+              setSheetError(null);
+            }}
+            cards={m.cards}
+            counts={sheetCounts}
+            setCount={(id, n) => {
+              setSheetCounts(prev => ({ ...prev, [id]: n }));
+              setSheetTouched(prev => ({ ...prev, [id]: true }));
+            }}
+            touched={sheetTouched}
+            topKg={{ ...m.topKgDefault, ...sheetTopKg }}
+            setTopKg={(id, kg) => setSheetTopKg(prev => ({ ...prev, [id]: kg }))}
+            holdSecs={{ ...m.holdDefault, ...sheetHoldSecs }}
+            setHoldSecs={(id, sec) => setSheetHoldSecs(prev => ({ ...prev, [id]: sec }))}
+            amrap={{
+              ...sheetAmrap,
+              capLabel: m.block?.metadata?.time_cap_min || m.block?.metadata?.timer_seconds
+                ? t('logSheet.minutesShort', { n: m.block?.metadata?.time_cap_min || m.block?.metadata?.timer_seconds })
+                : null,
+            }}
+            setAmrap={setSheetAmrap}
+            forTime={sheetForTime}
+            setForTime={setSheetForTime}
+            ladder={{ result: logLadderProgress || null }}
+            feel={logFeel}
+            setFeel={(f) => setLogFeel(f as Feel)}
+            rpe={logRpe}
+            setRpe={(n) => setLogRpe(n as number)}
+            reason={logMissedReason}
+            setReason={setLogMissedReason}
+            note={logNotes}
+            setNote={setLogNotes}
+            noteOpen={sheetNoteOpen}
+            setNoteOpen={setSheetNoteOpen}
+            phase={sheetPhase}
+            error={sheetError}
+            onSubmit={handleLogWorkout}
+            savedSummary={sheetSummary}
+          />
+        );
+      })()}
 
       {/* VISUAL TIMER MODAL */}
       {activeTimerBlock && (

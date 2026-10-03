@@ -65,8 +65,22 @@ export const REP_MOVEMENTS = [
 ] as const;
 export type RepMovement = (typeof REP_MOVEMENTS)[number];
 
+/** Skill holds, in display order. */
+export const HOLD_MOVEMENTS = ['front_lever', 'handstand', 'planche', 'back_lever'] as const;
+
+export interface HoldWeek {
+  program_id: string;
+  week: number;
+  seconds: number; // logged + assumed
+  assumed: number; // filled from the plan
+  longest: number; // longest single logged hold
+  longest_variation: string | null;
+  variations: Record<string, number>; // logged seconds per variation
+}
+
 export interface Performance {
   movements?: { family: string; weeks: MovementWeek[] }[];
+  holds?: { family: string; weeks: HoldWeek[] }[];
   weighted: WeightedMovement[];
   bodyweight: { date: string; weight_kg: number }[];
   completion: CompletionProgram[];
