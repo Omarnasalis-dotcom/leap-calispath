@@ -17,6 +17,13 @@ interface AmrapInlineTimerProps {
   exercises: AmrapExercise[];
   timeCapSeconds: number;
   onFinalize: (roundsCompleted: number) => void;
+  /** The block card's slide-to-Complete calls this instead of a button in
+   * here; returns false when there's nothing to hand over yet (the log
+   * sheet then asks). */
+  finalizeRef?: React.MutableRefObject<(() => boolean) | null>;
+  /** Hide this logger's own log button (the card's Complete replaces it). */
+  hideLogButton?: boolean;
+
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
   // Reports whether this timer currently holds unsaved progress (running,
@@ -31,6 +38,8 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   exercises,
   timeCapSeconds,
   onFinalize,
+  finalizeRef,
+  hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
   onActiveChange,
@@ -172,6 +181,15 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
     submit();
   };
 
+  if (finalizeRef) {
+    finalizeRef.current = () => {
+      // Nothing counted and the timer never ran: let the sheet ask.
+      if (roundsCompleted === 0 && !timerRunning) return false;
+      handleFinalize();
+      return true;
+    };
+  }
+
   return (
     <View style={{ gap: 10 }}>
       <LinearGradient
@@ -272,6 +290,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
         </View>
       </LinearGradient>
 
+      {!hideLogButton && (
       <TouchableOpacity onPress={handleFinalize}>
         <LinearGradient
           colors={['#7E57C2', '#FF5252', '#FF7043']}
@@ -284,6 +303,7 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
           </Text>
         </LinearGradient>
       </TouchableOpacity>
+      )}
     </View>
   );
 };

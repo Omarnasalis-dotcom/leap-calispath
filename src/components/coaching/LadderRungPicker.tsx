@@ -19,7 +19,14 @@ interface LadderRungPickerProps {
   // renders its own rest timer + "LOG BLOCK" button so it can be embedded
   // directly in the block card instead of only inside the log modal.
   restSeconds?: number;
-  onFinalize?: (summary: string) => void;
+  /** rungIndex is null when no rung was tapped — the log sheet then asks. */
+  onFinalize?: (summary: string, rungIndex: number | null, extraReps: number) => void;
+  /** The block card's slide-to-Complete calls this instead of a button in
+   * here; returns false when there's nothing to hand over yet (the log
+   * sheet then asks). */
+  finalizeRef?: React.MutableRefObject<(() => boolean) | null>;
+  /** Hide this logger's own log button (the card's Complete replaces it). */
+  hideLogButton?: boolean;
   // Label shown in the timer square — 'REST' for a manual rest-between-rungs
   // timer, 'AMRAP' when this ladder is time-boxed by an AMRAP cap, or
   // 'FOR TIME' when it counts up toward a cap instead of down.
@@ -49,6 +56,8 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   onChange,
   restSeconds,
   onFinalize,
+  finalizeRef,
+  hideLogButton,
   timerLabel = 'REST',
   countUp = false,
   exercises,
@@ -173,9 +182,12 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
     setExtraReps(0);
   };
 
+  // Always available: with no rung tapped, the log sheet shows the rungs
+  // and asks how far the athlete got.
   const handleFinalize = () => {
-    if (selectedIndex === null || !onFinalize) return;
-    onFinalize(buildSummary(selectedIndex, extraReps));
+    if (!onFinalize) return;
+    if (selectedIndex === null) onFinalize('', null, 0);
+    else onFinalize(buildSummary(selectedIndex, extraReps), selectedIndex, extraReps);
   };
 
   const handleSelectRung = (index: number) => {
@@ -191,6 +203,13 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
     setExtraReps(next);
     emit(selectedIndex, next);
   };
+
+  if (finalizeRef) {
+    finalizeRef.current = () => {
+      handleFinalize();
+      return true;
+    };
+  }
 
   return (
     <View style={{ gap: 10 }}>
@@ -337,26 +356,18 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
         </View>
       </LinearGradient>
 
-      {isInline && (
-        <TouchableOpacity disabled={selectedIndex === null} onPress={handleFinalize}>
-          {selectedIndex !== null ? (
-            <LinearGradient
-              colors={['#7E57C2', '#FF5252', '#FF7043']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 0 }}
-              style={styles.actionBtn}
-            >
-              <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-                {t('timers.logBlock')}
-              </Text>
-            </LinearGradient>
-          ) : (
-            <View style={[styles.actionBtn, { borderWidth: 1, borderColor: theme.card.border }]}>
-              <Text style={{ color: theme.text.tertiary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
-                {t('timers.logBlock')}
-              </Text>
-            </View>
-          )}
+      {isInline && !hideLogButton && (
+        <TouchableOpacity onPress={handleFinalize}>
+          <LinearGradient
+            colors={['#7E57C2', '#FF5252', '#FF7043']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 0 }}
+            style={styles.actionBtn}
+          >
+            <Text style={{ color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>
+              {t('timers.logBlock')}
+            </Text>
+          </LinearGradient>
         </TouchableOpacity>
       )}
     </View>

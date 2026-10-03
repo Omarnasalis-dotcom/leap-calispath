@@ -24,6 +24,12 @@ interface ForTimeInlineTimerProps {
   timeCapSeconds: number;
   totalRounds: number;
   onFinalize: (result: ForTimeResult) => void;
+  /** The block card's slide-to-Complete calls this instead of a button in
+   * here; returns false when there's nothing to hand over yet (the log
+   * sheet then asks). */
+  finalizeRef?: React.MutableRefObject<(() => boolean) | null>;
+  /** Hide this logger's own log button (the card's Complete replaces it). */
+  hideLogButton?: boolean;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
   // Reports whether this timer currently holds unsaved progress (started,
@@ -43,6 +49,8 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   timeCapSeconds,
   totalRounds,
   onFinalize,
+  finalizeRef,
+  hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
   onActiveChange,
@@ -212,6 +220,15 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
     submit();
   };
 
+  if (finalizeRef) {
+    finalizeRef.current = () => {
+      // No time recorded: the sheet's MM : SS picker asks instead.
+      if (!canLog) return false;
+      handleFinalize();
+      return true;
+    };
+  }
+
   return (
     <View style={{ gap: 10 }}>
       <LinearGradient
@@ -368,6 +385,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
         </View>
       )}
 
+      {!hideLogButton && (
       <TouchableOpacity onPress={handleFinalize} disabled={!canLog} style={!canLog && { opacity: 0.4 }}>
         <LinearGradient
           colors={['#7E57C2', '#FF5252', '#FF7043']}
@@ -380,6 +398,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
           </Text>
         </LinearGradient>
       </TouchableOpacity>
+      )}
     </View>
   );
 };
