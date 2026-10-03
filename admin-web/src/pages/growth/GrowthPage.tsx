@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchGrowthAnalytics, type GrowthFunnelStep } from '@/api/growth';
+import { fetchDeletedAccounts, fetchGrowthAnalytics, type GrowthFunnelStep } from '@/api/growth';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 
@@ -22,6 +22,23 @@ const EVENT_LABEL: Record<string, string> = {
   ai_coach_opened: 'AI Coach opened',
 };
 
+const REASON_LABEL: Record<string, string> = {
+  not_using: 'Not using it',
+  too_expensive: 'Too expensive',
+  missing_features: 'Missing features',
+  privacy: 'Privacy',
+  other: 'Other',
+  none: 'No reason given',
+};
+
+const PLAN_LABEL: Record<string, string> = { free: 'Free', first: 'First', pro: 'Pro', max: 'Max' };
+
+/** Whole days between two timestamps. */
+function daysBetween(from: string | null, to: string | null): number | null {
+  if (!from || !to) return null;
+  return Math.max(0, Math.round((new Date(to).getTime() - new Date(from).getTime()) / 86_400_000));
+}
+
 function pct(part: number, whole: number): string {
   if (!whole) return '—';
   return `${Math.round((part / whole) * 100)}%`;
@@ -41,6 +58,10 @@ export function GrowthPage() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['growth-analytics', days],
     queryFn: () => fetchGrowthAnalytics(days),
+  });
+  const deleted = useQuery({
+    queryKey: ['deleted-accounts', days],
+    queryFn: () => fetchDeletedAccounts(days),
   });
 
   const funnel = data?.funnel ?? [];
@@ -221,6 +242,109 @@ export function GrowthPage() {
           </section>
         </>
       )}
+
+      <DeletedAccountsPanel days={days} data={deleted.data} error={deleted.error} loading={deleted.isLoading} />
     </div>
+  );
+}
+
+// Anonymous record of each deleted account (deleted_accounts, from
+// 2026-10-03 on — earlier deletions left no trace).
+function DeletedAccountsPanel({
+  days,
+  data,
+  error,
+  loading,
+}: {
+  days: number;
+  data: Awaited<ReturnType<typeof fetchDeletedAccounts>> | undefined;
+  error: unknown;
+  loading: boolean;
+}) {
+  const maxReason = Math.max(0, ...(data?.reasons ?? []).map((r) => r.deletions));
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Deleted accounts</h2>
+        <span className="label">
+          {data ? `${data.total} in the last ${days} days` : `last ${days} days`} · anonymous, tracked from 3 Oct 2026
+        </span>
+      </div>
+      {error ? <ErrorNote error={error} /> : null}
+      {loading && <div className="skeleton" style={{ height: 80 }} />}
+      {data && data.total === 0 && (
+        <div className="empty">
+          <span className="label">No deleted accounts</span>
+          Each deletion from now on shows here, without any personal details.
+        </div>
+      )}
+      {data && data.total > 0 && (
+        <>
+          <div className="table-wrap">
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Reason</th>
+                  <th style={{ textAlign: 'right' }}>Deletions</th>
+                  <th style={{ width: '40%' }} aria-label="Bar" />
+                </tr>
+              </thead>
+              <tbody>
+                {data.reasons.map((r) => (
+                  <tr key={r.reason}>
+                    <td>{REASON_LABEL[r.reason] ?? r.reason}</td>
+                    <td className="num" style={{ textAlign: 'right' }}>{r.deletions}</td>
+                    <td>
+                      <Bar value={r.deletions} max={maxReason} color="var(--danger, #e24b4a)" />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="table-wrap" style={{ marginTop: 12 }}>
+            <table className="data">
+              <thead>
+                <tr>
+                  <th>Deleted</th>
+                  <th>Plan</th>
+                  <th style={{ textAlign: 'right' }}>Account age</th>
+                  <th style={{ textAlign: 'right' }}>Workouts</th>
+                  <th style={{ textAlign: 'right' }}>Tier</th>
+                  <th>Last active</th>
+                  <th>Platform</th>
+                  <th>Country</th>
+                  <th>Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {data.rows.map((r, i) => {
+                  const age = daysBetween(r.signed_up_at, r.deleted_at);
+                  return (
+                    <tr key={`${r.deleted_at}-${i}`}>
+                      <td className="dim">{formatDate(r.deleted_at)}</td>
+                      <td>{PLAN_LABEL[r.plan ?? ''] ?? r.plan ?? '—'}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{age == null ? '—' : `${age} d`}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{r.workouts_logged ?? '—'}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>
+                        {r.strength_tier ?? '—'}
+                        {r.onboarded === false && <span className="dim"> · not onboarded</span>}
+                      </td>
+                      <td className="dim">{r.last_active_at ? formatDate(r.last_active_at) : '—'}</td>
+                      <td>{r.platform ?? '—'}</td>
+                      <td>{r.country ?? '—'}</td>
+                      <td>
+                        {r.reason ? REASON_LABEL[r.reason] ?? r.reason : <span className="dim">—</span>}
+                        {r.reason_note && <div className="dim" style={{ whiteSpace: 'pre-wrap' }}>{r.reason_note}</div>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </section>
   );
 }

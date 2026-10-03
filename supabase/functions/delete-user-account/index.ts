@@ -22,6 +22,9 @@ function resolvePublishableKey(): string {
   return Deno.env.get("SUPABASE_ANON_KEY") ?? "";
 }
 
+const REASONS = ["not_using", "too_expensive", "missing_features", "privacy", "other"];
+const PLATFORMS = ["ios", "android", "web"];
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -78,12 +81,41 @@ serve(async (req) => {
       serviceRoleKey
     );
 
+    // Optional body from the app: { reason, note, platform }. Older app
+    // versions send no body.
+    let body: { reason?: unknown; note?: unknown; platform?: unknown } = {};
+    try {
+      body = await req.json();
+    } catch {
+      // no / invalid body
+    }
+    const reason = typeof body.reason === "string" && REASONS.includes(body.reason) ? body.reason : null;
+    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim().slice(0, 500) : null;
+    const platform = typeof body.platform === "string" && PLATFORMS.includes(body.platform) ? body.platform : null;
+
+    // Anonymous facts about the account, read before it's deleted
+    // (deleted_accounts history). Never blocks the deletion.
+    const { data: snapshot, error: snapshotError } = await supabaseAdmin.rpc(
+      "account_deletion_snapshot",
+      { p_user_id: user.id },
+    );
+    if (snapshotError) console.error("[delete-user-account] snapshot failed:", snapshotError.message);
+
     const { error: deleteError } = await supabaseAdmin.auth.admin.deleteUser(user.id);
     if (deleteError) {
       return new Response(JSON.stringify({ error: deleteError.message }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" }
       });
     }
+
+    // Recorded only once the delete succeeded. No user id, email or name.
+    const { error: recordError } = await supabaseAdmin.from("deleted_accounts").insert({
+      ...(snapshot ?? {}),
+      platform,
+      reason,
+      reason_note: note,
+    });
+    if (recordError) console.error("[delete-user-account] history insert failed:", recordError.message);
 
     return new Response(JSON.stringify({ success: true }), {
       status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" }
