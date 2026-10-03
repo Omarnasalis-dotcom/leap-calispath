@@ -560,6 +560,7 @@ function MovementsCell({
   sel,
   setSel,
   print,
+  weekRange,
 }: {
   data?: UserPerformance['movements'];
   holds?: UserPerformance['holds'];
@@ -571,6 +572,8 @@ function MovementsCell({
   sel: Selection;
   setSel: (s: Partial<Selection>) => void;
   print?: boolean;
+  /** PDF: only these program weeks get a column (default W1 → current). */
+  weekRange?: [number, number];
 }) {
   const isHolds = mode === 'holds';
   const title = isHolds ? 'Skill holds' : 'Main movements';
@@ -643,7 +646,9 @@ function MovementsCell({
   // week), so a week without this movement shows as an empty column.
   const byWeek = new Map(movement.weeks.map((w) => [w.week, w]));
   const lastWeek = Math.max(program?.current_week ?? 1, ...movement.weeks.map((w) => w.week));
-  const shown = Array.from({ length: lastWeek }, (_, i) => i + 1).slice(-MAX_MOVEMENT_WEEKS);
+  const shown = weekRange
+    ? Array.from({ length: Math.max(0, weekRange[1] - weekRange[0] + 1) }, (_, k) => weekRange[0] + k).slice(-MAX_MOVEMENT_WEEKS)
+    : Array.from({ length: lastWeek }, (_, i) => i + 1).slice(-MAX_MOVEMENT_WEEKS);
 
   const totals = new Map<string, number>();
   movement.weeks.forEach((w) =>
@@ -1124,6 +1129,11 @@ function filterWeeks(data: UserPerformance, sel: Selection, from: number, to: nu
     completion: data.completion.map((c) => ({ ...c, weeks: c.weeks.filter((w) => inRange(w.week)) })),
     bodyweight: data.bodyweight.filter((b) => inDates(b.date)),
     worlds: data.worlds.filter((w) => inDates(w.week_start)),
+    // Main movements / Skill holds by program week (logged and assumed);
+    // world bests are current results, not by week, so they pass through.
+    movements: data.movements?.map((m) => ({ ...m, weeks: m.weeks.filter((w) => inRange(w.week)) })),
+    holds: data.holds?.map((h) => ({ ...h, weeks: h.weeks.filter((w) => inRange(w.week)) })),
+    world_bests: data.world_bests,
   };
 }
 
@@ -1198,6 +1208,7 @@ function PrintReport({
                 sel={sel}
                 setSel={noop}
                 print
+                weekRange={[opts.weekFrom, opts.weekTo]}
               />
               <MovementsCell
                 mode="holds"
@@ -1206,6 +1217,7 @@ function PrintReport({
                 sel={sel}
                 setSel={noop}
                 print
+                weekRange={[opts.weekFrom, opts.weekTo]}
               />
               {lifts.slice(0, 1).map(liftCell)}
               <WorldsCell data={data.worlds} bests={data.world_bests} />
