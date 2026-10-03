@@ -43,8 +43,10 @@ interface Selection {
   hiddenSlots: string[];
   movement: string | null; // a family, or ALL_MOVEMENTS
   hold: string | null;
-  allWeek: number | null; // week shown in the All movements view
-  allHoldWeek: number | null; // week shown in the All skill holds view
+  // Weeks summed in the All movements / All skills views: 'all', a set of
+  // program weeks, or null = the latest week with sets.
+  allWeek: WeekPick;
+  allHoldWeek: WeekPick;
 }
 
 function Cell({
@@ -535,8 +537,43 @@ function BlocksCell({
 const VARIATION_COLORS = ['var(--pf-coral)', 'var(--pf-purple)', 'var(--pf-amber)'];
 const OTHER_COLOR = 'var(--pf-faint)';
 const MAX_MOVEMENT_WEEKS = 16;
-/** Movement chip value for the every-movement view of one week. */
+/** Movement chip value for the every-movement view. */
 const ALL_MOVEMENTS = 'all';
+
+type WeekPick = 'all' | number[] | null;
+
+/** "W3", "W2–W4", "W1, W3, W6" or "all weeks". */
+function weeksLabel(weeks: number[], all: boolean): string {
+  if (all) return 'all weeks';
+  const w = [...weeks].sort((a, b) => a - b);
+  if (w.length === 1) return `W${w[0]}`;
+  const consecutive = w.every((x, i) => i === 0 || x === w[i - 1] + 1);
+  return consecutive ? `W${w[0]}–W${w[w.length - 1]}` : w.map((x) => `W${x}`).join(', ');
+}
+
+/** One movement's weeks summed into one ChartWeek (best = the top week's). */
+function sumWeeks(weeks: ChartWeek[]): ChartWeek | null {
+  if (weeks.length === 0) return null;
+  const add = (into: Record<string, number>, from: Record<string, number>) =>
+    Object.entries(from).forEach(([k, v]) => (into[k] = (into[k] ?? 0) + Number(v)));
+  const variations: Record<string, number> = {};
+  const assumedVariations: Record<string, number> = {};
+  weeks.forEach((w) => {
+    add(variations, w.variations);
+    add(assumedVariations, w.assumedVariations);
+  });
+  const top = weeks.reduce((a, b) => (b.best > a.best ? b : a));
+  return {
+    week: weeks[weeks.length - 1].week,
+    total: weeks.reduce((n, w) => n + w.total, 0),
+    assumed: weeks.reduce((n, w) => n + w.assumed, 0),
+    sets: weeks.reduce((n, w) => n + w.sets, 0),
+    best: top.best,
+    bestVariation: top.bestVariation,
+    variations,
+    assumedVariations,
+  };
+}
 
 /** One week of a movement chart, reps or hold seconds alike. */
 interface ChartWeek {
@@ -798,18 +835,29 @@ function AllMovementsView({
   const logged = new Set(movements.flatMap((m) => m.weeks.map((w) => w.week)));
   const lastWeek = Math.max(program?.current_week ?? 1, ...logged);
   const shown = Array.from({ length: lastWeek }, (_, i) => i + 1).slice(-MAX_MOVEMENT_WEEKS);
-  // Default: the latest week with sets (also when the picked week is
-  // outside a PDF's week range).
+  // Weeks to sum: All weeks, the picked ones that have sets, or (default,
+  // and when none of the picked weeks are in a PDF's range) the latest.
   const picked = isHolds ? sel.allHoldWeek : sel.allWeek;
-  const week = picked != null && logged.has(picked) ? picked : Math.max(...logged);
-  const pickWeek = (wk: number) => setSel(isHolds ? { allHoldWeek: wk } : { allWeek: wk });
+  const allPicked = picked === 'all';
+  const pickedLogged = Array.isArray(picked) ? picked.filter((w) => logged.has(w)) : [];
+  const weeks = allPicked ? [...logged] : pickedLogged.length ? pickedLogged : [Math.max(...logged)];
+  const weekSet = new Set(weeks);
+  const label = weeksLabel(weeks, allPicked);
+  const setPick = (p: WeekPick) => setSel(isHolds ? { allHoldWeek: p } : { allWeek: p });
+  // Tapping a week toggles it in or out of the weeks shown (the default
+  // latest week included); from All weeks it starts over with that week.
+  const toggleWeek = (wk: number) => {
+    if (allPicked) return setPick([wk]);
+    const next = weekSet.has(wk) ? weeks.filter((w) => w !== wk) : [...weeks, wk];
+    setPick(next.length ? next : null);
+  };
   const pickMovement = (value: string) => setSel(isHolds ? { hold: value } : { movement: value });
   // Reps, or seconds for holds.
   const fmtV = (n: number) => (isHolds ? `${n} s` : `${n} reps`);
   const setWord = (n: number) => (isHolds ? (n === 1 ? 'hold' : 'holds') : n === 1 ? 'set' : 'sets');
 
   const rows = movements
-    .map((m) => ({ m, w: m.weeks.find((x) => x.week === week) }))
+    .map((m) => ({ m, w: sumWeeks(m.weeks.filter((x) => weekSet.has(x.week))) }))
     .filter((r): r is { m: (typeof movements)[number]; w: ChartWeek } => !!r.w && r.w.total > 0)
     .sort((a, b) => b.w.total - a.w.total);
   const totalReps = rows.reduce((n, r) => n + r.w.total, 0);
@@ -823,7 +871,7 @@ function AllMovementsView({
       .join('');
 
   const movementChips = print ? (
-    <span className="pf-static-control">{isHolds ? 'All skills' : 'All movements'} · W{week}</span>
+    <span className="pf-static-control">{isHolds ? 'All skills' : 'All movements'} · {label}</span>
   ) : (
     <div className="pf-seg" role="group" aria-label={isHolds ? 'Skill' : 'Movement'}>
       <button type="button" className="pf-seg-item" aria-pressed>
@@ -838,18 +886,25 @@ function AllMovementsView({
   );
 
   return (
-    <Cell title={title} sub={isHolds ? 'Every skill hold in one program week' : 'Every movement in one program week'} side={movementChips} wide>
+    <Cell title={title} sub={isHolds ? 'Every skill hold, summed over the weeks you pick' : 'Every movement, summed over the weeks you pick'} side={movementChips} wide>
       {!print && (
-        <div className="pf-seg pf-mv-weeks" role="group" aria-label="Program week">
+        <div className="pf-seg pf-mv-weeks" role="group" aria-label="Program weeks">
+          <button type="button" className="pf-seg-item" aria-pressed={allPicked} onClick={() => setPick('all')}>
+            All weeks
+          </button>
           {shown.map((wk) => (
             <button
               key={wk}
               type="button"
               className="pf-seg-item"
-              aria-pressed={wk === week}
+              aria-pressed={!allPicked && weekSet.has(wk)}
               disabled={!logged.has(wk)}
-              title={logged.has(wk) ? undefined : `No ${isHolds ? 'skill holds' : 'main-movement sets'} in week ${wk}`}
-              onClick={() => pickWeek(wk)}
+              title={
+                logged.has(wk)
+                  ? 'Tap to add or remove this week'
+                  : `No ${isHolds ? 'skill holds' : 'main-movement sets'} in week ${wk}`
+              }
+              onClick={() => toggleWeek(wk)}
             >
               W{wk}
             </button>
@@ -864,11 +919,11 @@ function AllMovementsView({
         <span className="pf-summary-note">{isHolds ? 'held' : 'reps'}</span>
         <span className="pf-num">{totalSets}</span>
         <span className="pf-summary-note">
-          {setWord(totalSets)} in W{week}
+          {setWord(totalSets)} in {label}
           {assumedReps > 0 && ` · ${fmtV(assumedReps)} assumed`}
         </span>
       </div>
-      <ul className="pf-mv-all" aria-label={`All ${isHolds ? 'skill holds' : 'main movements'} in week ${week}`}>
+      <ul className="pf-mv-all" aria-label={`All ${isHolds ? 'skill holds' : 'main movements'} in ${label}`}>
         {rows.map(({ m, w }) => {
           const sets = w.sets;
           const loggedReps = w.total - w.assumed;
@@ -876,7 +931,7 @@ function AllMovementsView({
             <li
               key={m.value}
               className="pf-mv-row"
-              title={`${m.label}, week ${week}: ${fmtV(w.total)} in ${sets} ${setWord(sets)}` +
+              title={`${m.label}, ${label}: ${fmtV(w.total)} in ${sets} ${setWord(sets)}` +
                 (w.best
                   ? isHolds
                     ? `, longest ${w.best} s${w.bestVariation ? ` (${w.bestVariation})` : ''}`
