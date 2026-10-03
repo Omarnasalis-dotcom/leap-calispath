@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { AppState, Alert, AppStateStatus } from 'react-native';
+import { AppState } from 'react-native';
 import { SoundServiceInstance } from '../lib/SoundService';
 import { advanceIntervals, upcomingBoundaries } from '../lib/intervalClock';
 import { useBackgroundTimerAlerts, TimerAlert } from './useBackgroundTimerAlerts';
@@ -88,8 +88,6 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     | null
   >(null);
 
-  const lastTickRef = useRef<number | null>(null);
-  const appState = useRef(AppState.currentState);
 
   useEffect(() => {
     if (!completionEvent) return;
@@ -119,17 +117,29 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     Array.from({ length: l.totalRounds * 2 }, (_, i) => (i % 2 === 0 ? l.tabataWorkSecs : l.tabataRestSecs));
   const tabataIndex = (l: typeof live) => (l.currentRound - 1) * 2 + (l.tabataPhase === 'rest' ? 1 : 0);
 
-  // Applies `deltaSecs` that passed while JS was paused (app in the
-  // background) to the running timer, with the same end handling as a tick.
-  const applyBackgroundDelta = (deltaSecs: number) => {
+  // Wall-clock timing. Every running timer is measured from when it
+  // (re)started: `run` holds that moment and the timer's state then, and
+  // each sync recomputes the current state from the clock. Counting ticks
+  // (prev - 1) lost the time the app spent in the background — on iOS the
+  // overdue tick can even fire before the AppState event on return.
+  const runRef = useRef<{ startedAt: number; timeLeft: number; elapsed: number; index: number; lastIndex: number } | null>(null);
+  // When a get-ready that ended in the background really ended: the run
+  // starts from then, not from the return.
+  const pendingStartAtRef = useRef<number | null>(null);
+
+  const syncRunning = () => {
+    const run = runRef.current;
     const l = liveRef.current;
-    if (deltaSecs <= 0) return;
+    if (!run || !l.timerRunning) return;
+    const secs = Math.max(0, Math.floor((Date.now() - run.startedAt) / 1000));
+
     if (l.timerType === 'amrap' || l.timerType === 'rest') {
-      const newTime = l.timeLeft - deltaSecs;
-      if (newTime > 0) {
-        setTimeLeft(newTime);
+      const left = run.timeLeft - secs;
+      if (left > 0) {
+        setTimeLeft(left);
         return;
       }
+      runRef.current = null;
       setTimeLeft(0);
       setTimerRunning(false);
       if (l.timerType === 'rest') {
@@ -142,20 +152,22 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
         }
       }
     } else if (l.timerType === 'fortime') {
-      const nextTime = l.elapsedTime + deltaSecs;
-      if (l.timeCapSecs > 0 && nextTime >= l.timeCapSecs) {
+      const elapsed = run.elapsed + secs;
+      if (l.timeCapSecs > 0 && elapsed >= l.timeCapSecs) {
+        runRef.current = null;
         setElapsedTime(l.timeCapSecs);
         setTimerRunning(false);
         SoundServiceInstance.playDigitalBuzzer();
         if (l.activeTimerBlockId) {
           setCompletionEvent({ type: 'fortime', blockId: l.activeTimerBlockId, elapsedSeconds: l.timeCapSecs });
         }
-      } else {
-        setElapsedTime(nextTime);
+        return;
       }
+      setElapsedTime(elapsed);
     } else if (l.timerType === 'tabata') {
-      const pos = advanceIntervals(tabataDurations(l), tabataIndex(l), l.timeLeft, deltaSecs);
+      const pos = advanceIntervals(tabataDurations(l), run.index, run.timeLeft, secs);
       if (pos.done) {
+        runRef.current = null;
         setTimeLeft(0);
         setTimerRunning(false);
         SoundServiceInstance.playDigitalBuzzer(4);
@@ -169,43 +181,45 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
         }
         return;
       }
-      setCurrentRound(Math.floor(pos.index / 2) + 1);
-      setTabataPhase(pos.index % 2 === 0 ? 'work' : 'rest');
+      if (pos.index !== run.lastIndex) {
+        // One cue per switch, even if several passed in the background.
+        if (pos.index % 2 === 0) SoundServiceInstance.playBoxingBell();
+        else SoundServiceInstance.playDigitalBuzzer(2);
+        run.lastIndex = pos.index;
+        setCurrentRound(Math.floor(pos.index / 2) + 1);
+        setTabataPhase(pos.index % 2 === 0 ? 'work' : 'rest');
+      }
       setTimeLeft(pos.left);
     }
   };
 
-  // Background state syncing: JS timers pause while the app is in the
-  // background, so on return apply the time that passed — including a
-  // get-ready countdown that ended meanwhile (the timer then started at the
-  // countdown's end, not on return).
+  // Get-ready countdown, from its end time (prepEndRef). When it ends the
+  // timer starts from that moment.
+  const syncPrep = () => {
+    const end = prepEndRef.current;
+    if (end === null || liveRef.current.timerPrepCountdown === null) return;
+    const remaining = Math.ceil((end - Date.now()) / 1000);
+    if (remaining <= 0) {
+      prepEndRef.current = null;
+      pendingStartAtRef.current = end;
+      SoundServiceInstance.playBoxingBell();
+      setTimerPrepCountdown(null);
+      setTimerRunning(true);
+      return;
+    }
+    if (remaining !== liveRef.current.timerPrepCountdown) {
+      SoundServiceInstance.playTick();
+      setTimerPrepCountdown(remaining);
+    }
+  };
+
+  // Back in the foreground: catch up straight away (the intervals below do
+  // the same on their next tick).
   useEffect(() => {
     const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        const now = Date.now();
-        const l = liveRef.current;
-        if (l.timerPrepCountdown !== null && prepEndRef.current !== null) {
-          if (now >= prepEndRef.current) {
-            const startedAt = prepEndRef.current;
-            prepEndRef.current = null;
-            setTimerPrepCountdown(null);
-            setTimerRunning(true);
-            SoundServiceInstance.playBoxingBell();
-            applyBackgroundDelta(Math.floor((now - startedAt) / 1000));
-          } else {
-            setTimerPrepCountdown(Math.max(1, Math.ceil((prepEndRef.current - now) / 1000)));
-          }
-        } else if (l.timerRunning && lastTickRef.current) {
-          applyBackgroundDelta(Math.floor((now - lastTickRef.current) / 1000));
-        }
-        lastTickRef.current = now;
-      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-        // Only when leaving the foreground: iOS returns via background →
-        // inactive → active, and resetting here on that step lost the time
-        // spent away (the timer looked stopped after a lock or app switch).
-        lastTickRef.current = Date.now();
-      }
-      appState.current = nextAppState;
+      if (nextAppState !== 'active') return;
+      syncPrep();
+      syncRunning();
     });
     return () => subscription.remove();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -237,118 +251,39 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     return alerts;
   });
 
-  // Prep Countdown Effect
+  // Get-ready countdown.
+  const prepActive = timerPrepCountdown !== null;
   useEffect(() => {
-    let interval: any = null;
-    if (timerPrepCountdown !== null && timerPrepCountdown > 0) {
-      SoundServiceInstance.playTick();
-      interval = setInterval(() => {
-        setTimerPrepCountdown(prev => {
-          if (prev && prev <= 1) {
-            clearInterval(interval);
-            SoundServiceInstance.playBoxingBell();
-            setTimerPrepCountdown(null);
-            setTimerRunning(true);
-            lastTickRef.current = Date.now(); // Initialize active timer sync
-            return null;
-          }
-          return prev ? prev - 1 : null;
-        });
-      }, 1000);
-    } else if (timerPrepCountdown === 0) {
+    if (!prepActive) return;
+    if (prepEndRef.current === null || timerPrepCountdown === 0) {
+      // Started without an end time (or skipped to 0): start now.
+      prepEndRef.current = null;
       setTimerPrepCountdown(null);
       setTimerRunning(true);
-      lastTickRef.current = Date.now();
+      return;
     }
+    SoundServiceInstance.playTick();
+    const interval = setInterval(syncPrep, 250);
     return () => clearInterval(interval);
-  }, [timerPrepCountdown]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prepActive]);
 
-  // Active Timer Tick
+  // Running timer: (re)based on the clock whenever it starts or resumes.
   useEffect(() => {
-    let interval: any = null;
-    if (timerRunning) {
-      lastTickRef.current = Date.now();
-      interval = setInterval(() => {
-        lastTickRef.current = Date.now();
-        if (timerType === 'amrap' || timerType === 'rest') {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              setTimerRunning(false);
-              clearInterval(interval);
-              if (timerType === 'rest') {
-                SoundServiceInstance.playDigitalBuzzer(4);
-                if (currentRound < totalRounds) {
-                  setTimeout(() => setTimeLeft(restSeconds), 100);
-                }
-              } else {
-                SoundServiceInstance.playDigitalBuzzer();
-                if (timerType === 'amrap' && activeTimerBlockId) {
-                  setCompletionEvent({ type: 'amrap', blockId: activeTimerBlockId, roundsCompleted: amrapRoundsRef.current });
-                }
-              }
-              return 0;
-            }
-            return prev - 1;
-          });
-        } else if (timerType === 'fortime') {
-          setElapsedTime(prev => {
-            const nextTime = prev + 1;
-            if (timeCapSecs > 0 && nextTime >= timeCapSecs) {
-              setTimerRunning(false);
-              clearInterval(interval);
-              SoundServiceInstance.playDigitalBuzzer();
-              if (activeTimerBlockId) {
-                setCompletionEvent({ type: 'fortime', blockId: activeTimerBlockId, elapsedSeconds: timeCapSecs });
-              }
-              return timeCapSecs;
-            }
-            return nextTime;
-          });
-        } else if (timerType === 'tabata') {
-          setTimeLeft(prev => {
-            if (prev <= 1) {
-              setTabataPhase(currentPhase => {
-                if (currentPhase === 'work') {
-                  SoundServiceInstance.playDigitalBuzzer(2);
-                  setCurrentRound(r => r);
-                  setTimeLeft(tabataRestSecs);
-                  return 'rest';
-                } else {
-                  setCurrentRound(r => {
-                    const nextRound = r + 1;
-                    if (nextRound > totalRounds) {
-                      setTimerRunning(false);
-                      clearInterval(interval);
-                      SoundServiceInstance.playDigitalBuzzer(4);
-                      if (activeTimerBlockId) {
-                        setCompletionEvent({
-                          type: 'tabata',
-                          blockId: activeTimerBlockId,
-                          roundsCompleted: Math.floor((nextRound - 1) / tabataExerciseCountRef.current),
-                          holdTimes: holdTimesRef.current,
-                        });
-                      }
-                      return r;
-                    }
-                    SoundServiceInstance.playBoxingBell();
-                    setTimeLeft(tabataWorkSecs);
-                    return nextRound;
-                  });
-                  return 'work';
-                }
-              });
-              return 0;
-            }
-            return prev - 1;
-          });
-        }
-      }, 1000);
-    } else {
-      clearInterval(interval);
-      lastTickRef.current = null;
+    if (!timerRunning) {
+      runRef.current = null;
+      return;
     }
+    const l = liveRef.current;
+    const startedAt = pendingStartAtRef.current ?? Date.now();
+    pendingStartAtRef.current = null;
+    const index = l.timerType === 'tabata' ? tabataIndex(l) : 0;
+    runRef.current = { startedAt, timeLeft: l.timeLeft, elapsed: l.elapsedTime, index, lastIndex: index };
+    syncRunning();
+    const interval = setInterval(syncRunning, 250);
     return () => clearInterval(interval);
-  }, [timerRunning, timerType, activeTimerBlockId, onAmrapComplete, onForTimeComplete, timeCapSecs]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timerRunning, timerType]);
 
   // Cleanup when modal closes
   useEffect(() => {

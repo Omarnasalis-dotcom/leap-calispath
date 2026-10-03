@@ -17,8 +17,8 @@ export const TIMER_ALERT_DATA = { timerAlert: true } as const;
 const MAX_ALERTS = 48;
 
 /**
- * Timers only tick while the app is in the foreground. When the app goes to
- * the background this schedules a local notification for every moment the
+ * Timers only tick while the app is in the foreground. When the app leaves
+ * the foreground this schedules a local notification for every moment the
  * running timer(s) will reach (`getAlerts`, read at that moment — return []
  * when nothing is running), and cancels them all when the app comes back,
  * where the timer catches up and its own sounds take over. Also cancelled on
@@ -67,9 +67,18 @@ export function useBackgroundTimerAlerts(getAlerts: () => TimerAlert[]) {
       }
     };
 
+    // Scheduled as soon as the app leaves the foreground (iOS passes
+    // through 'inactive' first, and may suspend JS shortly after reaching
+    // 'background'); cancelled on return.
+    let wasActive = AppState.currentState === 'active';
     const sub = AppState.addEventListener('change', next => {
-      if (next === 'background') scheduleAll();
-      else if (next === 'active') cancelAll();
+      if (next === 'active') {
+        wasActive = true;
+        cancelAll();
+      } else if (wasActive) {
+        wasActive = false;
+        scheduleAll();
+      }
     });
     return () => {
       sub.remove();

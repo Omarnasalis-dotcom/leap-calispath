@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 
 export interface CircuitExercise {
   id: string | number;
@@ -50,61 +51,13 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const intervalRef = useRef<any>(null);
-  const lastTickRef = useRef<number | null>(null);
-  const appState = useRef(AppState.currentState);
 
-  useEffect(() => {
-    if (restActive && restTimeLeft > 0) {
-      lastTickRef.current = Date.now();
-      intervalRef.current = setInterval(() => {
-        lastTickRef.current = Date.now();
-        setRestTimeLeft(prev => {
-          if (prev <= 1) {
-            clearInterval(intervalRef.current);
-            setRestActive(false);
-            SoundServiceInstance.playDigitalBuzzer(2);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [restActive]);
-
-  // Correct for time lost while backgrounded — JS timers pause while the app
-  // isn't foregrounded, so the interval above alone would silently undercount
-  // (same fix already proven in src/hooks/useWarriorTimer.ts for Tabata).
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        if (restActive && lastTickRef.current) {
-          const now = Date.now();
-          const deltaSecs = Math.floor((now - lastTickRef.current) / 1000);
-          if (deltaSecs > 0) {
-            setRestTimeLeft(prev => {
-              const next = prev - deltaSecs;
-              if (next <= 0) {
-                clearInterval(intervalRef.current);
-                setRestActive(false);
-                SoundServiceInstance.playDigitalBuzzer(2);
-                return 0;
-              }
-              return next;
-            });
-          }
-          lastTickRef.current = now;
-        }
-      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-        // Only when leaving the foreground: iOS returns via background →
-        // inactive → active, and resetting here on that step lost the time
-        // spent away (the timer looked stopped after a lock or app switch).
-        lastTickRef.current = Date.now();
-      }
-      appState.current = nextAppState;
-    });
-    return () => subscription.remove();
-  }, [restActive]);
+  // Counted from its end time, so rest keeps going while the app is in the
+  // background (see useAnchoredCountdown).
+  useAnchoredCountdown(restActive, restTimeLeft, setRestTimeLeft, () => {
+    setRestActive(false);
+    SoundServiceInstance.playDigitalBuzzer(2);
+  });
 
   useEffect(() => {
     if (completed) {

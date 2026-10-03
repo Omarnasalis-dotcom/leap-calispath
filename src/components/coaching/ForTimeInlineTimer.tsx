@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState, TextInput } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 
 export interface ForTimeExercise {
   id: string | number;
@@ -72,68 +73,18 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   const [manualMins, setManualMins] = useState('');
   const [manualSecs, setManualSecs] = useState('');
   const intervalRef = useRef<any>(null);
-  const lastTickRef = useRef<number | null>(null);
-  const appState = useRef(AppState.currentState);
   // Synchronous double-submit guard — state wouldn't have re-rendered yet on a
   // fast double tap, and this writes to the warrior's permanent log.
   const submittedRef = useRef(false);
   const hasRounds = totalRounds > 1;
 
-  useEffect(() => {
-    if (timerRunning) {
-      lastTickRef.current = Date.now();
-      intervalRef.current = setInterval(() => {
-        lastTickRef.current = Date.now();
-        setElapsedTime(prev => {
-          const next = prev + 1;
-          if (timeCapSeconds > 0 && next >= timeCapSeconds) {
-            clearInterval(intervalRef.current);
-            setTimerRunning(false);
-            setCapped(true);
-            SoundServiceInstance.playDigitalBuzzer(4);
-            return timeCapSeconds;
-          }
-          return next;
-        });
-      }, 1000);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [timerRunning]);
-
-  // Correct for time lost while backgrounded — elapsed time is the logged
-  // score for a For Time block, so this matters more here than anywhere else
-  // (same fix already proven in src/hooks/useWarriorTimer.ts for Tabata).
-  useEffect(() => {
-    const subscription = AppState.addEventListener('change', nextAppState => {
-      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
-        if (timerRunning && lastTickRef.current) {
-          const now = Date.now();
-          const deltaSecs = Math.floor((now - lastTickRef.current) / 1000);
-          if (deltaSecs > 0) {
-            setElapsedTime(prev => {
-              const next = prev + deltaSecs;
-              if (timeCapSeconds > 0 && next >= timeCapSeconds) {
-                clearInterval(intervalRef.current);
-                setTimerRunning(false);
-                setCapped(true);
-                SoundServiceInstance.playDigitalBuzzer(4);
-                return timeCapSeconds;
-              }
-              return next;
-            });
-          }
-          lastTickRef.current = now;
-        }
-      } else if (appState.current === 'active' && nextAppState.match(/inactive|background/)) {
-        // Only when leaving the foreground: iOS returns via background →
-        // inactive → active, and resetting here on that step lost the time
-        // spent away (the timer looked stopped after a lock or app switch).
-        lastTickRef.current = Date.now();
-      }
-      appState.current = nextAppState;
-    });
-    return () => subscription.remove();
-  }, [timerRunning, timeCapSeconds]);
+  // Counted from its start time, so it keeps going while the app is in the
+  // background (see useAnchoredStopwatch).
+  useAnchoredStopwatch(timerRunning, elapsedTime, setElapsedTime, timeCapSeconds, () => {
+    setTimerRunning(false);
+    setCapped(true);
+    SoundServiceInstance.playDigitalBuzzer(4);
+  });
 
   useEffect(() => {
     onActiveChange?.(hasStarted || roundsCompleted > 0 || manualMins !== '' || manualSecs !== '');
