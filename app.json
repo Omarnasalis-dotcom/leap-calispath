@@ -2,7 +2,7 @@
   "expo": {
     "name": "Leap Arena",
     "slug": "leap-calispath",
-    "version": "1.2.7",
+    "version": "1.2.8",
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
@@ -17,7 +17,7 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.leap.calispath",
-      "buildNumber": "25",
+      "buildNumber": "26",
       "entitlements": {
         "aps-environment": "production",
         "com.apple.developer.applesignin": [
@@ -111,7 +111,7 @@
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "package": "com.leap.calispath",
-      "versionCode": 17,
+      "versionCode": 18,
       "googleServicesFile": "./google-services.json",
       "blockedPermissions": [
         "android.permission.SYSTEM_ALERT_WINDOW",
