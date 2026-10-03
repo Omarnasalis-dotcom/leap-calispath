@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface CircuitExercise {
   id: string | number;
@@ -110,6 +111,13 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
     const repsEdited = exercises.some(ex => (repsByExercise[ex.id] ?? 0) !== ex.targetReps);
     onActiveChange?.(roundNumber, restActive || repsEdited);
   }, [restActive, repsByExercise, completed]);
+
+  // Rest over while the app is in the background: notify.
+  useBackgroundTimerAlerts(() =>
+    restActive && restTimeLeft > 0
+      ? [{ inSeconds: restTimeLeft, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') }]
+      : []
+  );
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

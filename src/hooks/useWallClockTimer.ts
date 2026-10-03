@@ -1,4 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { useBackgroundTimerAlerts } from './useBackgroundTimerAlerts';
+import { useKeepAwakeWhile } from './useKeepAwakeWhile';
+import { t } from '../i18n';
 
 /**
  * Elapsed time measured from a start timestamp rather than counted ticks, so
@@ -33,8 +36,19 @@ export function useWallClockTimer(capSec: number | null, onCap?: () => void) {
     }
   }, [running, capSec, rawElapsed, startedAt]);
 
-  const start = useCallback(() => {
-    const t = Date.now();
+  // Screen stays on while running; a time cap reached in the background
+  // gets a notification.
+  useKeepAwakeWhile(running, 'wall-clock-timer');
+  useBackgroundTimerAlerts(() =>
+    running && capSec != null && startedAt != null
+      ? [{ inSeconds: capSec - (Date.now() - startedAt) / 1000, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') }]
+      : []
+  );
+
+  /** `at`: when the clock really started (a get-ready that ended while the
+   * app was in the background); default now. */
+  const start = useCallback((at?: number) => {
+    const t = at ?? Date.now();
     capFired.current = false;
     setStartedAt(t);
     setStoppedAt(null);

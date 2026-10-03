@@ -61,14 +61,20 @@ if (!__DEV__) {
 
 // Foreground pushes still show a banner/sound instead of arriving silently —
 // the default handler suppresses them while the app is open.
+// Timer alerts (useBackgroundTimerAlerts) are for a backgrounded app; if one
+// lands while the app is open the timer's own sounds already covered it.
 Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldShowBanner: true,
-    shouldShowList: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
+  handleNotification: async (notification) => {
+    const isTimerAlert = !!(notification.request.content.data as { timerAlert?: boolean } | undefined)?.timerAlert;
+    const show = !isTimerAlert;
+    return {
+      shouldShowAlert: show,
+      shouldShowBanner: show,
+      shouldShowList: show,
+      shouldPlaySound: show,
+      shouldSetBadge: false,
+    };
+  },
 });
 
 // Android 8+ requires a channel to exist before a notification is shown, or

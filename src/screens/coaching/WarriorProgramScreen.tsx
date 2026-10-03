@@ -28,6 +28,7 @@ import { WarriorExerciseRow } from '../../components/coaching/WarriorExerciseRow
 import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { LogBlockSheet, SheetCard, SheetKind } from '../../components/coaching/LogBlockSheet';
 import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
+import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
@@ -486,6 +487,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   // Active Timer State (Extracted to Hook)
   const [activeTimerBlock, setActiveTimerBlock] = useState<ProgramBlock | null>(null);
+  // Screen stays on while the workout is open, so it doesn't auto-lock
+  // mid-set or mid-rest and push the timers into the background.
+  useKeepAwakeWhile(true, 'workout');
 
   // Blocks are no longer sequentially gated — a warrior can log any block in
   // any order (see the isLocked prop passed to WarriorBlockCard, which is

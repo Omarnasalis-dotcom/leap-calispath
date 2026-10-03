@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState } from 'react
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface AmrapExercise {
   id: string | number;
@@ -110,6 +111,13 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   useEffect(() => {
     onActiveChange?.(timerRunning || roundsCompleted > 0 || finished);
   }, [timerRunning, roundsCompleted, finished]);
+
+  // AMRAP ends while the app is in the background: notify.
+  useBackgroundTimerAlerts(() =>
+    timerRunning && timeLeft > 0
+      ? [{ inSeconds: timeLeft, title: t('timerAlerts.timeUp'), body: t('timerAlerts.amrapDoneBody') }]
+      : []
+  );
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

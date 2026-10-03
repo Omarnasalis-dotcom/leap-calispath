@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { parseKg } from '../../lib/parseKg';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface SetLogEntry {
   setIndex: number;
@@ -94,6 +95,13 @@ export const SetRow: React.FC<SetRowProps> = ({
     });
     return () => sub.remove();
   }, [restActive]);
+
+  // Rest over while the app is in the background: notify.
+  useBackgroundTimerAlerts(() =>
+    restActive && restEndTimeRef.current !== null
+      ? [{ inSeconds: (restEndTimeRef.current - Date.now()) / 1000, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') }]
+      : []
+  );
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
   // The SET badge only lights up green once rest has actually finished, not the

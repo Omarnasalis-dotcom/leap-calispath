@@ -13,6 +13,9 @@ import { WorldBackground } from '../components/worlds/WorldBackground';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { NotificationService } from '../services/NotificationService';
+import { useBackgroundTimerAlerts } from '../hooks/useBackgroundTimerAlerts';
+import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
+import { t } from '../i18n';
 
 const { width } = Dimensions.get('window');
 
@@ -79,6 +82,34 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isActive]);
+
+  // The 5-second lead-in steps pause while the app is in the background:
+  // on return, if it should have ended, the trial clock starts from when
+  // it ended (the elapsed time is the score).
+  const prepEndRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!isPreparing) return;
+    const sub = AppState.addEventListener('change', next => {
+      if (next !== 'active' || prepEndRef.current === null) return;
+      const endAt = prepEndRef.current;
+      if (Date.now() < endAt) {
+        setPreCountdown(Math.max(1, Math.ceil((endAt - Date.now()) / 1000)));
+        return;
+      }
+      prepEndRef.current = null;
+      startTimeRef.current = endAt;
+      setIsPreparing(false);
+      setIsActive(true);
+      SoundService.playBoxingBell();
+    });
+    return () => sub.remove();
+  }, [isPreparing]);
+  useKeepAwakeWhile(isPreparing || isActive, 'arena');
+  useBackgroundTimerAlerts(() =>
+    isPreparing && prepEndRef.current !== null
+      ? [{ inSeconds: (prepEndRef.current - Date.now()) / 1000, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') }]
+      : []
+  );
 
   // Recompute the moment the app returns to the foreground, so the displayed
   // time is correct immediately rather than after the next tick.
@@ -198,6 +229,7 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
   const isAhead = timeDiff < 0;
 
   const handleStartWithLeadIn = () => {
+    prepEndRef.current = Date.now() + 5000;
     setPreCountdown(5);
     setIsPreparing(true);
   };

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface LadderExercise {
   id: string | number;
@@ -117,6 +118,67 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
     }
     return () => clearInterval(intervalRef.current);
   }, [restActive]);
+
+  // JS timers pause while the app is in the background: on return, apply
+  // the time that passed (same end handling as the tick above).
+  const backgroundedAtRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (!restActive) return;
+    const sub = AppState.addEventListener('change', next => {
+      if (next === 'background') {
+        backgroundedAtRef.current = Date.now();
+      } else if (next === 'active' && backgroundedAtRef.current !== null) {
+        const delta = Math.floor((Date.now() - backgroundedAtRef.current) / 1000);
+        backgroundedAtRef.current = null;
+        if (delta <= 0) return;
+        setRestTimeLeft(prev => {
+          if (countUp) {
+            const next = prev + delta;
+            if (restSeconds && restSeconds > 0 && next >= restSeconds) {
+              clearInterval(intervalRef.current);
+              setRestActive(false);
+              SoundServiceInstance.playDigitalBuzzer(2);
+              return restSeconds;
+            }
+            return next;
+          }
+          if (prev - delta <= 0) {
+            clearInterval(intervalRef.current);
+            setRestActive(false);
+            SoundServiceInstance.playDigitalBuzzer(2);
+            if (isRestMode) {
+              setCurrentRoundIndex(idx => {
+                const nextIdx = Math.min(sequence.length - 1, idx + 1);
+                setSelectedIndex(nextIdx);
+                setExtraReps(0);
+                return nextIdx;
+              });
+            }
+            return 0;
+          }
+          return prev - delta;
+        });
+      }
+    });
+    return () => sub.remove();
+  }, [restActive]);
+
+  // Rest over / time cap while the app is in the background: notify.
+  useBackgroundTimerAlerts(() => {
+    if (!restActive) return [];
+    if (countUp) {
+      return restSeconds && restSeconds > restTimeLeft
+        ? [{ inSeconds: restSeconds - restTimeLeft, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') }]
+        : [];
+    }
+    return restTimeLeft > 0
+      ? [{
+          inSeconds: restTimeLeft,
+          title: isRestMode ? t('timerAlerts.restOver') : t('timerAlerts.timeUp'),
+          body: isRestMode ? t('timerAlerts.restOverBody') : t('timerAlerts.amrapDoneBody'),
+        }]
+      : [];
+  });
 
   useEffect(() => {
     if (isInline) onActiveChange?.(restActive || selectedIndex !== null);

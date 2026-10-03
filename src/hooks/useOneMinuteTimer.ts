@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Vibration } from 'react-native';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
+import { useBackgroundTimerAlerts } from './useBackgroundTimerAlerts';
+import { useKeepAwakeWhile } from './useKeepAwakeWhile';
+import { t } from '../i18n';
 
 export type OneMinutePhase = 'idle' | 'ready' | 'run';
 
@@ -80,6 +83,19 @@ export function useOneMinuteTimer(onFinish: (taps: number) => void) {
     const sub = AppState.addEventListener('change', s => { if (s === 'active') tick(); });
     return () => { clearInterval(iv); sub.remove(); };
   }, [phase, tick]);
+
+  // Screen stays on through the minute; if the app is in the background
+  // anyway, say when it starts and when it's up (taps can't count meanwhile).
+  useKeepAwakeWhile(phase !== 'idle', 'one-min-max');
+  useBackgroundTimerAlerts(() => {
+    if (t0.current == null || phaseRef.current === 'idle') return [];
+    const sinceStart = (Date.now() - t0.current) / 1000;
+    const alerts = [{ inSeconds: ONE_MINUTE_COUNTDOWN + ONE_MINUTE_SECONDS - sinceStart, title: t('timerAlerts.minuteDone'), body: t('timerAlerts.minuteDoneBody') }];
+    if (sinceStart < ONE_MINUTE_COUNTDOWN) {
+      alerts.unshift({ inSeconds: ONE_MINUTE_COUNTDOWN - sinceStart, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') });
+    }
+    return alerts;
+  });
 
   const start = useCallback(() => {
     reset();

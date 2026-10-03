@@ -5,6 +5,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { useBackgroundTimerAlerts, TimerAlert } from '../../hooks/useBackgroundTimerAlerts';
 
 /** Get-ready countdown before a hold timer starts. */
 const HOLD_READY_SECONDS = 5;
@@ -149,10 +150,13 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     const remaining = Math.max(0, Math.ceil((holdEndRef.current - Date.now()) / 1000));
     if (holdPhaseRef.current === 'ready') {
       if (remaining <= 0) {
-        holdEndRef.current = Date.now() + holdSecs * 1000;
-        setLeft(holdSecs);
+        // The hold starts when the get-ready ended (maybe while the app was
+        // in the background), not when this tick ran.
+        holdEndRef.current = holdEndRef.current + holdSecs * 1000;
         setPhase('holding');
         SoundServiceInstance.playBoxingBell();
+        tickHold();
+        return;
       } else if (remaining !== holdLeftRef.current) {
         setLeft(remaining);
         SoundServiceInstance.playTick();
@@ -184,6 +188,23 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     });
     return () => sub.remove();
   }, [holdRunning]);
+
+  // Rest over / hold start / hold done while the app is in the background.
+  useBackgroundTimerAlerts(() => {
+    const now = Date.now();
+    const alerts: TimerAlert[] = [];
+    if (restActive && restEndTimeRef.current !== null) {
+      alerts.push({ inSeconds: (restEndTimeRef.current - now) / 1000, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') });
+    }
+    if (holdEndRef.current !== null && holdPhaseRef.current === 'ready') {
+      const startIn = (holdEndRef.current - now) / 1000;
+      alerts.push({ inSeconds: startIn, title: t('timerAlerts.holdNow'), body: t('timerAlerts.holdNowBody', { sec: holdSecs }) });
+      alerts.push({ inSeconds: startIn + holdSecs, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });
+    } else if (holdEndRef.current !== null && holdPhaseRef.current === 'holding') {
+      alerts.push({ inSeconds: (holdEndRef.current - now) / 1000, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });
+    }
+    return alerts;
+  });
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

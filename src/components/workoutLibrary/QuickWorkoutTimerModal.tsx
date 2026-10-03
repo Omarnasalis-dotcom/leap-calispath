@@ -28,12 +28,15 @@
 // since the interval auto-advances on schedule, not on athlete input, so
 // a lap delta would always read ~0).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Vibration, Alert, AccessibilityInfo, Animated, Easing } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Modal, ScrollView, Vibration, Alert, AccessibilityInfo, Animated, Easing, AppState } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { useTimer } from '../../hooks/useTimer';
+import { useBackgroundTimerAlerts, TimerAlert } from '../../hooks/useBackgroundTimerAlerts';
+import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
+import { advanceIntervals, upcomingBoundaries } from '../../lib/intervalClock';
 import { formatTime } from '../../lib/trials';
 import { StandaloneWorkoutDetail, StandaloneWorkoutExercise } from '../../lib/workoutLibrary';
 import { t } from '../../i18n';
@@ -316,7 +319,14 @@ export function QuickWorkoutTimerModal({
   // 'down' (countdown) for everything else. Safe to vary the hook's
   // arguments by format since the hook itself is still called
   // unconditionally every render; only what's passed to it changes.
-  const timer = useTimer(isForTime ? 0 : (currentInterval?.seconds ?? 0), isForTime ? 'up' : 'down');
+  // Its own notification is off: useBackgroundTimerAlerts below covers
+  // every coming interval, not just the current one.
+  const timer = useTimer(isForTime ? 0 : (currentInterval?.seconds ?? 0), isForTime ? 'up' : 'down', false);
+
+  // When the running interval ends (wall clock), and the seconds left to
+  // resume a caught-up interval with — see the AppState catch-up below.
+  const intervalEndAtRef = useRef<number | null>(null);
+  const resumeLeftRef = useRef<number | null>(null);
 
   const pulseAnim = useRef(new Animated.Value(1)).current;
 
@@ -420,8 +430,11 @@ export function QuickWorkoutTimerModal({
     // correctly resolve to 0. Verified with a real Jest regression test
     // (QuickWorkoutTimerModal.test.tsx) that forces exactly this
     // transition, not just reasoned through.
+    const startWith = resumeLeftRef.current ?? currentInterval.seconds;
+    resumeLeftRef.current = null;
+    intervalEndAtRef.current = Date.now() + startWith * 1000;
     timer.reset();
-    timer.start(currentInterval.seconds);
+    timer.start(startWith);
     if (intervalIndex > 0) {
       Vibration.vibrate(100);
       SoundService.playTick();
@@ -450,6 +463,96 @@ export function QuickWorkoutTimerModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [timer.seconds, timer.isRunning, phase, isForTime]);
+
+  // The running interval's wall-clock end follows the countdown: set from
+  // its seconds left whenever it (re)starts, cleared while paused — so a
+  // paused run never catches up or alerts.
+  useEffect(() => {
+    if (isForTime) return;
+    intervalEndAtRef.current = timer.isRunning ? Date.now() + timer.seconds * 1000 : null;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [timer.isRunning, isForTime]);
+
+  // Catch-up after the app was in the background. useTimer re-syncs the
+  // running countdown, but intervals that ended meanwhile (and a get-ready
+  // that ended meanwhile) would otherwise each restart at full length on
+  // return: walk the plan by the time that passed and resume the interval
+  // it lands in with its true seconds left.
+  useEffect(() => {
+    if (!visible || isForTime || plan.length === 0) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next !== 'active') return;
+      const now = Date.now();
+      const durations = plan.map((p) => p.seconds);
+      let pos: { index: number; left: number; done: boolean } | null = null;
+      if (phase === 'prep' && prepStartTimeRef.current !== null) {
+        const prepEnd = prepStartTimeRef.current + PREP_SECONDS * 1000;
+        if (now < prepEnd) return;
+        pos = advanceIntervals(durations, 0, durations[0], Math.floor((now - prepEnd) / 1000));
+      } else if (phase === 'running' && intervalEndAtRef.current !== null && now >= intervalEndAtRef.current) {
+        pos = advanceIntervals(durations, intervalIndex, 0, Math.floor((now - intervalEndAtRef.current) / 1000));
+      }
+      if (!pos) return;
+      if (pos.done) {
+        timer.stop();
+        intervalEndAtRef.current = null;
+        SoundService.playBoxingBell();
+        setPhase('done');
+        return;
+      }
+      resumeLeftRef.current = pos.left;
+      setIntervalIndex(pos.index);
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, isForTime, plan, phase, intervalIndex]);
+
+  // Alerts for a backgrounded app: start (get-ready over), every interval
+  // switch, the end; For Time: the cap.
+  useBackgroundTimerAlerts(() => {
+    if (!visible || phase === 'done' || !workout) return [];
+    const now = Date.now();
+    const alerts: TimerAlert[] = [];
+    if (isForTime) {
+      const cap = (workout.duration_minutes ?? 0) * 60;
+      if (phase === 'running' && cap > timer.seconds) {
+        alerts.push({ inSeconds: cap - timer.seconds, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') });
+      }
+      return alerts;
+    }
+    if (plan.length === 0) return [];
+    let index = intervalIndex;
+    let left = 0;
+    let offset = 0;
+    if (phase === 'prep' && prepStartTimeRef.current !== null) {
+      offset = Math.max(0, (prepStartTimeRef.current + PREP_SECONDS * 1000 - now) / 1000);
+      alerts.push({ inSeconds: offset, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') });
+      index = 0;
+      left = plan[0].seconds;
+    } else if (phase === 'running' && intervalEndAtRef.current !== null) {
+      left = Math.max(0, (intervalEndAtRef.current - now) / 1000);
+    } else {
+      return [];
+    }
+    upcomingBoundaries(plan.map((p) => p.seconds), index, left, offset).forEach(({ index: i, inSeconds }) => {
+      const iv = plan[i];
+      if (!iv) {
+        alerts.push({ inSeconds, title: t('timerAlerts.workoutDone'), body: t('timerAlerts.workoutDoneBody') });
+      } else if (iv.isRest) {
+        alerts.push({ inSeconds, title: t('timerAlerts.rest'), body: t('timerAlerts.restBody', { sec: iv.seconds }) });
+      } else {
+        alerts.push({
+          inSeconds,
+          title: t('timerAlerts.work'),
+          body: iv.exercise?.name ? t('timerAlerts.workBody', { exercise: iv.exercise.name }) : t('timerAlerts.workBodyPlain'),
+        });
+      }
+    });
+    return alerts;
+  });
+
+  // Screen stays on for the whole run.
+  useKeepAwakeWhile(visible && phase !== 'done', 'quick-workout');
 
   // For Time's optional hard cap — duration_minutes, when set, is a
   // ceiling, not the primary display (that's the stopwatch). Hitting it

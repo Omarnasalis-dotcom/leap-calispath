@@ -12,7 +12,12 @@ export interface UseTimerResult {
   setSeconds: (s: number) => void;
 }
 
-export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up'): UseTimerResult {
+/**
+ * `notify` (countdowns): schedule a local "time's up" notification when the
+ * countdown starts. Off for callers that schedule their own alerts
+ * (useBackgroundTimerAlerts).
+ */
+export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up', notify: boolean = true): UseTimerResult {
   const [seconds, setSeconds] = useState(initialSeconds);
   const [isRunning, setIsRunning] = useState(false);
   const startTimeRef = useRef<number | null>(null);
@@ -37,7 +42,7 @@ export function useTimer(initialSeconds: number = 0, mode: 'up' | 'down' = 'up')
       if (offsetSeconds > 0) setSeconds(baseSeconds);
     }
 
-    if (mode === 'down' && Platform.OS !== 'web') {
+    if (mode === 'down' && notify && Platform.OS !== 'web') {
       try {
         const remaining = initialSeconds - elapsed;
         if (remaining > 0) {

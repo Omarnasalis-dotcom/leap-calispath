@@ -1,7 +1,6 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
 import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Platform, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import * as Notifications from 'expo-notifications';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { t } from '../../i18n';
@@ -101,7 +100,6 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   };
 
   const [showEndWarning, setShowEndWarning] = React.useState(false);
-  const notificationIdRef = useRef<string | null>(null);
 
   // Initialize timer for this block once on mount
   useEffect(() => {
@@ -110,38 +108,8 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
     }
   }, [activeBlock]);
 
-  // Background Notification Guard inside the modal
-  useEffect(() => {
-    if (timerRunning && (timerType === 'amrap' || timerType === 'rest') && timeLeft > 0) {
-      Notifications.scheduleNotificationAsync({
-        content: {
-          title: "Time's up!",
-          body: "Your timer has finished. Get back to work!",
-          sound: true,
-        },
-        trigger: {
-          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-          seconds: timeLeft
-        }
-      }).then(id => {
-        notificationIdRef.current = id;
-      }).catch(err => console.error('Notification Schedule Error:', err));
-    } else {
-      if (notificationIdRef.current) {
-        Notifications.cancelScheduledNotificationAsync(notificationIdRef.current).catch(() => {});
-        notificationIdRef.current = null;
-      }
-    }
-  }, [timerRunning]);
-
-  // Cleanup notification on unmount
-  useEffect(() => {
-    return () => {
-      if (notificationIdRef.current) {
-        Notifications.cancelScheduledNotificationAsync(notificationIdRef.current).catch(() => {});
-      }
-    };
-  }, []);
+  // Background alerts (rest over, AMRAP end, Tabata switches…) are
+  // scheduled by useWarriorTimer via useBackgroundTimerAlerts.
 
   return (
     <>

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Alert, AppState, TextInput } 
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface ForTimeExercise {
   id: string | number;
@@ -134,6 +135,13 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   useEffect(() => {
     onActiveChange?.(hasStarted || roundsCompleted > 0 || manualMins !== '' || manualSecs !== '');
   }, [hasStarted, roundsCompleted, manualMins, manualSecs]);
+
+  // Time cap reached while the app is in the background: notify.
+  useBackgroundTimerAlerts(() =>
+    timerRunning && timeCapSeconds > 0 && elapsedTime < timeCapSeconds
+      ? [{ inSeconds: timeCapSeconds - elapsedTime, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') }]
+      : []
+  );
 
   const formatTime = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

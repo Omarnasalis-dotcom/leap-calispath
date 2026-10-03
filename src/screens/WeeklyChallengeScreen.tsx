@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, BackHandler, LayoutAnimation, Platform, Pressable, Text, Vibration, View } from 'react-native';
+import { Alert, AppState, BackHandler, LayoutAnimation, Platform, Pressable, Text, Vibration, View } from 'react-native';
 import { Stack } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../contexts/ThemeContext';
@@ -14,6 +14,8 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { useSafeMutation } from '../hooks/useSafeMutation';
 import { useReturnTo } from '../hooks/useReturnTo';
 import { useWallClockTimer } from '../hooks/useWallClockTimer';
+import { useBackgroundTimerAlerts } from '../hooks/useBackgroundTimerAlerts';
+import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { WorldPage, Gender, Scope, kt } from '../components/worlds/kit';
 import { getWeeklyTokens } from '../components/weekly/weeklyTokens';
@@ -145,6 +147,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     if (countdown == null) return;
     if (countdown === 0) {
       setCountdown(null);
+      countdownEndRef.current = null;
       SoundService.playBoxingBell();
       Vibration.vibrate(100);
       timer.start();
@@ -155,12 +158,39 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     return () => clearTimeout(id);
   }, [countdown]);
 
+  // The 3·2·1 steps pause while the app is in the background: on return,
+  // if it should have ended, start the clock from when it ended.
+  const countdownEndRef = useRef<number | null>(null);
+  useEffect(() => {
+    if (countdown == null) return;
+    const sub = AppState.addEventListener('change', next => {
+      if (next !== 'active' || countdownEndRef.current == null) return;
+      const endAt = countdownEndRef.current;
+      if (Date.now() < endAt) return;
+      countdownEndRef.current = null;
+      setCountdown(null);
+      SoundService.playBoxingBell();
+      timer.start(endAt);
+    });
+    return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [countdown == null]);
+  useKeepAwakeWhile(countdown != null, 'weekly-countdown');
+  useBackgroundTimerAlerts(() => {
+    if (countdown == null || countdownEndRef.current == null) return [];
+    const goIn = (countdownEndRef.current - Date.now()) / 1000;
+    const alerts = [{ inSeconds: goIn, title: tr('timerAlerts.go'), body: tr('timerAlerts.goBody') }];
+    if (amrap && capSec) alerts.push({ inSeconds: goIn + capSec, title: tr('timerAlerts.capReached'), body: tr('timerAlerts.capReachedBody') });
+    return alerts;
+  });
+
   const startAttempt = () => {
     timer.reset();
     setStep(0);
     setRounds(0);
     setResult(0);
     setPhase('active');
+    countdownEndRef.current = Date.now() + COUNTDOWN_FROM * 1000;
     setCountdown(COUNTDOWN_FROM);
   };
 
