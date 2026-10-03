@@ -782,40 +782,37 @@ export function TrainingCenterScreen() {
             </TourTarget>
           </RowIn>
 
-          {data.hasHistory && (
-            <RowIn index={1} style={{ flexDirection: 'row', gap: 10, marginTop: 14 }}>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{data.sessionsDone}</Text>
-                <Text style={styles.statLabel}>{t('trainingCenter.sessionsDone')}</Text>
+          {/* One card: My progress (the athlete's Performance charts) with the
+              program's all-time stats inside it once a day is fully logged. */}
+          <RowIn index={1} style={{ marginTop: 14 }}>
+            <TouchableOpacity
+              style={styles.progressEntry}
+              onPress={() => router.push('/my-progress')}
+              accessibilityRole="button"
+              accessibilityLabel={t('progress.entryTitle')}
+              accessibilityHint={t('progress.entrySub')}
+              activeOpacity={0.85}
+            >
+              <View style={styles.tileIconWell}>
+                <MaterialCommunityIcons name="chart-line" size={18} color={c.coral} />
               </View>
-              <View style={styles.statCard}>
-                <Text style={[styles.statValue, { color: c.coral }]}>{data.adherencePct ?? 0}%</Text>
-                <Text style={styles.statLabel}>{t('trainingCenter.adherence')}</Text>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text style={styles.progressEntryTitle}>{t('progress.entryTitle')}</Text>
+                {data.hasHistory ? (
+                  <Text style={styles.progressEntrySub} numberOfLines={1}>
+                    <Text style={styles.progressStatNum}>{data.sessionsDone}</Text> {t('trainingCenter.statSessions')}
+                    {'  ·  '}
+                    <Text style={[styles.progressStatNum, { color: c.coral }]}>{data.adherencePct ?? 0}%</Text> {t('trainingCenter.statAdherence')}
+                    {'  ·  '}
+                    <Text style={styles.progressStatNum}>{data.streakDays}</Text> {t('trainingCenter.statStreak')}
+                  </Text>
+                ) : (
+                  <Text style={styles.progressEntrySub} numberOfLines={1}>{t('progress.entrySub')}</Text>
+                )}
               </View>
-              <View style={styles.statCard}>
-                <Text style={styles.statValue}>{data.streakDays}</Text>
-                <Text style={styles.statLabel}>{t('trainingCenter.weekStreak')}</Text>
-              </View>
-            </RowIn>
-          )}
-
-          {/* The athlete's own Performance charts (MyProgressScreen). */}
-          <TouchableOpacity
-            style={styles.progressEntry}
-            onPress={() => router.push('/my-progress')}
-            accessibilityRole="button"
-            accessibilityLabel={t('progress.entryTitle')}
-            accessibilityHint={t('progress.entrySub')}
-          >
-            <View style={styles.tileIconWell}>
-              <MaterialCommunityIcons name="chart-line" size={20} color={c.coral} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.progressEntryTitle}>{t('progress.entryTitle')}</Text>
-              <Text style={styles.progressEntrySub} numberOfLines={1}>{t('progress.entrySub')}</Text>
-            </View>
-            <MaterialCommunityIcons name="chevron-right" size={22} color={c.textMuted} style={FLIP_X} />
-          </TouchableOpacity>
+              <MaterialCommunityIcons name="chevron-right" size={20} color={c.textMuted} style={FLIP_X} />
+            </TouchableOpacity>
+          </RowIn>
 
           <Text style={styles.sectionEyebrow}>{t('trainingCenter.choosePath')}</Text>
           <View style={styles.tileGrid}>
@@ -885,22 +882,19 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   },
   coachEntryBar: { width: 2, borderRadius: 2, backgroundColor: '#fff' },
 
-  statCard: { flex: 1, borderWidth: 1, borderColor: c.border, borderRadius: 12, backgroundColor: c.cardFlat, alignItems: 'center', paddingVertical: 12, gap: 4 },
-  statValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17 },
-  statLabel: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 1.3 },
 
   progressEntry: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    marginTop: 14,
     borderWidth: 1,
     borderColor: c.border,
     borderRadius: TC_LAYOUT.cardRadius,
     backgroundColor: c.cardFlat,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
   },
+  progressStatNum: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 13 },
   progressEntryTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 14, letterSpacing: 1.3 },
   progressEntrySub: { color: c.textMuted, fontSize: 11.5, marginTop: 2 },
   sectionEyebrow: { color: c.textFaint, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2.4, marginTop: 22, marginBottom: 10 },

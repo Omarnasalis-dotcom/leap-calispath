@@ -11,7 +11,13 @@ export interface ProgramBlockParams {
 interface UseWarriorTimerProps {
   onAmrapComplete: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
-  onTabataComplete?: (blockId: string | number, roundsCompleted: number, holdTimes: number[]) => void;
+  onTabataComplete?: (blockId: string | number, roundsCompleted: number, holdTimes: TabataHold[]) => void;
+}
+
+/** A hold logged during a Tabata interval, on that interval's exercise. */
+export interface TabataHold {
+  exerciseId: string | number | null;
+  seconds: number;
 }
 
 export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataComplete }: UseWarriorTimerProps) {
@@ -54,12 +60,13 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
 
   // Tabata best-hold tracking, one entry appended per round for hold/skill exercises.
   // Mirrored into a ref for the same stale-closure reason as amrapRoundsRef.
-  const [holdTimes, setHoldTimes] = useState<number[]>([]);
-  const holdTimesRef = useRef<number[]>([]);
+  // Each hold carries the exercise it was done on, so it's saved against it.
+  const [holdTimes, setHoldTimes] = useState<TabataHold[]>([]);
+  const holdTimesRef = useRef<TabataHold[]>([]);
 
-  const logHoldTime = useCallback((seconds: number) => {
+  const logHoldTime = useCallback((seconds: number, exerciseId: string | number | null = null) => {
     setHoldTimes(prev => {
-      const next = [...prev, seconds];
+      const next = [...prev, { exerciseId, seconds }];
       holdTimesRef.current = next;
       return next;
     });
@@ -74,7 +81,7 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
   const [completionEvent, setCompletionEvent] = useState<
     | { type: 'amrap'; blockId: string | number; roundsCompleted?: number }
     | { type: 'fortime'; blockId: string | number; elapsedSeconds: number }
-    | { type: 'tabata'; blockId: string | number; roundsCompleted: number; holdTimes: number[] }
+    | { type: 'tabata'; blockId: string | number; roundsCompleted: number; holdTimes: TabataHold[] }
     | null
   >(null);
 

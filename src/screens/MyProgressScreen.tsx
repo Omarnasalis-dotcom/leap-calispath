@@ -629,15 +629,20 @@ function LiftsCard({
           </View>
           <ProgressLineChart
             accessibilityLabel={`${t('progress.lifts')} · ${movement.exercise}`}
-            labels={view.weeks.map(wk)}
-            series={visible.map((s) => ({
-              key: s.key,
-              color: s.color,
-              values: s.values,
-              details: s.values.map((v, k) =>
+            // A single logged week would be a lone dot: draw it as a line up from 0.
+            labels={view.weeks.length === 1 ? [t('progress.chartStart'), wk(view.weeks[0])] : view.weeks.map(wk)}
+            series={visible.map((s) => {
+              const details = s.values.map((v, k) =>
                 v === null ? null : `${fmtNum(v)} ${t('progress.kg')}${s.reps[k] != null ? ` × ${s.reps[k]}` : ''}`,
-              ),
-            }))}
+              );
+              const oneWeek = view.weeks.length === 1;
+              return {
+                key: s.key,
+                color: s.color,
+                values: oneWeek ? [s.values[0] != null ? 0 : null, ...s.values] : s.values,
+                details: oneWeek ? [null, ...details] : details,
+              };
+            })}
             colors={chartColors}
             unit={t('progress.kg')}
             step={5}

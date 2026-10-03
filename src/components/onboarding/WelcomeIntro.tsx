@@ -193,7 +193,10 @@ export function WelcomeIntro({ name, onDone }: WelcomeIntroProps) {
   });
 
   return (
-    <View style={styles.screen}>
+    // SpartanLayout pads its content by the safe-area insets; pull the
+    // welcome back out to the real screen edges so the video runs full
+    // bleed behind the status bar and home indicator.
+    <View style={[styles.screen, { marginTop: -insets.top, marginBottom: -insets.bottom }]}>
       <StatusBar style="light" />
       <Animated.View style={[StyleSheet.absoluteFill, videoStyle]}>
         <Image source={POSTER} style={StyleSheet.absoluteFill} resizeMode="cover" />

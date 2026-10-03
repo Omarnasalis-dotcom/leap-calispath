@@ -1,9 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
+
+/** Get-ready countdown before a hold timer starts. */
+const HOLD_READY_SECONDS = 5;
 
 export interface ExerciseDetail {
   id: string | number;
@@ -103,6 +107,84 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     return () => sub.remove();
   }, [restActive]);
 
+  // Hold timer on the HOLD badge (straight sets): tap → 5 s get-ready
+  // countdown → the planned hold counting down → buzzer. Tap again to stop.
+  // Same wall-clock anchoring as the rest timer.
+  const holdSecs = parseInt(String(exercise.hold_seconds || '0'), 10) || 0;
+  const [holdPhase, setHoldPhase] = useState<'idle' | 'ready' | 'holding' | 'done'>('idle');
+  const [holdLeft, setHoldLeft] = useState(0);
+  const holdEndRef = useRef<number | null>(null);
+  const holdIntervalRef = useRef<any>(null);
+
+  // Phase/seconds mirrored in refs so the interval reads them without
+  // side effects inside state updaters.
+  const holdPhaseRef = useRef<'idle' | 'ready' | 'holding' | 'done'>('idle');
+  const holdLeftRef = useRef(0);
+  const setPhase = (p: 'idle' | 'ready' | 'holding' | 'done') => {
+    holdPhaseRef.current = p;
+    setHoldPhase(p);
+  };
+  const setLeft = (n: number) => {
+    holdLeftRef.current = n;
+    setHoldLeft(n);
+  };
+
+  const stopHold = () => {
+    clearInterval(holdIntervalRef.current);
+    holdEndRef.current = null;
+    setPhase('idle');
+    setLeft(0);
+  };
+
+  const startHold = () => {
+    if (holdSecs <= 0) return;
+    holdEndRef.current = Date.now() + HOLD_READY_SECONDS * 1000;
+    setLeft(HOLD_READY_SECONDS);
+    setPhase('ready');
+    SoundServiceInstance.playTick();
+  };
+
+  const tickHold = () => {
+    if (holdEndRef.current === null) return;
+    const remaining = Math.max(0, Math.ceil((holdEndRef.current - Date.now()) / 1000));
+    if (holdPhaseRef.current === 'ready') {
+      if (remaining <= 0) {
+        holdEndRef.current = Date.now() + holdSecs * 1000;
+        setLeft(holdSecs);
+        setPhase('holding');
+        SoundServiceInstance.playBoxingBell();
+      } else if (remaining !== holdLeftRef.current) {
+        setLeft(remaining);
+        SoundServiceInstance.playTick();
+      }
+    } else if (holdPhaseRef.current === 'holding') {
+      if (remaining !== holdLeftRef.current) setLeft(remaining);
+      if (remaining <= 0) {
+        clearInterval(holdIntervalRef.current);
+        holdEndRef.current = null;
+        setPhase('done');
+        SoundServiceInstance.playDigitalBuzzer(3);
+      }
+    }
+  };
+
+  const holdRunning = holdPhase === 'ready' || holdPhase === 'holding';
+  useEffect(() => {
+    if (!holdRunning) return;
+    clearInterval(holdIntervalRef.current);
+    holdIntervalRef.current = setInterval(tickHold, 250);
+    return () => clearInterval(holdIntervalRef.current);
+  }, [holdRunning]);
+
+  // Catch up straight away when the app returns to the foreground.
+  useEffect(() => {
+    if (!holdRunning) return;
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') tickHold();
+    });
+    return () => sub.remove();
+  }, [holdRunning]);
+
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
   return (
@@ -177,12 +259,34 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
               <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.reps')}</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{exercise.reps}</Text>
             </View>
-            {exercise.hold_seconds && parseInt(String(exercise.hold_seconds)) > 0 && (
-              <View style={[styles.detailBadge, { borderColor: '#7E57C2', backgroundColor: 'rgba(126,87,194,0.08)' }]}>
-                <Text style={[styles.detailLabel, { color: '#7E57C2' }]}>{t('blocks.hold')}</Text>
-                <Text style={[styles.detailValue, { color: '#7E57C2' }]}>{t('units.sec', { value: exercise.hold_seconds })}</Text>
-              </View>
-            )}
+            {holdSecs > 0 && (() => {
+              const color = holdPhase === 'holding' ? '#FF7043' : holdPhase === 'done' ? '#4CAF50' : '#7E57C2';
+              const bg = holdPhase === 'holding' ? 'rgba(255,112,67,0.1)' : holdPhase === 'done' ? 'rgba(76,175,80,0.1)' : 'rgba(126,87,194,0.08)';
+              return (
+                <TouchableOpacity
+                  onPress={holdRunning ? stopHold : startHold}
+                  accessibilityRole="button"
+                  accessibilityLabel={`${t('blocks.hold')} ${t('units.sec', { value: holdSecs })}`}
+                  style={[styles.detailBadge, { borderColor: color, backgroundColor: bg, minWidth: 64 }]}
+                >
+                  <Text style={[styles.detailLabel, { color }]}>
+                    {holdPhase === 'ready' ? t('blocks.holdReady') : holdPhase === 'holding' ? t('blocks.holding') : holdPhase === 'done' ? t('blocks.holdDone') : t('blocks.hold')}
+                  </Text>
+                  {holdRunning ? (
+                    <Text style={[styles.detailValue, { color, fontSize: 16 }]}>
+                      {holdPhase === 'ready' ? holdLeft : formatRest(holdLeft)}
+                    </Text>
+                  ) : (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+                      <Text style={[styles.detailValue, { color }]}>{t('units.sec', { value: holdSecs })}</Text>
+                      <View style={{ width: 16, height: 16, borderRadius: 8, backgroundColor: color, alignItems: 'center', justifyContent: 'center' }}>
+                        <MaterialCommunityIcons name={holdPhase === 'done' ? 'restart' : 'timer-outline'} size={11} color="#FFFFFF" />
+                      </View>
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })()}
             <View style={[styles.detailBadge, { borderColor: theme.card.border }]}>
               <Text style={[styles.detailLabel, { color: theme.text.tertiary }]}>{t('blocks.rest')}</Text>
               <Text style={[styles.detailValue, { color: theme.text.primary }]}>{t('units.sec', { value: exercise.rest_seconds })}</Text>

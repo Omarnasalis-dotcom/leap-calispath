@@ -27,7 +27,7 @@ import { SoundServiceInstance } from '../../lib/SoundService';
 import { WarriorExerciseRow } from '../../components/coaching/WarriorExerciseRow';
 import { WarriorBlockCard } from '../../components/coaching/WarriorBlockCard';
 import { LogBlockSheet, SheetCard, SheetKind } from '../../components/coaching/LogBlockSheet';
-import { useWarriorTimer } from '../../hooks/useWarriorTimer';
+import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
@@ -319,7 +319,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         hold: Number.isNaN(hold) || hold <= 0 ? null : hold,
         done: entered[String(ex.id)] || [],
       };
-    }).filter(e => e.reps !== null || e.hold !== null);
+    // Sets blocks: only exercises with a planned number get a card. Tabata:
+    // every exercise does (most are timed by the work interval, with no
+    // reps or hold), so the athlete confirms the rounds they did.
+    }).filter(e => kind === 'timer' || e.reps !== null || e.hold !== null);
 
     let cards: SheetCard[] = [];
     if (kind === 'sets' && isRounds && exercises.length > 0) {
@@ -335,6 +338,23 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         weighted: false,
         hold: false,
       }];
+    } else if (kind === 'timer') {
+      // Tabata: one card per exercise, one tile per round (each exercise
+      // works once a round). Default = the rounds the timer ran.
+      const rounds = Math.max(1, parseInt(String(meta.tabata_rounds || '8'), 10) || 8);
+      const work = parseInt(String(meta.tabata_work_seconds || '20'), 10) || 20;
+      cards = exercises.map(e => ({
+        id: e.id,
+        name: e.ex.name,
+        plan: rounds,
+        ticked: 0,
+        repsLabel: e.hold !== null ? null : e.reps !== null ? t('logSheet.repsShort', { n: e.reps }) : t('progress.secondsShort', { n: work }),
+        weighted: false,
+        hold: e.hold !== null,
+        defaultCount: Math.min(rounds, timerRoundsFor(blockId) ?? rounds),
+        // Rounds are confirmed, never "counted as planned" from the sheet.
+        roundsStatus: true,
+      }));
     } else if (kind === 'sets') {
       cards = exercises.map(e => ({
         id: e.id,
@@ -368,7 +388,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       const typed = Math.max(0, ...e.done.map(d => d.weight ?? 0));
       const popup = parseKg(logExerciseWeights[e.id] ?? '') ?? (weightedExercisesOf(blockId ?? '').length === 1 ? parseKg(logWeightUsed) : undefined);
       topKgDefault[e.id] = typed > 0 ? typed : popup && popup > 0 ? popup : 0;
-      if (e.hold !== null) holdDefault[e.id] = e.hold;
+      // Tabata: the best hold logged in the timer for this exercise.
+      const logged = timerHoldsFor(blockId).filter(h => String(h.exerciseId) === e.id).map(h => h.seconds);
+      if (e.hold !== null) holdDefault[e.id] = kind === 'timer' && logged.length > 0 ? Math.max(...logged) : e.hold;
     });
     return { block, kind, isRounds, cards, exercises, topKgDefault, holdDefault, rungs };
   };
@@ -432,7 +454,17 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const [logForTimeDuration, setLogForTimeDuration] = useState('');
   const [logWeightUsed, setLogWeightUsed] = useState('');
   const [logLadderProgress, setLogLadderProgress] = useState('');
-  const [pendingHoldTimes, setPendingHoldTimes] = useState<number[]>([]);
+  const [pendingHoldTimes, setPendingHoldTimes] = useState<TabataHold[]>([]);
+  // Tabata rounds the timer ran to (null: stopped early / not from the timer).
+  const [pendingTabataRounds, setPendingTabataRounds] = useState<number | null>(null);
+  // The block the pending timer holds/rounds came from: they're only ever
+  // used for that block, so closing its sheet unsaved and logging another
+  // block can't carry them into the wrong log.
+  const [pendingTimerBlockId, setPendingTimerBlockId] = useState<string | number | null>(null);
+  const timerHoldsFor = (blockId: string | number | null) =>
+    blockId != null && String(blockId) === String(pendingTimerBlockId) ? pendingHoldTimes : [];
+  const timerRoundsFor = (blockId: string | number | null) =>
+    blockId != null && String(blockId) === String(pendingTimerBlockId) ? pendingTabataRounds : null;
   const [logFeel, setLogFeel] = useState<Feel | null>(null);
   const [logRpe, setLogRpe] = useState<number | null>(null);
   const [logMissedReason, setLogMissedReason] = useState<MissedReason | null>(null);
@@ -1436,15 +1468,41 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       }
     }
 
-    pendingHoldTimes.forEach((seconds, i) => {
-      sets.push({
-        block_exercise_id: null,
-        set_index: i + 1,
-        reps_completed: null,
-        weight_used: null,
-        hold_seconds: seconds,
+    // Tabata from the sheet: each exercise's confirmed rounds become set
+    // rows — hold rounds use the holds logged in the timer for that exercise
+    // in order, then the Hold stepper; rep rounds the planned reps. The
+    // timer's holds are folded in here, so they're attached to the exercise.
+    const tabataFromSheet = fromSheet && sheetModel(blockId).kind === 'timer';
+    if (tabataFromSheet) {
+      const m = sheetModel(blockId);
+      m.cards.forEach(card => {
+        const e = m.exercises.find(x => x.id === card.id)!;
+        const n = sheetCounts[card.id] ?? card.defaultCount ?? card.plan;
+        if (n === 0) {
+          sets.push({ block_exercise_id: card.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
+          return;
+        }
+        const logged = timerHoldsFor(blockId).filter(h => String(h.exerciseId) === card.id).map(h => h.seconds);
+        const stepper = sheetHoldSecs[card.id] ?? m.holdDefault[card.id] ?? e.hold;
+        for (let r = 1; r <= n; r++) {
+          if (card.hold) {
+            sets.push({ block_exercise_id: card.id, set_index: r, reps_completed: null, weight_used: null, hold_seconds: logged[r - 1] ?? stepper });
+          } else if (e.reps !== null) {
+            sets.push({ block_exercise_id: card.id, set_index: r, reps_completed: e.reps, weight_used: null, hold_seconds: null });
+          }
+        }
       });
-    });
+    } else {
+      timerHoldsFor(blockId).forEach((h, i) => {
+        sets.push({
+          block_exercise_id: h.exerciseId,
+          set_index: i + 1,
+          reps_completed: null,
+          weight_used: null,
+          hold_seconds: h.seconds,
+        });
+      });
+    }
 
     return sets;
   };
@@ -1566,6 +1624,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         return next;
       });
       setPendingHoldTimes([]);
+      setPendingTabataRounds(null);
+      setPendingTimerBlockId(null);
       // Collapse the just-logged block so the next unlocked block is easy to open.
       setExpandedBlocks(prev => ({ ...prev, [blockId]: false }));
 
@@ -1679,7 +1739,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           p_notes: finalNotes.trim(),
           p_session_seconds: null,
           p_start_of_today: replaceLogsSince(blockId),
-          p_sets: buildSetsPayload(blockId, false),
+          // A missed block carries no sets (same as the sheet's MISSED path).
+          p_sets: status === 'missed' ? [] : buildSetsPayload(blockId, false),
         }),
         timeoutPromise
       ]) as any;
@@ -1703,6 +1764,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         return next;
       });
       setPendingHoldTimes([]);
+      setPendingTabataRounds(null);
+      setPendingTimerBlockId(null);
       // Collapse the just-logged block so the next unlocked block is easy to open.
       setExpandedBlocks(prev => ({ ...prev, [blockId]: false }));
       await loadWarriorProgram();
@@ -2207,6 +2270,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setLogMissedDetail('');
             setLogAmrapRounds(roundsCompleted !== undefined ? String(roundsCompleted) : '');
             setPendingHoldTimes(tabataHoldTimes || []);
+            setPendingTabataRounds(roundsCompleted ?? null);
+            setPendingTimerBlockId(blockId);
             openLogModalAfterTimerCloses();
           }}
         />

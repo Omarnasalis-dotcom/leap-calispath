@@ -3,7 +3,7 @@ import { Modal, View, Text, TouchableOpacity, ScrollView, StyleSheet, Alert, Pla
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Notifications from 'expo-notifications';
 import { BlockConceptParser } from '../../lib/BlockConceptParser';
-import { useWarriorTimer } from '../../hooks/useWarriorTimer';
+import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { t } from '../../i18n';
 
 interface MinimalExercise {
@@ -28,7 +28,7 @@ interface WarriorTimerModalProps {
   bronzeGold: string;
   onAmrapComplete: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeComplete: (blockId: string | number, elapsedSeconds: number) => void;
-  onBlockComplete: (blockId: string | number, roundsCompleted?: number, holdTimes?: number[]) => void;
+  onBlockComplete: (blockId: string | number, roundsCompleted?: number, holdTimes?: TabataHold[]) => void;
 }
 
 export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
@@ -91,7 +91,12 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
   const handleLogHold = () => {
     const parsed = parseFloat(holdInput);
     if (!holdInput || isNaN(parsed) || parsed <= 0) return;
-    logHoldTime(parsed);
+    // The hold belongs to the interval just worked (during rest that's the
+    // previous one); if that exercise isn't a hold, the block's hold exercise.
+    const done = activeBlock.exercises[(Math.max(1, currentRound) - 1) % activeBlock.exercises.length];
+    const isHold = (ex?: { hold_seconds?: unknown }) => !!ex && parseInt(String(ex.hold_seconds || '0'), 10) > 0;
+    const target = isHold(done) ? done : activeBlock.exercises.find(isHold);
+    logHoldTime(parsed, target?.id ?? null);
     setHoldInput('');
   };
 
@@ -266,7 +271,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                 )}
                 {holdTimes.length > 0 && (
                   <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 10 }}>
-                    {t('timerModal.bestHold', { sec: Math.max(...holdTimes) })}
+                    {t('timerModal.bestHold', { sec: Math.max(...holdTimes.map(h => h.seconds)) })}
                   </Text>
                 )}
               </View>

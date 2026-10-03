@@ -81,6 +81,8 @@ export interface SheetCard {
   tileLabels?: string[];
   /** Starting count when nothing was ticked (default: the full plan). */
   defaultCount?: number;
+  /** Tabata: the status line reads "All done" / "3 of 6", never "untouched". */
+  roundsStatus?: boolean;
 }
 
 const RPE_WORDS = ['rpe1', 'rpe2', 'rpe3', 'rpe4', 'rpe5', 'rpe6', 'rpe7', 'rpe8', 'rpe9', 'rpe10'] as const;
@@ -188,10 +190,10 @@ export function LogBlockSheet(p: LogBlockSheetProps) {
             ) : (
               <>
                 <ScrollView style={s.body} contentContainerStyle={s.bodyContent} keyboardShouldPersistTaps="handled">
-                  {isDone && (p.kind === 'sets' || p.kind === 'ladder') && p.cards.length > 0 && (
+                  {isDone && (p.kind === 'sets' || p.kind === 'ladder' || p.kind === 'timer') && p.cards.length > 0 && (
                     <View style={{ gap: 8 }}>
                       <SectionLabel
-                        label={p.kind === 'ladder' ? t('logSheet.ladder') : p.isRounds ? t('logSheet.rounds') : t('logSheet.sets')}
+                        label={p.kind === 'ladder' ? t('logSheet.ladder') : p.isRounds || p.kind === 'timer' ? t('logSheet.rounds') : t('logSheet.sets')}
                         helper={p.kind === 'ladder' ? t('logSheet.ladderHelper') : t('logSheet.setsHelper')}
                       />
                       {p.cards.map((card) => (
@@ -319,7 +321,7 @@ function SetsCard({
   const status =
     count === 0
       ? t('logSheet.notDone')
-      : !isTouched && card.ticked === 0 && count === card.plan
+      : !isTouched && card.ticked === 0 && count === card.plan && !card.roundsStatus
         ? t('logSheet.untouched')
         : count > card.ticked && card.ticked > 0
           ? t('logSheet.tickedAdded', { ticked: card.ticked, added: count - card.ticked })

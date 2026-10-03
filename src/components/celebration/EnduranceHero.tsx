@@ -23,6 +23,10 @@ const EMBERS = Array.from({ length: 24 }, (_, i) => ({
 function Tick({ clock, tokens: t, i, n, width, isNew, lock }: {
   clock: SharedValue<number>; tokens: PRTokens; i: number; n: number; width: number; isNew: boolean; lock: number;
 }) {
+  const deg = (i / n) * 360 + 180 / n;
+  const rad = (deg * Math.PI) / 180;
+  const cx = 110 + RING_RADIUS * Math.sin(rad);
+  const cy = 110 - RING_RADIUS * Math.cos(rad);
   const style = useAnimatedStyle(() => {
     const T = clock.value;
     const lit = Math.floor(ringProgress(T) * n + 0.0001);
@@ -32,15 +36,18 @@ function Tick({ clock, tokens: t, i, n, width, isNew, lock }: {
     const color = !on ? t.track : !isNew ? t.tickOld : interpolateColor(flash, [0, 1], [t.accent, HOT]);
     return {
       backgroundColor: color,
-      transform: [{ rotate: `${(i / n) * 360 + 180 / n}deg` }, { scaleY: on && isNew ? 1 + bump * 0.25 : 1 }],
+      transform: [{ rotate: `${deg}deg` }, { scaleY: on && isNew ? 1 + bump * 0.25 : 1 }],
     };
   });
+  // Each tick is placed on the ring and rotated about its own centre: a
+  // custom transformOrigin isn't applied reliably on native, which left the
+  // bezel undrawn around the number.
   return (
     <Animated.View
       pointerEvents="none"
       style={[{
-        position: 'absolute', left: 110 - width / 2, top: 110 - RING_RADIUS - 8, width, height: TICK_H,
-        borderRadius: Math.min(3, width / 2), transformOrigin: `${width / 2}px ${RING_RADIUS + 8}px`,
+        position: 'absolute', left: cx - width / 2, top: cy - TICK_H / 2, width, height: TICK_H,
+        borderRadius: Math.min(3, width / 2),
       }, style]}
     />
   );
