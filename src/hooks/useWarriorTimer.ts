@@ -106,7 +106,6 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
   // Latest timer state for the AppState handler and the background alerts
   // (both run outside a render, so they read this instead of stale closures).
   const prepEndRef = useRef<number | null>(null);
-  const exerciseNamesRef = useRef<string[]>([]);
   const live = {
     timerType, timeLeft, elapsedTime, tabataPhase, currentRound, totalRounds, restSeconds,
     timeCapSecs, tabataWorkSecs, tabataRestSecs, timerRunning, timerPrepCountdown, activeTimerBlockId,
@@ -212,8 +211,8 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Alerts for a backgrounded app: when the timer starts (get-ready over),
-  // each Tabata work/rest switch, rest over, AMRAP end, For Time cap.
+  // Alerts for a backgrounded app — finishes only: rest over, AMRAP end,
+  // For Time cap, Tabata complete (a get-ready still running delays them).
   useBackgroundTimerAlerts(() => {
     const l = liveRef.current;
     const now = Date.now();
@@ -221,7 +220,6 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     let offset = 0;
     if (l.timerPrepCountdown !== null && prepEndRef.current !== null) {
       offset = Math.max(0, (prepEndRef.current - now) / 1000);
-      alerts.push({ inSeconds: offset, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') });
     } else if (!l.timerRunning) {
       return [];
     }
@@ -233,21 +231,8 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
       alerts.push({ inSeconds: offset + l.timeCapSecs - l.elapsedTime, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') });
     } else if (l.timerType === 'tabata') {
       const durations = tabataDurations(l);
-      const names = exerciseNamesRef.current;
-      upcomingBoundaries(durations, tabataIndex(l), l.timeLeft, offset).forEach(({ index, inSeconds }) => {
-        if (index >= durations.length) {
-          alerts.push({ inSeconds, title: t('timerAlerts.workoutDone'), body: t('timerAlerts.workoutDoneBody') });
-        } else if (index % 2 === 0) {
-          const name = names.length ? names[(index / 2) % names.length] : '';
-          alerts.push({
-            inSeconds,
-            title: t('timerAlerts.work'),
-            body: name ? t('timerAlerts.workBody', { exercise: name }) : t('timerAlerts.workBodyPlain'),
-          });
-        } else {
-          alerts.push({ inSeconds, title: t('timerAlerts.rest'), body: t('timerAlerts.restBody', { sec: l.tabataRestSecs }) });
-        }
-      });
+      const end = upcomingBoundaries(durations, tabataIndex(l), l.timeLeft, offset, durations.length + 1).pop();
+      if (end) alerts.push({ inSeconds: end.inSeconds, title: t('timerAlerts.workoutDone'), body: t('timerAlerts.workoutDoneBody') });
     }
     return alerts;
   });
@@ -381,7 +366,6 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
     setAmrapRoundsCompleted(0);
     amrapRoundsRef.current = 0;
     setHoldTimes([]);
-    exerciseNamesRef.current = (block.exercises ?? []).map(ex => String((ex as { name?: string })?.name ?? ''));
 
     let tr = 1;
     if (block.metadata?.rounds) {

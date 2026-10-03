@@ -179,9 +179,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   useBackgroundTimerAlerts(() => {
     if (countdown == null || countdownEndRef.current == null) return [];
     const goIn = (countdownEndRef.current - Date.now()) / 1000;
-    const alerts = [{ inSeconds: goIn, title: tr('timerAlerts.go'), body: tr('timerAlerts.goBody') }];
-    if (amrap && capSec) alerts.push({ inSeconds: goIn + capSec, title: tr('timerAlerts.capReached'), body: tr('timerAlerts.capReachedBody') });
-    return alerts;
+    return amrap && capSec
+      ? [{ inSeconds: goIn + capSec, title: tr('timerAlerts.capReached'), body: tr('timerAlerts.capReachedBody') }]
+      : [];
   });
 
   const startAttempt = () => {

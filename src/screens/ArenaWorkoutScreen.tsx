@@ -13,9 +13,7 @@ import { WorldBackground } from '../components/worlds/WorldBackground';
 import { CelebrationBanner } from '../components/CelebrationBanner';
 import { getWorldTheme, getWorldNeutrals } from '../../constants/worldThemes';
 import { NotificationService } from '../services/NotificationService';
-import { useBackgroundTimerAlerts } from '../hooks/useBackgroundTimerAlerts';
 import { useKeepAwakeWhile } from '../hooks/useKeepAwakeWhile';
-import { t } from '../i18n';
 
 const { width } = Dimensions.get('window');
 
@@ -105,11 +103,6 @@ export function ArenaWorkoutScreen({ phase, onClose, onComplete }: ArenaWorkoutS
     return () => sub.remove();
   }, [isPreparing]);
   useKeepAwakeWhile(isPreparing || isActive, 'arena');
-  useBackgroundTimerAlerts(() =>
-    isPreparing && prepEndRef.current !== null
-      ? [{ inSeconds: (prepEndRef.current - Date.now()) / 1000, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') }]
-      : []
-  );
 
   // Recompute the moment the app returns to the foreground, so the displayed
   // time is correct immediately rather than after the next tick.

@@ -189,7 +189,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     return () => sub.remove();
   }, [holdRunning]);
 
-  // Rest over / hold start / hold done while the app is in the background.
+  // Rest over / hold done while the app is in the background.
   useBackgroundTimerAlerts(() => {
     const now = Date.now();
     const alerts: TimerAlert[] = [];
@@ -198,7 +198,6 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     }
     if (holdEndRef.current !== null && holdPhaseRef.current === 'ready') {
       const startIn = (holdEndRef.current - now) / 1000;
-      alerts.push({ inSeconds: startIn, title: t('timerAlerts.holdNow'), body: t('timerAlerts.holdNowBody', { sec: holdSecs }) });
       alerts.push({ inSeconds: startIn + holdSecs, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });
     } else if (holdEndRef.current !== null && holdPhaseRef.current === 'holding') {
       alerts.push({ inSeconds: (holdEndRef.current - now) / 1000, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });

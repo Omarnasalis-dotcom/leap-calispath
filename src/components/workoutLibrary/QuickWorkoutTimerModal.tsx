@@ -34,7 +34,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Svg, { Circle } from 'react-native-svg';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { useTimer } from '../../hooks/useTimer';
-import { useBackgroundTimerAlerts, TimerAlert } from '../../hooks/useBackgroundTimerAlerts';
+import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
 import { advanceIntervals, upcomingBoundaries } from '../../lib/intervalClock';
 import { formatTime } from '../../lib/trials';
@@ -507,48 +507,28 @@ export function QuickWorkoutTimerModal({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [visible, isForTime, plan, phase, intervalIndex]);
 
-  // Alerts for a backgrounded app: start (get-ready over), every interval
-  // switch, the end; For Time: the cap.
+  // Alert for a backgrounded app — finishes only: the whole run complete
+  // (after any get-ready still running); For Time: the cap.
   useBackgroundTimerAlerts(() => {
     if (!visible || phase === 'done' || !workout) return [];
     const now = Date.now();
-    const alerts: TimerAlert[] = [];
     if (isForTime) {
       const cap = (workout.duration_minutes ?? 0) * 60;
-      if (phase === 'running' && cap > timer.seconds) {
-        alerts.push({ inSeconds: cap - timer.seconds, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') });
-      }
-      return alerts;
+      return phase === 'running' && cap > timer.seconds
+        ? [{ inSeconds: cap - timer.seconds, title: t('timerAlerts.capReached'), body: t('timerAlerts.capReachedBody') }]
+        : [];
     }
     if (plan.length === 0) return [];
-    let index = intervalIndex;
-    let left = 0;
-    let offset = 0;
+    const durations = plan.map((p) => p.seconds);
+    let end: { inSeconds: number } | undefined;
     if (phase === 'prep' && prepStartTimeRef.current !== null) {
-      offset = Math.max(0, (prepStartTimeRef.current + PREP_SECONDS * 1000 - now) / 1000);
-      alerts.push({ inSeconds: offset, title: t('timerAlerts.go'), body: t('timerAlerts.goBody') });
-      index = 0;
-      left = plan[0].seconds;
+      const offset = Math.max(0, (prepStartTimeRef.current + PREP_SECONDS * 1000 - now) / 1000);
+      end = upcomingBoundaries(durations, 0, durations[0], offset, durations.length + 1).pop();
     } else if (phase === 'running' && intervalEndAtRef.current !== null) {
-      left = Math.max(0, (intervalEndAtRef.current - now) / 1000);
-    } else {
-      return [];
+      const left = Math.max(0, (intervalEndAtRef.current - now) / 1000);
+      end = upcomingBoundaries(durations, intervalIndex, left, 0, durations.length + 1).pop();
     }
-    upcomingBoundaries(plan.map((p) => p.seconds), index, left, offset).forEach(({ index: i, inSeconds }) => {
-      const iv = plan[i];
-      if (!iv) {
-        alerts.push({ inSeconds, title: t('timerAlerts.workoutDone'), body: t('timerAlerts.workoutDoneBody') });
-      } else if (iv.isRest) {
-        alerts.push({ inSeconds, title: t('timerAlerts.rest'), body: t('timerAlerts.restBody', { sec: iv.seconds }) });
-      } else {
-        alerts.push({
-          inSeconds,
-          title: t('timerAlerts.work'),
-          body: iv.exercise?.name ? t('timerAlerts.workBody', { exercise: iv.exercise.name }) : t('timerAlerts.workBodyPlain'),
-        });
-      }
-    });
-    return alerts;
+    return end ? [{ inSeconds: end.inSeconds, title: t('timerAlerts.workoutDone'), body: t('timerAlerts.workoutDoneBody') }] : [];
   });
 
   // Screen stays on for the whole run.

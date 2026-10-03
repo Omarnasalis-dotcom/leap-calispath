@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState, Vibration } from 'react-native';
 import { SoundServiceInstance as SoundService } from '../lib/SoundService';
-import { useBackgroundTimerAlerts } from './useBackgroundTimerAlerts';
 import { useKeepAwakeWhile } from './useKeepAwakeWhile';
-import { t } from '../i18n';
 
 export type HoldPhase = 'idle' | 'ready' | 'run' | 'stopped';
 
@@ -53,14 +51,9 @@ export function useHoldTimer() {
     return () => { clearInterval(iv); sub.remove(); };
   }, [phase, tick]);
 
-  // Screen stays on through the hold (it counts up until STOP, so the only
-  // background cue is the start after the get-ready).
+  // Screen stays on through the hold. It counts up until STOP, so there's
+  // no finish to notify.
   useKeepAwakeWhile(phase === 'ready' || phase === 'run', 'static-hold');
-  useBackgroundTimerAlerts(() => {
-    if (t0.current == null || phaseRef.current !== 'ready') return [];
-    const left = HOLD_COUNTDOWN - (Date.now() - t0.current) / 1000;
-    return [{ inSeconds: left, title: t('timerAlerts.holdNow'), body: t('timerAlerts.goBody') }];
-  });
 
   const start = useCallback(() => {
     t0.current = Date.now();
