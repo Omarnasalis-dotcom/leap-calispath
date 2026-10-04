@@ -97,7 +97,14 @@ function QuickWorkoutCard({
     return (
       <TouchableOpacity ref={tourRef} onLayout={onTourLayout} activeOpacity={0.85} onPress={onPress} style={[styles.photoCardWrap, hidden && { display: 'none' }]}>
         <ImageBackground source={{ uri: item.cover_image_url }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
-          <LinearGradient colors={['transparent', 'rgba(0,0,0,.55)', 'rgba(0,0,0,.9)']} style={StyleSheet.absoluteFillObject} />
+          {/* Scrim only behind the title strip: the photo's top half stays
+              untouched (it was dimmed from the very top before, so every
+              cover looked dark). */}
+          <LinearGradient
+            colors={['transparent', 'transparent', 'rgba(0,0,0,.3)', 'rgba(0,0,0,.82)']}
+            locations={[0, 0.45, 0.7, 1]}
+            style={StyleSheet.absoluteFillObject}
+          />
           <View style={styles.photoDurationBadge}>
             <Text style={styles.photoDurationText}>{item.duration_minutes ?? '–'} MIN</Text>
           </View>
@@ -418,6 +425,13 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   // dark gradient scrim, which never changes with the app theme.
   photoDurationText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.8 },
   photoBottomRow: { flexDirection: 'row', alignItems: 'flex-end', padding: 14, gap: 12 },
-  photoCardTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 16 },
-  photoCardMeta: { color: '#D4D4D4', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3 },
+  // Light text shadow: the lighter scrim leaves bright photos brighter.
+  photoCardTitle: {
+    color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 16,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 6, textShadowOffset: { width: 0, height: 1 },
+  },
+  photoCardMeta: {
+    color: '#E6E6E6', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.6, marginTop: 3,
+    textShadowColor: 'rgba(0,0,0,0.6)', textShadowRadius: 5, textShadowOffset: { width: 0, height: 1 },
+  },
 });

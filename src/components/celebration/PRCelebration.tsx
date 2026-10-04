@@ -410,8 +410,23 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
             </Pressable>
           </Animated.View>
           <Animated.View style={dismissStyle}>
-            <Pressable accessibilityRole="button" onPress={onDismiss} style={({ pressed }) => ({ height: 36, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.6 : 1 })}>
-              <Text style={kt('medium', 13, t.mode === 'dark' ? '#8a8a8a' : t.textMuted, 2.4)}>{tr('prCelebration.dismiss')}</Text>
+            {/* Sits on the dimmed backdrop, not the card: in light mode that
+                backdrop is mid-grey, so muted text vanished -- a white pill
+                keeps it readable there. */}
+            <Pressable
+              accessibilityRole="button"
+              onPress={onDismiss}
+              style={({ pressed }) => ({
+                height: 36,
+                alignItems: 'center',
+                justifyContent: 'center',
+                opacity: pressed ? 0.6 : 1,
+                ...(t.mode === 'dark'
+                  ? null
+                  : { alignSelf: 'center', paddingHorizontal: 22, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)' }),
+              })}
+            >
+              <Text style={kt('medium', 13, t.mode === 'dark' ? '#8a8a8a' : t.text, 2.4)}>{tr('prCelebration.dismiss')}</Text>
             </Pressable>
           </Animated.View>
         </View>
