@@ -6,6 +6,7 @@
 
 import { supabase } from './supabase';
 import { computeDisplayWeeks, computeWeekStats, HubBlock, HubWorkoutLog } from './trainingCenter';
+import { fetchDayChoiceForWeek } from './journeyLane';
 
 export interface ActiveProgramSummary {
   /** First not-yet-fully-logged day this week, or null once the week is done. */
@@ -53,12 +54,15 @@ async function fetchActiveProgramSummary(userId: string): Promise<ActiveProgramS
   const { filteredBlocks } = computeDisplayWeeks(blocks, archivedRawWeekNumbers, currentRawWeek);
 
   const weekBlockIds = filteredBlocks.filter((b) => (b.week_number ?? 1) === currentRawWeek).map((b) => b.id);
-  const { data: logs } = await supabase
-    .from('workout_logs')
-    .select('block_id, notes')
-    .eq('warrior_program_id', assignment.id)
-    .in('block_id', weekBlockIds);
+  const [{ data: logs }, pickedDayIndex] = await Promise.all([
+    supabase
+      .from('workout_logs')
+      .select('block_id, notes')
+      .eq('warrior_program_id', assignment.id)
+      .in('block_id', weekBlockIds),
+    fetchDayChoiceForWeek(assignment.id, currentRawWeek),
+  ]);
 
-  const { nextUpDayName } = computeWeekStats(filteredBlocks, currentRawWeek, (logs || []) as HubWorkoutLog[]);
+  const { nextUpDayName } = computeWeekStats(filteredBlocks, currentRawWeek, (logs || []) as HubWorkoutLog[], pickedDayIndex);
   return { nextUpDayName };
 }

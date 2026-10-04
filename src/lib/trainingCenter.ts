@@ -86,7 +86,9 @@ export interface HubWeekStats {
 export function computeWeekStats(
   allFilteredBlocks: HubBlock[],
   currentRawWeek: number,
-  logsThisWeek: HubWorkoutLog[]
+  logsThisWeek: HubWorkoutLog[],
+  /** Journey "Switch day" pick for this week (day index), if any. */
+  pickedDayIndex: number | null = null
 ): HubWeekStats {
   const weekBlocks = allFilteredBlocks.filter((b) => (b.week_number ?? 1) === currentRawWeek);
   const weekDays = groupRawBlocksIntoDays(weekBlocks);
@@ -99,16 +101,17 @@ export function computeWeekStats(
   let completedThisWeek = 0;
   let missedThisWeek = 0;
   let nextUpDayName: string | null = null;
-  for (const day of weekDays) {
+  weekDays.forEach((day, i) => {
     const statuses = day.blockIds.map((id) => loggedBlockIds.get(id));
     const allLogged = statuses.length > 0 && statuses.every((s) => s !== undefined);
     if (!allLogged) {
-      if (!nextUpDayName) nextUpDayName = day.dayName;
-      continue;
+      // An unfinished picked day wins over program order.
+      if (!nextUpDayName || i === pickedDayIndex) nextUpDayName = day.dayName;
+      return;
     }
     if (statuses.some((s) => s === true)) missedThisWeek += 1;
     else completedThisWeek += 1;
-  }
+  });
 
   const frequencyThisWeek = weekDays.length;
   const percentCompleteThisWeek =

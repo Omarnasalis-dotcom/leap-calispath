@@ -74,6 +74,17 @@ describe('computeWeekStats', () => {
     expect(stats.nextUpDayName).toBe('Legs Day');
   });
 
+  test('Journey "Switch day" pick: an unfinished picked day is next up, a finished one is ignored', () => {
+    const blocks = [
+      block('b1', 'Push Day', 0, 1),
+      block('b2', 'Pull Day', 1, 1),
+      block('b3', 'Legs Day', 2, 1),
+    ];
+    expect(computeWeekStats(blocks, 1, [], 2).nextUpDayName).toBe('Legs Day');
+    expect(computeWeekStats(blocks, 1, [{ block_id: 'b3', notes: null }], 2).nextUpDayName).toBe('Push Day');
+    expect(computeWeekStats(blocks, 1, [], null).nextUpDayName).toBe('Push Day');
+  });
+
   // The Phase 1 bug: a day authored as multiple program_blocks rows sharing
   // a "{Day} | {Block}" name prefix (e.g. Warm-Up/Strength/Cool-Down all
   // under "Day 1") used to be counted as 3 separate sessions instead of 1.

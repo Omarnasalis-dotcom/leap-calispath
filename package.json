@@ -15,6 +15,7 @@
   "dependencies": {
     "@expo-google-fonts/barlow": "^0.4.1",
     "@expo-google-fonts/barlow-condensed": "^0.4.1",
+    "@expo-google-fonts/bebas-neue": "^0.4.1",
     "@expo-google-fonts/cairo": "^0.4.2",
     "@expo-google-fonts/orbitron": "^0.4.2",
     "@expo-google-fonts/oswald": "^0.4.2",

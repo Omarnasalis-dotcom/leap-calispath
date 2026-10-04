@@ -44,6 +44,7 @@ import {
   formatQuickWorkoutSub,
   formatActiveProgramSub,
 } from '../lib/trainingCenter';
+import { fetchDayChoiceForWeek } from '../lib/journeyLane';
 import { t, FLIP_X, isArabic } from '../i18n';
 
 interface HubData {
@@ -512,18 +513,19 @@ export function TrainingCenterScreen() {
       const blocks: HubBlock[] = blocksRes.data || [];
       const { filteredBlocks, totalWeeks, currentDisplayWeek } = computeDisplayWeeks(blocks, archivedRawWeekNumbers, currentRawWeek);
 
-      const [logsThisWeekRes, allLogsRes] = await Promise.all([
+      const [logsThisWeekRes, allLogsRes, pickedDayIndex] = await Promise.all([
         supabase.from('workout_logs').select('block_id, notes').eq('warrior_program_id', assignment.id).in(
           'block_id',
           filteredBlocks.filter((b) => (b.week_number ?? 1) === currentRawWeek).map((b) => b.id)
         ),
         supabase.from('workout_logs').select('block_id, notes').eq('warrior_program_id', assignment.id),
+        fetchDayChoiceForWeek(assignment.id, currentRawWeek),
       ]);
 
       const logsThisWeek: HubWorkoutLog[] = logsThisWeekRes.data || [];
       const allLogs: HubWorkoutLog[] = allLogsRes.data || [];
 
-      const weekStats = computeWeekStats(filteredBlocks, currentRawWeek, logsThisWeek);
+      const weekStats = computeWeekStats(filteredBlocks, currentRawWeek, logsThisWeek, pickedDayIndex);
       const allTimeStats = computeAllTimeStats(filteredBlocks, allLogs);
 
       setData({

@@ -12,11 +12,13 @@ import { Platform, StyleSheet, type TextProps } from 'react-native';
 // Only the app's own Latin text fonts are swapped. Anything else (icon fonts
 // such as MaterialCommunityIcons, monospace) must keep its family, or the
 // icons render as empty boxes.
-const LATIN_TEXT_FONTS = /^(Barlow|BarlowCondensed|PlusJakartaSans|Oswald|Orbitron)[-_]/;
+const LATIN_TEXT_FONTS = /^(Barlow|BarlowCondensed|PlusJakartaSans|Oswald|Orbitron|BebasNeue)[-_]/;
 const ARABIC_LETTERS = /[؀-ۿݐ-ݿࢠ-ࣿﭐ-﷿ﹰ-﻿]/;
 
 export function arabicFontFor(family: string): string {
   if (!LATIN_TEXT_FONTS.test(family)) return family;
+  // Bebas Neue is a heavy display face with one weight.
+  if (family.startsWith('BebasNeue')) return 'Cairo-ExtraBold';
   if (/ExtraBold|Black|800|900/.test(family)) return 'Cairo-ExtraBold';
   if (/SemiBold|600/.test(family)) return 'Cairo-SemiBold';
   if (/Bold|700/.test(family)) return 'Cairo-Bold';

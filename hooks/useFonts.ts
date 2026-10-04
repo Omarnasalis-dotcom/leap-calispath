@@ -12,6 +12,7 @@ import {
   BarlowCondensed_800ExtraBold,
 } from '@expo-google-fonts/barlow-condensed';
 import { Barlow_400Regular } from '@expo-google-fonts/barlow';
+import { BebasNeue_400Regular } from '@expo-google-fonts/bebas-neue';
 import {
   PlusJakartaSans_300Light,
   PlusJakartaSans_400Regular,
@@ -82,6 +83,8 @@ export const useStealthFonts = () => {
     'Oswald-Medium': Oswald_500Medium,
     'Oswald-SemiBold': Oswald_600SemiBold,
     'Oswald-Bold': Oswald_700Bold,
+    // Journey points numbers (assets/design_handoff_journey_points).
+    'BebasNeue-Regular': BebasNeue_400Regular,
     ...ARABIC_FONTS,
   });
 

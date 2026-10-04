@@ -7,6 +7,7 @@ import ar from '../locales/ar';
 describe('arabicFontFor', () => {
   it.each([
     ['BarlowCondensed-ExtraBold', 'Cairo-ExtraBold'],
+    ['BebasNeue-Regular', 'Cairo-ExtraBold'],
     ['BarlowCondensed-Bold', 'Cairo-Bold'],
     ['BarlowCondensed-SemiBold', 'Cairo-SemiBold'],
     ['BarlowCondensed-Medium', 'Cairo-Medium'],

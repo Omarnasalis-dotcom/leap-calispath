@@ -177,3 +177,31 @@ export function inferBlockAccent(blockName: string): BlockAccent {
   const rule = BLOCK_ACCENT_RULES.find((r) => normalized.includes(r.match));
   return rule ? rule.accent : FALLBACK_BLOCK_ACCENT;
 }
+
+/**
+ * The Journey lane's order for one week: finished days first, in the order
+ * they were actually finished, then the day picked with "Switch day", then
+ * the rest in program order. Only the lane's display moves — every entry
+ * keeps its real program index (DayStateEntry.index) for opening the day.
+ * With nothing picked, the next day is the first unfinished one in program
+ * order, same as deriveNextDayIndex.
+ *
+ * finishedAt: program day index -> ISO time its last block was logged.
+ * A chosen day that's already done, or isn't in the week, is ignored.
+ */
+export function orderDaysForJourney(
+  states: DayStateEntry[],
+  finishedAt: Map<number, string>,
+  chosenIndex: number | null
+): DayStateEntry[] {
+  const done = states
+    .filter((s) => s.status === 'done')
+    .sort((a, b) => {
+      const ta = finishedAt.get(a.index) ?? '';
+      const tb = finishedAt.get(b.index) ?? '';
+      return ta === tb ? a.index - b.index : ta < tb ? -1 : 1;
+    });
+  const notDone = states.filter((s) => s.status !== 'done');
+  const chosen = chosenIndex == null ? undefined : notDone.find((s) => s.index === chosenIndex);
+  return chosen ? [...done, chosen, ...notDone.filter((s) => s !== chosen)] : [...done, ...notDone];
+}

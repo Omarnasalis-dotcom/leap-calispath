@@ -8,6 +8,7 @@ import {
   inferBlockAccent,
   deriveNextDayIndex,
   summarizeWeekSessions,
+  orderDaysForJourney,
 } from '../warriorProgramDays';
 import { ProgramBlock, ProgramDay, ExerciseDetail } from '../../types/warriorProgram';
 
@@ -202,5 +203,42 @@ describe('summarizeWeekSessions', () => {
 
   test('empty week: zero, zero', () => {
     expect(summarizeWeekSessions([])).toEqual({ sessionsTotal: 0, sessionsDoneThisWeek: 0 });
+  });
+});
+
+describe('orderDaysForJourney', () => {
+  const week = (statuses: ProgramBlock['completedStatus'][]): ProgramDay[] =>
+    statuses.map((s, i) => ({ name: `Day ${i + 1}`, blocks: [block('Warm-Up', [], s)] }));
+  const order = (days: ProgramDay[], finishedAt: Record<number, string>, chosen: number | null) =>
+    orderDaysForJourney(
+      deriveDayStates(days),
+      new Map(Object.entries(finishedAt).map(([k, v]) => [Number(k), v])),
+      chosen
+    ).map((s) => s.index);
+
+  test('nothing done, nothing picked: program order', () => {
+    expect(order(week(['none', 'none', 'none']), {}, null)).toEqual([0, 1, 2]);
+  });
+
+  test('picked day jumps to the front of the unfinished days', () => {
+    expect(order(week(['completed', 'none', 'none', 'none']), { 0: '2026-10-01T10:00:00Z' }, 2)).toEqual([0, 2, 1, 3]);
+  });
+
+  test('finished days come first, in the order they were finished', () => {
+    const finished = { 0: '2026-10-03T10:00:00Z', 2: '2026-10-01T10:00:00Z' };
+    expect(order(week(['completed', 'none', 'completed']), finished, null)).toEqual([2, 0, 1]);
+  });
+
+  test('a day trained out of order is never left between open days', () => {
+    expect(order(week(['none', 'none', 'completed']), { 2: '2026-10-02T10:00:00Z' }, null)).toEqual([2, 0, 1]);
+  });
+
+  test('a pick that is already done or out of range is ignored', () => {
+    expect(order(week(['completed', 'none', 'none']), { 0: '2026-10-01T10:00:00Z' }, 0)).toEqual([0, 1, 2]);
+    expect(order(week(['none', 'none']), {}, 5)).toEqual([0, 1]);
+  });
+
+  test('missing finish times keep program order', () => {
+    expect(order(week(['completed', 'completed', 'none']), {}, null)).toEqual([0, 1, 2]);
   });
 });

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions, Alert } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Animated, Easing, Image, ImageSourcePropType, Dimensions, Alert, LayoutAnimation, Platform, UIManager } from 'react-native';
 import { useRouter, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -11,11 +11,31 @@ import { RankUpReveal } from '../components/trial/RankUpReveal';
 import { RankUpToast } from '../components/trial/RankUpToast';
 import { ProgramReadyReveal } from '../components/trial/ProgramReadyReveal';
 import { WelcomeIntro } from '../components/onboarding/WelcomeIntro';
+import { SwitchDaySheet } from '../components/journey/SwitchDaySheet';
+import { POINTS_BAR_HEIGHT } from '../components/journey/JourneyPointsBar';
+import { BURST_LAND_MS } from '../components/journey/RewardFx';
+import { JourneyPointsOverlay, JourneyPointsOverlayHandle } from '../components/journey/JourneyPointsOverlay';
+import { PlusTaskRow, TapOrigin, TrayMode } from '../components/journey/PlusTaskRow';
+import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
+import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
+import { useJourneyPoints } from '../hooks/useJourneyPoints';
+import { JourneyPointsSummary, JourneyTask, PointsEntry, programDayPointsToday, questPaidToday, todaySegments } from '../lib/journeyPoints';
+import { measureInWindow, WindowRect } from '../lib/measureView';
 import { track } from '../lib/analytics';
 import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
-import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import { groupRawBlocksIntoDays, deriveDayStates, deriveNextDayIndex, orderDaysForJourney, RawProgramBlockRow, DayStateEntry } from '../lib/warriorProgramDays';
+import {
+  fetchQuestSlots,
+  saveQuestSlots,
+  fetchDayChoice,
+  saveDayChoice,
+  QuestSlotSets,
+  readCachedQuestSlots,
+  writeCachedQuestSlots,
+  addCachedQuestSlot,
+} from '../lib/journeyLane';
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
@@ -446,7 +466,54 @@ function MilestoneCardCta({ label, secondary, onPress }: { label: string; second
 // image, dark gradient scrim, badge top-left) that this used to be the only
 // treatment for, back when complete rows had no card at all (just plain
 // text -- see git history on NodeRow if that's ever worth comparing again).
-function JourneyCard({
+// Journey points: the handoff's 1.4s outline glow on a card jumped to from
+// Today's Tasks. Replays whenever `signal` changes (0 = never).
+function GlowOutline({ signal }: { signal: number }) {
+  const v = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!signal) return;
+    v.setValue(0);
+    Animated.sequence([
+      Animated.timing(v, { toValue: 1, duration: 250, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.delay(700),
+      Animated.timing(v, { toValue: 0, duration: 450, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  }, [signal, v]);
+  if (!signal) return null;
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        top: -3,
+        left: -3,
+        right: -3,
+        bottom: -3,
+        borderRadius: 19,
+        borderWidth: 2,
+        borderColor: ACCENT,
+        opacity: v,
+        shadowColor: ACCENT,
+        shadowOpacity: 0.45,
+        shadowRadius: 15,
+        shadowOffset: { width: 0, height: 0 },
+      }}
+    />
+  );
+}
+
+function JourneyCard(props: React.ComponentProps<typeof JourneyCardBody> & { glowSignal?: number }) {
+  const { glowSignal = 0, ...rest } = props;
+  // Always wrapped, so a glow starting never remounts the card.
+  return (
+    <View>
+      <JourneyCardBody {...rest} />
+      <GlowOutline signal={glowSignal} />
+    </View>
+  );
+}
+
+function JourneyCardBody({
   state,
   image,
   title,
@@ -457,6 +524,7 @@ function JourneyCard({
   onPressSecondaryCta,
   showHereBadge,
   mirrorPhotoInRTL = true,
+  onPressSwitch,
 }: {
   state: NodeState;
   // Active/locked render it full-bleed; complete renders a small rounded
@@ -478,6 +546,8 @@ function JourneyCard({
   // so its subject would sit under the text -- mirrored instead. Off for
   // covers with readable text in them.
   mirrorPhotoInRTL?: boolean;
+  // Active day cards only: the small top-corner "switch day" icon.
+  onPressSwitch?: () => void;
 }) {
   const styles = useLaneStyles();
   const isLight = useTheme().mode === 'light';
@@ -568,6 +638,17 @@ function JourneyCard({
           <Text style={styles.milestoneHereBadgeText}>{t('journey.youAreHere')}</Text>
         </Animated.View>
       ) : null}
+      {!locked && onPressSwitch && (
+        <TouchableOpacity
+          style={styles.milestoneSwitchBtn}
+          onPress={onPressSwitch}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel={t('journey.switchDay')}
+        >
+          <MaterialCommunityIcons name="swap-horizontal" size={15} color={isLight ? LIGHT_INK : '#FFFFFF'} />
+        </TouchableOpacity>
+      )}
       <View style={[styles.milestoneCardTextWrap, !locked && styles.milestoneCardTextWrapCentered]}>
         {/* Open cards: the title alone is centered in the space between the
             badge and the CTA, with the desc hung just below it (absolutely,
@@ -625,6 +706,8 @@ function NodeRow({
   attachedQuest,
   children,
   mirrorPhotoInRTL,
+  onPressSwitch,
+  glowSignal,
 }: {
   number: number;
   state: NodeState;
@@ -650,6 +733,8 @@ function NodeRow({
   attachedQuest?: AttachedQuestData;
   children?: React.ReactNode;
   mirrorPhotoInRTL?: boolean;
+  onPressSwitch?: () => void;
+  glowSignal?: number;
 }) {
   const styles = useLaneStyles();
   // Same one-time mount-pop as NodeCircle (see useMountPop's comment for
@@ -703,6 +788,8 @@ function NodeRow({
             ctaLabel={ctaLabel}
             onPressCta={onPressCta}
             secondaryCtaLabel={secondaryCtaLabel}
+            onPressSwitch={onPressSwitch}
+            glowSignal={glowSignal}
             onPressSecondaryCta={onPressSecondaryCta}
             showHereBadge={state === 'active'}
             mirrorPhotoInRTL={mirrorPhotoInRTL}
@@ -717,6 +804,7 @@ function NodeRow({
               kind={attachedQuest.kind}
               state={attachedQuest.state}
               skipped={attachedQuest.skipped}
+              missed={attachedQuest.missed}
               onPress={attachedQuest.onPress}
             />
           ))}
@@ -790,7 +878,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
   );
 }
 
-function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress, attachedQuest }: {
+function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress, onSwitchDay, attachedQuest, doneTodayPoints, glowSignal }: {
   number: number;
   // 'complete' (already resolved, kept visible as history), 'active' (the
   // one current pointer position — the only one actually startable), or
@@ -810,6 +898,13 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   isLast: boolean;
   containerRef?: React.Ref<View>;
   onPress: () => void;
+  // "Switch day": the active day only, and only while this week has
+  // another unfinished day to switch to.
+  onSwitchDay?: () => void;
+  // Journey points: set (to the points it earned) when this day was
+  // finished today -- its Finished card says so ("Logged. +50 earned.").
+  doneTodayPoints?: number;
+  glowSignal?: number;
   // The quest paired with this day, if any -- see buildWeekSequence's
   // afterDayIndex. Rendered below the card by NodeRow.
   attachedQuest?: AttachedQuestData;
@@ -821,10 +916,20 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
         number={number}
         state={state}
         title={title}
-        desc={state === 'complete' ? t('journey.dayCompleted') : state === 'active' ? t('journey.dayUpNext') : t('journey.dayLocked')}
+        desc={
+          doneTodayPoints !== undefined && state === 'complete'
+            ? t('journeyPoints.doneTodaySub', { pts: doneTodayPoints })
+            : state === 'complete'
+            ? t('journey.dayCompleted')
+            : state === 'active'
+            ? t('journey.dayUpNext')
+            : t('journey.dayLocked')
+        }
+        glowSignal={glowSignal}
         image={pickDayCardImage(day, seed, cardImages)}
         ctaLabel={state === 'active' ? t('journey.startNow') : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
+        onPressSwitch={state === 'active' ? onSwitchDay : undefined}
         isLast={isLast}
         staggerIndex={number}
         attachedQuest={attachedQuest}
@@ -956,6 +1061,10 @@ interface AttachedQuestData {
   kind: SideQuestKind;
   state: NodeState;
   skipped?: boolean;
+  // A past week's quest that was never finished or skipped -- closed for
+  // good (a past Weekly Challenge can't be entered anyway). Comes with
+  // state 'locked', so it never renders as an open QuestBranch.
+  missed?: boolean;
   onPress: () => void;
   onSkip?: () => void;
 }
@@ -1011,7 +1120,7 @@ function DayCheerBanner({ seed }: { seed: string }) {
   );
 }
 
-function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
+function AttachedQuest({ kind, state, skipped, missed, onPress }: AttachedQuestData) {
   const styles = useLaneStyles();
   const isLight = useTheme().mode === 'light';
   const def = SIDE_QUEST_DEFS[kind];
@@ -1026,7 +1135,7 @@ function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
     >
       <View style={[styles.attachedQuestIcon, locked && styles.attachedQuestIconLocked]}>
         <MaterialCommunityIcons
-          name={locked ? 'lock-outline' : 'check'}
+          name={missed ? 'close' : locked ? 'lock-outline' : 'check'}
           size={11}
           color={locked ? (isLight ? 'rgba(0,0,0,0.35)' : 'rgba(255,255,255,0.35)') : '#FFFFFF'}
         />
@@ -1040,6 +1149,7 @@ function AttachedQuest({ kind, state, skipped, onPress }: AttachedQuestData) {
           {def.title}
         </Text>
         {resolved && <Text style={styles.attachedQuestDesc}>{skipped ? t('journey.skipped') : t('journey.doneNiceWork')}</Text>}
+        {missed && <Text style={[styles.attachedQuestDesc, styles.attachedQuestDescMissed]}>{t('journey.questMissed')}</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -1112,7 +1222,12 @@ const SEEN_ACTIVE_DAY_KEY_PREFIX = 'milestone_lane_seen_active_day_';
 
 interface JourneyWeekData {
   weekNumber: number;
+  // Lane order, not program order (see orderDaysForJourney) -- each
+  // entry's .index is still its real program day index.
   days: DayStateEntry[];
+  // Program indexes of days whose last block was logged today (device
+  // local date) -- "today's program card" for Journey points.
+  finishedTodayIndexes: number[];
   nextDayIndex: number | null;
 }
 
@@ -1171,13 +1286,15 @@ interface LocalFlagsCache {
   skippedQuestSlots: Set<string>;
   legacyAcknowledged: boolean;
   legacyFlowActive: boolean | null;
+  // The program the two quest-slot sets above belong to.
+  questSlotsProgramId: string | null;
 }
 let localFlagsCache: LocalFlagsCache | null = null;
 function updateLocalFlagsCache(profileId: string, patch: Partial<Omit<LocalFlagsCache, 'profileId'>>) {
   const base: LocalFlagsCache =
     localFlagsCache?.profileId === profileId
       ? localFlagsCache
-      : { profileId, completedQuestSlots: new Set(), skippedQuestSlots: new Set(), legacyAcknowledged: false, legacyFlowActive: null };
+      : { profileId, completedQuestSlots: new Set(), skippedQuestSlots: new Set(), legacyAcknowledged: false, legacyFlowActive: null, questSlotsProgramId: null };
   localFlagsCache = { ...base, ...patch };
 }
 
@@ -1188,13 +1305,33 @@ function updateLocalFlagsCache(profileId: string, patch: Partial<Omit<LocalFlags
 // case that deferral exists for).
 let revealShownCache: { profileId: string; shownForAssessedAt: string } | null = null;
 
+// Pre-server, device-only quest records. Now read once, moved onto the
+// active program in journey_quest_slots (see syncQuestSlots), then deleted.
 const COMPLETED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_done_';
 const SKIPPED_QUESTS_KEY_PREFIX = 'milestone_lane_quests_skipped_';
+const QUEST_SLOTS_MIGRATED_KEY_PREFIX = 'milestone_lane_quest_slots_migrated_';
+const QUEST_SLOT_KEY_PATTERN = /^w[0-9]+_(s[0-9]+|trial)$/;
 // Matches the constant of the same name used server-side (e.g.
 // select_library_template, add_week_to_own_program) — the system profile
 // that owns Customize Program / Ready Template programs, as opposed to a
 // real coach or the AI coach profile.
 const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
+  UIManager.setLayoutAnimationEnabledExperimental(true);
+}
+
+// A day turning finished collapses its tall photo card to the short
+// Finished card -- animated, instead of the rows below jumping up in one frame.
+const DAY_FINISHED_MS = 280;
+const DAY_FINISHED_LAYOUT_ANIM = {
+  duration: DAY_FINISHED_MS,
+  update: { type: LayoutAnimation.Types.easeInEaseOut },
+  create: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+  delete: { type: LayoutAnimation.Types.easeInEaseOut, property: LayoutAnimation.Properties.opacity },
+};
+
+// The "+" ignite burst waits for the earn that lit it to land (handoff ~1.3s).
+const BURST_IGNITE_DELAY_MS = 1300;
 
 export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const { profile, refreshProfile, paywallEnabled } = useAuth();
@@ -1258,10 +1395,10 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   );
   // Which side-quest slots (keyed "w{week}_s{index}") the user has actually
   // completed — set only when a quest screen hands a matching questSlotKey
-  // back on a real successful log, never just from visiting. Local/per-
-  // device by design (AsyncStorage, same pattern as the tier-reveal flag):
-  // this is a lightweight gamification signal, not core progress data, so
-  // it doesn't need a new table or cross-device sync.
+  // back on a real successful log, never just from visiting. Stored per
+  // program in journey_quest_slots (was device-only AsyncStorage, which
+  // reopened old quests after a reinstall or on a second phone); loaded
+  // with the program in loadJourneyProgram -> syncQuestSlots.
   // Lazy initializers read localFlagsCache the same way journeyData does --
   // correct from this remount's very first render instead of resetting to
   // empty and repopulating a tick later. See localFlagsCache's own comment.
@@ -1281,6 +1418,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // rendering) so the screen can jump straight to it on load instead of
   // requiring a manual scroll past however much history exists above it.
   const scrollViewRef = useRef<ScrollView>(null);
+  const [switchDayOpen, setSwitchDayOpen] = useState(false);
   const activeStepRef = useRef<View>(null);
   // Real, currently-known scroll offset, updated on every onScroll event
   // (including the frames of this screen's own animated auto-scroll --
@@ -1289,6 +1427,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // "assume the offset is still 0" shortcut that broke the second time the
   // effect ever had to scroll within one mount.
   const scrollOffsetRef = useRef(0);
+  // Auto-scroll waits until this time (ms). A just-finished day holds the
+  // lane still so its collapse and "+50" play in view, then it moves on.
+  const holdAutoScrollUntilRef = useRef(0);
+  // When the just-finished card's collapse animation ends.
+  const collapseEndsAtRef = useRef(0);
+  // True while loadJourneyProgram is fetching -- a reward that arrives
+  // first waits for it, so the card collapses before its points fly.
+  const loadInFlightRef = useRef(false);
+  // Journey points' refresh (set once the hook below exists). Called
+  // alongside the lane load, not after it, so the reward isn't two network
+  // round trips away.
+  const refreshPointsRef = useRef<(() => void) | null>(null);
   // Existing members from before this feature shipped got onboarding_completed_at
   // backfilled to unblock them from AuthGuard, but never actually saw
   // milestones 2/3 — primary_goal is the real signal for that (backfill never
@@ -1321,26 +1471,84 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.legacyFlowActive : null
   );
 
+  // Which program completedQuestSlots/skippedQuestSlots currently hold --
+  // a reload of the same program merges (slots are insert-only, so a
+  // just-made optimistic mark is never dropped by a fetch that raced it);
+  // a different program replaces.
+  const questSlotsProgramIdRef = useRef<string | null>(
+    localFlagsCache && localFlagsCache.profileId === profile?.id ? localFlagsCache.questSlotsProgramId : null
+  );
+
+  // Called by loadJourneyProgram with this load's server rows (null if
+  // that fetch failed). Also moves any pre-server device-only records onto
+  // this program, once per account on this device.
+  const syncQuestSlots = useCallback(
+    async (programId: string, server: QuestSlotSets | null) => {
+      if (!profile?.id) return;
+      const profileId = profile.id;
+      const done = new Set(server?.done ?? []);
+      const skipped = new Set(server?.skipped ?? []);
+      if (server) {
+        const migratedKey = `${QUEST_SLOTS_MIGRATED_KEY_PREFIX}${profileId}`;
+        try {
+          if (!(await AsyncStorage.getItem(migratedKey))) {
+            const doneKey = `${COMPLETED_QUESTS_KEY_PREFIX}${profileId}`;
+            const skippedKey = `${SKIPPED_QUESTS_KEY_PREFIX}${profileId}`;
+            const [storedDone, storedSkipped] = await Promise.all([AsyncStorage.getItem(doneKey), AsyncStorage.getItem(skippedKey)]);
+            const parse = (raw: string | null): string[] =>
+              raw ? (JSON.parse(raw) as unknown[]).filter((k): k is string => typeof k === 'string' && QUEST_SLOT_KEY_PATTERN.test(k)) : [];
+            const newDone = parse(storedDone).filter((k) => !done.has(k));
+            const newSkipped = parse(storedSkipped).filter((k) => !skipped.has(k));
+            // Shown either way -- a failed save below only delays the move.
+            newDone.forEach((k) => done.add(k));
+            newSkipped.forEach((k) => skipped.add(k));
+            await saveQuestSlots(profileId, programId, newDone, 'done');
+            await saveQuestSlots(profileId, programId, newSkipped, 'skipped');
+            await AsyncStorage.setItem(migratedKey, '1');
+            AsyncStorage.multiRemove([doneKey, skippedKey]).catch(() => {});
+          }
+        } catch (err) {
+          // Left unmigrated -- retried on the next load.
+          console.warn('Journey quest slot migration failed:', err);
+        }
+      }
+      // This phone's copy for the program: shown even if the fetch failed,
+      // and anything the server lacks (a save that failed) is sent again.
+      const cached = await readCachedQuestSlots(profileId, programId);
+      if (server) {
+        const unsentDone = [...cached.done].filter((k) => !done.has(k));
+        const unsentSkipped = [...cached.skipped].filter((k) => !skipped.has(k));
+        if (unsentDone.length || unsentSkipped.length) {
+          Promise.all([
+            saveQuestSlots(profileId, programId, unsentDone, 'done'),
+            saveQuestSlots(profileId, programId, unsentSkipped, 'skipped'),
+          ])
+            .then(() => unsentDone.length && refreshPointsRef.current?.())
+            .catch((err) => console.warn('Journey quest slot retry failed:', err));
+        }
+      }
+      cached.done.forEach((k) => done.add(k));
+      cached.skipped.forEach((k) => skipped.add(k));
+      writeCachedQuestSlots(profileId, programId, { done, skipped });
+      const sameProgram = questSlotsProgramIdRef.current === programId;
+      questSlotsProgramIdRef.current = programId;
+      const merge = (prev: Set<string>, next: Set<string>) => (sameProgram ? new Set([...prev, ...next]) : next);
+      setCompletedQuestSlots((prev) => {
+        const next = merge(prev, done);
+        updateLocalFlagsCache(profileId, { completedQuestSlots: next, questSlotsProgramId: programId });
+        return next;
+      });
+      setSkippedQuestSlots((prev) => {
+        const next = merge(prev, skipped);
+        updateLocalFlagsCache(profileId, { skippedQuestSlots: next, questSlotsProgramId: programId });
+        return next;
+      });
+    },
+    [profile?.id]
+  );
+
   useEffect(() => {
     if (mode !== 'journey' || !profile?.id) return;
-    AsyncStorage.getItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profile.id}`)
-      .then((stored) => {
-        if (stored) {
-          const parsed = new Set<string>(JSON.parse(stored));
-          setCompletedQuestSlots(parsed);
-          updateLocalFlagsCache(profile.id, { completedQuestSlots: parsed });
-        }
-      })
-      .catch(() => {});
-    AsyncStorage.getItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`)
-      .then((stored) => {
-        if (stored) {
-          const parsed = new Set<string>(JSON.parse(stored));
-          setSkippedQuestSlots(parsed);
-          updateLocalFlagsCache(profile.id, { skippedQuestSlots: parsed });
-        }
-      })
-      .catch(() => {});
     AsyncStorage.getItem(`${LEGACY_ACK_KEY_PREFIX}${profile.id}`)
       .then((stored) => {
         const acknowledged = stored === 'true';
@@ -1407,24 +1615,42 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // this point in the component body, and this effect's dependency array
   // (unlike its deferred callback) evaluates immediately. Bails out until
   // journeyData is actually loaded instead of resolving nothing.
-  const markQuestSlotDone = useCallback((slotKey: string) => {
-    if (!profile?.id) return;
-    const profileId = profile.id;
-    setCompletedQuestSlots((prev) => {
-      if (prev.has(slotKey)) return prev;
-      const next = new Set(prev);
-      next.add(slotKey);
-      updateLocalFlagsCache(profileId, { completedQuestSlots: next });
-      AsyncStorage.setItem(`${COMPLETED_QUESTS_KEY_PREFIX}${profileId}`, JSON.stringify(Array.from(next))).catch(() => {});
-      return next;
-    });
-  }, [profile?.id]);
+  // Shared by finishing and skipping: updates the screen at once, then
+  // records the slot on the server (idempotent, so a repeat is harmless).
+  // Only once the program is known -- callers wait for journeyData.
+  const recordQuestSlot = useCallback(
+    (slotKey: string, status: 'done' | 'skipped') => {
+      if (!profile?.id) return;
+      const profileId = profile.id;
+      const current = status === 'done' ? completedQuestSlots : skippedQuestSlots;
+      if (current.has(slotKey)) return;
+      const setSlots = status === 'done' ? setCompletedQuestSlots : setSkippedQuestSlots;
+      setSlots((prev) => {
+        if (prev.has(slotKey)) return prev;
+        const next = new Set(prev);
+        next.add(slotKey);
+        updateLocalFlagsCache(profileId, status === 'done' ? { completedQuestSlots: next } : { skippedQuestSlots: next });
+        return next;
+      });
+      const programId = questSlotsProgramIdRef.current;
+      if (programId) {
+        // Phone copy first: if the save below fails, the next load resends it.
+        addCachedQuestSlot(profileId, programId, slotKey, status);
+        saveQuestSlots(profileId, programId, [slotKey], status)
+          // A finished quest is only payable once its slot is saved.
+          .then(() => status === 'done' && refreshPointsRef.current?.())
+          .catch((err) => console.warn('Failed to save journey quest slot:', err));
+      }
+    },
+    [profile?.id, completedQuestSlots, skippedQuestSlots]
+  );
+
+  const markQuestSlotDone = useCallback((slotKey: string) => recordQuestSlot(slotKey, 'done'), [recordQuestSlot]);
 
   useEffect(() => {
-    if (!questDone || !profile?.id) return;
+    if (!questDone || !profile?.id || !journeyData) return;
     const currentTrialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
     const resolvedSlotKey = questDone === CURRENT_TRIAL_QUEST_SENTINEL ? currentTrialSlotKey : questDone;
-    if (!resolvedSlotKey) return;
     markQuestSlotDone(resolvedSlotKey);
   }, [questDone, profile?.id, journeyData, markQuestSlotDone]);
 
@@ -1441,20 +1667,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     }, [profile?.id, journeyData, markQuestSlotDone])
   );
 
-  const handleSkipQuest = useCallback(
-    (slotKey: string) => {
-      if (!profile?.id) return;
-      setSkippedQuestSlots((prev) => {
-        if (prev.has(slotKey)) return prev;
-        const next = new Set(prev);
-        next.add(slotKey);
-        updateLocalFlagsCache(profile.id, { skippedQuestSlots: next });
-        AsyncStorage.setItem(`${SKIPPED_QUESTS_KEY_PREFIX}${profile.id}`, JSON.stringify(Array.from(next))).catch(() => {});
-        return next;
-      });
-    },
-    [profile?.id]
-  );
+  const handleSkipQuest = useCallback((slotKey: string) => recordQuestSlot(slotKey, 'skipped'), [recordQuestSlot]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1480,6 +1693,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     // ref can't survive this screen's remount-on-every-return navigation.
     const hasCache = journeyDataCache?.profileId === profile.id;
     if (!hasCache) setJourneyLoading(true);
+    loadInFlightRef.current = true;
     try {
       const { data: program, error: programError } = await supabase
         .from('warrior_programs')
@@ -1514,11 +1728,17 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
           .order('order_index', { ascending: true }),
         supabase
           .from('workout_logs')
-          .select('block_id')
+          .select('block_id, completed_at')
           .eq('warrior_program_id', (program as any).id),
       ]);
       if (blocksError) throw blocksError;
       if (logsError) throw logsError;
+      // Lane-only state: a failure here just means program order / no
+      // server quest records this load, never a broken lane.
+      const [dayChoice, serverQuestSlots] = await Promise.all([
+        fetchDayChoice((program as any).id).catch(() => null),
+        fetchQuestSlots((program as any).id).catch(() => null),
+      ]);
 
       const rawCurrentWeek = (program as any).current_week || 1;
       // Full path so far: every week from 1 through currentWeek, not just
@@ -1527,6 +1747,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       const pastAndCurrentBlocks = (blocks ?? []).filter((b: any) => (b.week_number || 1) <= rawCurrentWeek);
 
       const loggedBlockIds = new Set((logs ?? []).map((l: any) => String(l.block_id)));
+      // Latest log per block -- a day's finish time is its latest block's.
+      const blockLoggedAt = new Map<string, string>();
+      for (const l of logs ?? []) {
+        const id = String((l as any).block_id);
+        const at = (l as any).completed_at ?? '';
+        if (at > (blockLoggedAt.get(id) ?? '')) blockLoggedAt.set(id, at);
+      }
       const rawBlocks: RawProgramBlockRow[] = pastAndCurrentBlocks.map((b: any) => ({
         id: b.id,
         name: b.name,
@@ -1559,9 +1786,21 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         .sort((a, b) => a - b)
         .map((weekNumber) => {
           const weekDays = daysByWeek.get(weekNumber)!;
+          const finishedAt = new Map<number, string>();
+          weekDays.forEach((day, i) => {
+            const times = day.blocks.map((b) => blockLoggedAt.get(String(b.id)) ?? '');
+            finishedAt.set(i, times.reduce((max, at) => (at > max ? at : max), ''));
+          });
+          // A "Switch day" pick only ever applies to the week it was made in.
+          const chosen = dayChoice && dayChoice.weekNumber === weekNumber && weekNumber === rawCurrentWeek ? dayChoice.dayIndex : null;
+          const states = deriveDayStates(weekDays);
+          const todayKey = new Date().toDateString();
           return {
             weekNumber,
-            days: deriveDayStates(weekDays),
+            days: orderDaysForJourney(states, finishedAt, chosen),
+            finishedTodayIndexes: states
+              .filter((st) => st.status === 'done' && !!finishedAt.get(st.index) && new Date(finishedAt.get(st.index)!).toDateString() === todayKey)
+              .map((st) => st.index),
             nextDayIndex: deriveNextDayIndex(weekDays),
           };
         });
@@ -1578,6 +1817,16 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         canAddWeek: (program as any).coach_id === LEAP_SYSTEM_PROFILE_ID,
         weeks,
       };
+      await syncQuestSlots(freshData.warriorProgramId, serverQuestSlots);
+      const doneCount = (d: JourneyProgramData | null | undefined) =>
+        (d?.weeks ?? []).reduce((n, w) => n + w.days.filter((x) => x.status === 'done').length, 0);
+      const previous = journeyDataCache?.profileId === profile.id ? journeyDataCache.data : null;
+      if (previous && previous.warriorProgramId === freshData.warriorProgramId && doneCount(freshData) > doneCount(previous)) {
+        LayoutAnimation.configureNext(DAY_FINISHED_LAYOUT_ANIM);
+        collapseEndsAtRef.current = Date.now() + DAY_FINISHED_MS;
+        // Fallback if no reward follows; handleAwards tightens it.
+        holdAutoScrollUntilRef.current = Date.now() + DAY_FINISHED_MS + 1200;
+      }
       setJourneyData(freshData);
       journeyDataCache = { profileId: profile.id, data: freshData };
     } catch (err) {
@@ -1588,8 +1837,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (!hasCache) setJourneyData(null);
     } finally {
       setJourneyLoading(false);
+      loadInFlightRef.current = false;
     }
-  }, [mode, profile?.id]);
+  }, [mode, profile?.id, syncQuestSlots]);
 
   useFocusEffect(
     useCallback(() => {
@@ -1616,6 +1866,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // actually know one way or the other.
       if (!revealChecked || showReveal) return;
       loadJourneyProgram();
+      refreshPointsRef.current?.();
     }, [loadJourneyProgram, showReveal, revealChecked])
   );
 
@@ -1793,6 +2044,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Days gate days -- the first not-yet-done day is the one active step.
   // -1 means every day this week is already done.
   const latestDayPointer = latestWeek ? latestWeek.days.findIndex((d) => d.status !== 'done') : -1;
+  // "Switch day" candidates: this week's unfinished days, in lane order
+  // (so the current pick is first).
+  const switchableDays = latestWeek ? latestWeek.days.filter((d) => d.status !== 'done') : [];
   // Per direct request, a day's quest now DOES gate the day after it: the
   // next day stays locked until the previous day's attached quest is
   // finished or skipped too, not just the workout itself. Recomputes the
@@ -1820,6 +2074,179 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       dayGateBlockedByQuest = !isQuestSlotResolved(slotKey);
     }
   }
+
+  // Journey points: "today's program card" is the last day finished today,
+  // else the next one up. Perfect day and the medallion only count a side
+  // quest when that card has one attached.
+  const todayCardPosition = (() => {
+    if (!latestWeek) return -1;
+    const finishedToday = latestWeek.days
+      .map((d, i) => (latestWeek.finishedTodayIndexes?.includes(d.index) ? i : -1))
+      .filter((i) => i >= 0);
+    return finishedToday.length ? finishedToday[finishedToday.length - 1] : latestDayPointer;
+  })();
+  const todayCardHasQuest = todayCardPosition >= 0 && latestWeekQuestByDayIndex.has(todayCardPosition);
+  const todayQuestItem = todayCardHasQuest ? latestWeekQuestByDayIndex.get(todayCardPosition) : undefined;
+  const todayQuestSlotKey = todayQuestItem && journeyData ? `w${journeyData.currentWeek}_s${todayQuestItem.slotIndex}` : null;
+  const showPointsBar = mode === 'journey';
+  // Owns the bar + reward FX state, so a reward never re-renders the lane.
+  const pointsOverlayRef = useRef<JourneyPointsOverlayHandle>(null);
+  const plusRowRef = useRef<View>(null);
+  // Today's program card (the one the "+" row follows): earned card and
+  // side-quest points fly from here into the counter.
+  const todayCardRef = useRef<View>(null);
+  // Centres a lane row on screen.
+  const scrollToNode = useCallback((ref: React.RefObject<View | null>) => {
+    const scrollNode = scrollViewRef.current as unknown as { scrollTo: (o: { y: number; animated: boolean }) => void } | null;
+    Promise.all([measureInWindow(scrollViewRef.current), measureInWindow(ref.current)]).then(([sv, node]) => {
+      if (!sv || !node || !scrollNode) return;
+      const target = scrollOffsetRef.current + (node.y - sv.y) - Dimensions.get('window').height / 2 + node.h / 2;
+      scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
+    });
+  }, []);
+  // Window rect of a lane row if it's on screen (below the points bar), else null.
+  const visibleRect = useCallback(
+    (ref: React.RefObject<View | null>): Promise<WindowRect | null> =>
+      measureInWindow(ref.current).then((r) =>
+        r && r.h > 0 && r.y + r.h > POINTS_BAR_HEIGHT && r.y < Dimensions.get('window').height ? r : null
+      ),
+    []
+  );
+  // Window coordinates of the pill/number that logged an extra, consumed
+  // by the next award so its burst starts there.
+  const pendingOriginRef = useRef<TapOrigin | null>(null);
+  const handleAwards = useCallback(
+    (awards: PointsEntry[], next: JourneyPointsSummary, originOverride?: TapOrigin | null) => {
+      const tapped = originOverride !== undefined ? originOverride : pendingOriginRef.current;
+      pendingOriginRef.current = null;
+      pointsOverlayRef.current?.hold(next.total - awards.reduce((n, a) => n + a.points, 0));
+      if (tapped) {
+        pointsOverlayRef.current?.play(awards, next, tapped);
+        return;
+      }
+      // Coming back from a workout/quest, in order: the finished card
+      // collapses in view, its points burst from it straight away, and only
+      // once they've landed does the lane scroll on to the next day.
+      const waitedFrom = Date.now();
+      const go = () => {
+        // The reward came back before the lane reload: wait for it (the
+        // collapse starts when it lands), but never for long.
+        if (loadInFlightRef.current && Date.now() - waitedFrom < 1500) {
+          setTimeout(go, 40);
+          return;
+        }
+        // Overlap the tail of the collapse rather than waiting it out.
+        const startIn = Math.max(0, collapseEndsAtRef.current - Date.now() - 120);
+        holdAutoScrollUntilRef.current = Math.max(holdAutoScrollUntilRef.current, Date.now() + startIn + BURST_LAND_MS + 60);
+        setTimeout(() => {
+          Promise.all([visibleRect(todayCardRef), visibleRect(plusRowRef)]).then(([card, plus]) => {
+            // From the card's top part, which stays put while it shrinks.
+            const origin = card
+              ? { x: card.x + card.w / 2, y: card.y + Math.min(card.h, 84) / 2 }
+              : plus
+              ? { x: plus.x + 19, y: plus.y + plus.h / 2 }
+              : null;
+            pointsOverlayRef.current?.play(awards, next, origin);
+          });
+        }, startIn);
+      };
+      go();
+    },
+    [visibleRect]
+  );
+  const journeyPoints = useJourneyPoints({
+    userId: showPointsBar ? profile?.id : undefined,
+    // Until the lane is known, assume today's card has a quest: the strict
+    // answer, so Perfect day is never paid on a guess. The hook re-syncs
+    // once the real answer differs from what it last sent.
+    dayHasQuest: latestWeek ? todayCardHasQuest : true,
+    onAwards: handleAwards,
+  });
+  // Runs with every lane load (focus) and after a quest slot is saved.
+  refreshPointsRef.current = journeyPoints.refresh;
+
+  // The "+" extras row sits right after today's card (or the week's last
+  // day when nothing is up today).
+  const plusRowPosition = latestWeek ? (todayCardPosition >= 0 ? todayCardPosition : latestWeek.days.length - 1) : -1;
+  const pointsSummary = journeyPoints.summary;
+  const todayQuestPaid = !!pointsSummary && questPaidToday(pointsSummary, todayQuestSlotKey);
+  // Dev builds only: long-press the "+" to preview its lit state.
+  const [devIgnite, setDevIgnite] = useState(false);
+  const plusIgnited = (!!pointsSummary?.trained_today && (!todayCardHasQuest || todayQuestPaid)) || devIgnite;
+  const [trayMode, setTrayMode] = useState<TrayMode>(null);
+  const [tasksSheetOpen, setTasksSheetOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
+  // Lane position (latest week) of the card to glow after a jump from
+  // Today's Tasks, plus a changing signal so a repeat jump replays it.
+  const [cardGlow, setCardGlow] = useState<{ position: number; signal: number } | null>(null);
+  // Centres the "+" row (today's card and quest sit just above it).
+  const scrollToPlusRow = useCallback(() => scrollToNode(plusRowRef), [scrollToNode]);
+  // Sheet → path: close first, then scroll once the sheet is out of the way.
+  const leaveSheetTo = useCallback(
+    (then?: () => void) => {
+      setTasksSheetOpen(false);
+      setTimeout(() => {
+        scrollToPlusRow();
+        then?.();
+      }, 250);
+    },
+    [scrollToPlusRow]
+  );
+  const handleLogTask = useCallback(
+    (task: JourneyTask, amount: number | null, origin: TapOrigin | null = null) => {
+      pendingOriginRef.current = origin;
+      // Consumed synchronously when awards arrive; clear it either way so a
+      // failed/ignored tap can't leave a stale origin for a later reward.
+      journeyPoints.logTask(task, amount).finally(() => {
+        pendingOriginRef.current = null;
+      });
+    },
+    [journeyPoints.logTask]
+  );
+  // The "+" igniting (today's card + quest done) gets its own burst, and
+  // the path scrolls to it -- only on the change, never on first load.
+  const prevIgnitedRef = useRef<boolean | null>(null);
+  const hasPointsSummary = !!pointsSummary;
+  useEffect(() => {
+    if (!hasPointsSummary) return;
+    const was = prevIgnitedRef.current;
+    prevIgnitedRef.current = plusIgnited;
+    if (was !== false || !plusIgnited) return;
+    const burstOnPlus = () =>
+      visibleRect(plusRowRef).then((plus) => {
+        if (plus) pointsOverlayRef.current?.sparkle({ x: plus.x + 19, y: plus.y + plus.h / 2 });
+      });
+    // Not cleared on re-render: a later refresh mustn't cancel the moment.
+    // Only scrolls if the "+" isn't already in view.
+    setTimeout(() => {
+      visibleRect(plusRowRef).then((plus) => {
+        if (plus) return burstOnPlus();
+        scrollToPlusRow();
+        setTimeout(burstOnPlus, 450);
+      });
+    }, BURST_IGNITE_DELAY_MS);
+  }, [plusIgnited, hasPointsSummary, scrollToPlusRow, visibleRect]);
+  // Dev builds only: long-press the medallion to replay "just came back
+  // from a workout" -- today's card's points fly into the counter, then a
+  // streak bonus and Perfect day -- without touching the server.
+  const previewRewardFx = useCallback(() => {
+    if (!pointsSummary) return;
+    const today = pointsSummary.today;
+    const cardName = plusRowPosition >= 0 && latestWeek ? latestWeek.days[plusRowPosition]?.day.name ?? null : null;
+    const sample: PointsEntry[] = [
+      { date: today, source: 'program_day', label: cardName, points: pointsSummary.values.program_day ?? 50 },
+      { date: today, source: 'streak', label: '7', points: 50 },
+      { date: today, source: 'perfect_day', label: null, points: 20 },
+    ];
+    const total = sample.reduce((n, a) => n + a.points, 0);
+    handleAwards(sample, { ...pointsSummary, total: pointsSummary.total + total }, null);
+  }, [pointsSummary, handleAwards, plusRowPosition, latestWeek]);
+  const handleUndoTask = useCallback(
+    (task: JourneyTask) => {
+      journeyPoints.undoTask(task);
+    },
+    [journeyPoints.undoTask]
+  );
 
   // Same sequential gating everywhere — milestone 3 always waits on
   // milestone 2, mandatory onboarding and the legacy journey view alike.
@@ -1929,7 +2356,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // now only ever fires once per genuine transition.
   useEffect(() => {
     if (mode === 'journey' && journeyLoading) return;
-    const t = setTimeout(() => {
+    let t: ReturnType<typeof setTimeout>;
+    const run = () => {
+      // Held while a just-finished day plays its collapse + reward.
+      const wait = holdAutoScrollUntilRef.current - Date.now();
+      if (wait > 0) {
+        t = setTimeout(run, wait);
+        return;
+      }
       const node = activeStepRef.current as unknown as {
         measureInWindow?: (cb: (x: number, y: number, width: number, height: number) => void) => void;
       } | null;
@@ -1974,7 +2408,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
           scrollNode.scrollTo({ y: Math.max(target, 0), animated: true });
         });
       });
-    }, 400);
+    };
+    t = setTimeout(run, 400);
     return () => clearTimeout(t);
   }, [mode, journeyLoading, currentTargetKey]);
 
@@ -2065,8 +2500,37 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
     : null;
 
+  // Moves the picked day to the front of this week's unfinished days, at
+  // once on screen, then saves the pick. The program itself never changes.
+  const handleSwitchDay = (entry: DayStateEntry) => {
+    setSwitchDayOpen(false);
+    if (!journeyData || !latestWeek || !profile?.id) return;
+    if (switchableDays[0]?.index === entry.index) return;
+    const done = latestWeek.days.filter((d) => d.status === 'done');
+    const rest = latestWeek.days.filter((d) => d.status !== 'done' && d.index !== entry.index);
+    const reordered: JourneyProgramData = {
+      ...journeyData,
+      weeks: journeyData.weeks.map((w) => (w === latestWeek ? { ...w, days: [...done, entry, ...rest] } : w)),
+    };
+    setJourneyData(reordered);
+    journeyDataCache = { profileId: profile.id, data: reordered };
+    saveDayChoice(profile.id, journeyData.warriorProgramId, { weekNumber: latestWeek.weekNumber, dayIndex: entry.index }).catch(
+      (err) => {
+        console.error('Failed to save switched day:', err);
+        Alert.alert(t('journey.switchDayFailedTitle'), t('journey.switchDayFailedBody'));
+        loadJourneyProgram();
+      }
+    );
+  };
+
   return (
     <View style={styles.screen}>
+    <SwitchDaySheet
+      visible={switchDayOpen}
+      days={switchableDays}
+      onPick={handleSwitchDay}
+      onClose={() => setSwitchDayOpen(false)}
+    />
     {showRankToast && (
       <RankUpToast
         tierName={TIER_NAMES[profile?.strength_tier ?? 0] ?? t('journey.tierFallback', { tier: profile?.strength_tier ?? 0 })}
@@ -2075,7 +2539,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     )}
     <ScrollView
       ref={scrollViewRef}
-      contentContainerStyle={styles.scrollContent}
+      contentContainerStyle={[styles.scrollContent, showPointsBar && { paddingTop: POINTS_BAR_HEIGHT + 34 }]}
       onScroll={(e) => {
         scrollOffsetRef.current = e.nativeEvent.contentOffset.y;
       }}
@@ -2257,10 +2721,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     // independent of the NEXT day's gate -- that gate lives
                     // in dayGateBlockedByQuest above, which locks the day
                     // after this one until this quest resolves too.
+                    // A past week's unresolved quest is missed, not open --
+                    // it used to stay an open card forever once its week ended.
+                    const missed = !resolved && !isLatestWeek;
                     return {
                       kind: questItem.questKind,
-                      state: resolved ? 'complete' : dayState !== 'locked' ? 'active' : 'locked',
+                      state: resolved ? 'complete' : missed ? 'locked' : dayState !== 'locked' ? 'active' : 'locked',
                       skipped: skippedQuestSlots.has(slotKey),
+                      missed,
                       onPress: () =>
                         router.push({
                           pathname: def.pathname,
@@ -2301,12 +2769,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         {isLatestWeek && i === justUnlockedDayIndex && (
                           <DayCheerBanner seed={`w${week.weekNumber}-d${i}-cheer`} />
                         )}
+                        <View ref={isLatestWeek && i === plusRowPosition ? todayCardRef : undefined} collapsable={false}>
                         <DayNode
                           number={startNumber + i + 1}
                           state={dayState}
                           title={d.day.name.toUpperCase()}
                           day={d.day}
-                          seed={`w${week.weekNumber}-d${i}-${d.day.name}`}
+                          // Program index, not lane position -- a switched day keeps its photo.
+                          seed={`w${week.weekNumber}-d${d.index}-${d.day.name}`}
                           isLast={false}
                           containerRef={isDayPointer ? activeStepRef : undefined}
                           onPress={() =>
@@ -2317,12 +2787,37 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                               // current_week by default, so a past week's day
                               // index wouldn't refer to the right day there.
                               params: isLatestWeek
-                                ? { returnTo: 'journey', startDay: String(i) }
+                                ? { returnTo: 'journey', startDay: String(d.index) }
                                 : { returnTo: 'journey' },
                             })
                           }
+                          onSwitchDay={isLatestWeek && switchableDays.length > 1 ? () => setSwitchDayOpen(true) : undefined}
                           attachedQuest={attachedQuestFor(i, dayState)}
+                          doneTodayPoints={
+                            // Only a day that actually earned today (all-missed days earn nothing).
+                            isLatestWeek && showPointsBar && pointsSummary
+                              ? programDayPointsToday(pointsSummary, d.day.name) ?? undefined
+                              : undefined
+                          }
+                          glowSignal={isLatestWeek && cardGlow?.position === i ? cardGlow.signal : 0}
                         />
+                        </View>
+                        {isLatestWeek && i === plusRowPosition && showPointsBar && pointsSummary && (
+                          <View ref={plusRowRef} collapsable={false}>
+                            <PlusTaskRow
+                              ticks={pointsSummary.tasks_today}
+                              values={pointsSummary.values}
+                              ignited={plusIgnited}
+                              mode={trayMode}
+                              onModeChange={setTrayMode}
+                              onLog={handleLogTask}
+                              onUndo={handleUndoTask}
+                              busyTask={journeyPoints.busyTask}
+                              isLight={themeMode === 'light'}
+                              onLongPressNode={__DEV__ ? () => setDevIgnite((v) => !v) : undefined}
+                            />
+                          </View>
+                        )}
                       </React.Fragment>
                     );
                   });
@@ -2408,6 +2903,43 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         </>
       </View>
     </ScrollView>
+    {showPointsBar && journeyPoints.summary && (
+      <JourneyPointsOverlay
+        ref={pointsOverlayRef}
+        summary={journeyPoints.summary}
+        segments={todaySegments(journeyPoints.summary, todayQuestSlotKey)}
+        isLight={themeMode === 'light'}
+        onOpenHistory={() => setHistoryOpen(true)}
+        onOpenTasks={() => setTasksSheetOpen(true)}
+        onLongPressMedallion={__DEV__ ? previewRewardFx : undefined}
+      />
+    )}
+    {showPointsBar && pointsSummary && (
+      <PointsHistorySheet
+        visible={historyOpen}
+        onClose={() => setHistoryOpen(false)}
+        summary={pointsSummary}
+        isLight={themeMode === 'light'}
+      />
+    )}
+    {showPointsBar && pointsSummary && (
+      <TodayTasksSheet
+        visible={tasksSheetOpen}
+        onClose={() => setTasksSheetOpen(false)}
+        summary={pointsSummary}
+        cardName={plusRowPosition >= 0 && latestWeek ? latestWeek.days[plusRowPosition]?.day.name ?? null : null}
+        questTitle={todayQuestItem ? SIDE_QUEST_DEFS[todayQuestItem.questKind].title : null}
+        questSlotKey={todayQuestSlotKey}
+        questSkipped={!!todayQuestSlotKey && skippedQuestSlots.has(todayQuestSlotKey)}
+        isLight={themeMode === 'light'}
+        busyTask={journeyPoints.busyTask}
+        onGoToCard={() => leaveSheetTo(() => setCardGlow({ position: plusRowPosition, signal: Date.now() }))}
+        onGoToQuest={() => leaveSheetTo(() => setCardGlow({ position: plusRowPosition, signal: Date.now() }))}
+        onOpenTask={(task) => leaveSheetTo(() => setTrayMode(task))}
+        onLog={handleLogTask}
+        onUndo={handleUndoTask}
+      />
+    )}
     {/* mode='journey' used to render its own BottomTabBar here; it now
         renders once in app/(tabs)/_layout.tsx instead, since that route
         (/my-journey) is one of the screens in that persistent tab group.
@@ -2666,6 +3198,9 @@ const darkStyles = StyleSheet.create({
     fontSize: 11.5,
     marginTop: 1,
   },
+  attachedQuestDescMissed: {
+    color: 'rgba(255, 82, 82, 0.75)',
+  },
   questNode: {
     borderWidth: 1.5,
     borderColor: ACCENT,
@@ -2796,6 +3331,20 @@ const darkStyles = StyleSheet.create({
     borderColor: 'rgba(255,255,255,0.18)',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  milestoneSwitchBtn: {
+    position: 'absolute',
+    top: 8,
+    end: 8,
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    backgroundColor: 'rgba(5,5,5,0.55)',
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.22)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
   },
   milestoneHereBadge: {
     position: 'absolute',
@@ -3106,6 +3655,7 @@ const lightStyles = StyleSheet.create({
   milestoneCardBorderLocked: { borderColor: 'rgba(0,0,0,0.06)' },
   milestoneCardLockedScrim: { ...darkStyles.milestoneCardLockedScrim, backgroundColor: 'rgba(255,255,255,0.45)' },
   milestoneLockBadge: { ...darkStyles.milestoneLockBadge, backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(0,0,0,0.1)' },
+  milestoneSwitchBtn: { ...darkStyles.milestoneSwitchBtn, backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(0,0,0,0.1)' },
   // Text keeps to the white-washed side; the photo shows through the rest.
   milestoneCardTextWrap: { ...darkStyles.milestoneCardTextWrap, end: '28%' },
   milestoneCardTitle: { ...darkStyles.milestoneCardTitle, color: LIGHT_INK, textShadowColor: 'transparent', textShadowRadius: 0 },

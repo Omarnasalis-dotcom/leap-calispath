@@ -46,6 +46,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DayBlocksProgressRing } from '../../components/coaching/DayBlocksProgressRing';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
+import { fetchDayChoiceForWeek } from '../../lib/journeyLane';
 import { DayCardList } from '../../components/coaching/DayCardList';
 import { t, FLIP_X } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
@@ -197,6 +198,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const isLastWeekDone = days.length > 0 && deriveDayStates(days).every(d => d.status === 'done');
   const canAddWeek = activeWeek === maxWeek && isLastWeekDone && coachId === LEAP_SYSTEM_PROFILE_ID;
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
+  // Journey "Switch day" pick for the current week (display week + day index).
+  const [pickedDay, setPickedDay] = useState<{ week: number; index: number } | null>(null);
   // 'list' = My Active Program (week/day cards, this screen's default).
   // 'running' = the exercise-logging UI, reached directly from a day
   // card's START/CONTINUE/REVIEW — this is exactly what used to render
@@ -1046,6 +1049,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       const rawCurrentWeek = actualAssignment.current_week || 1;
       const targetWeek = rawToDisplayWeek.get(rawCurrentWeek) ?? maxWeek;
       setActiveWeek(targetWeek);
+      // Journey "Switch day" pick -- only ever the athlete's own (a coach
+      // viewing a client reads nothing back), never blocks the load.
+      fetchDayChoiceForWeek(actualAssignment.id, rawCurrentWeek).then((index) =>
+        setPickedDay(index == null ? null : { week: targetWeek, index })
+      );
 
       const targetWeekDays = newWeeksMap[targetWeek] || [];
       if (
@@ -2085,7 +2093,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     exercise-logging UI — no interstitial screen. */}
                 <DayCardList
                   days={days}
-                  nextIndex={deriveNextDayIndex(days)}
+                  nextIndex={
+                    pickedDay && pickedDay.week === activeWeek && days[pickedDay.index] &&
+                    deriveDayStates([days[pickedDay.index]])[0].status !== 'done'
+                      ? pickedDay.index
+                      : deriveNextDayIndex(days)
+                  }
                   onStartDay={(dayIndex) => {
                     setActiveDayIndex(dayIndex);
                     setScreenPhase('running');
