@@ -199,7 +199,16 @@ export function ProfileHeader({
   // has actually had to scroll the page (not a no-op at y=0), so pageX/pageY
   // is used instead for a position that's correct regardless of scroll state.
   const { ref: levelCircleRef, onLayout: onLevelCircleLayout } = useTutorialTarget('profile.levelCircle', scrollRef, true);
-  const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget('profile.wraScoreBar', scrollRef, true);
+  const pressWraScoreBar = () => {
+    onFetchWRALeaderboard();
+    reportWraScoreBar();
+  };
+  const { ref: wraScoreBarRef, onLayout: onWraScoreBarLayout, reportInteraction: reportWraScoreBar } = useTutorialTarget(
+    'profile.wraScoreBar',
+    scrollRef,
+    true,
+    pressWraScoreBar
+  );
 
   const tierName = (category === 'strength' ? TIER_NAMES[activeCurrentTier] : POWER_TIER_NAMES[activeCurrentTier])?.toUpperCase() || t('profile.unknownTier');
   const displayName = profile.first_name || profile.last_name
@@ -300,10 +309,7 @@ export function ProfileHeader({
         ref={wraScoreBarRef}
         onLayout={onWraScoreBarLayout}
         activeOpacity={0.8}
-        onPress={() => {
-          onFetchWRALeaderboard();
-          reportWraScoreBar();
-        }}
+        onPress={pressWraScoreBar}
         style={[styles.wraCard, { borderColor: worldRgba(W.accent, 0.3), backgroundColor: worldRgba(W.accent, 0.05) }]}
       >
         <View style={styles.wraHeaderRow}>

@@ -46,7 +46,16 @@ export function LeaderboardModals({
 }: LeaderboardModalsProps) {
   const { theme, mode } = useTheme();
   const { ref: topEntriesRef, onLayout: onTopEntriesLayout } = useTutorialTarget('wra.topEntries');
-  const { ref: closeButtonRef, onLayout: onCloseButtonLayout, reportInteraction: reportCloseButton } = useTutorialTarget('wra.closeButton');
+  const pressCloseButton = () => {
+    setShowWRALeaderboard(false);
+    reportCloseButton();
+  };
+  const { ref: closeButtonRef, onLayout: onCloseButtonLayout, reportInteraction: reportCloseButton } = useTutorialTarget(
+    'wra.closeButton',
+    undefined,
+    undefined,
+    pressCloseButton
+  );
 
   return (
     <>
@@ -63,10 +72,7 @@ export function LeaderboardModals({
               <TouchableOpacity
                 ref={closeButtonRef}
                 onLayout={onCloseButtonLayout}
-                onPress={() => {
-                  setShowWRALeaderboard(false);
-                  reportCloseButton();
-                }}
+                onPress={pressCloseButton}
                 style={styles.modalCloseBtn}
               >
                 <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
@@ -184,12 +190,15 @@ export function LeaderboardModals({
                   return (
                     <>
                       {/* Wrapped separately (not sliced out of the real list) so the
-                          tutorial can highlight just the top 5 without affecting how
-                          many entries actually render for real. */}
-                      <View ref={topEntriesRef} onLayout={onTopEntriesLayout}>
-                        {filteredWraLeaderboard.slice(0, 5).map(renderEntry)}
+                          tutorial can highlight just the top 3 without affecting how
+                          many entries actually render for real. Top 3, not 5: five
+                          rows left no room for the step card on smaller phones, so
+                          it landed on top of the highlight. collapsable={false}
+                          keeps this wrapper measurable on Android. */}
+                      <View ref={topEntriesRef} onLayout={onTopEntriesLayout} collapsable={false}>
+                        {filteredWraLeaderboard.slice(0, 3).map(renderEntry)}
                       </View>
-                      {filteredWraLeaderboard.slice(5).map(renderEntry)}
+                      {filteredWraLeaderboard.slice(3).map(renderEntry)}
                     </>
                   );
                 })()}

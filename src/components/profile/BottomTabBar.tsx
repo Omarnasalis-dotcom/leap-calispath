@@ -85,10 +85,28 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const { ref: barRef, onLayout: onBarLayout } = useTutorialTarget('bottomTab.bar');
-  const { ref: worldsRef, onLayout: onWorldsLayout, reportInteraction: reportWorlds } = useTutorialTarget('bottomTab.worlds', undefined, true);
+  // The tour's Next on these real steps does exactly what tapping them does.
+  const pressWorlds = () => {
+    // Only an open advances the tour — its next step needs the
+    // fan-out's 1MM circle on screen.
+    if (!worldsMenuOpen) reportWorlds();
+    toggleWorldsMenu();
+  };
+  const pressWorldCircle = (tab: TabDef) => {
+    setWorldsMenuOpen(false);
+    handlePress(tab);
+    if (tab.id === '1mm') reportOneMMCircle();
+  };
+  const oneMMTab = WORLD_TABS.find((tab) => tab.id === '1mm');
+  const { ref: worldsRef, onLayout: onWorldsLayout, reportInteraction: reportWorlds } = useTutorialTarget('bottomTab.worlds', undefined, true, pressWorlds);
   // Only the 1MM circle is a tour target (the tour's route into 1-Minute
   // Max) — Power/Static are covered by a decoy step on WORLDS itself.
-  const { ref: oneMMCircleRef, onLayout: onOneMMCircleLayout, reportInteraction: reportOneMMCircle } = useTutorialTarget('worlds.1mm', undefined, true);
+  const { ref: oneMMCircleRef, onLayout: onOneMMCircleLayout, reportInteraction: reportOneMMCircle } = useTutorialTarget(
+    'worlds.1mm',
+    undefined,
+    true,
+    oneMMTab ? () => pressWorldCircle(oneMMTab) : undefined
+  );
   const { requestRemeasure } = useTutorial();
   const [worldsMenuOpen, setWorldsMenuOpen] = useState(false);
   // One value per world circle, started in a stagger rather than all
@@ -105,7 +123,19 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
     if (!worldsMenuOpen) return;
     Animated.stagger(
       70,
-      worldAnims.map((a) => Animated.spring(a, { toValue: 1, useNativeDriver: true, speed: 30, bounciness: 9 }))
+      // Same bounce, but counted as settled once it's within 1% -- the
+      // default rest thresholds kept the tour's 1MM step waiting on an
+      // invisible sub-pixel tail before it could highlight the circle.
+      worldAnims.map((a) =>
+        Animated.spring(a, {
+          toValue: 1,
+          useNativeDriver: true,
+          speed: 30,
+          bounciness: 9,
+          restDisplacementThreshold: 0.01,
+          restSpeedThreshold: 0.3,
+        })
+      )
     // The circles measure at scale 0 on their first layout — re-measure
     // once the pop-in settles so the tour's 1MM highlight lands on the
     // full-size circle.
@@ -214,11 +244,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
                         },
                       ]}
                       activeOpacity={0.8}
-                      onPress={() => {
-                        setWorldsMenuOpen(false);
-                        handlePress(tab);
-                        if (tab.id === '1mm') reportOneMMCircle();
-                      }}
+                      onPress={() => pressWorldCircle(tab)}
                     >
                       <MaterialCommunityIcons
                         name={tab.icon}
@@ -245,12 +271,7 @@ export function BottomTabBar({ activeTab, strengthTier, onSelectProfileTab }: Bo
             onLayout={onWorldsLayout}
             style={styles.item}
             activeOpacity={0.7}
-            onPress={() => {
-              // Only an open advances the tour — its next step needs the
-              // fan-out's 1MM circle on screen.
-              if (!worldsMenuOpen) reportWorlds();
-              toggleWorldsMenu();
-            }}
+            onPress={pressWorlds}
           >
             {isWorldActive && <View style={[styles.activeIndicator, { backgroundColor: worldsColor }]} />}
             <View
@@ -290,16 +311,17 @@ function TabButton({ tab, isActive, isUnlocked, onPress }: TabButtonProps) {
   // useScreenMeasure=true: this button sits outside any ScrollView, in the
   // fixed bottom tab bar — see useTutorialTarget's own comment for why that
   // needs the pageX/pageY measurement path on Android.
-  const { ref, onLayout, reportInteraction } = useTutorialTarget(TAB_TARGET_IDS[tab.id], undefined, true);
+  const press = () => {
+    onPress();
+    reportInteraction();
+  };
+  const { ref, onLayout, reportInteraction } = useTutorialTarget(TAB_TARGET_IDS[tab.id], undefined, true, press);
 
   return (
     <TouchableOpacity
       ref={ref}
       onLayout={onLayout}
-      onPress={() => {
-        onPress();
-        reportInteraction();
-      }}
+      onPress={press}
       style={styles.item}
       activeOpacity={0.7}
     >

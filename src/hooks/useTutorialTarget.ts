@@ -15,6 +15,15 @@ const SCROLL_INTO_VIEW_TOP_MARGIN = 100;
 // not a poll loop.
 const SETTLE_REMEASURE_DELAYS_MS = [300, 900];
 
+// A target that's still animating in (a sheet sliding up, the WORLDS
+// fan-out springing open) measures somewhere mid-flight; registering that
+// put the ring in the wrong place and it only jumped to the right one on
+// the next timed re-measure -- read as lag. measure() now only registers a
+// rect that held still across two consecutive frames, retrying each frame
+// while it moves (capped, so a perpetual animation can't spin forever).
+const STABLE_TOLERANCE_PX = 1;
+const MAX_STABLE_FRAMES = 90;
+
 export function useTutorialTarget(
   targetId: TargetId | undefined,
   scrollRef?: React.RefObject<ScrollView | null>,
@@ -26,9 +35,21 @@ export function useTutorialTarget(
   // measure correctly with measureInWindow as-is, so this only opts in
   // fixed, non-scrolling targets like the tab bar into the pageX/pageY path
   // rather than risk changing behavior for everything.
-  useScreenMeasure?: boolean
+  useScreenMeasure?: boolean,
+  // Real-mode targets: the element's full onPress (its action + the
+  // reportInteraction call), so the tour's Next button can do exactly what
+  // tapping it does. Read through a ref -- callers pass a fresh closure.
+  onActivate?: () => void
 ) {
-  const { isTargetNeeded, registerTarget, setTargetMounted, reportInteraction, remeasureNonce } = useTutorial();
+  const { isTargetNeeded, registerTarget, setTargetMounted, reportInteraction, registerAction, remeasureNonce } = useTutorial();
+  const activateRef = useRef(onActivate);
+  activateRef.current = onActivate;
+  const hasActivate = !!onActivate;
+  useEffect(() => {
+    if (!targetId || !hasActivate) return;
+    registerAction(targetId, () => activateRef.current?.());
+    return () => registerAction(targetId, null);
+  }, [targetId, hasActivate, registerAction]);
   const ref = useRef<View>(null);
   const needed = !!targetId && isTargetNeeded(targetId);
 
@@ -39,22 +60,47 @@ export function useTutorialTarget(
     return () => setTargetMounted(targetId, false);
   }, [targetId, setTargetMounted]);
 
+  const readRect = useCallback(
+    (cb: (rect: { x: number; y: number; width: number; height: number } | null) => void) => {
+      const node = ref.current;
+      if (!node) return cb(null);
+      if (useScreenMeasure && Platform.OS === 'android') {
+        (node as any).measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) =>
+          cb(width > 0 && height > 0 ? { x: pageX, y: pageY, width, height } : null)
+        );
+        return;
+      }
+      node.measureInWindow((x, y, width, height) => cb(width > 0 && height > 0 ? { x, y, width, height } : null));
+    },
+    [useScreenMeasure]
+  );
+
+  // Bumped by every new measure() so an older still-pending frame loop
+  // stops instead of racing the new one.
+  const measureGen = useRef(0);
   const measure = useCallback(() => {
     if (!targetId || !isTargetNeeded(targetId)) return;
-    const node = ref.current;
-    if (!node) return;
-    if (useScreenMeasure && Platform.OS === 'android') {
-      (node as any).measure((_x: number, _y: number, width: number, height: number, pageX: number, pageY: number) => {
-        if (width <= 0 || height <= 0) return;
-        registerTarget(targetId, { x: pageX, y: pageY, width, height });
+    const gen = ++measureGen.current;
+    let frames = 0;
+    const step = (prev: { x: number; y: number; width: number; height: number } | null) => {
+      if (gen !== measureGen.current) return;
+      readRect((rect) => {
+        if (gen !== measureGen.current || !rect) return;
+        const still =
+          !!prev &&
+          Math.abs(rect.x - prev.x) <= STABLE_TOLERANCE_PX &&
+          Math.abs(rect.y - prev.y) <= STABLE_TOLERANCE_PX &&
+          Math.abs(rect.width - prev.width) <= STABLE_TOLERANCE_PX &&
+          Math.abs(rect.height - prev.height) <= STABLE_TOLERANCE_PX;
+        if (still || frames++ >= MAX_STABLE_FRAMES) {
+          registerTarget(targetId, rect);
+          return;
+        }
+        requestAnimationFrame(() => step(rect));
       });
-      return;
-    }
-    node.measureInWindow((x, y, width, height) => {
-      if (width <= 0 || height <= 0) return;
-      registerTarget(targetId, { x, y, width, height });
-    });
-  }, [isTargetNeeded, registerTarget, targetId, useScreenMeasure]);
+    };
+    step(null);
+  }, [isTargetNeeded, registerTarget, targetId, readRect]);
 
   const onLayout = useCallback(() => {
     measure();

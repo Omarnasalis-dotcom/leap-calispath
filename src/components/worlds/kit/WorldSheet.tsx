@@ -8,6 +8,7 @@ import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { KIT_EASE } from './AnimatedRing';
 import { KitCloseButton } from './KitButton';
 import { kt } from './type';
+import { useTutorial } from '../../../contexts/TutorialContext';
 import { t as tr } from '../../../i18n';
 
 interface Props {
@@ -53,11 +54,14 @@ export function WorldSheet({
   const [mounted, setMounted] = useState(visible);
   // Native-driven only (opacity + translateY) — never shares a Value with a JS-driven animation.
   const anim = useRef(new Animated.Value(0)).current;
+  // A tour step can target something inside this sheet (1MM's Start
+  // button): re-measure the moment the slide-up lands.
+  const { requestRemeasure } = useTutorial();
 
   useEffect(() => {
     if (visible) {
       setMounted(true);
-      Animated.timing(anim, { toValue: 1, duration: 280, easing: KIT_EASE, useNativeDriver: true }).start();
+      Animated.timing(anim, { toValue: 1, duration: 280, easing: KIT_EASE, useNativeDriver: true }).start(() => requestRemeasure());
     } else if (mounted) {
       Animated.timing(anim, { toValue: 0, duration: 200, easing: KIT_EASE, useNativeDriver: true }).start(({ finished }) => {
         if (finished) setMounted(false);

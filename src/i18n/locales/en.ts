@@ -1807,6 +1807,7 @@ const en = {
     offerSkip: 'Skip for now',
     skip: 'SKIP',
     gotIt: 'GOT IT',
+    stepOf: 'STEP {{n}} OF {{total}}',
     next: 'NEXT',
     step1: 'YOUR PROFILE SHOWS YOUR CURRENT LEVEL',
     step2: 'TAP STRENGTH TO ENTER STRENGTH WORLD',

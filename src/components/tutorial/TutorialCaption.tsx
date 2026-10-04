@@ -7,6 +7,7 @@ interface TutorialCaptionProps {
   stepIndex: number;
   tag: string;
   caption: string;
+  isLight?: boolean;
 }
 
 // Renders just the text content — the opaque card behind it (and behind
@@ -16,7 +17,7 @@ interface TutorialCaptionProps {
 // where "placed below the target" still lands on real page content further
 // down, not empty margin — a per-piece card left the dots/button with no
 // backing at all, so that content showed through around them.
-export function TutorialCaption({ stepIndex, tag, caption }: TutorialCaptionProps) {
+export function TutorialCaption({ stepIndex, tag, caption, isLight = false }: TutorialCaptionProps) {
   const fade = useRef(new Animated.Value(0)).current;
   const translateY = useRef(new Animated.Value(10)).current;
 
@@ -32,7 +33,7 @@ export function TutorialCaption({ stepIndex, tag, caption }: TutorialCaptionProp
   return (
     <Animated.View style={{ opacity: fade, transform: [{ translateY }] }}>
       <Text style={styles.tag}>{tag}</Text>
-      <Text style={styles.caption}>{caption}</Text>
+      <Text style={[styles.caption, isLight && styles.captionLight]}>{caption}</Text>
     </Animated.View>
   );
 }
@@ -55,4 +56,5 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     lineHeight: 22,
   },
+  captionLight: { color: '#151515' },
 });

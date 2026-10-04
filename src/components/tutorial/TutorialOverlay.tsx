@@ -1,10 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity, Text, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BlurView } from 'expo-blur';
 import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Mask, Rect } from 'react-native-svg';
 import { useTutorial } from '../../contexts/TutorialContext';
+import { useTheme } from '../../contexts/ThemeContext';
 import { HighlightRing } from './HighlightRing';
 import { TapDot } from './TapDot';
 import { TutorialCaption } from './TutorialCaption';
@@ -15,10 +16,15 @@ import { t, physicalLeft } from '../../i18n';
 const ACCENT = '#FF5252';
 const RING_PAD = 6;
 const DIM_OPACITY = 0.68;
+// Light mode dims less (same as WelcomeTourCard's 0.45 backdrop), so the
+// screen still reads as the light app behind the highlight.
+const DIM_OPACITY_LIGHT = 0.45;
 const CHROME_CLEARANCE = 20;
-// Rough ceiling on how tall the bottom chrome (caption + dots [+ nav row])
-// ever gets — used only to decide whether a highlight sits low enough on
-// screen to need the chrome pushed up above it, not for exact layout.
+// How tall the caption card is assumed to be until it has measured itself
+// (first frame of each step). The real, measured height is used after that
+// -- the old fixed 240 overestimated the ~190pt card, so a tall highlight
+// (e.g. the WRA top entries) found "no room" on either side and the card
+// fell back to the bottom, right on top of the highlight.
 const ESTIMATED_CHROME_HEIGHT = 240;
 
 // RN's <Modal> renders its content in a separate native layer, entirely
@@ -55,9 +61,11 @@ export function TutorialModalOverlay({ targetIds }: { targetIds: TargetId[] }) {
 }
 
 function TutorialStepOverlayContent() {
-  const { stepIndex, totalSteps, currentStep: step, targets, next, skip } = useTutorial();
+  const { stepIndex, totalSteps, currentStep: step, targets, next, advance, skip } = useTutorial();
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
+  const isLight = useTheme().mode === 'light';
+  const [chromeHeight, setChromeHeight] = useState(ESTIMATED_CHROME_HEIGHT);
 
   const rect = targets[step.targetId] ?? null;
   const ready = !!rect;
@@ -80,7 +88,7 @@ function TutorialStepOverlayContent() {
   // space (e.g. before the target has measured, or a highlight tall enough
   // to leave no good spot on either side).
   const defaultChromeBottom = insets.bottom + CHROME_CLEARANCE;
-  const neededSpace = ESTIMATED_CHROME_HEIGHT + CHROME_CLEARANCE;
+  const neededSpace = chromeHeight + CHROME_CLEARANCE;
   const spaceBelow = ready ? height - (box!.top + box!.height) - insets.bottom : 0;
   const spaceAbove = ready ? box!.top - insets.top : 0;
   const chromeStyle: { top?: number; bottom?: number } =
@@ -111,7 +119,7 @@ function TutorialStepOverlayContent() {
               <Rect x={box.left} y={box.top} width={box.width} height={box.height} rx={16} ry={16} fill="black" />
             )}
           </Mask>
-          <Rect x={0} y={0} width={width} height={height} fill="black" fillOpacity={DIM_OPACITY} mask="url(#tutorialDimMask)" />
+          <Rect x={0} y={0} width={width} height={height} fill="black" fillOpacity={isLight ? DIM_OPACITY_LIGHT : DIM_OPACITY} mask="url(#tutorialDimMask)" />
         </Svg>
       </View>
 
@@ -143,14 +151,6 @@ function TutorialStepOverlayContent() {
         </>
       )}
 
-      <TouchableOpacity
-        style={[styles.skipBtn, { top: insets.top + 16 }]}
-        onPress={skip}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.skipText}>{t('tour.skip')}</Text>
-      </TouchableOpacity>
-
       {/* Chrome (caption/dots) renders immediately every step regardless of
           measurement state, so slower-loading screens never leave the user
           staring at a bare dimmed screen with no feedback.
@@ -162,44 +162,63 @@ function TutorialStepOverlayContent() {
           mask alone doesn't fully hide bright text/numbers under it, so
           without a solid backing that content visibly bled through the
           gaps around the dots and button. */}
-      <View style={[styles.bottomChrome, chromeStyle]}>
-        <BlurView intensity={30} tint="dark" style={StyleSheet.absoluteFill} />
+      <View
+        style={[styles.bottomChrome, chromeStyle]}
+        onLayout={(e) => {
+          const h = Math.ceil(e.nativeEvent.layout.height);
+          if (Math.abs(h - chromeHeight) > 1) setChromeHeight(h);
+        }}
+      >
+        <BlurView intensity={30} tint={isLight ? 'light' : 'dark'} style={StyleSheet.absoluteFill} />
         <LinearGradient
-          colors={['rgba(20,10,10,0.94)', 'rgba(10,6,6,0.94)']}
+          colors={isLight ? ['rgba(255,255,255,0.97)', 'rgba(255,248,247,0.97)'] : ['rgba(20,10,10,0.94)', 'rgba(10,6,6,0.94)']}
           style={StyleSheet.absoluteFill}
         />
-        <TutorialCaption stepIndex={stepIndex} tag={`STEP ${stepIndex + 1} OF ${totalSteps}`} caption={step.caption} />
-        <TutorialDots total={totalSteps} activeIndex={stepIndex} />
-        {isDecoy && (
-          <View style={styles.navRow}>
-            <TouchableOpacity style={styles.nextBtn} onPress={next} activeOpacity={0.85}>
-              <Text style={styles.nextText}>{isLast ? t('tour.gotIt') : t('tour.next')}</Text>
+        <TutorialCaption
+          stepIndex={stepIndex}
+          tag={t('tour.stepOf', { n: stepIndex + 1, total: totalSteps })}
+          caption={step.caption}
+          isLight={isLight}
+        />
+        <TutorialDots total={totalSteps} activeIndex={stepIndex} isLight={isLight} />
+        {/* Skip lives here, beside Next, rather than floating in the top
+            corner: there it sat on top of the dimmed screen (often right
+            over the highlighted header buttons) and was hard to see. This
+            card always positions itself clear of the highlight. */}
+        {/* Next on every step. On a real step it does what tapping the
+            highlighted element does (see TutorialContext.advance). */}
+        <View style={styles.navRow}>
+          {!isLast && (
+            <TouchableOpacity style={[styles.skipBtn, isLight && styles.skipBtnLight]} onPress={skip} activeOpacity={0.8} accessibilityRole="button">
+              <Text style={[styles.skipText, isLight && styles.skipTextLight]}>{t('tour.skip')}</Text>
             </TouchableOpacity>
-          </View>
-        )}
+          )}
+          <TouchableOpacity style={styles.nextBtn} onPress={isDecoy ? next : advance} activeOpacity={0.85} accessibilityRole="button">
+            <Text style={styles.nextText}>{isLast ? t('tour.gotIt') : t('tour.next')}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Secondary to Next: outlined, same height, on the card's dark backing.
   skipBtn: {
-    position: 'absolute',
-    left: 20,
-    backgroundColor: 'rgba(255,255,255,0.06)',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.14)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
     borderRadius: 999,
-    paddingHorizontal: 16,
-    paddingVertical: 9,
-    zIndex: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.28)',
   },
   skipText: {
-    color: '#C9C9C9',
-    fontSize: 11,
+    color: '#E6E6E6',
+    fontSize: 13,
     fontFamily: 'PlusJakartaSans-ExtraBold',
-    letterSpacing: 1,
+    letterSpacing: 1.2,
   },
+  skipBtnLight: { borderColor: 'rgba(0,0,0,0.2)' },
+  skipTextLight: { color: '#3A3A3C' },
   bottomChrome: {
     position: 'absolute',
     left: 20,

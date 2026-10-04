@@ -28,6 +28,14 @@ interface TutorialContextType {
   // "on screen but still measuring" (give it a moment).
   setTargetMounted: (id: TargetId, mounted: boolean) => void;
   reportInteraction: (id: TargetId) => void;
+  /**
+   * A real-mode target's own tap action (opening its screen, closing its
+   * sheet...). Lets Next on a real step do exactly what tapping the
+   * highlighted element does, so the tour lands where the next step lives.
+   */
+  registerAction: (id: TargetId, action: (() => void) | null) => void;
+  /** Next button: runs a real step's registered action, else just next(). */
+  advance: () => void;
   requestRemeasure: () => void;
   start: (tourId?: TourId) => void;
   next: () => void;
@@ -46,6 +54,7 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
   const requestRemeasure = useCallback(() => setRemeasureNonce((n) => n + 1), []);
   // Refs, not state: read only from timers, never rendered.
   const mountedTargetsRef = useRef<Map<TargetId, number>>(new Map());
+  const actionsRef = useRef<Map<TargetId, () => void>>(new Map());
   const targetsRef = useRef(targets);
   targetsRef.current = targets;
 
@@ -87,6 +96,19 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     if (n > 0) counts.set(id, n);
     else counts.delete(id);
   }, []);
+
+  const registerAction = useCallback((id: TargetId, action: (() => void) | null) => {
+    if (action) actionsRef.current.set(id, action);
+    else actionsRef.current.delete(id);
+  }, []);
+
+  const advance = useCallback(() => {
+    if (!active) return;
+    const action = currentStep.mode === 'real' ? actionsRef.current.get(currentStep.targetId) : undefined;
+    // The action calls reportInteraction itself, which moves the tour on.
+    if (action) action();
+    else next();
+  }, [active, currentStep, next]);
 
   const isTargetNeeded = useCallback(
     (id: TargetId) => active && currentStep.targetId === id,
@@ -149,6 +171,8 @@ export function TutorialProvider({ children }: { children: React.ReactNode }) {
     registerTarget,
     setTargetMounted,
     reportInteraction,
+    registerAction,
+    advance,
     requestRemeasure,
     start,
     next,

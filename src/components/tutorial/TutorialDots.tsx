@@ -6,13 +6,14 @@ const ACCENT = '#FF5252';
 interface TutorialDotsProps {
   total: number;
   activeIndex: number;
+  isLight?: boolean;
 }
 
 // Past this many steps the full-size dots overflow the caption card on a
 // narrow phone, so long tours (the main tour) get a compact row.
 const COMPACT_THRESHOLD = 12;
 
-export function TutorialDots({ total, activeIndex }: TutorialDotsProps) {
+export function TutorialDots({ total, activeIndex, isLight = false }: TutorialDotsProps) {
   const compact = total > COMPACT_THRESHOLD;
   return (
     <View style={[styles.row, compact && { gap: 4 }]}>
@@ -24,7 +25,7 @@ export function TutorialDots({ total, activeIndex }: TutorialDotsProps) {
             compact && { height: 5, borderRadius: 2.5 },
             i === activeIndex
               ? { width: compact ? 14 : 22, backgroundColor: ACCENT }
-              : { width: compact ? 5 : 8, backgroundColor: 'rgba(255,255,255,0.2)' },
+              : { width: compact ? 5 : 8, backgroundColor: isLight ? 'rgba(0,0,0,0.15)' : 'rgba(255,255,255,0.2)' },
           ]}
         />
       ))}

@@ -59,9 +59,31 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const { ref: scoreCircleRef, onLayout: onScoreCircleLayout } = useTutorialTarget('onemm.scoreCircle');
   const { ref: movementGridRef, onLayout: onMovementGridLayout } = useTutorialTarget('onemm.movementGrid');
   // useScreenMeasure=true: see useTutorialTarget — pageX/pageY path on Android.
-  const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget('onemm.timerBadge', undefined, true);
+  // Real tour steps: the tour's Next does exactly what tapping them does
+  // (the timer badge is the first movement's, see the list below).
+  const pressFirstTimer = () => {
+    const first = ONEMM_MOVEMENTS.find((m) => m.categoryId === level);
+    if (!first) return;
+    openLog(first, 'timer');
+    reportTimerBadge();
+  };
+  const pressTimerClose = () => {
+    closeSheet();
+    if (shown.kind === 'log') reportTimerClose();
+  };
+  const { ref: timerBadgeRef, onLayout: onTimerBadgeLayout, reportInteraction: reportTimerBadge } = useTutorialTarget(
+    'onemm.timerBadge',
+    undefined,
+    true,
+    pressFirstTimer
+  );
   const { ref: startSprintRef, onLayout: onStartSprintLayout } = useTutorialTarget('onemm.startSprintButton');
-  const { ref: timerCloseRef, onLayout: onTimerCloseLayout, reportInteraction: reportTimerClose } = useTutorialTarget('onemm.timerCloseButton');
+  const { ref: timerCloseRef, onLayout: onTimerCloseLayout, reportInteraction: reportTimerClose } = useTutorialTarget(
+    'onemm.timerCloseButton',
+    undefined,
+    undefined,
+    pressTimerClose
+  );
 
   // Deep-linked from SuggestedTestCard / My Journey with the category the
   // suggested movement lives in — respect the tier lock.
@@ -377,7 +399,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
                   pb={pbs[m.id] ?? 0}
                   worldBest={summary?.movementBests[m.id]}
                   onLog={() => openLog(m, 'log')}
-                  onTimer={() => { openLog(m, 'timer'); if (i === 0) reportTimerBadge(); }}
+                  onTimer={() => (i === 0 ? pressFirstTimer() : openLog(m, 'timer'))}
                   timerRef={i === 0 ? timerBadgeRef : undefined}
                   onTimerLayout={i === 0 ? onTimerBadgeLayout : undefined}
                 />
@@ -395,7 +417,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
       <WorldSheet
         tokens={t}
         visible={!!sheet}
-        onClose={() => { closeSheet(); if (shown.kind === 'log') reportTimerClose(); }}
+        onClose={pressTimerClose}
         variant={shown.kind === 'board' ? 'board' : 'log'}
         closeRef={shown.kind === 'log' ? timerCloseRef : undefined}
         onCloseLayout={shown.kind === 'log' ? onTimerCloseLayout : undefined}
