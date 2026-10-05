@@ -7,12 +7,17 @@ export interface GrowthFunnelStep {
   // Only set when a step has its own base (e.g. "came back after day 7"
   // counts only signups at least 7 days old).
   eligible: number | null;
+  // How many of `users` have since deleted their account (counted from
+  // their anonymous deleted_accounts record).
+  deleted: number;
 }
 
 export interface GrowthAnalytics {
   days: number;
+  tz: string;
   funnel: GrowthFunnelStep[];
-  daily: Array<{ day: string; active_users: number }>;
+  // Local calendar days in `tz`; `partial` marks today.
+  daily: Array<{ day: string; active_users: number; partial: boolean }>;
   events: Array<{ event: string; events: number; users: number }>;
 }
 

@@ -4,10 +4,11 @@ import { fetchDeletedAccounts, fetchGrowthAnalytics, type GrowthFunnelStep } fro
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 
-// Growth funnel from admin_get_growth_analytics (audit 2026-09-25, M5/M18).
-// Funnel steps 1-6 and 8 are derived from existing data, so they cover every
-// signup in the range; "Saw the paywall" and the event table only count from
-// when app_events tracking shipped.
+// Growth funnel from admin_get_growth_analytics (audit 2026-09-25, M5/M18;
+// accuracy fixes 2026-10-05). Funnel steps 1-6 and 8 are derived from
+// existing data, so they cover every signup in the range — including
+// accounts deleted since; "Saw the paywall" and the event table only count
+// from when app_events tracking shipped. Admin accounts are excluded.
 const RANGES = [7, 30, 90] as const;
 
 const EVENT_LABEL: Record<string, string> = {
@@ -20,6 +21,12 @@ const EVENT_LABEL: Record<string, string> = {
   purchase_cancelled: 'Paywall dismissed',
   paywall_failed: 'Paywall failed to load',
   ai_coach_opened: 'AI Coach opened',
+  welcome_intro_completed: 'Welcome intro completed',
+  welcome_intro_skipped: 'Welcome intro skipped',
+  training_center_opened: 'Training Center opened',
+  program_started: 'Program started',
+  quick_workout_started: 'Quick Workout started',
+  workout_started: 'Workout started',
 };
 
 const REASON_LABEL: Record<string, string> = {
@@ -70,9 +77,21 @@ export function GrowthPage() {
   const day7 = funnel.find((s) => s.step_order === 6);
   const subscribed = funnel.find((s) => s.step_order === 8)?.users ?? 0;
   const maxDaily = Math.max(0, ...(data?.daily ?? []).map((d) => d.active_users));
-  const avgDaily = data?.daily.length
-    ? data.daily.reduce((sum, d) => sum + d.active_users, 0) / data.daily.length
+  // Today is still in progress, so it's left out of the average.
+  const fullDays = (data?.daily ?? []).filter((d) => !d.partial);
+  const avgDaily = fullDays.length
+    ? fullDays.reduce((sum, d) => sum + d.active_users, 0) / fullDays.length
     : 0;
+  const deletedSignups = funnel.find((s) => s.step_order === 1)?.deleted ?? 0;
+  const eventCount = (name: string) => data?.events.find((e) => e.event === name);
+  const paywallSteps = [
+    { label: 'Saw the paywall', row: eventCount('paywall_viewed') },
+    { label: 'Dismissed it', row: eventCount('purchase_cancelled') },
+    { label: 'Failed to load', row: eventCount('paywall_failed') },
+    { label: 'Bought', row: eventCount('purchase_completed') },
+    { label: 'Restored', row: eventCount('purchase_restored') },
+  ];
+  const paywallViewers = paywallSteps[0].row?.users ?? 0;
 
   // The biggest step-to-step drop is where to look first.
   let biggestDrop: { from: GrowthFunnelStep; to: GrowthFunnelStep } | null = null;
@@ -114,10 +133,12 @@ export function GrowthPage() {
             <div className="stat-cell">
               <span className="label">Signups</span>
               <span className="value">{signups}</span>
-              <span className="hint">last {data.days} days</span>
+              <span className="hint">
+                last {data.days} days{deletedSignups > 0 ? ` · ${deletedSignups} since deleted` : ''}
+              </span>
             </div>
             <div className="stat-cell">
-              <span className="label">Did a first workout</span>
+              <span className="label">Did a first training</span>
               <span className="value">{pct(firstWorkout, signups)}</span>
               <span className="hint">{firstWorkout} of {signups}</span>
             </div>
@@ -134,7 +155,7 @@ export function GrowthPage() {
             <div className="stat-cell">
               <span className="label">Daily active (avg)</span>
               <span className="value">{avgDaily.toFixed(1)}</span>
-              <span className="hint">peak {maxDaily}</span>
+              <span className="hint">peak {maxDaily} · today not counted</span>
             </div>
           </div>
 
@@ -168,7 +189,9 @@ export function GrowthPage() {
                         <td style={{ fontWeight: 700 }}>
                           {s.step}
                           {s.eligible != null && <span className="dim"> · of {s.eligible} old enough</span>}
-                          {s.step_order === 7 && <span className="dim"> · tracked from this release on</span>}
+                          {s.step_order === 7 && <span className="dim"> · tracked from 28 Sep 2026</span>}
+                          {s.step_order === 8 && <span className="dim"> · store purchase with paid access now</span>}
+                          {s.deleted > 0 && <span className="dim"> · {s.deleted} deleted since</span>}
                         </td>
                         <td className="num" style={{ textAlign: 'right' }}>{s.users}</td>
                         <td className="num" style={{ textAlign: 'right' }}>{pct(s.users, base)}</td>
@@ -189,17 +212,45 @@ export function GrowthPage() {
           <section className="panel">
             <div className="panel-head">
               <h2>Daily active users</h2>
-              <span className="label">trained, logged anything, used the AI Coach or opened the app</span>
+              <span className="label">trained, logged anything, used the AI Coach or opened the app · days in {data.tz}</span>
             </div>
             <div className="table-wrap">
               <table className="data">
                 <tbody>
                   {[...data.daily].reverse().map((d) => (
                     <tr key={d.day}>
-                      <td className="dim" style={{ width: 140 }}>{formatDate(d.day)}</td>
+                      <td className="dim" style={{ width: 140 }}>
+                        {formatDate(d.day)}
+                        {d.partial && ' · today so far'}
+                      </td>
                       <td className="num" style={{ textAlign: 'right', width: 60 }}>{d.active_users}</td>
                       <td>
                         <Bar value={d.active_users} max={maxDaily} color="var(--violet)" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="panel">
+            <div className="panel-head">
+              <h2>Paywall</h2>
+              <span className="label">people, last {data.days} days</span>
+            </div>
+            <div className="table-wrap">
+              <table className="data">
+                <tbody>
+                  {paywallSteps.map(({ label, row }) => (
+                    <tr key={label}>
+                      <td style={{ width: 180 }}>{label}</td>
+                      <td className="num" style={{ textAlign: 'right', width: 60 }}>{row?.users ?? 0}</td>
+                      <td className="num dim" style={{ textAlign: 'right', width: 60 }}>
+                        {label === 'Saw the paywall' ? '' : pct(row?.users ?? 0, paywallViewers)}
+                      </td>
+                      <td>
+                        <Bar value={row?.users ?? 0} max={paywallViewers} />
                       </td>
                     </tr>
                   ))}
@@ -280,6 +331,30 @@ function DeletedAccountsPanel({
       )}
       {data && data.total > 0 && (
         <>
+          {data.weekly.length > 1 && (
+            <div className="table-wrap" style={{ marginBottom: 12 }}>
+              <table className="data">
+                <thead>
+                  <tr>
+                    <th>Week of</th>
+                    <th style={{ textAlign: 'right' }}>Deletions</th>
+                    <th style={{ width: '40%' }} aria-label="Bar" />
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...data.weekly].reverse().map((w) => (
+                    <tr key={w.week_start}>
+                      <td className="dim">{formatDate(w.week_start)}</td>
+                      <td className="num" style={{ textAlign: 'right' }}>{w.deletions}</td>
+                      <td>
+                        <Bar value={w.deletions} max={Math.max(...data.weekly.map((x) => x.deletions))} color="var(--danger, #e24b4a)" />
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
           <div className="table-wrap">
             <table className="data">
               <thead>
