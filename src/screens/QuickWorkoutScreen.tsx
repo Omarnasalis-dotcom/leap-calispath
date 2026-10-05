@@ -10,6 +10,7 @@ import {
   getStandaloneWorkoutDetail,
   StandaloneWorkoutSummary,
   StandaloneWorkoutDetail,
+  pickCoverImageUrl,
 } from '../lib/workoutLibrary';
 import { DifficultyBand } from '../lib/templateLibrary';
 import { canAccessPro } from '../lib/entitlement';
@@ -93,10 +94,11 @@ function QuickWorkoutCard({
   const { ref: tourRef, onLayout: onTourLayout } = useTutorialTarget(tourTargetId);
   const metaLine = `${item.format ? (FORMAT_LABELS[item.format] ?? item.format.toUpperCase()) : t('quickWorkout.title')}${item.category ? ` · ${t(`chips.${item.category.toLowerCase()}` as 'chips.all', { defaultValue: item.category.replace('_', ' ') })}` : ''}`;
 
-  if (item.cover_image_url) {
+  const coverUrl = pickCoverImageUrl(item, mode);
+  if (coverUrl) {
     return (
       <TouchableOpacity ref={tourRef} onLayout={onTourLayout} activeOpacity={0.85} onPress={onPress} style={[styles.photoCardWrap, hidden && { display: 'none' }]}>
-        <ImageBackground source={{ uri: item.cover_image_url }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
+        <ImageBackground source={{ uri: coverUrl }} style={styles.photoCard} imageStyle={{ borderRadius: 16 }}>
           {/* Scrim only behind the title strip: the photo's top half stays
               untouched (it was dimmed from the very top before, so every
               cover looked dark). */}

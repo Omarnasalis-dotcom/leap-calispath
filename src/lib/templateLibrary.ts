@@ -26,6 +26,7 @@ export interface LibraryTemplateRecommendation {
   block_count: number;
   is_free: boolean;
   cover_image_url: string | null;
+  cover_image_url_light: string | null;
 }
 
 // Programs have no difficulty/level column — level is entirely derived from
@@ -95,7 +96,7 @@ export async function getRecommendations(
     // one the card advertised as free with PRO_REQUIRED.
     const { data, error } = await supabase
       .from('program_templates')
-      .select('id, name, description, equipment_tags, matching_criteria, is_free, cover_image_url, program_blocks(id, name, week_number)')
+      .select('id, name, description, equipment_tags, matching_criteria, is_free, cover_image_url, cover_image_url_light, program_blocks(id, name, week_number)')
       .eq('is_library_template', true)
       .eq('status', 'published')
       .contains('matching_criteria', { goal, tier_range: range })
@@ -127,6 +128,7 @@ export async function getRecommendations(
       block_count: blocks.length,
       is_free: data.is_free === true,
       cover_image_url: data.cover_image_url ?? null,
+      cover_image_url_light: data.cover_image_url_light ?? null,
     };
     return recommendation;
   });
@@ -143,7 +145,7 @@ export async function getRecommendations(
 export async function getAllPublishedTemplates(): Promise<LibraryTemplateRecommendation[]> {
   const { data, error } = await supabase
     .from('program_templates')
-    .select('id, name, description, equipment_tags, matching_criteria, is_free, cover_image_url, program_blocks(id, name, week_number)')
+    .select('id, name, description, equipment_tags, matching_criteria, is_free, cover_image_url, cover_image_url_light, program_blocks(id, name, week_number)')
     .eq('is_library_template', true)
     .eq('status', 'published');
 
@@ -169,6 +171,7 @@ export async function getAllPublishedTemplates(): Promise<LibraryTemplateRecomme
       block_count: blocks.length,
       is_free: row.is_free === true,
       cover_image_url: row.cover_image_url ?? null,
+      cover_image_url_light: row.cover_image_url_light ?? null,
     };
   });
 }

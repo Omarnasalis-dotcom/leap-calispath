@@ -18,6 +18,7 @@ import {
   importStandaloneWorkoutFromJson,
   saveStandaloneWorkout,
   setStandaloneWorkoutCoverImage,
+  type CoverVariant,
   setStandaloneWorkoutSkillTag,
   uploadWorkoutCoverImage,
   validateStandaloneWorkoutImport,
@@ -108,6 +109,9 @@ interface Draft {
   // kind: 'quick_workout' — flat single-block editor, unchanged.
   quickBlocks: QuickBlock[];
   cover_image_url: string | null;
+  // Light-mode cover — saved by a direct column update after the RPC (see
+  // setStandaloneWorkoutCoverImage), never through save_standalone_workout.
+  cover_image_url_light: string | null;
   goal_tags: string[];
   tier_min: string;
   tier_max: string;
@@ -135,6 +139,7 @@ function newDraft(): Draft {
     blocks: [newBlock('Warm-Up'), newBlock('Strength'), newBlock('Cool-Down')],
     quickBlocks: [emptyQuickBlock('Warm-Up'), emptyQuickBlock('Strength'), emptyQuickBlock('Cool-Down')],
     cover_image_url: null,
+    cover_image_url_light: null,
     goal_tags: [],
     tier_min: '',
     tier_max: '',
@@ -368,13 +373,14 @@ function WorkoutBlocksEditor({
 
 // List-view cover upload — uploads and attaches a cover photo directly from
 // the table row, without opening the full edit form.
-function CoverCell({ workout }: { workout: StandaloneWorkoutRow }) {
+function CoverCell({ workout, variant = 'dark' }: { workout: StandaloneWorkoutRow; variant?: CoverVariant }) {
+  const currentUrl = variant === 'light' ? workout.cover_image_url_light : workout.cover_image_url;
   const queryClient = useQueryClient();
   const inputRef = useRef<HTMLInputElement>(null);
   const mutation = useMutation({
     mutationFn: async (file: File) => {
       const url = await uploadWorkoutCoverImage(file);
-      await setStandaloneWorkoutCoverImage(workout.id, url);
+      await setStandaloneWorkoutCoverImage(workout.id, url, variant);
     },
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['standalone-workouts'] }),
   });
@@ -382,9 +388,9 @@ function CoverCell({ workout }: { workout: StandaloneWorkoutRow }) {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
       <span className="row" style={{ gap: 8, alignItems: 'center', flexWrap: 'nowrap' }}>
-        {workout.cover_image_url ? (
+        {currentUrl ? (
           <img
-            src={workout.cover_image_url}
+            src={currentUrl}
             alt=""
             style={{ width: 44, height: 32, objectFit: 'cover', borderRadius: 4, border: '1px solid var(--line, #2a2a2a)' }}
           />
@@ -418,7 +424,7 @@ function CoverCell({ workout }: { workout: StandaloneWorkoutRow }) {
           }}
         />
         <button type="button" className="btn small" disabled={mutation.isPending} onClick={() => inputRef.current?.click()}>
-          {mutation.isPending ? 'Uploading…' : workout.cover_image_url ? 'Replace' : 'Upload'}
+          {mutation.isPending ? 'Uploading…' : currentUrl ? 'Replace' : 'Upload'}
         </button>
       </span>
       {mutation.error && (
@@ -524,6 +530,7 @@ export function WorkoutLibraryPage() {
   const [exerciseToAdd, setExerciseToAdd] = useState<Record<string, string>>({});
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const lightCoverInputRef = useRef<HTMLInputElement>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['standalone-workouts'],
@@ -555,6 +562,7 @@ export function WorkoutLibraryPage() {
         is_free: detail.is_free,
         status: detail.status,
         cover_image_url: detail.cover_image_url,
+        cover_image_url_light: detail.cover_image_url_light,
         goal_tags: detail.goal_tags ?? [],
         tier_min: detail.tier_min != null ? String(detail.tier_min) : '',
         tier_max: detail.tier_max != null ? String(detail.tier_max) : '',
@@ -616,7 +624,7 @@ export function WorkoutLibraryPage() {
   });
 
   const saveMutation = useMutation({
-    mutationFn: (d: Draft) => {
+    mutationFn: async (d: Draft) => {
       const isWorkout = d.kind === 'workout';
       const blocks: SaveStandaloneWorkoutBlockInput[] = isWorkout
         ? d.blocks.map((block, bi) => ({
@@ -678,7 +686,9 @@ export function WorkoutLibraryPage() {
         skill_label: d.is_skill ? d.skill_label.trim() || null : null,
         blocks,
       };
-      return saveStandaloneWorkout(input);
+      const savedId = await saveStandaloneWorkout(input);
+      await setStandaloneWorkoutCoverImage(savedId, d.cover_image_url_light, 'light');
+      return savedId;
     },
     onSuccess: () => {
       setDraft(null);
@@ -719,6 +729,13 @@ export function WorkoutLibraryPage() {
     mutationFn: uploadWorkoutCoverImage,
     onSuccess: (url) => {
       setDraft((prev) => (prev ? { ...prev, cover_image_url: url } : prev));
+    },
+  });
+
+  const uploadLightCoverMutation = useMutation({
+    mutationFn: uploadWorkoutCoverImage,
+    onSuccess: (url) => {
+      setDraft((prev) => (prev ? { ...prev, cover_image_url_light: url } : prev));
     },
   });
 
@@ -852,6 +869,7 @@ export function WorkoutLibraryPage() {
       ),
     },
     { key: 'cover', header: 'Cover', render: (w) => <CoverCell workout={w} /> },
+    { key: 'cover_light', header: 'Light cover', render: (w) => <CoverCell workout={w} variant="light" /> },
     { key: 'title', header: 'Title', render: (w) => <span style={{ fontWeight: 700 }}>{w.title}</span> },
     { key: 'kind', header: 'Kind', render: (w) => <span className="dim">{w.kind.replace('_', ' ')}</span> },
     { key: 'category', header: 'Category', render: (w) => <span className="dim">{w.category ?? '—'}</span> },
@@ -921,6 +939,7 @@ export function WorkoutLibraryPage() {
       {saveMutation.error && <ErrorNote error={saveMutation.error} />}
       {removeMutation.error && <ErrorNote error={removeMutation.error} />}
       {uploadCoverMutation.error && <ErrorNote error={uploadCoverMutation.error} />}
+      {uploadLightCoverMutation.error && <ErrorNote error={uploadLightCoverMutation.error} />}
 
       {draft && (
         <section className="panel">
@@ -954,6 +973,7 @@ export function WorkoutLibraryPage() {
               </select>
             </div>
 
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Dark mode cover</div>
             <div className="row" style={{ alignItems: 'center', gap: 10 }}>
               {draft.cover_image_url ? (
                 <img
@@ -985,6 +1005,43 @@ export function WorkoutLibraryPage() {
               </button>
               {draft.cover_image_url && (
                 <button type="button" className="btn small danger" onClick={() => setDraft({ ...draft, cover_image_url: null })}>
+                  Remove cover
+                </button>
+              )}
+            </div>
+
+            <div style={{ fontSize: 13, fontWeight: 600 }}>Light mode cover</div>
+            <div className="row" style={{ alignItems: 'center', gap: 10 }}>
+              {draft.cover_image_url_light ? (
+                <img
+                  src={draft.cover_image_url_light}
+                  alt="Light mode cover preview"
+                  style={{ width: 120, height: 90, objectFit: 'cover', borderRadius: 8, border: '1px solid var(--line, #2a2a2a)' }}
+                />
+              ) : (
+                <div className="dim" style={{ fontSize: 13 }}>No light cover — light mode uses the dark mode cover.</div>
+              )}
+              <input
+                ref={lightCoverInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) uploadLightCoverMutation.mutate(file);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                className="btn small"
+                disabled={uploadLightCoverMutation.isPending}
+                onClick={() => lightCoverInputRef.current?.click()}
+              >
+                {uploadLightCoverMutation.isPending ? 'Uploading…' : draft.cover_image_url_light ? 'Replace cover' : 'Upload cover'}
+              </button>
+              {draft.cover_image_url_light && (
+                <button type="button" className="btn small danger" onClick={() => setDraft({ ...draft, cover_image_url_light: null })}>
                   Remove cover
                 </button>
               )}

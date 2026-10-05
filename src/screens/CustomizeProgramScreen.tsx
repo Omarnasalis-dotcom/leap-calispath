@@ -22,6 +22,7 @@ import {
   createCustomProgramFromWorkouts,
   StandaloneWorkoutSummary,
   StandaloneWorkoutDetail,
+  pickCoverImageUrl,
 } from '../lib/workoutLibrary';
 import { DifficultyBand } from '../lib/templateLibrary';
 import { canAccessCustomizeProgram, isProRequiredError } from '../lib/entitlement';
@@ -137,7 +138,8 @@ function WorkoutCardVisual({
   const c = TC_COLORS[mode];
   const styles = getStyles(c);
   const [colorStart, colorEnd] = categoryGradient(item.category);
-  const coverSource = item.cover_image_url ? { uri: item.cover_image_url } : null;
+  const coverUrl = pickCoverImageUrl(item, mode);
+  const coverSource = coverUrl ? { uri: coverUrl } : null;
   const isSelected = dayNumber !== null;
   const isWide = columns === 1;
 
@@ -387,7 +389,8 @@ function DragGhostOverlay({
     const workout = daySlots[payload.index];
     if (workout) {
       const [colorStart, colorEnd] = categoryGradient(workout.category);
-      const coverSource = workout.cover_image_url ? { uri: workout.cover_image_url } : null;
+      const coverUrl = pickCoverImageUrl(workout, mode);
+      const coverSource = coverUrl ? { uri: coverUrl } : null;
       visual = coverSource ? (
         <ImageBackground source={coverSource} style={StyleSheet.absoluteFillObject} imageStyle={{ borderRadius: 14 }} />
       ) : (
@@ -442,7 +445,8 @@ function DaySlotCard({
   }
 
   const [colorStart, colorEnd] = categoryGradient(workout.category);
-  const coverSource = workout.cover_image_url ? { uri: workout.cover_image_url } : null;
+  const coverUrl = pickCoverImageUrl(workout, mode);
+  const coverSource = coverUrl ? { uri: coverUrl } : null;
 
   return (
     <View ref={ref} onLayout={measure} style={styles.daySlotOuter}>

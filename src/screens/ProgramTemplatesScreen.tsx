@@ -16,6 +16,7 @@ import {
   TemplateDetailBlock,
   DifficultyBand,
 } from '../lib/templateLibrary';
+import { pickCoverImageUrl } from '../lib/workoutLibrary';
 import { canAccessPro, isProRequiredError } from '../lib/entitlement';
 import { StealthTheme } from '../../constants/Theme';
 import { BottomTabBar } from '../components/profile/BottomTabBar';
@@ -47,8 +48,9 @@ const LEVEL_LABEL: Record<DifficultyBand, string> = { beginner: t('chips.beginne
 // admin-uploaded cover_image_url always wins; otherwise real athlete
 // photography keyed by tier range, then a generic fallback. Always
 // resolves to something real, never blank.
-function getCardImage(rec: LibraryTemplateRecommendation, index: number) {
-  if (rec.cover_image_url) return { uri: rec.cover_image_url };
+function getCardImage(rec: LibraryTemplateRecommendation, index: number, mode: 'dark' | 'light') {
+  const coverUrl = pickCoverImageUrl(rec, mode);
+  if (coverUrl) return { uri: coverUrl };
   if (rec.tier_range.min === 4 && rec.tier_range.max === 5) return require('../../assets/backpose.png');
   if (rec.tier_range.min === 5 && rec.tier_range.max === 6) return require('../../assets/backmuscle.png');
   if (rec.tier_range.min === 2 && rec.tier_range.max === 3) return require('../../assets/parallet.png');
@@ -464,7 +466,7 @@ export function ProgramTemplatesScreen() {
                     rec={rec}
                     isFirst={index === 0}
                     isCurrent={!!currentProgramName && rec.template_name === currentProgramName}
-                    imageSource={getCardImage(rec, index)}
+                    imageSource={getCardImage(rec, index, mode)}
                     isSelecting={selectingId === rec.id}
                     disabled={selectingId !== null}
                     isProItem={isProItem(rec)}
@@ -492,7 +494,7 @@ export function ProgramTemplatesScreen() {
                 <TemplateRowCard
                   key={rec.id}
                   rec={rec}
-                  imageSource={getCardImage(rec, index)}
+                  imageSource={getCardImage(rec, index, mode)}
                   isFirst={rec.id === topPickId}
                   isCurrent={!!currentProgramName && rec.template_name === currentProgramName}
                   isSelecting={selectingId === rec.id}

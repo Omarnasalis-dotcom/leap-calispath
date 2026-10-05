@@ -32,6 +32,8 @@ export interface StandaloneWorkoutSummary {
   duration_minutes: number | null;
   is_free: boolean;
   cover_image_url: string | null;
+  // Light-mode cover (admin-web upload). NULL = use cover_image_url.
+  cover_image_url_light?: string | null;
   goal_tags: GoalTag[];
   tier_min: number | null;
   tier_max: number | null;
@@ -150,7 +152,7 @@ export async function getStandaloneWorkouts(
 ): Promise<StandaloneWorkoutSummary[]> {
   let query = supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('kind', kind)
     .eq('status', 'published')
     .order('created_at', { ascending: false });
@@ -195,7 +197,7 @@ export async function createCustomProgramFromWorkouts(
 export async function getStandaloneWorkoutDetail(workoutId: string): Promise<StandaloneWorkoutDetail | null> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('id', workoutId)
     .maybeSingle();
   if (workoutError) throw workoutError;
@@ -285,4 +287,15 @@ export async function saveStandaloneWorkout(input: SaveStandaloneWorkoutInput): 
 export async function deleteStandaloneWorkout(workoutId: string): Promise<void> {
   const { error } = await supabase.from('standalone_workouts').delete().eq('id', workoutId);
   if (error) throw error;
+}
+
+/**
+ * Cover photo for the current theme — the light-mode cover when one is
+ * set and the app is in light mode, otherwise the regular cover.
+ */
+export function pickCoverImageUrl(
+  item: { cover_image_url: string | null; cover_image_url_light?: string | null },
+  mode: 'dark' | 'light',
+): string | null {
+  return (mode === 'light' && item.cover_image_url_light) || item.cover_image_url;
 }

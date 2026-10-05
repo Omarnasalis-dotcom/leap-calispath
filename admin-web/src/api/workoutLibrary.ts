@@ -31,6 +31,8 @@ export interface StandaloneWorkoutRow {
   is_free: boolean;
   status: StandaloneWorkoutStatus;
   cover_image_url: string | null;
+  // Light-mode cover (20261005100000). NULL = app uses cover_image_url.
+  cover_image_url_light: string | null;
   goal_tags: string[];
   tier_min: number | null;
   tier_max: number | null;
@@ -82,7 +84,7 @@ export interface StandaloneWorkoutDetail extends StandaloneWorkoutRow {
 export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]> {
   const { data, error } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .order('created_at', { ascending: false });
   if (error) throw new Error(error.message);
   return (data ?? []) as StandaloneWorkoutRow[];
@@ -91,7 +93,7 @@ export async function fetchStandaloneWorkouts(): Promise<StandaloneWorkoutRow[]>
 export async function fetchStandaloneWorkoutDetail(id: string): Promise<StandaloneWorkoutDetail> {
   const { data: workout, error: workoutError } = await supabase
     .from('standalone_workouts')
-    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
+    .select('id, kind, title, description, category, difficulty, format, duration_minutes, is_free, status, cover_image_url, cover_image_url_light, goal_tags, tier_min, tier_max, interval_seconds, rounds, is_skill, skill_label')
     .eq('id', id)
     .single();
   if (workoutError) throw new Error(workoutError.message);
@@ -227,8 +229,17 @@ export async function setStandaloneWorkoutSkillTag(id: string, isSkill: boolean,
   if (error) throw new Error(error.message);
 }
 
-export async function setStandaloneWorkoutCoverImage(id: string, coverImageUrl: string): Promise<void> {
-  const { error } = await supabase.from('standalone_workouts').update({ cover_image_url: coverImageUrl }).eq('id', id);
+export type CoverVariant = 'dark' | 'light';
+const COVER_COLUMN: Record<CoverVariant, 'cover_image_url' | 'cover_image_url_light'> = {
+  dark: 'cover_image_url',
+  light: 'cover_image_url_light',
+};
+
+// The light cover is only ever written here (never through
+// save_standalone_workout), so older app builds saving via the mobile
+// builder can't wipe it — see 20261005100000_add_light_mode_cover_images.sql.
+export async function setStandaloneWorkoutCoverImage(id: string, coverImageUrl: string | null, variant: CoverVariant = 'dark'): Promise<void> {
+  const { error } = await supabase.from('standalone_workouts').update({ [COVER_COLUMN[variant]]: coverImageUrl }).eq('id', id);
   if (error) throw new Error(error.message);
 }
 
