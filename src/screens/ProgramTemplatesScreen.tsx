@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { track } from '../lib/analytics';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -385,6 +386,7 @@ export function ProgramTemplatesScreen() {
     setSelectingId(rec.id);
     try {
       await selectLibraryTemplate(rec.id);
+      track('program_started', { source: 'template' });
       setPreviewRec(null);
       setPreviewWeek1([]);
       // Same deferred-navigation pattern as the other Training Center

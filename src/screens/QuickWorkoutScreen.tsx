@@ -4,6 +4,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { track } from '../lib/analytics';
 import { useTheme } from '../contexts/ThemeContext';
 import {
   getStandaloneWorkouts,
@@ -353,7 +354,10 @@ export function QuickWorkoutScreen() {
       {activeWorkout && !timerVisible && (
         <WorkoutPreviewModal
           workout={activeWorkout}
-          onStart={() => setTimerVisible(true)}
+          onStart={() => {
+            track('quick_workout_started', { format: activeWorkout.format ?? null });
+            setTimerVisible(true);
+          }}
           onCancel={() => setActiveWorkout(null)}
         />
       )}

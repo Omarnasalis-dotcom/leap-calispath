@@ -14,6 +14,7 @@ import { Gesture, GestureDetector, ScrollView } from 'react-native-gesture-handl
 import Animated, { useSharedValue, useAnimatedStyle, withTiming, runOnJS, SharedValue } from 'react-native-reanimated';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth } from '../contexts/AuthContext';
+import { track } from '../lib/analytics';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import {
@@ -691,6 +692,7 @@ export function CustomizeProgramScreen() {
     setCreatingProgram(true);
     try {
       await createCustomProgramFromWorkouts(workouts.map((w) => w.id));
+      track('program_started', { source: 'custom' });
       setBuildSummaryVisible(false);
       setSelectedDayWorkouts([]);
       setDaySlots([]);

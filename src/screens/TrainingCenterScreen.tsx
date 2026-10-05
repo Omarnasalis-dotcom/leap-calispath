@@ -17,6 +17,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect } from 'expo-router';
 import { useAuth } from '../contexts/AuthContext';
+import { track } from '../lib/analytics';
 import { useTheme } from '../contexts/ThemeContext';
 import { supabase } from '../lib/supabase';
 import { LeapLogo } from '../components/LeapLogo';
@@ -565,6 +566,7 @@ export function TrainingCenterScreen() {
   useFocusEffect(
     useCallback(() => {
       load();
+      track('training_center_opened');
     }, [load])
   );
 

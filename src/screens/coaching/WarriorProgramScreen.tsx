@@ -14,6 +14,7 @@ import { View,
   KeyboardAvoidingView,
   BackHandler,
   Alert } from 'react-native';
+import { track } from '../../lib/analytics';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSubscriptionTier, meetsMinTier } from '../../lib/entitlement';
@@ -1942,6 +1943,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                 style={dbRunnerStyles.primaryBtn}
                 onPress={() => {
                   if (isWorkoutAddressed) { handleWorkoutDonePress(); return; }
+                  if (runnerNotStarted) track('workout_started');
                   const target = runnerNextBlock || activeDay.blocks[0];
                   if (target) setExpandedBlocks({ [target.id]: true });
                 }}

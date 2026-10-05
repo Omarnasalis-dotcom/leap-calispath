@@ -18,7 +18,13 @@ export type AnalyticsEvent =
   | 'paywall_failed'
   | 'ai_coach_opened'
   | 'welcome_intro_completed'
-  | 'welcome_intro_skipped';
+  | 'welcome_intro_skipped'
+  // Onboarding → first training (Growth audit 2026-10-05): where people
+  // who finished onboarding stop before training.
+  | 'training_center_opened'
+  | 'program_started'
+  | 'quick_workout_started'
+  | 'workout_started';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).
