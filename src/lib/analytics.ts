@@ -24,7 +24,13 @@ export type AnalyticsEvent =
   | 'training_center_opened'
   | 'program_started'
   | 'quick_workout_started'
-  | 'workout_started';
+  | 'workout_started'
+  // Team Challenge (docs/features/TEAM_CHALLENGE_PLAN.md)
+  | 'team_tab_opened'
+  | 'team_created'
+  | 'team_joined'
+  | 'team_attempt_started'
+  | 'team_attempt_submitted';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).

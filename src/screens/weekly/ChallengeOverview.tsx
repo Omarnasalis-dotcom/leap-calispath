@@ -5,7 +5,7 @@ import Svg, { Text as SvgText } from 'react-native-svg';
 import { KitButton, kt, Gender, Scope } from '../../components/worlds/kit';
 import { WORLD_FONTS } from '../../../constants/worldKitTokens';
 import { WeeklyTokens } from '../../components/weekly/weeklyTokens';
-import { Label, SquareButton, formatGap, formatScoreShort, formatScore, closesInLabel } from '../../components/weekly/WeeklyParts';
+import { Label, SquareButton, WeeklyHeader, formatGap, formatScoreShort, formatScore, closesInLabel } from '../../components/weekly/WeeklyParts';
 import { WeeklyBoard } from '../../components/weekly/WeeklyBoard';
 import { WeeklyChallenge, WeeklyBoardRow } from '../../services/ChallengeService';
 import { GROUP_LEVEL, formatClock, isoWeekNumber, roundPoints, totalReps, weekEndDate, parseWeekStart } from '../../lib/weeklyChallenge';
@@ -49,6 +49,8 @@ interface Props {
   onGender: (g: Gender) => void;
   /** Admin-only extras (group tabs + manage button), unchanged from before. */
   adminSlot?: React.ReactNode;
+  /** SOLO | TEAM switch, when Team Challenge is on. */
+  modeSlot?: React.ReactNode;
   onManage?: () => void;
 }
 
@@ -190,20 +192,9 @@ export function ChallengeOverview(p: Props) {
   return (
     <View style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 120 }} showsVerticalScrollIndicator={false}>
-        {/* Header */}
-        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 14 }}>
-          <SquareButton tokens={t} icon="back" label={tr('common.close')} onPress={p.onBack} />
-          <View style={{ flex: 1 }}>
-            <Text style={kt('medium', 11, t.textMuted, 2.4)}>{tr('weekly.leapArena')}</Text>
-            <Text style={[kt('bold', 24, t.text, 1.4, 27), { marginTop: 2 }]} numberOfLines={1} adjustsFontSizeToFit>{tr('weekly.title')}</Text>
-          </View>
-          {p.onManage && (
-            <Pressable accessibilityRole="button" accessibilityLabel={tr('weekly.manage')} onPress={p.onManage} hitSlop={6}
-              style={{ width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
-              <Text>⚙️</Text>
-            </Pressable>
-          )}
-        </View>
+        <WeeklyHeader tokens={t} onBack={p.onBack} onManage={p.onManage} />
+
+        {p.modeSlot}
 
         {p.adminSlot}
 
