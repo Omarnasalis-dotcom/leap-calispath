@@ -456,6 +456,66 @@ BEGIN
 END;
 $function$;
 
+-- Admin reads: RLS only lets team members see teams, so the admin panel
+-- lists challenges with their counts, and every team (including ones that
+-- never submitted, for moderation), through these.
+CREATE FUNCTION public.admin_get_team_challenges()
+RETURNS TABLE (id uuid, title text, description text, format text, scoring_type text,
+  movements jsonb, rounds smallint, time_limit_sec integer, team_size smallint,
+  starts_at timestamptz, ends_at timestamptz, is_active boolean, created_at timestamptz,
+  team_count bigint, ranked_team_count bigint, submitted_attempts bigint, player_count bigint)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+  RETURN QUERY
+  SELECT c.id, c.title, c.description, c.format, c.scoring_type, c.movements, c.rounds,
+    c.time_limit_sec, c.team_size, c.starts_at, c.ends_at, c.is_active, c.created_at,
+    (SELECT count(*) FROM teams t WHERE t.challenge_id = c.id),
+    (SELECT count(*) FROM teams t WHERE t.challenge_id = c.id AND t.best_score IS NOT NULL),
+    (SELECT count(*) FROM team_attempts a WHERE a.challenge_id = c.id AND a.status = 'submitted'),
+    (SELECT count(DISTINCT m.user_id) FROM team_members m JOIN teams t ON t.id = m.team_id
+      WHERE t.challenge_id = c.id)
+  FROM team_challenges c
+  ORDER BY c.starts_at DESC;
+END;
+$function$;
+
+CREATE FUNCTION public.admin_get_challenge_teams(p_challenge_id uuid)
+RETURNS TABLE (team_id uuid, name text, members jsonb, member_count bigint, locked_at timestamptz,
+  best_score numeric, attempts_count integer, best_submitted_at timestamptz, created_at timestamptz)
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+#variable_conflict use_column
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'FORBIDDEN';
+  END IF;
+  RETURN QUERY
+  SELECT t.id, t.name,
+    COALESCE((SELECT jsonb_agg(jsonb_build_object(
+                'user_id', m.user_id, 'display_name', p.display_name,
+                'is_leader', m.user_id IS NOT DISTINCT FROM public.team_leader(t.id))
+              ORDER BY m.joined_at, m.id)
+              FROM team_members m LEFT JOIN profiles p ON p.id = m.user_id
+              WHERE m.team_id = t.id), '[]'::jsonb),
+    (SELECT count(m.user_id) FROM team_members m WHERE m.team_id = t.id),
+    t.locked_at, t.best_score, t.attempts_count, t.best_submitted_at, t.created_at
+  FROM teams t
+  WHERE t.challenge_id = p_challenge_id
+  ORDER BY t.best_score IS NULL, t.created_at DESC;
+END;
+$function$;
+
 -- ── Teams ─────────────────────────────────────────────────────────────────
 
 CREATE FUNCTION public.create_team(p_challenge_id uuid, p_name text)
@@ -989,6 +1049,8 @@ REVOKE EXECUTE ON FUNCTION
   public.admin_upsert_team_challenge(uuid, text, text, text, text, jsonb, integer, integer, integer, timestamptz, timestamptz, boolean),
   public.admin_delete_team_challenge(uuid),
   public.admin_delete_team(uuid),
+  public.admin_get_team_challenges(),
+  public.admin_get_challenge_teams(uuid),
   public.create_team(uuid, text),
   public.join_team(text),
   public.leave_team(uuid, uuid),
@@ -1005,6 +1067,8 @@ GRANT EXECUTE ON FUNCTION
   public.admin_upsert_team_challenge(uuid, text, text, text, text, jsonb, integer, integer, integer, timestamptz, timestamptz, boolean),
   public.admin_delete_team_challenge(uuid),
   public.admin_delete_team(uuid),
+  public.admin_get_team_challenges(),
+  public.admin_get_challenge_teams(uuid),
   public.create_team(uuid, text),
   public.join_team(text),
   public.leave_team(uuid, uuid),
