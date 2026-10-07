@@ -1,6 +1,6 @@
 # Team Challenge: Implementation Plan
 
-Status: Phases 1–4 (database, app lib + service + server clock, admin-web page, app Team tab + lobby) done on branch `team-challenge`. Not applied to prod (2026-10-08). The owner's decisions are summarized below and come from a clarification session.
+Status: Phases 1–5 code done on branch `team-challenge` (database, app lib + service + server clock, admin-web page, Team tab + lobby, attempt + result screens). Multi-phone device test, Phase 6 (history) and Phase 7 (rollout) remain. Not applied to prod (2026-10-08). The owner's decisions are summarized below and come from a clarification session.
 
 ## 1. What we're building
 

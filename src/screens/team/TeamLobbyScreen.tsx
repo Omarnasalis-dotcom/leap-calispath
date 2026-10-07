@@ -12,11 +12,12 @@ import { TeamChallengeCard, TeamMovements, formatTeamScore, memberName } from '.
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { LeapLogo } from '../../components/LeapLogo';
 import { TeamChallengeError, TeamChallengeService } from '../../services/TeamChallengeService';
-import { attemptPhase, clockSeconds, countdownLeft, TeamMember, TeamState } from '../../lib/teamChallenge';
-import { formatClock } from '../../lib/weeklyChallenge';
+import { TeamAttempt, TeamMember, TeamState } from '../../lib/teamChallenge';
+import { TeamAttemptView, TeamResultView } from './TeamAttempt';
+import { track } from '../../lib/analytics';
 import { useServerClock } from '../../hooks/useServerClock';
 import { useMountedRef } from '../../hooks/useMountedRef';
-import { ltr, t as tr } from '../../i18n';
+import { t as tr } from '../../i18n';
 import { WORLD_FONTS } from '../../../constants/worldKitTokens';
 
 /** Backstop for dropped realtime events (first live-synced feature in the app). */
@@ -78,7 +79,10 @@ interface Props {
   teamId: string;
 }
 
-/** Team lobby: roster, invite code, start. The attempt itself runs here too (Phase 5). */
+/** Results older than this aren't shown again when the lobby is reopened. */
+const RESULT_FRESH_MS = 30 * 60 * 1000;
+
+/** Team lobby: roster, invite code, start; the attempt and its result run here too. */
 export function TeamLobbyScreen({ teamId }: Props) {
   const { mode } = useTheme();
   const t = useMemo(() => getWeeklyTokens(mode), [mode]);
@@ -90,6 +94,8 @@ export function TeamLobbyScreen({ teamId }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [focused, setFocused] = useState(true);
+  const [dismissedResult, setDismissedResult] = useState<string | null>(null);
+  const [rank, setRank] = useState<{ attemptId: string; rank: number; count: number } | null>(null);
 
   const attemptLive = state?.attempt?.status === 'running';
   const clock = useServerClock(attemptLive ? 250 : null);
@@ -144,6 +150,26 @@ export function TeamLobbyScreen({ teamId }: Props) {
     });
     return () => { clearInterval(id); sub.remove(); };
   }, [focused, load]);
+
+  // Board rank for a just-submitted attempt's result screen.
+  const lastAttempt = state?.attempt;
+  const showResultFor =
+    lastAttempt?.status === 'submitted' && lastAttempt.submitted_at && lastAttempt.id !== dismissedResult &&
+    clock.serverNow() - Date.parse(lastAttempt.submitted_at) < RESULT_FRESH_MS
+      ? lastAttempt
+      : null;
+  const challengeId = state?.challenge.id;
+  useEffect(() => {
+    if (!showResultFor || !challengeId || rank?.attemptId === showResultFor.id) return;
+    let cancelled = false;
+    TeamChallengeService.getBoard(challengeId)
+      .then(rows => {
+        const mine = rows.find(r => r.team_id === teamId);
+        if (!cancelled && isMounted.current && mine) setRank({ attemptId: showResultFor.id, rank: mine.rank, count: rows.length });
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [showResultFor?.id, challengeId]);
 
   /** Runs an action, then reloads whatever happened (also after a failure). */
   const run = async (action: () => Promise<unknown>) => {
@@ -208,11 +234,57 @@ export function TeamLobbyScreen({ teamId }: Props) {
       }
     });
 
-  const start = () => run(() => TeamChallengeService.startAttempt(team.id).then(clock.sync));
+  const start = () => run(async () => {
+    const res = await TeamChallengeService.startAttempt(team.id);
+    clock.sync(res);
+    track('team_attempt_started', { format: challenge.format, scoring: challenge.scoring_type, team_size: challenge.team_size });
+  });
 
-  // Phase 5 replaces this card with the attempt screens.
-  const now = clock.now;
-  const phase = attempt && attemptLive ? attemptPhase(attempt, now) : null;
+  const submitted = (done: boolean) => {
+    if (done) track('team_attempt_submitted', { format: challenge.format, scoring: challenge.scoring_type, team_size: challenge.team_size });
+  };
+
+  if (attemptLive && attempt) {
+    const liveAttempt = attempt as TeamAttempt;
+    return (
+      <GlobalErrorBoundary>
+        <WorldPage tokens={t}>
+          <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+            <TeamAttemptView
+              tokens={t}
+              state={{ ...state, attempt: liveAttempt }}
+              now={clock.now}
+              myId={myId}
+              busy={busy}
+              onFinish={userId => run(async () => submitted((await TeamChallengeService.finish(liveAttempt.id, userId)).attemptSubmitted))}
+              onSubmitProgress={(userId, rounds, partial) =>
+                run(async () => submitted((await TeamChallengeService.submitProgress(liveAttempt.id, userId, rounds, partial)).attemptSubmitted))}
+              onCancel={() => confirm(tr('team.cancelAttemptTitle'), tr('team.cancelAttemptBody'), tr('team.cancelAttemptConfirm'),
+                () => run(() => TeamChallengeService.abandonAttempt(liveAttempt.id)))}
+            />
+          </View>
+        </WorldPage>
+      </GlobalErrorBoundary>
+    );
+  }
+
+  if (showResultFor) {
+    return (
+      <GlobalErrorBoundary>
+        <WorldPage tokens={t}>
+          <View style={{ flex: 1, paddingBottom: insets.bottom }}>
+            <TeamResultView
+              tokens={t}
+              state={state}
+              attempt={showResultFor}
+              rank={rank?.attemptId === showResultFor.id ? rank : null}
+              onDone={() => setDismissedResult(showResultFor.id)}
+            />
+          </View>
+        </WorldPage>
+      </GlobalErrorBoundary>
+    );
+  }
 
   return (
     <GlobalErrorBoundary>
@@ -278,17 +350,6 @@ export function TeamLobbyScreen({ teamId }: Props) {
                   <Label tokens={t}>{tr('team.attempts')}</Label>
                   <Text style={[kt('semibold', 24, t.text), { marginTop: 4 }]}>{team.attempts_count}</Text>
                 </View>
-              </View>
-            )}
-
-            {phase && attempt && (
-              <View style={{ marginTop: 20, borderRadius: 18, padding: 16, backgroundColor: t.liveBg, borderWidth: 1, borderColor: t.liveBorder, alignItems: 'center', gap: 6 }}>
-                <Label tokens={t}>{tr('team.attemptRunning')}</Label>
-                <Text style={kt('bold', 36, t.text)}>
-                  {phase === 'countdown'
-                    ? String(countdownLeft(attempt, now))
-                    : ltr(formatClock(clockSeconds(type, attempt, now)))}
-                </Text>
               </View>
             )}
 

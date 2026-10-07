@@ -30,6 +30,14 @@ jest.mock('../../../lib/supabase', () => {
   return { supabase: { channel: () => channel, removeChannel: jest.fn() } };
 });
 
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
+jest.mock('../../../lib/SoundService', () => ({
+  SoundServiceInstance: { playTick: jest.fn(), playBoxingBell: jest.fn(), playDigitalBuzzer: jest.fn() },
+}));
+jest.mock('expo-notifications', () => ({
+  scheduleNotificationAsync: jest.fn().mockResolvedValue('id'),
+  cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
+}));
 jest.mock('../../../lib/analytics', () => ({ track: jest.fn() }));
 jest.mock('../../../components/GlobalErrorBoundary', () => ({
   GlobalErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
