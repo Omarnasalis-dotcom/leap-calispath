@@ -1080,3 +1080,9 @@ GRANT EXECUTE ON FUNCTION
   public.get_team_challenge_board(uuid),
   public.get_my_teams()
   TO authenticated, service_role;
+
+-- ── Feature flag ──────────────────────────────────────────────────────────
+-- Per-platform switch for the app's Team tab (admins always see it, so it
+-- can be tested on prod before it's switched on). Read like paywall_enabled.
+ALTER TABLE IF EXISTS public.app_config
+  ADD COLUMN IF NOT EXISTS team_challenge_enabled boolean NOT NULL DEFAULT false;
