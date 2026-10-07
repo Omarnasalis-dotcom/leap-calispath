@@ -1,6 +1,6 @@
 # Team Challenge: Implementation Plan
 
-Status: Phase 1 (database) written and smoke-tested locally on branch `team-challenge`, not applied to prod (2026-10-08). The owner's decisions are summarized below and come from a clarification session.
+Status: Phase 1 (database) and Phase 2 (app scoring lib, service, server clock) done on branch `team-challenge`. Not applied to prod (2026-10-08). The owner's decisions are summarized below and come from a clarification session.
 
 ## 1. What we're building
 
