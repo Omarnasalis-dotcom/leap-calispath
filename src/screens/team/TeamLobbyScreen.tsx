@@ -140,8 +140,10 @@ export function TeamLobbyScreen({ teamId }: Props) {
     return () => { supabase.removeChannel(channel); };
   }, [teamId, load]);
 
+  // An ended challenge with nothing running can't change any more: no polling.
+  const settled = !!state && !attemptLive && clock.serverNow() >= Date.parse(state.challenge.ends_at);
   useEffect(() => {
-    if (!focused) return;
+    if (!focused || settled) return;
     let active = AppState.currentState === 'active';
     const id = setInterval(() => { if (active) load(); }, POLL_MS);
     const sub = AppState.addEventListener('change', next => {
@@ -149,7 +151,7 @@ export function TeamLobbyScreen({ teamId }: Props) {
       if (active) load();
     });
     return () => { clearInterval(id); sub.remove(); };
-  }, [focused, load]);
+  }, [focused, settled, load]);
 
   // Board rank for a just-submitted attempt's result screen.
   const lastAttempt = state?.attempt;
@@ -324,7 +326,8 @@ export function TeamLobbyScreen({ teamId }: Props) {
                   {locked ? tr('team.rosterLocked') : tr('team.playersCount', { n: present.length, size: challenge.team_size })}
                 </Text>
               </View>
-              {members.map((m, i) => (
+              {/* A deleted account only stays visible once the roster is final (history). */}
+              {members.filter(m => m.user_id || locked).map((m, i) => (
                 <MemberRow
                   key={m.user_id ?? `deleted-${i}`}
                   tokens={t}

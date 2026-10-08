@@ -209,6 +209,22 @@ describe('TeamLobbyScreen', () => {
     expect(r.root.findAll(n => n.props.accessibilityLabel === 'Remove Sara')).toHaveLength(0);
   });
 
+  it('unlocked team: a deleted account frees its slot instead of showing', async () => {
+    mockService.getTeamState.mockResolvedValue({
+      data: state({}, [
+        { user_id: 'me', display_name: 'Omar', is_leader: true },
+        { user_id: null, display_name: null, is_leader: false },
+      ]),
+      clockOffsetMs: 0,
+      roundTripMs: 50,
+    });
+    const r = await render(<TeamLobbyScreen teamId="t1" />);
+    const text = allText(r);
+    expect(text).not.toContain('Deleted user');
+    expect(text).toContain('PLAYERS 1/3');
+    expect(text.split('Waiting for a player…').length - 1).toBe(2);
+  });
+
   it('locked roster: final roster, best score, no leave, deleted member shown', async () => {
     mockService.getTeamState.mockResolvedValue({
       data: state({ locked_at: '2026-10-11T10:00:00Z', best_score: 430, attempts_count: 2 }, [
@@ -265,6 +281,32 @@ describe('TeamHub', () => {
     expect(text).toContain('Omar · Deleted user');
     expect(text).toContain('Gamma');
     expect(text).toContain('430 PTS');
+  });
+
+  it('two challenges at once: a picker switches card, teams and board', async () => {
+    const second = { ...CHALLENGE, id: 'c2', title: 'Relay Sprint', format: 'switch' as const, scoring_type: 'time' as const, team_size: 2 };
+    mockService.getOpenChallenges.mockResolvedValue([CHALLENGE, second]);
+    mockService.getMyTeams.mockResolvedValue([
+      { team_id: 't2', team_name: 'Relay Crew', challenge_id: 'c2', challenge_title: 'Relay Sprint', format: 'switch', scoring_type: 'time', team_size: 2, starts_at: CHALLENGE.starts_at, ends_at: CHALLENGE.ends_at, members: [], is_leader: true, locked_at: null, best_score: null, attempts_count: 0, rank: null },
+    ]);
+    mockService.getBoard.mockImplementation(async (id: string) => id === 'c2'
+      ? [{ rank: 1, team_id: 'x', team_name: 'Fast Pair', members: [], best_score: 95.5, attempts_count: 1, best_submitted_at: '2026-10-11T00:00:00Z', is_mine: false }]
+      : []);
+    const r = await render(<TeamHub tokens={t} onBack={() => {}} modeSlot={null} />);
+
+    let text = allText(r);
+    expect(text).toContain('TEAM SWITCH · FOR TIME · TEAMS OF 2'); // picker chip for the second challenge
+    expect(text).toContain('ENGINE ROOM');
+    expect(text).not.toContain('Relay Crew');
+    expect(mockService.getBoard).toHaveBeenCalledWith('c1');
+    expect(mockService.getBoard).toHaveBeenCalledWith('c2');
+
+    const chip = r.root.findAll(n => n.props.accessibilityRole === 'button' && texts(n.children as any).includes('RELAY SPRINT') && n.props.onPress)[0];
+    await act(async () => { chip.props.onPress(); });
+    text = allText(r);
+    expect(text).toContain('Relay Crew');
+    expect(text).toContain('Fast Pair');
+    expect(text).toContain('1:35.5');
   });
 
   it('empty week', async () => {

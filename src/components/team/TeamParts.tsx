@@ -34,6 +34,11 @@ export function formatRule(c: Pick<TeamChallenge, 'format' | 'scoring_type'>): s
   return c.scoring_type === 'reps' ? tr('team.ruleCollectAmrap') : tr('team.ruleCollectTime');
 }
 
+/** "TEAM SYNC · FOR TIME · TEAMS OF 3", for compact places like the challenge picker. */
+export function formatRuleShort(c: Pick<TeamChallenge, 'format' | 'scoring_type' | 'team_size'>): string {
+  return [tr(FORMAT_KEYS[c.format]), c.scoring_type === 'reps' ? 'AMRAP' : 'FOR TIME', tr('team.teamsOf', { count: c.team_size })].join(' · ');
+}
+
 /** "3D 14H" / "14H 20M" until the challenge closes. */
 export function closesInLabel(endsAt: string, now = Date.now()): string {
   const totalMinutes = Math.max(0, Math.floor((Date.parse(endsAt) - now) / 60000));

@@ -1,11 +1,11 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { KitButton, KitIcon, WorldSheet, kt } from '../../components/worlds/kit';
 import { WeeklyTokens } from '../../components/weekly/weeklyTokens';
 import { Label, WeeklyHeader } from '../../components/weekly/WeeklyParts';
 import {
-  TeamBoard, TeamChallengeCard, TeamMovements, closesInLabel, formatTeamScore, memberName,
+  TeamBoard, TeamChallengeCard, TeamMovements, closesInLabel, formatRuleShort, formatTeamScore, memberName,
 } from '../../components/team/TeamParts';
 import { LeapLogo } from '../../components/LeapLogo';
 import { TeamChallengeService } from '../../services/TeamChallengeService';
@@ -25,15 +25,15 @@ type Sheet = 'create' | 'join' | null;
 
 const openLobby = (teamId: string) => router.push({ pathname: '/team-lobby', params: { teamId } });
 
-/** Weekly Challenge → TEAM: this week's team challenge, your teams, the board, create / join. */
+/** Weekly Challenge → TEAM: the open team challenges (a picker when there's more than one), your teams, the board, create / join. */
 export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
   const isMounted = useMountedRef();
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
-  const [challenge, setChallenge] = useState<TeamChallenge | null>(null);
-  const [myTeams, setMyTeams] = useState<MyTeamRow[]>([]);
-  const [pastTeams, setPastTeams] = useState<MyTeamRow[]>([]);
-  const [board, setBoard] = useState<TeamBoardRow[]>([]);
+  const [challenges, setChallenges] = useState<TeamChallenge[]>([]);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [allMine, setAllMine] = useState<MyTeamRow[]>([]);
+  const [boards, setBoards] = useState<Record<string, TeamBoardRow[]>>({});
 
   const [sheet, setSheet] = useState<Sheet>(null);
   const [input, setInput] = useState('');
@@ -46,14 +46,12 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
         TeamChallengeService.getOpenChallenges(),
         TeamChallengeService.getMyTeams(),
       ]);
-      const current = open[0] ?? null;
-      const rows = current ? await TeamChallengeService.getBoard(current.id) : [];
+      // Several challenges can run at once (owner decision); each has its own board.
+      const rows = await Promise.all(open.map(c => TeamChallengeService.getBoard(c.id)));
       if (!isMounted.current) return;
-      setChallenge(current);
-      setMyTeams(current ? mine.filter(m => m.challenge_id === current.id) : []);
-      // Newest first (get_my_teams order); challenges that have ended.
-      setPastTeams(mine.filter(m => m.challenge_id !== current?.id && Date.parse(m.ends_at) <= Date.now()));
-      setBoard(rows);
+      setChallenges(open);
+      setAllMine(mine);
+      setBoards(Object.fromEntries(open.map((c, i) => [c.id, rows[i]])));
       setLoadError(null);
     } catch (e: any) {
       if (isMounted.current) setLoadError(e?.message ?? tr('team.loadFailed'));
@@ -64,7 +62,15 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
 
   // Also refreshes when coming back from a lobby.
   useFocusEffect(useCallback(() => { load(); }, [load]));
-  useFocusEffect(useCallback(() => { track('team_tab_opened'); }, []));
+  // Once per visit to the tab, not on every return from a lobby.
+  useEffect(() => { track('team_tab_opened'); }, []);
+
+  const challenge = challenges.find(c => c.id === selectedId) ?? challenges[0] ?? null;
+  const board = challenge ? boards[challenge.id] ?? [] : [];
+  const myTeams = challenge ? allMine.filter(m => m.challenge_id === challenge.id) : [];
+  // Newest first (get_my_teams order): teams from challenges that have ended.
+  const openIds = new Set(challenges.map(c => c.id));
+  const pastTeams = allMine.filter(m => !openIds.has(m.challenge_id) && Date.parse(m.ends_at) <= Date.now());
 
   const openSheet = (s: Sheet) => {
     setInput('');
@@ -119,6 +125,9 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
           </View>
         ) : (
           <>
+            {challenges.length > 1 && (
+              <ChallengePicker tokens={t} challenges={challenges} activeId={challenge.id} onSelect={setSelectedId} />
+            )}
             <TeamChallengeCard tokens={t} challenge={challenge} closesIn={closesInLabel(challenge.ends_at)} />
 
             <View style={{ flexDirection: 'row', gap: 10, paddingTop: 16 }}>
@@ -260,5 +269,34 @@ function TeamHistory({ tokens: t, teams }: { tokens: WeeklyTokens; teams: MyTeam
         </Pressable>
       ))}
     </View>
+  );
+}
+
+/** One chip per open challenge when several run at once. */
+function ChallengePicker({ tokens: t, challenges, activeId, onSelect }: {
+  tokens: WeeklyTokens; challenges: TeamChallenge[]; activeId: string; onSelect: (id: string) => void;
+}) {
+  return (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 8, paddingTop: 16 }}>
+      {challenges.map(c => {
+        const on = c.id === activeId;
+        return (
+          <Pressable
+            key={c.id}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            onPress={() => onSelect(c.id)}
+            style={({ pressed }) => ({
+              maxWidth: 220, paddingVertical: 8, paddingHorizontal: 12, borderRadius: 12,
+              backgroundColor: on ? t.accent : t.control, borderWidth: 1, borderColor: on ? t.accent : t.cardBorder,
+              opacity: pressed ? 0.75 : 1,
+            })}
+          >
+            <Text style={kt('bold', 12, on ? t.onAccent : t.text, 1)} numberOfLines={1}>{c.title.toUpperCase()}</Text>
+            <Text style={kt('medium', 10, on ? t.onAccent : t.textMuted, 1.2)} numberOfLines={1}>{formatRuleShort(c)}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
   );
 }
