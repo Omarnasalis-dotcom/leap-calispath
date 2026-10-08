@@ -107,9 +107,15 @@ export function todaySegments(summary: JourneyPointsSummary, todayQuestSlotKey: 
   ];
 }
 
-/** Whether this side-quest slot (e.g. "w2_s1") was paid today. */
+/**
+ * Whether today's quest counts as done: a side quest from the same program
+ * week as today's slot (e.g. any "w2_…" for "w2_s1") was paid today — the
+ * same rule the server uses for Perfect day, so the medallion and the bonus
+ * always agree. An old week's quest caught up today doesn't count.
+ */
 export function questPaidToday(summary: JourneyPointsSummary, slotKey: string | null): boolean {
-  return !!slotKey && summary.recent.some((e) => e.date === summary.today && e.source === 'side_quest' && e.label === slotKey);
+  const week = slotKey?.match(/^w\d+_/)?.[0];
+  return !!week && summary.recent.some((e) => e.date === summary.today && e.source === 'side_quest' && (e.label ?? '').startsWith(week));
 }
 
 /** Points a program day (by name) earned today, or null if none. */
