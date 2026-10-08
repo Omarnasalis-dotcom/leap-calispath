@@ -26,7 +26,7 @@ describe('todaySegments', () => {
     expect(todaySegments(summary({ trained_today: true }), null)).toEqual([true, false, false, false]);
   });
 
-  test('ticked extras count; the quest counts only if this exact slot was paid today', () => {
+  test('ticked extras count; the quest counts only if a current-week quest was paid today', () => {
     const s = summary({
       tasks_today: [
         { task: 'run', amount: 5, paid: true },
@@ -41,6 +41,16 @@ describe('todaySegments', () => {
     expect(todaySegments(s, 'w2_s1')).toEqual([false, false, false, true, true]);
     s.recent.push({ date: '2026-10-04', source: 'side_quest', label: 'w2_s1', points: 30 });
     expect(todaySegments(s, 'w2_s1')).toEqual([false, true, false, true, true]);
+  });
+
+  test('another quest from the same week done today counts (matches the server Perfect day)', () => {
+    const s = summary({
+      recent: [{ date: '2026-10-04', source: 'side_quest', label: 'w2_s0', points: 30 }],
+    });
+    expect(todaySegments(s, 'w2_s1')[1]).toBe(true);
+    // …but not a different week's quest, and not with no quest slot today.
+    expect(todaySegments(s, 'w3_s0')[1]).toBe(false);
+    expect(todaySegments(s, null)).toHaveLength(4);
   });
 });
 

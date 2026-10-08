@@ -135,3 +135,22 @@ export function TextLink({ tokens: t, label, onPress }: { tokens: WeeklyTokens; 
     </Pressable>
   );
 }
+
+/** Screen header: back, "LEAP ARENA / WEEKLY CHALLENGE", admin ⚙️ (Solo and Team tabs). */
+export function WeeklyHeader({ tokens: t, onBack, onManage }: { tokens: WeeklyTokens; onBack: () => void; onManage?: () => void }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, paddingTop: 14 }}>
+      <SquareButton tokens={t} icon="back" label={tr('common.close')} onPress={onBack} />
+      <View style={{ flex: 1 }}>
+        <Text style={kt('medium', 11, t.textMuted, 2.4)}>{tr('weekly.leapArena')}</Text>
+        <Text style={[kt('bold', 24, t.text, 1.4, 27), { marginTop: 2 }]} numberOfLines={1} adjustsFontSizeToFit>{tr('weekly.title')}</Text>
+      </View>
+      {onManage && (
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('weekly.manage')} onPress={onManage} hitSlop={6}
+          style={{ width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: t.accent, alignItems: 'center', justifyContent: 'center' }}>
+          <Text>⚙️</Text>
+        </Pressable>
+      )}
+    </View>
+  );
+}

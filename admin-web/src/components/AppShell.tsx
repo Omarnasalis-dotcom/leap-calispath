@@ -16,6 +16,7 @@ const ADMIN_NAV: Array<
   { section: 'Challenges' },
   { to: '/challenges', label: 'Week editor', end: true },
   { to: '/challenges/templates', label: 'Templates' },
+  { to: '/challenges/teams', label: 'Team challenges' },
   { to: '/challenges/analytics', label: 'Analytics' },
   { section: 'Coaching' },
   { to: '/coaching', label: 'Clients', end: true },

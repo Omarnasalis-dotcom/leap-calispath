@@ -39,6 +39,7 @@ import { BodyweightCheckInModal } from '../../components/coaching/BodyweightChec
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
 import { SetLogEntry } from '../../components/coaching/SetRow';
 import { parseKg } from '../../lib/parseKg';
+import { applyTopSet } from '../../lib/topSet';
 import { Feel } from '../../components/coaching/FeelRpePicker';
 import { NotificationService } from '../../services/NotificationService';
 import { MissedReason } from '../../components/coaching/MissedReasonPicker';
@@ -1417,11 +1418,22 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
     // Completed sets-type block: the sheet's per-exercise counts become real
     // set rows — sets added beyond the ticked ones at the planned reps (or
-    // the Hold stepper's seconds) with the Top set kg; ticked rows are never
-    // changed. An untouched exercise set to 0 is saved as one 0-rep row so
-    // the server doesn't fill in the plan for it.
+    // the Hold stepper's seconds) with the Top set kg. An untouched exercise
+    // set to 0 is saved as one 0-rep row so the server doesn't fill in the
+    // plan for it.
     if (fromSheet) {
       const m = sheetModel(blockId);
+      // Ticked rows must agree with the Top set Performance charts (see
+      // applyTopSet): 15 kg typed + Top set raised to 20 used to save "20"
+      // only in the notes and chart 15.
+      if (m.kind === 'sets' && !m.isRounds) {
+        m.cards.filter(c => c.weighted).forEach(card => {
+          const edited = sheetTopKg[card.id];
+          const changed = edited !== undefined && edited !== m.topKgDefault[card.id];
+          const top = edited ?? m.topKgDefault[card.id] ?? 0;
+          applyTopSet(sets.filter(s => String(s.block_exercise_id) === card.id && s.hold_seconds === null), top, changed);
+        });
+      }
       // Ladder: each exercise gets one row per rung reached, at that rung's
       // reps (+ the extra reps on the next rung, when the logger's rung was
       // kept), so a ladder counts as logged work, not assumed.

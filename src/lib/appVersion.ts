@@ -84,3 +84,21 @@ export async function checkPaywallEnabled(): Promise<boolean> {
     return false;
   }
 }
+
+// Remote switch for Team Challenge (docs/features/TEAM_CHALLENGE_PLAN.md).
+// Fails closed: a network hiccup hides the Team tab rather than showing a
+// feature that may not be live. Admins see it regardless (WeeklyChallengeScreen).
+export async function checkTeamChallengeEnabled(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('team_challenge_enabled')
+      .eq('platform', Platform.OS)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return (data as { team_challenge_enabled?: boolean }).team_challenge_enabled === true;
+  } catch {
+    return false;
+  }
+}

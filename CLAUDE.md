@@ -69,6 +69,7 @@ Each file under `app/` imports its corresponding screen from `src/screens/`. The
 - **ProfileScreen** — main hub; world selector, tier grid, leaderboards, initiates trials
 - **TrialScreen** — three modes: `progression` (advances tier), `practice` (lower tiers, no advancement), `eternal` (tier 8+)
 - **PowerWorldScreen / StaticWorldScreen / OneMinMaxScreen / WeeklyChallengeScreen / ChampionsArenaScreen** — the worlds and challenges
+- **team/** — Team Challenge (`docs/features/TEAM_CHALLENGE_PLAN.md`): `TeamHub` is the TEAM side of Weekly Challenge's SOLO/TEAM switch (shown when `app_config.team_challenge_enabled` or to admins); `TeamLobbyScreen` (`/team-lobby?teamId=`) runs the roster, the live attempt (`TeamAttempt.tsx`) and the result on the server clock (`useServerClock`)
 - **TrainingCenterScreen, CustomizeProgramScreen, ProgramTemplatesScreen, QuickWorkoutScreen** — program building and workouts
 - **CoachScreen** — AI Coach chat (paid; free users see `FreeCoachIntake`, then the paywall)
 - **PaywallScreen** — RevenueCat paywall
@@ -90,7 +91,8 @@ Each file under `app/` imports its corresponding screen from `src/screens/`. The
 | `warrior_programs`, `program_templates`, `program_blocks`, `block_exercises` | Programs; AI Coach programs have `coach_id = 00000000-…-0002`, library templates `…-0001` |
 | `workout_logs`, `workout_set_logs`, `bodyweight_logs` | Training logs |
 | `ai_coach_requests` | AI Coach request + cost log (drives message caps and $ budgets) |
-| `app_config` | Per-platform flags: `paywall_enabled`, `ai_coach_enabled`, chat caps, `minimum_version` |
+| `app_config` | Per-platform flags: `paywall_enabled`, `ai_coach_enabled`, `team_challenge_enabled`, chat caps, `minimum_version` |
+| `team_challenges`, `teams`, `team_members`, `team_attempts`, `team_attempt_results` | Team Challenge. Read-only for clients; every write is a SECURITY DEFINER RPC (`create_team`, `join_team`, `start_team_attempt`, `finish_team_attempt`, `submit_team_progress`, `admin_*`…) and times are server timestamps. RPC errors are bare codes mapped to `team.errors.*` |
 | `app_events` | First-party analytics written by `track()` (`src/lib/analytics.ts`); users insert only their own, admins read. Funnel/DAU report: `admin_get_growth_analytics` → admin-web Growth page |
 
 **Key patterns:**
@@ -147,7 +149,7 @@ Shared UI lives in `src/components/`. Profile-specific extracted components (Pro
 
 ## Testing
 
-Tests are in `src/lib/__tests__/`, `src/services/__tests__/`, `src/components/**/__tests__/` and `supabase/functions/ai-coach/tools/__tests__/`. Run with `npm test` (`jest-expo` preset). They cover pure logic — tier/points/entitlement logic, leaderboards, services, and the AI Coach block helpers. `npx tsc --noEmit` has ~14 known `Timeout` type errors; don't add new ones.
+Tests are in `src/lib/__tests__/`, `src/services/__tests__/`, `src/components/**/__tests__/`, `src/screens/team/__tests__/` and `supabase/functions/ai-coach/tools/__tests__/`. Run with `npm test` (`jest-expo` preset). They cover pure logic — tier/points/entitlement logic, leaderboards, services, and the AI Coach block helpers. `npx tsc --noEmit` is clean (0 errors); keep it that way. Screen render tests (`react-test-renderer`) must mock `GlobalErrorBoundary` (Sentry is ESM) and unmount after each test, or polling intervals keep Jest alive.
 
 ## Web Deployment
 

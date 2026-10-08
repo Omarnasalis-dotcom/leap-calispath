@@ -24,6 +24,9 @@ import { ChallengeOverview, MyStanding } from './weekly/ChallengeOverview';
 import { ChallengeActive } from './weekly/ChallengeActive';
 import { ChallengeLogAmrap, ChallengeLogForTime } from './weekly/ChallengeLog';
 import { ChallengeSubmitted, LastResult } from './weekly/ChallengeSubmitted';
+import { TeamHub } from './team/TeamHub';
+import { ModeSwitch, WeeklyMode } from '../components/team/TeamParts';
+import { checkTeamChallengeEnabled } from '../lib/appVersion';
 import { t as tr } from '../i18n';
 
 type Phase = 'overview' | 'active' | 'log' | 'done';
@@ -50,6 +53,16 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const [adminGroupView, setAdminGroupView] = useState<1 | 2 | 3>(userGroup);
   const group = isAdmin ? adminGroupView : userGroup;
   const currentWeek = ChallengeService.getCurrentWeekStart();
+
+  // Team Challenge: behind app_config.team_challenge_enabled; admins always see it.
+  const [teamEnabled, setTeamEnabled] = useState(false);
+  const [weeklyMode, setWeeklyMode] = useState<WeeklyMode>('solo');
+  useEffect(() => {
+    let cancelled = false;
+    checkTeamChallengeEnabled().then(on => { if (!cancelled && isMounted.current) setTeamEnabled(on); });
+    return () => { cancelled = true; };
+  }, []);
+  const showTeam = isAdmin || teamEnabled;
 
   // ── Data ────────────────────────────────────────────────────────────────
   const [weeks, setWeeks] = useState<string[]>([currentWeek]);
@@ -331,8 +344,18 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     </View>
   ) : undefined;
 
+  const modeSlot = showTeam ? <ModeSwitch tokens={t} mode={weeklyMode} onChange={setWeeklyMode} /> : undefined;
+
   let body: React.ReactNode;
-  if (phase === 'active' && challenge) {
+  if (showTeam && weeklyMode === 'team' && phase === 'overview') {
+    body = (
+      <TeamHub
+        tokens={t}
+        onBack={() => onClose?.()}
+        modeSlot={modeSlot}
+      />
+    );
+  } else if (phase === 'active' && challenge) {
     body = (
       <ChallengeActive
         tokens={t}
@@ -384,6 +407,7 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
         gender={gender}
         onGender={setGender}
         adminSlot={adminSlot}
+        modeSlot={modeSlot}
         onManage={isAdmin ? () => setShowAdminModal(true) : undefined}
       />
     );

@@ -17,6 +17,7 @@ import { TournamentsPage } from '@/pages/tournaments/TournamentsPage';
 import { ChallengeWeekPage } from '@/pages/challenges/ChallengeWeekPage';
 import { TemplatesPage } from '@/pages/challenges/TemplatesPage';
 import { ChallengeAnalyticsPage } from '@/pages/challenges/ChallengeAnalyticsPage';
+import { TeamChallengesPage } from '@/pages/challenges/TeamChallengesPage';
 import { ExerciseLibraryPage } from '@/pages/coaching/ExerciseLibraryPage';
 import { ClientsPage } from '@/pages/coaching/ClientsPage';
 import { CommunityPage } from '@/pages/coaching/CommunityPage';
@@ -69,6 +70,7 @@ export function App() {
                 <Route path="challenges" element={<ChallengeWeekPage />} />
                 <Route path="challenges/templates" element={<TemplatesPage />} />
                 <Route path="challenges/analytics" element={<ChallengeAnalyticsPage />} />
+                <Route path="challenges/teams" element={<TeamChallengesPage />} />
                 <Route path="leaderboards" element={<LeaderboardsPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />
                 <Route path="tournaments" element={<TournamentsPage />} />
