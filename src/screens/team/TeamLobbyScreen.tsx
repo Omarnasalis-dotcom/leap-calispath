@@ -207,7 +207,9 @@ export function TeamLobbyScreen({ teamId }: Props) {
   const present = members.filter(m => m.user_id);
   const missing = Math.max(0, challenge.team_size - present.length);
   const type = challenge.scoring_type;
-  const emptySlots = locked ? 0 : missing;
+  // Past the window: results are final, nothing to start, invite or leave.
+  const ended = clock.serverNow() >= Date.parse(challenge.ends_at);
+  const emptySlots = locked || ended ? 0 : missing;
 
   const share = () => {
     Share.share({
@@ -300,7 +302,7 @@ export function TeamLobbyScreen({ teamId }: Props) {
             </View>
 
             {/* Invite code while there's room on the team. */}
-            {!locked && missing > 0 && (
+            {!locked && !ended && missing > 0 && (
               <View style={{ marginTop: 16, borderRadius: 20, padding: 16, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder, gap: 12 }}>
                 <Label tokens={t}>{tr('team.inviteCode')}</Label>
                 <Text
@@ -328,7 +330,7 @@ export function TeamLobbyScreen({ teamId }: Props) {
                   tokens={t}
                   member={m}
                   isMe={m.user_id === myId}
-                  canRemove={isLeader && !locked && !attemptLive && !!m.user_id && m.user_id !== myId}
+                  canRemove={isLeader && !locked && !ended && !attemptLive && !!m.user_id && m.user_id !== myId}
                   onRemove={() => removeMember(m)}
                 />
               ))}
@@ -356,7 +358,7 @@ export function TeamLobbyScreen({ teamId }: Props) {
             <TeamChallengeCard tokens={t} challenge={challenge} />
             <TeamMovements tokens={t} challenge={challenge} />
 
-            {!locked && !attemptLive && (
+            {!locked && !ended && !attemptLive && (
               <Pressable accessibilityRole="button" onPress={leave} disabled={busy} hitSlop={10} style={({ pressed }) => ({ alignSelf: 'center', marginTop: 28, padding: 6, opacity: pressed ? 0.6 : 1 })}>
                 <Text style={kt('medium', 13, t.textMuted, 2)}>{tr('team.leave')}</Text>
               </Pressable>
@@ -365,7 +367,12 @@ export function TeamLobbyScreen({ teamId }: Props) {
 
           {!attemptLive && (
             <View style={{ position: 'absolute', left: 24, right: 24, bottom: insets.bottom + 20 }}>
-              {isLeader ? (
+              {ended ? (
+                <View style={{ borderRadius: 16, padding: 14, backgroundColor: t.card, borderWidth: 1, borderColor: t.cardBorder, alignItems: 'center', gap: 4 }}>
+                  <Text style={kt('bold', 13, t.text, 1.6)}>{tr('team.challengeEnded')}</Text>
+                  <Text style={[kt('light', 12.5, t.textMuted, 0, 18), { textAlign: 'center' }]}>{tr('team.challengeEndedHint')}</Text>
+                </View>
+              ) : isLeader ? (
                 <KitButton
                   tokens={t}
                   label={missing > 0 ? tr('team.playersNeeded', { count: missing }) : tr('team.start')}

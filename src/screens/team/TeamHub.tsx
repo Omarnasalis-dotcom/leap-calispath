@@ -12,7 +12,7 @@ import { TeamChallengeService } from '../../services/TeamChallengeService';
 import { MyTeamRow, TEAM_NAME_MAX, TeamBoardRow, TeamChallenge } from '../../lib/teamChallenge';
 import { track } from '../../lib/analytics';
 import { useMountedRef } from '../../hooks/useMountedRef';
-import { ltr, t as tr } from '../../i18n';
+import { isArabic, ltr, t as tr } from '../../i18n';
 import { WORLD_FONTS } from '../../../constants/worldKitTokens';
 
 interface Props {
@@ -32,6 +32,7 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<TeamChallenge | null>(null);
   const [myTeams, setMyTeams] = useState<MyTeamRow[]>([]);
+  const [pastTeams, setPastTeams] = useState<MyTeamRow[]>([]);
   const [board, setBoard] = useState<TeamBoardRow[]>([]);
 
   const [sheet, setSheet] = useState<Sheet>(null);
@@ -50,6 +51,8 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
       if (!isMounted.current) return;
       setChallenge(current);
       setMyTeams(current ? mine.filter(m => m.challenge_id === current.id) : []);
+      // Newest first (get_my_teams order); challenges that have ended.
+      setPastTeams(mine.filter(m => m.challenge_id !== current?.id && Date.parse(m.ends_at) <= Date.now()));
       setBoard(rows);
       setLoadError(null);
     } catch (e: any) {
@@ -166,6 +169,8 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
             <TeamBoard tokens={t} type={type} rows={board} />
           </>
         )}
+
+        {!loading && pastTeams.length > 0 && <TeamHistory tokens={t} teams={pastTeams} />}
       </ScrollView>
 
       <WorldSheet
@@ -212,6 +217,48 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
           />
         </View>
       </WorldSheet>
+    </View>
+  );
+}
+
+/** Teams from challenges that have ended: final result and rank, tap for the team page. */
+function TeamHistory({ tokens: t, teams }: { tokens: WeeklyTokens; teams: MyTeamRow[] }) {
+  const date = (iso: string) =>
+    new Date(iso).toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase();
+  return (
+    <View style={{ paddingTop: 28, gap: 10 }}>
+      <Label tokens={t} size={11}>{tr('team.history')}</Label>
+      {teams.map(team => (
+        <Pressable
+          key={team.team_id}
+          accessibilityRole="button"
+          onPress={() => openLobby(team.team_id)}
+          style={({ pressed }) => ({
+            flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14,
+            backgroundColor: t.card, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.75 : 1,
+          })}
+        >
+          <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
+            <Text style={kt('medium', 10.5, t.textFaint, 1.4)} numberOfLines={1}>
+              {`${ltr(`${date(team.starts_at)} – ${date(team.ends_at)}`)} · ${team.challenge_title.toUpperCase()}`}
+            </Text>
+            <Text style={kt('semibold', 15, t.text, 0.4)} numberOfLines={1}>{team.team_name}</Text>
+            <Text style={kt('regular', 12, t.textMuted)} numberOfLines={1}>{team.members.map(memberName).join(' · ')}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end', gap: 2 }}>
+            {team.best_score != null ? (
+              <>
+                <Text style={kt('semibold', 15, t.text)}>{formatTeamScore(team.scoring_type, team.best_score)}</Text>
+                {team.rank != null && (
+                  <Text style={kt('medium', 11, team.rank === 1 ? t.gold : t.accentText, 1.2)}>{tr('team.finalRank', { rank: team.rank })}</Text>
+                )}
+              </>
+            ) : (
+              <Text style={kt('medium', 10.5, t.textFaint, 1.4)}>{tr('team.notRanked')}</Text>
+            )}
+          </View>
+        </Pressable>
+      ))}
     </View>
   );
 }

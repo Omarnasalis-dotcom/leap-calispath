@@ -193,6 +193,22 @@ describe('TeamLobbyScreen', () => {
     expect(mockService.startAttempt).toHaveBeenCalledWith('t1');
   });
 
+  it('ended challenge: read-only, no start / invite / leave / remove', async () => {
+    const ended = state();
+    ended.challenge = { ...CHALLENGE, ends_at: '2020-01-01T00:00:00Z' };
+    mockService.getTeamState.mockResolvedValue({ data: ended, clockOffsetMs: 0, roundTripMs: 50 });
+    const r = await render(<TeamLobbyScreen teamId="t1" />);
+    const text = allText(r);
+
+    expect(text).toContain('CHALLENGE ENDED');
+    expect(text).not.toContain('START ATTEMPT');
+    expect(text).not.toContain('PLAYERS NEEDED');
+    expect(text).not.toContain('V53QLK');
+    expect(text).not.toContain('LEAVE TEAM');
+    expect(text).not.toContain('Waiting for a player…');
+    expect(r.root.findAll(n => n.props.accessibilityLabel === 'Remove Sara')).toHaveLength(0);
+  });
+
   it('locked roster: final roster, best score, no leave, deleted member shown', async () => {
     mockService.getTeamState.mockResolvedValue({
       data: state({ locked_at: '2026-10-11T10:00:00Z', best_score: 430, attempts_count: 2 }, [
@@ -223,7 +239,7 @@ describe('TeamHub', () => {
     mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
     mockService.getMyTeams.mockResolvedValue([
       { team_id: 't1', team_name: 'Iron Wolves', challenge_id: 'c1', challenge_title: 'Engine Room', format: 'collect', scoring_type: 'reps', team_size: 3, starts_at: CHALLENGE.starts_at, ends_at: CHALLENGE.ends_at, members: [{ user_id: 'me', display_name: 'Omar' }], is_leader: true, locked_at: null, best_score: null, attempts_count: 0, rank: null },
-      { team_id: 'old', team_name: 'Last Week Crew', challenge_id: 'c0', challenge_title: 'Old', format: 'sync', scoring_type: 'time', team_size: 2, starts_at: '2026-10-03T00:00:00Z', ends_at: '2026-10-10T00:00:00Z', members: [], is_leader: false, locked_at: null, best_score: 99, attempts_count: 1, rank: 1 },
+      { team_id: 'old', team_name: 'Last Week Crew', challenge_id: 'c0', challenge_title: 'Old Sprint', format: 'sync', scoring_type: 'time', team_size: 2, starts_at: '2020-01-04T00:00:00Z', ends_at: '2020-01-11T00:00:00Z', members: [{ user_id: 'me', display_name: 'Omar' }, { user_id: null, display_name: null }], is_leader: false, locked_at: '2020-01-05T00:00:00Z', best_score: 99, attempts_count: 1, rank: 1 },
     ]);
     mockService.getBoard.mockResolvedValue([
       { rank: 1, team_id: 't9', team_name: 'Gamma', members: [{ user_id: 'x', display_name: 'Dan' }], best_score: 430, attempts_count: 1, best_submitted_at: '2026-10-11T00:00:00Z', is_mine: false },
@@ -240,7 +256,13 @@ describe('TeamHub', () => {
     expect(text).toContain('JOIN WITH CODE');
     expect(text).toContain('Iron Wolves');
     expect(text).toContain('NO SCORE YET');
-    expect(text).not.toContain('Last Week Crew'); // other challenges' teams stay out
+    // Ended challenges' teams go to history, with their final result and rank.
+    expect(text).toContain('TEAM HISTORY');
+    expect(text).toContain('Last Week Crew');
+    expect(text).toContain('OLD SPRINT');
+    expect(text).toContain('1:39.0');
+    expect(text).toContain('FINAL #1');
+    expect(text).toContain('Omar · Deleted user');
     expect(text).toContain('Gamma');
     expect(text).toContain('430 PTS');
   });

@@ -1702,6 +1702,11 @@ const ar: Translations = {
     byPlayer: 'حسب اللاعب',
     backToLobby: 'العودة إلى الغرفة',
     expired: 'لم تُسجَّل نتيجة هذه المحاولة في الوقت المحدد فأُلغيت.',
+    history: 'سجل الفرق',
+    finalRank: 'الترتيب النهائي #{{rank}}',
+    notRanked: 'غير مصنّف',
+    challengeEnded: 'انتهى التحدي',
+    challengeEndedHint: 'انتهى هذا التحدي، لذا أصبحت النتائج نهائية.',
     errors: {
       NOT_AUTHENTICATED: 'يُرجى تسجيل الدخول مرة أخرى.',
       FORBIDDEN: 'هذا الإجراء متاح للمشرفين فقط.',

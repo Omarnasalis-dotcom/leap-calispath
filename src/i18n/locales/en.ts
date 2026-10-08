@@ -1599,6 +1599,11 @@ const en = {
     byPlayer: 'BY PLAYER',
     backToLobby: 'BACK TO LOBBY',
     expired: 'This attempt was not scored in time and was cancelled.',
+    history: 'TEAM HISTORY',
+    finalRank: 'FINAL #{{rank}}',
+    notRanked: 'NOT RANKED',
+    challengeEnded: 'CHALLENGE ENDED',
+    challengeEndedHint: 'This challenge is over, so the results are final.',
     errors: {
       NOT_AUTHENTICATED: 'Please sign in again.',
       FORBIDDEN: 'Only admins can do that.',
