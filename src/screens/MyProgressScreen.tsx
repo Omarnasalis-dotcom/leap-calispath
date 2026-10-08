@@ -29,6 +29,9 @@ import {
   signed,
   weightedView,
   worldSeries,
+  allMovementsSummary,
+  toggleWeekPick,
+  type WeekPick,
 } from '../lib/performance';
 import { ProgressLineChart, ProgressChartColors } from '../components/progress/ProgressLineChart';
 
@@ -302,6 +305,17 @@ function BlocksCard({ program, c, styles }: { program: CompletionProgram | undef
 
 // ---------- Main movements (bodyweight reps) ----------
 
+/** Movement chip value for the every-movement view. */
+const ALL_MOVEMENTS = 'all';
+
+/** "W3", "W2–W4" or "W1, W3, W6". */
+function weeksLabel(weeks: number[]): string {
+  const w = [...weeks].sort((a, b) => a - b);
+  if (w.length === 1) return wk(w[0]);
+  const consecutive = w.every((x, i) => i === 0 || x === w[i - 1] + 1);
+  return consecutive ? `${wk(w[0])}–${wk(w[w.length - 1])}` : w.map(wk).join(', ');
+}
+
 function MovementsCard({
   data,
   mode = 'reps',
@@ -319,6 +333,8 @@ function MovementsCard({
 }) {
   const [picked, setPicked] = useState<string | null>(null);
   const [weekSel, setWeekSel] = useState<number | null>(null);
+  // All view: the weeks summed (default = the latest logged week).
+  const [allWeek, setAllWeek] = useState<WeekPick>(null);
   // Variation colours in fixed order (most reps first); the rest are "Other".
   const varColors = [c.coral, c.static, c.oneMinMax];
   const otherColor = c.textFaint2;
@@ -342,6 +358,7 @@ function MovementsCard({
             best: Number(w.longest),
             bestVariation: w.longest_variation,
             variations: w.variations,
+            sets: Number(w.sets ?? 0),
           })),
       }))
     : REP_MOVEMENTS.map((key) => ({
@@ -364,6 +381,139 @@ function MovementsCard({
       </Card>
     );
   }
+  // "All" chip: every movement side by side (only worth it with 2+).
+  const allChip = movements.length > 1 && (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected: picked === ALL_MOVEMENTS }}
+      onPress={() => {
+        setPicked(ALL_MOVEMENTS);
+        setWeekSel(null);
+      }}
+      style={[styles.chip, picked === ALL_MOVEMENTS && styles.chipOn]}
+    >
+      <Text style={[styles.chipText, picked === ALL_MOVEMENTS && styles.chipTextOn]}>{t('progress.mvAll')}</Text>
+    </Pressable>
+  );
+  const movementChips = (activeKey: string | null) => (
+    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+      {allChip}
+      {movements.map((m) => {
+        const on = m.key === activeKey;
+        return (
+          <Pressable
+            key={m.key}
+            accessibilityRole="button"
+            accessibilityState={{ selected: on }}
+            onPress={() => {
+              setPicked(m.key);
+              setWeekSel(null);
+            }}
+            style={[styles.chip, on && styles.chipOn]}
+          >
+            <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`progress.mv_${m.key}`)}</Text>
+          </Pressable>
+        );
+      })}
+    </ScrollView>
+  );
+
+  if (picked === ALL_MOVEMENTS && movements.length > 1) {
+    const sum = allMovementsSummary(movements, allWeek);
+    const loggedWeeks = [...new Set(movements.flatMap((m) => m.weeks.map((w) => w.week)))].sort((a, b) => a - b).slice(-8);
+    const weeksText = sum.allWeeks ? t('progress.allWeeksLower') : weeksLabel(sum.weeks);
+    const maxRow = Math.max(1, ...sum.rows.map((r) => r.total));
+    return (
+      <Card title={title} sub={isHolds ? t('progress.allHoldsSub') : t('progress.allMovementsSub')} styles={styles}>
+        {movementChips(null)}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityState={{ selected: sum.allWeeks }}
+            onPress={() => setAllWeek('all')}
+            style={[styles.chip, styles.chipSmall, sum.allWeeks && styles.chipOn]}
+          >
+            <Text style={[styles.chipText, sum.allWeeks && styles.chipTextOn]}>{t('progress.allWeeks')}</Text>
+          </Pressable>
+          {loggedWeeks.map((wk) => {
+            const on = !sum.allWeeks && sum.weeks.includes(wk);
+            return (
+              <Pressable
+                key={wk}
+                accessibilityRole="button"
+                accessibilityState={{ selected: on }}
+                accessibilityLabel={t('progress.weekLong', { n: wk })}
+                onPress={() => setAllWeek(toggleWeekPick(allWeek, sum.allWeeks ? [] : sum.weeks, wk))}
+                style={[styles.chip, styles.chipSmall, on && styles.chipOn]}
+              >
+                <Text style={[styles.chipText, on && styles.chipTextOn]}>{t('progress.weekShort', { n: wk })}</Text>
+              </Pressable>
+            );
+          })}
+        </ScrollView>
+        <Figure
+          value={String(sum.total)}
+          unit={isHolds ? t('progress.secondsUnit') : undefined}
+          note={[
+            isHolds ? t('progress.allHeldIn', { weeks: weeksText }) : t('progress.allRepsIn', { weeks: weeksText }),
+            sum.sets > 0 ? (isHolds ? t('progress.holdsCount', { count: sum.sets }) : t('progress.setsCount', { count: sum.sets })) : null,
+            sum.assumed > 0
+              ? isHolds
+                ? t('progress.holdsAssumed', { n: sum.assumed })
+                : t('progress.movementsAssumed', { count: sum.assumed })
+              : null,
+          ]
+            .filter(Boolean)
+            .join(' · ')}
+          styles={styles}
+        />
+        <View style={styles.allList}>
+          {sum.rows.map((r) => {
+            const name = t(`progress.mv_${r.key}`);
+            return (
+              <Pressable
+                key={r.key}
+                accessibilityRole="button"
+                accessibilityLabel={t('progress.allRowA11y', { name, value: fmtV(r.total) })}
+                onPress={() => {
+                  setPicked(r.key);
+                  setWeekSel(null);
+                }}
+                style={({ pressed }) => [styles.allRow, pressed && { opacity: 0.7 }]}
+              >
+                <View style={styles.allRowTop}>
+                  <Text style={styles.allName} numberOfLines={1}>{name}</Text>
+                  <Text style={styles.allValue}>{fmtV(r.total)}</Text>
+                </View>
+                <View style={styles.allTrack}>
+                  <View style={[styles.allFill, { width: `${(r.total / maxRow) * 100}%` }]}>
+                    <View style={{ flex: Math.max(0, r.total - r.assumed), backgroundColor: c.coral }} />
+                    {r.assumed > 0 && (
+                      <View style={[styles.mvAssumed, { flex: r.assumed, borderColor: c.textFaint2 }]} />
+                    )}
+                  </View>
+                </View>
+                {r.sets > 0 && (
+                  <Text style={styles.allSets}>
+                    {isHolds ? t('progress.holdsCount', { count: r.sets }) : t('progress.setsCount', { count: r.sets })}
+                  </Text>
+                )}
+              </Pressable>
+            );
+          })}
+        </View>
+        {sum.assumed > 0 && (
+          <View style={styles.feelLegend}>
+            <View style={styles.feelLegendItem}>
+              <View style={[styles.dot8, styles.mvAssumed, { borderColor: c.textFaint2 }]} />
+              <Text style={styles.feelLegendText}>{t('progress.movementsAssumedLegend')}</Text>
+            </View>
+          </View>
+        )}
+      </Card>
+    );
+  }
+
   const movement = movements.find((m) => m.key === picked) ?? movements[0];
   const byWeek = new Map(movement.weeks.map((w) => [w.week, w]));
   const weeks = movementWeeks(movement.weeks, program?.current_week ?? 1);
@@ -381,25 +531,7 @@ function MovementsCard({
 
   return (
     <Card title={title} sub={sub} styles={styles}>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
-        {movements.map((m) => {
-          const on = m.key === movement.key;
-          return (
-            <Pressable
-              key={m.key}
-              accessibilityRole="button"
-              accessibilityState={{ selected: on }}
-              onPress={() => {
-                setPicked(m.key);
-                setWeekSel(null);
-              }}
-              style={[styles.chip, on && styles.chipOn]}
-            >
-              <Text style={[styles.chipText, on && styles.chipTextOn]}>{t(`progress.mv_${m.key}`)}</Text>
-            </Pressable>
-          );
-        })}
-      </ScrollView>
+      {movementChips(movement.key)}
       <Figure
         value={String(latest.reps)}
         unit={isHolds ? t('progress.secondsUnit') : undefined}
@@ -935,6 +1067,14 @@ const getStyles = (c: TCPalette) =>
     worldValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 34, lineHeight: 38 },
 
     mvReadout: { minHeight: 16, marginTop: -6 },
+    allList: { gap: 12 },
+    allRow: { gap: 5 },
+    allRowTop: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 8 },
+    allName: { flexShrink: 1, color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 14, letterSpacing: 0.3 },
+    allValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16 },
+    allTrack: { height: 8, borderRadius: 4, backgroundColor: c.dividerStrong, overflow: 'hidden' },
+    allFill: { height: '100%', flexDirection: 'row', gap: 2, borderRadius: 4, overflow: 'hidden' },
+    allSets: { color: c.textMuted, fontSize: 11 },
     mvReadoutText: { color: c.textSecondary, fontSize: 12 },
     mvBars: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: 6, height: 150 },
     mvCol: { flex: 1, maxWidth: 46, height: '100%', alignItems: 'center', gap: 4 },

@@ -47,6 +47,7 @@ export interface MovementWeek {
   assumed: number; // filled from the plan on Complete (not entered)
   best: number; // best single logged set
   variations: Record<string, number>; // logged reps per variation ('' = untagged)
+  sets?: number; // sets logged + assumed that week
 }
 
 /** Main bodyweight movements, in display order (reps only; holds come later). */
@@ -77,6 +78,7 @@ export interface HoldWeek {
   longest: number; // longest single logged hold
   longest_variation: string | null;
   variations: Record<string, number>; // logged seconds per variation
+  sets?: number; // holds logged + assumed that week
 }
 
 export interface Performance {
@@ -210,4 +212,59 @@ export function movementWeeks(weeks: MovementWeek[], currentWeek = 1, max = 8): 
   if (weeks.length === 0) return [];
   const last = Math.max(currentWeek, ...weeks.map((w) => w.week));
   return Array.from({ length: last }, (_, i) => i + 1).slice(-max);
+}
+
+/** Weeks summed in a movements "All" view: every logged week, a picked set,
+ * or null = the latest logged week (the default). */
+export type WeekPick = 'all' | number[] | null;
+
+export interface AllMovementRow<K extends string> {
+  key: K;
+  total: number;
+  assumed: number;
+  sets: number;
+}
+
+/**
+ * Main movements / Skill holds → All: every movement's volume summed over
+ * the picked program weeks, biggest first (same as the admin panel). Picked
+ * weeks with nothing logged are ignored; if none are left it falls back to
+ * the latest logged week.
+ */
+export function allMovementsSummary<K extends string>(
+  movements: { key: K; weeks: { week: number; reps: number; assumed: number; sets?: number }[] }[],
+  pick: WeekPick,
+): { weeks: number[]; allWeeks: boolean; rows: AllMovementRow<K>[]; total: number; assumed: number; sets: number } {
+  const logged = [...new Set(movements.flatMap((m) => m.weeks.map((w) => w.week)))].sort((a, b) => a - b);
+  const allWeeks = pick === 'all';
+  const picked = Array.isArray(pick) ? pick.filter((w) => logged.includes(w)).sort((a, b) => a - b) : [];
+  const weeks = allWeeks ? logged : picked.length ? picked : logged.length ? [logged[logged.length - 1]] : [];
+  const rows = movements
+    .map((m) => {
+      const inWeeks = m.weeks.filter((w) => weeks.includes(w.week));
+      return {
+        key: m.key,
+        total: inWeeks.reduce((n, w) => n + Number(w.reps), 0),
+        assumed: inWeeks.reduce((n, w) => n + Number(w.assumed), 0),
+        sets: inWeeks.reduce((n, w) => n + Number(w.sets ?? 0), 0),
+      };
+    })
+    .filter((r) => r.total > 0)
+    .sort((a, b) => b.total - a.total);
+  return {
+    weeks,
+    allWeeks,
+    rows,
+    total: rows.reduce((n, r) => n + r.total, 0),
+    assumed: rows.reduce((n, r) => n + r.assumed, 0),
+    sets: rows.reduce((n, r) => n + r.sets, 0),
+  };
+}
+
+/** Tapping a week chip: toggles it in or out (the default latest week
+ * included); from All weeks it starts over with that week. */
+export function toggleWeekPick(pick: WeekPick, shownWeeks: number[], week: number): WeekPick {
+  if (pick === 'all') return [week];
+  const next = shownWeeks.includes(week) ? shownWeeks.filter((w) => w !== week) : [...shownWeeks, week];
+  return next.length ? next : null;
 }
