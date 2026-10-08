@@ -64,7 +64,7 @@ const ADMIN_ERRORS: Record<string, string> = {
     'Each challenge needs 1–12 movements, each with a name, 1–500 reps and 0–1000 points per rep.',
   CHALLENGE_LOCKED:
     'Teams have already joined, so the workout, format, type, rounds, time limit, team size and start date can no longer change. Title, description, end date and visibility still can.',
-  CHALLENGE_HAS_TEAMS: 'Teams have already joined this challenge, so it can only be hidden, not deleted.',
+  CHALLENGE_HAS_TEAMS: 'Teams have joined this challenge. Delete it together with its teams, or hide it instead.',
 };
 
 function toError(error: { message: string }): Error {
@@ -117,8 +117,12 @@ export async function saveTeamChallenge(input: TeamChallengeInput): Promise<stri
   return data as string;
 }
 
-export async function deleteTeamChallenge(id: string): Promise<void> {
-  const { error } = await supabase.rpc('admin_delete_team_challenge', { p_id: id });
+/** `includeTeams` also deletes every team, attempt and result in the challenge. */
+export async function deleteTeamChallenge(id: string, includeTeams = false): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_team_challenge', {
+    p_id: id,
+    p_include_teams: includeTeams,
+  });
   if (error) throw toError(error);
 }
 

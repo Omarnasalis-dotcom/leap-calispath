@@ -182,7 +182,8 @@ export function TeamChallengesPage() {
   });
 
   const deleteChallengeMutation = useMutation({
-    mutationFn: deleteTeamChallenge,
+    mutationFn: ({ id, includeTeams }: { id: string; includeTeams: boolean }) =>
+      deleteTeamChallenge(id, includeTeams),
     onSuccess: () => {
       setForm(null);
       setSelectedId(null);
@@ -507,19 +508,26 @@ export function TeamChallengesPage() {
                 <span>Visible in the app</span>
               </label>
               <div style={{ flex: 1 }} />
-              {form.id && (
-                <ConfirmButton
-                  label="Delete challenge"
-                  danger
-                  disabled={(selected?.team_count ?? 0) > 0}
-                  title={`Delete “${form.title}”?`}
-                  body="Only possible while no team has joined. This can't be undone."
-                  confirmLabel="Delete"
-                  onConfirm={async () => {
-                    await deleteChallengeMutation.mutateAsync(form.id!);
-                  }}
-                />
-              )}
+              {form.id && (() => {
+                const teams = selected?.team_count ?? 0;
+                const attempts = selected?.submitted_attempts ?? 0;
+                return (
+                  <ConfirmButton
+                    label={teams > 0 ? `Delete challenge + ${teams} team${teams === 1 ? '' : 's'}` : 'Delete challenge'}
+                    danger
+                    title={`Delete “${form.title}”?`}
+                    body={
+                      teams > 0
+                        ? `This also deletes ${teams} team${teams === 1 ? '' : 's'}, their members and ${attempts} submitted attempt${attempts === 1 ? '' : 's'}, and removes them from the leaderboard and from players' team history. This can't be undone. To keep the results, hide the challenge instead.`
+                        : "This can't be undone."
+                    }
+                    confirmLabel={teams > 0 ? 'Delete everything' : 'Delete'}
+                    onConfirm={async () => {
+                      await deleteChallengeMutation.mutateAsync({ id: form.id!, includeTeams: teams > 0 });
+                    }}
+                  />
+                );
+              })()}
               <button className="btn primary" disabled={saveMutation.isPending} onClick={save}>
                 {saveMutation.isPending ? 'Saving…' : form.id ? 'Save changes' : 'Publish challenge'}
               </button>
