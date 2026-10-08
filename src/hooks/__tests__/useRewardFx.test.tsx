@@ -66,7 +66,7 @@ test('workout + bonuses: one burst labelled with the day, then toasts for streak
   expect(fx.current.displayOverride).toBe(160); // earned landed, bonuses not yet
   act(() => jest.advanceTimersByTime(350));
   expect(fx.current.displayOverride).toBeNull();
-  expect(fx.current.toasts.map((t) => t.title)).toEqual(['3-session streak', 'Perfect day']);
+  expect(fx.current.toasts.map((t) => t.title)).toEqual(['3-day streak', 'Perfect day']);
   act(() => fx.current.dismissToast());
   expect(fx.current.toasts.map((t) => t.title)).toEqual(['Perfect day']);
 });
