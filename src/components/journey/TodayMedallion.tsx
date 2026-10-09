@@ -3,7 +3,7 @@ import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } 
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { LeapLoop } from './LeapLoop';
 import { medallionStage } from '../../lib/journeyPoints';
-import { t } from '../../i18n';
+import { isArabic, t } from '../../i18n';
 
 // Handoff "fire medallion" (centre of the Journey top bar), with the Leap
 // loop in place of the flame: 72×72, a ring of one arc per task today,
@@ -174,11 +174,12 @@ export function TodayMedallion({ segments, isLight, onPress, onLongPress }: Toda
       <Animated.View
         style={[
           styles.pill,
+          isArabic && styles.pillAr,
           { backgroundColor: lit ? ACCENT : c.pillUnlitBg, borderColor: c.pillBorder },
           { opacity: pillIn, transform: [{ translateY: pillIn.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] },
         ]}
       >
-        <Text style={[styles.pillText, { color: lit ? '#FFFFFF' : c.pillUnlitText }]}>
+        <Text style={[styles.pillText, isArabic && styles.pillTextAr, { color: lit ? '#FFFFFF' : c.pillUnlitText }]}>
           {t(`journeyPoints.stage.${stage}`)}
           <Text style={styles.pillCount}>{`  ${done}/${total}`}</Text>
         </Text>
@@ -225,4 +226,8 @@ const styles = StyleSheet.create({
   },
   pillText: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 8.5, letterSpacing: 1.2, includeFontPadding: false },
   pillCount: { opacity: 0.75 },
+  // Arabic (Cairo) letters are taller than the 17pt pill fits: let it grow,
+  // and a touch bigger so the stage name stays readable.
+  pillAr: { height: undefined, minHeight: 17, paddingVertical: 1, bottom: -11 },
+  pillTextAr: { fontSize: 10 },
 });
