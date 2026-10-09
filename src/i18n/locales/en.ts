@@ -589,6 +589,7 @@ const en = {
     targetDetails: 'TARGET REPS / WORK DETAILS',
     asAssigned: 'AS ASSIGNED',
     kg: 'KG',
+    weight: 'WEIGHT',
     start: 'START',
   },
   timers: {

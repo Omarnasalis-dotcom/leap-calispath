@@ -658,6 +658,7 @@ const ar: Translations = {
     targetDetails: 'التكرارات المستهدفة / تفاصيل العمل',
     asAssigned: 'حسب البرنامج',
     kg: 'كغ',
+    weight: 'الوزن',
     start: 'ابدأ',
   },
   timers: {

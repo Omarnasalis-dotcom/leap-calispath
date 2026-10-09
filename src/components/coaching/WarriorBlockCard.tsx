@@ -519,9 +519,15 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
 
               {/* Exercises Details */}
               <View style={{ gap: 12, marginTop: 12 }}>
-                {!isActiveForCircuitLogging && !isActiveForLadderLogging && !isActiveForAmrapLogging && !isActiveForForTimeLogging && block.exercises.map((ex: ExerciseDetail) => {
+                {!isActiveForCircuitLogging && !isActiveForLadderLogging && !isActiveForAmrapLogging && !isActiveForForTimeLogging && block.exercises.map((ex: ExerciseDetail, exIndex: number) => {
                   const loggedSets = loggedSetsByExercise?.[ex.id] || [];
                   const targetSets = parseInt(String(ex.sets || '0'), 10) || 0;
+                  // The block's final set is the last set of its last exercise
+                  // with sets: no rest after it (between exercises rest stays).
+                  const lastSetsExercise = block.exercises.reduce(
+                    (last: number, e: ExerciseDetail, i: number) => ((parseInt(String(e.sets || '0'), 10) || 0) > 0 ? i : last),
+                    -1,
+                  );
                   return (
                     <View key={ex.id} style={{ gap: 8 }}>
                       <WarriorExerciseRow
@@ -550,6 +556,13 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                                 theme={innerTheme}
                                 bronzeGold={bronzeGold}
                                 completed={isSetLogged}
+                                isLastSet={exIndex === lastSetsExercise && setIndex === targetSets}
+                                // + on an empty kg box starts from the latest earlier set's weight.
+                                suggestedWeight={
+                                  [...loggedSets]
+                                    .filter(s => s.setIndex < setIndex && (s.weight ?? 0) > 0)
+                                    .sort((x, y) => y.setIndex - x.setIndex)[0]?.weight
+                                }
                                 onSetComplete={(entry) => onSetLogged?.(block.id, ex.id, entry)}
                                 onSetDraft={(entry) => onSetDraft?.(block.id, ex.id, entry)}
                               />
@@ -577,6 +590,11 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                             name: ex.name,
                             targetReps: parseInt(String(ex.reps || '0'), 10) || 0,
                             youtube_url: ex.youtube_url,
+                            isWeighted: !!ex.is_weighted,
+                            // + on an empty kg box starts from the latest earlier round's weight.
+                            suggestedWeight: [...(loggedSetsByExercise?.[ex.id] || [])]
+                              .filter(s => s.setIndex < roundNum && (s.weight ?? 0) > 0)
+                              .sort((x, y) => y.setIndex - x.setIndex)[0]?.weight,
                           }))}
                           restSeconds={restAfterRound}
                           theme={innerTheme}
@@ -584,7 +602,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                           isLocked={roundLocked}
                           completed={roundCompleted}
                           onRoundComplete={(entries) => {
-                            entries.forEach(e => onSetLogged?.(block.id, e.exerciseId, { setIndex: roundNum, reps: e.reps }));
+                            entries.forEach(e => onSetLogged?.(block.id, e.exerciseId, { setIndex: roundNum, reps: e.reps, weight: e.weight }));
                           }}
                           activeVideoExerciseId={activeVideoExerciseId}
                           onToggleVideo={onToggleVideo}

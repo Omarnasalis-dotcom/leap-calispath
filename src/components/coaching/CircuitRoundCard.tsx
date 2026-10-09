@@ -5,12 +5,18 @@ import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
+import { parseKg } from '../../lib/parseKg';
+import { WeightStepper } from './WeightStepper';
 
 export interface CircuitExercise {
   id: string | number;
   name: string;
   targetReps: number;
   youtube_url?: string;
+  /** Weighted exercise: the round gets a kg entry for it. */
+  isWeighted?: boolean;
+  /** Its weight in the previous round: where + starts from an empty box. */
+  suggestedWeight?: number;
 }
 
 interface CircuitRoundCardProps {
@@ -22,7 +28,7 @@ interface CircuitRoundCardProps {
   bronzeGold: string;
   isLocked: boolean;
   completed: boolean;
-  onRoundComplete: (entries: { exerciseId: string | number; reps: number }[]) => void;
+  onRoundComplete: (entries: { exerciseId: string | number; reps: number; weight?: number }[]) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
   // Reports whether this round currently holds unsaved progress (a running
@@ -48,6 +54,15 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const [repsByExercise, setRepsByExercise] = useState<Record<string | number, number>>(
     () => Object.fromEntries(exercises.map(ex => [ex.id, ex.targetReps]))
   );
+  // kg typed per weighted exercise this round ('' = none).
+  const [kgByExercise, setKgByExercise] = useState<Record<string | number, string>>({});
+
+  const entriesFor = (reps: Record<string | number, number>, kg: Record<string | number, string>) =>
+    exercises.map(ex => ({
+      exerciseId: ex.id,
+      reps: reps[ex.id] ?? 0,
+      weight: ex.isWeighted ? parseKg(kg[ex.id] ?? '') : undefined,
+    }));
   const [restActive, setRestActive] = useState(false);
   const [restTimeLeft, setRestTimeLeft] = useState(0);
   const intervalRef = useRef<any>(null);
@@ -77,14 +92,23 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 
+  // Reps and kg stay editable after the round is done (until the block is
+  // logged): a correction re-saves the round.
   const adjustReps = (exerciseId: string | number, delta: number) => {
-    setRepsByExercise(prev => ({ ...prev, [exerciseId]: Math.max(0, (prev[exerciseId] ?? 0) + delta) }));
+    const next = { ...repsByExercise, [exerciseId]: Math.max(0, (repsByExercise[exerciseId] ?? 0) + delta) };
+    setRepsByExercise(next);
+    if (completed) onRoundComplete(entriesFor(next, kgByExercise));
+  };
+
+  const setKg = (exerciseId: string | number, text: string) => {
+    const next = { ...kgByExercise, [exerciseId]: text };
+    setKgByExercise(next);
+    if (completed) onRoundComplete(entriesFor(repsByExercise, next));
   };
 
   const handleCompleteRound = () => {
     if (completed || isLocked) return;
-    const entries = exercises.map(ex => ({ exerciseId: ex.id, reps: repsByExercise[ex.id] ?? 0 }));
-    onRoundComplete(entries);
+    onRoundComplete(entriesFor(repsByExercise, kgByExercise));
     SoundServiceInstance.playBoxingBell();
     if (restSeconds > 0 && roundNumber < totalRounds) {
       setRestTimeLeft(restSeconds);
@@ -102,7 +126,8 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
       </View>
 
       {exercises.map(ex => (
-        <View key={ex.id} style={[styles.exerciseRow, { borderColor: theme.card.border }]}>
+        <View key={ex.id} style={[styles.exerciseBlock, { borderColor: theme.card.border }]}>
+        <View style={styles.exerciseRow}>
           <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1, marginRight: 8 }}>
             <Text style={[styles.exName, { color: theme.text.primary, marginRight: ex.youtube_url ? 0 : 8 }]} numberOfLines={1}>{ex.name.toUpperCase()}</Text>
             {ex.youtube_url && onToggleVideo ? (
@@ -120,7 +145,9 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
           <View style={styles.stepperGroup}>
             <TouchableOpacity
               style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-              disabled={completed || isLocked}
+              disabled={isLocked}
+              accessibilityRole="button"
+              accessibilityLabel={`${ex.name} ${t('blocks.reps')} −`}
               onPress={() => adjustReps(ex.id, -1)}
             >
               <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>−</Text>
@@ -128,12 +155,24 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
             <Text style={[styles.repsValue, { color: theme.text.primary }]}>{repsByExercise[ex.id] ?? 0}</Text>
             <TouchableOpacity
               style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-              disabled={completed || isLocked}
+              disabled={isLocked}
+              accessibilityRole="button"
+              accessibilityLabel={`${ex.name} ${t('blocks.reps')} +`}
               onPress={() => adjustReps(ex.id, 1)}
             >
               <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
             </TouchableOpacity>
           </View>
+        </View>
+          {ex.isWeighted && !isLocked && (
+            <WeightStepper
+              value={kgByExercise[ex.id] ?? ''}
+              onChange={text => setKg(ex.id, text)}
+              suggested={ex.suggestedWeight}
+              theme={theme}
+              accent={bronzeGold}
+            />
+          )}
         </View>
       ))}
 
@@ -187,14 +226,17 @@ const styles = StyleSheet.create({
     fontSize: 13,
     letterSpacing: 1,
   },
-  exerciseRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+  exerciseBlock: {
     borderWidth: 1,
     borderRadius: 6,
     paddingVertical: 8,
     paddingHorizontal: 10,
+    gap: 8,
+  },
+  exerciseRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   exName: {
     fontFamily: 'BarlowCondensed-Bold',
