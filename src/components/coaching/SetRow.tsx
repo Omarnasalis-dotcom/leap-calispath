@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, TouchableOpacity, TextInput, StyleSheet, AppState } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, AppState } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { parseKg } from '../../lib/parseKg';
+import { WeightStepper } from './WeightStepper';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 
 export interface SetLogEntry {
@@ -24,6 +25,10 @@ interface SetRowProps {
   theme: any;
   bronzeGold: string;
   completed: boolean;
+  /** Last set of the block: no rest after it, the block is done. */
+  isLastSet?: boolean;
+  /** Weight of the previous set: where the kg + starts from an empty box. */
+  suggestedWeight?: number;
   onSetComplete: (entry: SetLogEntry) => void;
   // Reps/kg edits on a set that hasn't been ticked yet, so a typed weight
   // still gets saved when the block is logged without tapping ✓.
@@ -39,6 +44,8 @@ export const SetRow: React.FC<SetRowProps> = ({
   theme,
   bronzeGold,
   completed,
+  isLastSet,
+  suggestedWeight,
   onSetComplete,
   onSetDraft,
 }) => {
@@ -112,37 +119,35 @@ export const SetRow: React.FC<SetRowProps> = ({
     if (completed) return;
     onSetComplete(entry(reps, weight));
     SoundServiceInstance.playBoxingBell();
-    if (restSeconds > 0) {
+    // No rest after the block's last set: 3 sets = 2 rests.
+    if (restSeconds > 0 && !isLastSet) {
       setRestTimeLeft(restSeconds);
       setRestActive(true);
     }
   };
 
-  // Reps/weight stay editable through the rest period — the set isn't
-  // "fully done" until rest finishes (see isFullyDone) — and re-submit the
-  // logged entry so a correction made during rest isn't lost.
+  // Reps/weight stay editable after the set is done (during rest and after
+  // it) until the block is logged: a correction re-saves the logged set.
+  const save = (value: number, weightText: string) => {
+    if (completed) onSetComplete(entry(value, weightText));
+    else onSetDraft?.(entry(value, weightText));
+  };
+
   const adjustReps = (delta: number) => {
-    if (isFullyDone) return;
     const next = Math.max(0, reps + delta);
     setReps(next);
-    if (restActive) {
-      onSetComplete(entry(next, weight));
-    } else if (!completed) {
-      onSetDraft?.(entry(next, weight));
-    }
+    save(next, weight);
   };
 
   const handleWeightChange = (text: string) => {
     setWeight(text);
-    if (restActive) {
-      onSetComplete(entry(reps, text));
-    } else if (!completed) {
-      onSetDraft?.(entry(reps, text));
-    }
+    save(reps, text);
   };
 
+
   return (
-    <View style={[styles.row, { borderColor: theme.card.border }]}>
+    <View style={[styles.card, { borderColor: theme.card.border }]}>
+    <View style={styles.row}>
       <View style={[styles.setBadge, { borderColor: isFullyDone ? '#4CAF50' : theme.card.border, backgroundColor: isFullyDone ? 'rgba(76,175,80,0.12)' : 'transparent' }]}>
         <Text style={[styles.setBadgeText, { color: isFullyDone ? '#4CAF50' : theme.text.secondary }]}>
           SET {setIndex}
@@ -152,7 +157,8 @@ export const SetRow: React.FC<SetRowProps> = ({
       <View style={styles.stepperGroup}>
         <TouchableOpacity
           style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-          disabled={isFullyDone}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('blocks.reps')} −`}
           onPress={() => adjustReps(-1)}
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>−</Text>
@@ -160,7 +166,8 @@ export const SetRow: React.FC<SetRowProps> = ({
         <Text style={[styles.repsValue, { color: theme.text.primary }]}>{reps}</Text>
         <TouchableOpacity
           style={[styles.stepperBtn, { borderColor: theme.card.border }]}
-          disabled={isFullyDone}
+          accessibilityRole="button"
+          accessibilityLabel={`${t('blocks.reps')} +`}
           onPress={() => adjustReps(1)}
         >
           <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
@@ -168,17 +175,6 @@ export const SetRow: React.FC<SetRowProps> = ({
         <Text style={[styles.repsLabel, { color: theme.text.tertiary }]}>{isHold ? t('blocks.sec') : t('blocks.reps')}</Text>
       </View>
 
-      {isWeighted && (
-        <TextInput
-          style={[styles.weightInput, { color: theme.text.primary, borderColor: theme.card.border }]}
-          keyboardType="decimal-pad"
-          placeholder={t('blocks.kg')}
-          placeholderTextColor={theme.text.tertiary}
-          value={weight}
-          editable={!isFullyDone}
-          onChangeText={handleWeightChange}
-        />
-      )}
 
       {restActive ? (
         <View style={[styles.checkBtn, { borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.03)' }]}>
@@ -205,17 +201,25 @@ export const SetRow: React.FC<SetRowProps> = ({
         </TouchableOpacity>
       )}
     </View>
+      {isWeighted && (
+        // Own line with − / + so it reads as something to fill in.
+        <WeightStepper value={weight} onChange={handleWeightChange} suggested={suggestedWeight} theme={theme} />
+      )}
+    </View>
   );
 };
 
 const styles = StyleSheet.create({
+  card: {
+    borderWidth: 1,
+    borderRadius: 6,
+    padding: 8,
+    gap: 8,
+  },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 8,
-    borderWidth: 1,
-    borderRadius: 6,
-    padding: 8,
   },
   setBadge: {
     borderWidth: 1,
@@ -256,16 +260,6 @@ const styles = StyleSheet.create({
     fontFamily: 'BarlowCondensed-Bold',
     fontSize: 8,
     letterSpacing: 0.5,
-  },
-  weightInput: {
-    width: 50,
-    borderWidth: 1,
-    borderRadius: 6,
-    paddingVertical: 4,
-    paddingHorizontal: 6,
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 12,
-    textAlign: 'center',
   },
   checkBtnGradientBorder: {
     padding: 1.2,

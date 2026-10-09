@@ -321,6 +321,25 @@ describe('QuickWorkoutTimerModal — real regression coverage for the interval e
     jest.useRealTimers();
   });
 
+  test('Tabata ends on the last work interval: no rest after it', () => {
+    jest.useFakeTimers();
+    const workout = {
+      ...baseWorkout, format: 'tabata' as const, duration_minutes: 1, rounds: 1,
+      blocks: [{ id: 'b1', name: 'Circuit', order_index: 0, exercises: [ex('High Plank', 0, { work_seconds: 20, rest_seconds: 10 })] }],
+    };
+    const root = mountAndClearPrep({ visible: true, workout, theme, onClose: () => {} });
+    expect(findAllText(root.toJSON())).toContain('0:20');
+
+    // Last (only) work interval runs out -> done straight away, no 10s rest.
+    act(() => { jest.advanceTimersByTime(20500); });
+    const texts = findAllText(root.toJSON());
+    expect(texts).not.toContain('REST');
+    expect(texts).toContain('COMPLETE');
+    expect(texts).toContain('FINAL TIME');
+
+    jest.useRealTimers();
+  });
+
   test('For Time, round-capped: stopwatch counts up, LAP ROUND advances, lands on done with a real elapsed time', () => {
     jest.useFakeTimers();
     const workout = {

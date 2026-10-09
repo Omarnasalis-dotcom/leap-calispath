@@ -1,4 +1,4 @@
-import { defaultProgram, movementWeeks, signed, weightedView, worldSeries, type WeightedMovement } from '../performance';
+import { allMovementsSummary, defaultProgram, movementWeeks, toggleWeekPick, signed, weightedView, worldSeries, type WeightedMovement } from '../performance';
 
 jest.mock('../supabase', () => ({ supabase: { rpc: jest.fn() } }));
 
@@ -93,5 +93,46 @@ describe('movementWeeks', () => {
   it('keeps only the latest weeks and handles no data', () => {
     expect(movementWeeks([w(12)], 12, 8)).toEqual([5, 6, 7, 8, 9, 10, 11, 12]);
     expect(movementWeeks([])).toEqual([]);
+  });
+});
+
+describe('allMovementsSummary (Main movements / Skill holds → All)', () => {
+  const mv = [
+    { key: 'pull_up', weeks: [{ week: 1, reps: 30, assumed: 0, sets: 3 }, { week: 2, reps: 40, assumed: 10, sets: 4 }] },
+    { key: 'dip', weeks: [{ week: 2, reps: 60, assumed: 0, sets: 5 }] },
+    { key: 'squat', weeks: [{ week: 1, reps: 100, assumed: 0, sets: 4 }] },
+  ];
+
+  it('defaults to the latest logged week, biggest movement first', () => {
+    const s = allMovementsSummary(mv, null);
+    expect(s.weeks).toEqual([2]);
+    expect(s.rows.map((r: any) => [r.key, r.total])).toEqual([['dip', 60], ['pull_up', 40]]);
+    expect([s.total, s.sets, s.assumed]).toEqual([100, 9, 10]);
+  });
+
+  it('All weeks sums everything', () => {
+    const s = allMovementsSummary(mv, 'all');
+    expect(s.allWeeks).toBe(true);
+    expect(s.weeks).toEqual([1, 2]);
+    expect(s.rows.map((r: any) => [r.key, r.total])).toEqual([['squat', 100], ['pull_up', 70], ['dip', 60]]);
+    expect(s.sets).toBe(16);
+  });
+
+  it('picked weeks; weeks with nothing logged are ignored, falling back to the latest', () => {
+    expect(allMovementsSummary(mv, [1]).rows.map((r: any) => r.key)).toEqual(['squat', 'pull_up']);
+    expect(allMovementsSummary(mv, [5]).weeks).toEqual([2]);
+    expect(allMovementsSummary([], null).rows).toEqual([]);
+  });
+
+  it('holds without set counts still sum', () => {
+    const s = allMovementsSummary([{ key: 'planche', weeks: [{ week: 1, reps: 45, assumed: 0 }] }], null);
+    expect([s.total, s.sets]).toEqual([45, 0]);
+  });
+
+  it('week chips toggle; from All weeks a tap starts over', () => {
+    expect(toggleWeekPick(null, [2], 1)).toEqual([2, 1]);
+    expect(toggleWeekPick([2, 1], [2, 1], 2)).toEqual([1]);
+    expect(toggleWeekPick([1], [1], 1)).toBeNull();
+    expect(toggleWeekPick('all', [1, 2], 2)).toEqual([2]);
   });
 });

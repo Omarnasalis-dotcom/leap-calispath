@@ -110,6 +110,8 @@ function buildIntervalPlan(workout: StandaloneWorkoutDetail): Interval[] {
         plan.push({ seconds: ex?.rest_seconds ?? 10, label, isRest: true, exercise: ex, roundNumber: r, totalRounds: rounds });
       }
     }
+    // Ends on the last work interval: no rest after it, the workout is done.
+    if (plan.length > 1 && plan[plan.length - 1].isRest) plan.pop();
     return plan;
   }
 

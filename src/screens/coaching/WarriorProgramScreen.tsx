@@ -1471,8 +1471,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               sets.push({ block_exercise_id: e.id, set_index: 1, reps_completed: 0, weight_used: null, hold_seconds: null });
               return;
             }
+            // Rounds added in the sheet carry the weight of this exercise's
+            // latest ticked round (supersets log kg per round now).
+            const lastKg = [...e.done].filter(d => (d.weight ?? 0) > 0).sort((x, y) => y.setIndex - x.setIndex)[0]?.weight ?? 0;
             for (let r = 1; r <= n; r++) {
-              if (!e.done.some(d => d.setIndex === r)) add(e.id, r, e.reps, e.hold, 0);
+              if (!e.done.some(d => d.setIndex === r)) add(e.id, r, e.reps, e.hold, e.ex.is_weighted ? lastKg : 0);
             }
           });
         } else {

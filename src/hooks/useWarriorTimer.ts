@@ -112,9 +112,10 @@ export function useWarriorTimer({ onAmrapComplete, onForTimeComplete, onTabataCo
   liveRef.current = live;
 
   // Tabata as one run of intervals: work, rest, work, rest… (one work
-  // interval per exercise per round). Position = (interval index, seconds left).
+  // interval per exercise per round), ending on the last work: no rest after
+  // it, the block is done. Position = (interval index, seconds left).
   const tabataDurations = (l: typeof live) =>
-    Array.from({ length: l.totalRounds * 2 }, (_, i) => (i % 2 === 0 ? l.tabataWorkSecs : l.tabataRestSecs));
+    Array.from({ length: Math.max(1, l.totalRounds * 2 - 1) }, (_, i) => (i % 2 === 0 ? l.tabataWorkSecs : l.tabataRestSecs));
   const tabataIndex = (l: typeof live) => (l.currentRound - 1) * 2 + (l.tabataPhase === 'rest' ? 1 : 0);
 
   // Wall-clock timing. Every running timer is measured from when it

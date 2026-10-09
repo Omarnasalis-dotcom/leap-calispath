@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text } from 'react-native';
-import { arabicFontFor, arabicStyle, arabicTextStyle, containsArabic } from '../arabicStyles';
+import { arabicFontFor, arabicStyle, arabicTextStyle, containsArabic, singleLineFitFix } from '../arabicStyles';
 import en from '../locales/en';
 import ar from '../locales/ar';
 
@@ -80,5 +80,16 @@ describe('containsArabic', () => {
     expect(containsArabic(['3', ' · ', 'المستوى'])).toBe(true);
     expect(containsArabic(React.createElement(Text, null, 'مرحبا'))).toBe(true);
     expect(containsArabic(42 as unknown as React.ReactNode)).toBe(false);
+  });
+});
+
+describe('singleLineFitFix', () => {
+  it('iOS: single-line auto-fit text ellipsizes instead of shrinking to a sliver', () => {
+    expect(singleLineFitFix({ adjustsFontSizeToFit: true, numberOfLines: 1 }, 'ios')).toEqual({ adjustsFontSizeToFit: false });
+  });
+  it('leaves multi-line auto-fit, Android and plain text alone', () => {
+    expect(singleLineFitFix({ adjustsFontSizeToFit: true, numberOfLines: 2 }, 'ios')).toEqual({});
+    expect(singleLineFitFix({ adjustsFontSizeToFit: true, numberOfLines: 1 }, 'android')).toEqual({});
+    expect(singleLineFitFix({ numberOfLines: 1 }, 'ios')).toEqual({});
   });
 });
