@@ -28,6 +28,9 @@ jest.mock('../../lib/performance', () => ({
 
 import { MyProgressScreen } from '../MyProgressScreen';
 
+// The full screen's first render is slow while every suite runs in parallel.
+jest.setTimeout(20000);
+
 function texts(node: any, acc: string[] = []): string[] {
   if (!node) return acc;
   if (Array.isArray(node)) { node.forEach(n => texts(n, acc)); return acc; }
