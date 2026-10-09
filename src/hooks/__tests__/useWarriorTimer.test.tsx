@@ -89,6 +89,17 @@ describe('useWarriorTimer — background', () => {
     expect(onTabataComplete).toHaveBeenCalledTimes(1);
   });
 
+  test('Tabata ends on the last work: no rest after it', () => {
+    act(() => { timer.startTimerForBlock(TABATA); });
+    run(5_000); // get-ready
+    run(20_000 + 10_000 + 19_000); // work 1, rest, 19s into the last work
+    expect(timer.tabataPhase).toBe('work');
+    expect(onTabataComplete).not.toHaveBeenCalled();
+    run(1_500); // last work ends -> complete at once (old: a 10s rest first)
+    expect(timer.timerRunning).toBe(false);
+    expect(onTabataComplete).toHaveBeenCalledTimes(1);
+  });
+
   test('circuit rest keeps going in the background', () => {
     act(() => {
       timer.startTimerForBlock({ id: 'c1', metadata: { structure: 'circuit', rounds: 3, rest_after_round: 90 } });
