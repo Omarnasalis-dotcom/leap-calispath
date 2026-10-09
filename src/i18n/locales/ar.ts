@@ -307,12 +307,12 @@ const ar: Translations = {
     streakLabel_many: 'سلسلة {{count}} يومًا',
     streakLabel_other: 'سلسلة {{count}} يوم',
     stage: {
-      cold: 'بارد',
-      spark: 'شرارة',
-      kindle: 'اشتعال',
-      blaze: 'لهيب',
-      roar: 'زئير',
-      inferno: 'جحيم',
+      cold: 'ابدأ',
+      spark: 'انطلاقة',
+      kindle: 'جيد',
+      blaze: 'رائع',
+      roar: 'ممتاز',
+      inferno: 'مثالي',
     },
     dayLetter: {
       mon: 'ن',
