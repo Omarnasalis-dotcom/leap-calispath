@@ -170,7 +170,6 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
               onChange={text => setKg(ex.id, text)}
               suggested={ex.suggestedWeight}
               theme={theme}
-              accent={bronzeGold}
             />
           )}
         </View>

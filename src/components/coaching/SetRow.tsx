@@ -203,7 +203,7 @@ export const SetRow: React.FC<SetRowProps> = ({
     </View>
       {isWeighted && (
         // Own line with − / + so it reads as something to fill in.
-        <WeightStepper value={weight} onChange={handleWeightChange} suggested={suggestedWeight} theme={theme} accent={bronzeGold} />
+        <WeightStepper value={weight} onChange={handleWeightChange} suggested={suggestedWeight} theme={theme} />
       )}
     </View>
   );
