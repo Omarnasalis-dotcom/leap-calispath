@@ -69,6 +69,22 @@ export function arabicTextStyle(
   return next;
 }
 
+/**
+ * iOS in the right-to-left (Arabic) layout shrinks single-line
+ * adjustsFontSizeToFit text inside a flex row to a sliver — the Weekly
+ * Challenge title and its hero stats ("—" included, so it isn't the font).
+ * There it ellipsizes instead; Arabic labels are short, and a cut-off word
+ * beats an unreadable one. Multi-line auto-fit text measures fine.
+ */
+export function singleLineFitFix(
+  props: { adjustsFontSizeToFit?: boolean; numberOfLines?: number },
+  platform = Platform.OS,
+): { adjustsFontSizeToFit?: boolean } {
+  return platform === 'ios' && props.adjustsFontSizeToFit && props.numberOfLines === 1
+    ? { adjustsFontSizeToFit: false }
+    : {};
+}
+
 let textInstalled = false;
 
 // Screens import Text from 'react-native' and read it at render time, so
@@ -85,7 +101,7 @@ export function installArabicText() {
   const ArabicText = React.forwardRef<React.ElementRef<typeof OriginalText>, TextProps>((props, ref) => {
     const flat = (StyleSheet.flatten(props.style) ?? {}) as StyleObject;
     const style = arabicTextStyle(flat, containsArabic(props.children), Platform.OS, !!props.adjustsFontSizeToFit);
-    return React.createElement(OriginalText, { ...props, ref, style });
+    return React.createElement(OriginalText, { ...props, ...singleLineFitFix(props, Platform.OS), ref, style });
   });
   ArabicText.displayName = 'Text';
   Object.defineProperty(ReactNative, 'Text', { configurable: true, enumerable: true, get: () => ArabicText });
