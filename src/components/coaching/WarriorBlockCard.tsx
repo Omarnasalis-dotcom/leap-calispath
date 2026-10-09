@@ -177,9 +177,16 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const structure = block.metadata?.structure || block.metadata?.type;
   const isAmrapLadder = timingSystem === 'amrap' && structure === 'ladder';
   const isForTimeLadder = timingSystem === 'fortime' && structure === 'ladder';
-  const isPureStraightSet = (!timingSystem || timingSystem === 'straight_set') && (!structure || structure === 'single');
-  const isCircuitOrSuperset = (!timingSystem || timingSystem === 'straight_set') && (structure === 'circuit' || structure === 'superset');
-  const isLadder = ((!timingSystem || timingSystem === 'straight_set') && structure === 'ladder') || isAmrapLadder || isForTimeLadder;
+  // Set-based = anything that isn't a timed format, same rule as the log
+  // sheet (sheetModel). Requiring timing === 'straight_set' left blocks with
+  // another value (a legacy "circuit" timing) with no logging at all — no
+  // reps, no kg — just read-only exercise rows.
+  const isSetBased =
+    timingSystem !== 'amrap' && timingSystem !== 'fortime' && timingSystem !== 'tabata' &&
+    block.metadata?.type !== 'amrap' && block.metadata?.type !== 'fortime';
+  const isPureStraightSet = isSetBased && (!structure || structure === 'single');
+  const isCircuitOrSuperset = isSetBased && (structure === 'circuit' || structure === 'superset');
+  const isLadder = (isSetBased && structure === 'ladder') || isAmrapLadder || isForTimeLadder;
   const isAmrap = (timingSystem === 'amrap' || block.metadata?.type === 'amrap') && !isLadder;
   const isForTime = (timingSystem === 'fortime' || block.metadata?.type === 'fortime') && !isLadder;
   const isActiveForSetLogging = isExpanded && !isLocked && isPureStraightSet && block.completedStatus === 'none';
