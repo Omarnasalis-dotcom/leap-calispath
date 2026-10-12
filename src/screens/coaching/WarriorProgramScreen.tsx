@@ -38,6 +38,7 @@ import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { BodyweightCheckInModal } from '../../components/coaching/BodyweightCheckInModal';
 import { SessionCompleteScreen } from '../../components/coaching/SessionCompleteScreen';
 import { SetLogEntry } from '../../components/coaching/SetRow';
+import { computeSessionStats, SessionStats, SessionStatsLog } from '../../lib/sessionStats';
 import { parseKg } from '../../lib/parseKg';
 import { applyTopSet } from '../../lib/topSet';
 import { Feel } from '../../components/coaching/FeelRpePicker';
@@ -554,14 +555,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // Which exercise's demo video is currently open inline — only one at a time,
   // app-wide, so opening a new one closes whatever was previously playing.
   const [activeVideoExerciseId, setActiveVideoExerciseId] = useState<string | number | null>(null);
-  // Total reps logged today — accumulated as blocks are submitted (see
-  // handleLogWorkout/quickLogWorkout) since blockSetProgress for a block is
-  // cleared once it's logged, so it can't be summed after the fact.
-  const [sessionTotalReps, setSessionTotalReps] = useState(0);
+  // Finish-card stats, computed from the saved logs when the card opens
+  // (see openSessionComplete) so re-logs, missed blocks and app restarts
+  // can't skew them.
+  const [sessionStats, setSessionStats] = useState<SessionStats>({ totalReps: 0, exercisesDone: 0, sessionSeconds: 0 });
 
   useEffect(() => {
     sessionStartRef.current = Date.now();
-    setSessionTotalReps(0);
   }, [activeDayIndex, activeWeek]);
 
 
@@ -574,15 +574,35 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const blocksAddressedCount = loggableBlocks.filter(b => b.completedStatus !== 'none').length;
   const blocksTotalCount = loggableBlocks.length;
   const isWorkoutAddressed = blocksTotalCount > 0 && blocksAddressedCount === blocksTotalCount;
-  const exercisesDoneCount = loggableBlocks
-    .filter(b => b.completedStatus !== 'none')
-    .reduce((sum, b) => sum + b.exercises.length, 0);
+
+  const openSessionComplete = async () => {
+    const blocks = loggableBlocks;
+    let logs: SessionStatsLog[] = [];
+    try {
+      const { data, error } = await supabase
+        .from('workout_logs')
+        .select('block_id, notes, completed_at, workout_set_logs(reps_completed)')
+        .eq('warrior_id', warriorId)
+        .eq('warrior_program_id', warriorProgramId)
+        .in('block_id', blocks.map(b => b.id));
+      if (error) throw error;
+      logs = data || [];
+    } catch (err) {
+      // Still show the card; reps fall back to the plan for done blocks.
+      console.error('Failed to load session stats:', err);
+      logs = blocks
+        .filter(b => b.completedStatus !== 'none')
+        .map(b => ({ block_id: b.id, notes: b.completedStatus === 'missed' ? '[STATUS:MISSED]' : '', completed_at: new Date().toISOString() }));
+    }
+    setSessionStats(computeSessionStats(blocks, logs, sessionStartRef.current));
+    setShowSessionComplete(true);
+  };
 
   const handleWorkoutDonePress = () => {
     const unaddressedBlocks = loggableBlocks.filter(b => b.completedStatus === 'none');
     const unaddressedCount = unaddressedBlocks.length;
     if (unaddressedCount <= 0) {
-      setShowSessionComplete(true);
+      openSessionComplete();
       return;
     }
     Alert.alert(
@@ -594,7 +614,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           text: t('workout.continueAnyway'),
           onPress: async () => {
             await Promise.all(unaddressedBlocks.map(b => handleToggleBlockStatus(b.id, 'missed')));
-            setShowSessionComplete(true);
+            openSessionComplete();
           },
         },
       ]
@@ -1115,7 +1135,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (targetStatus === 'completed' && isBlockLocked(blockId)) return;
 
     const nextStatus = targetStatus;
-    const previousStatus = days.flatMap(d => d.blocks).find(b => b.id === blockId)?.completedStatus || 'none';
 
     setTogglingBlockIds(prev => ({ ...prev, [blockId]: true }));
     try {
@@ -1148,16 +1167,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         }
         return next;
       });
-
-      // Quick-toggling straight to "completed" (no detailed per-set logging)
-      // still needs to count toward the session's total reps, using the
-      // prescribed sets × reps fallback in sumBlockReps. Reverting back off
-      // "completed" removes what was added so the total stays accurate.
-      if (nextStatus === 'completed' && previousStatus !== 'completed') {
-        setSessionTotalReps(prev => prev + sumBlockReps(blockId));
-      } else if (previousStatus === 'completed' && nextStatus !== 'completed') {
-        setSessionTotalReps(prev => Math.max(0, prev - sumBlockReps(blockId)));
-      }
 
     } catch (err: any) {
       console.error("Failed to toggle block status:", err);
@@ -1369,29 +1378,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // the fallback used when a block was marked done via the quick DONE/SKIP
   // header toggle rather than actual per-set logging, so "total reps" isn't
   // just silently 0 for blocks nobody opened up to log in detail.
-  const getPrescribedReps = (blockId: string | number): number => {
-    const block = days.flatMap(d => d.blocks).find(b => b.id === blockId);
-    if (!block) return 0;
-    return block.exercises.reduce((sum, ex) => {
-      const sets = parseInt(String(ex.sets || '1'), 10) || 1;
-      const reps = parseInt(String(ex.reps || '0'), 10) || 0;
-      return sum + sets * reps;
-    }, 0);
-  };
-
-  // Sum of reps logged for a block so far, used for the "total reps" session
-  // stat. Prefers actual per-set/round reps tracked in blockSetProgress
-  // (straight-set/circuit/superset/ladder); falls back to the prescribed
-  // sets × reps when no detailed logging happened for this block at all.
-  const sumBlockReps = (blockId: string | number): number => {
-    const exerciseSets = blockSetEntries(blockId);
-    const logged = Object.values(exerciseSets).reduce(
-      (sum, entries) => sum + entries.reduce((s, e: SetLogEntry) => s + (e.reps || 0), 0),
-      0
-    );
-    return logged > 0 ? logged : getPrescribedReps(blockId);
-  };
-
   // Assembles the workout_set_logs payload for a block: per-set entries from
   // blockSetProgress (straight-set blocks) plus any Tabata hold times logged
   // during the timer session. AMRAP round counts are captured in the notes
@@ -1640,7 +1626,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setSheetSummary(parts.join(' · '));
       setSheetPhase('saved');
 
-      setSessionTotalReps(prev => prev + sumBlockReps(blockId));
       setBlockSetProgress(prev => {
         const next = { ...prev };
         delete next[blockId];
@@ -1780,7 +1765,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         NotificationService.notifyCoachWorkoutLogged(quickLogResult.workout_log_id);
       }
 
-      setSessionTotalReps(prev => prev + sumBlockReps(blockId));
       setBlockSetProgress(prev => {
         const next = { ...prev };
         delete next[blockId];
@@ -2167,10 +2151,10 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         blocksCompleted={blocksCompletedCount}
         blocksTotal={blocksTotalCount}
         isAddressed={isWorkoutAddressed}
-        exercisesDone={exercisesDoneCount}
-        totalReps={sessionTotalReps}
+        exercisesDone={sessionStats.exercisesDone}
+        totalReps={sessionStats.totalReps}
         bodyweightKg={bodyweightThisWeek}
-        sessionSeconds={Math.floor((Date.now() - sessionStartRef.current) / 1000)}
+        sessionSeconds={sessionStats.sessionSeconds}
         onClose={() => {
           setShowSessionComplete(false);
           if (onSessionDone) {
