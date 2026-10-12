@@ -567,10 +567,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
 
   const loggableBlocks = (days[activeDayIndex]?.blocks || []).filter(b => !b.metadata?.is_tier_trial);
   // "Addressed" = every block has some status (completed or missed) — this is
-  // what flips the button/stats screen to "WORKOUT DONE" and unlocks Send to
-  // Coach. "Completed-only" drives the fill bar / completion % / blocks-done
-  // stat, since a missed block shouldn't visually count as progress.
-  const blocksCompletedCount = loggableBlocks.filter(b => b.completedStatus === 'completed').length;
+  // what flips the footer button to "Finish session" and opens the finish card.
   const blocksAddressedCount = loggableBlocks.filter(b => b.completedStatus !== 'none').length;
   const blocksTotalCount = loggableBlocks.length;
   const isWorkoutAddressed = blocksTotalCount > 0 && blocksAddressedCount === blocksTotalCount;
@@ -2144,13 +2141,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       {/* SESSION COMPLETE / WORKOUT STATS */}
       <SessionCompleteScreen
         visible={showSessionComplete}
-        theme={theme}
-        bronzeGold={bronzeGold}
         programName={programName}
-        dayName={days[activeDayIndex]?.name || ''}
-        blocksCompleted={blocksCompletedCount}
-        blocksTotal={blocksTotalCount}
-        isAddressed={isWorkoutAddressed}
+        dayName={days[activeDayIndex] ? t('sessionComplete.dayLine', { week: activeWeek, day: days[activeDayIndex].name.toUpperCase() }) : ''}
+        blocks={loggableBlocks
+          .filter(b => b.completedStatus !== 'none')
+          .map(b => ({ name: b.name, status: b.completedStatus === 'missed' ? 'missed' as const : 'completed' as const }))}
         exercisesDone={sessionStats.exercisesDone}
         totalReps={sessionStats.totalReps}
         bodyweightKg={bodyweightThisWeek}

@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7a7a;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Michroma&family=Cairo:wght@400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">WORKOUT COMPLETE · MILESTONE</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Sibling of the PR cards. The day's blocks light up one by one around a segmented ring, each in its block color. Missed blocks stay dim with a gap marker. At 100% the segments fuse into one solid ring.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">0.0s card rises<br>0.6s segments light in order, % counts<br>LOCK last segment lands: bump + pulse<br>100% only: fuse +0.35s, flash + sparks<br>+0.25s title · +0.4s stats · +0.6s logo<br>+0.8s share · +0.9s done</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">SCENARIO</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <sc-for list="{{ scenarios }}" as="c" hint-placeholder-count="8">
+        <div style="{{ c.style }}" onClick="{{ c.pick }}">{{ c.label }}</div>
+      </sc-for>
+    </div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">HAPTIC / SOUND CUE</div>
+    <div style="{{ cueStyle }}">{{ cueLabel }}</div>
+    <div style="height:44px;border-radius:12px;border:1px solid #3a1a1a;background:#1a0b0b;color:#FC5454;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ replay }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+      REPLAY
+    </div>
+    <div style="color:#6a6a6a;font-size:11.5px;font-weight:300;line-height:1.6;">Tap the card to skip to the final frame. Theme, RTL, reduce-motion and the mock data live in Tweaks. Prefix a block with "-" to mark it missed.</div>
+  </div>
+
+  <sc-for list="{{ frames }}" as="f" hint-placeholder-count="2">
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div style="color:#6a6a6a;font-size:11px;font-weight:600;letter-spacing:2.4px;">{{ f.themeLabel }}</div>
+      <div style="{{ f.phone }}">
+
+        <div style="position:absolute;inset:0;padding:60px 24px 0;display:grid;gap:12px;align-content:start;">
+          <div style="{{ f.mockTitle }}">{{ f.mockTitleText }}</div>
+          <sc-for list="{{ f.mockRows }}" as="r" hint-placeholder-count="5">
+            <div style="{{ r.style }}">
+              <div style="{{ r.bar }}"></div>
+              <div style="{{ r.text }}">{{ r.name }}</div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="{{ f.overlay }}"></div>
+
+        <div style="{{ f.status }}">
+          <div>11:40</div>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <div style="{{ f.statusIcon1 }}"></div>
+            <div style="{{ f.statusIcon2 }}"></div>
+          </div>
+        </div>
+
+        <div style="{{ f.card }}" dir="{{ f.dir }}" onClick="{{ skip }}">
+          <div style="{{ f.radial }}"></div>
+          <sc-for list="{{ f.dust }}" as="d" hint-placeholder-count="0">
+            <div style="{{ d.style }}"></div>
+          </sc-for>
+
+          <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+            <div style="display:flex;align-items:center;gap:7px;">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 6.5v11M17.5 6.5v11M3 9.5v5M21 9.5v5M6.5 12h11"></path></svg>
+              <div style="{{ f.trainingStyle }}">{{ f.s.training }}</div>
+            </div>
+            <div style="{{ f.dateStyle }}">{{ f.date }}</div>
+          </div>
+
+          <div style="{{ f.a1 }}">{{ f.eyebrow }}</div>
+
+          <div style="position:relative;width:212px;height:212px;margin:12px auto 0;">
+            <div style="{{ f.pulse }}"></div>
+            <div style="{{ f.bloom }}"></div>
+            {{ f.ringEl }}
+            <sc-for list="{{ f.sparks }}" as="p" hint-placeholder-count="0">
+              <div style="{{ p.style }}"></div>
+            </sc-for>
+            <div style="position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;">
+              <div style="{{ f.numStyle }}">{{ f.count }}<span style="{{ f.pctStyle }}">%</span></div>
+              <div style="{{ f.unitStyle }}">{{ f.s.unit }}</div>
+            </div>
+          </div>
+
+          <div style="{{ f.a2 }}">
+            <div style="{{ f.titleStyle }}">{{ f.programName }}</div>
+            <div style="{{ f.dayStyle }}">{{ f.dayName }}</div>
+          </div>
+
+          <div style="{{ f.a3 }}">
+            <sc-for list="{{ f.stats }}" as="s" hint-placeholder-count="4">
+              <div style="{{ s.style }}">
+                <div style="{{ s.labelStyle }}">{{ s.label }}</div>
+                <div style="display:flex;align-items:baseline;gap:4px;margin-top:4px;direction:ltr;unicode-bidi:isolate;white-space:nowrap;">
+                  <span style="{{ s.valStyle }}">{{ s.val }}</span>
+                  <span style="{{ s.subStyle }}">{{ s.sub }}</span>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+
+          <div style="{{ f.a4 }}">
+            <div style="{{ f.pill }}" dir="ltr">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#FC5454" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"></path><path d="M5 20l7-7 7 7"></path></svg>
+              <div>LEAP ARENA</div>
+            </div>
+          </div>
+        </div>
+
+        <div style="{{ f.actions }}" dir="{{ f.dir }}">
+          <div style="{{ f.b1 }}">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+            {{ f.s.share }}
+          </div>
+          <div style="{{ f.b2 }}" onClick="{{ replay }}">{{ f.s.done }}</div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;blocks&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;Warm-up, Skills, Strength, Accessories, Cool-down&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;programName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;PULL-UP MASTERY&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;dayName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;WEEK 2 · DAY 3: PULL&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;date&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;OCT 12, 2026&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;totalReps&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:312,&quot;min&quot;:0,&quot;max&quot;:5000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;exercisesDone&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:11,&quot;min&quot;:0,&quot;max&quot;:60,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;durationSeconds&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:2892,&quot;min&quot;:0,&quot;max&quot;:14400,&quot;unit&quot;:&quot;s&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;bodyweightKg&quot;:{&quot;editor&quot;:&quot;float&quot;,&quot;default&quot;:78.5,&quot;min&quot;:0,&quot;max&quot;:200,&quot;step&quot;:0.5,&quot;unit&quot;:&quot;kg (0 = not logged)&quot;,&quot;tsType&quot;:&quot;number | null&quot;,&quot;section&quot;:&quot;Data&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;both&quot;,&quot;options&quot;:[&quot;both&quot;,&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;rtl&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+const RED = '#FC5454';
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const eOut = (t) => 1 - Math.pow(1 - t, 3);
+const eInOut = (t) => (t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2);
+const eBack = (t) => { const c = 1.5; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const accentFor = (n) => { const s = n.toLowerCase(); if (s.includes('warm')) return '#C9A227'; if (s.includes('skill')) return '#8b5cf6'; if (s.includes('strength')) return '#FC5454'; if (s.includes('accessor')) return '#f97316'; if (s.includes('cool')) return '#5b8def'; return RED; };
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255]; };
+const R = 90, C = 2 * Math.PI * R, SW = 12, SZ = 212, MID = 106;
+const SPARKS = Array.from({ length: 22 }, (_, i) => ({ a: (i / 22) * Math.PI * 2 + ((i * 37) % 10) / 30, dist: 40 + ((i * 29) % 34), s: 4 + (i % 3), d: (i % 5) * 0.03, w: i % 4 === 0 }));
+const DUST = Array.from({ length: 13 }, (_, i) => ({ x: (i * 53 + 17) % 330, y: (i * 97 + 40) % 600, s: 2 + (i % 3), v: 12 + (i % 4) * 5 }));
+const STR = {
+  en: { training: 'TRAINING', eyebrow: 'WORKOUT COMPLETE', eyebrow0: 'SESSION LOGGED', unit: 'COMPLETE', blocks: 'BLOCKS DONE', duration: 'DURATION', reps: 'TOTAL REPS', ex: 'EXERCISES', bw: 'BODYWEIGHT', kg: 'KG', share: 'SHARE', done: 'DONE' },
+  ar: { training: 'تدريب', eyebrow: 'اكتمل التمرين', eyebrow0: 'تم تسجيل الجلسة', unit: 'مكتمل', blocks: 'البلوكات', duration: 'المدة', reps: 'إجمالي العدّات', ex: 'التمارين', bw: 'وزن الجسم', kg: 'كغ', share: 'مشاركة', done: 'تم' },
+};
+const TH = {
+  dark: { screen: '#000', mock: '#0d0d0d', mockB: '#1a1a1a', t1: '#fff', t2: '#d0d0d0', t3: '#a0a0a0', t4: '#8a8a8a', t5: '#6a6a6a', card: '#0e0808', cardB: 'rgba(252,84,84,.5)', glowK: 1, radial: 0.15, statsBg: '#150b0b', statsB: '#2a1616', track: '#1f1414', pill: '#3a1a1a', doneB: '#3a2222', doneT: '#d0d0d0', backdrop: 'rgba(0,0,0,.78)', dust: 'rgba(255,140,140,.6)', frame: '#1a1a1a' },
+  light: { screen: '#f3f1ef', mock: '#fff', mockB: '#e8e4e1', t1: '#141010', t2: '#3a3434', t3: '#5e5858', t4: '#6e6868', t5: '#7a7474', card: '#fff', cardB: 'rgba(252,84,84,.45)', glowK: 0.55, radial: 0.09, statsBg: '#fbf6f5', statsB: '#f0e2e0', track: '#f1e8e7', pill: '#efd9d7', doneB: '#e6d3d1', doneT: '#3a3434', backdrop: 'rgba(30,18,18,.42)', dust: 'rgba(252,84,84,.35)', frame: '#d8d4d0' },
+};
+const FIVE = 'Warm-up, Skills, Strength, Accessories, Cool-down';
+const PRESETS = {
+  full: { label: 'FULL 5/5', blocks: FIVE },
+  partial: { label: '3 OF 5', blocks: 'Warm-up, -Skills, Strength, -Accessories, Cool-down', totalReps: 196, exercisesDone: 7, durationSeconds: 1935 },
+  one: { label: '1 BLOCK', blocks: 'Strength', totalReps: 64, exercisesDone: 3, durationSeconds: 1140, programName: 'STRENGTH BASICS', dayName: 'WEEK 1 · DAY 1: PUSH' },
+  eight: { label: '8 BLOCKS', blocks: 'Warm-up, Skills, Skills, Strength, Strength, Accessories, Core, Cool-down', totalReps: 488, exercisesDone: 19, durationSeconds: 4310 },
+  zero: { label: '0%', blocks: '-Warm-up, -Skills, -Strength, -Accessories, -Cool-down', totalReps: 0, exercisesDone: 0, durationSeconds: 312, bodyweightKg: 0 },
+  long: { label: 'LONG DATA', blocks: 'Warm-up, Skills, Strength, Strength, -Accessories, Cool-down', programName: 'ADVANCED STREET WORKOUT FOUNDATIONS PROGRAM', dayName: 'WEEK 11 · DAY 5: FULL BODY PULL', totalReps: 1240, exercisesDone: 18, durationSeconds: 5530, bodyweightKg: 0 },
+  rtl: { label: 'ARABIC RTL', blocks: 'Warm-up, Skills, Strength, -Accessories, Cool-down', programName: 'برنامج إتقان العقلة', dayName: 'الأسبوع 2 · اليوم 3: سحب', rtl: true },
+};
+const fmtDur = (s) => { s = Math.max(0, Math.round(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; };
+
+class Component extends DCLogic {
+  state = { t: 0, scen: 'tweaks' };
+  componentDidMount() {
+    this.t0 = performance.now();
+    const loop = () => { this.setState({ t: (performance.now() - this.t0) / 1000 }); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  renderVals() {
+    const h = React.createElement;
+    const P = this.props;
+    const base = { blocks: P.blocks ?? FIVE, programName: P.programName ?? 'PULL-UP MASTERY', dayName: P.dayName ?? 'WEEK 2 · DAY 3: PULL', date: P.date ?? 'OCT 12, 2026', totalReps: P.totalReps ?? 312, exercisesDone: P.exercisesDone ?? 11, durationSeconds: P.durationSeconds ?? 2892, bodyweightKg: P.bodyweightKg ?? 78.5, rtl: !!P.rtl };
+    const D0 = this.state.scen === 'tweaks' ? base : { ...base, ...PRESETS[this.state.scen], rtl: PRESETS[this.state.scen].rtl || base.rtl };
+    const reduce = !!P.reduceMotion;
+    const raw = this.state.t;
+    const T = reduce ? 100 : raw;
+    const master = reduce ? clamp(raw / 0.2) : 1;
+    const rtl = D0.rtl;
+    const S = rtl ? STR.ar : STR.en;
+    const ls = (v) => (rtl ? 0 : v);
+
+    let blocks = String(D0.blocks).split(',').map((x) => x.trim()).filter(Boolean).map((x) => { const missed = x.startsWith('-'); const name = missed ? x.slice(1).trim() : x; return { name, missed, color: accentFor(name) }; });
+    if (!blocks.length) blocks = [{ name: 'Strength', missed: false, color: RED }];
+    const n = blocks.length;
+    const done = blocks.filter((b) => !b.missed).length;
+    const pct = Math.round((done / n) * 100);
+    const full = pct === 100, none = done === 0;
+
+    const Dh = Math.max(1.4, Math.min(2.2, 1.2 + n * 0.125));
+    const segDur = n === 1 ? Dh : Math.min(0.45, (Dh / n) * 1.4);
+    const step = n === 1 ? 0 : (Dh - segDur) / (n - 1);
+    const L = 0.6 + Dh;
+    const F = L + 0.35;
+    const C0 = full ? F : L;
+    const locked = T >= L;
+
+    const gapDeg = n === 1 ? 0 : Math.min(8, (360 / n) * 0.12);
+    const fuse = full ? eInOut(clamp((T - L) / 0.35)) : 0;
+    const gapLen = (gapDeg / 360) * C * (1 - fuse);
+    const segLen = (C - n * gapLen) / n;
+    const segs = blocks.map((b, i) => {
+      const st = 0.6 + i * step;
+      const raw = clamp((T - st) / segDur);
+      const p = b.missed ? 0 : (n === 1 ? eInOut(raw) : eOut(raw));
+      const land = st + segDur;
+      const flash = !b.missed && T >= land ? 1 - clamp((T - land) / 0.3) : 0;
+      const markIn = b.missed ? eOut(clamp((T - st - segDur * 0.5) / 0.25)) : 0;
+      const start = i * (segLen + gapLen) + gapLen / 2;
+      return { ...b, st, land, p, flash, markIn, start };
+    });
+    const frac = done ? segs.reduce((a, s) => a + s.p, 0) / done : 0;
+    const count = Math.round(pct * frac);
+
+    const lockAge = T - L;
+    const bump = !none && locked && lockAge < 0.4 ? Math.sin((lockAge / 0.4) * Math.PI) : 0;
+    const bump2 = full && T >= F && T < F + 0.35 ? Math.sin(((T - F) / 0.35) * Math.PI) : 0;
+    const whiteFlash = full && T >= F ? 1 - clamp((T - F) / 0.45) : 0;
+    const burst = full && T >= F ? clamp((T - F) / 0.9) : 1;
+    const pulseP = clamp(lockAge / 0.9);
+
+    let glow;
+    if (!locked) glow = 0.12 + frac * 0.1;
+    else if (none) glow = 0.12;
+    else if (full) glow = T < F ? 0.5 : 0.3 + 0.2 * (1 - clamp((T - F) / 0.9));
+    else glow = 0.22 + 0.1 * (1 - pulseP);
+    const glowSpread = 60 + (locked && !none ? 40 * (1 - clamp((T - (full ? F : L)) / 0.9)) : 0);
+
+    const cues = [];
+    segs.forEach((s) => { if (!s.missed) cues.push({ t: s.land, label: `LIGHT TICK · ${s.name.toUpperCase()}`, c: s.color }); });
+    cues.push({ t: L, label: none ? 'SOFT HAPTIC · NO BELL' : 'SUCCESS HAPTIC + BELL', c: none ? '#8a8a8a' : RED });
+    if (full) cues.push({ t: F, label: 'FUSE · RIGID HAPTIC', c: '#fff' });
+    const cue = cues.filter((c) => c.t <= raw).pop();
+    const cueOn = cue && raw - cue.t < 0.4 && !reduce;
+
+    const fade = (st, dy = 14, dur = 0.5) => { const p = eOut(clamp((T - st) / dur)); return { opacity: p, transform: `translateY(${(1 - p) * dy}px)` }; };
+    const cardP = reduce ? 1 : clamp((T - 0.05) / 0.55);
+    const btn = (st) => { const p = eOut(clamp((T - st) / 0.5)); return { opacity: p * master, transform: `translateY(${(1 - p) * 24}px)` }; };
+
+    const reps = Math.max(0, D0.totalReps | 0);
+    const bw = Number(D0.bodyweightKg) > 0 ? Number(D0.bodyweightKg) : null;
+    const statsRaw = [
+      { label: S.blocks, val: String(done), sub: `/${n}` },
+      { label: S.duration, val: fmtDur(D0.durationSeconds), sub: '' },
+      { label: S.reps, val: reps.toLocaleString('en-US'), sub: '' },
+      { label: S.ex, val: String(Math.max(0, D0.exercisesDone | 0)), sub: '' },
+    ];
+    if (bw) statsRaw.push({ label: S.bw, val: String(Math.round(bw * 10) / 10), sub: S.kg });
+    const five = statsRaw.length === 5;
+
+    const name = String(D0.programName);
+    const nameSize = name.length <= 22 ? 30 : name.length <= 32 ? 26 : 22;
+    const font = rtl ? "'Cairo','Oswald',sans-serif" : "'Oswald','Arial Narrow',sans-serif";
+    const ltr = { direction: 'ltr', unicodeBidi: 'isolate' };
+
+    const themes = (P.theme ?? 'both') === 'both' ? ['dark', 'light'] : [P.theme];
+    const frames = themes.map((tk) => {
+      const th = TH[tk];
+      const ringEl = h('svg', { width: SZ, height: SZ, viewBox: `0 0 ${SZ} ${SZ}`, style: { position: 'absolute', inset: 0, overflow: 'visible' } },
+        h('g', { transform: rtl ? `translate(${SZ},0) scale(-1,1)` : undefined },
+          h('g', { transform: `rotate(-90 ${MID} ${MID})` },
+            ...segs.map((s, i) => h('g', { key: i },
+              h('circle', { cx: MID, cy: MID, r: R, fill: 'none', stroke: th.track, strokeWidth: SW, strokeDasharray: `${segLen} ${C}`, strokeDashoffset: -s.start }),
+              s.p > 0 && h('circle', { cx: MID, cy: MID, r: R, fill: 'none', stroke: s.color, strokeOpacity: (0.16 + s.flash * 0.25) * th.glowK, strokeWidth: SW + 10, strokeDasharray: `${segLen * s.p} ${C}`, strokeDashoffset: -s.start }),
+              s.p > 0 && h('circle', { cx: MID, cy: MID, r: R, fill: 'none', stroke: s.color, strokeWidth: SW, strokeDasharray: `${segLen * s.p} ${C}`, strokeDashoffset: -s.start }),
+              s.flash > 0 && h('circle', { cx: MID, cy: MID, r: R, fill: 'none', stroke: '#fff', strokeOpacity: s.flash * 0.7, strokeWidth: SW, strokeDasharray: `${segLen * s.p} ${C}`, strokeDashoffset: -s.start }),
+              s.missed && s.markIn > 0 && (() => { const a = ((s.start + segLen / 2) / C) * Math.PI * 2; return h('circle', { cx: MID + R * Math.cos(a), cy: MID + R * Math.sin(a), r: 4 * (0.6 + 0.4 * s.markIn), fill: th.card, stroke: th.t5, strokeWidth: 1.5, opacity: s.markIn }); })()
+            )),
+            whiteFlash > 0 && h('circle', { cx: MID, cy: MID, r: R, fill: 'none', stroke: '#fff', strokeOpacity: whiteFlash * 0.85, strokeWidth: SW + 2 * whiteFlash })
+          )));
+
+      const sparkCols = segs.filter((s) => !s.missed).map((s) => s.color);
+      const sparks = full && T >= F && burst < 1 ? SPARKS.map((sp, i) => {
+        const p = clamp((burst - sp.d) / (1 - sp.d)), ep = eOut(p);
+        const a = rtl ? Math.PI - sp.a : sp.a;
+        const r = R + 4 + ep * sp.dist;
+        const x = MID + r * Math.cos(a), y = MID + r * Math.sin(a);
+        const col = sp.w ? '#fff' : sparkCols[i % sparkCols.length];
+        return { style: { position: 'absolute', left: x - sp.s / 2, top: y - sp.s / 2, width: sp.s, height: sp.s, borderRadius: 1, background: col, opacity: p > 0 ? 1 - p : 0, transform: `rotate(${45 + p * 90}deg)`, boxShadow: `0 0 ${sp.s * 2}px ${col}`, pointerEvents: 'none' } };
+      }) : [];
+
+      const dust = DUST.map((d) => ({ style: { position: 'absolute', left: d.x + Math.sin((reduce ? 0 : raw) * 1.3 + d.x) * 4, top: ((d.y - (reduce ? 0 : raw) * d.v) % 600 + 600) % 600, width: d.s, height: d.s, borderRadius: '50%', background: none ? th.t5 : th.dust, opacity: clamp((T - C0 - 0.3) / 1) * (none ? 0.3 : 0.55), pointerEvents: 'none' } }));
+
+      const stats = statsRaw.map((s, i) => {
+        const span = five ? (i < 3 ? 2 : 3) : 3;
+        const long = five && i < 3 ? s.val.length > 5 : s.val.length > 6;
+        return {
+          label: s.label, val: s.val, sub: s.sub,
+          style: { gridColumn: `span ${span}`, background: th.statsBg, padding: '14px 16px', minWidth: 0 },
+          labelStyle: { color: th.t4, fontSize: rtl ? 12 : 10.5, fontWeight: 500, letterSpacing: ls(2), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: rtl ? 'right' : 'left' },
+          valStyle: { color: th.t1, fontFamily: "'Oswald',sans-serif", fontSize: long ? 20 : 24, fontWeight: 700, lineHeight: 1.1, fontVariantNumeric: 'tabular-nums', ...(rtl ? { marginInlineStart: 'auto' } : {}) },
+          subStyle: { color: th.t5, fontSize: 13, fontWeight: 500, fontFamily: s.sub === STR.ar.kg ? "'Cairo',sans-serif" : "'Oswald',sans-serif" },
+        };
+      });
+      if (rtl) stats.forEach((s) => { s.style.textAlign = 'right'; });
+
+      const pr = hexRgb(RED);
+      return {
+        themeLabel: tk === 'dark' ? 'DARK' : 'LIGHT',
+        dir: rtl ? 'rtl' : 'ltr',
+        s: S, date: D0.date, programName: name, dayName: D0.dayName, count, ringEl, sparks, dust, stats,
+        eyebrow: none ? S.eyebrow0 : S.eyebrow,
+        phone: { position: 'relative', width: 402, height: 874, borderRadius: 44, overflow: 'hidden', background: th.screen, border: `1px solid ${th.frame}`, boxShadow: '0 40px 90px rgba(0,0,0,.9)', flexShrink: 0, fontFamily: font },
+        mockTitle: { color: th.t1, fontSize: 30, fontWeight: 700, letterSpacing: 1.4, fontFamily: "'Oswald',sans-serif", marginBottom: 8 },
+        mockTitleText: 'DAY 3 · PULL',
+        mockRows: segs.map((s) => ({ name: s.name.toUpperCase(), style: { height: 72, borderRadius: 18, background: th.mock, border: `1px solid ${th.mockB}`, display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px' }, bar: { width: 4, height: 32, borderRadius: 2, background: s.color, opacity: s.missed ? 0.3 : 1 }, text: { color: th.t3, fontSize: 15, fontWeight: 600, letterSpacing: 2, fontFamily: "'Oswald',sans-serif" } })),
+        overlay: { position: 'absolute', inset: 0, background: th.backdrop, backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', opacity: (reduce ? 1 : clamp(T / 0.35)) * master },
+        status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 30px 0', color: th.t1, fontSize: 15, fontWeight: 600, fontFamily: "'Oswald',sans-serif" },
+        statusIcon1: { width: 16, height: 10, borderRadius: 2, background: th.t1 },
+        statusIcon2: { width: 24, height: 11, borderRadius: 3, background: th.t1 },
+        card: { position: 'absolute', top: 58, left: 24, right: 24, borderRadius: 30, padding: '22px 22px 24px', background: th.card, border: `1px solid ${th.cardB}`, overflow: 'hidden', cursor: 'pointer', boxShadow: `0 0 ${glowSpread}px rgba(${pr},${glow * th.glowK})`, opacity: clamp(cardP * 1.6) * master, transform: `translateY(${(1 - eOut(cardP)) * 40}px) scale(${0.9 + 0.1 * eBack(cardP)})` },
+        radial: { position: 'absolute', inset: 0, background: `radial-gradient(ellipse at 50% 30%,rgba(${pr},${th.radial}),transparent 62%)`, pointerEvents: 'none' },
+        trainingStyle: { color: RED, fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(2.4) },
+        dateStyle: { color: th.t5, fontSize: 11, fontWeight: 500, letterSpacing: 1.6, fontFamily: "'Oswald',sans-serif", ...ltr },
+        a1: { position: 'relative', marginTop: 20, textAlign: 'center', color: th.t2, fontSize: rtl ? 14 : 12, fontWeight: 600, letterSpacing: ls(4), ...fade(0.35, 8) },
+        pulse: { position: 'absolute', inset: 8, borderRadius: '50%', border: `2px solid ${RED}`, opacity: locked && !none ? (1 - pulseP) * (full ? 0.7 : 0.4) : 0, transform: `scale(${1 + eOut(pulseP) * (full ? 0.45 : 0.25)})` },
+        bloom: { position: 'absolute', inset: 8, borderRadius: '50%', background: `radial-gradient(circle, rgba(${pr},${(full ? 0.32 : 0.16) * (1 - pulseP) * th.glowK}) 0%, transparent 70%)`, opacity: locked && !none ? 1 : 0 },
+        numStyle: { color: th.t1, fontFamily: "'Oswald',sans-serif", fontSize: 76, fontWeight: 700, lineHeight: 1, fontVariantNumeric: 'tabular-nums', display: 'flex', alignItems: 'baseline', ...ltr, transform: `scale(${1 + bump * (full ? 0.12 : 0.06) + bump2 * 0.1})`, textShadow: locked && !none ? `0 0 ${24 * (1 - pulseP) + 10}px rgba(${pr},${0.5 * th.glowK})` : 'none' },
+        pctStyle: { fontSize: 30, fontWeight: 600, color: th.t3, marginLeft: 2 },
+        unitStyle: { color: th.t4, fontSize: rtl ? 13 : 11, fontWeight: 500, letterSpacing: ls(3), marginTop: 6 },
+        a2: { position: 'relative', marginTop: 16, ...fade(C0 + 0.25) },
+        titleStyle: { color: th.t1, fontSize: nameSize, fontWeight: 700, letterSpacing: ls(1.4), lineHeight: rtl ? 1.3 : 1.05, textAlign: 'center', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textWrap: 'balance' },
+        dayStyle: { color: th.t3, fontSize: 13, fontWeight: 500, letterSpacing: ls(1.6), textAlign: 'center', marginTop: 6 },
+        a3: { position: 'relative', marginTop: 18, display: 'grid', gridTemplateColumns: 'repeat(6,minmax(0,1fr))', gap: 1, background: th.statsB, border: `1px solid ${th.statsB}`, borderRadius: 18, overflow: 'hidden', ...fade(C0 + 0.4) },
+        a4: { position: 'relative', marginTop: 18, display: 'flex', justifyContent: 'center', ...fade(C0 + 0.6, 6) },
+        pill: { height: 30, padding: '0 14px', borderRadius: 15, border: `1px solid ${th.pill}`, display: 'flex', alignItems: 'center', gap: 8, color: th.t1, fontFamily: "'Michroma','Oswald',sans-serif", fontSize: 11, letterSpacing: 2 },
+        actions: { position: 'absolute', left: 24, right: 24, bottom: 36, display: 'grid', gap: 10 },
+        b1: { height: 56, borderRadius: 16, background: RED, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10, fontSize: 16, fontWeight: 700, letterSpacing: ls(2.6), cursor: 'pointer', boxShadow: `0 10px 30px rgba(${pr},.3)`, ...btn(C0 + 0.8) },
+        b2: { height: 48, borderRadius: 16, border: `1.5px solid ${th.doneB}`, color: th.doneT, display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14, fontWeight: 600, letterSpacing: ls(2.4), cursor: 'pointer', ...btn(C0 + 0.9) },
+      };
+    });
+
+    const scenarios = [['tweaks', 'TWEAKS'], ...Object.entries(PRESETS).map(([k, v]) => [k, v.label])].map(([k, label]) => {
+      const on = this.state.scen === k;
+      return { label, pick: () => { this.setState({ scen: k }); this.t0 = performance.now(); }, style: { height: 28, padding: '0 10px', borderRadius: 14, border: `1px solid ${on ? RED : '#2a2a2a'}`, background: on ? 'rgba(252,84,84,.12)' : 'transparent', color: on ? '#fff' : '#8a8a8a', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, letterSpacing: 1.4, cursor: 'pointer' } };
+    });
+
+    return {
+      frames, scenarios,
+      replay: () => { this.t0 = performance.now(); },
+      skip: () => { if (performance.now() - this.t0 < 8000) this.t0 = performance.now() - 8000; },
+      cueLabel: cue ? cue.label : 'WAITING…',
+      cueStyle: { height: 32, borderRadius: 10, border: `1px solid ${cueOn ? cue.c : '#1c1c1c'}`, color: cueOn ? '#fff' : '#6a6a6a', background: cueOn ? 'rgba(255,255,255,.04)' : 'transparent', display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontWeight: 600, letterSpacing: 1.6, transition: 'border-color .15s, color .15s' },
+    };
+  }
+}
+</script>
+</body>
+</html>
