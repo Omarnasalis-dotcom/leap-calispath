@@ -233,6 +233,7 @@ export function ChallengeOverview(p: Props) {
               tokens={t} type={type} live={p.live} rows={p.boardRows} myId={p.myId} myName={p.myName}
               showAll={p.showAll} onToggleAll={p.onToggleAll}
               inCommunity={p.inCommunity} scope={p.scope} onScope={p.onScope} gender={p.gender} onGender={p.onGender}
+              challengeTitle={p.challenge.title} weekRange={ltr(rangeLabel(p.weekStart))}
             />
           </>
         )}

@@ -30,7 +30,10 @@ export type AnalyticsEvent =
   | 'team_created'
   | 'team_joined'
   | 'team_attempt_started'
-  | 'team_attempt_submitted';
+  | 'team_attempt_submitted'
+  // Leaderboard share card (assets/design_handoff_leaderboard_share)
+  | 'leaderboard_share_opened'
+  | 'leaderboard_shared';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).

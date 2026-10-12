@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7a7a;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Michroma&family=Cairo:wght@400;500;600;700&display=swap">
+</helmet>
+<div style="min-height:100vh;display:flex;align-items:flex-start;justify-content:center;gap:28px;padding:40px 20px;box-sizing:border-box;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;flex-wrap:wrap;">
+
+  <div style="width:236px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">LEADERBOARD · SHARE CARD</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">Sibling of the PR and Workout Complete cards. The top 3 rise on a podium (3rd, then 2nd, then 1st). When 1st lands, the card locks. Then your row slides in and your rank counts down to where you stand.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#8a8a8a;font-size:12px;font-weight:300;line-height:1.7;">0.0s card rises<br>0.75 / 1.0 / 1.25s blocks rise 3 → 2 → 1<br>LOCK 1.7s 1st lands: shimmer, sparks, crown<br>+0.25s YOU row · +0.4s rank counts down<br>+0.6s logo · +0.8s actions</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">SCENARIO</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <sc-for list="{{ scenarios }}" as="c" hint-placeholder-count="12">
+        <div style="{{ c.style }}" onClick="{{ c.pick }}">{{ c.label }}</div>
+      </sc-for>
+    </div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">HAPTIC / SOUND CUE</div>
+    <div style="{{ cueStyle }}">{{ cueLabel }}</div>
+    <div style="height:44px;border-radius:12px;border:1px solid #3a1a1a;background:#1a0b0b;color:#FC5454;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ replay }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+      REPLAY
+    </div>
+    <div style="color:#6a6a6a;font-size:11.5px;font-weight:300;line-height:1.6;">Tap the card to skip to the final frame. Mock data, theme, RTL and reduce-motion are in Tweaks. Write top3 as "name=score; name=score" with 1st first. For Well-Rounded, the score is "static/power/endurance".</div>
+  </div>
+
+  <sc-for list="{{ frames }}" as="f" hint-placeholder-count="2">
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div style="color:#6a6a6a;font-size:11px;font-weight:600;letter-spacing:2.4px;">{{ f.themeLabel }}</div>
+      <div style="{{ f.phone }}">
+
+        <div style="position:absolute;inset:0;padding:64px 24px 0;display:grid;gap:10px;align-content:start;">
+          <div style="{{ f.mockTitle }}">LEADERBOARD</div>
+          <sc-for list="{{ f.mockRows }}" as="r" hint-placeholder-count="8">
+            <div style="{{ r.style }}">
+              <div style="{{ r.num }}">{{ r.n }}</div>
+              <div style="{{ r.dot }}"></div>
+              <div style="{{ r.bar }}"></div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="{{ f.overlay }}"></div>
+
+        <div style="{{ f.status }}">
+          <div>11:40</div>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <div style="{{ f.statusIcon1 }}"></div>
+            <div style="{{ f.statusIcon2 }}"></div>
+          </div>
+        </div>
+
+        <div style="position:absolute;inset:0;padding:50px 24px 24px;display:flex;flex-direction:column;justify-content:center;">
+          <div style="{{ f.card }}" dir="{{ f.dir }}" onClick="{{ skip }}">
+            <div style="{{ f.radial }}"></div>
+            <sc-for list="{{ f.dust }}" as="d" hint-placeholder-count="0">
+              <div style="{{ d.style }}"></div>
+            </sc-for>
+
+            <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+              <div style="{{ f.headLeft }}">
+                <sc-if value="{{ f.isStrength }}" hint-placeholder-val="{{ true }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M2 20l7-12 4 6 3-4 6 10z"></path><path d="M9 8l1.5 2.5"></path></svg>
+                </sc-if>
+                <sc-if value="{{ f.isWeekly }}" hint-placeholder-val="{{ false }}">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4"></path><path d="M5 4h12l-2.5 4L17 12H5"></path></svg>
+                </sc-if>
+                <sc-if value="{{ f.isWR }}" hint-placeholder-val="{{ false }}">
+                  <svg width="15" height="13" viewBox="0 0 26 22" fill="none" stroke-width="2.4"><circle cx="9" cy="8" r="5.5" stroke="#8E6BFF"></circle><circle cx="17" cy="8" r="5.5" stroke="#FF4A3D"></circle><circle cx="13" cy="15" r="5.5" stroke="#FF6B2C"></circle></svg>
+                </sc-if>
+                <div>{{ f.boardLabel }}</div>
+              </div>
+              <div style="{{ f.dateStyle }}">{{ f.date }}</div>
+            </div>
+
+            <div style="{{ f.a1 }}">{{ f.eyebrow }}</div>
+
+            <div style="{{ f.a2 }}">
+              <div style="{{ f.titleStyle }}">{{ f.title }}</div>
+              <div style="{{ f.subRow }}">
+                <sc-if value="{{ f.showLive }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ f.liveDot }}"></div>
+                </sc-if>
+                <div style="{{ f.subStyle }}">{{ f.subLine }}</div>
+              </div>
+              <sc-if value="{{ f.community }}" hint-placeholder-val="{{ false }}">
+                <div style="display:flex;justify-content:center;margin-top:10px;">
+                  <div style="{{ f.chip }}">
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4"></path><path d="M18.5 14.8c1.6.8 2.6 2.6 3 5.2"></path></svg>
+                    <div>{{ f.s.comm }}</div>
+                  </div>
+                </div>
+              </sc-if>
+            </div>
+
+            <div style="{{ f.podium }}" dir="ltr">
+              <sc-for list="{{ f.places }}" as="pl" hint-placeholder-count="3">
+                <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;">
+                  <div style="{{ pl.top }}">
+                    <div style="{{ pl.avWrap }}">
+                      <div style="{{ pl.pulse }}"></div>
+                      <sc-if value="{{ pl.crown }}" hint-placeholder-val="{{ false }}">
+                        <div style="{{ pl.crownStyle }}">
+                          <svg width="22" height="16" viewBox="0 0 22 16"><path d="M1.5 4.5l5 4.2L11 1.5l4.5 7.2 5-4.2-1.8 10H3.3z" fill="#E8B64C"></path></svg>
+                        </div>
+                      </sc-if>
+                      <div style="{{ pl.av }}">{{ pl.initials }}</div>
+                      <sc-for list="{{ pl.sparks }}" as="p" hint-placeholder-count="0">
+                        <div style="{{ p.style }}"></div>
+                      </sc-for>
+                    </div>
+                    <div style="{{ pl.nameStyle }}">{{ pl.name }}</div>
+                    <div style="{{ pl.scoreRow }}">
+                      <span style="{{ pl.scoreStyle }}">{{ pl.score }}</span>
+                      <span style="{{ pl.unitStyle }}">{{ pl.unit }}</span>
+                    </div>
+                    <sc-if value="{{ pl.hasSplit }}" hint-placeholder-val="{{ false }}">
+                      <div style="{{ pl.splitWrap }}">
+                        <sc-for list="{{ pl.split }}" as="sg" hint-placeholder-count="3">
+                          <div style="{{ sg.style }}"></div>
+                        </sc-for>
+                      </div>
+                    </sc-if>
+                  </div>
+                  <div style="{{ pl.clip }}">
+                    <div style="{{ pl.block }}">
+                      <div style="{{ pl.shimmer }}"></div>
+                      <div style="{{ pl.youPulse }}"></div>
+                      <div style="{{ pl.numStyle }}">{{ pl.n }}</div>
+                    </div>
+                  </div>
+                </div>
+              </sc-for>
+            </div>
+
+            <div style="{{ f.youWrap }}">
+              <div style="display:flex;align-items:center;gap:11px;">
+                <div style="{{ f.youRankStyle }}">{{ f.youRank }}</div>
+                <div style="{{ f.youAv }}">{{ f.youInitials }}</div>
+                <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+                  <div style="display:flex;align-items:center;gap:6px;min-width:0;">
+                    <div style="{{ f.youNameStyle }}">{{ f.youName }}</div>
+                    <div style="{{ f.youBadge }}">{{ f.s.you }}</div>
+                  </div>
+                  <div style="{{ f.youOfStyle }}">{{ f.youOf }}</div>
+                </div>
+                <div style="{{ f.youScoreRow }}">
+                  <span style="{{ f.youScoreStyle }}">{{ f.youScore }}</span>
+                  <span style="{{ f.youUnitStyle }}">{{ f.unit }}</span>
+                </div>
+              </div>
+              <div style="{{ f.youLine }}">
+                <span style="{{ f.gapNumStyle }}">{{ f.gapNum }}</span>
+                <span>{{ f.gapText }}</span>
+              </div>
+            </div>
+
+            <div style="{{ f.a4 }}">
+              <div style="{{ f.pill }}" dir="ltr">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"></path><path d="M5 20l7-7 7 7"></path></svg>
+                <div style="{{ f.pillText }}">LEAP ARENA</div>
+              </div>
+            </div>
+          </div>
+
+          <div style="{{ f.actions }}" dir="{{ f.dir }}">
+            <div style="{{ f.b1 }}" onClick="{{ replay }}">{{ f.s.done }}</div>
+            <div style="{{ f.b2 }}">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </sc-for>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;variant&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;Strength&quot;,&quot;options&quot;:[&quot;Strength&quot;,&quot;Weekly Challenge&quot;,&quot;Well-Rounded&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;date&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;OCT 12, 2026&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;title&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;STRATEGOS&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;subLine&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;TIER 6 · BEST TRIAL TIME&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;live&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;communityScoped&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;scoreType&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;reps&quot;,&quot;options&quot;:[&quot;reps&quot;,&quot;time&quot;,&quot;rounds&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Board&quot;},&quot;top3&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;kaito.moves=1:58; zeyad_pulls=2:03; nour.static=2:09&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Athletes&quot;},&quot;totalWarriors&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:238,&quot;min&quot;:1,&quot;max&quot;:100000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Athletes&quot;},&quot;youUsername&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;ahmed.leaps&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;You&quot;},&quot;youRank&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:14,&quot;min&quot;:0,&quot;max&quot;:100000,&quot;unit&quot;:&quot;0 = not ranked&quot;,&quot;tsType&quot;:&quot;number | null&quot;,&quot;section&quot;:&quot;You&quot;},&quot;youScore&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;2:14&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;You&quot;},&quot;gapToFirst&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;0:16&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;You&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;both&quot;,&quot;options&quot;:[&quot;both&quot;,&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;rtl&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const eOut = (t) => 1 - Math.pow(1 - t, 3);
+const eOut4 = (t) => 1 - Math.pow(1 - t, 4);
+const eBack = (t) => { const c = 1.5; return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2); };
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(','); };
+const MEDAL = ['#E8B64C', '#C9CED6', '#C98B5A'];
+const WC = ['#8E6BFF', '#FF4A3D', '#FF6B2C'];
+const VARS = {
+  'Strength': { id: 'strength', label: { en: 'STRENGTH', ar: 'القوة' }, acc: '#FC5454', cardDark: '#0e0808', type: 'time' },
+  'Weekly Challenge': { id: 'weekly', label: { en: 'WEEKLY CHALLENGE', ar: 'التحدي الأسبوعي' }, acc: '#FC5454', cardDark: '#0e0808' },
+  'Well-Rounded': { id: 'wr', label: { en: 'WELL-ROUNDED', ar: 'متكامل' }, acc: '#8E6BFF', cardDark: '#0b0a12', type: 'pts' },
+};
+const STR = {
+  en: { lb: 'LEADERBOARD', fin: 'FINAL STANDINGS', comm: 'MY COMMUNITY', you: 'YOU', of: (n) => `OF ${n} WARRIORS`, to: 'TO #1', leader: 'LEADER', nr: 'NOT RANKED YET', nrSub: 'Post a score to join the board', done: 'DONE', units: { reps: 'REPS', rounds: 'ROUNDS', pts: 'PTS', time: '' } },
+  ar: { lb: 'لوحة الصدارة', fin: 'الترتيب النهائي', comm: 'مجتمعي', you: 'أنت', of: (n) => `من ${n} محارب`, to: 'للمركز الأول', leader: 'في الصدارة', nr: 'غير مصنّف بعد', nrSub: 'سجّل نتيجة لتنضم للترتيب', done: 'تم', units: { reps: 'عدّة', rounds: 'جولة', pts: 'نقطة', time: '' } },
+};
+const TH = {
+  dark: { screen: '#000', mock: '#0d0d0d', mockB: '#1a1a1a', t1: '#fff', t2: '#d0d0d0', t3: '#a0a0a0', t4: '#8a8a8a', t5: '#6a6a6a', glowK: 1, radial: 0.15, line: '#241a1a', track: '#161212', backdrop: 'rgba(0,0,0,.78)', dust: 0.6, frame: '#1a1a1a', b2: '#3a2a2a', youA: 0.09, pillA: 0.28 },
+  light: { screen: '#f3f1ef', mock: '#fff', mockB: '#e8e4e1', t1: '#141010', t2: '#3a3434', t3: '#5e5858', t4: '#6e6868', t5: '#7a7474', glowK: 0.55, radial: 0.09, line: '#eee4e2', track: '#f6f1f0', backdrop: 'rgba(30,18,18,.42)', dust: 0.35, frame: '#d8d4d0', b2: '#e6d3d1', youA: 0.06, pillA: 0.22 },
+};
+const DEF = { variant: 'Strength', date: 'OCT 12, 2026', title: 'STRATEGOS', subLine: 'TIER 6 · BEST TRIAL TIME', live: true, communityScoped: false, scoreType: 'reps', top3: 'kaito.moves=1:58; zeyad_pulls=2:03; nour.static=2:09', totalWarriors: 238, youUsername: 'ahmed.leaps', youRank: 14, youScore: '2:14', gapToFirst: '0:16', rtl: false };
+const WEEKLY = { variant: 'Weekly Challenge', title: 'PULL-UP LADDER', subLine: 'OCT 6 – OCT 12 · LIVE', live: true, communityScoped: true, scoreType: 'reps', top3: 'mo.bars=186; lina_calisthenics=171; theo.k=164', totalWarriors: 64, youRank: 9, youScore: '142', gapToFirst: '44' };
+const PRESETS = {
+  s14: { label: 'YOU #14' },
+  s1: { label: 'YOU #1', youUsername: 'kaito.moves', youRank: 1, youScore: '1:58', gapToFirst: '0' },
+  s2: { label: 'YOU #2', youUsername: 'zeyad_pulls', youRank: 2, youScore: '2:03', gapToFirst: '0:05' },
+  s238: { label: 'YOU #238', youRank: 238, youScore: '6:41', gapToFirst: '4:43' },
+  nr: { label: 'NOT RANKED', youRank: 0, youScore: '' },
+  two: { label: '2 ON BOARD', top3: 'kaito.moves=1:58; ahmed.leaps=2:14', totalWarriors: 2, youRank: 2, youScore: '2:14', gapToFirst: '0:16' },
+  one: { label: '1 ON BOARD', top3: 'ahmed.leaps=2:14', totalWarriors: 1, youRank: 1, youScore: '2:14', gapToFirst: '0' },
+  wkLive: { label: 'WEEKLY LIVE · REPS', ...WEEKLY },
+  wkFinal: { label: 'WEEKLY FINAL · TIME', ...WEEKLY, title: '100 BURPEE SPRINT', subLine: 'SEP 29 – OCT 5 · FINAL', live: false, communityScoped: false, scoreType: 'time', top3: 'rafa.runs=4:12; dina_hiit=4:40; omar.b=5:02', totalWarriors: 412, youRank: 37, youScore: '6:55', gapToFirst: '2:43' },
+  wr: { label: 'WELL-ROUNDED', variant: 'Well-Rounded', title: 'WELL-ROUNDED', subLine: 'STATIC · POWER · ENDURANCE', top3: 'kaito.moves=71.42/68.20/44.90; nour.static=82.10/49.30/39.72; zeyad_pulls=52.60/66.85/45.03', totalWarriors: 238, youRank: 21, youScore: '98.40', gapToFirst: '86.12' },
+  long: { label: 'LONG DATA', ...WEEKLY, title: 'THE ULTIMATE THIRTY DAY MUSCLE-UP ENDURANCE LADDER', subLine: 'OCT 6 – OCT 12 · LIVE', top3: 'the_longest_username_possible1=1240; calisthenics.king.of.cairo_99=1196; streetworkout_alexandria_x=1102', totalWarriors: 12840, youUsername: 'ahmed_leaps_the_mighty_warrior', youRank: 1204, youScore: '862', gapToFirst: '378' },
+  rtl: { label: 'ARABIC RTL', rtl: true, subLine: 'المستوى 6 · أفضل زمن' },
+};
+const parseScore = (s) => { s = String(s ?? '').trim(); if (!s) return null; if (s.includes(':')) return s.split(':').map(Number).reduce((a, b) => a * 60 + (b || 0), 0); const v = parseFloat(s.replace(/,/g, '')); return isNaN(v) ? null : v; };
+const fmtTime = (s) => { s = Math.max(0, Math.floor(s)); const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), ss = String(s % 60).padStart(2, '0'); return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`; };
+const fmtScore = (v, type) => type === 'time' ? fmtTime(v) : type === 'pts' ? v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : Math.round(v).toLocaleString('en-US');
+const initialsOf = (u) => { const p = String(u).split(/[._\-\s]+/).filter(Boolean); if (!p.length) return '?'; return (p.length > 1 ? p[0][0] + p[1][0] : p[0].slice(0, 2)).toUpperCase(); };
+const GEO = [{ av: 60, h: 84, rise: 1.25, num: 30 }, { av: 48, h: 60, rise: 1.0, num: 22 }, { av: 48, h: 46, rise: 0.75, num: 20 }];
+const RD = 0.45;
+const SPARKS = Array.from({ length: 18 }, (_, i) => ({ a: -Math.PI + (i / 17) * Math.PI * 1.0 + (((i * 37) % 10) - 5) / 40 + (i % 6 === 5 ? Math.PI * 0.9 : 0), dist: 36 + ((i * 29) % 36), s: 4 + (i % 3), d: (i % 5) * 0.03, w: i % 3 === 0 }));
+const DUST = Array.from({ length: 13 }, (_, i) => ({ x: (i * 53 + 17) % 330, y: (i * 97 + 40) % 640, s: 2 + (i % 3), v: 12 + (i % 4) * 5 }));
+
+class Component extends DCLogic {
+  state = { t: 0, scen: 'tweaks' };
+  componentDidMount() {
+    this.t0 = performance.now();
+    const loop = () => { this.setState({ t: (performance.now() - this.t0) / 1000 }); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  renderVals() {
+    const P = this.props;
+    const base = {}; Object.keys(DEF).forEach((k) => { base[k] = P[k] ?? DEF[k]; });
+    const pre = this.state.scen === 'tweaks' ? {} : PRESETS[this.state.scen];
+    const D = { ...base, ...pre, rtl: pre.rtl || base.rtl };
+    const V = VARS[D.variant] || VARS.Strength;
+    const type = V.type || D.scoreType || 'reps';
+    const acc = V.acc, ar = hexRgb(acc);
+    const reduce = !!P.reduceMotion;
+    const raw = this.state.t;
+    const T = reduce ? 100 : raw;
+    const master = reduce ? clamp(raw / 0.2) : 1;
+    const rtl = !!D.rtl;
+    const S = rtl ? STR.ar : STR.en;
+    const ls = (v) => (rtl ? 0 : v);
+    const ltr = { direction: 'ltr', unicodeBidi: 'isolate' };
+    const unit = S.units[type];
+
+    const entries = String(D.top3).split(';').map((x) => x.trim()).filter(Boolean).slice(0, 3).map((x) => {
+      const [name, sc] = x.split('=').map((y) => (y || '').trim());
+      let score = 0, split = null;
+      if (V.id === 'wr' && sc && sc.includes('/')) { split = sc.split('/').map((v) => parseFloat(v) || 0); score = split.reduce((a, b) => a + b, 0); }
+      else score = parseScore(sc) || 0;
+      return { name, score, split, isYou: name === D.youUsername };
+    });
+    const rank = Math.max(0, D.youRank | 0);
+    const total = Math.max(1, D.totalWarriors | 0, rank);
+    const ranked = rank > 0;
+    const onPodium = ranked && rank <= 3;
+    const youScoreV = parseScore(D.youScore);
+    const gapV = parseScore(D.gapToFirst);
+
+    const land = GEO.map((g) => g.rise + RD);
+    const L = land[0];
+    const countdown = ranked && !onPodium && rank < total;
+    const cdS = L + 0.4, cdEnd = cdS + 1.0;
+    const prog = clamp((T - 0.75) / (L - 0.75));
+    const lockAge = T - L;
+    const glow = T < L ? 0.12 + prog * 0.1 : 0.26 + 0.24 * (1 - clamp(lockAge / 0.9));
+    const glowSpread = 60 + (T >= L ? 40 * (1 - clamp(lockAge / 0.9)) : 0);
+    const sparkP = clamp(lockAge / 0.9);
+
+    const cues = [];
+    [2, 1, 0].forEach((i) => { if (entries[i]) cues.push({ t: land[i], label: `LIGHT TICK · #${i + 1} LANDS`, c: MEDAL[i] }); });
+    cues.push({ t: L, label: 'SUCCESS HAPTIC + BELL', c: acc });
+    if (onPodium) cues.push({ t: L + 0.25, label: 'LIGHT HAPTIC · YOUR PLACE', c: acc });
+    if (countdown) cues.push({ t: cdEnd, label: 'LIGHT TICK · RANK SETTLES', c: acc });
+    cues.sort((a, b) => a.t - b.t);
+    const cue = cues.filter((c) => c.t <= raw).pop();
+    const cueOn = cue && raw - cue.t < 0.4 && !reduce;
+
+    const fade = (st, dy = 14, dur = 0.5) => { const p = eOut(clamp((T - st) / dur)); return { opacity: p, transform: `translateY(${(1 - p) * dy}px)` }; };
+    const cardP = reduce ? 1 : clamp((T - 0.05) / 0.55);
+    const btn = (st) => { const p = eOut(clamp((T - st) / 0.5)); return { opacity: p * master, transform: `translateY(${(1 - p) * 24}px)` }; };
+    const font = rtl ? "'Cairo','Oswald',sans-serif" : "'Oswald','Arial Narrow',sans-serif";
+    const OS = "'Oswald',sans-serif";
+    const title = String(D.title);
+    const titleSize = title.length <= 18 ? 30 : title.length <= 30 ? 26 : 22;
+    const isArabicTitle = /[\u0600-\u06FF]/.test(title);
+
+    const themes = (P.theme ?? 'both') === 'both' ? ['dark', 'light'] : [P.theme];
+    const frames = themes.map((tk) => {
+      const th = TH[tk];
+      const cardBg = tk === 'dark' ? V.cardDark : '#fff';
+      const places = [1, 0, 2].map((i) => {
+        const g = GEO[i], e = entries[i], m = tk === 'light' && i === 1 ? '#8E949C' : MEDAL[i], mr = hexRgb(m);
+        const filled = !!e;
+        const rp = eOut(clamp((T - g.rise) / RD));
+        const la = T - land[i];
+        const settle = la > 0 && la < 0.25 ? Math.sin((la / 0.25) * Math.PI) * 3 : 0;
+        const dp = clamp((T - (land[i] - 0.05)) / 0.4);
+        const cp = eOut(clamp((T - (land[i] - 0.05)) / 0.6));
+        const you = filled && e.isYou;
+        const ring = you ? acc : m;
+        const sv = filled ? fmtScore(type === 'time' ? e.score * cp : e.score * cp, type) : '';
+        const finalLen = filled ? fmtScore(e.score, type).length : 0;
+        const first = i === 0;
+        const crownP = first && filled ? clamp(lockAge / 0.35) : 0;
+        const pulseP = first && filled ? clamp(lockAge / 0.8) : 1;
+        const shP = first && filled ? clamp(lockAge / 0.6) : 0;
+        const ypA = T - L - 0.25;
+        const youPulse = you && onPodium && ypA > 0 ? Math.max(0, Math.sin(clamp(ypA / 1.2) * Math.PI * 2)) * (1 - clamp(ypA / 1.2) * 0.5) : 0;
+        const sparkCols = V.id === 'wr' ? WC : [m, '#fff', '#F4D58A'];
+        const sparks = first && filled && T >= L && sparkP < 1 ? SPARKS.map((sp, k) => {
+          const p = clamp((sparkP - sp.d) / (1 - sp.d)), ep = eOut(p);
+          const r = g.av / 2 + 4 + ep * sp.dist;
+          const x = g.av / 2 + r * Math.cos(sp.a), y = g.av / 2 + r * Math.sin(sp.a);
+          const col = sp.w ? '#fff' : sparkCols[k % sparkCols.length];
+          return { style: { position: 'absolute', left: x - sp.s / 2, top: y - sp.s / 2, width: sp.s, height: sp.s, borderRadius: 1, background: col, opacity: p > 0 ? 1 - p : 0, transform: `rotate(${45 + p * 90}deg)`, boxShadow: `0 0 ${sp.s * 2}px ${col}`, pointerEvents: 'none' } };
+        }) : [];
+        const sum = filled && e.split ? e.split.reduce((a, b) => a + b, 0) || 1 : 1;
+        return {
+          initials: filled ? initialsOf(e.name) : '', name: filled ? e.name : '—', score: sv, unit: filled ? unit : '', n: String(i + 1),
+          crown: first && filled, sparks, hasSplit: filled && !!e.split,
+          split: filled && e.split ? e.split.map((v, k) => ({ style: { width: `${(v / sum) * 100 * cp}%`, height: 4, background: WC[k], borderRadius: 2 } })) : [],
+          top: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: 0, paddingBottom: 8, opacity: filled ? clamp(dp * 2.5) : clamp(dp * 2.5) * 0.7, transform: `translateY(${(1 - eBack(dp)) * -26}px)` },
+          avWrap: { position: 'relative', width: g.av, height: g.av },
+          av: { width: g.av, height: g.av, boxSizing: 'border-box', borderRadius: '50%', border: filled ? `2px solid ${ring}` : `1.5px dashed ${th.t5}`, background: filled ? `rgba(${hexRgb(ring)},.14)` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.t1, fontFamily: OS, fontSize: first ? 20 : 16, fontWeight: 600, letterSpacing: 0.5, boxShadow: you ? `0 0 16px rgba(${ar},${0.45 * th.glowK})` : 'none' },
+          pulse: { position: 'absolute', inset: -4, borderRadius: '50%', border: `2px solid ${m}`, opacity: first && filled && T >= L ? (1 - pulseP) * 0.8 : 0, transform: `scale(${1 + eOut(pulseP) * 0.7})`, pointerEvents: 'none' },
+          crownStyle: { position: 'absolute', left: '50%', top: -19, width: 22, height: 16, marginLeft: -11, opacity: clamp(crownP * 2), transform: `scale(${crownP > 0 ? eBack(crownP) : 0}) translateY(${(1 - eOut(crownP)) * 6}px)`, filter: `drop-shadow(0 0 6px rgba(232,182,76,.6))` },
+          nameStyle: { marginTop: 7, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: OS, fontSize: 12, fontWeight: 500, letterSpacing: 0.4, color: you ? acc : filled ? th.t2 : th.t5, textAlign: 'center' },
+          scoreRow: { display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 1, whiteSpace: 'nowrap', ...ltr },
+          scoreStyle: { fontFamily: OS, fontWeight: 700, fontSize: first ? (finalLen > 7 ? 15 : 18) : (finalLen > 6 ? 13 : 15), color: th.t1, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
+          unitStyle: { fontFamily: rtl ? "'Cairo',sans-serif" : OS, fontSize: 9, fontWeight: 500, letterSpacing: ls(1.2), color: th.t4 },
+          splitWrap: { display: 'flex', gap: 1.5, width: 62, marginTop: 5, height: 4 },
+          clip: { width: '100%', height: g.h, overflow: 'hidden' },
+          block: { position: 'relative', width: '100%', height: g.h, boxSizing: 'border-box', borderRadius: '12px 12px 0 0', overflow: 'hidden', background: filled ? `linear-gradient(180deg, rgba(${mr},${tk === 'dark' ? 0.3 : 0.34}), rgba(${mr},.04))` : 'transparent', borderTop: filled ? `2px solid ${m}` : `1.5px dashed ${th.t5}`, borderLeft: filled ? 'none' : `1.5px dashed ${th.t5}`, borderRight: filled ? 'none' : `1.5px dashed ${th.t5}`, opacity: filled ? 1 : 0.6, display: 'flex', justifyContent: 'center', paddingTop: first ? 10 : 7, transform: `translateY(${(1 - rp) * g.h + settle}px)` },
+          shimmer: { position: 'absolute', top: 0, bottom: 0, width: '45%', left: `${-60 + 220 * eOut(shP)}%`, background: 'linear-gradient(105deg, transparent, rgba(255,255,255,.55), transparent)', opacity: shP > 0 && shP < 1 ? 1 : 0, pointerEvents: 'none' },
+          youPulse: { position: 'absolute', inset: 0, borderRadius: '12px 12px 0 0', boxShadow: `inset 0 0 0 2px ${acc}, inset 0 0 22px rgba(${ar},.5)`, opacity: you ? (onPodium && T >= L + 0.25 ? 0.35 + youPulse * 0.65 : 0) : 0, pointerEvents: 'none' },
+          numStyle: { position: 'relative', fontFamily: OS, fontSize: g.num, fontWeight: 700, lineHeight: 1, color: filled ? m : th.t5 },
+        };
+      });
+
+      const dust = DUST.map((d) => ({ style: { position: 'absolute', left: d.x + Math.sin((reduce ? 0 : raw) * 1.3 + d.x) * 4, top: ((d.y - (reduce ? 0 : raw) * d.v) % 640 + 640) % 640, width: d.s, height: d.s, borderRadius: '50%', background: `rgba(${ar},${th.dust})`, opacity: clamp((T - L - 0.3) / 1) * 0.55, pointerEvents: 'none' } }));
+
+      const yp = eOut(clamp((T - L - 0.25) / 0.5));
+      const cdP = countdown ? eOut4(clamp((T - cdS) / 1.0)) : 1;
+      const rankShown = ranked ? Math.round(total - (total - rank) * cdP) : 0;
+      const cdAge = T - cdEnd;
+      const bump = countdown && cdAge > 0 && cdAge < 0.3 ? Math.sin((cdAge / 0.3) * Math.PI) : 0;
+      const rankCol = onPodium ? (tk === 'light' && rank === 2 ? '#8E949C' : MEDAL[rank - 1]) : acc;
+      const rankStr = ranked ? `#${rankShown}` : '—';
+      let gapNum = '', gapText = '', gapCol = acc;
+      if (!ranked) { gapText = S.nr; gapCol = th.t3; }
+      else if (rank === 1) { gapText = S.leader; gapCol = MEDAL[0]; }
+      else if (gapV != null) { gapNum = `${type === 'time' ? '−' : '+'}${fmtScore(gapV, type)}${unit && !rtl ? ' ' + unit : ''}`; gapText = rtl ? `${unit} ${S.to}` : S.to; }
+
+      return {
+        themeLabel: tk === 'dark' ? 'DARK' : 'LIGHT', dir: rtl ? 'rtl' : 'ltr', s: S,
+        isStrength: V.id === 'strength', isWeekly: V.id === 'weekly', isWR: V.id === 'wr',
+        boardLabel: V.label[rtl ? 'ar' : 'en'], date: D.date, title, subLine: D.subLine,
+        showLive: V.id === 'weekly' && !!D.live, community: !!D.communityScoped,
+        eyebrow: V.id === 'weekly' && !D.live ? S.fin : S.lb,
+        places, dust, unit,
+        youRank: rankStr, youInitials: initialsOf(D.youUsername), youName: D.youUsername,
+        youOf: ranked ? S.of(total.toLocaleString('en-US')) : S.nrSub,
+        youScore: ranked && youScoreV != null ? fmtScore(youScoreV, type) : '—',
+        gapNum, gapText,
+        phone: { position: 'relative', width: 402, height: 874, borderRadius: 44, overflow: 'hidden', background: th.screen, border: `1px solid ${th.frame}`, boxShadow: '0 40px 90px rgba(0,0,0,.9)', flexShrink: 0, fontFamily: font },
+        mockTitle: { color: th.t1, fontSize: 30, fontWeight: 700, letterSpacing: 1.4, fontFamily: OS, marginBottom: 8 },
+        mockRows: Array.from({ length: 9 }, (_, k) => ({ n: String(k + 1), style: { height: 64, borderRadius: 16, background: th.mock, border: `1px solid ${th.mockB}`, display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px' }, num: { width: 22, color: th.t4, fontFamily: OS, fontSize: 16, fontWeight: 600 }, dot: { width: 32, height: 32, borderRadius: '50%', background: th.mockB }, bar: { width: 90 + ((k * 47) % 80), height: 10, borderRadius: 5, background: th.mockB } })),
+        overlay: { position: 'absolute', inset: 0, background: th.backdrop, backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', opacity: (reduce ? 1 : clamp(T / 0.35)) * master },
+        status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 30px 0', color: th.t1, fontSize: 15, fontWeight: 600, fontFamily: OS },
+        statusIcon1: { width: 16, height: 10, borderRadius: 2, background: th.t1 },
+        statusIcon2: { width: 24, height: 11, borderRadius: 3, background: th.t1 },
+        card: { position: 'relative', borderRadius: 30, padding: '22px 22px 24px', background: cardBg, border: `1px solid rgba(${ar},${tk === 'dark' ? 0.5 : 0.45})`, overflow: 'hidden', cursor: 'pointer', boxShadow: `0 0 ${glowSpread}px rgba(${ar},${glow * th.glowK})`, opacity: clamp(cardP * 1.6) * master, transform: `translateY(${(1 - eOut(cardP)) * 40}px) scale(${0.9 + 0.1 * eBack(cardP)})` },
+        radial: { position: 'absolute', inset: 0, background: V.id === 'wr' ? `radial-gradient(ellipse at 22% 22%,rgba(142,107,255,${th.radial}),transparent 55%),radial-gradient(ellipse at 50% 30%,rgba(255,74,61,${th.radial * 0.8}),transparent 55%),radial-gradient(ellipse at 78% 22%,rgba(255,107,44,${th.radial}),transparent 55%)` : `radial-gradient(ellipse at 50% 30%,rgba(${ar},${th.radial}),transparent 62%)`, pointerEvents: 'none' },
+        headLeft: { display: 'flex', alignItems: 'center', gap: 7, color: acc, fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(2.4) },
+        dateStyle: { color: th.t5, fontSize: 11, fontWeight: 500, letterSpacing: 1.6, fontFamily: OS, ...ltr },
+        a1: { position: 'relative', marginTop: 18, textAlign: 'center', color: th.t2, fontSize: rtl ? 14 : 12, fontWeight: 600, letterSpacing: ls(4), ...fade(0.35, 8) },
+        a2: { position: 'relative', marginTop: 8, ...fade(0.45, 10) },
+        titleStyle: { color: th.t1, fontSize: titleSize, fontWeight: 700, letterSpacing: isArabicTitle ? 0 : 1.4, lineHeight: isArabicTitle ? 1.3 : 1.05, textAlign: 'center', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', textWrap: 'balance', fontFamily: isArabicTitle ? "'Cairo',sans-serif" : OS },
+        subRow: { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7, marginTop: 6 },
+        liveDot: { width: 6, height: 6, borderRadius: '50%', background: acc, boxShadow: `0 0 8px ${acc}`, opacity: 0.45 + 0.55 * Math.abs(Math.sin((reduce ? 0 : raw) * 3)) },
+        subStyle: { color: th.t3, fontSize: 13, fontWeight: 500, letterSpacing: ls(1.6), textAlign: 'center' },
+        chip: { height: 24, padding: '0 11px', borderRadius: 12, border: `1px solid rgba(${ar},${th.pillA + 0.1})`, background: `rgba(${ar},${th.youA})`, color: th.t2, display: 'flex', alignItems: 'center', gap: 6, fontSize: rtl ? 11.5 : 10, fontWeight: 600, letterSpacing: ls(2) },
+        podium: { position: 'relative', marginTop: 16, paddingTop: 22, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, alignItems: 'end', borderBottom: `1px solid ${th.line}` },
+        youWrap: { position: 'relative', marginTop: 16, borderRadius: 18, border: `1px solid rgba(${ar},.45)`, background: `rgba(${ar},${th.youA})`, padding: '12px 14px 11px', opacity: yp, transform: `translateY(${(1 - yp) * 16}px)` },
+        youRankStyle: { flex: 'none', minWidth: 44, fontFamily: OS, fontSize: rankStr.length >= 5 ? 20 : 26, fontWeight: 700, lineHeight: 1, color: ranked ? rankCol : th.t5, fontVariantNumeric: 'tabular-nums', ...ltr, transform: `scale(${1 + bump * 0.14})`, textShadow: bump > 0 ? `0 0 14px rgba(${ar},.6)` : 'none' },
+        youAv: { flex: 'none', width: 34, height: 34, boxSizing: 'border-box', borderRadius: '50%', border: `2px solid ${acc}`, background: `rgba(${ar},.14)`, display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.t1, fontFamily: OS, fontSize: 13, fontWeight: 600 },
+        youNameStyle: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: th.t1, fontFamily: OS, fontSize: 14, fontWeight: 600, letterSpacing: 0.3, ...ltr },
+        youBadge: { flex: 'none', height: 16, padding: '0 6px', borderRadius: 5, background: acc, color: '#fff', display: 'flex', alignItems: 'center', fontSize: rtl ? 10 : 9, fontWeight: 700, letterSpacing: ls(1.4) },
+        youOfStyle: { color: th.t4, fontSize: rtl ? 11.5 : 10, fontWeight: 500, letterSpacing: ls(1.2), lineHeight: 1.3 },
+        youScoreRow: { flex: 'none', display: 'flex', alignItems: 'baseline', gap: 3, whiteSpace: 'nowrap', ...ltr },
+        youScoreStyle: { fontFamily: OS, fontSize: 18, fontWeight: 700, color: ranked ? th.t1 : th.t5, fontVariantNumeric: 'tabular-nums' },
+        youUnitStyle: { fontFamily: rtl ? "'Cairo',sans-serif" : OS, fontSize: 9, fontWeight: 500, letterSpacing: ls(1.2), color: th.t4, display: ranked ? 'inline' : 'none' },
+        youLine: { marginTop: 10, paddingTop: 9, borderTop: `1px solid rgba(${ar},.18)`, display: 'flex', alignItems: 'center', gap: 6, color: gapCol, fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(1.8) },
+        gapNumStyle: { fontFamily: OS, fontVariantNumeric: 'tabular-nums', letterSpacing: 1, display: gapNum ? 'inline' : 'none', ...ltr },
+        a4: { position: 'relative', marginTop: 16, display: 'flex', justifyContent: 'center', ...fade(L + 0.6, 6) },
+        pill: { height: 30, padding: '0 14px', borderRadius: 15, border: `1px solid rgba(${ar},${th.pillA})`, display: 'flex', alignItems: 'center', gap: 8, color: acc },
+        pillText: { color: th.t1, fontFamily: "'Michroma','Oswald',sans-serif", fontSize: 11, letterSpacing: 2 },
+        actions: { marginTop: 14, display: 'flex', gap: 10 },
+        b1: { flex: 1, height: 56, borderRadius: 16, background: acc, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, letterSpacing: ls(2.6), cursor: 'pointer', boxShadow: `0 10px 30px rgba(${ar},.3)`, ...btn(L + 0.8) },
+        b2: { width: 56, height: 56, flex: 'none', boxSizing: 'border-box', borderRadius: 16, border: `1.5px solid ${th.b2}`, color: th.t1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', ...btn(L + 0.85) },
+      };
+    });
+
+    const scenarios = [['tweaks', 'TWEAKS'], ...Object.entries(PRESETS).map(([k, v]) => [k, v.label])].map(([k, label]) => {
+      const on = this.state.scen === k;
+      return { label, pick: () => { this.setState({ scen: k }); this.t0 = performance.now(); }, style: { height: 28, padding: '0 10px', borderRadius: 14, border: `1px solid ${on ? '#FC5454' : '#2a2a2a'}`, background: on ? 'rgba(252,84,84,.12)' : 'transparent', color: on ? '#fff' : '#8a8a8a', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, letterSpacing: 1.4, cursor: 'pointer' } };
+    });
+
+    return {
+      frames, scenarios,
+      replay: () => { this.t0 = performance.now(); },
+      skip: () => { if (performance.now() - this.t0 < 8000) this.t0 = performance.now() - 8000; },
+      cueLabel: cue ? cue.label : 'WAITING…',
+      cueStyle: { height: 32, borderRadius: 10, border: `1px solid ${cueOn ? cue.c : '#1c1c1c'}`, color: cueOn ? '#fff' : '#6a6a6a', background: cueOn ? 'rgba(255,255,255,.04)' : 'transparent', display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontWeight: 600, letterSpacing: 1.6, transition: 'border-color .15s, color .15s' },
+    };
+  }
+}
+</script>
+</body>
+</html>

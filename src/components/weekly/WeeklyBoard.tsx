@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { LayoutAnimation, Pressable, StyleSheet, Text, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BoardFilters, Gender, kt, rankColor, Scope, YouBadge } from '../worlds/kit';
@@ -9,6 +9,7 @@ import { WeeklyBoardRow } from '../../services/ChallengeService';
 import { WeeklyTokens } from './weeklyTokens';
 import { formatGap, formatScore } from './WeeklyParts';
 import { t as tr } from '../../i18n';
+import { BoardShareButton, LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 
 const BLOCK_HEIGHTS = [84, 60, 46]; // by place: 1st, 2nd, 3rd
 
@@ -98,23 +99,45 @@ interface Props {
   onScope: (s: Scope) => void;
   gender: Gender;
   onGender: (g: Gender) => void;
+  /** For the share card. */
+  challengeTitle: string;
+  /** e.g. "OCT 6 – OCT 12". */
+  weekRange: string;
 }
 
 /** LEADERBOARD / FINAL STANDINGS section of the Challenge screen. */
 export function WeeklyBoard({
   tokens: t, type, live, rows, myId, myName, showAll, onToggleAll,
-  inCommunity, scope, onScope, gender, onGender,
+  inCommunity, scope, onScope, gender, onGender, challengeTitle, weekRange,
 }: Props) {
+  const [shareOpen, setShareOpen] = useState(false);
   const myIndex = myId ? rows.findIndex(r => r.user_id === myId) : -1;
   const me = myIndex >= 0 ? rows[myIndex] : null;
   const leader = rows[0]?.score ?? 0;
 
   return (
     <View style={{ paddingTop: 32, gap: 16 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Text style={kt('semibold', 19, t.text, 2)}>{live ? tr('weekly.leaderboard') : tr('weekly.finalStandings')}</Text>
-        <Text style={kt('medium', 12, t.textMuted, 1.4)}>{tr('weekly.warriorsCount', { count: rows.length })}</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={[kt('semibold', 19, t.text, 2), { flexShrink: 1 }]}>{live ? tr('weekly.leaderboard') : tr('weekly.finalStandings')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <Text style={kt('medium', 12, t.textMuted, 1.4)}>{tr('weekly.warriorsCount', { count: rows.length })}</Text>
+          {rows.length > 0 && <BoardShareButton color={t.textSecondary} borderColor={t.cardBorder} onPress={() => setShareOpen(true)} />}
+        </View>
       </View>
+
+      <LeaderboardShareCard
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="weekly"
+        title={challengeTitle}
+        subLine={`${weekRange} · ${live ? tr('leaderboardShare.live') : tr('leaderboardShare.final')}`}
+        live={live}
+        communityScoped={scope === 'community'}
+        scoreType={type === 'time' ? 'time' : 'reps'}
+        rows={rows.map(r => ({ user_id: r.user_id, username: r.name, score: r.score }))}
+        myId={myId}
+        myName={myName}
+      />
 
       <BoardFilters tokens={t} inCommunity={inCommunity} scope={scope} onScope={onScope} gender={gender} onGender={onGender} />
 

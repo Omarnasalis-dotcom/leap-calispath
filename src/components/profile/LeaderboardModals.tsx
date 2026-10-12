@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Modal,
   View,
   Text,
@@ -13,6 +13,8 @@ import { LeapLogo } from '../LeapLogo';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { TutorialModalOverlay } from '../tutorial/TutorialOverlay';
 import { t } from '../../i18n';
+import { useAuth } from '../../contexts/AuthContext';
+import { LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 
 
 interface LeaderboardModalsProps {
@@ -45,6 +47,9 @@ export function LeaderboardModals({
   onWraScopeChange,
 }: LeaderboardModalsProps) {
   const { theme, mode } = useTheme();
+  const { profile } = useAuth();
+  const [shareOpen, setShareOpen] = useState(false);
+  const myWraId: string | undefined = filteredWraLeaderboard.find((e: any) => e.is_current_user)?.user_id ?? profile?.id;
   const { ref: topEntriesRef, onLayout: onTopEntriesLayout } = useTutorialTarget('wra.topEntries');
   const pressCloseButton = () => {
     setShowWRALeaderboard(false);
@@ -77,6 +82,16 @@ export function LeaderboardModals({
               >
                 <MaterialCommunityIcons name="close" size={28} color={theme.text.primary} />
               </TouchableOpacity>
+              {!loadingLB && filteredWraLeaderboard.length > 0 && (
+                <TouchableOpacity
+                  accessibilityRole="button"
+                  accessibilityLabel={t('leaderboardShare.share')}
+                  onPress={() => setShareOpen(true)}
+                  style={[styles.modalCloseBtn, { right: undefined, left: 24 }]}
+                >
+                  <MaterialCommunityIcons name="export-variant" size={26} color={theme.text.primary} />
+                </TouchableOpacity>
+              )}
               <View style={styles.modalHeaderTitle}>
                 <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>{t('leaderboards.wraTitle')}</Text>
                 <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>{t('leaderboards.wraSub')}</Text>
@@ -211,6 +226,23 @@ export function LeaderboardModals({
               measureInWindow reports for the targets inside it. This outer
               View is the actual full-screen, zero-offset root. */}
           <TutorialModalOverlay targetIds={['wra.topEntries', 'wra.closeButton']} />
+          <LeaderboardShareCard
+            visible={shareOpen}
+            onClose={() => setShareOpen(false)}
+            variant="wellRounded"
+            title={t('leaderboardShare.wellRoundedTitle')}
+            subLine={t('leaderboardShare.wellRoundedSub')}
+            communityScoped={hasCommunity === true && wraScope === 'community'}
+            scoreType="points"
+            rows={filteredWraLeaderboard.map((e: any) => ({
+              user_id: e.user_id,
+              username: e.display_name,
+              score: Number(e.total_score || 0),
+              split: [Number(e.static_pts || 0), Number(e.power_pts || 0), Number(e.endurance_pts || 0)] as [number, number, number],
+            }))}
+            myId={myWraId}
+            myName={profile?.display_name ?? ''}
+          />
         </View>
       </Modal>
 

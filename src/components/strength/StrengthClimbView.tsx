@@ -5,6 +5,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import Svg, { Path, Text as SvgText } from 'react-native-svg';
 import { useTheme } from '../../contexts/ThemeContext';
 import { getWorldKitTokens, WorldKitTokens, WORLD_FONTS } from '../../../constants/worldKitTokens';
+import { BoardShareButton, LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 import { getCompletedTrialTiers, getTierLeaderboard, LeaderboardEntry } from '../../lib/leaderboard';
 import { getCountryCode } from '../../constants/countries';
 import { initials } from '../../lib/worldStanding';
@@ -83,6 +84,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   const [scope, setScope] = useState<Scope>('public');
   const [gender, setGender] = useState<Gender>('ALL');
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   // Page scrolling is off while a tier card is being swiped (see SkillCarousel).
   const [swiping, setSwiping] = useState(false);
 
@@ -188,9 +190,12 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
         <ClimbLine tokens={t} colors={c} currentTier={currentTier} completedTiers={completedTiers} selected={selected} onSelect={setSelected} drawn={drawn} />
 
         <View style={{ paddingTop: 30, paddingHorizontal: 24, paddingBottom: 28, gap: 16 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Text style={kt('semibold', 19, t.text, 2)}>{tr('strength.leaderboardTitle', { tier: tierName(selected) })}</Text>
-            <Text style={kt('medium', 12, t.textMuted, 1.4)}>{loading ? ' ' : warriorsLabel(list.length)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={[kt('semibold', 19, t.text, 2), { flexShrink: 1 }]}>{tr('strength.leaderboardTitle', { tier: tierName(selected) })}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+              <Text style={kt('medium', 12, t.textMuted, 1.4)}>{loading ? ' ' : warriorsLabel(list.length)}</Text>
+              {list.length > 0 && <BoardShareButton color={t.textSecondary} borderColor={c.divider} onPress={() => setShareOpen(true)} />}
+            </View>
           </View>
           <BoardFilters
             tokens={t}
@@ -224,6 +229,19 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
           )}
         </View>
       </ScrollView>
+
+      <LeaderboardShareCard
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="strength"
+        title={tierName(selected)}
+        subLine={tr('leaderboardShare.strengthSub', { tier: selected })}
+        communityScoped={scope === 'community'}
+        scoreType="time"
+        rows={list.map(r => ({ user_id: r.user_id, username: r.name, score: r.points }))}
+        myId={userId}
+        myName={profile?.display_name ?? ''}
+      />
 
       <WorldSheet
         tokens={t}
