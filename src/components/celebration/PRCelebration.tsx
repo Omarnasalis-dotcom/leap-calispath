@@ -1,16 +1,14 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { AccessibilityInfo, Alert, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { AccessibilityInfo, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation, Easing, runOnJS, SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import { captureRef } from 'react-native-view-shot';
-import * as Sharing from 'expo-sharing';
-import * as MediaLibrary from 'expo-media-library';
 import Svg, { Path } from 'react-native-svg';
 import { useTheme } from '../../contexts/ThemeContext';
+import { shareCardImage } from '../../lib/shareCard';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { KitIcon, kt } from '../worlds/kit';
 import { LeapLogo } from '../LeapLogo';
@@ -204,9 +202,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
   const nameStyle = useFadeUp(clock, lock + AFTER_LOCK.movement);
   const statsStyle = useFadeUp(clock, lock + AFTER_LOCK.stats);
   const logoStyle = useFadeUp(clock, lock + AFTER_LOCK.logo, 6);
-  const shareStyle = useFadeUp(clock, lock + AFTER_LOCK.share, 24);
-  const saveStyle = useFadeUp(clock, lock + AFTER_LOCK.save, 24);
-  const dismissStyle = useFadeUp(clock, lock + AFTER_LOCK.dismiss, 24);
+  const actionsStyle = useFadeUp(clock, lock + AFTER_LOCK.share, 24);
   const gainPop = useAnimatedStyle(() => {
     const s = lock + AFTER_LOCK.stats;
     const T = clock.value;
@@ -214,72 +210,11 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
   });
 
   // ── Share / save (same capture path as CelebrationBanner) ───────────────
-  const capture = async (): Promise<string | null> => {
-    if (Platform.OS !== 'web') {
-      try { return await captureRef(cardRef, { format: 'png', quality: 0.9 }); } catch { return null; }
-    }
-    try {
-      const html2canvas = (await import('html2canvas')).default;
-      const el = document.getElementById('pr-celebration-card');
-      if (!el) return null;
-      return (await html2canvas(el, { backgroundColor: null, scale: 2 })).toDataURL('image/png');
-    } catch {
-      return null;
-    }
-  };
-
   const onShare = async () => {
     skip();
-    if (Platform.OS === 'web') {
-      const dataUrl = await capture();
-      if (dataUrl && navigator.share) {
-        try {
-          const blob = await (await fetch(dataUrl)).blob();
-          await navigator.share({ files: [new File([blob], 'leap-arena.png', { type: 'image/png' })], title: 'LEAP ARENA' });
-          return;
-        } catch { /* fall through */ }
-      }
-      window.alert(tr('celebration.shareWeb'));
-      return;
-    }
-    try {
-      const uri = await capture();
-      if (!uri) throw new Error('capture failed');
-      if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri);
-      else Alert.alert(tr('celebration.shareUnavailableTitle'), tr('celebration.shareUnavailable'));
-    } catch (error) {
-      console.error('Error sharing PR card:', error);
-      Alert.alert(tr('celebration.error'), tr('celebration.shareFailed'));
-    }
-  };
-
-  const onSave = async () => {
-    skip();
-    if (Platform.OS === 'web') {
-      const dataUrl = await capture();
-      if (dataUrl) {
-        const a = document.createElement('a');
-        a.href = dataUrl;
-        a.download = 'leap-arena-pr.png';
-        a.click();
-      }
-      return;
-    }
-    try {
-      // writeOnly — see CelebrationBanner (Play photo-permission policy).
-      const { status } = await MediaLibrary.requestPermissionsAsync(true);
-      if (status !== 'granted') {
-        Alert.alert(tr('celebration.permissionTitle'), tr('celebration.permission'));
-        return;
-      }
-      const uri = await capture();
-      if (!uri) throw new Error('capture failed');
-      await MediaLibrary.saveToLibraryAsync(uri);
-      Alert.alert(tr('celebration.savedTitle'), tr('celebration.saved'));
-    } catch (error) {
-      console.error('Error saving PR card:', error);
-      Alert.alert(tr('celebration.error'), tr('celebration.saveFailed'));
-    }
+    const result = await shareCardImage(cardRef, 'pr-celebration-card', 'leap-arena-pr.png');
+    if (result === 'unavailable') Alert.alert(tr('celebration.shareUnavailableTitle'), tr('celebration.shareUnavailable'));
+    else if (result === 'failed') Alert.alert(tr('celebration.error'), tr('celebration.shareFailed'));
   };
 
   const date = new Date().toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
@@ -292,7 +227,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: t.backdrop }, backdropStyle]} />
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ flexGrow: 1, justifyContent: 'space-between', paddingHorizontal: 24, paddingTop: insets.top + (world === 'power' ? 8 : 16), paddingBottom: insets.bottom + 16 }}
+        contentContainerStyle={{ flexGrow: 1, justifyContent: 'center', paddingHorizontal: 24, paddingTop: insets.top + (world === 'power' ? 8 : 16), paddingBottom: insets.bottom + 16 }}
         bounces={false}
         showsVerticalScrollIndicator={false}
       >
@@ -386,50 +321,35 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
           </Animated.View>
         </Pressable>
 
-        <View style={{ gap: 12, paddingTop: 20 }}>
-          <Animated.View style={shareStyle}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onShare}
-              style={({ pressed }) => ({
-                height: 56, borderRadius: 16, backgroundColor: t.accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10,
-                boxShadow: `0 10px 30px ${t.accent}4D`, opacity: pressed ? 0.85 : 1,
-              })}
-            >
-              <ShareIcon color={t.onAccent} />
-              <Text style={kt('bold', 16, t.onAccent, 2.6)}>{tr('prCelebration.share')}</Text>
-            </Pressable>
-          </Animated.View>
-          <Animated.View style={saveStyle}>
-            <Pressable
-              accessibilityRole="button"
-              onPress={onSave}
-              style={({ pressed }) => ({ height: 52, borderRadius: 16, borderWidth: 1.5, borderColor: t.saveBorder, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
-            >
-              <Text style={kt('semibold', 14, t.saveText, 2.4)}>{tr('prCelebration.saveToPhotos')}</Text>
-            </Pressable>
-          </Animated.View>
-          <Animated.View style={dismissStyle}>
-            {/* Sits on the dimmed backdrop, not the card: in light mode that
-                backdrop is mid-grey, so muted text vanished -- a white pill
-                keeps it readable there. */}
-            <Pressable
-              accessibilityRole="button"
-              onPress={onDismiss}
-              style={({ pressed }) => ({
-                height: 36,
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: pressed ? 0.6 : 1,
-                ...(t.mode === 'dark'
-                  ? null
-                  : { alignSelf: 'center', paddingHorizontal: 22, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)' }),
-              })}
-            >
-              <Text style={kt('medium', 13, t.mode === 'dark' ? '#8a8a8a' : t.text, 2.4)}>{tr('prCelebration.dismiss')}</Text>
-            </Pressable>
-          </Animated.View>
-        </View>
+        {/* DONE is the one primary action; Share is a square icon beside it
+            (outside the card, so it never appears in the shared image). The
+            share sheet also offers saving the image to Photos. */}
+        <Animated.View style={[{ flexDirection: 'row', gap: 10, paddingTop: 20 }, actionsStyle]}>
+          <Pressable
+            accessibilityRole="button"
+            onPress={onDismiss}
+            style={({ pressed }) => ({
+              flex: 1, height: 56, borderRadius: 16, backgroundColor: t.accent, alignItems: 'center', justifyContent: 'center',
+              boxShadow: `0 10px 30px ${t.accent}4D`, opacity: pressed ? 0.85 : 1,
+            })}
+          >
+            <Text style={kt('bold', 16, t.onAccent, 2.6)}>{tr('prCelebration.done')}</Text>
+          </Pressable>
+          <Pressable
+            accessibilityRole="button"
+            accessibilityLabel={tr('prCelebration.share')}
+            onPress={onShare}
+            hitSlop={4}
+            style={({ pressed }) => ({
+              width: 56, height: 56, borderRadius: 16, borderWidth: 1.5, borderColor: t.saveBorder,
+              // Sits on the dimmed backdrop: light mode's mid-grey needs a solid fill.
+              backgroundColor: t.mode === 'dark' ? 'transparent' : t.cardBg,
+              alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1,
+            })}
+          >
+            <ShareIcon color={t.saveText} />
+          </Pressable>
+        </Animated.View>
       </ScrollView>
     </Modal>
   );

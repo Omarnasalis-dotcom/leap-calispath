@@ -1115,8 +1115,7 @@ const en = {
     gainReps_other: '+{{count}} REPS',
     gainKg: '+{{v}} KG',
     share: 'SHARE',
-    saveToPhotos: 'SAVE TO PHOTOS',
-    dismiss: 'DISMISS',
+    done: 'DONE',
     tapToSkip: 'Tap to skip to the end',
   },
   celebration: {

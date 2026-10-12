@@ -1210,8 +1210,7 @@ const ar: Translations = {
     gainReps_other: '+{{count}} تكرار',
     gainKg: '+{{v}} كغ',
     share: 'مشاركة',
-    saveToPhotos: 'حفظ في الصور',
-    dismiss: 'إغلاق',
+    done: 'تم',
     tapToSkip: 'انقر للانتقال إلى النهاية',
   },
   celebration: {
