@@ -148,8 +148,57 @@ function SplitSegment({ clock, i, width, color }: { clock: SharedValue<number>; 
   return <Animated.View style={[{ height: 4, borderRadius: 2, backgroundColor: color }, style]} />;
 }
 
-function Place({ clock, tk, i, place, scoreText, unit, youOnPodium }: {
-  clock: SharedValue<number>; tk: LBTokens; i: number; place?: SharePlace; scoreText: string; unit: string; youOnPodium: boolean;
+/**
+ * Podium score counting up from 0. Its own state, so a tick re-renders only
+ * this Text (not the whole card); sized from the final value so it doesn't
+ * jump size mid-count.
+ */
+function PodiumScore({ clock, i, score, type, first, color }: {
+  clock: SharedValue<number>; i: number; score: number; type: ShareScoreType; first: boolean; color: string;
+}) {
+  const [shown, setShown] = useState(0);
+  useAnimatedReaction(
+    () => {
+      const v = score * scoreProgress(clock.value, i);
+      return type === 'points' ? Math.round(v * 100) / 100 : type === 'time' ? Math.floor(v) : Math.round(v);
+    },
+    (now, was) => { if (now !== was) runOnJS(setShown)(now); },
+  );
+  return (
+    <Text style={[kt('bold', podiumScoreSize(formatShareScore(score, type), first), color), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>
+      {formatShareScore(shown, type)}
+    </Text>
+  );
+}
+
+/** YOU-row rank counting down from the total (own state, like PodiumScore). */
+function RankCounter({ clock, rank, total, countdown, color }: {
+  clock: SharedValue<number>; rank: number | null; total: number; countdown: boolean; color: string;
+}) {
+  const [shown, setShown] = useState(rank ?? 0);
+  useAnimatedReaction(
+    () => (rank != null ? rankAt(clock.value, rank, total, countdown) : 0),
+    (now, was) => { if (now !== was) runOnJS(setShown)(now); },
+  );
+  const bump = useAnimatedStyle(() => {
+    const a = clock.value - LB_COUNTDOWN_END;
+    const b = countdown && a > 0 && a < 0.3 ? Math.sin((a / 0.3) * Math.PI) : 0;
+    return { transform: [{ scale: 1 + b * 0.14 }] };
+  });
+  // Sized from the widest value it will show (the start of the countdown).
+  const widest = rank == null ? '—' : `#${countdown ? total : rank}`;
+  return (
+    <Animated.Text
+      style={[kt('bold', widest.length >= 5 ? 20 : 26, color, 0, 30), { minWidth: 44, fontVariant: ['tabular-nums'], writingDirection: 'ltr' }, bump]}
+      numberOfLines={1}
+    >
+      {rank == null ? '—' : ltr(`#${shown}`)}
+    </Animated.Text>
+  );
+}
+
+const Place = React.memo(function Place({ clock, tk, i, place, scoreType, unit, youOnPodium }: {
+  clock: SharedValue<number>; tk: LBTokens; i: number; place?: SharePlace; scoreType: ShareScoreType; unit: string; youOnPodium: boolean;
 }) {
   const g = GEO[i];
   const first = i === 0;
@@ -224,7 +273,7 @@ function Place({ clock, tk, i, place, scoreText, unit, youOnPodium }: {
         </Text>
         {filled && (
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 1, direction: 'ltr' }}>
-            <Text style={[kt('bold', podiumScoreSize(scoreText, first), tk.t1), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>{scoreText}</Text>
+            <PodiumScore clock={clock} i={i} score={place!.score} type={scoreType} first={first} color={tk.t1} />
             {!!unit && <Text style={kt('medium', 9, tk.t4, 1.2)}>{unit}</Text>}
           </View>
         )}
@@ -254,7 +303,7 @@ function Place({ clock, tk, i, place, scoreText, unit, youOnPodium }: {
       </View>
     </View>
   );
-}
+});
 
 function Mote({ clock, i, color }: { clock: SharedValue<number>; i: number; color: string }) {
   const x = (i * 53 + 17) % 330;
@@ -301,7 +350,6 @@ function LeaderboardShareModal({
   const { top3, you, total, countdown } = board;
   const ranked = you.rank != null;
   const youOnPodium = ranked && you.rank! <= 3;
-  const scores = top3.map(p => p.score);
   const filledLands = top3.map((_, i) => placeLand(i));
   const unit = scoreType === 'time' ? '' : tr('leaderboardShare.pts');
 
@@ -331,24 +379,6 @@ function LeaderboardShareModal({
     }).catch(() => run(0));
     return () => { alive = false; cancelAnimation(clock); };
   }, []);
-
-  // ── Counters (scores + rank), as JS state from the clock ──────────────────
-  const [counterKey, setCounterKey] = useState('');
-  useAnimatedReaction(
-    () => {
-      const T = clock.value;
-      const parts: string[] = [];
-      for (let i = 0; i < scores.length; i++) {
-        const v = scores[i] * scoreProgress(T, i);
-        parts.push(String(scoreType === 'points' ? Math.round(v * 100) / 100 : scoreType === 'time' ? Math.floor(v) : Math.round(v)));
-      }
-      parts.push(String(ranked ? rankAt(T, you.rank!, total, countdown) : 0));
-      return parts.join('|');
-    },
-    (now, was) => { if (now !== was) runOnJS(setCounterKey)(now); },
-  );
-  const counters = counterKey ? counterKey.split('|').map(Number) : [...scores.map(() => 0), you.rank ?? 0];
-  const rankShown = counters[counters.length - 1];
 
   // ── Haptics + sound (sounds respect the Arena mute inside SoundService) ───
   const tick = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); SoundService.playTick(); };
@@ -393,11 +423,6 @@ function LeaderboardShareModal({
       : 0.26 + 0.24 * (1 - clamp01((T - LB_LOCK) / 0.9));
     return { opacity: Math.min(1, g * 1.6 * tk.glowK) };
   });
-  const rankBump = useAnimatedStyle(() => {
-    const a = clock.value - LB_COUNTDOWN_END;
-    const b = countdown && a > 0 && a < 0.3 ? Math.sin((a / 0.3) * Math.PI) : 0;
-    return { transform: [{ scale: 1 + b * 0.14 }] };
-  });
   const eyebrowStyle = useFadeUp(clock, 0.35, 8);
   const titleStyle = useFadeUp(clock, 0.45, 10);
   const youStyle = useFadeUp(clock, LB_LOCK + LB_AFTER.you, 16);
@@ -416,7 +441,6 @@ function LeaderboardShareModal({
   const date = new Date().toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
   const titleSize = shareTitleSize(title);
   const eyebrow = variant === 'weekly' && !live ? tr('leaderboardShare.finalStandings') : tr('leaderboardShare.leaderboard');
-  const rankText = ranked ? `#${rankShown}` : '—';
   const rankColor = !ranked ? tk.t5 : youOnPodium ? tk.medals[you.rank! - 1] : tk.accent;
   const gapColor = !ranked ? tk.t3 : you.rank === 1 ? MEDAL_GOLD : tk.accent;
   const gapNum = ranked && you.rank! > 1 ? `${formatShareGap(you.gap, scoreType)}${unit ? ` ${unit}` : ''}` : '';
@@ -507,7 +531,7 @@ function LeaderboardShareModal({
                 {places.map(i => (
                   <Place
                     key={i} clock={clock} tk={tk} i={i} place={top3[i]}
-                    scoreText={top3[i] ? formatShareScore(counters[i] ?? 0, scoreType) : ''}
+                    scoreType={scoreType}
                     unit={unit} youOnPodium={youOnPodium}
                   />
                 ))}
@@ -515,12 +539,7 @@ function LeaderboardShareModal({
 
               <Animated.View style={[{ marginTop: 16, borderRadius: 18, borderWidth: 1, borderColor: tk.youBorder, backgroundColor: tk.youBg, paddingTop: 12, paddingHorizontal: 14, paddingBottom: 11 }, youStyle]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                  <Animated.Text
-                    style={[kt('bold', rankText.length >= 5 ? 20 : 26, rankColor, 0, 30), { minWidth: 44, fontVariant: ['tabular-nums'], writingDirection: 'ltr' }, rankBump]}
-                    numberOfLines={1}
-                  >
-                    {ltr(rankText)}
-                  </Animated.Text>
+                  <RankCounter clock={clock} rank={you.rank} total={total} countdown={countdown} color={rankColor} />
                   <View style={{ width: 34, height: 34, borderRadius: 17, borderWidth: 2, borderColor: tk.accent, backgroundColor: rgba(tk.accent, 0.14), alignItems: 'center', justifyContent: 'center' }}>
                     <Text style={kt('semibold', 13, tk.t1)}>{usernameInitials(you.username)}</Text>
                   </View>

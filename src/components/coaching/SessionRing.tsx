@@ -211,6 +211,40 @@ function useLocked(clock: SharedValue<number>, lock: number): boolean {
 }
 
 /**
+ * Centre % + unit. Owns the counter state, so each tick re-renders only this
+ * text, not the ring's segments and sparks.
+ */
+function CenterCount({ clock, tokens: t, tl, pct, completed, n, full, none, unit }: {
+  clock: SharedValue<number>; tokens: WCTokens; tl: WCTimeline; pct: number; completed: number[]; n: number; full: boolean; none: boolean; unit: string;
+}) {
+  const count = useCompletionCount(clock, pct, completed, n, tl);
+  const locked = useLocked(clock, tl.lock);
+  const bump = useAnimatedStyle(() => {
+    const T = clock.value;
+    const b1 = !none && T > tl.lock && T < tl.lock + 0.4 ? Math.sin(((T - tl.lock) / 0.4) * Math.PI) : 0;
+    const b2 = full && T > tl.fuse && T < tl.fuse + 0.35 ? Math.sin(((T - tl.fuse) / 0.35) * Math.PI) : 0;
+    return { transform: [{ scale: 1 + b1 * (full ? 0.12 : 0.06) + b2 * 0.1 }] };
+  });
+  return (
+    <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+      <Animated.Text
+        style={[
+          kt('bold', 76, t.t1, 0, 92),
+          { fontVariant: ['tabular-nums'], paddingHorizontal: 18, marginVertical: -8, writingDirection: 'ltr' },
+          locked && !none && { textShadowColor: `rgba(252,84,84,${0.5 * t.glowK})`, textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
+          bump,
+        ]}
+      >
+        {isRTL ? '\u2066' : ''}{count}
+        <Text style={kt('semibold', 30, t.t3)}>%</Text>
+        {isRTL ? '\u2069' : ''}
+      </Animated.Text>
+      <Text style={[kt('medium', 11, t.t4, 3), { marginTop: 6 }]}>{unit}</Text>
+    </View>
+  );
+}
+
+/**
  * Segmented session ring: one segment per block in workout order, lit in
  * turn; missed blocks stay dim with a gap marker; at 100% the gaps close.
  * Starts at 12 o'clock, clockwise (counter-clockwise in Arabic).
@@ -224,16 +258,7 @@ export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
   const full = completed.length === n && n > 0;
   const none = completed.length === 0;
   const ctx: SegmentCtx = { clock, tl, n, tokens: t };
-  const count = useCompletionCount(clock, pct, completed, n, tl);
-  const locked = useLocked(clock, tl.lock);
   const sparkColors = completed.map(i => segments[i].color);
-
-  const bump = useAnimatedStyle(() => {
-    const T = clock.value;
-    const b1 = !none && T > tl.lock && T < tl.lock + 0.4 ? Math.sin(((T - tl.lock) / 0.4) * Math.PI) : 0;
-    const b2 = full && T > tl.fuse && T < tl.fuse + 0.35 ? Math.sin(((T - tl.fuse) / 0.35) * Math.PI) : 0;
-    return { transform: [{ scale: 1 + b1 * (full ? 0.12 : 0.06) + b2 * 0.1 }] };
-  });
 
   return (
     <View style={{ width: SZ, height: SZ, alignSelf: 'center', marginTop: 12 }}>
@@ -263,21 +288,7 @@ export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
         ))}
       </View>
 
-      <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-        <Animated.Text
-          style={[
-            kt('bold', 76, t.t1, 0, 92),
-            { fontVariant: ['tabular-nums'], paddingHorizontal: 18, marginVertical: -8, writingDirection: 'ltr' },
-            locked && !none && { textShadowColor: `rgba(252,84,84,${0.5 * t.glowK})`, textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
-            bump,
-          ]}
-        >
-          {isRTL ? '⁦' : ''}{count}
-          <Text style={kt('semibold', 30, t.t3)}>%</Text>
-          {isRTL ? '⁩' : ''}
-        </Animated.Text>
-        <Text style={[kt('medium', 11, t.t4, 3), { marginTop: 6 }]}>{unit}</Text>
-      </View>
+      <CenterCount clock={clock} tokens={t} tl={tl} pct={pct} completed={completed} n={n} full={full} none={none} unit={unit} />
     </View>
   );
 }
