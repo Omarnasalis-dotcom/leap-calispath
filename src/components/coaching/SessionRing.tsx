@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import Animated, { runOnJS, SharedValue, useAnimatedProps, useAnimatedReaction, useAnimatedStyle } from 'react-native-reanimated';
-import Svg, { Circle, Defs, G, RadialGradient, Stop } from 'react-native-svg';
+import Svg, { Circle, Defs, G, LinearGradient as SvgLinearGradient, RadialGradient, Stop } from 'react-native-svg';
 import { kt } from '../worlds/kit';
 import { clamp01, easeOutCubic } from '../../lib/prCelebration';
 import {
@@ -47,7 +47,7 @@ function Arc({ startPx, reverse, color, width, animatedProps }: {
   );
 }
 
-function Segment({ ctx, i, seg, startPx, segLen }: { ctx: SegmentCtx; i: number; seg: RingSegment; startPx: number; segLen: number }) {
+function Segment({ ctx, i, seg, startPx, segLen, paint }: { ctx: SegmentCtx; i: number; seg: RingSegment; startPx: number; segLen: number; paint: string }) {
   const { clock, tl, n, tokens: t } = ctx;
   const land = segmentLand(i, tl);
   const fill = useAnimatedProps(() => ({ strokeDashoffset: WC_C - segLen * segmentProgress(clock.value, i, n, tl) }));
@@ -73,8 +73,8 @@ function Segment({ ctx, i, seg, startPx, segLen }: { ctx: SegmentCtx; i: number;
       </G>
       {!seg.missed && (
         <>
-          <Arc startPx={startPx} color={seg.color} width={SW + 10} animatedProps={glow} />
-          <Arc startPx={startPx} color={seg.color} width={SW} animatedProps={fill} />
+          <Arc startPx={startPx} color={paint} width={SW + 10} animatedProps={glow} />
+          <Arc startPx={startPx} color={paint} width={SW} animatedProps={fill} />
           <Arc startPx={startPx} color="#ffffff" width={SW} animatedProps={flash} />
         </>
       )}
@@ -229,14 +229,15 @@ function CenterCount({ clock, tokens: t, tl, pct, completed, n, full, none, unit
     <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
       <Animated.Text
         style={[
-          kt('bold', 76, t.t1, 0, 92),
+          // Sized from the final value: "100" is wider than two digits.
+          kt('bold', pct >= 100 ? 62 : 76, t.t1, 0, pct >= 100 ? 76 : 92),
           { fontVariant: ['tabular-nums'], paddingHorizontal: 18, marginVertical: -8, writingDirection: 'ltr' },
           locked && !none && { textShadowColor: `rgba(252,84,84,${0.5 * t.glowK})`, textShadowRadius: 18, textShadowOffset: { width: 0, height: 0 } },
           bump,
         ]}
       >
         {isRTL ? '\u2066' : ''}{count}
-        <Text style={kt('semibold', 30, t.t3)}>%</Text>
+        <Text style={kt('semibold', pct >= 100 ? 26 : 30, t.t3)}>%</Text>
         {isRTL ? '\u2069' : ''}
       </Animated.Text>
       <Text style={[kt('medium', 11, t.t4, 3), { marginTop: 6 }]}>{unit}</Text>
@@ -249,11 +250,27 @@ function CenterCount({ clock, tokens: t, tl, pct, completed, n, full, none, unit
  * turn; missed blocks stay dim with a gap marker; at 100% the gaps close.
  * Starts at 12 o'clock, clockwise (counter-clockwise in Arabic).
  */
-export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
+export function SessionRing({ clock, tokens: t, tl, segments, pct, unit, scale = 1, marginTop = 12 }: {
   clock: SharedValue<number>; tokens: WCTokens; tl: WCTimeline; segments: RingSegment[]; pct: number; unit: string;
+  /** Shrinks the whole ring (and its layout box) to fit short screens. */
+  scale?: number;
+  marginTop?: number;
 }) {
   const n = segments.length;
   const geo = ringGeometry(n);
+  // Each segment blends from its own colour into the next lit segment's
+  // colour (missed ones are skipped), so the ring flows instead of switching
+  // hard at each gap. Gradient coords are in the segment's own rotated
+  // frame, where its arc always starts at angle 0. One block: solid.
+  const endColor = (i: number) => {
+    for (let k = 1; k <= n; k++) {
+      const s2 = segments[(i + k) % n];
+      if (!s2.missed) return s2.color;
+    }
+    return segments[i].color;
+  };
+  const theta = geo.segLen / R;
+  const paint = (i: number) => (n > 1 ? `url(#wcSeg${i})` : segments[i].color);
   const completed = segments.map((s, i) => (s.missed ? -1 : i)).filter(i => i >= 0);
   const full = completed.length === n && n > 0;
   const none = completed.length === 0;
@@ -261,14 +278,28 @@ export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
   const sparkColors = completed.map(i => segments[i].color);
 
   return (
-    <View style={{ width: SZ, height: SZ, alignSelf: 'center', marginTop: 12 }}>
+    <View style={{ width: SZ * scale, height: SZ * scale, alignSelf: 'center', marginTop }}>
+     <View style={{ position: 'absolute', left: (SZ * scale - SZ) / 2, top: (SZ * scale - SZ) / 2, width: SZ, height: SZ, transform: [{ scale }] }}>
       {/* Geometry box: laid out left-to-right in every language, then
           mirrored as a whole for Arabic so the ring runs counter-clockwise. */}
       <View pointerEvents="none" style={[{ position: 'absolute', left: 0, top: 0, width: SZ, height: SZ, direction: 'ltr' }, isRTL && { transform: [{ scaleX: -1 }] }]}>
         {!none && <LockBurst clock={clock} tokens={t} lock={tl.lock} full={full} />}
         <Svg width={SZ} height={SZ} style={{ position: 'absolute', overflow: 'visible', transform: [{ rotate: '-90deg' }] }}>
+          {n > 1 && (
+            <Defs>
+              {segments.map((seg, i) => (
+                <SvgLinearGradient
+                  key={`d${i}`} id={`wcSeg${i}`} gradientUnits="userSpaceOnUse"
+                  x1={MID + R} y1={MID} x2={MID + R * Math.cos(theta)} y2={MID + R * Math.sin(theta)}
+                >
+                  <Stop offset="0" stopColor={seg.color} />
+                  <Stop offset="1" stopColor={endColor(i)} />
+                </SvgLinearGradient>
+              ))}
+            </Defs>
+          )}
           {segments.map((seg, i) => (
-            <Segment key={i} ctx={ctx} i={i} seg={seg} startPx={geo.starts[i]} segLen={geo.segLen} />
+            <Segment key={i} ctx={ctx} i={i} seg={seg} startPx={geo.starts[i]} segLen={geo.segLen} paint={paint(i)} />
           ))}
           {full && n > 1 && segments.map((seg, i) => {
             const next = (i + 1) % n;
@@ -276,7 +307,7 @@ export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
               <GapFill
                 key={`g${i}`} ctx={ctx} half={geo.gapLen / 2}
                 fromPx={geo.starts[i] + geo.segLen} toPx={geo.starts[next] + (next === 0 ? WC_C : 0)}
-                prevColor={seg.color} nextColor={segments[next].color}
+                prevColor={segments[next].color} nextColor={segments[next].color}
               />
             );
           })}
@@ -289,6 +320,7 @@ export function SessionRing({ clock, tokens: t, tl, segments, pct, unit }: {
       </View>
 
       <CenterCount clock={clock} tokens={t} tl={tl} pct={pct} completed={completed} n={n} full={full} none={none} unit={unit} />
+     </View>
     </View>
   );
 }

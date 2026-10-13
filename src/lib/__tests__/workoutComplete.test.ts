@@ -1,6 +1,6 @@
 import {
   cardGlow, completionCount, completionPct, formatSessionDuration, fuseProgress, programNameSize, ringGeometry,
-  segmentLand, segmentProgress, statSpans, statValueSize, WC_C, wcTimeline,
+  segmentLand, segmentProgress, statValueSize, WC_C, wcTimeline,
 } from '../workoutComplete';
 
 describe('wcTimeline', () => {
@@ -78,13 +78,10 @@ describe('formatting', () => {
     expect(programNameSize('ADVANCED STREET WORKOUT FOUNDATIONS PROGRAM')).toBe(22);
   });
 
-  it('lays out 4 or 5 stats without empty cells', () => {
-    expect(statSpans(4)).toEqual([3, 3, 3, 3]);
-    expect(statSpans(5)).toEqual([2, 2, 2, 3, 3]);
-    expect(statValueSize('1:32:10', 3)).toBe(20);
-    expect(statValueSize('48:12', 2)).toBe(24);
-    expect(statValueSize('1,240', 2)).toBe(24);
-    expect(statValueSize('48:120', 2)).toBe(20);
+  it('steps the stat value size for long values', () => {
+    expect(statValueSize('48:12')).toBe(26);
+    expect(statValueSize('12,840')).toBe(26);
+    expect(statValueSize('1:32:10')).toBe(22);
   });
 
   it('rounds the completion percent', () => {

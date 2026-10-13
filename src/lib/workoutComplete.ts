@@ -112,17 +112,9 @@ export function programNameSize(name: string): number {
   return name.length <= 22 ? 30 : name.length <= 32 ? 26 : 22;
 }
 
-/**
- * Stats grid on 6 columns: 4 stats → 2×2 (span 3); 5 → 3 on top (span 2)
- * + 2 below (span 3). Returns each stat's span.
- */
-export function statSpans(count: number): number[] {
-  return Array.from({ length: count }, (_, i) => (count === 5 && i < 3 ? 2 : 3));
-}
-
-/** Value text drops to 20px when long for its cell. */
-export function statValueSize(value: string, span: number): number {
-  return value.length > (span === 2 ? 5 : 6) ? 20 : 24;
+/** Stat value size in a half-width cell: 26, or 22 past 6 chars ("1:32:10"). */
+export function statValueSize(value: string): number {
+  return value.length > 6 ? 22 : 26;
 }
 
 /** Settled outer glow: 100% .3, partial .22, 0% .12. */

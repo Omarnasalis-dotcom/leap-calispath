@@ -1920,7 +1920,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             addressed — handing off to the same handleWorkoutDonePress flow
             the old WorkoutProgressButton triggered (session-complete
             stats), so nothing that worked before is lost. */}
-        {blocksTotalCount > 0 && (
+        {blocksTotalCount > 0 && !showSessionComplete && (
           <LinearGradient
             colors={dbr.footerFade}
             locations={[0, 0.3, 1]}
@@ -2141,8 +2141,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       {/* SESSION COMPLETE / WORKOUT STATS */}
       <SessionCompleteScreen
         visible={showSessionComplete}
-        programName={programName}
-        dayName={days[activeDayIndex] ? t('sessionComplete.dayLine', { week: activeWeek, day: days[activeDayIndex].name.toUpperCase() }) : ''}
+        dayName={days[activeDayIndex]?.name ?? ''}
+        week={activeWeek}
         blocks={loggableBlocks
           .filter(b => b.completedStatus !== 'none')
           .map(b => ({ name: b.name, status: b.completedStatus === 'missed' ? 'missed' as const : 'completed' as const }))}

@@ -599,7 +599,7 @@ const ar: Translations = {
     workoutComplete: 'اكتمل التمرين',
     sessionLogged: 'تم تسجيل الجلسة',
     complete: 'مكتمل',
-    dayLine: 'الأسبوع {{week}} · {{day}}',
+    weekLabel: 'الأسبوع {{week}}',
     yourWorkout: 'تمرينك',
     done: 'تم',
     share: 'مشاركة',

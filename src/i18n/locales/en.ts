@@ -535,7 +535,7 @@ const en = {
     workoutComplete: 'WORKOUT COMPLETE',
     sessionLogged: 'SESSION LOGGED',
     complete: 'COMPLETE',
-    dayLine: 'WEEK {{week}} · {{day}}',
+    weekLabel: 'WEEK {{week}}',
     yourWorkout: 'YOUR WORKOUT',
     done: 'DONE',
     share: 'SHARE',

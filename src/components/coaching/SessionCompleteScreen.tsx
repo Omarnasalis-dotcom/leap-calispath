@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useRef } from 'react';
-import { AccessibilityInfo, Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { AccessibilityInfo, Alert, LayoutChangeEvent, Modal, Pressable, ScrollView, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import Animated, {
   cancelAnimation, Easing, runOnJS, SharedValue, useAnimatedReaction, useAnimatedStyle, useSharedValue, withTiming,
 } from 'react-native-reanimated';
@@ -16,7 +16,7 @@ import { LeapLogo } from '../LeapLogo';
 import { clamp01, easeOutBack, easeOutCubic } from '../../lib/prCelebration';
 import { inferBlockAccent } from '../../lib/warriorProgramDays';
 import {
-  cardGlow, completionPct, formatSessionDuration, programNameSize, segmentLand, segmentProgress, statSpans, statValueSize,
+  cardGlow, completionPct, formatSessionDuration, programNameSize, segmentLand, segmentProgress, statValueSize,
   WC_AFTER, wcTimeline,
 } from '../../lib/workoutComplete';
 import { getWCTokens, WCTokens } from './sessionCompleteTokens';
@@ -30,9 +30,9 @@ export interface SessionCompleteBlock {
 
 interface SessionCompleteScreenProps {
   visible: boolean;
-  programName: string;
-  /** e.g. "WEEK 2 · DAY 3: PULL". */
+  /** The day's name, e.g. "Push Day": the card's title. */
   dayName: string;
+  week: number;
   /** The day's blocks in workout order, every one logged or missed. */
   blocks: SessionCompleteBlock[];
   exercisesDone: number;
@@ -44,6 +44,17 @@ interface SessionCompleteScreenProps {
 
 /** Clock runs far past the end so the ambient motes keep drifting. */
 const CLOCK_END = 900;
+/**
+ * Fit levels: when card + actions don't fit the screen (Arabic's taller Cairo
+ * lines, small phones), the card steps down before it becomes visible.
+ */
+const FIT = [
+  { ring: 1, space: 1, nameMax: 30, cellPad: 14 },
+  { ring: 0.82, space: 0.6, nameMax: 24, cellPad: 10 },
+  { ring: 0.68, space: 0.4, nameMax: 22, cellPad: 8 },
+] as const;
+/** DONE row height + its top padding. */
+const ACTIONS_H = 76;
 const MOTE_LOOP = 600;
 
 /** Fades a block up `dy` px starting at `start` (seconds on the clock). */
@@ -78,26 +89,25 @@ function Mote({ clock, i, start, color, max }: { clock: SharedValue<number>; i: 
   return <Animated.View style={[{ position: 'absolute', left: 0, top: 0, width: s, height: s, borderRadius: s / 2, backgroundColor: color }, style]} />;
 }
 
-function StatsGrid({ tokens: tk, stats }: { tokens: WCTokens; stats: { label: string; value: string; sub?: string }[] }) {
-  const spans = statSpans(stats.length);
-  const rows = stats.length === 5 ? [stats.slice(0, 3), stats.slice(3)] : [stats.slice(0, 2), stats.slice(2)];
-  let k = 0;
+/**
+ * Always a 2×2 grid of equal cells: value on top, short label underneath,
+ * centred, so columns line up and labels never truncate.
+ */
+function StatsGrid({ tokens: tk, stats, cellPad = 14 }: { tokens: WCTokens; stats: { label: string; value: string; sub?: string }[]; cellPad?: number }) {
+  const rows = [stats.slice(0, 2), stats.slice(2, 4)];
   return (
     <View style={{ borderRadius: 18, borderWidth: 1, borderColor: tk.statsBorder, overflow: 'hidden', backgroundColor: tk.statsBg }}>
       {rows.map((row, r) => (
         <View key={r} style={[{ flexDirection: 'row' }, r > 0 && { borderTopWidth: 1, borderTopColor: tk.statsBorder }]}>
-          {row.map((s, c) => {
-            const span = spans[k++];
-            return (
-              <View key={s.label} style={[{ flex: 1, minWidth: 0, paddingVertical: 14, paddingHorizontal: 16 }, c > 0 && { borderStartWidth: 1, borderStartColor: tk.statsBorder }]}>
-                <Text style={kt('medium', isArabic ? 12 : 10.5, tk.t4, 2)} numberOfLines={1}>{s.label}</Text>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 4, marginTop: 4, direction: 'ltr', alignSelf: 'flex-start' }}>
-                  <Text style={[kt('bold', statValueSize(s.value, span), tk.t1), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>{s.value}</Text>
-                  {!!s.sub && <Text style={kt('medium', 13, tk.t5)}>{s.sub}</Text>}
-                </View>
+          {row.map((s, c) => (
+            <View key={s.label} style={[{ flex: 1, minWidth: 0, paddingVertical: cellPad, paddingHorizontal: 10, alignItems: 'center' }, c > 0 && { borderStartWidth: 1, borderStartColor: tk.statsBorder }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, direction: 'ltr' }}>
+                <Text style={[kt('bold', statValueSize(s.value), tk.t1, 0, 30), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>{s.value}</Text>
+                {!!s.sub && <Text style={kt('medium', 14, tk.t5)}>{s.sub}</Text>}
               </View>
-            );
-          })}
+              <Text style={[kt('medium', isArabic ? 12 : 10.5, tk.t4, 2), { marginTop: 4, textAlign: 'center' }]} numberOfLines={1}>{s.label}</Text>
+            </View>
+          ))}
         </View>
       ))}
     </View>
@@ -115,12 +125,20 @@ export function SessionCompleteScreen(props: SessionCompleteScreenProps) {
  * stats. One Reanimated clock drives the whole timeline.
  */
 function SessionCompleteModal({
-  programName, dayName, blocks, exercisesDone, totalReps, bodyweightKg, sessionSeconds, onClose,
+  dayName, week, blocks, exercisesDone, totalReps, bodyweightKg, sessionSeconds, onClose,
 }: SessionCompleteScreenProps) {
   const { mode } = useTheme();
   const tk = useMemo(() => getWCTokens(mode), [mode]);
   const insets = useSafeAreaInsets();
   const cardRef = useRef<View>(null);
+  const { height: winH } = useWindowDimensions();
+  const [fitLevel, setFitLevel] = useState(0);
+  const fit = FIT[fitLevel];
+  const onCardLayout = (e: LayoutChangeEvent) => {
+    const available = winH - (insets.top + 12) - (insets.bottom + 16) - ACTIONS_H;
+    if (e.nativeEvent.layout.height > available && fitLevel < FIT.length - 1) setFitLevel(fitLevel + 1);
+  };
+  const sp = (v: number) => Math.round(v * fit.space);
 
   const segments = useMemo(
     () => blocks.map(b => ({ color: inferBlockAccent(b.name).color, missed: b.status === 'missed' })),
@@ -214,18 +232,16 @@ function SessionCompleteModal({
     else if (result === 'failed') Alert.alert(t('sessionComplete.error'), t('sessionComplete.imageFailed'));
   };
 
-  const name = programName || t('sessionComplete.yourWorkout');
-  const nameSize = programNameSize(name);
+  const name = dayName || t('sessionComplete.yourWorkout');
+  const nameSize = Math.min(programNameSize(name), fit.nameMax);
   const date = new Date().toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
   const stats = [
     { label: t('sessionComplete.blocksDone'), value: String(done), sub: `/${n}` },
     { label: t('sessionComplete.duration'), value: formatSessionDuration(sessionSeconds) },
     { label: t('sessionComplete.totalReps'), value: Math.max(0, totalReps).toLocaleString('en-US') },
     { label: t('sessionComplete.exercises'), value: String(Math.max(0, exercisesDone)) },
-    ...(bodyweightKg !== null && bodyweightKg > 0
-      ? [{ label: t('sessionComplete.bodyweight'), value: String(Math.round(bodyweightKg * 10) / 10), sub: t('sessionComplete.kg') }]
-      : []),
   ];
+  const bodyweight = bodyweightKg !== null && bodyweightKg > 0 ? String(Math.round(bodyweightKg * 10) / 10) : null;
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={onClose}>
@@ -247,7 +263,8 @@ function SessionCompleteModal({
               ref={cardRef}
               collapsable={false}
               nativeID="session-complete-card"
-              style={{ borderRadius: 30, paddingTop: 22, paddingHorizontal: 22, paddingBottom: 24, backgroundColor: tk.card, borderWidth: 1, borderColor: tk.cardBorder, overflow: 'hidden' }}
+              onLayout={onCardLayout}
+              style={{ borderRadius: 30, paddingTop: sp(22), paddingHorizontal: 22, paddingBottom: sp(24), backgroundColor: tk.card, borderWidth: 1, borderColor: tk.cardBorder, overflow: 'hidden' }}
             >
               <LinearGradient
                 pointerEvents="none"
@@ -270,13 +287,13 @@ function SessionCompleteModal({
                 <Text style={kt('medium', 11, tk.t5, 1.6)}>{ltr(date)}</Text>
               </View>
 
-              <Animated.Text style={[kt('semibold', isArabic ? 14 : 12, tk.t2, 4), { marginTop: 20, textAlign: 'center' }, eyebrowStyle]}>
+              <Animated.Text style={[kt('semibold', isArabic ? 14 : 12, tk.t2, 4), { marginTop: sp(20), textAlign: 'center' }, eyebrowStyle]}>
                 {none ? t('sessionComplete.sessionLogged') : t('sessionComplete.workoutComplete')}
               </Animated.Text>
 
-              <SessionRing clock={clock} tokens={tk} tl={tl} segments={segments} pct={pct} unit={t('sessionComplete.complete')} />
+              <SessionRing clock={clock} tokens={tk} tl={tl} segments={segments} pct={pct} unit={t('sessionComplete.complete')} scale={fit.ring} marginTop={sp(12)} />
 
-              <Animated.View style={[{ marginTop: 16 }, titleStyle]}>
+              <Animated.View style={[{ marginTop: sp(16) }, titleStyle]}>
                 <Text
                   style={[kt('bold', nameSize, tk.t1, 1.4, Math.round(nameSize * 1.15)), { textAlign: 'center' }]}
                   numberOfLines={2}
@@ -285,16 +302,22 @@ function SessionCompleteModal({
                 >
                   {name.toUpperCase()}
                 </Text>
-                {!!dayName && (
-                  <Text style={[kt('medium', 13, tk.t3, 1.6), { textAlign: 'center', marginTop: 6 }]} numberOfLines={1}>{dayName}</Text>
+                <Text style={[kt('medium', 13, tk.t3, 1.6), { textAlign: 'center', marginTop: 6 }]} numberOfLines={1}>
+                  {t('sessionComplete.weekLabel', { week })}
+                </Text>
+              </Animated.View>
+
+              <Animated.View style={[{ marginTop: sp(18) }, statsStyle]}>
+                <StatsGrid tokens={tk} stats={stats} cellPad={fit.cellPad} />
+                {bodyweight && (
+                  <View style={{ flexDirection: 'row', justifyContent: 'center', alignItems: 'baseline', gap: 6, marginTop: 10 }}>
+                    <Text style={kt('medium', isArabic ? 12 : 10.5, tk.t4, 2)}>{t('sessionComplete.bodyweight')}</Text>
+                    <Text style={[kt('semibold', 13, tk.t2, 0.5), { writingDirection: 'ltr' }]}>{ltr(`${bodyweight} ${t('sessionComplete.kg')}`)}</Text>
+                  </View>
                 )}
               </Animated.View>
 
-              <Animated.View style={[{ marginTop: 18 }, statsStyle]}>
-                <StatsGrid tokens={tk} stats={stats} />
-              </Animated.View>
-
-              <Animated.View style={[{ marginTop: 18, alignItems: 'center' }, logoStyle]}>
+              <Animated.View style={[{ marginTop: sp(18), alignItems: 'center' }, logoStyle]}>
                 <View style={{ height: 30, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: tk.pillBorder, flexDirection: 'row', alignItems: 'center', gap: 8, direction: 'ltr' }}>
                   <LeapLogo size={18} animated={false} />
                   <Text style={kt('semibold', 11, tk.t1, 2.4)}>LEAP ARENA</Text>
