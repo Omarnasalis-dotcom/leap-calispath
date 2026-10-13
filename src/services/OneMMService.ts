@@ -88,10 +88,9 @@ export const OneMMService = {
       cachedOneMMStats = { userId, stats: statsObj, timestamp: Date.now() };
       return statsObj;
     } catch (err) {
+      // Rethrow rather than return zeros (see PowerService.getUserStats).
       console.error('Error fetching 1MM user stats:', err);
-      const fallbackPbs: Record<string, number> = {};
-      ONEMM_MOVEMENTS.forEach(m => fallbackPbs[m.id] = 0);
-      return { pbs: fallbackPbs, totalPoints: 0, ranks: {} };
+      throw err;
     }
   },
 

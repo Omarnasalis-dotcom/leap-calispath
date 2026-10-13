@@ -25,7 +25,7 @@ import { staticWithinLevel, STATIC_HOLD_TARGET_SECONDS } from '../lib/worldProgr
 import { SkillCarousel } from '../components/worlds/SkillCarousel';
 import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitButton,
-  KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldPage, WorldSheet, WorldToast, YouBar, Gender,
+  KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
 import { t as tr, isArabic } from '../i18n';
 
@@ -72,6 +72,10 @@ export function StaticWorldScreen({ movement }: Props) {
 
   const [pbs, setPbs] = useState<Record<string, number>>({});
   const [loaded, setLoaded] = useState(false);
+  // Own records failed to load (and none loaded yet): show a retry and block
+  // logging, so a 0 "best" can't fake a new PB.
+  const [loadFailed, setLoadFailed] = useState(false);
+  const loadedRef = useRef(false);
   const [refreshing, setRefreshing] = useState(false);
   const { summary, refresh: refreshSummary } = useWorldSummary('static', !!user);
 
@@ -111,12 +115,13 @@ export function StaticWorldScreen({ movement }: Props) {
     isFetchingRef.current = true;
     try {
       const { pbs: p } = await StaticService.getUserStats(user.id);
-      if (isMounted.current) setPbs(p);
+      if (isMounted.current) { setPbs(p); setLoaded(true); setLoadFailed(false); loadedRef.current = true; }
     } catch (e) {
       console.error('[StaticWorld] load error:', e);
+      if (isMounted.current) setLoadFailed(true);
     } finally {
       isFetchingRef.current = false;
-      if (isMounted.current) { setLoaded(true); setRefreshing(false); }
+      if (isMounted.current) setRefreshing(false);
     }
   }, [user, isMounted]);
 
@@ -215,7 +220,7 @@ export function StaticWorldScreen({ movement }: Props) {
   // Stable for the memoized skill cards; always runs the latest openLog.
   const openLogRef = useRef(openLog);
   openLogRef.current = openLog;
-  const openLogFromCard = useCallback((m: StaticMovement) => openLogRef.current(m), []);
+  const openLogFromCard = useCallback((m: StaticMovement) => { if (loadedRef.current) openLogRef.current(m); }, []);
 
   const openBoard = () => {
     setSheet({ kind: 'board' });
@@ -386,6 +391,12 @@ export function StaticWorldScreen({ movement }: Props) {
               accessibilityLabel={tr('staticWorld.skillA11y')}
             />
           </View>
+
+          {!loaded && loadFailed && (
+            <View style={{ paddingHorizontal: 24, paddingBottom: 14 }}>
+              <LoadErrorCard tokens={t} onRetry={fetchPbs} />
+            </View>
+          )}
 
           <SkillCarousel
             count={CATEGORIES.length}

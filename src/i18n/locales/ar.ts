@@ -1318,6 +1318,7 @@ const ar: Translations = {
     cancel: 'إلغاء',
     tryAgain: 'حاول مرة أخرى',
     tryAgainQ: 'هل تريد المحاولة مرة أخرى؟',
+    recordsLoadFailed: 'تعذّر تحميل أرقامك. تحقّق من اتصالك وحاول مرة أخرى.',
     newPb: 'رقم قياسي جديد · +{{pts}} نقطة',
     notInFilter: 'لست ضمن عامل التصفية هذا',
     leaderboard: 'لوحة الصدارة',

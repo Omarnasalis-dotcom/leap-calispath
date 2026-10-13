@@ -27,7 +27,7 @@ import {
 import {
   BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitBar, KitButton,
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
-  WorldPage, WorldSheet, WorldToast, YouBar, Gender,
+  WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
 import { t as tr } from '../i18n';
 
@@ -60,6 +60,8 @@ export function PowerWorldScreen() {
 
   const [stats, setStats] = useState<PowerUserStats | null>(null);
   const [loading, setLoading] = useState(true);
+  // Own records failed to load (and none loaded yet): show a retry, not zeros.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { summary, refresh: refreshSummary } = useWorldSummary('power', !!user);
 
@@ -96,9 +98,10 @@ export function PowerWorldScreen() {
     isFetchingRef.current = true;
     try {
       const s = await PowerService.getUserStats(user.id);
-      if (isMounted.current) setStats(s);
+      if (isMounted.current) { setStats(s); setLoadFailed(false); }
     } catch (e) {
       console.error('Fetch power error:', e);
+      if (isMounted.current) setLoadFailed(true);
     } finally {
       isFetchingRef.current = false;
       if (isMounted.current) { setLoading(false); setRefreshing(false); }
@@ -358,7 +361,9 @@ export function PowerWorldScreen() {
           />
 
           <View ref={movementRowRef} onLayout={onMovementRowLayout} collapsable={false} style={{ gap: 10, paddingTop: 22, paddingHorizontal: 24 }}>
-            {loading && !stats
+            {!stats && loadFailed
+              ? <LoadErrorCard tokens={t} onRetry={fetchStats} />
+              : !stats
               ? POWER_MOVEMENTS.map(m => <Skeleton key={m.id} width="100%" height={106} borderRadius={20} />)
               : POWER_MOVEMENTS.map(m => (
                 <LiftRow key={m.id} tokens={t} movement={m} pb={pbs[m.id] ?? 0} worldBest={summary?.movementBests[m.id]} onPress={() => openLog(m)} />

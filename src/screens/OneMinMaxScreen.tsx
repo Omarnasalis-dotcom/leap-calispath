@@ -26,7 +26,7 @@ import { clamp01 } from '../lib/worldProgress';
 import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, filterByGender, GoalCard, KitButton,
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
-  WorldPage, WorldSheet, WorldToast, YouBar, Gender,
+  WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
 import { t as tr } from '../i18n';
 
@@ -93,6 +93,8 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
 
   const [stats, setStats] = useState<OneMMUserStats | null>(null);
   const [loading, setLoading] = useState(true);
+  // Own records failed to load (and none loaded yet): show a retry, not zeros.
+  const [loadFailed, setLoadFailed] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const { summary, refresh: refreshSummary } = useWorldSummary('onemm', !!user);
 
@@ -127,9 +129,10 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
     isFetchingRef.current = true;
     try {
       const s = await OneMMService.getUserStats(user.id);
-      if (isMounted.current) setStats(s);
+      if (isMounted.current) { setStats(s); setLoadFailed(false); }
     } catch (e) {
       console.error('Fetch 1MM error:', e);
+      if (isMounted.current) setLoadFailed(true);
     } finally {
       isFetchingRef.current = false;
       if (isMounted.current) { setLoading(false); setRefreshing(false); }
@@ -389,7 +392,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           </View>
 
           <View ref={movementGridRef} onLayout={onMovementGridLayout} collapsable={false} style={{ gap: 10, paddingHorizontal: 24 }}>
-            {loading && !stats
+            {!stats && loadFailed
+              ? <LoadErrorCard tokens={t} onRetry={fetchStats} />
+              : !stats
               ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} width="100%" height={78} borderRadius={20} />)
               : ONEMM_MOVEMENTS.filter(m => m.categoryId === level).map((m, i) => (
                 <MovementRow

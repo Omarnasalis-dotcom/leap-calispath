@@ -136,10 +136,8 @@ export class StaticService {
       .select('*')
       .eq('user_id', userId);
 
-    if (error) {
-      console.error('Error fetching user holds:', error);
-      return [];
-    }
+    // Throw rather than return []: no holds would show every PB as 0.
+    if (error) throw error;
     return Array.isArray(data) ? data : [];
   }
 

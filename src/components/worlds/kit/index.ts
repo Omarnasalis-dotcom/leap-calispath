@@ -15,5 +15,6 @@ export { NumberField } from './NumberField';
 export { ThisSetRow, TopList, YouBadge, rankColor } from './SetRows';
 export type { TopListRow } from './SetRows';
 export { WorldToast } from './WorldToast';
+export { LoadErrorCard } from './LoadErrorCard';
 export { BoardKicker, BoardFilters, BoardRowView, EliteList, LeaderboardBody, YouBar, filterByGender } from './Leaderboard';
 export type { Scope, Gender } from './Leaderboard';

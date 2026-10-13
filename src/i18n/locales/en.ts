@@ -1223,6 +1223,7 @@ const en = {
     cancel: 'Cancel',
     tryAgain: 'Try Again',
     tryAgainQ: 'Try again?',
+    recordsLoadFailed: "Couldn't load your records. Check your connection and try again.",
     newPb: 'NEW PB · +{{pts}} PTS',
     notInFilter: 'Not in this filter',
     leaderboard: 'LEADERBOARD',

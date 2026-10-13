@@ -83,13 +83,10 @@ export const PowerService = {
       cachedPowerStats = { userId, stats: statsObj, timestamp: Date.now() };
       return statsObj;
     } catch (err) {
+      // Rethrow rather than return zeros: a 0 best makes any result look like
+      // a new PB. The screen keeps what it had and shows a retry.
       console.error('Error fetching Power user stats:', err);
-      return {
-        pbs: { pull_up: 0, dip: 0, squat: 0, muscle_up: 0 },
-        totalPoints: 0,
-        level: getPowerLevel(0),
-        ranks: {}
-      };
+      throw err;
     }
   },
 
