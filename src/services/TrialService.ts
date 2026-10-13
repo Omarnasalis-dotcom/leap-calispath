@@ -115,14 +115,16 @@ export class TrialService {
   }
 
   /**
-   * Logs an abandoned trial — no validation needed, just a record.
+   * Logs an abandoned trial. Goes through log_abandoned_trial, which can only
+   * write a not-completed row for the caller: trial_history is the Strength
+   * leaderboard source, so the app can't insert into it directly (since
+   * 2026-06-18 the direct insert was silently rejected).
    */
-  static async logAbandon(userId: string, tier: number, timeSeconds: number) {
-    return await supabase.from('trial_history').insert({
-      user_id: userId,
-      tier_attempted: tier,
-      completed: false,
-      time_seconds: timeSeconds,
+  static async logAbandon(_userId: string, tier: number, timeSeconds: number) {
+    const { error } = await supabase.rpc('log_abandoned_trial', {
+      p_tier: tier,
+      p_time_seconds: Math.max(0, Math.round(timeSeconds)),
     });
+    if (error) throw error;
   }
 }
