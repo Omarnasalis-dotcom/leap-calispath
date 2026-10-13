@@ -1,0 +1,783 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+body{margin:0;background:#080808;}
+a{color:#FC5454;}
+a:hover{color:#ff7a7a;}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@300;400;500;600;700&family=Michroma&family=Cairo:wght@400;500;600;700&display=swap">
+<script src="./journey-badges.js"></script>
+</helmet>
+<div style="min-height:100vh;background:#080808;font-family:'Oswald','Arial Narrow',sans-serif;padding:40px 20px 60px;box-sizing:border-box;display:flex;flex-direction:column;gap:48px;align-items:center;">
+<div style="display:flex;align-items:flex-start;justify-content:center;gap:28px;flex-wrap:wrap;">
+
+  <div style="width:250px;display:flex;flex-direction:column;gap:13px;padding-top:10px;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">JOURNEY · ACHIEVEMENTS</div>
+    <div style="color:#8a8a8a;font-size:12.5px;font-weight:300;line-height:1.6;">8 badges earned from lifetime Journey points. Each one gets its own reveal, more dramatic as you climb. The community leaderboard ranks members by points from the last 7 days.</div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">ACHIEVEMENT</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <sc-for list="{{ chipsAch }}" as="c" hint-placeholder-count="11">
+        <div style="{{ c.style }}" onClick="{{ c.pick }}">{{ c.label }}</div>
+      </sc-for>
+    </div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">LEADERBOARD</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <sc-for list="{{ chipsLb }}" as="c" hint-placeholder-count="9">
+        <div style="{{ c.style }}" onClick="{{ c.pick }}">{{ c.label }}</div>
+      </sc-for>
+    </div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">MODIFIERS</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;">
+      <sc-for list="{{ chipsMod }}" as="c" hint-placeholder-count="3">
+        <div style="{{ c.style }}" onClick="{{ c.pick }}">{{ c.label }}</div>
+      </sc-for>
+    </div>
+    <div style="height:1px;background:#1c1c1c;"></div>
+    <div style="color:#6a6a6a;font-size:10.5px;font-weight:600;letter-spacing:2px;">HAPTIC / SOUND CUE</div>
+    <div style="{{ cueStyle }}">{{ cueLabel }}</div>
+    <div style="height:44px;border-radius:12px;border:1px solid #3a1a1a;background:#1a0b0b;color:#FC5454;display:flex;align-items:center;justify-content:center;gap:8px;font-size:13px;font-weight:600;letter-spacing:2px;cursor:pointer;" onClick="{{ replay }}">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7"></path><path d="M3 4v5h5"></path></svg>
+      REPLAY
+    </div>
+    <div style="color:#6a6a6a;font-size:11.5px;font-weight:300;line-height:1.6;">Tap the card to skip to the final frame. On the leaderboard, tap the COMMUNITY row to open the sheet and scroll it to see your row unpin. Mock data is in Tweaks (members: "name=weeklyPts/badgeLevel; …").</div>
+  </div>
+
+  <sc-for list="{{ frames }}" as="f" hint-placeholder-count="2">
+    <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+      <div style="color:#6a6a6a;font-size:11px;font-weight:600;letter-spacing:2.4px;">{{ f.themeLabel }}</div>
+      <div style="{{ f.phone }}">
+
+        <div style="{{ f.bg }}" dir="{{ f.dir }}">
+          <div style="{{ f.jTop }}">
+            <div style="{{ f.jTitle }}">{{ f.s.journey }}</div>
+            <div style="{{ f.jChip }}">
+              <div style="width:40px;height:40px;flex:none;">{{ f.jBadge }}</div>
+              <div style="display:flex;flex-direction:column;gap:1px;min-width:0;">
+                <div style="{{ f.jChipName }}">{{ f.jName }}</div>
+                <div style="{{ f.jChipPts }}">{{ f.jPts }}</div>
+              </div>
+            </div>
+          </div>
+          <div style="{{ f.entry }}" onClick="{{ openSheet }}">
+            <div style="{{ f.entryIcon }}">
+              <sc-if value="{{ f.locked }}" hint-placeholder-val="{{ false }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+              </sc-if>
+              <sc-if value="{{ f.unlocked }}" hint-placeholder-val="{{ true }}">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.5"></circle><path d="M2.5 20c.8-3.6 3.4-5.5 6.5-5.5s5.7 1.9 6.5 5.5"></path><path d="M16 4.8a3.5 3.5 0 0 1 0 6.4"></path><path d="M18.5 14.8c1.6.8 2.6 2.6 3 5.2"></path></svg>
+              </sc-if>
+            </div>
+            <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;">
+              <div style="{{ f.entryLabel }}">{{ f.s.community }}</div>
+              <div style="{{ f.entryName }}">{{ f.entryText }}</div>
+            </div>
+            <div style="{{ f.entryRight }}">
+              <div style="{{ f.entryRank }}">{{ f.entryRankTxt }}</div>
+              <div style="{{ f.entrySub }}">{{ f.entrySubTxt }}</div>
+            </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="{{ f.chev }}"><path d="M9 6l6 6-6 6"></path></svg>
+          </div>
+          <div style="display:grid;gap:10px;margin-top:22px;">
+            <sc-for list="{{ f.mockRows }}" as="r" hint-placeholder-count="6">
+              <div style="{{ r.style }}">
+                <div style="{{ r.dot }}"></div>
+                <div style="display:flex;flex-direction:column;gap:8px;">
+                  <div style="{{ r.bar }}"></div>
+                  <div style="{{ r.bar2 }}"></div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="{{ f.overlay }}" onClick="{{ closeSheet }}"></div>
+
+        <div style="{{ f.status }}">
+          <div>11:40</div>
+          <div style="display:flex;gap:5px;align-items:center;">
+            <div style="{{ f.statusIcon1 }}"></div>
+            <div style="{{ f.statusIcon2 }}"></div>
+          </div>
+        </div>
+
+        <sc-if value="{{ f.isAch }}" hint-placeholder-val="{{ true }}">
+          <div style="{{ f.group }}">
+            <div style="{{ f.card }}" dir="{{ f.dir }}" onClick="{{ skip }}">
+              <div style="{{ f.radial }}"></div>
+              <div style="position:relative;display:flex;align-items:center;justify-content:space-between;">
+                <div style="{{ f.headLeft }}">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><circle cx="6" cy="18" r="2.5"></circle><circle cx="18" cy="6" r="2.5"></circle><path d="M8.5 18H15a3 3 0 000-6H9a3 3 0 010-6h6.5"></path></svg>
+                  <div>{{ f.s.journey }}</div>
+                </div>
+                <div style="{{ f.dateStyle }}">{{ f.date }}</div>
+              </div>
+              <div style="{{ f.a1 }}">{{ f.s.unlocked }}</div>
+
+              <div style="{{ f.heroBox }}">
+                <div style="{{ f.h.glow }}"></div>
+                <div style="{{ f.h.stage }}">
+                  <sc-for list="{{ f.h.beams }}" as="b" hint-placeholder-count="0"><div style="{{ b }}"></div></sc-for>
+                  <sc-for list="{{ f.h.rings }}" as="b" hint-placeholder-count="0"><div style="{{ b }}"></div></sc-for>
+                  <svg width="100%" height="100%" viewBox="0 0 160 160" style="position:absolute;inset:0;overflow:visible;"><circle cx="80" cy="80" r="72" fill="none" stroke-width="3" stroke-linecap="round" transform="rotate(-90 80 80)" style="{{ f.h.draw }}"></circle></svg>
+                  <div style="{{ f.h.raysS }}">{{ f.h.raysEl }}</div>
+                  <div style="{{ f.h.prevS }}">{{ f.h.prevEl }}</div>
+                  <div style="{{ f.h.wlS }}">{{ f.h.wlEl }}</div>
+                  <div style="{{ f.h.wrS }}">{{ f.h.wrEl }}</div>
+                  <div style="{{ f.h.bodyS }}">{{ f.h.bodyEl }}</div>
+                  <div style="{{ f.h.hotS }}">{{ f.h.hotEl }}</div>
+                  <div style="{{ f.h.gemS }}">{{ f.h.gemEl }}</div>
+                  <sc-for list="{{ f.h.orbit }}" as="b" hint-placeholder-count="0"><div style="{{ b }}"></div></sc-for>
+                  <sc-for list="{{ f.h.sparks }}" as="b" hint-placeholder-count="0"><div style="{{ b }}"></div></sc-for>
+                  <div style="{{ f.h.glint }}">
+                    <div style="position:absolute;left:50%;top:0;bottom:0;width:2px;margin-left:-1px;border-radius:1px;background:#fff;"></div>
+                    <div style="position:absolute;top:50%;left:0;right:0;height:2px;margin-top:-1px;border-radius:1px;background:#fff;"></div>
+                  </div>
+                  <div style="{{ f.h.flash }}"></div>
+                </div>
+              </div>
+
+              <div style="{{ f.a2 }}">
+                <div style="{{ f.titleStyle }}">{{ f.title }}</div>
+                <div style="{{ f.warm }}">{{ f.warmLine }}</div>
+                <sc-if value="{{ f.hasSkipped }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ f.skippedStyle }}">{{ f.skippedLine }}</div>
+                </sc-if>
+              </div>
+
+              <div style="{{ f.statsWrap }}">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;">
+                  <div style="{{ f.lvlStyle }}">{{ f.levelLine }}</div>
+                  <div style="{{ f.lifeLabel }}">{{ f.s.lifetime }}</div>
+                </div>
+                <div style="{{ f.barTrack }}"><div style="{{ f.barFill }}"></div></div>
+                <div style="{{ f.barRow }}">
+                  <span style="display:inline-flex;align-items:baseline;gap:6px;direction:ltr;unicode-bidi:isolate;">
+                    <span style="{{ f.ptsNow }}">{{ f.ptsNowTxt }}</span>
+                    <span style="{{ f.ptsNext }}">{{ f.ptsNextTxt }}</span>
+                  </span>
+                  <span style="{{ f.toNext }}">{{ f.toNextTxt }}</span>
+                </div>
+              </div>
+
+              <div style="{{ f.a4 }}">
+                <div style="{{ f.pill }}" dir="ltr">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 13l7-7 7 7"></path><path d="M5 20l7-7 7 7"></path></svg>
+                  <div style="{{ f.pillText }}">LEAP ARENA</div>
+                </div>
+              </div>
+            </div>
+            <div style="{{ f.actions }}" dir="{{ f.dir }}">
+              <div style="{{ f.b1 }}" onClick="{{ replay }}">{{ f.s.done }}</div>
+              <div style="{{ f.b2 }}">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ f.isLb }}" hint-placeholder-val="{{ false }}">
+          <div style="{{ f.sheet }}" dir="{{ f.dir }}">
+            <div style="{{ f.handle }}"></div>
+            <div style="{{ f.sheetHead }}">
+              <div style="flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;">
+                <div style="{{ f.sheetTitle }}">{{ f.sheetTitleTxt }}</div>
+                <div style="{{ f.sheetSub }}">
+                  <div style="{{ f.weekDot }}"></div>
+                  <div>{{ f.s.thisWeek }}</div>
+                  <div style="{{ f.subDim }}">{{ f.sheetSubTxt }}</div>
+                </div>
+                <div style="{{ f.ruleLine }}">{{ f.ruleTxt }}</div>
+              </div>
+              <sc-if value="{{ f.showShare }}" hint-placeholder-val="{{ true }}">
+                <div style="{{ f.iconBtn }}">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12M7 8l5-5 5 5"></path><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"></path></svg>
+                </div>
+              </sc-if>
+              <div style="{{ f.iconBtn2 }}" onClick="{{ closeSheet }}">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"></path></svg>
+              </div>
+            </div>
+
+            <sc-if value="{{ f.locked }}" hint-placeholder-val="{{ false }}">
+              <div style="{{ f.lockedWrap }}">
+                <div style="{{ f.lockCircle }}">
+                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2.5"></rect><path d="M8 11V8a4 4 0 0 1 8 0v3"></path></svg>
+                </div>
+                <div style="{{ f.lockTitle }}">{{ f.s.joinTitle }}</div>
+                <div style="{{ f.lockBody }}">{{ f.s.joinBody }}</div>
+                <div style="{{ f.joinBtn }}">{{ f.s.join }}</div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ f.unlocked }}" hint-placeholder-val="{{ true }}">
+              <div style="{{ f.scroll }}" ref="{{ f.scrollRef }}" onScroll="{{ f.onScroll }}">
+                <div style="{{ f.podium }}" dir="ltr">
+                  <sc-for list="{{ f.places }}" as="pl" hint-placeholder-count="3">
+                    <div style="display:flex;flex-direction:column;align-items:center;justify-content:flex-end;min-width:0;">
+                      <div style="{{ pl.top }}">
+                        <div style="{{ pl.avWrap }}">
+                          <sc-if value="{{ pl.crown }}" hint-placeholder-val="{{ false }}">
+                            <div style="position:absolute;left:50%;top:-18px;width:22px;height:16px;margin-left:-11px;">
+                              <svg width="22" height="16" viewBox="0 0 22 16"><path d="M1.5 4.5l5 4.2L11 1.5l4.5 7.2 5-4.2-1.8 10H3.3z" fill="#E8B64C"></path></svg>
+                            </div>
+                          </sc-if>
+                          <div style="{{ pl.av }}">{{ pl.initials }}</div>
+                          <div style="{{ pl.badgeS }}">{{ pl.badge }}</div>
+                        </div>
+                        <div style="{{ pl.nameStyle }}">{{ pl.name }}</div>
+                        <div style="{{ pl.scoreRow }}">
+                          <span style="{{ pl.scoreStyle }}">{{ pl.score }}</span>
+                          <span style="{{ pl.unitStyle }}">{{ pl.unit }}</span>
+                        </div>
+                      </div>
+                      <div style="{{ pl.clip }}">
+                        <div style="{{ pl.block }}">
+                          <div style="{{ pl.numStyle }}">{{ pl.n }}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+
+                <sc-if value="{{ f.hasNote }}" hint-placeholder-val="{{ false }}">
+                  <div style="{{ f.note }}">
+                    <div style="{{ f.noteTitle }}">{{ f.noteTitleTxt }}</div>
+                    <div style="{{ f.noteBody }}">{{ f.noteBodyTxt }}</div>
+                  </div>
+                </sc-if>
+
+                <div style="display:flex;flex-direction:column;gap:6px;">
+                  <sc-for list="{{ f.rows }}" as="r" hint-placeholder-count="6">
+                    <div style="{{ r.style }}" ref="{{ r.ref }}">
+                      <div style="{{ r.rankS }}">{{ r.rank }}</div>
+                      <div style="{{ r.avS }}">{{ r.ini }}</div>
+                      <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;">
+                        <div style="{{ r.nameS }}">{{ r.name }}</div>
+                        <div style="width:20px;height:20px;flex:none;">{{ r.badge }}</div>
+                        <sc-if value="{{ r.you }}" hint-placeholder-val="{{ false }}">
+                          <div style="{{ f.youTag }}">{{ f.s.you }}</div>
+                        </sc-if>
+                      </div>
+                      <div style="{{ r.ptsRow }}">
+                        <span style="{{ r.ptsS }}">{{ r.pts }}</span>
+                        <span style="{{ f.unitS }}">{{ f.s.pts }}</span>
+                      </div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="height:96px;flex:none;"></div>
+              </div>
+
+              <div style="{{ f.pinWrap }}">
+                <div style="{{ f.pin.style }}">
+                  <div style="{{ f.pin.rankS }}">{{ f.pin.rank }}</div>
+                  <div style="{{ f.pin.avS }}">{{ f.pin.ini }}</div>
+                  <div style="flex:1;min-width:0;display:flex;align-items:center;gap:6px;">
+                    <div style="{{ f.pin.nameS }}">{{ f.pin.name }}</div>
+                    <div style="width:20px;height:20px;flex:none;">{{ f.pin.badge }}</div>
+                    <div style="{{ f.youTag }}">{{ f.s.you }}</div>
+                  </div>
+                  <div style="{{ f.pin.ptsRow }}">
+                    <span style="{{ f.pin.ptsS }}">{{ f.pin.pts }}</span>
+                    <span style="{{ f.unitS }}">{{ f.s.pts }}</span>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+          </div>
+        </sc-if>
+      </div>
+    </div>
+  </sc-for>
+</div>
+
+<div style="width:100%;max-width:1180px;display:flex;flex-direction:column;gap:18px;">
+  <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+    <div style="color:#fff;font-size:18px;font-weight:700;letter-spacing:1.5px;">BADGE FAMILY · 160 / 40 / 20</div>
+    <div style="color:#6a6a6a;font-size:12px;font-weight:300;letter-spacing:.4px;">160 = full detail · 40 and 20 = simplified variant (no gaps, rivets, ticks or rays; thicker strokes)</div>
+  </div>
+  <sc-for list="{{ sheets }}" as="sh" hint-placeholder-count="2">
+    <div style="{{ sh.wrap }}">
+      <sc-for list="{{ sh.items }}" as="b" hint-placeholder-count="9">
+        <div style="display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0;">
+          <div style="width:110px;height:110px;">{{ b.big }}</div>
+          <div style="display:flex;align-items:center;gap:12px;height:40px;">
+            <div style="width:40px;height:40px;">{{ b.mid }}</div>
+            <div style="width:20px;height:20px;">{{ b.small }}</div>
+          </div>
+          <div style="{{ b.nameS }}">{{ b.name }}</div>
+          <div style="{{ b.arS }}">{{ b.ar }}</div>
+          <div style="{{ b.ptsS }}">{{ b.pts }}</div>
+        </div>
+      </sc-for>
+    </div>
+  </sc-for>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;fromPoints&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:4880,&quot;min&quot;:0,&quot;max&quot;:50000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Achievement&quot;},&quot;toPoints&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:5240,&quot;min&quot;:0,&quot;max&quot;:50000,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Achievement&quot;},&quot;date&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;OCT 14, 2026&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Achievement&quot;},&quot;communityName&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;IRON CAIRO&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Leaderboard&quot;},&quot;members&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;kaito.moves=1840/7; nour.static=1625/6; zeyad_pulls=1490/6; mo.bars=1210/5; lina_calisthenics=1105/5; theo.k=980/4; sara.holds=905/4; omar.b=860/3; ahmed.leaps=815/6; dina_hiit=700/3; rafa.runs=540/2; yusuf.dips=410/2; maya_flow=260/1; karim.new=40/0&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Leaderboard&quot;},&quot;youUsername&quot;:{&quot;editor&quot;:&quot;text&quot;,&quot;default&quot;:&quot;ahmed.leaps&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Leaderboard&quot;},&quot;inCommunity&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Leaderboard&quot;},&quot;theme&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;default&quot;:&quot;both&quot;,&quot;options&quot;:[&quot;both&quot;,&quot;dark&quot;,&quot;light&quot;],&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;rtl&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;compact&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;},&quot;reduceMotion&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Display&quot;}}">
+const clamp = (x) => Math.max(0, Math.min(1, x));
+const eOut = (t) => 1 - Math.pow(1 - t, 3);
+const eIn = (t) => t * t * t;
+const eBack = (t, c = 1.5) => 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
+const hexRgb = (h) => { const n = parseInt(h.slice(1), 16); return [(n >> 16) & 255, (n >> 8) & 255, n & 255].join(','); };
+const fmt = (n) => Math.round(n).toLocaleString('en-US');
+const ACC = '#FC5454', MEDAL = ['#E8B64C', '#C9CED6', '#C98B5A'], WC = ['#8E6BFF', '#FF4A3D', '#FF6B2C'];
+const LV = [null,
+  { en: 'RISING', ar: 'الصاعد', pts: 100, tone: '#A3AAB2' }, { en: 'CONSISTENT', ar: 'المواظب', pts: 300, tone: '#7FC0D8' },
+  { en: 'COMMITTED', ar: 'الملتزم', pts: 750, tone: '#E3A774' }, { en: 'DETERMINED', ar: 'المثابر', pts: 1500, tone: '#FF8A4C' },
+  { en: 'WARRIOR', ar: 'المحارب', pts: 3000, tone: '#F0524A' }, { en: 'CHAMPION', ar: 'البطل', pts: 5000, tone: '#FFD36B' },
+  { en: 'ELITE', ar: 'النخبة', pts: 8000, tone: '#A98BFF' }, { en: 'LEGEND', ar: 'الأسطورة', pts: 12000, tone: '#FF7BB0' }];
+const LOCK = [0, 1.3, 1.5, 1.6, 1.6, 1.65, 1.85, 2.0, 2.4];
+const SPLIT = [0, 0, 0, 0, 0, 0, 1, 1, 1];
+const lvlOf = (p) => { let l = 0; for (let i = 1; i <= 8; i++) if (p >= LV[i].pts) l = i; return l; };
+const title1 = (s) => s.charAt(0) + s.slice(1).toLowerCase();
+const STR = {
+  en: { journey: 'JOURNEY', unlocked: 'ACHIEVEMENT UNLOCKED', earned: (n) => `You earned the ${title1(n)} badge`, also: (ns) => `+ ${ns.map(title1).join(' & ')} badge${ns.length > 1 ? 's' : ''} earned too`, level: (a) => `LEVEL ${a} OF 8`, lifetime: 'LIFETIME POINTS', to: (n) => `TO ${n}`, all: 'ALL BADGES EARNED', pts: 'PTS', done: 'DONE', community: 'COMMUNITY', thisWeek: 'THIS WEEK', last7: 'POINTS FROM THE LAST 7 DAYS', members: (n) => `${n} MEMBERS`, you: 'YOU', joinTitle: 'Join a community to compete', joinBody: 'Communities rank members by the points they earn in the last 7 days. You keep earning achievements and badges either way.', join: 'JOIN A COMMUNITY', joinShort: 'Join a community to compete', emptyT: 'No points yet this week', emptyB: 'Log a workout to take #1.', soloT: "You're the only member so far", soloB: 'Invite friends to compete with you.', noBadge: 'NO BADGE YET', week: 'THIS WEEK', notRanked: 'NO POINTS YET' },
+  ar: { journey: 'الرحلة', unlocked: 'إنجاز جديد', earned: (n, a) => `حصلت على شارة ${a}`, also: (ns, as) => `+ ${as.map((x) => 'شارة ' + x).join(' و')} أيضًا`, level: (a) => `المستوى ${a} من 8`, lifetime: 'نقاط الرحلة', to: (n, a) => `حتى ${a}`, all: 'حصلت على كل الشارات', pts: 'نقطة', done: 'تم', community: 'المجتمع', thisWeek: 'هذا الأسبوع', last7: 'نقاط آخر 7 أيام', members: (n) => `${n} عضو`, you: 'أنت', joinTitle: 'انضم لمجتمع لتنافس', joinBody: 'المجتمعات ترتّب أعضاءها حسب النقاط المكتسبة في آخر 7 أيام. ستواصل كسب الإنجازات والشارات في كل الأحوال.', join: 'انضم لمجتمع', joinShort: 'انضم لمجتمع لتنافس', emptyT: 'لا توجد نقاط هذا الأسبوع بعد', emptyB: 'سجّل تمرينًا لتتصدّر.', soloT: 'أنت العضو الوحيد حتى الآن', soloB: 'ادعُ أصدقاءك لينافسوك.', noBadge: 'لا شارة بعد', week: 'هذا الأسبوع', notRanked: 'لا نقاط بعد' },
+};
+const TH = {
+  dark: { screen: '#000', mock: '#0d0d0d', mockB: '#1a1a1a', t1: '#fff', t2: '#d0d0d0', t3: '#a0a0a0', t4: '#8a8a8a', t5: '#6a6a6a', glowK: 1, radial: 0.16, line: '#241a1a', backdrop: 'rgba(0,0,0,.78)', frame: '#1a1a1a', b2: '#3a2a2a', youA: 0.09, pillA: 0.28, card: '#0c0b0d', sheet: '#0e0d0f', sheetB: '#222', row: '#121113', rowB: '#1d1b1e', track: '#1c1a1d', slot: '#5a5a5a' },
+  light: { screen: '#f3f1ef', mock: '#fff', mockB: '#e8e4e1', t1: '#141010', t2: '#3a3434', t3: '#5e5858', t4: '#6e6868', t5: '#7a7474', glowK: 0.55, radial: 0.1, line: '#eee4e2', backdrop: 'rgba(30,18,18,.42)', frame: '#d8d4d0', b2: '#e6d3d1', youA: 0.06, pillA: 0.22, card: '#fff', sheet: '#fff', sheetB: '#e8e4e1', row: '#faf8f7', rowB: '#efeae8', track: '#efe9e7', slot: '#a8a2a0' },
+};
+const MEM14 = 'kaito.moves=1840/7; nour.static=1625/6; zeyad_pulls=1490/6; mo.bars=1210/5; lina_calisthenics=1105/5; theo.k=980/4; sara.holds=905/4; omar.b=860/3; ahmed.leaps=815/6; dina_hiit=700/3; rafa.runs=540/2; yusuf.dips=410/2; maya_flow=260/1; karim.new=40/0';
+const DEF = { fromPoints: 4880, toPoints: 5240, date: 'OCT 14, 2026', communityName: 'IRON CAIRO', members: MEM14, youUsername: 'ahmed.leaps', inCommunity: true };
+const ACH = {
+  a1: { label: '1 RISING', fromPoints: 60, toPoints: 120 }, a2: { label: '2 CONSISTENT', fromPoints: 260, toPoints: 320 },
+  a3: { label: '3 COMMITTED', fromPoints: 700, toPoints: 780 }, a4: { label: '4 DETERMINED', fromPoints: 1420, toPoints: 1560 },
+  a5: { label: '5 WARRIOR', fromPoints: 2900, toPoints: 3080 }, a6: { label: '6 CHAMPION', fromPoints: 4880, toPoints: 5240 },
+  a7: { label: '7 ELITE', fromPoints: 7900, toPoints: 8150 }, a8: { label: '8 LEGEND · MAX', fromPoints: 11800, toPoints: 12160 },
+  dbl: { label: 'DOUBLE JUMP', fromPoints: 2900, toPoints: 5240 }, first: { label: 'FIRST EVER (0 → 1)', fromPoints: 0, toPoints: 120 },
+  achTw: { label: 'FROM TWEAKS' },
+};
+const LB = {
+  entry: { label: 'JOURNEY ENTRY', closed: true }, locked: { label: 'LOCKED', inCommunity: false },
+  empty: { label: 'EMPTY WEEK', members: 'kaito.moves=0/7; nour.static=0/6; ahmed.leaps=0/6; mo.bars=0/5; theo.k=0/4' },
+  one: { label: '1 MEMBER', members: 'ahmed.leaps=320/6' }, two: { label: '2 MEMBERS', members: 'kaito.moves=640/7; ahmed.leaps=320/6' },
+  c14: { label: '14 · YOU #9' }, you1: { label: 'YOU #1', members: MEM14.replace('ahmed.leaps=815/6', 'ahmed.leaps=1990/6') },
+  long: { label: 'LONG NAMES', communityName: 'ALEXANDRIA STREET WORKOUT COLLECTIVE', youUsername: 'ahmed_leaps_the_mighty_warrior', members: 'the_longest_username_possible1=1840/8; calisthenics.king.of.cairo_99=1625/6; streetworkout_alexandria_x=1490/7; mo.bars=1210/5; lina_calisthenics_forever_22=1105/5; theo.k=980/4; ahmed_leaps_the_mighty_warrior=815/6; dina_hiit=700/0' },
+  lbTw: { label: 'FROM TWEAKS' },
+};
+const initialsOf = (u) => { const p = String(u).split(/[._\-\s]+/).filter(Boolean); if (!p.length) return '?'; return (p.length > 1 ? p[0][0] + p[1][0] : p[0].slice(0, 2)).toUpperCase(); };
+const parseMembers = (s) => String(s || '').split(';').map((x) => x.trim()).filter(Boolean).map((x) => { const [n, v] = x.split('='); const [p, l] = String(v || '').split('/'); return { name: (n || '').trim(), pts: Math.max(0, parseInt(p) || 0), lvl: Math.max(0, Math.min(8, parseInt(l) || 0)) }; });
+const SP = (n, seed) => Array.from({ length: n }, (_, i) => ({ j: ((i * 37 + seed * 11) % 17) / 17, k: ((i * 53 + seed * 7) % 13) / 13, i }));
+const EL = new Map();
+
+class Component extends DCLogic {
+  state = { t: 0, scen: 'a6', rtl: false, compact: false, reduce: false, closed: false };
+  scroll = {}; pinVis = {}; rowEls = {}; refs = {};
+  componentDidMount() {
+    this.t0 = performance.now();
+    const loop = () => { const t = (performance.now() - this.t0) / 1000; if (t < 6 || this.state.t < 6) this.setState({ t }); this.raf = requestAnimationFrame(loop); };
+    this.raf = requestAnimationFrame(loop);
+  }
+  componentWillUnmount() { cancelAnimationFrame(this.raf); }
+  componentDidUpdate() { this.measure(); }
+  measure() {
+    let ch = false;
+    Object.keys(this.refs).forEach((k) => {
+      const c = this.refs[k], r = this.rowEls[k];
+      let vis = false;
+      if (c && r) { const a = c.getBoundingClientRect(), b = r.getBoundingClientRect(); vis = b.top >= a.top - 2 && b.bottom <= a.bottom - 84; }
+      if (this.pinVis[k] !== vis) { this.pinVis[k] = vis; ch = true; }
+    });
+    if (ch) this.forceUpdate();
+  }
+  restart() { this.t0 = performance.now(); this.setState({ t: 0 }); }
+  badge(level, size, o, tag) {
+    if (!window.LeapBadge) return null;
+    const key = [level, size, (o.parts || []).join('.'), o.simple ? 1 : 0, o.hot ? 1 : 0, o.slot || '', tag].join('|');
+    if (!EL.has(key)) {
+      const uid = 'g' + key.replace(/[^a-z0-9]/gi, '_');
+      const html = window.LeapBadge.svg(level, { ...o, size, uid });
+      EL.set(key, React.createElement('span', { style: { display: 'block', width: size, height: size }, dangerouslySetInnerHTML: { __html: html } }));
+    }
+    return EL.get(key);
+  }
+  renderVals() {
+    const P = this.props, st = this.state;
+    const base = {}; Object.keys(DEF).forEach((k) => { base[k] = P[k] ?? DEF[k]; });
+    const isAchScen = !!ACH[st.scen];
+    const pre = isAchScen ? (st.scen === 'achTw' ? {} : ACH[st.scen]) : (st.scen === 'lbTw' ? {} : LB[st.scen]);
+    const D = { ...base, ...pre };
+    const rtl = st.rtl || !!P.rtl, compact = st.compact || !!P.compact, reduce = st.reduce || !!P.reduceMotion;
+    const S = rtl ? STR.ar : STR.en;
+    const ls = (v) => (rtl ? 0 : v);
+    const ltr = { direction: 'ltr', unicodeBidi: 'isolate' };
+    const OS = "'Oswald',sans-serif", font = rtl ? "'Cairo','Oswald',sans-serif" : "'Oswald','Arial Narrow',sans-serif";
+    const raw = st.t;
+
+    // ---- achievement data
+    const fromP = Math.max(0, D.fromPoints | 0), toP = Math.max(fromP, D.toPoints | 0);
+    const oldL = lvlOf(fromP), newL = Math.max(1, lvlOf(toP));
+    const prevL = Math.min(oldL, newL - 1);
+    const skipped = []; for (let i = prevL + 1; i < newL; i++) skipped.push(i);
+    const lv = LV[newL], tone = lv.tone, tr = hexRgb(tone);
+    const L = LOCK[newL], END = L + 1.5;
+    const lbEND = 1.6;
+    const mode = isAchScen ? 'ach' : 'lb';
+    const END_ = mode === 'ach' ? END : lbEND;
+    const T = reduce ? 100 : raw;
+    const master = reduce ? clamp(raw / 0.2) : 1;
+    const seg = (a, b) => clamp((T - a) / (b - a));
+    const age = (a) => T - a;
+
+    const cues = [];
+    const addCue = (t, label, c) => cues.push({ t, label, c });
+    if (mode === 'ach') {
+      if (newL <= 3) { addCue(0.9, 'LIGHT TICK · RING FILLS', tone); if (newL > 1) addCue(1.2, 'LIGHT TICK', tone); addCue(L, 'SUCCESS HAPTIC + BELL', tone); }
+      if (newL === 4) { addCue(0.8, 'MEDIUM IMPACT · STRIKE 1', tone); addCue(1.2, 'MEDIUM IMPACT · STRIKE 2', tone); addCue(L, 'HEAVY IMPACT + SUCCESS + BELL', tone); }
+      if (newL === 5) { addCue(0.9, 'LIGHT TICK · OLD BADGE OUT', tone); addCue(L, 'HEAVY IMPACT + SUCCESS + BELL', tone); }
+      if (newL === 6) { addCue(1.0, 'LIGHT TICK · UPGRADE', tone); addCue(1.25, 'LIGHT TICK · WINGS', tone); addCue(1.55, 'LIGHT TICK · WINGS', tone); addCue(L, 'SUCCESS HAPTIC + BELL+', tone); }
+      if (newL === 7) { addCue(1.0, 'LIGHT TICK · UPGRADE', tone); addCue(1.6, 'MEDIUM IMPACT · GEM IGNITES', tone); addCue(L, 'SUCCESS HAPTIC + BELL+', tone); }
+      if (newL === 8) { addCue(0.8, 'LIGHT TICK · CHARGE', tone); addCue(1.0, 'LIGHT TICK · CHARGE', tone); addCue(1.2, 'HEAVY IMPACT · BURST', tone); addCue(2.05, 'LIGHT TICK · CROWN', tone); addCue(L, 'SUCCESS ×2 + BELL CHORD', tone); }
+      addCue(L + 1.25, 'LIGHT TICK · BAR SETTLES', tone);
+    } else if (!st.closed) addCue(0.1, 'LIGHT HAPTIC · SHEET OPENS', ACC);
+    cues.sort((a, b) => a.t - b.t);
+    const cue = cues.filter((c) => c.t <= raw).pop();
+    const cueOn = cue && raw - cue.t < 0.4 && !reduce;
+
+    const fade = (s0, dy = 14, dur = 0.5) => { const p = eOut(clamp((T - s0) / dur)); return { opacity: p, transform: `translateY(${(1 - p) * dy}px)` }; };
+    const btn = (s0) => { const p = eOut(clamp((T - s0) / 0.5)); return { opacity: p * master, transform: `translateY(${(1 - p) * 24}px)` }; };
+
+    // ---- leaderboard data
+    const inComm = D.inCommunity !== false;
+    const mem = parseMembers(D.members);
+    const ranked = mem.filter((m) => m.pts > 0).sort((a, b) => b.pts - a.pts);
+    ranked.forEach((m, i) => { m.rank = i + 1; });
+    const me = mem.find((m) => m.name === D.youUsername) || { name: D.youUsername, pts: 0, lvl: newL };
+    const myRank = me.pts > 0 ? me.rank : 0;
+    const emptyWeek = ranked.length === 0;
+    const solo = mem.length === 1;
+    const myLvlForChip = mode === 'ach' ? newL : me.lvl;
+
+    const S0 = compact ? 128 : 160, k = S0 / 160;
+    const phoneH = compact ? 667 : 874, phoneW = compact ? 375 : 402;
+
+    const themes = (P.theme ?? 'both') === 'both' ? ['dark', 'light'] : [P.theme];
+    const frames = themes.map((tk) => {
+      const th = TH[tk];
+      const B = (l, size, o = {}) => this.badge(l, size, { slot: th.slot, ...o }, tk);
+      const cardBg = th.card;
+
+      // ---------- hero choreography
+      const h = { beams: [], rings: [], orbit: [], sparks: [] };
+      const layer = (op, tf = '', origin = '50% 50%') => ({ position: 'absolute', inset: 0, opacity: op, transform: tf, transformOrigin: origin, pointerEvents: 'none' });
+      const split = SPLIT[newL];
+      const bodyParts = split ? ['body'] : ['rays', 'wingL', 'wingR', 'body', 'gem'];
+      h.bodyEl = B(newL, S0, { parts: bodyParts });
+      h.prevEl = B(prevL, S0, {});
+      h.wlEl = split ? B(newL, S0, { parts: ['wingL'] }) : null;
+      h.wrEl = split ? B(newL, S0, { parts: ['wingR'] }) : null;
+      h.gemEl = split ? B(newL, S0, { parts: ['gem'] }) : null;
+      h.raysEl = newL === 8 ? B(8, S0, { parts: ['rays'] }) : null;
+      h.hotEl = newL === 4 ? B(4, S0, { hot: true }) : null;
+      let bodyOp = 1, bodyTf = '', prevOp = 0, prevTf = '', wl = 1, wlTf = '', wr = 1, wrTf = '', gemOp = 1, gemTf = '', raysOp = 0, hotOp = 0, stageTf = '', flash = 0, drawP = 0, drawOp = 0, glow = 0.35, shakeX = 0, glintP = 0;
+      const burst = (t0, n, o) => {
+        const a = T - t0, life = o.life || 0.9; if (a < 0 || a > life + 0.3) return;
+        SP(n, o.seed || 1).forEach((q) => {
+          const p = clamp((a - q.j * 0.12) / life), ep = eOut(p);
+          const ang = o.a0 != null ? o.a0 + (o.a1 - o.a0) * ((q.i + q.k * 0.6) / n) : (q.i / n) * Math.PI * 2 + q.k * 0.4;
+          const dist = (o.dist || 60) * (0.65 + q.k * 0.55);
+          const sz = (o.size || 5) * (0.7 + q.j * 0.6);
+          const cx = (o.cx ?? 80) * k, cy = (o.cy ?? 80) * k;
+          const col = o.cols[q.i % o.cols.length];
+          h.sparks.push({ position: 'absolute', left: cx + Math.cos(ang) * (o.r0 || 30) * k + Math.cos(ang) * dist * k * ep - sz / 2, top: cy + Math.sin(ang) * (o.r0 || 30) * k + Math.sin(ang) * dist * k * ep + (o.grav ? p * p * 30 : 0) - sz / 2, width: sz, height: sz, borderRadius: 1, background: col, opacity: p > 0 && p < 1 ? 1 - p : 0, transform: `rotate(${45 + p * 140}deg)`, boxShadow: `0 0 ${sz * 2}px ${col}`, pointerEvents: 'none' });
+        });
+      };
+      const ring = (t0, dur, from, to, col, w = 3) => { const p = clamp((T - t0) / dur); if (p <= 0 || p >= 1) return; const sz = 120 * k; h.rings.push({ position: 'absolute', left: 80 * k - sz / 2, top: 80 * k - sz / 2, width: sz, height: sz, boxSizing: 'border-box', borderRadius: '50%', border: `${w}px solid ${col}`, opacity: (1 - p) * 0.85, transform: `scale(${from + (to - from) * eOut(p)})`, pointerEvents: 'none' }); };
+      const orbit = (n, t0, t1, cols, rx, ry, speed) => {
+        const op = seg(t0, t0 + 0.3) * (1 - seg(t1 - 0.5, t1)); if (op <= 0) return;
+        for (let i = 0; i < n; i++) {
+          const th0 = (i / n) * Math.PI * 2 + (T - t0) * speed * (1 + (T - t0) * 0.6);
+          const z = Math.sin(th0), sz = (3 + (i % 3)) * (1 + z * 0.25);
+          const col = cols[i % cols.length];
+          h.orbit.push({ position: 'absolute', left: 80 * k + Math.cos(th0) * rx * k - sz / 2, top: 80 * k + Math.sin(th0) * ry * k - Math.cos(th0) * 8 * k - sz / 2, width: sz, height: sz, borderRadius: '50%', background: col, boxShadow: `0 0 ${sz * 2.5}px ${col}`, opacity: op * (0.55 + z * 0.45), pointerEvents: 'none' });
+        }
+      };
+      const pop = (t0, dur, from = 0.6, c = 1.5) => { const p = clamp((T - t0) / dur); return { op: clamp(p * 2.5), sc: from + (1 - from) * eBack(p, c) }; };
+      const settleGlow = (peak) => (T < L ? 0.12 + seg(0.45, L) * 0.2 : 0.35 + (peak - 0.35) * (1 - seg(L, L + 0.9)));
+
+      if (newL <= 3) {
+        prevOp = newL === 1 ? 1 - seg(0.75, 1.0) : seg(0.45, 0.6) * (1 - seg(L - 0.2, L + 0.05));
+        prevTf = `scale(${1 + 0.08 * seg(L - 0.2, L)})`;
+        drawP = eOut(seg(0.5, newL === 1 ? 1.05 : L - 0.15)); drawOp = (T > 0.5 ? 1 : 0) * (1 - seg(L, L + 0.5));
+        const bp = newL === 1 ? pop(0.75, 0.55, 0.6) : pop(L - 0.15, 0.4, 0.85, 2);
+        bodyOp = bp.op; bodyTf = `scale(${bp.sc}) rotate(${newL === 3 ? (1 - eOut(clamp((T - L + 0.15) / 0.45))) * -40 : 0}deg)`;
+        if (newL >= 2) burst(L, newL === 2 ? 8 : 12, { cols: [tone, '#fff'], dist: newL === 2 ? 34 : 48, size: newL === 2 ? 4 : 5, r0: 56 });
+        glow = settleGlow(newL === 1 ? 0.5 : 0.6);
+      }
+      if (newL === 4) {
+        bodyOp = seg(0.45, 0.6);
+        const strikes = [0.8, 1.2, 1.6];
+        let heat = 1, squash = 0;
+        strikes.forEach((s, i) => {
+          const a = T - s;
+          if (a >= 0) { heat = Math.min(heat, 1 - (i + eOut(clamp(a / 0.3))) / 3); if (a < 0.2) squash = Math.max(squash, Math.sin((a / 0.2) * Math.PI)); if (a < 0.18) flash = Math.max(flash, (i === 2 ? 0.55 : 0.32) * (1 - a / 0.18)); }
+          burst(s, i === 2 ? 18 : 10, { cols: ['#FFD27A', '#FF6B2C', '#fff'], a0: -Math.PI * 0.95, a1: -Math.PI * 0.05, dist: i === 2 ? 70 : 50, size: 4, r0: 40, grav: 1, seed: i + 3, life: 0.7 });
+        });
+        hotOp = bodyOp * heat;
+        const lift = strikes.reduce((m, s) => { const a = s - T; return a > 0 && a < 0.2 ? Math.max(m, 1 - a / 0.2) : m; }, 0);
+        stageTf = `translateY(${-lift * 4}px) scale(${1 + squash * 0.06}, ${1 - squash * 0.07})`;
+        glow = settleGlow(0.7);
+      }
+      if (newL === 5) {
+        prevOp = seg(0.45, 0.6) * (1 - seg(0.8, 1.0)); prevTf = `scale(${1 - 0.3 * eOut(seg(0.8, 1.0))})`;
+        const dp = seg(1.15, L);
+        bodyOp = seg(1.15, 1.3); bodyTf = `scale(${2.4 - 1.4 * eIn(dp)})`;
+        const a = T - L;
+        if (a > 0 && a < 0.45) shakeX = Math.sin(a * 70) * 7 * (1 - a / 0.45);
+        if (a > 0 && a < 0.2) flash = 0.6 * (1 - a / 0.2);
+        [0, 0.08, 0.16].forEach((d) => ring(L + d, 0.7, 0.7, 2.5, tone, 3));
+        burst(L, 16, { cols: [tone, '#fff', '#C9CED6'], dist: 80, size: 5, r0: 50 });
+        glow = settleGlow(0.8);
+      }
+      if (newL === 6) {
+        prevOp = seg(0.45, 0.6) * (1 - seg(0.85, 1.05));
+        const bp = pop(0.85, 0.45, 0.9, 2); bodyOp = bp.op; bodyTf = `scale(${bp.sc})`;
+        const w = clamp((T - 1.05) / 0.7), ew = eBack(w, 1.3);
+        wl = wr = clamp(w * 3);
+        wlTf = `rotate(${(1 - ew) * -95}deg) scale(${0.3 + 0.7 * ew})`; wrTf = `rotate(${(1 - ew) * 95}deg) scale(${0.3 + 0.7 * ew})`;
+        glintP = clamp((T - L) / 0.6);
+        burst(L, 18, { cols: ['#FFD36B', '#fff', '#FFF0B8'], dist: 70, size: 5, r0: 46 });
+        ring(L, 0.8, 0.8, 2.0, '#FFD36B', 2);
+        glow = settleGlow(0.85);
+      }
+      if (newL === 7) {
+        prevOp = seg(0.45, 0.6) * (1 - seg(0.85, 1.1));
+        const bp = pop(0.85, 0.45, 0.9, 2); bodyOp = bp.op; bodyTf = `scale(${bp.sc})`;
+        wl = wr = bodyOp; wlTf = wrTf = bodyTf;
+        const g = clamp((T - 1.6) / 0.4); gemOp = clamp(g * 3); gemTf = `scale(${g > 0 ? eBack(g, 2.6) : 0})`;
+        if (T > 1.6 && T < 1.8) flash = 0.35 * (1 - (T - 1.6) / 0.2);
+        orbit(14, 1.0, L + 1.1, ['#A98BFF', '#fff', '#8FDCFF'], 86, 26, 2.4);
+        burst(1.6, 12, { cols: ['#fff', '#8FDCFF'], dist: 34, size: 3.5, r0: 8, cx: 80, cy: 22, life: 0.6 });
+        burst(L, 18, { cols: ['#A98BFF', '#fff', '#8FDCFF'], dist: 76, size: 5, r0: 46 });
+        glow = settleGlow(0.9);
+      }
+      if (newL === 8) {
+        const ch = seg(0.6, 1.2);
+        prevOp = seg(0.45, 0.6) * (T < 1.2 ? 1 : 0); prevTf = `translateX(${Math.sin(T * 70) * ch * 3}px) scale(${1 + ch * 0.1})`;
+        const a = T - 1.2; if (a > 0 && a < 0.45) flash = 1 - a / 0.45;
+        const bp = clamp((T - 1.2) / 0.45); bodyOp = T >= 1.2 ? 1 : 0; bodyTf = `scale(${1.3 - 0.3 * eOut(bp)})`;
+        const w = clamp((T - 1.45) / 0.6), ew = eBack(w, 1.3); wl = wr = clamp(w * 3);
+        wlTf = `rotate(${(1 - ew) * -95}deg) scale(${0.3 + 0.7 * ew})`; wrTf = `rotate(${(1 - ew) * 95}deg) scale(${0.3 + 0.7 * ew})`;
+        const g = clamp((T - 2.05) / 0.35); gemOp = clamp(g * 3); gemTf = `translateY(${(1 - eOut(g)) * 10}px) scale(${g > 0 ? eBack(g, 2) : 0})`;
+        raysOp = seg(L, L + 0.6);
+        const bo = seg(1.2, 1.5) * (1 - seg(L + 0.3, L + 1.2));
+        if (bo > 0) for (let i = 0; i < 12; i++) h.beams.push({ position: 'absolute', left: 80 * k - 2, top: 80 * k - 95 * k, width: 4, height: 190 * k, borderRadius: 2, background: `linear-gradient(180deg, transparent, rgba(${hexRgb(WC[i % 3])},.9) 30%, rgba(255,243,196,.95) 50%, rgba(${hexRgb(WC[(i + 1) % 3])},.9) 70%, transparent)`, opacity: bo * 0.7, transform: `rotate(${i * 15 + (T - 1.2) * 30}deg)`, pointerEvents: 'none' });
+        orbit(18, 1.3, L + 1.1, WC, 90, 30, 2.8);
+        [0, 0.1].forEach((d) => ring(L + d, 0.8, 0.7, 2.6, d ? '#FFD36B' : '#FF7BB0', 3));
+        burst(1.2, 12, { cols: ['#fff', '#FFD36B'], dist: 60, size: 4, r0: 30, life: 0.6, seed: 5 });
+        burst(L, 24, { cols: WC.concat(['#FFD36B', '#fff']), dist: 92, size: 6, r0: 50 });
+        glow = settleGlow(1);
+      }
+      const stageSz = S0;
+      h.stage = { position: 'relative', width: stageSz, height: stageSz, transform: stageTf };
+      h.glow = { position: 'absolute', left: '50%', top: '50%', width: stageSz * 1.6, height: stageSz * 1.6, marginLeft: -stageSz * 0.8, marginTop: -stageSz * 0.8, borderRadius: '50%', background: `radial-gradient(circle, rgba(${tr},${0.55 * th.glowK}) 0%, rgba(${tr},0) 62%)`, opacity: clamp(glow), pointerEvents: 'none' };
+      h.draw = { stroke: tone, strokeDasharray: 452.4, strokeDashoffset: 452.4 * (1 - drawP), opacity: drawOp };
+      h.prevS = layer(prevOp, prevTf); h.bodyS = layer(bodyOp, bodyTf); h.hotS = layer(hotOp, bodyTf);
+      h.wlS = layer(split ? wl : 0, wlTf, '25.6% 40%'); h.wrS = layer(split ? wr : 0, wrTf, '74.4% 40%');
+      h.gemS = layer(split ? gemOp : 0, gemTf, '50% 14%'); h.raysS = layer(raysOp);
+      h.flash = { position: 'absolute', left: '50%', top: '50%', width: stageSz * 1.3, height: stageSz * 1.3, marginLeft: -stageSz * 0.65, marginTop: -stageSz * 0.65, borderRadius: '50%', background: 'radial-gradient(circle, rgba(255,255,255,.95), rgba(255,255,255,0) 65%)', opacity: flash, pointerEvents: 'none' };
+      const gp = glintP > 0 && glintP < 1 ? Math.sin(glintP * Math.PI) : 0;
+      h.glint = { position: 'absolute', left: 128 * k - 9, top: 40 * k - 9, width: 18, height: 18, opacity: gp, transform: `rotate(${45 * glintP}deg) scale(${0.4 + gp})`, filter: 'drop-shadow(0 0 4px #FFD36B)', pointerEvents: 'none' };
+      if (T >= END) { h.sparks = []; h.orbit = []; h.beams = []; h.rings = []; }
+
+      const cardP = reduce ? 1 : clamp((T - 0.05) / 0.55);
+      const glowC = T < L ? 0.12 + seg(0.45, L) * 0.1 : 0.26 + 0.24 * (1 - seg(L, L + 0.9));
+      const spread = 60 + (T >= L ? 40 * (1 - seg(L, L + 0.9)) : 0);
+      const next = newL < 8 ? LV[newL + 1] : null;
+      const barP = eOut(seg(L + 0.45, L + 1.25));
+      const ptsNow = fromP + (toP - fromP) * barP;
+      const frac = next ? Math.min(1, toP / next.pts) : 1;
+      const titleSize = compact ? 26 : 30;
+      const isAr = rtl;
+
+      // ---------- leaderboard
+      const sheetP = st.closed ? 0 : eOut(clamp((T - 0.05) / 0.4));
+      const lbFade = (s0) => fade(s0, 10, 0.4);
+      const GEO = [{ av: 54, h: 72, rise: 0.75, num: 26 }, { av: 44, h: 54, rise: 0.6, num: 20 }, { av: 44, h: 42, rise: 0.45, num: 18 }];
+      const places = [1, 0, 2].map((i) => {
+        const g = GEO[i], e = emptyWeek ? null : ranked[i], m = tk === 'light' && i === 1 ? '#8E949C' : MEDAL[i], mr = hexRgb(m);
+        const filled = !!e, you = filled && e.name === me.name, ring = you ? ACC : m;
+        const rp = eOut(clamp((T - g.rise) / 0.35)), dp = clamp((T - g.rise - 0.2) / 0.35);
+        return {
+          initials: filled ? initialsOf(e.name) : '', name: filled ? e.name : '—', score: filled ? fmt(e.pts) : '', unit: filled ? S.pts : '', n: String(i + 1), crown: i === 0 && filled,
+          badge: filled ? B(e.lvl, 20, { simple: true }) : null,
+          badgeS: { position: 'absolute', right: -4, bottom: -3, width: 20, height: 20, opacity: filled ? 1 : 0 },
+          top: { display: 'flex', flexDirection: 'column', alignItems: 'center', width: '100%', minWidth: 0, paddingBottom: 7, opacity: clamp(dp * 2.5) * (filled ? 1 : 0.7), transform: `translateY(${(1 - eBack(dp)) * -18}px)` },
+          avWrap: { position: 'relative', width: g.av, height: g.av },
+          av: { width: g.av, height: g.av, boxSizing: 'border-box', borderRadius: '50%', border: filled ? `2px solid ${ring}` : `1.5px dashed ${th.t5}`, background: filled ? `rgba(${hexRgb(ring)},.14)` : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.t1, fontFamily: OS, fontSize: i === 0 ? 18 : 15, fontWeight: 600, boxShadow: you ? `0 0 14px rgba(${hexRgb(ACC)},${0.45 * th.glowK})` : 'none' },
+          nameStyle: { marginTop: 7, maxWidth: '100%', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: OS, fontSize: 12, fontWeight: 500, letterSpacing: 0.4, color: you ? ACC : filled ? th.t2 : th.t5, textAlign: 'center' },
+          scoreRow: { display: 'flex', alignItems: 'baseline', gap: 3, marginTop: 1, whiteSpace: 'nowrap', ...ltr },
+          scoreStyle: { fontFamily: OS, fontWeight: 700, fontSize: i === 0 ? 17 : 14, color: th.t1, fontVariantNumeric: 'tabular-nums', lineHeight: 1.2 },
+          unitStyle: { fontFamily: rtl ? "'Cairo',sans-serif" : OS, fontSize: 9, fontWeight: 500, letterSpacing: ls(1.2), color: th.t4 },
+          clip: { width: '100%', height: g.h, overflow: 'hidden' },
+          block: { position: 'relative', width: '100%', height: g.h, boxSizing: 'border-box', borderRadius: '12px 12px 0 0', background: filled ? `linear-gradient(180deg, rgba(${mr},${tk === 'dark' ? 0.3 : 0.34}), rgba(${mr},.04))` : 'transparent', borderTop: filled ? `2px solid ${m}` : `1.5px dashed ${th.t5}`, borderLeft: filled ? 'none' : `1.5px dashed ${th.t5}`, borderRight: filled ? 'none' : `1.5px dashed ${th.t5}`, opacity: filled ? 1 : 0.6, display: 'flex', justifyContent: 'center', paddingTop: i === 0 ? 9 : 6, transform: `translateY(${(1 - rp) * g.h}px)`, boxShadow: you ? `inset 0 0 0 2px ${ACC}` : 'none' },
+          numStyle: { fontFamily: OS, fontSize: g.num, fontWeight: 700, lineHeight: 1, color: filled ? m : th.t5 },
+        };
+      });
+      const rowOf = (m, i, pinned) => {
+        const you = m.name === me.name;
+        return {
+          you, rank: m.rank ? String(m.rank) : '—', ini: initialsOf(m.name), name: m.name, pts: m.pts > 0 ? fmt(m.pts) : '—',
+          badge: B(m.lvl, 20, { simple: true }),
+          ref: you && !pinned ? (el) => { this.rowEls[tk] = el; } : undefined,
+          style: { flex: 'none', height: 56, borderRadius: 16, boxSizing: 'border-box', display: 'flex', alignItems: 'center', gap: 11, padding: '0 14px', background: you ? `rgba(${hexRgb(ACC)},${th.youA})` : th.row, border: `1px solid ${you ? `rgba(${hexRgb(ACC)},.45)` : th.rowB}`, ...(pinned ? {} : lbFade(0.85 + Math.min(i, 8) * 0.04)) },
+          rankS: { width: 26, flex: 'none', fontFamily: OS, fontSize: 16, fontWeight: 600, color: you ? ACC : th.t3, fontVariantNumeric: 'tabular-nums', textAlign: 'center', ...ltr },
+          avS: { width: 32, height: 32, flex: 'none', boxSizing: 'border-box', borderRadius: '50%', border: `1.5px solid ${you ? ACC : th.rowB}`, background: you ? `rgba(${hexRgb(ACC)},.14)` : th.mockB, display: 'flex', alignItems: 'center', justifyContent: 'center', color: th.t1, fontFamily: OS, fontSize: 12, fontWeight: 600 },
+          nameS: { minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: th.t1, fontFamily: OS, fontSize: 14, fontWeight: you ? 600 : 500, letterSpacing: 0.3, ...ltr },
+          ptsRow: { flex: 'none', display: 'flex', alignItems: 'baseline', gap: 3, whiteSpace: 'nowrap', ...ltr },
+          ptsS: { fontFamily: OS, fontSize: 16, fontWeight: 700, color: m.pts > 0 ? th.t1 : th.t5, fontVariantNumeric: 'tabular-nums' },
+        };
+      };
+      const rows = emptyWeek ? [] : ranked.slice(3).map((m, i) => rowOf(m, i, false));
+      const youInList = myRank > 3;
+      if (!youInList) this.rowEls[tk] = null;
+      const pinShow = inComm && !emptyWeek && !solo && myRank !== 1 && myRank !== 2 && myRank !== 3 && !(youInList && this.pinVis[tk]);
+      const pin = rowOf(me, 0, true);
+      let noteT = '', noteB = '';
+      if (emptyWeek) { noteT = S.emptyT; noteB = S.noteB || S.emptyB; }
+      else if (solo) { noteT = S.soloT; noteB = S.soloB; }
+
+      const myBadgeName = myLvlForChip ? LV[myLvlForChip][rtl ? 'ar' : 'en'] : S.noBadge;
+      const myLife = mode === 'ach' ? toP : (myLvlForChip ? LV[myLvlForChip].pts + 240 : 40);
+
+      return {
+        themeLabel: tk === 'dark' ? 'DARK' : 'LIGHT', dir: rtl ? 'rtl' : 'ltr', s: S, h,
+        isAch: mode === 'ach', isLb: mode === 'lb', locked: !inComm, unlocked: inComm,
+        date: D.date, title: lv[rtl ? 'ar' : 'en'],
+        warmLine: S.earned(lv.en, lv.ar), hasSkipped: skipped.length > 0,
+        skippedLine: skipped.length ? S.also(skipped.map((i) => LV[i].en), skipped.map((i) => LV[i].ar)) : '',
+        levelLine: S.level(newL),
+        ptsNowTxt: fmt(ptsNow), ptsNextTxt: next ? `/ ${fmt(next.pts)}` : S.pts, toNextTxt: next ? S.to(next.en, next.ar) : S.all,
+        phone: { position: 'relative', width: phoneW, height: phoneH, borderRadius: compact ? 30 : 44, overflow: 'hidden', background: th.screen, border: `1px solid ${th.frame}`, boxShadow: '0 40px 90px rgba(0,0,0,.9)', flexShrink: 0, fontFamily: font },
+        bg: { position: 'absolute', inset: 0, padding: '62px 20px 0', boxSizing: 'border-box' },
+        jTop: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
+        jTitle: { color: th.t1, fontSize: rtl ? 24 : 26, fontWeight: 700, letterSpacing: ls(1.4) },
+        jChip: { height: 52, padding: '0 14px 0 8px', borderRadius: 16, border: `1px solid ${th.mockB}`, background: th.mock, display: 'flex', alignItems: 'center', gap: 9, minWidth: 0 },
+        jBadge: B(myLvlForChip, 40, { simple: true }),
+        jName: myBadgeName, jPts: `${fmt(myLife)} ${S.pts}`,
+        jChipName: { color: myLvlForChip ? LV[myLvlForChip].tone : th.t4, fontSize: rtl ? 12 : 12, fontWeight: 600, letterSpacing: ls(1.6), whiteSpace: 'nowrap' },
+        jChipPts: { color: th.t4, fontFamily: OS, fontSize: 11, fontWeight: 500, letterSpacing: 1, ...ltr, textAlign: rtl ? 'right' : 'left' },
+        entry: { marginTop: 14, height: 60, borderRadius: 16, border: `1px solid ${inComm ? `rgba(${hexRgb(ACC)},.35)` : th.mockB}`, background: inComm ? `rgba(${hexRgb(ACC)},${th.youA})` : th.mock, display: 'flex', alignItems: 'center', gap: 12, padding: '0 14px', cursor: 'pointer' },
+        entryIcon: { width: 36, height: 36, flex: 'none', borderRadius: 12, background: inComm ? `rgba(${hexRgb(ACC)},.16)` : th.mockB, color: inComm ? ACC : th.t3, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        entryLabel: { color: th.t4, fontSize: rtl ? 11 : 10, fontWeight: 600, letterSpacing: ls(2) },
+        entryName: { color: th.t1, fontSize: inComm ? 15 : 13.5, fontWeight: 600, letterSpacing: ls(inComm ? 0.8 : 0.3), whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' },
+        entryText: inComm ? D.communityName : S.joinShort,
+        entryRight: { display: inComm ? 'flex' : 'none', flexDirection: 'column', alignItems: 'flex-end', flex: 'none' },
+        entryRank: { color: ACC, fontFamily: OS, fontSize: 22, fontWeight: 700, lineHeight: 1, ...ltr },
+        entryRankTxt: myRank ? `#${myRank}` : '—',
+        entrySub: { color: th.t4, fontSize: rtl ? 10.5 : 9.5, fontWeight: 600, letterSpacing: ls(1.4), marginTop: 2 },
+        entrySubTxt: S.week,
+        chev: { flex: 'none', color: th.t4, transform: rtl ? 'scaleX(-1)' : 'none' },
+        mockRows: Array.from({ length: 6 }, (_, j) => ({ style: { height: 86, borderRadius: 18, background: th.mock, border: `1px solid ${th.mockB}`, display: 'flex', alignItems: 'center', gap: 14, padding: '0 18px' }, dot: { width: 44, height: 44, borderRadius: 14, background: th.mockB }, bar: { width: 110 + ((j * 47) % 80), height: 11, borderRadius: 5, background: th.mockB }, bar2: { width: 70 + ((j * 31) % 50), height: 8, borderRadius: 4, background: th.mockB } })),
+        overlay: { position: 'absolute', inset: 0, background: th.backdrop, backdropFilter: 'blur(6px)', WebkitBackdropFilter: 'blur(6px)', opacity: (mode === 'ach' ? (reduce ? 1 : clamp(T / 0.35)) : sheetP) * master, pointerEvents: mode === 'lb' && !st.closed ? 'auto' : 'none' },
+        status: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 5, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px 30px 0', color: th.t1, fontSize: 15, fontWeight: 600, fontFamily: OS },
+        statusIcon1: { width: 16, height: 10, borderRadius: 2, background: th.t1 }, statusIcon2: { width: 24, height: 11, borderRadius: 3, background: th.t1 },
+
+        group: { position: 'absolute', inset: 0, padding: compact ? '34px 16px 16px' : '50px 24px 24px', display: 'flex', flexDirection: 'column', justifyContent: 'center' },
+        card: { position: 'relative', borderRadius: compact ? 26 : 30, padding: compact ? '16px 18px 18px' : '22px 22px 24px', background: cardBg, border: `1px solid rgba(${tr},${tk === 'dark' ? 0.5 : 0.6})`, overflow: 'hidden', cursor: 'pointer', boxShadow: `0 0 ${spread}px rgba(${tr},${glowC * th.glowK})`, opacity: clamp(cardP * 1.6) * master, transform: `translate(${shakeX}px, ${(1 - eOut(cardP)) * 40}px) scale(${0.9 + 0.1 * eBack(cardP)})` },
+        radial: { position: 'absolute', inset: 0, background: newL === 8 ? `radial-gradient(ellipse at 25% 22%,rgba(142,107,255,${th.radial}),transparent 55%),radial-gradient(ellipse at 50% 28%,rgba(255,74,61,${th.radial * 0.8}),transparent 55%),radial-gradient(ellipse at 75% 22%,rgba(255,107,44,${th.radial}),transparent 55%)` : `radial-gradient(ellipse at 50% 28%,rgba(${tr},${th.radial}),transparent 62%)`, pointerEvents: 'none' },
+        headLeft: { display: 'flex', alignItems: 'center', gap: 7, color: ACC, fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(2.4) },
+        dateStyle: { color: th.t5, fontSize: 11, fontWeight: 500, letterSpacing: 1.6, fontFamily: OS, ...ltr },
+        a1: { position: 'relative', marginTop: compact ? 12 : 18, textAlign: 'center', color: th.t2, fontSize: rtl ? 14 : 12, fontWeight: 600, letterSpacing: ls(4), ...fade(0.3, 8) },
+        heroBox: { position: 'relative', height: S0 + (compact ? 16 : 30), marginTop: compact ? 4 : 8, display: 'flex', alignItems: 'center', justifyContent: 'center' },
+        a2: { position: 'relative', marginTop: compact ? 2 : 4, textAlign: 'center', ...fade(L + 0.1, 10) },
+        titleStyle: { color: th.t1, fontSize: isAr ? titleSize - 2 : titleSize, fontWeight: 700, letterSpacing: isAr ? 0 : 2, lineHeight: isAr ? 1.35 : 1.05, fontFamily: isAr ? "'Cairo',sans-serif" : OS },
+        warm: { marginTop: compact ? 4 : 6, color: th.t3, fontSize: rtl ? 14 : 14, fontWeight: rtl ? 500 : 400, letterSpacing: ls(0.4), ...fade(L + 0.2, 8) },
+        skippedStyle: { marginTop: 6, color: tone === '#FFD36B' && tk === 'light' ? '#a87a12' : tone, fontSize: rtl ? 12.5 : 12, fontWeight: 600, letterSpacing: ls(0.8), ...fade(L + 0.3, 6) },
+        statsWrap: { position: 'relative', marginTop: compact ? 12 : 18, padding: compact ? '11px 13px 11px' : '13px 15px 13px', borderRadius: 16, border: `1px solid ${th.rowB}`, background: tk === 'dark' ? 'rgba(255,255,255,.025)' : '#faf8f7', display: 'flex', flexDirection: 'column', gap: 9, ...fade(L + 0.35, 10) },
+        lvlStyle: { color: th.t1, fontSize: rtl ? 13 : 12, fontWeight: 600, letterSpacing: ls(2) },
+        lifeLabel: { color: th.t4, fontSize: rtl ? 11.5 : 10, fontWeight: 600, letterSpacing: ls(1.8) },
+        barTrack: { position: 'relative', height: 8, borderRadius: 4, background: th.track, overflow: 'hidden', direction: rtl ? 'rtl' : 'ltr' },
+        barFill: { position: 'absolute', top: 0, bottom: 0, [rtl ? 'right' : 'left']: 0, width: `${frac * barP * 100}%`, borderRadius: 4, background: newL === 8 ? `linear-gradient(90deg, ${WC.join(',')}, #FFD36B)` : tone, boxShadow: `0 0 ${8 + 8 * (1 - seg(L + 1.25, L + 1.6))}px rgba(${tr},${0.5 * th.glowK})` },
+        barRow: { display: 'flex', alignItems: 'baseline', gap: 6, flexWrap: 'wrap' },
+        ptsNow: { fontFamily: OS, fontSize: 16, fontWeight: 700, color: th.t1, fontVariantNumeric: 'tabular-nums', ...ltr },
+        ptsNext: { fontFamily: next ? OS : (rtl ? "'Cairo',sans-serif" : OS), fontSize: next ? 13 : 10, fontWeight: 500, color: th.t4, letterSpacing: next ? 0.4 : ls(1.2), ...(next ? ltr : {}) },
+        toNext: { marginInlineStart: 'auto', fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(1.8), color: tk === 'light' && (newL === 6 || newL === 1) ? th.t2 : tone },
+        a4: { position: 'relative', marginTop: compact ? 12 : 16, display: 'flex', justifyContent: 'center', ...fade(L + 0.6, 6) },
+        pill: { height: 30, padding: '0 14px', borderRadius: 15, border: `1px solid rgba(${hexRgb(ACC)},${th.pillA})`, display: 'flex', alignItems: 'center', gap: 8, color: ACC },
+        pillText: { color: th.t1, fontFamily: "'Michroma','Oswald',sans-serif", fontSize: 11, letterSpacing: 2 },
+        actions: { marginTop: compact ? 10 : 14, display: 'flex', gap: 10 },
+        b1: { flex: 1, height: 56, borderRadius: 16, background: ACC, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, letterSpacing: ls(2.6), cursor: 'pointer', boxShadow: `0 10px 30px rgba(${hexRgb(ACC)},.3)`, ...btn(L + 0.8) },
+        b2: { width: 56, height: 56, flex: 'none', boxSizing: 'border-box', borderRadius: 16, border: `1.5px solid ${th.b2}`, color: th.t1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', ...btn(L + 0.85) },
+
+        sheet: { position: 'absolute', left: 0, right: 0, bottom: 0, top: compact ? 150 : 190, borderRadius: '28px 28px 0 0', background: th.sheet, borderTop: `1px solid ${th.sheetB}`, boxShadow: '0 -20px 60px rgba(0,0,0,.45)', display: 'flex', flexDirection: 'column', overflow: 'hidden', transform: `translateY(${(1 - sheetP) * 105}%)`, opacity: master },
+        handle: { width: 38, height: 4, borderRadius: 2, background: th.sheetB, margin: '10px auto 0', flex: 'none' },
+        sheetHead: { flex: 'none', display: 'flex', alignItems: 'flex-start', gap: 10, padding: '14px 20px 14px', borderBottom: `1px solid ${th.rowB}` },
+        sheetTitle: { color: th.t1, fontFamily: OS, fontSize: 22, fontWeight: 700, letterSpacing: 1.2, lineHeight: 1.1, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden', ...(rtl && !/[A-Z]/.test(D.communityName) ? {} : ltr), textAlign: rtl ? 'right' : 'left' },
+        sheetTitleTxt: inComm ? D.communityName : S.community,
+        sheetSub: { display: inComm ? 'flex' : 'none', alignItems: 'center', gap: 7, flexWrap: 'wrap', color: ACC, fontSize: rtl ? 12 : 11, fontWeight: 600, letterSpacing: ls(1.8) },
+        weekDot: { width: 6, height: 6, borderRadius: '50%', background: ACC, flex: 'none' },
+        subDim: { color: th.t4, fontWeight: 500 },
+        sheetSubTxt: inComm ? `· ${S.members(mem.length)}` : '',
+        ruleTxt: inComm ? (rtl ? 'نقاط آخر 7 أيام، تتجدد يوميًا' : 'Points from the last 7 days, rolling') : '',
+        ruleLine: { color: th.t4, fontSize: 12, fontWeight: rtl ? 400 : 300, letterSpacing: ls(0.3), display: inComm ? 'block' : 'none' },
+        showShare: inComm, iconBtn: { width: 40, height: 40, flex: 'none', boxSizing: 'border-box', borderRadius: 12, border: `1.5px solid ${th.b2}`, color: emptyWeek ? th.t5 : th.t1, opacity: emptyWeek ? 0.45 : 1, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+        iconBtn2: { width: 40, height: 40, flex: 'none', boxSizing: 'border-box', borderRadius: 12, background: th.row, border: `1px solid ${th.rowB}`, color: th.t2, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' },
+        lockedWrap: { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', textAlign: 'center', gap: 12, padding: '0 34px 60px', ...lbFade(0.3) },
+        lockCircle: { width: 68, height: 68, borderRadius: '50%', border: `1.5px solid ${th.b2}`, background: th.row, color: th.t3, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 4 },
+        lockTitle: { color: th.t1, fontSize: rtl ? 20 : 22, fontWeight: 700, letterSpacing: ls(0.6), lineHeight: 1.25 },
+        lockBody: { color: th.t3, fontSize: 13.5, fontWeight: rtl ? 400 : 300, lineHeight: 1.6, maxWidth: 300 },
+        joinBtn: { marginTop: 10, alignSelf: 'stretch', height: 56, borderRadius: 16, background: ACC, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, fontWeight: 700, letterSpacing: ls(2.4), boxShadow: `0 10px 30px rgba(${hexRgb(ACC)},.3)`, cursor: 'pointer' },
+        scroll: { flex: 1, minHeight: 0, overflowY: 'auto', padding: '0 16px', display: 'flex', flexDirection: 'column' },
+        scrollRef: (el) => { this.refs[tk] = el; },
+        onScroll: () => this.measure(),
+        podium: { flex: 'none', marginTop: 14, marginBottom: 14, paddingTop: 22, display: 'grid', gridTemplateColumns: 'repeat(3,minmax(0,1fr))', gap: 8, alignItems: 'end', borderBottom: `1px solid ${th.line}` },
+        places, rows, unitS: { fontFamily: rtl ? "'Cairo',sans-serif" : OS, fontSize: 9, fontWeight: 500, letterSpacing: ls(1.2), color: th.t4 },
+        youTag: { flex: 'none', height: 16, padding: '0 6px', borderRadius: 5, background: ACC, color: '#fff', display: 'flex', alignItems: 'center', fontSize: rtl ? 10 : 9, fontWeight: 700, letterSpacing: ls(1.4) },
+        hasNote: !!noteT, noteTitleTxt: noteT, noteBodyTxt: noteB,
+        note: { flex: 'none', textAlign: 'center', padding: '18px 16px', borderRadius: 16, border: `1px dashed ${th.b2}`, display: 'flex', flexDirection: 'column', gap: 4, marginBottom: 10, ...lbFade(0.9) },
+        noteTitle: { color: th.t1, fontSize: rtl ? 15 : 16, fontWeight: 600, letterSpacing: ls(0.4) },
+        noteBody: { color: th.t3, fontSize: 13, fontWeight: rtl ? 400 : 300 },
+        pinWrap: { position: 'absolute', left: 0, right: 0, bottom: 0, padding: '14px 16px 26px', background: `linear-gradient(180deg, rgba(${tk === 'dark' ? '14,13,15' : '255,255,255'},0), ${th.sheet} 30%)`, opacity: pinShow ? clamp((T - 1.0) / 0.3) : 0, transform: `translateY(${pinShow ? 0 : 20}px)`, transition: 'opacity .18s, transform .18s', pointerEvents: pinShow ? 'auto' : 'none' },
+        pin: { ...pin, style: { ...pin.style, boxShadow: `0 -6px 24px rgba(0,0,0,${tk === 'dark' ? 0.5 : 0.08})` } },
+      };
+    });
+
+    const chip = (key, label, on, onPick) => ({ label, pick: onPick, style: { height: 28, padding: '0 10px', borderRadius: 14, border: `1px solid ${on ? '#FC5454' : '#2a2a2a'}`, background: on ? 'rgba(252,84,84,.12)' : 'transparent', color: on ? '#fff' : '#8a8a8a', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 600, letterSpacing: 1.4, cursor: 'pointer' } });
+    const pickScen = (kk) => () => { this.setState({ scen: kk, closed: !!(LB[kk] && LB[kk].closed) }); this.pinVis = {}; Object.values(this.refs).forEach((el) => el && (el.scrollTop = 0)); this.restart(); };
+    const chipsAch = Object.entries(ACH).map(([kk, v]) => chip(kk, v.label, st.scen === kk, pickScen(kk)));
+    const chipsLb = Object.entries(LB).map(([kk, v]) => chip(kk, v.label, st.scen === kk, pickScen(kk)));
+    const tog = (kk) => () => { this.setState({ [kk]: !st[kk] }); this.restart(); };
+    const chipsMod = [chip('rtl', 'ARABIC RTL', rtl, tog('rtl')), chip('compact', 'COMPACT · 375×667', compact, tog('compact')), chip('reduce', 'REDUCE MOTION', reduce, tog('reduce'))];
+
+    const sheets = ['dark', 'light'].map((tk) => {
+      const th = TH[tk];
+      return {
+        wrap: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill,minmax(112px,1fr))', gap: '22px 10px', padding: '26px 20px', borderRadius: 24, background: tk === 'dark' ? '#0c0b0d' : '#fff', border: `1px solid ${tk === 'dark' ? '#1c1a1d' : '#e8e4e1'}` },
+        items: [0, 1, 2, 3, 4, 5, 6, 7, 8].map((l) => ({
+          big: this.badge(l, 110, { slot: th.slot }, 'sh' + tk), mid: this.badge(l, 40, { simple: true, slot: th.slot }, 'sh' + tk), small: this.badge(l, 20, { simple: true, slot: th.slot }, 'sh' + tk),
+          name: l ? LV[l].en : 'NO BADGE', ar: l ? LV[l].ar : 'لا شارة', pts: l ? `${fmt(LV[l].pts)} PTS` : '0 – 99 PTS',
+          nameS: { color: th.t1, fontFamily: "'Oswald',sans-serif", fontSize: 13, fontWeight: 700, letterSpacing: 1.6 },
+          arS: { color: th.t3, fontFamily: "'Cairo',sans-serif", fontSize: 13, fontWeight: 600, marginTop: -8 },
+          ptsS: { color: th.t4, fontFamily: "'Oswald',sans-serif", fontSize: 11, fontWeight: 500, letterSpacing: 1.2, marginTop: -8 },
+        })),
+      };
+    });
+
+    return {
+      frames, chipsAch, chipsLb, chipsMod, sheets,
+      replay: () => this.restart(),
+      skip: () => { if (performance.now() - this.t0 < END_ * 1000) { this.t0 = performance.now() - END_ * 1000; this.setState({ t: END_ }); } },
+      openSheet: () => { if (mode === 'lb' && st.closed) { this.setState({ closed: false }); this.restart(); } },
+      closeSheet: () => { if (mode === 'lb' && !st.closed) this.setState({ closed: true }); },
+      cueLabel: cue ? cue.label : 'WAITING…',
+      cueStyle: { height: 32, borderRadius: 10, border: `1px solid ${cueOn ? cue.c : '#1c1c1c'}`, color: cueOn ? '#fff' : '#6a6a6a', background: cueOn ? 'rgba(255,255,255,.04)' : 'transparent', display: 'flex', alignItems: 'center', padding: '0 12px', fontSize: 11, fontWeight: 600, letterSpacing: 1.6, transition: 'border-color .15s, color .15s' },
+    };
+  }
+}
+</script>
+</body>
+</html>
