@@ -31,6 +31,8 @@ interface Props {
   footer?: React.ReactNode;
   /** Rendered last at the Modal root, above the sheet (PB-overwrite confirm, toast). */
   overlay?: React.ReactNode;
+  /** Extra button left of the close button (e.g. share on a leaderboard). */
+  headerAction?: React.ReactNode;
   scrollEnabled?: boolean;
   /** Tutorial target on the ✕ button (e.g. onemm.timerCloseButton). */
   closeRef?: React.Ref<View>;
@@ -47,7 +49,7 @@ interface Props {
  * (e.g. CelebrationBanner).
  */
 export function WorldSheet({
-  tokens: t, visible, onClose, variant, kicker, title, subtitle, titleSize, maxHeight = '88%', children, footer, overlay,
+  tokens: t, visible, onClose, variant, kicker, title, subtitle, titleSize, maxHeight = '88%', children, footer, overlay, headerAction,
   scrollEnabled = true, closeRef, onCloseLayout,
 }: Props) {
   const insets = useSafeAreaInsets();
@@ -107,8 +109,11 @@ export function WorldSheet({
                 )}
                 {!!subtitle && <Text style={[kt('medium', 12, t.textMuted, 1.4), { marginTop: 2 }]}>{subtitle}</Text>}
               </View>
-              <View ref={closeRef} onLayout={onCloseLayout} collapsable={false}>
-                <KitCloseButton tokens={t} onPress={onClose} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                {headerAction}
+                <View ref={closeRef} onLayout={onCloseLayout} collapsable={false}>
+                  <KitCloseButton tokens={t} onPress={onClose} />
+                </View>
               </View>
             </View>
             <ScrollView

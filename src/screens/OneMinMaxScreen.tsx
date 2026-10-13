@@ -28,6 +28,7 @@ import {
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
   WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
+import { BoardShareButton, LeaderboardShareCard } from '../components/leaderboard/LeaderboardShareCard';
 import { t as tr } from '../i18n';
 
 type Level = 'entry' | 'main' | 'advanced';
@@ -112,6 +113,7 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
   const [boardRows, setBoardRows] = useState<OneMMRanking[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [gender, setGender] = useState<Gender>('ALL');
+  const [shareOpen, setShareOpen] = useState(false);
   // Community scope is derived (not mirrored via an effect) so the first
   // render with a real profile already has the right default — see the
   // race this avoided in the previous screen version.
@@ -430,6 +432,9 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
           ? <BoardKicker tokens={t} icon="stopwatch" text={tr('enduranceWorld.boardKicker')} />
           : logKicker(shown.movementId, pbs)}
         title={shown.kind === 'board' ? tr('worlds.leaderboard') : (ONEMM_MOVEMENTS.find(m => m.id === shown.movementId)?.name ?? '').toUpperCase()}
+        headerAction={shown.kind === 'board' && boardList.length > 0
+          ? <BoardShareButton round color={t.textSecondary} borderColor={t.border} background={t.button} onPress={() => setShareOpen(true)} />
+          : undefined}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
@@ -461,6 +466,20 @@ export function OneMinMaxScreen({ category }: { category?: string }) {
               </>
             )}
             {!!sheet && toastNode}
+            {shown.kind === 'board' && (
+              <LeaderboardShareCard
+                visible={shareOpen}
+                onClose={() => setShareOpen(false)}
+                variant="endurance"
+                title={tr('celebration.enduranceWorld')}
+                subLine={tr('leaderboardShare.worldTotalPoints')}
+                communityScoped={scope === 'community'}
+                scoreType="points"
+                rows={boardList.map(r => ({ user_id: r.user_id, username: r.name, score: r.points }))}
+                myId={user?.id}
+                myName={profile?.display_name ?? ''}
+              />
+            )}
           </>
         }
       >

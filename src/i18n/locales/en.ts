@@ -1099,6 +1099,9 @@ const en = {
     ptsToPass: '{{pts}} pts to pass {{name}}',
   },
   leaderboardShare: {
+    worlds: 'WORLDS',
+    worldTotalPoints: 'TOTAL POINTS',
+    notRankedWorld: 'Log a result to join the board',
     strength: 'STRENGTH',
     weekly: 'WEEKLY CHALLENGE',
     wellRounded: 'WELL-ROUNDED',

@@ -41,8 +41,18 @@ const rgb = (hex: string) => {
 };
 export const rgba = (hex: string, a: number) => `rgba(${rgb(hex)},${a})`;
 
+/** Accent + dark card per board (worlds match their PR celebration cards). */
+const VARIANT_STYLE: Record<ShareVariant, { accent: string; cardDark: string }> = {
+  strength: { accent: '#FC5454', cardDark: '#0e0808' },
+  weekly: { accent: '#FC5454', cardDark: '#0e0808' },
+  wellRounded: { accent: '#8E6BFF', cardDark: '#0b0a12' },
+  static: { accent: '#8E6BFF', cardDark: '#0b0a12' },
+  endurance: { accent: '#FF6B2C', cardDark: '#0e0906' },
+  power: { accent: '#FF4A3D', cardDark: '#0e0808' },
+};
+
 export function getLBTokens(variant: ShareVariant, mode: ThemeMode): LBTokens {
-  const accent = variant === 'wellRounded' ? '#8E6BFF' : '#FC5454';
+  const accent = VARIANT_STYLE[variant].accent;
   const ar = rgb(accent);
   const dark = mode === 'dark';
   const youA = dark ? 0.09 : 0.06;
@@ -50,7 +60,7 @@ export function getLBTokens(variant: ShareVariant, mode: ThemeMode): LBTokens {
   return {
     mode, variant, accent, accentRgb: ar,
     backdrop: dark ? 'rgba(0,0,0,0.78)' : 'rgba(30,18,18,0.42)',
-    card: dark ? (variant === 'wellRounded' ? '#0b0a12' : '#0e0808') : '#ffffff',
+    card: dark ? VARIANT_STYLE[variant].cardDark : '#ffffff',
     cardBorder: `rgba(${ar},${dark ? 0.5 : 0.45})`,
     radialAlpha: dark ? 0.15 : 0.09,
     glowK: dark ? 1 : 0.55,

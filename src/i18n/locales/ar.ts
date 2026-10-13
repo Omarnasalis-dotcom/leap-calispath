@@ -1186,6 +1186,9 @@ const ar: Translations = {
     ptsToPass: '{{pts}} نقطة لتتجاوز {{name}}',
   },
   leaderboardShare: {
+    worlds: 'العوالم',
+    worldTotalPoints: 'مجموع النقاط',
+    notRankedWorld: 'سجّل نتيجة لتنضم للترتيب',
     strength: 'القوة',
     weekly: 'التحدي الأسبوعي',
     wellRounded: 'الرياضي المتكامل',

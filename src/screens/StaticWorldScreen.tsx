@@ -27,6 +27,7 @@ import {
   AnimatedRing, BoardFilters, BoardKicker, DashboardRings, EliteList, filterByGender, GoalCard, KitButton,
   KitIcon, kt, LeaderboardBody, SegmentedSwitch, TopList, WorldHeader, WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
+import { BoardShareButton, LeaderboardShareCard } from '../components/leaderboard/LeaderboardShareCard';
 import { t as tr, isArabic } from '../i18n';
 
 type Category = 'handstand' | 'front_lever' | 'back_lever' | 'planche';
@@ -98,6 +99,7 @@ export function StaticWorldScreen({ movement }: Props) {
   const [boardRows, setBoardRows] = useState<StaticWellRoundedEntry[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [gender, setGender] = useState<Gender>('ALL');
+  const [shareOpen, setShareOpen] = useState(false);
   // Derived default (not mirrored via an effect) — see the stale-scope race
   // documented in the previous version of this screen.
   const [manualScope, setManualScope] = useState<'public' | 'community' | null>(null);
@@ -463,6 +465,9 @@ export function StaticWorldScreen({ movement }: Props) {
           ? <BoardKicker tokens={t} icon="snowflake" text={tr('staticWorld.title')} />
           : logMove ? tr('worlds.levelN', { name: STATIC_CATEGORIES[logMove.category].name.toUpperCase(), level: logMove.level }) : ''}
         title={shown.kind === 'board' ? tr('worlds.leaderboard') : (logMove?.name ?? '').toUpperCase()}
+        headerAction={shown.kind === 'board' && boardList.length > 0
+          ? <BoardShareButton round color={t.textSecondary} borderColor={t.border} background={t.button} onPress={() => setShareOpen(true)} />
+          : undefined}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
@@ -491,6 +496,20 @@ export function StaticWorldScreen({ movement }: Props) {
               />
             )}
             {!!sheet && toastNode}
+            {shown.kind === 'board' && (
+              <LeaderboardShareCard
+                visible={shareOpen}
+                onClose={() => setShareOpen(false)}
+                variant="static"
+                title={tr('celebration.staticWorld')}
+                subLine={tr('leaderboardShare.worldTotalPoints')}
+                communityScoped={scope === 'community'}
+                scoreType="points"
+                rows={boardList.map(r => ({ user_id: r.user_id, username: r.name, score: r.points }))}
+                myId={user?.id}
+                myName={profile?.display_name ?? ''}
+              />
+            )}
           </>
         }
       >

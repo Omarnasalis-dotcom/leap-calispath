@@ -29,6 +29,7 @@ import {
   KitIcon, kt, LeaderboardBody, NumberField, SegmentedSwitch, ThisSetRow, TopList, WorldHeader,
   WorldPage, WorldSheet, WorldToast, YouBar, Gender, LoadErrorCard,
 } from '../components/worlds/kit';
+import { BoardShareButton, LeaderboardShareCard } from '../components/leaderboard/LeaderboardShareCard';
 import { t as tr } from '../i18n';
 
 type Tier = 'all' | '1' | '2' | '3';
@@ -85,6 +86,7 @@ export function PowerWorldScreen() {
   const [boardRows, setBoardRows] = useState<PowerMovementRanking[]>([]);
   const [boardLoading, setBoardLoading] = useState(false);
   const [gender, setGender] = useState<Gender>('ALL');
+  const [shareOpen, setShareOpen] = useState(false);
   const [scope, setScope] = useState<'public' | 'community'>('public');
 
   const [showCelebration, setShowCelebration] = useState(false);
@@ -423,6 +425,9 @@ export function PowerWorldScreen() {
             ? tr('powerWorld.currentRm', { kg: pbs[logMove.id], pts: fmt2(calculatePowerPoints(logMove.id, pbs[logMove.id])) })
             : tr('powerWorld.noLiftYet')}
         title={shown.kind === 'board' ? tr('worlds.leaderboard') : (logMove ? MOVE_UI[logMove.id]?.name ?? logMove.name.toUpperCase() : '')}
+        headerAction={shown.kind === 'board' && boardList.length > 0
+          ? <BoardShareButton round color={t.textSecondary} borderColor={t.border} background={t.button} onPress={() => setShareOpen(true)} />
+          : undefined}
         footer={shown.kind === 'board' ? (
           <YouBar
             tokens={t}
@@ -451,6 +456,20 @@ export function PowerWorldScreen() {
               />
             )}
             {!!sheet && toastNode}
+            {shown.kind === 'board' && (
+              <LeaderboardShareCard
+                visible={shareOpen}
+                onClose={() => setShareOpen(false)}
+                variant="power"
+                title={tr('celebration.powerWorld')}
+                subLine={tr('leaderboardShare.worldTotalPoints')}
+                communityScoped={scope === 'community'}
+                scoreType="points"
+                rows={boardList.map(r => ({ user_id: r.user_id, username: r.name, score: r.points }))}
+                myId={user?.id}
+                myName={profile?.display_name ?? ''}
+              />
+            )}
           </>
         }
       >

@@ -11,7 +11,7 @@ import { useTheme } from '../../contexts/ThemeContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { shareCardImage } from '../../lib/shareCard';
 import { track } from '../../lib/analytics';
-import { kt } from '../worlds/kit';
+import { KitIcon, kt } from '../worlds/kit';
 import { LeapLogo } from '../LeapLogo';
 import { clamp01, easeOutBack, easeOutCubic } from '../../lib/prCelebration';
 import {
@@ -53,11 +53,22 @@ const NOT_RANKED_LINE: Record<ShareVariant, string> = {
   strength: 'leaderboardShare.notRankedStrength',
   weekly: 'leaderboardShare.notRankedWeekly',
   wellRounded: 'leaderboardShare.notRankedWellRounded',
+  static: 'leaderboardShare.notRankedWorld',
+  power: 'leaderboardShare.notRankedWorld',
+  endurance: 'leaderboardShare.notRankedWorld',
 };
 const BOARD_LABEL: Record<ShareVariant, string> = {
   strength: 'leaderboardShare.strength',
   weekly: 'leaderboardShare.weekly',
   wellRounded: 'leaderboardShare.wellRounded',
+  static: 'leaderboardShare.worlds',
+  power: 'leaderboardShare.worlds',
+  endurance: 'leaderboardShare.worlds',
+};
+const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch'>> = {
+  static: 'snowflake',
+  power: 'bolt',
+  endurance: 'stopwatch',
 };
 
 function useFadeUp(clock: SharedValue<number>, start: number, dy = 14, dur = 0.5, fade?: SharedValue<number>) {
@@ -70,6 +81,8 @@ function useFadeUp(clock: SharedValue<number>, start: number, dy = 14, dur = 0.5
 // ── Icons (static SVG) ──────────────────────────────────────────────────────
 function BoardIcon({ variant, color }: { variant: ShareVariant; color: string }) {
   const stroke = { fill: 'none', stroke: color, strokeWidth: 2.4, strokeLinecap: 'round' as const, strokeLinejoin: 'round' as const };
+  const worldIcon = WORLD_ICON[variant];
+  if (worldIcon) return <KitIcon name={worldIcon} size={13} color={color} strokeWidth={2.6} />;
   if (variant === 'wellRounded') {
     return (
       <Svg width={15} height={13} viewBox="0 0 26 22">
@@ -612,17 +625,27 @@ function LeaderboardShareModal({
   );
 }
 
-/** Small square share button for board headers. */
-export function BoardShareButton({ color, borderColor, onPress }: { color: string; borderColor: string; onPress: () => void }) {
+/**
+ * Share button for board headers: a small outlined square, or (round) the
+ * 40-px filled circle that matches a world sheet's close button.
+ */
+export function BoardShareButton({ color, borderColor, onPress, round, background }: {
+  color: string; borderColor: string; onPress: () => void; round?: boolean; background?: string;
+}) {
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={tr('leaderboardShare.share')}
       onPress={onPress}
       hitSlop={8}
-      style={({ pressed }) => ({ width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor, alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1 })}
+      style={({ pressed }) => ({
+        ...(round
+          ? { width: 40, height: 40, borderRadius: 20, backgroundColor: background }
+          : { width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor }),
+        alignItems: 'center', justifyContent: 'center', opacity: pressed ? 0.7 : 1,
+      })}
     >
-      <Svg width={16} height={16} viewBox="0 0 24 24">
+      <Svg width={round ? 15 : 16} height={round ? 15 : 16} viewBox="0 0 24 24">
         <Path d="M12 3v12M7 8l5-5 5 5" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
         <Path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" fill="none" stroke={color} strokeWidth={2.4} strokeLinecap="round" strokeLinejoin="round" />
       </Svg>
