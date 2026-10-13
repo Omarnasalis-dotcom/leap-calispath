@@ -63,7 +63,7 @@ function getCardImage(rec: LibraryTemplateRecommendation, index: number, mode: '
     : require('../../assets/programs/fallback-2.jpg');
 }
 
-function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFirst: boolean; isProItem: boolean }) {
+function CardBadge({ isCurrent, isProItem }: { isCurrent: boolean; isFirst: boolean; isProItem: boolean }) {
   const { mode } = useTheme();
   const styles = getStyles(TC_COLORS[mode]);
   if (isCurrent) {
@@ -74,7 +74,10 @@ function CardBadge({ isCurrent, isFirst, isProItem }: { isCurrent: boolean; isFi
       </View>
     );
   }
-  if (isFirst && !isProItem) {
+  // The single free card (the user's locked-in free pick, or the tier top-pick
+  // for someone who hasn't picked yet) is exactly the one with isProItem=false,
+  // wherever it appears in the list — not only when it's the top recommendation.
+  if (!isProItem) {
     return (
       <View style={styles.freeBadge}>
         <MaterialCommunityIcons name="gift-outline" size={10} color="#000" />
@@ -304,7 +307,14 @@ export function ProgramTemplatesScreen() {
   }, [profile?.strength_tier]);
 
   const topPickId = recommendations[0]?.id ?? null;
-  const isProItem = (rec: LibraryTemplateRecommendation) => rec.id !== topPickId;
+  // Once a free user has locked in their one free library pick, THAT template
+  // is their free one everywhere — not whatever the current tier now
+  // recommends. Reading the tier top-pick here instead (as this used to) meant
+  // that after the user climbed a tier, a different card showed as "free" but
+  // hit PRO_REQUIRED on tap (select_library_template only honours the stored
+  // free_library_template_id), while their real free program showed as locked.
+  const freeId = profile?.free_library_template_id ?? topPickId;
+  const isProItem = (rec: LibraryTemplateRecommendation) => rec.id !== freeId;
   const isProgramLocked = (rec: LibraryTemplateRecommendation) => isProItem(rec) && !isPro;
 
   const openPreview = async (rec: LibraryTemplateRecommendation) => {
