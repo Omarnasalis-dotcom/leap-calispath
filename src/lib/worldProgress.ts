@@ -35,9 +35,14 @@ export interface LevelProgress {
  * Power "LEVEL GAP" circle (handoff §0.4): progress WITHIN the current
  * level (0 at its floor, 1 at the next level's threshold) and the points
  * still needed. At the top level: progress 1, gap 0, nextLevel null.
+ *
+ * keptLevel: the stored power tier. A tier keeps the highest level reached
+ * even after a lower "save anyway" (owner decision 2026-10-13), so the
+ * current level is whichever is higher.
  */
-export function powerWithinLevel(totalPoints: number): LevelProgress {
-  const current = getPowerLevel(totalPoints);
+export function powerWithinLevel(totalPoints: number, keptLevel = 0): LevelProgress {
+  const byPoints = getPowerLevel(totalPoints);
+  const current = keptLevel > byPoints.id && POWER_LEVELS[keptLevel] ? POWER_LEVELS[keptLevel] : byPoints;
   const next = current.id < 3 ? POWER_LEVELS[current.id + 1] : null;
   if (!next) return { progress: 1, nextLevel: null, gap: 0 };
   const span = next.minPoints - current.minPoints;

@@ -159,7 +159,7 @@ export function PowerWorldScreen() {
     above: summary?.above ?? null,
   });
   const above = summary?.above ?? null;
-  const level = powerWithinLevel(score);
+  const level = powerWithinLevel(score, profile?.power_tier ?? 0);
 
   // Power's third circle is the LEVEL gap, not the gap to a person (§0.4).
   const gap = level.nextLevel

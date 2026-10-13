@@ -30,6 +30,16 @@ describe('powerWithinLevel', () => {
     expect(powerWithinLevel(175).nextLevel?.name).toBe('TESLA');
     expect(powerWithinLevel(300)).toEqual({ progress: 1, nextLevel: null, gap: 0 });
   });
+
+  it('keeps the highest tier reached after a lower save', () => {
+    // Tesla kept, points now in the Ampere range: still MAX.
+    expect(powerWithinLevel(240, 3)).toEqual({ progress: 1, nextLevel: null, gap: 0 });
+    // Ampere kept, points in the Voltaic range: aims at Tesla, not Ampere.
+    expect(powerWithinLevel(80, 2)).toMatchObject({ progress: 0, gap: 170 });
+    expect(powerWithinLevel(80, 2).nextLevel?.name).toBe('TESLA');
+    // A kept tier below the points level changes nothing.
+    expect(powerWithinLevel(175, 1)).toEqual(powerWithinLevel(175));
+  });
 });
 
 describe('staticWithinLevel', () => {
