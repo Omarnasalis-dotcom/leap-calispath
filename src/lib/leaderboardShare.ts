@@ -5,7 +5,7 @@
  */
 import { clamp01, easeOutCubic } from './prCelebration';
 
-export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance' | 'journey';
+export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance' | 'journey' | 'team';
 /** reps = the weekly board's PTS (whole numbers); points = Well-Rounded (2 decimals). */
 export type ShareScoreType = 'time' | 'reps' | 'points';
 
@@ -101,12 +101,16 @@ export function buildShareBoard(rows: ShareRow[], myId: string | undefined, myNa
 }
 
 // ── Formatting ────────────────────────────────────────────────────────────
+/** m:ss (h:mm:ss from an hour), plus tenths when the time has them (Team Challenge: "4:05.3"). */
 function clock(seconds: number): string {
-  const s = Math.max(0, Math.floor(seconds));
+  const v = Math.max(0, Math.round(seconds * 10) / 10);
+  const s = Math.floor(v);
+  const tenths = Math.round((v - s) * 10);
   const h = Math.floor(s / 3600);
   const m = Math.floor((s % 3600) / 60);
   const ss = String(s % 60).padStart(2, '0');
-  return h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  const base = h ? `${h}:${String(m).padStart(2, '0')}:${ss}` : `${m}:${ss}`;
+  return tenths ? `${base}.${tenths}` : base;
 }
 
 export function formatShareScore(value: number, type: ShareScoreType): string {

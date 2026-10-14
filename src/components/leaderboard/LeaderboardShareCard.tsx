@@ -58,6 +58,7 @@ const NOT_RANKED_LINE: Record<ShareVariant, string> = {
   power: 'leaderboardShare.notRankedWorld',
   endurance: 'leaderboardShare.notRankedWorld',
   journey: 'leaderboardShare.notRankedJourney',
+  team: 'leaderboardShare.notRankedTeam',
 };
 const BOARD_LABEL: Record<ShareVariant, string> = {
   strength: 'leaderboardShare.strength',
@@ -67,12 +68,14 @@ const BOARD_LABEL: Record<ShareVariant, string> = {
   power: 'leaderboardShare.worlds',
   endurance: 'leaderboardShare.worlds',
   journey: 'leaderboardShare.journey',
+  team: 'leaderboardShare.team',
 };
 const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch' | 'podium'>> = {
   static: 'snowflake',
   power: 'bolt',
   endurance: 'stopwatch',
   journey: 'podium',
+  team: 'podium',
 };
 
 function useFadeUp(clock: SharedValue<number>, start: number, dy = 14, dur = 0.5, fade?: SharedValue<number>) {
@@ -174,10 +177,11 @@ function PodiumScore({ clock, i, score, type, first, color }: {
   clock: SharedValue<number>; i: number; score: number; type: ShareScoreType; first: boolean; color: string;
 }) {
   const [shown, setShown] = useState(0);
+  const tenths = !Number.isInteger(Math.round(score * 10) / 10);
   useAnimatedReaction(
     () => {
       const v = score * scoreProgress(clock.value, i);
-      return type === 'points' ? Math.round(v * 100) / 100 : type === 'time' ? Math.floor(v) : Math.round(v);
+      return type === 'points' ? Math.round(v * 100) / 100 : type === 'time' ? (tenths ? Math.round(v * 10) / 10 : Math.floor(v)) : Math.round(v);
     },
     (now, was) => { if (now !== was) runOnJS(setShown)(now); },
   );

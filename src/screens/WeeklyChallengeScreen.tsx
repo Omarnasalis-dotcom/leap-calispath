@@ -20,16 +20,16 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { WorldPage, Gender, Scope, kt } from '../components/worlds/kit';
 import { getWeeklyTokens } from '../components/weekly/weeklyTokens';
 import { WeeklyAdminModal } from '../components/weekly/WeeklyAdminModal';
-import { ChallengeOverview, MyStanding } from './weekly/ChallengeOverview';
+import { ChallengeOverview, MyStanding, rangeLabel } from './weekly/ChallengeOverview';
 import { ChallengeActive } from './weekly/ChallengeActive';
 import { ChallengeLogAmrap, ChallengeLogForTime } from './weekly/ChallengeLog';
-import { ChallengeSubmitted, LastResult } from './weekly/ChallengeSubmitted';
+import { LeaderboardShareCard } from '../components/leaderboard/LeaderboardShareCard';
 import { TeamHub } from './team/TeamHub';
 import { ModeSwitch, WeeklyMode } from '../components/team/TeamParts';
 import { checkTeamChallengeEnabled } from '../lib/appVersion';
-import { t as tr } from '../i18n';
+import { ltr, t as tr } from '../i18n';
 
-type Phase = 'overview' | 'active' | 'log' | 'done';
+type Phase = 'overview' | 'active' | 'log';
 
 /** An attempt shorter than this is dropped without asking (owner decision). */
 const CONFIRM_AFTER_SEC = 10;
@@ -141,7 +141,8 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const [result, setResult] = useState(0);
   const [logRounds, setLogRounds] = useState(0);
   const [partial, setPartial] = useState<number[]>([]);
-  const [last, setLast] = useState<LastResult | null>(null);
+  // After a submit: the animated leaderboard card over the overview (replaces the old result step).
+  const [boardReveal, setBoardReveal] = useState(false);
 
   const goToAmrapLog = () => {
     setLogRounds(rounds);
@@ -258,8 +259,6 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
       return;
     }
     const score = logScore;
-    const prevRank = standing.rank;
-    const prevBest = standing.best;
     await safeMutate(async () => {
       const metadata = amrap
         ? {
@@ -279,13 +278,11 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     }, {
       onSuccess: (data) => {
         if (!data || !isMounted.current) return;
-        const { improved, rows } = data;
-        const best = improved || prevBest == null ? score : prevBest;
-        const i = rows.findIndex(r => r.user_id === user.id);
-        const newRank = i >= 0 ? i + 1 : projectedRank(type, rows, user.id, best).rank;
-        const leader = rows[0]?.score ?? best;
-        setLast({ score, newBest: improved, prevRank, newRank, best, gap: gapToLeader(type, leader, best) });
-        setPhase('done');
+        const { improved } = data;
+        // Straight back to the challenge with the board revealed (the fresh
+        // rows are already loaded): no separate result step.
+        setPhase('overview');
+        setBoardReveal(true);
         if (improved) {
           const scoreLabel = amrap ? tr('weekly.pts', { pts: score }) : formatClock(score);
           NotificationService.notify(
@@ -302,11 +299,10 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
 
   const discardLog = () => confirmThen(amrap ? timer.elapsed : result, exitAttempt);
 
-  const backFromDone = () => {
+  const closeBoardReveal = () => {
+    setBoardReveal(false);
     // Came from a My Journey side quest: go back and mark that slot done.
-    if (completeQuestAndReturn()) return;
-    setLast(null);
-    setPhase('overview');
+    completeQuestAndReturn();
   };
 
   // Android back mirrors the on-screen close/discard/back for each phase.
@@ -314,7 +310,6 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   backRef.current = () => {
     if (phase === 'active') confirmThen(timer.elapsed, exitAttempt);
     else if (phase === 'log') discardLog();
-    else if (phase === 'done') backFromDone();
   };
   useEffect(() => {
     if (phase === 'overview') return;
@@ -378,8 +373,6 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     body = amrap
       ? <ChallengeLogAmrap {...common} rounds={logRounds} partial={partial} onRounds={setLogRounds} onPartial={setPartial} />
       : <ChallengeLogForTime {...common} result={result} />;
-  } else if (phase === 'done' && last) {
-    body = <ChallengeSubmitted tokens={t} type={type} weekStart={weekStart} last={last} onBack={backFromDone} />;
   } else {
     body = (
       <ChallengeOverview
@@ -430,6 +423,21 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
           />
         )}
       </WorldPage>
+      {challenge && (
+        <LeaderboardShareCard
+          visible={boardReveal}
+          onClose={closeBoardReveal}
+          variant="weekly"
+          title={challenge.title}
+          subLine={`${ltr(rangeLabel(weekStart))} · ${live ? tr('leaderboardShare.live') : tr('leaderboardShare.final')}`}
+          live={live}
+          communityScoped={scope === 'community'}
+          scoreType={type === 'time' ? 'time' : 'reps'}
+          rows={filteredRows.map(r => ({ user_id: r.user_id, username: r.name, score: r.score }))}
+          myId={user?.id}
+          myName={profile?.display_name || tr('weekly.warrior')}
+        />
+      )}
     </GlobalErrorBoundary>
   );
 }

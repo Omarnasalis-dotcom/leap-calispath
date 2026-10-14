@@ -26,6 +26,11 @@ type Sheet = 'create' | 'join' | null;
 const openLobby = (teamId: string) => router.push({ pathname: '/team-lobby', params: { teamId } });
 
 /** Weekly Challenge → TEAM: the open team challenges (a picker when there's more than one), your teams, the board, create / join. */
+/** "OCT 6" in the app language, for the share card's sub-line (UTC, like TeamHistory). */
+function shortDate(iso: string): string {
+  return new Date(iso).toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }).toUpperCase();
+}
+
 export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
   const isMounted = useMountedRef();
   const [loading, setLoading] = useState(true);
@@ -175,7 +180,13 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
             )}
 
             <TeamMovements tokens={t} challenge={challenge} />
-            <TeamBoard tokens={t} type={type} rows={board} />
+            <TeamBoard
+              tokens={t} type={type} rows={board}
+              share={{
+                title: challenge.title,
+                subLine: `${ltr(`${shortDate(challenge.starts_at)} – ${shortDate(challenge.ends_at)}`)} · ${tr('leaderboardShare.live')}`,
+              }}
+            />
           </>
         )}
 

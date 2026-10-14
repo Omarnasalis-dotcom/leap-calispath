@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Text, View } from 'react-native';
 import { kt, SegmentedSwitch, YouBadge, rankColor } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
@@ -6,6 +6,7 @@ import { Label } from '../weekly/WeeklyParts';
 import { formatClock, roundPoints, totalReps } from '../../lib/weeklyChallenge';
 import { TeamBoardRow, TeamChallenge, TeamMember, TeamScoringType } from '../../lib/teamChallenge';
 import { ltr, t as tr } from '../../i18n';
+import { BoardShareButton, LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 
 export type WeeklyMode = 'solo' | 'team';
 
@@ -145,10 +146,36 @@ export function TeamMovements({ tokens: t, challenge: c }: { tokens: WeeklyToken
 }
 
 /** Ranked teams (best attempt each), with member names under the team name. */
-export function TeamBoard({ tokens: t, type, rows }: { tokens: WeeklyTokens; type: TeamScoringType; rows: TeamBoardRow[] }) {
+export function TeamBoard({ tokens: t, type, rows, share }: {
+  tokens: WeeklyTokens;
+  type: TeamScoringType;
+  rows: TeamBoardRow[];
+  /** Shows a share icon that opens the animated leaderboard card (team names, ranks and scores only). */
+  share?: { title: string; subLine: string };
+}) {
+  const [shareOpen, setShareOpen] = useState(false);
+  const mine = rows.find(r => r.is_mine);
   return (
     <View style={{ paddingTop: 28, gap: 10 }}>
-      <Label tokens={t} size={11}>{tr('team.leaderboard')}</Label>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Label tokens={t} size={11}>{tr('team.leaderboard')}</Label>
+        {share && rows.length > 0 && <BoardShareButton color={t.textSecondary} borderColor={t.cardBorder} onPress={() => setShareOpen(true)} />}
+      </View>
+      {share && (
+        <LeaderboardShareCard
+          visible={shareOpen}
+          onClose={() => setShareOpen(false)}
+          variant="team"
+          title={share.title}
+          subLine={share.subLine}
+          communityScoped={false}
+          scoreType={type === 'time' ? 'time' : 'reps'}
+          // Team names only; member names never leave the app.
+          rows={rows.map(r => ({ user_id: r.is_mine ? 'my-team' : r.team_id, username: r.team_name, score: r.best_score }))}
+          myId={mine ? 'my-team' : undefined}
+          myName={mine?.team_name ?? tr('leaderboardShare.yourTeam')}
+        />
+      )}
       {rows.length === 0 ? (
         <View style={{ borderRadius: 16, padding: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong }}>
           <Text style={[kt('light', 14, t.textMuted, 0, 20), { textAlign: 'center' }]}>{tr('team.noTeamsRanked')}</Text>

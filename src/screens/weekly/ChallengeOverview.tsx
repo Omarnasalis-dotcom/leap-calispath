@@ -54,7 +54,7 @@ interface Props {
   onManage?: () => void;
 }
 
-function rangeLabel(weekStart: string): string {
+export function rangeLabel(weekStart: string): string {
   const fmt = (d: Date) => d.toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' });
   return `${fmt(parseWeekStart(weekStart))} – ${fmt(weekEndDate(weekStart))}`.toUpperCase();
 }
