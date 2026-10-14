@@ -5,18 +5,19 @@ import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import { getWorldKitTokens, WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { useTheme } from '../../../contexts/ThemeContext';
-import { BoardKicker, KitButton, KitIcon, kt, WorldSheet } from '../../worlds/kit';
+import { BoardKicker, KitButton, KitIcon, kt, SegmentedSwitch, WorldSheet } from '../../worlds/kit';
 import { JourneyBadge } from '../badges/JourneyBadge';
 import { BoardShareButton, LeaderboardShareCard } from '../../leaderboard/LeaderboardShareCard';
 import { achievementFor } from '../../../lib/journeyAchievements';
-import { CommunityBoard, CommunityBoardRow, JourneyAchievementState } from '../../../lib/journeyPoints';
+import { BoardPeriod, CommunityBoard, CommunityBoardRow, JourneyAchievementState } from '../../../lib/journeyPoints';
+import { useJourneyCommunity } from '../../../hooks/useJourneyCommunity';
 import { usernameInitials } from '../../../lib/leaderboardShare';
 import { ltr, t as tr } from '../../../i18n';
 
 /*
  * Opened from the badge in the Journey top bar: your badge and progress to
- * the next one, then your community's ranking for the last 7 days
- * (docs/features/JOURNEY_ACHIEVEMENTS_PLAN.md). Built on the Worlds'
+ * the next one, then your community's ranking: THIS WEEK (last 7 days) or
+ * ALL TIME (lifetime points) (docs/features/JOURNEY_ACHIEVEMENTS_PLAN.md). Built on the Worlds'
  * leaderboard sheet. Light by design: badges are static SVG, only the
  * podium and the first rows fade in once (Reanimated entering, UI thread).
  */
@@ -49,7 +50,7 @@ function YourBadge({ t, state }: { t: WorldKitTokens; state: JourneyAchievementS
     <View style={{ marginHorizontal: 24, marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: t.border, backgroundColor: t.tint, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <JourneyBadge level={state.level} size={64} slotColor={light ? '#a8a2a0' : '#5a5a5a'} />
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        {/* Badges come from LIFETIME points; the top bar's POINTS is the current program. */}
+        {/* Lifetime points: every program except deleted ones, same as the top bar's POINTS. */}
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
           <Text style={kt('medium', 10, t.textMuted, 2)}>{tr('journeyAchievements.yourBadge')}</Text>
           <Text style={kt('medium', 9.5, t.textFaint, 1.6)} numberOfLines={1}>{tr('journeyAchievements.lifetimeLabel')}</Text>
@@ -106,7 +107,7 @@ function Podium({ t, rows }: { t: WorldKitTokens; rows: CommunityBoardRow[] }) {
               <>
                 <Avatar t={t} row={r} size={g.av} ring={r.is_you ? t.accent : medal} />
                 <Text style={[kt('medium', 12, r.is_you ? t.accentText : t.textSecondary), { marginTop: 7, maxWidth: '100%' }]} numberOfLines={1}>{r.username}</Text>
-                <Text style={kt('bold', i === 0 ? 17 : 14, t.text)}>{ltr(`${pts(r.weekly_points)} ${tr('journeyAchievements.pts')}`)}</Text>
+                <Text style={kt('bold', i === 0 ? 17 : 14, t.text)}>{ltr(`${pts(r.points)} ${tr('journeyAchievements.pts')}`)}</Text>
               </>
             ) : (
               <View style={{ width: g.av, height: g.av, borderRadius: g.av / 2, borderWidth: 1.5, borderStyle: 'dashed', borderColor: t.borderStrong, opacity: 0.7 }} />
@@ -146,7 +147,7 @@ const Row = React.memo(function Row({ t, row, index }: { t: WorldKitTokens; row:
         )}
       </View>
       <Text style={[kt('bold', 16, row.rank != null ? t.text : t.textFaint), { writingDirection: 'ltr' }]}>
-        {row.rank != null ? ltr(`${pts(row.weekly_points)} ${tr('journeyAchievements.pts')}`) : '—'}
+        {row.rank != null ? ltr(`${pts(row.points)} ${tr('journeyAchievements.pts')}`) : '—'}
       </Text>
     </View>
   );
@@ -179,19 +180,29 @@ function Locked({ t, onJoin }: { t: WorldKitTokens; onJoin: () => void }) {
 
 // ── Sheet ─────────────────────────────────────────────────────────────────
 
-export function AchievementsSheet({ visible, onClose, state, board, myName }: {
+export function AchievementsSheet({ visible, onClose, state, board: weekBoard, userId, myName }: {
   visible: boolean;
   onClose: () => void;
   state: JourneyAchievementState;
-  /** null while loading or unavailable. */
+  /** This week's board; null while loading or unavailable. */
   board: CommunityBoard | null;
+  userId: string | undefined;
   myName: string;
 }) {
   const { mode } = useTheme();
   const t = useMemo(() => getWorldKitTokens('strength', mode), [mode]);
   const [shareOpen, setShareOpen] = useState(false);
+  const [period, setPeriod] = useState<BoardPeriod>('week');
+  // The ALL TIME board loads the first time its tab is opened.
+  const lifetime = useJourneyCommunity(visible && period === 'lifetime' ? userId : undefined, 'lifetime');
+  const allTime = period === 'lifetime';
+  const board = allTime ? lifetime.board : weekBoard;
+  const periodItems = useMemo(() => [
+    { key: 'week' as const, label: tr('journeyAchievements.thisWeek') },
+    { key: 'lifetime' as const, label: tr('journeyAchievements.allTime') },
+  ], []);
 
-  const locked = board != null && board.community == null;
+  const locked = weekBoard != null && weekBoard.community == null;
   const ranked = useMemo(() => (board?.rows ?? []).filter(r => r.rank != null), [board]);
   const you = board?.rows.find(r => r.is_you) ?? null;
   const youOnPodium = !!you?.rank && you.rank <= 3;
@@ -205,7 +216,7 @@ export function AchievementsSheet({ visible, onClose, state, board, myName }: {
       variant="board"
       kicker={<BoardKicker tokens={t} icon="podium" text={tr('journeyAchievements.journey')} />}
       title={board?.community ?? tr('journeyAchievements.community')}
-      subtitle={board?.community ? tr('journeyAchievements.weekMembers', { n: ltr(String(board.members)) }) : undefined}
+      subtitle={board?.community ? tr(allTime ? 'journeyAchievements.allTimeMembers' : 'journeyAchievements.weekMembers', { n: ltr(String(board.members)) }) : undefined}
       headerAction={ranked.length > 0
         ? <BoardShareButton round color={t.textSecondary} borderColor={t.border} background={t.button} onPress={() => setShareOpen(true)} />
         : undefined}
@@ -216,10 +227,10 @@ export function AchievementsSheet({ visible, onClose, state, board, myName }: {
           onClose={() => setShareOpen(false)}
           variant="journey"
           title={tr('journeyAchievements.community')}
-          subLine={tr('journeyAchievements.thisWeek')}
+          subLine={tr(allTime ? 'journeyAchievements.allTime' : 'journeyAchievements.thisWeek')}
           communityScoped
           scoreType="reps"
-          rows={ranked.map((r, i) => ({ user_id: r.is_you ? 'me' : `r${i}`, username: r.username, score: r.weekly_points }))}
+          rows={ranked.map((r, i) => ({ user_id: r.is_you ? 'me' : `r${i}`, username: r.username, score: r.points }))}
           myId="me"
           myName={myName}
         />
@@ -228,15 +239,32 @@ export function AchievementsSheet({ visible, onClose, state, board, myName }: {
       <YourBadge t={t} state={state} />
       {locked ? (
         <Locked t={t} onJoin={() => { onClose(); router.push('/profile'); }} />
-      ) : board ? (
+      ) : weekBoard ? (
         <>
-          <Text style={[kt('light', 12, t.textMuted, 0.4), { paddingHorizontal: 24, paddingTop: 16 }]}>{tr('journeyAchievements.rollingNote')}</Text>
-          <Podium t={t} rows={ranked.slice(0, 3)} />
-          {ranked.length === 0 && <Note t={t} title={tr('journeyAchievements.emptyWeek')} cta={tr('journeyAchievements.emptyWeekCta')} />}
-          {board.members === 1 && ranked.length > 0 && <Note t={t} title={tr('journeyAchievements.solo')} cta={tr('journeyAchievements.soloCta')} />}
-          <View style={{ paddingHorizontal: 24, paddingTop: 14, gap: 6 }}>
-            {rest.map((r, i) => <Row key={`${r.rank}-${r.username}`} t={t} row={r} index={i} />)}
+          <View style={{ paddingHorizontal: 24, paddingTop: 16 }}>
+            <SegmentedSwitch tokens={t} items={periodItems} active={period} onChange={setPeriod} height={36} fontSize={12} />
           </View>
+          <Text style={[kt('light', 12, t.textMuted, 0.4), { paddingHorizontal: 24, paddingTop: 12 }]}>
+            {tr(allTime ? 'journeyAchievements.allTimeNote' : 'journeyAchievements.rollingNote')}
+          </Text>
+          {board ? (
+            <>
+              <Podium key={period} t={t} rows={ranked.slice(0, 3)} />
+              {ranked.length === 0 && (
+                <Note
+                  t={t}
+                  title={tr(allTime ? 'journeyAchievements.emptyAllTime' : 'journeyAchievements.emptyWeek')}
+                  cta={tr('journeyAchievements.emptyWeekCta')}
+                />
+              )}
+              {board.members === 1 && ranked.length > 0 && <Note t={t} title={tr('journeyAchievements.solo')} cta={tr('journeyAchievements.soloCta')} />}
+              <View style={{ paddingHorizontal: 24, paddingTop: 14, gap: 6 }}>
+                {rest.map((r, i) => <Row key={`${period}-${r.rank}-${r.username}`} t={t} row={r} index={i} />)}
+              </View>
+            </>
+          ) : lifetime.failed ? (
+            <Note t={t} title={tr('journeyAchievements.loadFailed')} cta={tr('journeyAchievements.loadFailedCta')} />
+          ) : null}
         </>
       ) : null}
     </WorldSheet>

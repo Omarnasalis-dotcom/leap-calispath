@@ -2936,6 +2936,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onClose={() => setAchievementsOpen(false)}
         state={pointsSummary.achievement}
         board={journeyCommunity.board}
+        userId={profile?.id}
         myName={profile?.display_name ?? ''}
       />
     )}

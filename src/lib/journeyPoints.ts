@@ -68,10 +68,13 @@ export interface JourneyAchievementState {
   pending: { level: number; previous_level: number; skipped: number[] } | null;
 }
 
+export type BoardPeriod = 'week' | 'lifetime';
+
 export interface CommunityBoardRow {
   username: string;
-  weekly_points: number;
-  /** null = not ranked this week (0 points). */
+  /** Points in the board's period (last 7 days, or lifetime). */
+  points: number;
+  /** null = not ranked in this period (0 points). */
   rank: number | null;
   badge_level: number;
   is_you: boolean;
@@ -84,10 +87,13 @@ export interface CommunityBoard {
   rows: CommunityBoardRow[];
 }
 
-/** The caller's community, ranked by each member's last 7 days. */
-export async function getCommunityBoard(): Promise<CommunityBoard> {
+/**
+ * The caller's community, ranked by each member's last 7 days or by lifetime
+ * points. Points from deleted programs never count.
+ */
+export async function getCommunityBoard(period: BoardPeriod = 'week'): Promise<CommunityBoard> {
   return withNetworkRetry(async () => {
-    const { data, error } = await supabase.rpc('get_journey_community_board', { p_tz: deviceTimeZone() });
+    const { data, error } = await supabase.rpc('get_journey_community_board', { p_tz: deviceTimeZone(), p_period: period });
     if (error) throw error;
     return data as CommunityBoard;
   });
