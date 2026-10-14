@@ -58,13 +58,13 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 - `AchievementCelebration`: shared shell, copy, skipped line, stats panel (bar + counter leaf), LEAP ARENA pill, DONE + share, fit-to-screen (compact), skip, Reduce Motion, haptics/sound cues, share image. Triggered after the points FX; marked celebrated after close.
 - Reveals 1–3: ring draw, pop, spin-in, small bursts.
 
-### Step 5 — DETERMINED and WARRIOR
+### Step 5 — DETERMINED and WARRIOR — DONE 2026-10-14 (device-checked)
 - Forge (3 hammer strikes, hot layer cooling, spark sprays with gravity) and shield slam (drop, card shake, flash, shock rings).
 
-### Step 6 — CHAMPION and ELITE
+### Step 6 — CHAMPION and ELITE — DONE 2026-10-14 (device-checked on the Android emulator; Elite trimmed to orbit 10 / gem sparks 8 / lock sparks 12)
 - Wings unfold on their pivots, glint, gold ring; orbiting particles (rotating group), gem ignite.
 
-### Step 7 — LEGEND + quality tuning
+### Step 7 — LEGEND + quality tuning — DONE 2026-10-14 (device-checked; orbit 12 / lock sparks 16; tuning on older Android pending)
 - Charge, prismatic burst, beam fan (rotating group), wings, crown + gems, halo. Tune the lite profile on an older Android phone.
 
 ### Step 8 — (merged into step 3)

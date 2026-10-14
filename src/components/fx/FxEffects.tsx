@@ -93,13 +93,18 @@ export const OrbitParticles = React.memo(function OrbitParticles({ clock, t0, t1
  * Light beams from the centre that rotate as ONE view (the beams inside are
  * static), fading in at t0 and out over [outFrom, outTo].
  */
-export const BeamFan = React.memo(function BeamFan({ clock, t0, outFrom, outTo, cx, cy, length, width = 10, count, colors, degPerSec = 40, peak = 0.7 }: {
+export const BeamFan = React.memo(function BeamFan({ clock, t0, outFrom, outTo, cx, cy, length, width = 10, count, colors, degPerSec = 40, peak = 0.7, fadeIn = 0.15, spreadDeg, gradients }: {
   clock: Clock; t0: number; outFrom: number; outTo: number; cx: number; cy: number; length: number;
   width?: number; count: number; colors: readonly string[]; degPerSec?: number; peak?: number;
+  fadeIn?: number;
+  /** Angle between beams (default 360 / count). Each beam spans the full diameter. */
+  spreadDeg?: number;
+  /** Per-beam gradient (5 stops: edge, 30%, centre, 70%, edge); overrides `colors`. */
+  gradients?: readonly (readonly string[])[];
 }) {
   const style = useAnimatedStyle(() => {
     const t = clock.value;
-    const op = seg(t, t0, t0 + 0.15) * (1 - seg(t, outFrom, outTo)) * peak;
+    const op = seg(t, t0, t0 + fadeIn) * (1 - seg(t, outFrom, outTo)) * peak;
     return { opacity: op, transform: [{ rotate: `${Math.max(0, t - t0) * degPerSec}deg` }] };
   });
   const box = length * 2;
@@ -108,13 +113,13 @@ export const BeamFan = React.memo(function BeamFan({ clock, t0, outFrom, outTo, 
       {Array.from({ length: count }, (_, i) => (
         <View
           key={i}
-          style={{ position: 'absolute', left: length - width / 2, top: 0, width, height: box, transform: [{ rotate: `${(i * 360) / count}deg` }] }}
+          style={{ position: 'absolute', left: length - width / 2, top: 0, width, height: box, borderRadius: width / 2, overflow: 'hidden', transform: [{ rotate: `${i * (spreadDeg ?? 360 / count)}deg` }] }}
         >
-          <LinearGradient
-            colors={['transparent', colors[i % colors.length], 'transparent']}
-            locations={[0, 0.5, 1]}
-            style={StyleSheet.absoluteFill}
-          />
+          {gradients ? (
+            <LinearGradient colors={gradients[i % gradients.length] as unknown as [string, string, ...string[]]} locations={[0, 0.3, 0.5, 0.7, 1]} style={StyleSheet.absoluteFill} />
+          ) : (
+            <LinearGradient colors={['transparent', colors[i % colors.length], 'transparent']} locations={[0, 0.5, 1]} style={StyleSheet.absoluteFill} />
+          )}
         </View>
       ))}
     </Animated.View>

@@ -1,4 +1,4 @@
-import { AFTER, celebrationFrom, celebrationTimeline, LOCK_BY_LEVEL } from '../journeyCelebration';
+import { AFTER, cardShake, celebrationFrom, celebrationTimeline, HERO_GLOW_PEAK, LOCK_BY_LEVEL } from '../journeyCelebration';
 import { achievementFor } from '../journeyAchievements';
 import { JourneyAchievementState, PointsEntry } from '../journeyPoints';
 
@@ -19,6 +19,20 @@ describe('celebrationTimeline', () => {
     expect(celebrationTimeline(8).end).toBeCloseTo(3.9);
     expect(Object.keys(LOCK_BY_LEVEL)).toHaveLength(8);
     expect(AFTER.countTo).toBeGreaterThan(AFTER.countFrom);
+  });
+});
+
+describe('per-level effects', () => {
+  it('shakes the card only for WARRIOR, only right after the lock', () => {
+    expect(cardShake(1.7, 4, 1.65)).toBe(0);
+    expect(cardShake(1.6, 5, 1.65)).toBe(0);
+    expect(Math.abs(cardShake(1.67, 5, 1.65))).toBeGreaterThan(0);
+    expect(cardShake(2.2, 5, 1.65)).toBe(0);
+  });
+
+  it('escalates the glow peak', () => {
+    const peaks = [1, 2, 3, 4, 5, 6, 7, 8].map(l => HERO_GLOW_PEAK[l]);
+    peaks.forEach((p, i) => { if (i) expect(p).toBeGreaterThanOrEqual(peaks[i - 1]); });
   });
 });
 

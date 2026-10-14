@@ -12,10 +12,15 @@ import { clamp01, easeOutBack, easeOutCubic, seg } from '../../../lib/fx/easing'
 import { useFxClock } from '../../../lib/fx/useFxClock';
 import { useFxQuality } from '../../../lib/fx/quality';
 import { achievementFor } from '../../../lib/journeyAchievements';
-import { AFTER, CelebrationData, celebrationTimeline, REVEAL_TICKS } from '../../../lib/journeyCelebration';
+import {
+  AFTER, cardShake, CelebrationData, celebrationTimeline, DOUBLE_LOCK, HEAVY_LOCK, HERO_GLOW_PEAK, REVEAL_HEAVY, REVEAL_MEDIUM, REVEAL_TICKS,
+} from '../../../lib/journeyCelebration';
 import { kt } from '../../worlds/kit';
 import { LeapLogo } from '../../LeapLogo';
-import { RevealRise } from './reveals/RevealRise';
+import { RevealProps, RevealRise } from './reveals/RevealRise';
+import { RevealForge, RevealSlam } from './reveals/RevealForgeSlam';
+import { RevealChampion, RevealElite } from './reveals/RevealWinged';
+import { RevealLegend } from './reveals/RevealLegend';
 import { isArabic, isRTL, ltr, t as tr } from '../../../i18n';
 
 /*
@@ -42,6 +47,11 @@ function palette(light: boolean) {
         panel: 'rgba(255,255,255,0.025)', panelBorder: '#1d1b1e', track: '#1c1a1d', pill: 'rgba(252,84,84,0.28)', shareBorder: '#3a2a2a', shareBg: 'transparent',
         slot: '#5a5a5a', glowK: 1, borderA: 0.5, radialA: 0.16 };
 }
+
+/** The hero reveal for each level (handoff "Hero reveals"). */
+const REVEALS: Record<number, React.ComponentType<RevealProps>> = {
+  1: RevealRise, 2: RevealRise, 3: RevealRise, 4: RevealForge, 5: RevealSlam, 6: RevealChampion, 7: RevealElite, 8: RevealLegend,
+};
 
 function badgeName(level: number): string {
   const def = achievementFor(level);
@@ -101,6 +111,7 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
   const tone = def.tone;
   const tl = celebrationTimeline(data.level);
   const L = tl.lock;
+  const shakeLevel = data.level;
   const { clock, fade, skip } = useFxClock(tl.end);
 
   // Compact when the screen is short or the group doesn't fit (Arabic's taller lines).
@@ -113,13 +124,36 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
 
   // ── Haptics + sound (sounds respect the Arena mute inside SoundService) ─
   const ticks = REVEAL_TICKS[data.level] ?? [];
+  const mediums = REVEAL_MEDIUM[data.level] ?? [];
+  const heavies = REVEAL_HEAVY[data.level] ?? [];
   const tick = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); SoundService.playTick(); };
-  const lockCue = () => { Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {}); SoundService.playBoxingBell(); };
+  const medium = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}); };
+  const heavy = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy).catch(() => {}); };
+  const lockCue = () => {
+    if (HEAVY_LOCK.has(data.level)) heavy();
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    SoundService.playBoxingBell();
+    if (DOUBLE_LOCK.has(data.level)) {
+      // LEGEND's "chord": a second success and bell just after.
+      setTimeout(() => {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+        SoundService.playBoxingBell();
+      }, 180);
+    }
+  };
   const settleTick = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); };
   // A skip jumps past several cues at once and stays quiet (only the lock plays).
   useAnimatedReaction(
     () => ticks.filter(c => clock.value >= c).length,
     (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(tick)(); },
+  );
+  useAnimatedReaction(
+    () => mediums.filter(c => clock.value >= c).length,
+    (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(medium)(); },
+  );
+  useAnimatedReaction(
+    () => heavies.filter(c => clock.value >= c).length,
+    (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(heavy)(); },
   );
   useAnimatedReaction(() => clock.value >= L, (now, was) => { if (now && was === false) runOnJS(lockCue)(); });
   useAnimatedReaction(
@@ -131,14 +165,18 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
   const backdropStyle = useAnimatedStyle(() => ({ opacity: clamp01(clock.value / 0.35) * fade.value }));
   const cardStyle = useAnimatedStyle(() => {
     const q = clamp01((clock.value - 0.05) / 0.55);
-    return { opacity: clamp01(q * 1.6) * fade.value, transform: [{ translateY: (1 - easeOutCubic(q)) * 40 }, { scale: 0.9 + 0.1 * easeOutBack(q) }] };
+    return {
+      opacity: clamp01(q * 1.6) * fade.value,
+      transform: [{ translateX: cardShake(clock.value, shakeLevel, L) }, { translateY: (1 - easeOutCubic(q)) * 40 }, { scale: 0.9 + 0.1 * easeOutBack(q) }],
+    };
   });
   const outerGlow = useAnimatedStyle(() => {
     const t = clock.value;
     const g = t < L ? 0.12 + seg(t, 0.45, L) * 0.14 : 0.26 + 0.24 * (1 - seg(t, L, L + 0.9));
     return { opacity: Math.min(1, g * 1.6 * p.glowK) };
   });
-  const heroPeak = data.level === 1 ? 0.5 : 0.6;
+  const heroPeak = HERO_GLOW_PEAK[data.level] ?? 0.6;
+  const Reveal = REVEALS[data.level] ?? RevealRise;
   const heroGlow = useAnimatedStyle(() => {
     const t = clock.value;
     const g = t < L ? 0.12 + seg(t, 0.45, L) * 0.2 : 0.35 + (heroPeak - 0.35) * (1 - seg(t, L, L + 0.9));
@@ -226,7 +264,7 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
                       <Circle cx={glowSize / 2} cy={glowSize / 2} r={glowSize / 2} fill="url(#achGlow)" />
                     </Svg>
                   </Animated.View>
-                  <RevealRise
+                  <Reveal
                     clock={clock} level={data.level} previousLevel={data.previousLevel} lock={L} end={tl.end}
                     size={badgeSize} tone={tone} quality={quality} slotColor={p.slot}
                   />
