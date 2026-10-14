@@ -70,7 +70,7 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 ### Step 8 — (merged into step 3)
 - Sheet with podium header (20-px badges on avatars), rows, pinned YOU row (`onViewableItemsChanged`), all states, share icon → leaderboard share card in a new Journey style (shows "MY COMMUNITY", never the community name).
 
-### Step 9 — Final pass
+### Step 9 — Final pass — automated pass DONE 2026-10-14 (4 fixes: per-frame allocation, modal stacking, lifetime label, light-mode tone text); device-checked; real low-end Android still recommended
 - Every scenario from the handoff in EN + AR, dark + light, Reduce Motion, compact screens; performance pass on the oldest available Android; then commit and include in the next build.
 
 ---

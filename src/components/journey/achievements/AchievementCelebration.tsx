@@ -5,6 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Svg, { Defs, Path, RadialGradient, Circle, Stop } from 'react-native-svg';
+import { countPassed } from '../../../lib/fx/easing';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { SoundServiceInstance as SoundService } from '../../../lib/SoundService';
 import { shareCardImage } from '../../../lib/shareCard';
@@ -52,6 +53,14 @@ function palette(light: boolean) {
 const REVEALS: Record<number, React.ComponentType<RevealProps>> = {
   1: RevealRise, 2: RevealRise, 3: RevealRise, 4: RevealForge, 5: RevealSlam, 6: RevealChampion, 7: RevealElite, 8: RevealLegend,
 };
+
+/** Light tones (gold, grey) lose contrast on the white card; darken them for text there. */
+function toneForText(hex: string, light: boolean): string {
+  if (!light) return hex;
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c: number) => Math.round(c * 0.62).toString(16).padStart(2, '0');
+  return `#${f((n >> 16) & 255)}${f((n >> 8) & 255)}${f(n & 255)}`;
+}
 
 function badgeName(level: number): string {
   const def = achievementFor(level);
@@ -109,6 +118,7 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
 
   const def = achievementFor(data.level)!;
   const tone = def.tone;
+  const toneText = toneForText(tone, light);
   const tl = celebrationTimeline(data.level);
   const L = tl.lock;
   const shakeLevel = data.level;
@@ -144,15 +154,15 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
   const settleTick = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); };
   // A skip jumps past several cues at once and stays quiet (only the lock plays).
   useAnimatedReaction(
-    () => ticks.filter(c => clock.value >= c).length,
+    () => countPassed(ticks, clock.value),
     (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(tick)(); },
   );
   useAnimatedReaction(
-    () => mediums.filter(c => clock.value >= c).length,
+    () => countPassed(mediums, clock.value),
     (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(medium)(); },
   );
   useAnimatedReaction(
-    () => heavies.filter(c => clock.value >= c).length,
+    () => countPassed(heavies, clock.value),
     (now, was) => { if (was != null && now - was === 1 && clock.value < L) runOnJS(heavy)(); },
   );
   useAnimatedReaction(() => clock.value >= L, (now, was) => { if (now && was === false) runOnJS(lockCue)(); });
@@ -277,7 +287,7 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
                   {tr('journeyAchievements.earned', { name })}
                 </Animated.Text>
                 {skippedLine && (
-                  <Animated.Text style={[kt('semibold', 12, tone, 0.6), { textAlign: 'center', marginTop: 6 }, skippedStyle]}>{skippedLine}</Animated.Text>
+                  <Animated.Text style={[kt('semibold', 12, toneText, 0.6), { textAlign: 'center', marginTop: 6 }, skippedStyle]}>{skippedLine}</Animated.Text>
                 )}
 
                 <Animated.View style={[{ marginTop: compact ? 12 : 18, borderRadius: 16, borderWidth: 1, borderColor: p.panelBorder, backgroundColor: p.panel, paddingVertical: 13, paddingHorizontal: 15, gap: 9 }, statsStyle]}>
@@ -296,7 +306,7 @@ function CelebrationModal({ data, onDone }: { data: CelebrationData; onDone: () 
                       {next && <Text style={kt('medium', 13, p.t4)}>{ltr(`/ ${(data.nextThreshold ?? 0).toLocaleString('en-US')}`)}</Text>}
                     </View>
                     <View style={{ flex: 1 }} />
-                    <Text style={kt('semibold', 11, tone, 1.8)} numberOfLines={1}>
+                    <Text style={kt('semibold', 11, toneText, 1.8)} numberOfLines={1}>
                       {next ? tr('journeyAchievements.toNext', { name: badgeName(next.level) }) : tr('journeyAchievements.allEarned')}
                     </Text>
                   </View>

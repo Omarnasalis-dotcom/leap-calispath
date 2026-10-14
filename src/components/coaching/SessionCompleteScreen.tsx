@@ -8,6 +8,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
+import { countPassed } from '../../lib/fx/easing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { shareCardImage } from '../../lib/shareCard';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
@@ -189,7 +190,7 @@ function SessionCompleteModal({
   // A tick per completed block landing; a skip jumps several at once, so it
   // stays quiet (only the LOCK cue still plays).
   useAnimatedReaction(
-    () => lands.filter(l => clock.value >= l).length,
+    () => countPassed(lands, clock.value),
     (now, was) => { if (was != null && now - was === 1 && clock.value < tl.lock + 0.05) runOnJS(tick)(); },
   );
   useAnimatedReaction(() => clock.value >= tl.lock, (now, was) => { if (now && was === false) runOnJS(lockCue)(); });

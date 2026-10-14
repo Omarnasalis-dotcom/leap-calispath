@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Svg, { Path } from 'react-native-svg';
+import { countPassed } from '../../lib/fx/easing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { shareCardImage } from '../../lib/shareCard';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
@@ -132,7 +133,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
     if (now && was === false) runOnJS(tapLock)();
   });
   useAnimatedReaction(
-    () => (world === 'power' ? landTimes.filter(l => clock.value >= l).length : -1),
+    () => (world === 'power' ? countPassed(landTimes, clock.value) : -1),
     (now, was) => { if (was != null && now > was && clock.value < lock) runOnJS(tapLight)(); },
   );
   useAnimatedReaction(

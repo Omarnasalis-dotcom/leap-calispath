@@ -49,7 +49,11 @@ function YourBadge({ t, state }: { t: WorldKitTokens; state: JourneyAchievementS
     <View style={{ marginHorizontal: 24, marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: t.border, backgroundColor: t.tint, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <JourneyBadge level={state.level} size={64} slotColor={light ? '#a8a2a0' : '#5a5a5a'} />
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
-        <Text style={kt('medium', 10, t.textMuted, 2)}>{tr('journeyAchievements.yourBadge')}</Text>
+        {/* Badges come from LIFETIME points; the top bar's POINTS is the current program. */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+          <Text style={kt('medium', 10, t.textMuted, 2)}>{tr('journeyAchievements.yourBadge')}</Text>
+          <Text style={kt('medium', 9.5, t.textFaint, 1.6)} numberOfLines={1}>{tr('journeyAchievements.lifetimeLabel')}</Text>
+        </View>
         <Text style={kt('bold', 20, def ? toneForText(def.tone, light) : t.textFaint, 1.4, 24)} numberOfLines={1}>{badgeName(state.level)}</Text>
         {def ? (
           <>

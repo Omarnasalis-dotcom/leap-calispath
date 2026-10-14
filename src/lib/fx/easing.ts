@@ -40,6 +40,14 @@ export const easeOutBack = (t: number, c = 1.5) => {
   return 1 + (c + 1) * Math.pow(t - 1, 3) + c * Math.pow(t - 1, 2);
 };
 
+/** How many of `times` the clock has passed (no allocation: safe per frame). */
+export const countPassed = (times: readonly number[], t: number) => {
+  'worklet';
+  let n = 0;
+  for (let i = 0; i < times.length; i++) if (t >= times[i]) n++;
+  return n;
+};
+
 /** One sine bump 0 → 1 → 0 over [t0, t0 + dur]; 0 outside. */
 export const bump = (t: number, t0: number, dur: number) => {
   'worklet';

@@ -2176,7 +2176,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Journey achievements entry (docs/features/JOURNEY_ACHIEVEMENTS_PLAN.md, step 3).
   const journeyCommunity = useJourneyCommunity(showPointsBar ? profile?.id : undefined);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
-  const achievementCelebration = useAchievementCelebration(showPointsBar ? profile?.id : undefined, pointsSummary, journeyPoints.refresh);
   const todayQuestPaid = !!pointsSummary && questPaidToday(pointsSummary, todayQuestSlotKey);
   // Dev builds only: long-press the "+" to preview its lit state.
   const [devIgnite, setDevIgnite] = useState(false);
@@ -2184,6 +2183,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const [trayMode, setTrayMode] = useState<TrayMode>(null);
   const [tasksSheetOpen, setTasksSheetOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  // Waits for the +points FX, for focus, and for any other Journey sheet to close.
+  const achievementCelebration = useAchievementCelebration(
+    showPointsBar ? profile?.id : undefined, pointsSummary, journeyPoints.refresh,
+    achievementsOpen || tasksSheetOpen || historyOpen,
+  );
   // Lane position (latest week) of the card to glow after a jump from
   // Today's Tasks, plus a changing signal so a repeat jump replays it.
   const [cardGlow, setCardGlow] = useState<{ position: number; signal: number } | null>(null);

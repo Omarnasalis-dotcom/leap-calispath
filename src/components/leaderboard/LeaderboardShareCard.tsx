@@ -7,6 +7,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
 import Svg, { Circle, Path } from 'react-native-svg';
+import { countPassed } from '../../lib/fx/easing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { shareCardImage } from '../../lib/shareCard';
@@ -406,7 +407,7 @@ function LeaderboardShareModal({
   // A tick per filled place landing; a skip jumps several at once and stays
   // quiet (only the LOCK cue still plays).
   useAnimatedReaction(
-    () => filledLands.filter(l => clock.value >= l).length,
+    () => countPassed(filledLands, clock.value),
     (now, was) => { if (was != null && now - was === 1 && clock.value < LB_LOCK + 0.05) runOnJS(tick)(); },
   );
   useAnimatedReaction(() => clock.value >= LB_LOCK, (now, was) => { if (now && was === false) runOnJS(lockCue)(); });
