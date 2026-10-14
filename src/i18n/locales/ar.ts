@@ -180,6 +180,7 @@ const ar: Translations = {
     saveFailed: 'تعذّر حفظ أهدافك. حاول مرة أخرى.',
   },
   journeyPoints: {
+    tasksHint: 'يفتح مهام اليوم',
     points: 'النقاط',
     doneTodaySub: 'تم التسجيل. +{{pts}} نقطة.',
     history: {
@@ -299,7 +300,7 @@ const ar: Translations = {
     totalA11y_few: '{{count}} نقاط. افتح سجل النقاط',
     totalA11y_many: '{{count}} نقطة. افتح سجل النقاط',
     totalA11y_other: '{{count}} نقطة. افتح سجل النقاط',
-    medallionA11y: 'اليوم: {{done}} من {{total}} مكتملة. افتح مهام اليوم',
+    medallionA11y: 'اليوم: {{done}} من {{total}} مكتملة',
     streakLabel_zero: 'سلسلة {{count}} يوم',
     streakLabel_one: 'سلسلة يوم واحد',
     streakLabel_two: 'سلسلة يومين',
@@ -1246,6 +1247,14 @@ const ar: Translations = {
     soloCta: 'ادعُ أصدقاءك لينافسوك.',
     you: 'أنت',
     pts: 'نقطة',
+    unlocked: 'إنجاز جديد',
+    earned: 'حصلت على شارة {{name}}',
+    skippedOne: '+ شارة {{name}} أيضًا',
+    skippedMany: '+ شارات {{names}} أيضًا',
+    and: ' و',
+    lifetimeLabel: 'نقاط الرحلة',
+    done: 'تم',
+    share: 'مشاركة الإنجاز',
   },
   prCelebration: {
     newRecord: 'رقم شخصي جديد',

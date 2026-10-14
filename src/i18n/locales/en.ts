@@ -180,6 +180,7 @@ const en = {
     saveFailed: 'Failed to save your goals. Please try again.',
   },
   journeyPoints: {
+    tasksHint: "Opens today's tasks",
     points: 'POINTS',
     doneTodaySub: 'Logged. +{{pts}} earned.',
     history: {
@@ -251,7 +252,7 @@ const en = {
     footer: 'Tap a ticked task to undo · locks at midnight',
     totalA11y_one: '{{count}} point. Open points history',
     totalA11y_other: '{{count}} points. Open points history',
-    medallionA11y: "Today: {{done}} of {{total}} done. Open today's tasks",
+    medallionA11y: 'Today: {{done}} of {{total}} done',
     streakLabel_one: '{{count}} DAY STREAK',
     streakLabel_other: '{{count}} DAY STREAK',
     stage: {
@@ -1159,6 +1160,14 @@ const en = {
     soloCta: 'Invite friends to compete with you.',
     you: 'YOU',
     pts: 'PTS',
+    unlocked: 'ACHIEVEMENT UNLOCKED',
+    earned: 'You earned the {{name}} badge',
+    skippedOne: '+ {{name}} badge earned too',
+    skippedMany: '+ {{names}} badges earned too',
+    and: ' & ',
+    lifetimeLabel: 'LIFETIME POINTS',
+    done: 'DONE',
+    share: 'Share achievement',
   },
   prCelebration: {
     newRecord: 'NEW PERSONAL RECORD',

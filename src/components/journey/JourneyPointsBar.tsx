@@ -5,10 +5,9 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import { PointsOdometer } from './PointsOdometer';
 import { TodayMedallion } from './TodayMedallion';
-import { JourneyBadge } from './badges/JourneyBadge';
 import { StreakStrip } from './StreakStrip';
 import { JourneyPointsSummary } from '../../lib/journeyPoints';
-import { ltr, t } from '../../i18n';
+import { t } from '../../i18n';
 
 // Handoff top bar (60pt, pinned over the Journey path): points counter |
 // today medallion (hangs ~18pt below the bar) | 7-day streak strip.
@@ -30,32 +29,14 @@ interface JourneyPointsBarProps {
   popSignal?: number;
   /** Dev builds only: preview the reward FX. */
   onLongPressMedallion?: () => void;
-  /** Journey achievements: your badge (0 = none yet) and this week's community rank. */
+  /** Journey achievements: your badge (0 = none yet), shown in the medallion, and this week's community rank. */
   badgeLevel?: number;
   communityRank?: number | null;
-  /** Opens your badge + the community leaderboard. Without it no badge shows. */
+  /**
+   * Opens your badge + the community leaderboard (tap the medallion). With it,
+   * the points counter opens today's tasks and the streak strip the history.
+   */
   onOpenAchievements?: () => void;
-}
-
-/** Your badge with a small coral "#rank" tag when you're ranked in your community this week. */
-function TopBarBadge({ level, rank, isLight, onPress }: { level: number; rank: number | null | undefined; isLight: boolean; onPress: () => void }) {
-  return (
-    <TouchableOpacity
-      onPress={onPress}
-      activeOpacity={0.8}
-      hitSlop={6}
-      accessibilityRole="button"
-      accessibilityLabel={t('journeyAchievements.openA11y')}
-      style={styles.badge}
-    >
-      <JourneyBadge level={level} size={32} simple slotColor={isLight ? '#a8a2a0' : '#5a5a5a'} />
-      {rank != null && (
-        <View style={styles.rankPip}>
-          <Text style={styles.rankPipText}>{ltr(rank > 99 ? '99+' : `#${rank}`)}</Text>
-        </View>
-      )}
-    </TouchableOpacity>
-  );
 }
 
 export function JourneyPointsBar({
@@ -89,12 +70,10 @@ export function JourneyPointsBar({
       />
       <View style={[styles.border, { backgroundColor: isLight ? 'rgba(0,0,0,0.06)' : 'rgba(255,255,255,0.06)' }]} />
 
-      <View style={[styles.side, styles.sideStart]}>
-        {onOpenAchievements && (
-          <TopBarBadge level={badgeLevel} rank={communityRank} isLight={isLight} onPress={onOpenAchievements} />
-        )}
+      <View style={styles.side}>
         <TouchableOpacity
-          onPress={onOpenHistory}
+          onPress={onOpenAchievements ? onOpenTasks : onOpenHistory}
+          accessibilityHint={onOpenAchievements ? t('journeyPoints.tasksHint') : undefined}
           // Dev builds only: the Journey achievements badge gallery.
           onLongPress={__DEV__ ? () => router.push('/dev-badges') : undefined}
           activeOpacity={0.8}
@@ -114,7 +93,15 @@ export function JourneyPointsBar({
       </View>
 
       <View style={styles.center}>
-        <TodayMedallion segments={segments} isLight={isLight} onPress={onOpenTasks} onLongPress={onLongPressMedallion} />
+        <TodayMedallion
+          segments={segments}
+          isLight={isLight}
+          onPress={onOpenAchievements ?? onOpenTasks}
+          onLongPress={onLongPressMedallion}
+          badgeLevel={onOpenAchievements ? badgeLevel : undefined}
+          rank={onOpenAchievements ? communityRank : undefined}
+          accessibilityHint={onOpenAchievements ? t('journeyAchievements.openA11y') : t('journeyPoints.tasksHint')}
+        />
       </View>
 
       <View style={[styles.side, styles.sideEnd]}>
@@ -145,13 +132,6 @@ const styles = StyleSheet.create({
   border: { position: 'absolute', left: 0, right: 0, bottom: 0, height: 1 },
   side: { flex: 1, alignItems: 'flex-start' },
   sideEnd: { alignItems: 'flex-end' },
-  sideStart: { flexDirection: 'row', alignItems: 'center', gap: 10 },
-  badge: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },
-  rankPip: {
-    position: 'absolute', right: -6, bottom: -3, minWidth: 20, height: 15, paddingHorizontal: 4,
-    borderRadius: 8, backgroundColor: '#FC5454', alignItems: 'center', justifyContent: 'center',
-  },
-  rankPipText: { fontFamily: 'Oswald-Bold', fontSize: 9.5, color: '#ffffff', includeFontPadding: false },
   // The medallion hangs below the bar (handoff: top margin 6 in a 60pt bar).
   center: { width: 76, alignSelf: 'flex-start', marginTop: 6, alignItems: 'center' },
   counter: { alignItems: 'flex-start' },

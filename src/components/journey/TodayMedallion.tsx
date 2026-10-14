@@ -2,8 +2,9 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, Defs, RadialGradient, Stop } from 'react-native-svg';
 import { LeapLoop } from './LeapLoop';
+import { JourneyBadge } from './badges/JourneyBadge';
 import { medallionStage } from '../../lib/journeyPoints';
-import { isArabic, t } from '../../i18n';
+import { isArabic, ltr, t } from '../../i18n';
 
 // Handoff "fire medallion" (centre of the Journey top bar), with the Leap
 // loop in place of the flame: 72×72, a ring of one arc per task today,
@@ -61,9 +62,17 @@ interface TodayMedallionProps {
   isLight: boolean;
   onPress: () => void;
   onLongPress?: () => void;
+  /**
+   * Journey achievements: your badge sits in the disc in place of the Leap
+   * loop (0 = the empty slot). Omit to keep the loop.
+   */
+  badgeLevel?: number;
+  /** This week's community rank, as a small coral tag on the ring. */
+  rank?: number | null;
+  accessibilityHint?: string;
 }
 
-export function TodayMedallion({ segments, isLight, onPress, onLongPress }: TodayMedallionProps) {
+export function TodayMedallion({ segments, isLight, onPress, onLongPress, badgeLevel, rank, accessibilityHint }: TodayMedallionProps) {
   const c = isLight ? LIGHT : DARK;
   const total = segments.length;
   const done = segments.filter(Boolean).length;
@@ -117,6 +126,7 @@ export function TodayMedallion({ segments, isLight, onPress, onLongPress }: Toda
       activeOpacity={0.8}
       accessibilityRole="button"
       accessibilityLabel={t('journeyPoints.medallionA11y', { done, total })}
+      accessibilityHint={accessibilityHint}
       style={styles.wrap}
     >
       <View style={[StyleSheet.absoluteFill, full && styles.ringGlow]}>
@@ -157,19 +167,29 @@ export function TodayMedallion({ segments, isLight, onPress, onLongPress }: Toda
             <Circle cx="50%" cy="50%" r="50%" fill="url(#medallionDisc)" />
           </Svg>
         )}
-        <Animated.View style={{ transform: [{ scale: loopScale }] }}>
-          <LeapLoop
-            size={LOOP_MAX}
-            variant={lit ? 'lit' : 'solid'}
-            color={c.loopCold}
-            strokeWidth={2}
-            // Slow when cold, faster as it fills (handoff flicker 1.4s → 0.8s).
-            spinMs={lit ? Math.round(6000 - 4000 * pct) : 0}
-            glow={lit ? 3 + 8 * pct : 0}
-          />
-        </Animated.View>
+        {badgeLevel != null ? (
+          <JourneyBadge level={badgeLevel} size={36} simple slotColor={c.loopCold} />
+        ) : (
+          <Animated.View style={{ transform: [{ scale: loopScale }] }}>
+            <LeapLoop
+              size={LOOP_MAX}
+              variant={lit ? 'lit' : 'solid'}
+              color={c.loopCold}
+              strokeWidth={2}
+              // Slow when cold, faster as it fills (handoff flicker 1.4s → 0.8s).
+              spinMs={lit ? Math.round(6000 - 4000 * pct) : 0}
+              glow={lit ? 3 + 8 * pct : 0}
+            />
+          </Animated.View>
+        )}
       </View>
       </Animated.View>
+
+      {rank != null && (
+        <View style={[styles.rankPip, { borderColor: c.pillBorder }]}>
+          <Text style={styles.rankPipText}>{ltr(rank > 99 ? '99+' : `#${rank}`)}</Text>
+        </View>
+      )}
 
       <Animated.View
         style={[
@@ -226,6 +246,11 @@ const styles = StyleSheet.create({
   },
   pillText: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 8.5, letterSpacing: 1.2, includeFontPadding: false },
   pillCount: { opacity: 0.75 },
+  rankPip: {
+    position: 'absolute', top: -2, right: -8, minWidth: 22, height: 17, paddingHorizontal: 4,
+    borderRadius: 9, borderWidth: 2, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
+  },
+  rankPipText: { fontFamily: 'Oswald-Bold', fontSize: 9.5, color: '#FFFFFF', includeFontPadding: false },
   // Arabic (Cairo) letters are taller than the 17pt pill fits: let it grow,
   // and a touch bigger so the stage name stays readable.
   pillAr: { height: undefined, minHeight: 17, paddingVertical: 1, bottom: -11 },
