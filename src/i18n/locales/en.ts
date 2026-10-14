@@ -2081,6 +2081,14 @@ const en = {
     step32: 'FILTER EVERY OTHER TEMPLATE BY DIFFICULTY',
     step33: 'EACH PLAN SHOWS ITS TIER RANGE, WEEKS AND DAYS PER WEEK — TAP ONE TO PREVIEW WEEK 1, THEN START MY PROGRAM',
   },
+  trialSteps: {
+    title: '{{tier}} · STEP {{n}}',
+    firstTaste: 'FIRST TASTE',
+    bridge: 'BRIDGE',
+    finish: 'FINISH STEP',
+    cleared: 'STEP CLEARED',
+    notAvailable: "This step isn't available any more. Your tier or steps changed.",
+  },
   trial: {
     name: '{{tier}} Trial',
     abandonTitle: 'Abandon Trial?',

@@ -6,7 +6,7 @@ import { useReturnTo, CURRENT_TRIAL_QUEST_SENTINEL, markCurrentTrialDone } from 
 import { useAuth } from '../src/contexts/AuthContext';
 
 export default function Route() {
-  const { mode, tier } = useLocalSearchParams<{ mode: string; tier: string }>();
+  const { mode, tier, step } = useLocalSearchParams<{ mode: string; tier: string; step: string }>();
   const { questSlotKey, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const { user } = useAuth();
 
@@ -14,8 +14,9 @@ export default function Route() {
     <SpartanLayout hideToggle>
       <Stack.Screen options={{ gestureEnabled: false }} />
       <TrialScreen
-        mode={(mode as 'progression' | 'practice' | 'eternal') || 'progression'}
+        mode={(mode as 'progression' | 'practice' | 'eternal' | 'step') || 'progression'}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
+        stepNumber={step === '2' ? 2 : 1}
         // TrialScreen's onComplete only ever fires from a genuine pass (the
         // RankUpReveal/showVictory branch) -- previously just replaced to
         // '/my-journey' directly, which never told the lane the Strength
@@ -27,8 +28,11 @@ export default function Route() {
         // below still covers every other entry point.
         // Started outside the lane (Strength's tier grid): go back there,
         // and leave the lane a note so its trial card still resolves.
+        // A step opened from the Journey checkpoint closes it (and earns its
+        // points there); from anywhere else it just goes back, paying nothing.
         onComplete={async () => {
           if (completeQuestAndReturn()) return;
+          if (mode === 'step') { goBackOrReturnTo('/profile'); return; }
           if (questSlotKey === CURRENT_TRIAL_QUEST_SENTINEL && user) {
             await markCurrentTrialDone(user.id);
           }

@@ -99,6 +99,16 @@ export default function DevBadges() {
           ))}
         </View>
       </View>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 10 }}>
+        <Text style={{ color: '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2 }}>STRENGTH TRIAL STEPS (YOUR TIER)</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {(['1', '2'] as const).map(step => (
+            <Pressable key={step} onPress={() => router.push({ pathname: '/trial', params: { mode: 'step', step } })} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: '#FC5454', justifyContent: 'center' }}>
+              <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>STEP {step}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
       <WelcomeTourCard visible={welcome != null} tier={welcome?.tier ?? 0} name={welcome?.name} onStart={() => setWelcome(null)} onSkip={() => setWelcome(null)} />
       {[false, true].map(light => (
         <View key={String(light)} style={{ backgroundColor: light ? '#f3f1ef' : '#0c0b0d', paddingHorizontal: 20, paddingVertical: 8 }}>
