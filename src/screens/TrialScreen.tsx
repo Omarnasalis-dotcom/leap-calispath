@@ -42,10 +42,15 @@ import { t, isArabic, FLIP_X, tierLevelLabel, ltr } from '../i18n';
 
 type TrialMode = 'progression' | 'practice' | 'eternal' | 'step';
 
-/** A Strength Trial Step as a Trial the runner can play (current tier only). */
-function trialForStep(tier: number, step: StepNumber): Trial | undefined {
-  const s = getTrialStep(tier, step);
-  return s ? { tier, name: `${TIER_NAMES[tier] ?? tier} Step ${step}`, movements: s.movements } : undefined;
+/**
+ * A Strength Trial Step for an athlete of `athleteTier`, as a Trial the
+ * runner can play. Its `tier` is the BASE trial (athleteTier − 1), so the
+ * minimum time and colours follow that trial; the step is saved under the
+ * athlete's tier (trial.tier + 1).
+ */
+function trialForStep(athleteTier: number, step: StepNumber): Trial | undefined {
+  const s = getTrialStep(athleteTier, step);
+  return s ? { tier: s.baseTier, name: `${TIER_NAMES[athleteTier] ?? athleteTier} Step ${step}`, movements: s.movements } : undefined;
 }
 
 interface TrialScreenProps {
@@ -221,7 +226,8 @@ export function TrialScreen({
       const elapsed = resumedElapsedSeconds(saved);
       // Already ranked past it, left too long, or over the server's ceiling.
       const stale = !savedTrial
-        || ((saved.mode === 'progression' || saved.mode === 'step') && saved.tier !== profile.strength_tier)
+        || (saved.mode === 'progression' && saved.tier !== profile.strength_tier)
+        || (saved.mode === 'step' && saved.tier + 1 !== profile.strength_tier)
         || saved.tier > profile.strength_tier
         || Date.now() - saved.savedAt > RESUME_WINDOW_MS
         || (saved.finishedSeconds === undefined && elapsed > MAX_TRIAL_SECONDS);
@@ -230,7 +236,7 @@ export function TrialScreen({
         return;
       }
       const name = saved.mode === 'step'
-        ? t('trialSteps.title', { tier: (TIER_NAMES[saved.tier] ?? '').toUpperCase(), n: saved.step ?? 1 })
+        ? t('trialSteps.title', { tier: (TIER_NAMES[saved.tier + 1] ?? '').toUpperCase(), n: saved.step ?? 1 })
         : isArabic ? t('trial.name', { tier: TIER_NAMES[saved.tier] ?? saved.tier }) : savedTrial!.name;
       const discard = { text: t('trial.startOver'), style: 'destructive' as const, onPress: () => { clearSavedTrial(user.id); } };
       if (saved.finishedSeconds !== undefined) {
@@ -257,7 +263,7 @@ export function TrialScreen({
   }, [user, profile, trial, hasStarted, prepCountdown]);
 
   function savedTrialFor(saved: SavedTrial): Trial | undefined {
-    return saved.mode === 'step' ? trialForStep(saved.tier, (saved.step ?? 1) as StepNumber) : getTrialForTier(saved.tier);
+    return saved.mode === 'step' ? trialForStep(saved.tier + 1, (saved.step ?? 1) as StepNumber) : getTrialForTier(saved.tier);
   }
 
   function resumeSavedTrial(saved: SavedTrial) {
@@ -520,7 +526,7 @@ export function TrialScreen({
   function submitStepResult(trial: Trial, timeSeconds: number, step: StepNumber) {
     if (!user) return;
     runSafeSubmit(async () => {
-      const result = await submitStep(trial.tier, step, timeSeconds);
+      const result = await submitStep(trial.tier + 1, step, timeSeconds);
       clearSavedTrial(user.id);
       return result;
     }, {
@@ -560,7 +566,7 @@ export function TrialScreen({
 
   // Trial names are "<Tier> Trial"; Arabic reads "اختبار <Tier>". Steps: "HOPLITE · STEP 1".
   const trialDisplayName = isStep
-    ? t('trialSteps.title', { tier: (TIER_NAMES[trial.tier] ?? '').toUpperCase(), n: initialStep })
+    ? t('trialSteps.title', { tier: (TIER_NAMES[trial.tier + 1] ?? '').toUpperCase(), n: initialStep })
     : isArabic ? t('trial.name', { tier: TIER_NAMES[trial.tier] ?? trial.tier }) : trial.name;
 
   if (showDishonor) {

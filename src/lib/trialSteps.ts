@@ -1,8 +1,11 @@
 // Strength Trial Steps (docs/features/STRENGTH_TRIAL_STEPS_PLAN.md).
-// Small trials between tiers: each opens with the next tier's new movement,
-// then this tier's trial (+2 reps on every movement for tiers 0–3, as is for
-// tiers 4–8, so no step is harder than the next tier). Built from
-// RITES_OF_PASSAGE so a step can never drift from its trial.
+// Small trials between two trials. A trial is the exam to LEAVE a tier: a
+// Spartan (tier 4) faces the Spartan trial. Their steps bridge from the trial
+// they already passed (Hoplite, the "base" trial) to that one: each opens with
+// a new movement of the Spartan trial, then the Hoplite trial (+2 reps on
+// every movement for base trials 0–3, as is for 4–8, so no step is harder
+// than the trial ahead). Built from RITES_OF_PASSAGE so a step can never
+// drift from its trial. Every function here takes the ATHLETE's tier (1–9).
 
 import { RITES_OF_PASSAGE, TrialMovement } from './trials';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
@@ -11,19 +14,22 @@ export type StepNumber = 1 | 2;
 export type StepKind = 'firstTaste' | 'bridge';
 
 export interface TrialStep {
+  /** The athlete's tier: the steps lead to this tier's trial. */
   tier: number;
+  /** The trial the step is built from (tier − 1). */
+  baseTier: number;
   step: StepNumber;
   kind: StepKind;
   movements: TrialMovement[];
-  /** Same as the tier's trial minimum. */
+  /** Same as the base trial's minimum. */
   minSeconds: number;
 }
 
-/** Tiers whose step workout is the trial +2 reps; above this it's the trial as is. */
+/** Base trials whose step workout is the trial +2 reps; above this it's the trial as is. */
 const PLUS_TWO_MAX_TIER = 3;
 
-// The opening (new) movements per tier, owner-approved 2026-10-15.
-// Helot has one step; Eternity (9) has none.
+// The opening (new) movements per BASE trial, owner-approved 2026-10-15:
+// the Helot-based step (for Neos athletes) is the only single one.
 const OPENINGS: Record<number, TrialMovement[][]> = {
   0: [[{ name: 'Incline Push-ups', reps: 4 }, { name: 'Knee Raises', reps: 3 }]],
   1: [
@@ -62,22 +68,25 @@ export function plusTwo(m: TrialMovement): TrialMovement {
   return { name: m.name, reps: m.reps + 2 };
 }
 
-/** How many steps a tier has: Helot 1, Neos–Demigod 2, Eternity 0. */
+/** Steps before an athlete's trial: Helot 0, Neos 1, Ephebe–Eternity 2. */
 export function stepCount(tier: number): number {
-  return OPENINGS[tier]?.length ?? 0;
+  return OPENINGS[tier - 1]?.length ?? 0;
 }
 
+/** Step `step` for an athlete of `tier`. */
 export function getTrialStep(tier: number, step: StepNumber): TrialStep | undefined {
-  const opening = OPENINGS[tier]?.[step - 1];
-  const trial = RITES_OF_PASSAGE.find(t => t.tier === tier);
+  const base = tier - 1;
+  const opening = OPENINGS[base]?.[step - 1];
+  const trial = RITES_OF_PASSAGE.find(t => t.tier === base);
   if (!opening || !trial) return undefined;
-  const body = tier <= PLUS_TWO_MAX_TIER ? trial.movements.map(plusTwo) : trial.movements.map(m => ({ name: m.name, reps: m.reps }));
+  const body = base <= PLUS_TWO_MAX_TIER ? trial.movements.map(plusTwo) : trial.movements.map(m => ({ name: m.name, reps: m.reps }));
   return {
     tier,
+    baseTier: base,
     step,
     kind: step === 1 ? 'firstTaste' : 'bridge',
     movements: [...opening.map(m => ({ ...m })), ...body],
-    minSeconds: TIER_HARD_FLOORS[tier],
+    minSeconds: TIER_HARD_FLOORS[base],
   };
 }
 
@@ -87,13 +96,13 @@ export type ClimbItem =
 
 /**
  * The athlete's next item on the climb (what the Journey's Strength Trial
- * checkpoint offers): this tier's first uncleared step, in order, then the
- * next tier's trial. Null at the top tier.
+ * checkpoint offers): their first uncleared step, in order, then their
+ * tier's trial. Null past the last trial.
  */
 export function nextClimbItem(tier: number, clearedSteps: readonly number[]): ClimbItem | null {
-  if (tier >= 9) return null;
+  if (tier > 9) return null;
   for (let s = 1; s <= stepCount(tier); s++) {
     if (!clearedSteps.includes(s)) return { kind: 'step', tier, step: s as StepNumber };
   }
-  return { kind: 'trial', tier: tier + 1 };
+  return { kind: 'trial', tier };
 }

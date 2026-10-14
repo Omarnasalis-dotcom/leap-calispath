@@ -8,7 +8,7 @@ Some tiers add a movement that takes weeks to earn: Hoplite → Spartan needs st
 
 ## The idea (owner decisions, 2026-10-15)
 
-Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; tier 0 (Helot) gets **1 step**. Steps are **trials**, not training: same trial screen, same For Time format, same "finish every movement" rule. They give small wins between rank-ups.
+A trial is the exam to **leave** a tier (a Spartan takes the Spartan trial to become a Lochagos). Each step bridges from the trial the athlete already passed to the one ahead: **Neos** athletes get **1 step**, **Ephebe to Eternity** athletes get **2 steps**, Helot athletes none (their first trial is the Helot trial). Fixed 2026-10-15: steps are keyed by the athlete's tier. Steps are **trials**, not training: same trial screen, same For Time format, same "finish every movement" rule. They give small wins between rank-ups.
 
 | Step | What it is |
 |---|---|
@@ -16,16 +16,16 @@ Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; ti
 | **2 · Bridge** | Opens with a bigger dose of it, then the same workout as Step 1 |
 
 - **The new movement is always the first movement**, while the athlete is fresh.
-- **The rest of the workout**: tiers 0–3 use this tier's trial **+2 reps on every movement** (on a combined round, +2 on each part). Tiers 4–8 use **this tier's trial as it is**, so no step gets harder than the next tier.
+- **The rest of the workout**: base trials 0–3 (Helot–Hoplite) use that trial **+2 reps on every movement** (on a combined round, +2 on each part). Base trials 4–8 are used **as is**, so no step gets harder than the trial ahead.
 - Step 2's workout is the same as Step 1's; only the opening grows.
-- **Minimum time** (anti-cheat) = this tier's trial minimum, for both steps.
-- Tier 0 (Helot) has one step (First taste); tier 9 (Eternity) is the top.
+- **Minimum time** (anti-cheat) = the base trial's minimum, for both steps.
+- Below, each section is named by the athletes who see it and the trial it's built from (the "base" trial).
 
 ## Step content (approved)
 
 `Round` = a combined movement done once, like the existing trials. **Bold** = the opening (new) movement.
 
-### Tier 0 · Helot → Neos · minimum 25 s · one step
+### Neos athletes · before the Neos trial · built from the Helot trial · minimum 25 s · one step
 | # | Step 1 · First taste |
 |---|---|
 | open 1 | **Incline Push-ups 4** |
@@ -35,7 +35,7 @@ Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; ti
 | 3 | Bench Dips 12 |
 | 4 | Knee Push-ups 12 |
 
-### Tier 1 · Neos → Ephebe · minimum 90 s
+### Ephebe athletes · before the Ephebe trial · built from the Neos trial · minimum 90 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open | **2 Assisted Pull-ups + 2 Jump Muscle-ups** (round) | **4 Assisted Pull-ups + 4 Jump Muscle-ups** (round) |
@@ -49,7 +49,7 @@ Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; ti
 | 8 | Inverted Row 12 | |
 | 9 | Knee Raises 7 | |
 
-### Tier 2 · Ephebe → Hoplite · minimum 150 s
+### Hoplite athletes · before the Hoplite trial · built from the Ephebe trial · minimum 150 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open | **2 Bar Dips + 2 Push-ups** (round) | **4 Bar Dips + 4 Push-ups** (round) |
@@ -64,7 +64,7 @@ Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; ti
 | 9 | Knee Raises 10 | |
 | 10 | Jump Muscle-ups 7 | |
 
-### Tier 3 · Hoplite → Spartan · minimum 180 s
+### Spartan athletes · before the Spartan trial · built from the Hoplite trial · minimum 180 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open | **1 Banded Muscle-up + 2 Pull-ups** (round) | **3 Banded Muscle-ups + 4 Pull-ups** (round) |
@@ -78,31 +78,31 @@ Each tier from 1 (Neos) to 8 (Demigod) gets **2 steps** toward the next tier; ti
 | 8 | Assist Pull-ups 12 | |
 | 9 | Jump Muscle-ups 10 | |
 
-### Tier 4 · Spartan → Lochagos · minimum 200 s
+### Lochagos athletes · before the Lochagos trial · built from the Spartan trial · minimum 200 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open | **1 Jump Muscle-up + 3 Bar Dips + 1 Pull-up** (round) | **2 Jump Muscle-ups + 5 Bar Dips + 2 Pull-ups** (round) |
 | 1–9 | Spartan trial as is: Banded Muscle-ups 5 · 4 Pull-ups + 3 Bar Dips · Squats 20 · Push-ups 20 · 5 Pull-ups + 5 Bar Dips · Lunges 25 · Bar Dips 20 · 6 Pull-ups + 7 Bar Dips · Bar Dips 10 | ← same |
 
-### Tier 5 · Lochagos → Strategos · minimum 220 s
+### Strategos athletes · before the Strategos trial · built from the Lochagos trial · minimum 220 s
 | # | Step 1 · First taste (first muscle-up) | Step 2 · Bridge |
 |---|---|---|
 | open | **Muscle-up 1** | **Muscle-ups 3** |
 | 1–8 | Lochagos trial as is: 1 Banded MU + 3 Bar Dips + 3 Pull-ups · Squats 20 · Push-ups 25 · 2 Banded MU + 4 Bar Dips + 4 Pull-ups · Lunges 25 · Bar Dips 25 · 3 Banded MU + 5 Bar Dips + 5 Pull-ups · Pull-ups 10 | ← same |
 
-### Tier 6 · Strategos → Olympian · minimum 250 s
+### Olympian athletes · before the Olympian trial · built from the Strategos trial · minimum 250 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open | **Muscle-ups 4** | **Muscle-ups 6** |
 | 1–7 | Strategos trial as is: 2 Muscle-ups + 2 Bar Dips + 2 Pull-ups · Squats 20 · Push-ups 20 · 4 Muscle-ups + 4 Bar Dips + 4 Pull-ups · Lunges 30 · Bar Dips 30 · 6 Muscle-ups + 6 Bar Dips + 6 Pull-ups | ← same |
 
-### Tier 7 · Olympian → Demigod · minimum 360 s
+### Demigod athletes · before the Demigod trial · built from the Olympian trial · minimum 360 s
 | # | Step 1 · First taste (weighted muscle-ups) | Step 2 · Bridge |
 |---|---|---|
 | open | **Muscle-ups (+5 kg) 2** | **Muscle-ups (+5 kg) 4** |
 | 1–8 | Olympian trial as is: 3 Muscle-ups + 3 Bar Dips + 3 Pull-ups · Squats 30 · Push-ups 30 · 5 Muscle-ups + 5 Bar Dips + 5 Pull-ups · Lunges 40 · Bar Dips 40 · 8 Muscle-ups + 8 Bar Dips + 8 Pull-ups · Muscle-ups 10 | ← same |
 
-### Tier 8 · Demigod → Eternity · minimum 480 s
+### Eternity athletes · before the Eternity trial · built from the Demigod trial · minimum 480 s
 | # | Step 1 · First taste | Step 2 · Bridge |
 |---|---|---|
 | open 1 | **Muscle-up (+10 kg) 1** | **Muscle-ups (+10 kg) 2** |

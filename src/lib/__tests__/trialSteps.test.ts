@@ -2,13 +2,21 @@ import { getTrialStep, nextClimbItem, plusTwo, stepCount } from '../trialSteps';
 import { RITES_OF_PASSAGE } from '../trials';
 import { TIER_HARD_FLOORS } from '../../constants/Progression';
 
-const names = (tier: number, step: 1 | 2) => getTrialStep(tier, step)!.movements.map(m => `${m.name} × ${m.reps}`);
+// Tests are written per BASE trial; the API takes the athlete's tier (base + 1).
+const names = (base: number, step: 1 | 2) => getTrialStep(base + 1, step)!.movements.map(m => `${m.name} × ${m.reps}`);
 
 describe('trialSteps', () => {
-  it('has 1 step for Helot, 2 for Neos–Demigod, none for Eternity', () => {
-    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(stepCount)).toEqual([1, 2, 2, 2, 2, 2, 2, 2, 2, 0]);
-    expect(getTrialStep(0, 2)).toBeUndefined();
-    expect(getTrialStep(9, 1)).toBeUndefined();
+  it('gives Helot athletes no steps, Neos 1, Ephebe–Eternity 2', () => {
+    expect([0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map(stepCount)).toEqual([0, 1, 2, 2, 2, 2, 2, 2, 2, 2]);
+    expect(getTrialStep(0, 1)).toBeUndefined();
+    expect(getTrialStep(1, 2)).toBeUndefined();
+    expect(getTrialStep(10, 1)).toBeUndefined();
+  });
+
+  it('builds a Spartan athlete\'s steps from the Hoplite trial', () => {
+    const s = getTrialStep(4, 1)!;
+    expect([s.tier, s.baseTier, s.minSeconds]).toEqual([4, 3, TIER_HARD_FLOORS[3]]);
+    expect(s.movements[0].name).toBe('1 Banded Muscle-up + 2 Pull-ups');
   });
 
   it('adds 2 to every part of a combined round, or to the reps', () => {
@@ -44,12 +52,12 @@ describe('trialSteps', () => {
     expect(names(3, 2)[0]).toBe('3 Banded Muscle-ups + 4 Pull-ups × 1');
   });
 
-  it('uses the trial as is from Spartan up', () => {
-    for (const tier of [4, 5, 6, 7, 8]) {
-      const trial = RITES_OF_PASSAGE.find(t => t.tier === tier)!.movements.map(m => `${m.name} × ${m.reps}`);
-      const openers = tier === 8 ? 2 : 1;
-      expect(names(tier, 1).slice(openers)).toEqual(trial);
-      expect(names(tier, 2).slice(openers)).toEqual(trial);
+  it('uses the base trial as is from Spartan up', () => {
+    for (const base of [4, 5, 6, 7, 8]) {
+      const trial = RITES_OF_PASSAGE.find(t => t.tier === base)!.movements.map(m => `${m.name} × ${m.reps}`);
+      const openers = base === 8 ? 2 : 1;
+      expect(names(base, 1).slice(openers)).toEqual(trial);
+      expect(names(base, 2).slice(openers)).toEqual(trial);
     }
   });
 
@@ -64,30 +72,32 @@ describe('trialSteps', () => {
   });
 
   it('Step 2 has the same workout as Step 1 after the opening', () => {
-    for (let tier = 1; tier <= 8; tier++) {
-      const openers = tier === 8 ? 2 : 1;
-      expect(names(tier, 2).slice(openers)).toEqual(names(tier, 1).slice(openers));
+    for (let base = 1; base <= 8; base++) {
+      const openers = base === 8 ? 2 : 1;
+      expect(names(base, 2).slice(openers)).toEqual(names(base, 1).slice(openers));
     }
   });
 
-  it("uses the tier's trial minimum time", () => {
-    for (let tier = 0; tier <= 8; tier++) {
-      expect(getTrialStep(tier, 1)!.minSeconds).toBe(TIER_HARD_FLOORS[tier]);
+  it("uses the base trial's minimum time", () => {
+    for (let base = 0; base <= 8; base++) {
+      expect(getTrialStep(base + 1, 1)!.minSeconds).toBe(TIER_HARD_FLOORS[base]);
     }
   });
 
   it('never shares movement objects with the trials', () => {
-    const step = getTrialStep(4, 1)!;
+    const step = getTrialStep(5, 1)!;
     step.movements[1].completed = true;
     expect(RITES_OF_PASSAGE.find(t => t.tier === 4)!.movements[0].completed).toBeUndefined();
   });
 
   it('offers the next item on the climb in order', () => {
-    expect(nextClimbItem(3, [])).toEqual({ kind: 'step', tier: 3, step: 1 });
-    expect(nextClimbItem(3, [1])).toEqual({ kind: 'step', tier: 3, step: 2 });
-    expect(nextClimbItem(3, [1, 2])).toEqual({ kind: 'trial', tier: 4 });
-    expect(nextClimbItem(3, [2])).toEqual({ kind: 'step', tier: 3, step: 1 });
-    expect(nextClimbItem(0, [1])).toEqual({ kind: 'trial', tier: 1 });
-    expect(nextClimbItem(9, [])).toBeNull();
+    expect(nextClimbItem(4, [])).toEqual({ kind: 'step', tier: 4, step: 1 });
+    expect(nextClimbItem(4, [1])).toEqual({ kind: 'step', tier: 4, step: 2 });
+    expect(nextClimbItem(4, [1, 2])).toEqual({ kind: 'trial', tier: 4 });
+    expect(nextClimbItem(4, [2])).toEqual({ kind: 'step', tier: 4, step: 1 });
+    expect(nextClimbItem(1, [1])).toEqual({ kind: 'trial', tier: 1 });
+    expect(nextClimbItem(0, [])).toEqual({ kind: 'trial', tier: 0 });
+    expect(nextClimbItem(9, [1, 2])).toEqual({ kind: 'trial', tier: 9 });
+    expect(nextClimbItem(10, [])).toBeNull();
   });
 });
