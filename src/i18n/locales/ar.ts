@@ -1212,6 +1212,17 @@ const ar: Translations = {
     live: 'مباشر',
     final: 'نهائي',
   },
+  journeyAchievements: {
+    rising: 'الصاعد',
+    consistent: 'المواظب',
+    committed: 'الملتزم',
+    determined: 'المثابر',
+    warrior: 'المحارب',
+    champion: 'البطل',
+    elite: 'النخبة',
+    legend: 'الأسطورة',
+    noBadge: 'لا شارة بعد',
+  },
   prCelebration: {
     newRecord: 'رقم شخصي جديد',
     seconds: 'ثانية',

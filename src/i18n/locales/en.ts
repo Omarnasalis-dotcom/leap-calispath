@@ -1125,6 +1125,17 @@ const en = {
     live: 'LIVE',
     final: 'FINAL',
   },
+  journeyAchievements: {
+    rising: 'RISING',
+    consistent: 'CONSISTENT',
+    committed: 'COMMITTED',
+    determined: 'DETERMINED',
+    warrior: 'WARRIOR',
+    champion: 'CHAMPION',
+    elite: 'ELITE',
+    legend: 'LEGEND',
+    noBadge: 'NO BADGE YET',
+  },
   prCelebration: {
     newRecord: 'NEW PERSONAL RECORD',
     seconds: 'SECONDS',

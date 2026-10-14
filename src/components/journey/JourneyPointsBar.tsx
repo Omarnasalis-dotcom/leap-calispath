@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { BlurView } from 'expo-blur';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
+import { router } from 'expo-router';
 import { PointsOdometer } from './PointsOdometer';
 import { TodayMedallion } from './TodayMedallion';
 import { StreakStrip } from './StreakStrip';
@@ -61,6 +62,8 @@ export function JourneyPointsBar({
       <View style={styles.side}>
         <TouchableOpacity
           onPress={onOpenHistory}
+          // Dev builds only: the Journey achievements badge gallery.
+          onLongPress={__DEV__ ? () => router.push('/dev-badges') : undefined}
           activeOpacity={0.8}
           accessibilityRole="button"
           accessibilityLabel={t('journeyPoints.totalA11y', { count: summary.total })}

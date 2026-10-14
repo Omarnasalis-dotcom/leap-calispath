@@ -43,7 +43,7 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 - `get_journey_community_board(p_tz)`: caller's community only; weekly points over each member's OWN last 7 local days (profile time zone; the caller's from the app), so nobody's latest day is cut off across time zones; ties by who reached the total first; badge = the higher of recorded levels and the level their lifetime total earns (members who haven't opened Journey since launch still show their badge); returns username, badge level, weekly points, rank, is_you only.
 - Verified on a throwaway pg18 replica as users in two communities (no cross-community data, no direct table writes, levels from lifetime even after a program switch).
 
-### Step 2 — Badges
+### Step 2 — Badges — DONE 2026-10-14 (device-checked; dev gallery: long-press the Journey points counter in a dev build)
 - Port `journey-badges.js` to memoized `react-native-svg` components: full (hero) and simple (40 / 20 px) for all 8 + the empty slot; LEGEND/ELITE/CHAMPION also as layers (rays, wingL, wingR, body, gem); DETERMINED's hot palette. Real `LeapLogo` arc geometry at the centre. No metadata from the exported files.
 - A dev-only gallery to check every badge at 160 / 40 / 20, dark and light.
 - Device check: gradients on iOS and Android.
