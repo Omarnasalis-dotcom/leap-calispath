@@ -6,6 +6,7 @@ import { JourneyBadge, BadgePart } from '../src/components/journey/badges/Journe
 import { AchievementCelebration } from '../src/components/journey/achievements/AchievementCelebration';
 import { CelebrationData } from '../src/lib/journeyCelebration';
 import { ACHIEVEMENTS } from '../src/lib/journeyAchievements';
+import { WelcomeTourCard } from '../src/components/tutorial/WelcomeTourCard';
 import { t } from '../src/i18n';
 
 /**
@@ -60,6 +61,7 @@ function mockCelebration(level: number, double = false): CelebrationData {
 export default function DevBadges() {
   const insets = useSafeAreaInsets();
   const [playing, setPlaying] = useState<CelebrationData | null>(null);
+  const [welcome, setWelcome] = useState<{ tier: number; name: string | null } | null>(null);
   if (!__DEV__) return <Redirect href="/" />;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#000' }} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 40 }}>
@@ -80,6 +82,24 @@ export default function DevBadges() {
         </View>
       </View>
       <AchievementCelebration data={playing} onDone={() => setPlaying(null)} />
+      <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 10 }}>
+        <Text style={{ color: '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2 }}>WELCOME TOUR CARD</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {[
+            { label: '0 · HELOT', tier: 0, name: 'Omar' },
+            { label: '4 · SPARTAN', tier: 4, name: 'Omar Nasser' },
+            { label: '8 · DEMIGOD', tier: 8, name: 'Omar' },
+            { label: 'NO NAME', tier: 2, name: null },
+            { label: 'LONG NAME', tier: 5, name: 'Abdulrahman-Maximilian Alexander' },
+            { label: 'ARABIC NAME', tier: 3, name: 'عمر ناصر' },
+          ].map(w => (
+            <Pressable key={w.label} onPress={() => setWelcome(w)} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: '#FC5454', justifyContent: 'center' }}>
+              <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>{w.label}</Text>
+            </Pressable>
+          ))}
+        </View>
+      </View>
+      <WelcomeTourCard visible={welcome != null} tier={welcome?.tier ?? 0} name={welcome?.name} onStart={() => setWelcome(null)} onSkip={() => setWelcome(null)} />
       {[false, true].map(light => (
         <View key={String(light)} style={{ backgroundColor: light ? '#f3f1ef' : '#0c0b0d', paddingHorizontal: 20, paddingVertical: 8 }}>
           <Text style={{ color: light ? '#5e5858' : '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2, paddingVertical: 8 }}>{light ? 'LIGHT' : 'DARK'}</Text>
