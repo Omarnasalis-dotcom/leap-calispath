@@ -48,8 +48,10 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 - A dev-only gallery to check every badge at 160 / 40 / 20, dark and light.
 - Device check: gradients on iOS and Android.
 
-### Step 3 — Journey entry pieces
-- `JourneyBadgeChip` and `CommunityRow` (+ locked state) as their own components with their own small hook reading the summary (no extra request), placed under the existing top bar. The 3,679-line `MilestoneLaneScreen` only renders them; no lane-card changes.
+### Step 3 — Badge in the top bar + achievements sheet — DONE 2026-10-14 (device-checked)
+- Owner feedback: Journey auto-scrolls to the current day, so cards above the lane are never seen. Instead: **your badge (32 px) in the pinned top bar, next to the points, with a small coral "#rank" tag** (community rank this week; hidden when unranked or without a community).
+- Tap the badge → one sheet (the Worlds' leaderboard sheet): your badge, level progress to the next badge, then the community podium (20-px badges on avatars), ranked rows, your row pinned in the footer when you're off the podium, share icon (Journey style of the share card, "MY COMMUNITY", never the community name), and the locked / empty-week / solo states. The old step 8 is merged here.
+- The community board loads once when Journey opens (cached 1 min). Only two hook lines and two props are added to MilestoneLaneScreen.
 
 ### Step 4 — Celebration shell + RISING, CONSISTENT, COMMITTED
 - `AchievementCelebration`: shared shell, copy, skipped line, stats panel (bar + counter leaf), LEAP ARENA pill, DONE + share, fit-to-screen (compact), skip, Reduce Motion, haptics/sound cues, share image. Triggered after the points FX; marked celebrated after close.
@@ -64,7 +66,7 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 ### Step 7 — LEGEND + quality tuning
 - Charge, prismatic burst, beam fan (rotating group), wings, crown + gems, halo. Tune the lite profile on an older Android phone.
 
-### Step 8 — Community leaderboard sheet
+### Step 8 — (merged into step 3)
 - Sheet with podium header (20-px badges on avatars), rows, pinned YOU row (`onViewableItemsChanged`), all states, share icon → leaderboard share card in a new Journey style (shows "MY COMMUNITY", never the community name).
 
 ### Step 9 — Final pass

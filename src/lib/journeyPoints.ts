@@ -53,6 +53,50 @@ export interface JourneyPointsSummary {
   recent: PointsEntry[];
   /** Awarded by the call that returned this summary (drives the reward FX). */
   new_awards: PointsEntry[];
+  /** Achievements from LIFETIME points (older servers may omit it). */
+  achievement?: JourneyAchievementState;
+}
+
+export interface JourneyAchievementState {
+  /** Highest level owned (0 = none yet). Never goes down. */
+  level: number;
+  lifetime: number;
+  current_threshold: number | null;
+  next_level: number | null;
+  next_threshold: number | null;
+  /** The celebration still to show: the highest uncelebrated level. */
+  pending: { level: number; previous_level: number; skipped: number[] } | null;
+}
+
+export interface CommunityBoardRow {
+  username: string;
+  weekly_points: number;
+  /** null = not ranked this week (0 points). */
+  rank: number | null;
+  badge_level: number;
+  is_you: boolean;
+}
+
+export interface CommunityBoard {
+  /** null = the caller isn't in a community (locked state). */
+  community: string | null;
+  members: number;
+  rows: CommunityBoardRow[];
+}
+
+/** The caller's community, ranked by each member's last 7 days. */
+export async function getCommunityBoard(): Promise<CommunityBoard> {
+  return withNetworkRetry(async () => {
+    const { data, error } = await supabase.rpc('get_journey_community_board', { p_tz: deviceTimeZone() });
+    if (error) throw error;
+    return data as CommunityBoard;
+  });
+}
+
+/** Marks a level (and every lower one) as celebrated, once, on any device. */
+export async function markAchievementCelebrated(level: number): Promise<void> {
+  const { error } = await supabase.rpc('journey_mark_celebrated', { p_level: level });
+  if (error) throw error;
 }
 
 /** The device's IANA time zone; the server falls back to UTC if unknown. */

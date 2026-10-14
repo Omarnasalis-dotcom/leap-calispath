@@ -49,6 +49,7 @@ const VARIANT_STYLE: Record<ShareVariant, { accent: string; cardDark: string }> 
   static: { accent: '#8E6BFF', cardDark: '#0b0a12' },
   endurance: { accent: '#FF6B2C', cardDark: '#0e0906' },
   power: { accent: '#FF4A3D', cardDark: '#0e0808' },
+  journey: { accent: '#FC5454', cardDark: '#0c0b0d' },
 };
 
 export function getLBTokens(variant: ShareVariant, mode: ThemeMode): LBTokens {

@@ -18,6 +18,8 @@ import { JourneyPointsOverlay, JourneyPointsOverlayHandle } from '../components/
 import { PlusTaskRow, TapOrigin, TrayMode } from '../components/journey/PlusTaskRow';
 import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
 import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
+import { useJourneyCommunity } from '../hooks/useJourneyCommunity';
+import { AchievementsSheet } from '../components/journey/achievements/AchievementsSheet';
 import { useJourneyPoints } from '../hooks/useJourneyPoints';
 import { JourneyPointsSummary, JourneyTask, PointsEntry, programDayPointsToday, questPaidToday, todaySegments } from '../lib/journeyPoints';
 import { measureInWindow, WindowRect } from '../lib/measureView';
@@ -2169,6 +2171,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // day when nothing is up today).
   const plusRowPosition = latestWeek ? (todayCardPosition >= 0 ? todayCardPosition : latestWeek.days.length - 1) : -1;
   const pointsSummary = journeyPoints.summary;
+  // Journey achievements entry (docs/features/JOURNEY_ACHIEVEMENTS_PLAN.md, step 3).
+  const journeyCommunity = useJourneyCommunity(showPointsBar ? profile?.id : undefined);
+  const [achievementsOpen, setAchievementsOpen] = useState(false);
   const todayQuestPaid = !!pointsSummary && questPaidToday(pointsSummary, todayQuestSlotKey);
   // Dev builds only: long-press the "+" to preview its lit state.
   const [devIgnite, setDevIgnite] = useState(false);
@@ -2912,6 +2917,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onOpenHistory={() => setHistoryOpen(true)}
         onOpenTasks={() => setTasksSheetOpen(true)}
         onLongPressMedallion={__DEV__ ? previewRewardFx : undefined}
+        badgeLevel={journeyPoints.summary.achievement?.level ?? 0}
+        communityRank={journeyCommunity.you?.rank ?? null}
+        onOpenAchievements={journeyPoints.summary.achievement ? () => setAchievementsOpen(true) : undefined}
+      />
+    )}
+    {showPointsBar && pointsSummary?.achievement && (
+      <AchievementsSheet
+        visible={achievementsOpen}
+        onClose={() => setAchievementsOpen(false)}
+        state={pointsSummary.achievement}
+        board={journeyCommunity.board}
+        myName={profile?.display_name ?? ''}
       />
     )}
     {showPointsBar && pointsSummary && (

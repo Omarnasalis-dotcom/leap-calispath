@@ -27,10 +27,13 @@ interface JourneyPointsOverlayProps {
   onOpenHistory: () => void;
   onOpenTasks: () => void;
   onLongPressMedallion?: () => void;
+  badgeLevel?: number;
+  communityRank?: number | null;
+  onOpenAchievements?: () => void;
 }
 
 export const JourneyPointsOverlay = forwardRef<JourneyPointsOverlayHandle, JourneyPointsOverlayProps>(
-  function JourneyPointsOverlay({ summary, segments, isLight, onOpenHistory, onOpenTasks, onLongPressMedallion }, ref) {
+  function JourneyPointsOverlay({ summary, segments, isLight, onOpenHistory, onOpenTasks, onLongPressMedallion, badgeLevel, communityRank, onOpenAchievements }, ref) {
     const fx = useRewardFx();
     const layerRef = useRef<View>(null);
     const counterRef = useRef<View>(null);
@@ -73,6 +76,9 @@ export const JourneyPointsOverlay = forwardRef<JourneyPointsOverlayHandle, Journ
           counterRef={counterRef}
           popSignal={fx.counterPop}
           onLongPressMedallion={onLongPressMedallion}
+          badgeLevel={badgeLevel}
+          communityRank={communityRank}
+          onOpenAchievements={onOpenAchievements}
         />
         <View ref={layerRef} collapsable={false} pointerEvents="box-none" style={[StyleSheet.absoluteFill, { zIndex: 60 }]}>
           {fx.bursts.map((b) => (

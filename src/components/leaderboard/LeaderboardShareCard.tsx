@@ -56,6 +56,7 @@ const NOT_RANKED_LINE: Record<ShareVariant, string> = {
   static: 'leaderboardShare.notRankedWorld',
   power: 'leaderboardShare.notRankedWorld',
   endurance: 'leaderboardShare.notRankedWorld',
+  journey: 'leaderboardShare.notRankedJourney',
 };
 const BOARD_LABEL: Record<ShareVariant, string> = {
   strength: 'leaderboardShare.strength',
@@ -64,11 +65,13 @@ const BOARD_LABEL: Record<ShareVariant, string> = {
   static: 'leaderboardShare.worlds',
   power: 'leaderboardShare.worlds',
   endurance: 'leaderboardShare.worlds',
+  journey: 'leaderboardShare.journey',
 };
-const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch'>> = {
+const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch' | 'podium'>> = {
   static: 'snowflake',
   power: 'bolt',
   endurance: 'stopwatch',
+  journey: 'podium',
 };
 
 function useFadeUp(clock: SharedValue<number>, start: number, dy = 14, dur = 0.5, fade?: SharedValue<number>) {

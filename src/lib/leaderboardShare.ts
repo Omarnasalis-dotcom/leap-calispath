@@ -5,7 +5,7 @@
  */
 import { clamp01, easeOutCubic } from './prCelebration';
 
-export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance';
+export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance' | 'journey';
 /** reps = the weekly board's PTS (whole numbers); points = Well-Rounded (2 decimals). */
 export type ShareScoreType = 'time' | 'reps' | 'points';
 
