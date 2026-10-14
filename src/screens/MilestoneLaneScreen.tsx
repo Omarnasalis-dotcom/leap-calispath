@@ -20,6 +20,8 @@ import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
 import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
 import { useJourneyCommunity } from '../hooks/useJourneyCommunity';
 import { AchievementsSheet } from '../components/journey/achievements/AchievementsSheet';
+import { AchievementCelebration } from '../components/journey/achievements/AchievementCelebration';
+import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
 import { useJourneyPoints } from '../hooks/useJourneyPoints';
 import { JourneyPointsSummary, JourneyTask, PointsEntry, programDayPointsToday, questPaidToday, todaySegments } from '../lib/journeyPoints';
 import { measureInWindow, WindowRect } from '../lib/measureView';
@@ -2174,6 +2176,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Journey achievements entry (docs/features/JOURNEY_ACHIEVEMENTS_PLAN.md, step 3).
   const journeyCommunity = useJourneyCommunity(showPointsBar ? profile?.id : undefined);
   const [achievementsOpen, setAchievementsOpen] = useState(false);
+  const achievementCelebration = useAchievementCelebration(showPointsBar ? profile?.id : undefined, pointsSummary, journeyPoints.refresh);
   const todayQuestPaid = !!pointsSummary && questPaidToday(pointsSummary, todayQuestSlotKey);
   // Dev builds only: long-press the "+" to preview its lit state.
   const [devIgnite, setDevIgnite] = useState(false);
@@ -2922,6 +2925,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onOpenAchievements={journeyPoints.summary.achievement ? () => setAchievementsOpen(true) : undefined}
       />
     )}
+    {showPointsBar && <AchievementCelebration data={achievementCelebration.data} onDone={achievementCelebration.close} />}
     {showPointsBar && pointsSummary?.achievement && (
       <AchievementsSheet
         visible={achievementsOpen}

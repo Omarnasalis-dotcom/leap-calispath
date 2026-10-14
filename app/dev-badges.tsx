@@ -1,8 +1,10 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Redirect, router } from 'expo-router';
 import { Pressable, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { JourneyBadge, BadgePart } from '../src/components/journey/badges/JourneyBadge';
+import { AchievementCelebration } from '../src/components/journey/achievements/AchievementCelebration';
+import { CelebrationData } from '../src/lib/journeyCelebration';
 import { ACHIEVEMENTS } from '../src/lib/journeyAchievements';
 import { t } from '../src/i18n';
 
@@ -41,14 +43,43 @@ function Stacked({ level }: { level: number }) {
   );
 }
 
+/** Mock celebrations for every level (levels 4–8 use their final reveals once built). */
+function mockCelebration(level: number, double = false): CelebrationData {
+  const a = ACHIEVEMENTS[level - 1];
+  const nextT = ACHIEVEMENTS[level]?.threshold ?? null;
+  return {
+    level,
+    previousLevel: double ? Math.max(0, level - 2) : level - 1,
+    skipped: double && level > 1 ? [level - 1] : [],
+    fromPoints: Math.round(a.threshold * 0.9),
+    toPoints: a.threshold + 120,
+    nextThreshold: nextT,
+  };
+}
+
 export default function DevBadges() {
   const insets = useSafeAreaInsets();
+  const [playing, setPlaying] = useState<CelebrationData | null>(null);
   if (!__DEV__) return <Redirect href="/" />;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#000' }} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 40 }}>
       <Pressable onPress={() => router.back()} style={{ paddingHorizontal: 20, paddingBottom: 12 }}>
         <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 14, letterSpacing: 1.6 }}>‹ BACK · BADGE GALLERY (DEV)</Text>
       </Pressable>
+      <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 10 }}>
+        <Text style={{ color: '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2 }}>PLAY A CELEBRATION</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {ACHIEVEMENTS.map(a => (
+            <Pressable key={a.level} onPress={() => setPlaying(mockCelebration(a.level))} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: a.tone, justifyContent: 'center' }}>
+              <Text style={{ color: a.tone, fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>{a.level} · {a.key.toUpperCase()}</Text>
+            </Pressable>
+          ))}
+          <Pressable onPress={() => setPlaying(mockCelebration(3, true))} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: '#FC5454', justifyContent: 'center' }}>
+            <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>DOUBLE JUMP → 3</Text>
+          </Pressable>
+        </View>
+      </View>
+      <AchievementCelebration data={playing} onDone={() => setPlaying(null)} />
       {[false, true].map(light => (
         <View key={String(light)} style={{ backgroundColor: light ? '#f3f1ef' : '#0c0b0d', paddingHorizontal: 20, paddingVertical: 8 }}>
           <Text style={{ color: light ? '#5e5858' : '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2, paddingVertical: 8 }}>{light ? 'LIGHT' : 'DARK'}</Text>

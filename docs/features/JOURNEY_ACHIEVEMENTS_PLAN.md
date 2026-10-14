@@ -52,8 +52,9 @@ Every step ends with `tsc` (0 errors), the full Jest suite, then a device check 
 - Owner feedback: Journey auto-scrolls to the current day, so cards above the lane are never seen. Instead: **your badge (32 px) in the pinned top bar, next to the points, with a small coral "#rank" tag** (community rank this week; hidden when unranked or without a community).
 - Tap the badge → one sheet (the Worlds' leaderboard sheet): your badge, level progress to the next badge, then the community podium (20-px badges on avatars), ranked rows, your row pinned in the footer when you're off the podium, share icon (Journey style of the share card, "MY COMMUNITY", never the community name), and the locked / empty-week / solo states. The old step 8 is merged here.
 - The community board loads once when Journey opens (cached 1 min). Only two hook lines and two props are added to MilestoneLaneScreen.
+- **Revised again by the owner (2026-10-14):** the badge sits INSIDE the medallion (in place of the Leap loop; the task ring and stage pill stay), with the #rank tag on the ring. Taps: medallion → badge + community sheet; POINTS counter → today's tasks; streak strip → streak/points history. No separate top-left badge.
 
-### Step 4 — Celebration shell + RISING, CONSISTENT, COMMITTED
+### Step 4 — Celebration shell + RISING, CONSISTENT, COMMITTED — DONE 2026-10-14 (device-checked; dev gallery has PLAY buttons)
 - `AchievementCelebration`: shared shell, copy, skipped line, stats panel (bar + counter leaf), LEAP ARENA pill, DONE + share, fit-to-screen (compact), skip, Reduce Motion, haptics/sound cues, share image. Triggered after the points FX; marked celebrated after close.
 - Reveals 1–3: ring draw, pop, spin-in, small bursts.
 
