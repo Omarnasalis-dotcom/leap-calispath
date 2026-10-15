@@ -190,12 +190,13 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     onStartTrialRef.current(tier < currentTier ? tier : undefined);
   }, [currentTier]);
   const showDetailsFor = useCallback((tier: number) => onShowTierDetailsRef.current(tier), []);
-  const startStep = useCallback((step: StepNumber) => router.push({ pathname: '/trial', params: { mode: 'step', step: String(step) } }), []);
-  // Practice: a past tier's step (no points, never changes tier).
-  const startPracticeStep = useCallback((tier: number, step: StepNumber) =>
-    router.push({ pathname: '/trial', params: { mode: 'step', step: String(step), tier: String(tier) } }), []);
-  const startCurrentTrial = useCallback(() => onStartTrialRef.current(undefined), []);
-  const showCurrentDetails = useCallback(() => onShowTierDetailsRef.current(currentTier), [currentTier]);
+  // A step of the current tier, or of a past tier as practice (no points).
+  const startStepFor = useCallback((tier: number, step: StepNumber) =>
+    router.push({ pathname: '/trial', params: tier < currentTier ? { mode: 'step', step: String(step), tier: String(tier) } : { mode: 'step', step: String(step) } }), [currentTier]);
+  // Chip per tier, stable between swipes (the path cards are memoized).
+  const pathChips = useMemo(() => TIERS.map(tier => tier === currentTier
+    ? { text: tr('strength.current'), bg: t.accent, fg: t.onAccent, border: 'transparent' }
+    : pastChip(t, c, tierStatus(tier, currentTier, completedTiers))), [t, c, currentTier, completedTiers]);
 
 
   return (
@@ -222,7 +223,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             renderCard={(tier, active) => hasPath && tier === currentTier ? (
               <StepPathCard
                 tokens={t}
-                chip={{ text: tr('strength.current'), bg: t.accent, fg: t.onAccent, border: 'transparent' }}
+                chip={pathChips[tier]}
                 caption={tierCaption(tier, currentTier, completedTiers)}
                 cardBg={c.cardCurrentBg}
                 cardBorder={c.cardCurrentBorder}
@@ -231,10 +232,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
                 progress={stepProgress}
                 compact={compactCard}
                 active={active}
-                onStartStep={startStep}
-                onStartTrial={startCurrentTrial}
-                onShowDetails={showCurrentDetails}
-                onMeasured={h => onPathMeasured(tier, h)}
+                onStartStep={startStepFor}
+                onStartTrial={startTrialFor}
+                onShowDetails={showDetailsFor}
+                onMeasured={onPathMeasured}
                 buttonRef={trialButtonRef}
                 onButtonLayout={onTrialButtonLayout}
               />
@@ -243,7 +244,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
               <StepPathCard
                 tokens={t}
                 mode="practice"
-                chip={pastChip(t, c, tierStatus(tier, currentTier, completedTiers))}
+                chip={pathChips[tier]}
                 caption={tierCaption(tier, currentTier, completedTiers)}
                 cardBg={c.cardBg}
                 cardBorder={c.cardDoneBorder}
@@ -252,10 +253,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
                 progress={allSteps ? allSteps[tier] ?? NO_PROGRESS : null}
                 compact={compactCard}
                 active={active}
-                onStartStep={step => startPracticeStep(tier, step)}
-                onStartTrial={() => startTrialFor(tier)}
-                onShowDetails={() => showDetailsFor(tier)}
-                onMeasured={h => onPathMeasured(tier, h)}
+                onStartStep={startStepFor}
+                onStartTrial={startTrialFor}
+                onShowDetails={showDetailsFor}
+                onMeasured={onPathMeasured}
               />
             ) : (
               <TierCard

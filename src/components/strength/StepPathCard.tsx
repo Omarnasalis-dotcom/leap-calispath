@@ -56,9 +56,11 @@ export const StepPathCard = React.memo(function StepPathCard({
   tokens: WorldKitTokens; mode?: 'current' | 'practice'; chip: PathChip; caption: string;
   cardBg: string; cardBorder: string; ghostColor: string; tier: number; progress: StepProgress | null;
   compact: boolean; active: boolean;
-  onStartStep: (step: StepNumber) => void; onStartTrial: () => void; onShowDetails: () => void;
+  // Tier-keyed and stable in the parent, so the memoized card skips re-renders
+  // on every swipe.
+  onStartStep: (tier: number, step: StepNumber) => void; onStartTrial: (tier: number) => void; onShowDetails: (tier: number) => void;
   /** The card's natural height, so the carousel can fit it. */
-  onMeasured: (height: number) => void;
+  onMeasured: (tier: number, height: number) => void;
   buttonRef?: React.Ref<View>; onButtonLayout?: () => void;
 }) {
   const p = useMemo(() => pathTokens(t), [t]);
@@ -73,7 +75,7 @@ export const StepPathCard = React.memo(function StepPathCard({
   const railH = useRef(0);
   const report = () => {
     if (headerH.current > 0 && railH.current > 0) {
-      onMeasured(Math.ceil(pad + headerH.current + railGap + railH.current + MIN_CONNECTOR + btnH + CARD_BOTTOM_PAD + 2));
+      onMeasured(tier, Math.ceil(pad + headerH.current + railGap + railH.current + MIN_CONNECTOR + btnH + CARD_BOTTOM_PAD + 2));
     }
   };
   const pad = compact ? 18 : 22;
@@ -135,7 +137,7 @@ export const StepPathCard = React.memo(function StepPathCard({
           </View>
         </View>
 
-        <Pressable accessibilityRole="button" accessibilityLabel={tr('strength.tierDetailsA11y', { name })} disabled={!active} onPress={onShowDetails} style={{ marginTop: compact ? 10 : 14 }}>
+        <Pressable accessibilityRole="button" accessibilityLabel={tr('strength.tierDetailsA11y', { name })} disabled={!active} onPress={() => onShowDetails(tier)} style={{ marginTop: compact ? 10 : 14 }}>
           <Text style={kt('bold', compact ? 38 : name.length > 8 ? 40 : 46, t.text, 1.4, compact ? 42 : name.length > 8 ? 44 : 50)} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
             {name}
           </Text>
@@ -154,7 +156,7 @@ export const StepPathCard = React.memo(function StepPathCard({
               practice={practice}
               p={p} t={t} row={r} tier={tier} progress={progress} rowH={rowH} clock={clock} index={i}
               segLit={segLit[i]} isLast={i === rows.length - 1} active={active}
-              onPress={r.state !== 'locked' ? press(() => onStartStep(r.step)) : undefined}
+              onPress={r.state !== 'locked' ? press(() => onStartStep(tier, r.step)) : undefined}
             />
           ))}
         </Animated.View>
@@ -165,7 +167,7 @@ export const StepPathCard = React.memo(function StepPathCard({
             <Pressable
               accessibilityRole="button"
               disabled={!active}
-              onPress={press(onStartTrial)}
+              onPress={press(() => onStartTrial(tier))}
               style={({ pressed }) => ({
                 height: btnH, borderRadius: 15, flexDirection: 'row', alignItems: 'center', paddingEnd: 16,
                 backgroundColor: allCleared ? (pressed ? t.accentHover : t.accent) : p.btnOutlineFill,
