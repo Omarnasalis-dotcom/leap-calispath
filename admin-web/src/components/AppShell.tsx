@@ -3,6 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/bits';
 import { fetchUnreadCount } from '@/api/notifications';
+import { fetchFairPlayCounts } from '@/api/fairPlay';
 
 const ADMIN_NAV: Array<
   { section: string } | { to: string; label: string; end?: boolean }
@@ -61,6 +62,19 @@ export function AppShell() {
     refetchInterval: 45_000,
   });
   const unreadCount = unreadQ.data ?? 0;
+  // Fair Play: pending appeals and open flags (refreshed after every action,
+  // since Fair Play pages invalidate the 'fair-play' key).
+  const fairPlayQ = useQuery({
+    queryKey: ['fair-play', 'counts'],
+    queryFn: fetchFairPlayCounts,
+    refetchInterval: 45_000,
+    enabled: isAdmin,
+  });
+  const badgeFor = (to: string) =>
+    to === '/notifications' ? unreadCount
+    : to === '/fair-play/appeals' ? fairPlayQ.data?.appeals ?? 0
+    : to === '/fair-play' ? fairPlayQ.data?.flags ?? 0
+    : 0;
 
   return (
     <div className="shell">
@@ -82,8 +96,8 @@ export function AppShell() {
               className={({ isActive }) => `nav-item${isActive ? ' active' : ''}`}
             >
               {item.label}
-              {item.to === '/notifications' && unreadCount > 0 && (
-                <span className="nav-badge">{unreadCount > 99 ? '99+' : unreadCount}</span>
+              {badgeFor(item.to) > 0 && (
+                <span className="nav-badge">{badgeFor(item.to) > 99 ? '99+' : badgeFor(item.to)}</span>
               )}
             </NavLink>
           ),

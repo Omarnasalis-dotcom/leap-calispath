@@ -117,6 +117,17 @@ export async function fetchPendingAppeals(): Promise<FairPlayAppeal[]> {
   return (data ?? []) as FairPlayAppeal[];
 }
 
+/** Menu badges: appeals waiting for a decision and flags waiting for review. */
+export async function fetchFairPlayCounts(): Promise<{ appeals: number; flags: number }> {
+  const [appeals, flags] = await Promise.all([
+    supabase.from('fair_play_appeals').select('id', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('fair_play_flags').select('id', { count: 'exact', head: true }).eq('status', 'open'),
+  ]);
+  if (appeals.error) throw new Error(appeals.error.message);
+  if (flags.error) throw new Error(flags.error.message);
+  return { appeals: appeals.count ?? 0, flags: flags.count ?? 0 };
+}
+
 export async function fetchFlagsByIds(ids: number[]): Promise<FairPlayFlag[]> {
   if (ids.length === 0) return [];
   const { data, error } = await supabase.from('fair_play_flags').select('*').in('id', ids);
