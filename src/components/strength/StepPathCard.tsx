@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Pressable, Text, View } from 'react-native';
 import Animated, { Easing, SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
@@ -68,6 +68,14 @@ export const StepPathCard = React.memo(function StepPathCard({
   const name = tierName(tier);
   const rowH = compact ? 46 : 50;
   const btnH = 52; // same as TierCard's button
+  const railGap = compact ? 12 : 16;
+  const headerH = useRef(0);
+  const railH = useRef(0);
+  const report = () => {
+    if (headerH.current > 0 && railH.current > 0) {
+      onMeasured(Math.ceil(pad + headerH.current + railGap + railH.current + MIN_CONNECTOR + btnH + CARD_BOTTOM_PAD + 2));
+    }
+  };
   const pad = compact ? 18 : 22;
 
   const practice = mode === 'practice';
@@ -84,9 +92,11 @@ export const StepPathCard = React.memo(function StepPathCard({
 
   // ── Mount clock: draws once per changed state. ──
   const stateKey = cleared.join(',');
-  const clock = useSharedValue(drawnState.get(tier) === stateKey ? END : 0);
+  // Only the card you're looking at draws in; side cards show the final state.
+  const clock = useSharedValue(drawnState.get(tier) === stateKey || !active ? END : 0);
   useEffect(() => {
-    if (!active || progress == null) return;
+    if (progress == null) return;
+    if (!active) { drawnState.set(tier, stateKey); clock.value = END; return; }
     if (drawnState.get(tier) === stateKey) { clock.value = END; return; }
     drawnState.set(tier, stateKey);
     clock.value = 0;
@@ -112,10 +122,12 @@ export const StepPathCard = React.memo(function StepPathCard({
         </SvgText>
       </Svg>
       {/* The trial button is pinned to the card's bottom (same place as the
-          other tier cards); the line from the last step stretches down to it.
-          The natural height = top block + minimum connector + button. */}
+          other tier cards). Spare height (the carousel is as tall as its
+          tallest card, e.g. Arabic tier cards) goes ABOVE the steps, so the
+          line from the last step to the button stays short.
+          Natural height = header + gap + rail + connector + button. */}
       <View style={{ flex: 1, paddingTop: pad, paddingHorizontal: pad, paddingBottom: CARD_BOTTOM_PAD }}>
-      <View onLayout={e => onMeasured(Math.ceil(e.nativeEvent.layout.height) + MIN_CONNECTOR + btnH + pad + CARD_BOTTOM_PAD + 2)}>
+      <View onLayout={e => { headerH.current = e.nativeEvent.layout.height; report(); }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
           <Text style={kt('semibold', 11, practice ? t.textMuted : t.accentText, 2.2)}>{tr('strength.cardTier', { tier, max: 9 })}</Text>
           <View style={{ paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7, backgroundColor: chip.bg, borderWidth: practice ? 1 : 0, borderColor: chip.border }}>
@@ -130,9 +142,12 @@ export const StepPathCard = React.memo(function StepPathCard({
         </Pressable>
 
         <Text style={[kt('regular', 12.5, t.textSecondary, 0.2, 18), { marginTop: 8 }]} numberOfLines={1}>{caption}</Text>
+      </View>
+
+      <View style={{ flex: 1, minHeight: railGap }} />
 
         {/* Path rail: one column with the trial button below; the line ends in it. */}
-        <Animated.View style={[{ marginTop: compact ? 12 : 16 }, railStyle]}>
+        <Animated.View style={railStyle} onLayout={e => { railH.current = e.nativeEvent.layout.height; report(); }}>
           {rows.map((r, i) => (
             <PathRow
               key={r.step}
@@ -143,9 +158,8 @@ export const StepPathCard = React.memo(function StepPathCard({
             />
           ))}
         </Animated.View>
-      </View>
 
-      <Animated.View style={[{ flex: 1 }, railStyle]}>
+      <Animated.View style={railStyle}>
         <Connector p={p} lit={segLit[rows.length - 1]} clock={clock} index={rows.length - 1} />
           <View ref={buttonRef} onLayout={onButtonLayout} collapsable={false} style={{ marginHorizontal: -2 }}>
             <Pressable
@@ -161,7 +175,9 @@ export const StepPathCard = React.memo(function StepPathCard({
               <View style={{ width: NODE_COL + 2, alignItems: 'center' }}>
                 <SummitIcon color={allCleared ? t.onAccent : p.accentText} size={18} />
               </View>
-              <Text style={[kt('bold', 14, allCleared ? t.onAccent : p.accentText, 1.4), { flex: 1, marginStart: 14 - 2 }]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+              {/* textAlign 'left' is the start edge in Arabic too (React Native mirrors it); no
+                  auto-fit there, which shrinks aligned single-line text on iOS in RTL. */}
+              <Text style={[kt('bold', 14, allCleared ? t.onAccent : p.accentText, 1.4), { flex: 1, marginStart: 14 - 2, textAlign: 'left' }]} numberOfLines={1} adjustsFontSizeToFit={!isRTL} minimumFontScale={0.8}>
                 {practice ? tr('strength.practice', { name }) : tr('trialSteps.startTrial', { tier: name })}
               </Text>
               <Svg width={16} height={16} viewBox="0 0 24 24" style={FLIP_X}>
@@ -178,14 +194,13 @@ export const StepPathCard = React.memo(function StepPathCard({
 const NODE_COL = 34;
 /** The lit line (coral, over the 2 pt track). */
 const LIT_W = 2.5;
-/** Shortest line between the last step row and the trial button. */
-const MIN_CONNECTOR = 10;
+/** The line between the last step row and the trial button. */
+const MIN_CONNECTOR = 14;
 /** Same bottom padding as TierCard, so the button sits in the same place on every card. */
 const CARD_BOTTOM_PAD = 22;
 
 /**
- * The line from the last step row down to the trial button: stretches with
- * the free space so the button stays pinned. Lights once the last step is cleared, drawn on the same beat as that step's segment.
+ * The short line from the last step row down to the trial button. Lights once the last step is cleared, drawn on the same beat as that step's segment.
  */
 function Connector({ p, lit, clock, index }: {
   p: PT; lit: boolean; clock: SharedValue<number>; index: number;
@@ -193,7 +208,7 @@ function Connector({ p, lit, clock, index }: {
   const t0 = 0.15 + index * 0.3;
   const fillStyle = useAnimatedStyle(() => ({ transform: [{ scaleY: easeInOutCubic(seg(clock.value, t0 + 0.2, t0 + 0.4)) }] }));
   return (
-    <View pointerEvents="none" style={{ flex: 1, minHeight: MIN_CONNECTOR }}>
+    <View pointerEvents="none" style={{ height: MIN_CONNECTOR }}>
       <View style={{ position: 'absolute', left: NODE_COL / 2 - 1, top: 0, bottom: 0, width: 2, backgroundColor: p.track }} />
       {lit && (
         <Animated.View style={[{ position: 'absolute', left: NODE_COL / 2 - LIT_W / 2, top: 0, bottom: 0, width: LIT_W, backgroundColor: ACC, transformOrigin: 'top' }, fillStyle]} />
@@ -258,7 +273,7 @@ function PathRow({ practice, p, t, row, tier, progress, rowH, clock, index, segL
           {title}
         </Text>
         {!!sub && (
-          <Text style={[kt('regular', 11.5, row.state === 'locked' ? p.t5 : p.t4, 0.2), { writingDirection: 'ltr', textAlign: isRTL ? 'right' : 'left' }]} numberOfLines={1}>
+          <Text style={[kt('regular', 11.5, row.state === 'locked' ? p.t5 : p.t4, 0.2), { writingDirection: 'ltr', textAlign: 'left' }]} numberOfLines={1}>
             {ltr(sub)}
           </Text>
         )}

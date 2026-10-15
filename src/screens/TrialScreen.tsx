@@ -106,6 +106,7 @@ export function TrialScreen({
   const [stepBest, setStepBest] = useState<number | null>(null);
   /** Steps of this tier cleared before this attempt (the result card's path). */
   const [stepClearedBefore, setStepClearedBefore] = useState<number[]>([]);
+  const missingStepShownRef = useRef(false);
 
   const getTierAccentColor = (tier: number) => {
     if (tier <= 2) return '#B0BEC5'; // Foundation - Steel
@@ -158,10 +159,14 @@ export function TrialScreen({
 
   useEffect(() => {
     if (profile && !hasStarted && !trial) {
-      const t = initialMode === 'step' ? trialForStep(targetTier, initialStep) : getTrialForTier(targetTier);
-      if (t) {
-        setTrial(t);
+      const next = initialMode === 'step' ? trialForStep(targetTier, initialStep) : getTrialForTier(targetTier);
+      if (next) {
+        setTrial(next);
         setCurrentStepIdx(0);
+      } else if (initialMode === 'step' && !missingStepShownRef.current) {
+        // No such step for this tier (e.g. a stale link): don't sit on "Loading".
+        missingStepShownRef.current = true;
+        Alert.alert(t('trial.error'), t('trialSteps.notAvailable'), [{ text: t('trial.continue'), onPress: () => onBack?.() }]);
       }
     }
   }, [profile, targetTier, hasStarted, trial, initialMode, initialStep]);
