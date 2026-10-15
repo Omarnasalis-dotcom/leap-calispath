@@ -87,13 +87,11 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   const hasPath = stepCount(currentTier) > 0;
   const { height: screenH } = useWindowDimensions();
   const compactCard = screenH < 760;
-  // Measured heights of the path cards (current + past tiers with steps); the
-  // carousel takes the tallest so every card fits.
+  // Measured heights of the path cards (current + past tiers with steps).
   const [pathHeights, setPathHeights] = useState<Record<number, number>>({});
   const onPathMeasured = useCallback((tier: number, h: number) => {
     setPathHeights(prev => (prev[tier] === h ? prev : { ...prev, [tier]: h }));
   }, []);
-  const pathCardH = Object.values(pathHeights).reduce((m, h) => Math.max(m, h), 0);
 
   // Public boards for every tier (card stats show all ten at once).
   const [boards, setBoards] = useState<(LeaderboardEntry[] | null)[]>(() => TIERS.map(() => null));
@@ -101,6 +99,30 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   // Tiers you've completed a trial on yourself; tiers below yours that
   // aren't in here were placed by the onboarding assessment.
   const [completedTiers, setCompletedTiers] = useState<Set<number> | undefined>(undefined);
+  // Plain tier cards (Helot, locked tiers) are measured too, once, from hidden
+  // copies, so every card can sit at its own natural height (a shared height
+  // left the path cards half empty in Arabic). Until measured, the old fixed
+  // height is used.
+  const plainTiers = useMemo(
+    () => TIERS.filter(tier => !(tier <= currentTier && stepCount(tier) > 0)),
+    [currentTier],
+  );
+  const [plainHeights, setPlainHeights] = useState<Record<string, number>>({});
+  // Re-measured when the tier or the completed-trial list (captions) change.
+  const plainKey = (tier: number) => `${currentTier}:${completedTiers ? 'c' : 'u'}:${tier}`;
+  const plainMeasured = plainTiers.filter(tier => plainHeights[plainKey(tier)] != null);
+  const measuringPlain = plainMeasured.length < plainTiers.length;
+  const onPlainMeasured = useCallback((key: string, h: number) => {
+    setPlainHeights(prev => (prev[key] === h ? prev : { ...prev, [key]: h }));
+  }, []);
+  const cardHeights = useMemo(
+    () => TIERS.map(tier => (tier <= currentTier && stepCount(tier) > 0 ? pathHeights[tier] : plainHeights[plainKey(tier)])),
+    // plainKey reads currentTier/completedTiers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [pathHeights, plainHeights, currentTier, completedTiers],
+  );
+  const { width: screenW } = useWindowDimensions();
+  const carouselCardW = Math.min(318, screenW - 76);
   const [scope, setScope] = useState<Scope>('public');
   const [gender, setGender] = useState<Gender>('ALL');
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -187,7 +209,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             onIndexChange={setSelected}
             // Arabic lines (Cairo) are taller; the fixed card needs the room
             // or the start-trial button spills over its bottom edge.
-            cardHeight={Math.max(isArabic ? 380 : 336, pathCardH)}
+            // Each card at its own measured height; the carousel eases to the
+            // centred one (no empty space inside a card).
+            cardHeight={isArabic ? 380 : 336}
+            cardHeights={cardHeights}
             maxCardWidth={318}
             inactiveOpacity={0.45}
             containerRef={tierCardsRef}
@@ -251,6 +276,22 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             )}
           />
         </View>
+
+        {measuringPlain && (
+          // Hidden copies of the plain tier cards, only to read their natural
+          // height; unmounted once measured.
+          <View pointerEvents="none" importantForAccessibility="no-hide-descendants" accessibilityElementsHidden style={{ position: 'absolute', left: -10000, top: 0, width: carouselCardW, opacity: 0 }}>
+            {plainTiers.map(tier => (
+              <TierCard
+                key={tier}
+                tokens={t} colors={c} tier={tier} currentTier={currentTier} completedTiers={completedTiers} active={false}
+                entries={boards[tier] ?? NO_ENTRIES} userId={userId} drawn={drawn}
+                onPress={startTrialFor} onShowDetails={showDetailsFor}
+                onMeasured={h => onPlainMeasured(plainKey(tier), h)}
+              />
+            ))}
+          </View>
+        )}
 
         <ClimbLine tokens={t} colors={c} currentTier={currentTier} completedTiers={completedTiers} selected={selected} onSelect={setSelected} drawn={drawn} />
 
@@ -345,10 +386,12 @@ function ClimbHeader({ tokens: t }: { tokens: WorldKitTokens }) {
 type Colors = ReturnType<typeof climbColors>;
 
 // Memoized: a swipe only re-renders the two cards whose `active` changed.
-const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, active, entries, userId, drawn, onPress: onPressTier, onShowDetails: onShowDetailsTier, buttonRef, onButtonLayout }: {
+const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, currentTier, completedTiers, active, entries, userId, drawn, onPress: onPressTier, onShowDetails: onShowDetailsTier, buttonRef, onButtonLayout, onMeasured }: {
   tokens: WorldKitTokens; colors: Colors; tier: number; currentTier: number; completedTiers?: ReadonlySet<number>; active: boolean;
   entries: LeaderboardEntry[]; userId?: string; drawn: Animated.Value; onPress: (tier: number) => void; onShowDetails: (tier: number) => void;
   buttonRef?: React.Ref<View>; onButtonLayout?: () => void;
+  /** Measure mode (hidden copy): natural height instead of filling the slot. */
+  onMeasured?: (height: number) => void;
 }) {
   const onPress = () => onPressTier(tier);
   const onShowDetails = () => onShowDetailsTier(tier);
@@ -370,8 +413,8 @@ const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, curr
         : { text: tr('strength.locked'), bg: 'transparent', fg: t.textDisabled, border: t.borderStrong };
 
   return (
-    <View style={{
-      flex: 1, borderRadius: 26, padding: 22, gap: 16, overflow: 'hidden',
+    <View onLayout={onMeasured ? e => onMeasured(Math.ceil(e.nativeEvent.layout.height)) : undefined} style={{
+      flex: onMeasured ? undefined : 1, borderRadius: 26, padding: 22, gap: 16, overflow: 'hidden',
       backgroundColor: isCurrent ? c.cardCurrentBg : c.cardBg,
       borderWidth: 1, borderColor: isCurrent ? c.cardCurrentBorder : locked ? c.cardLockedBorder : c.cardDoneBorder,
     }}>
@@ -555,8 +598,14 @@ function Podium({ tokens: t, colors: c, rows, userId, drawn }: {
         const av = i === 0 ? 56 : 44;
         return (
           <View key={r.user_id} style={{ flex: 1, minWidth: 0, alignItems: 'center', gap: 8 }}>
-            <View style={{ width: av, height: av, borderRadius: av / 2, backgroundColor: c.avatarBg, borderWidth: 2, borderColor: you ? t.accent : col, alignItems: 'center', justifyContent: 'center' }}>
+            <View style={{ width: av, height: av, borderRadius: av / 2, backgroundColor: c.avatarBg, borderWidth: you ? 2.5 : 2, borderColor: you ? t.accent : col, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={kt('semibold', i === 0 ? 18 : 15, t.text)}>{initials(r.name)}</Text>
+              {/* On the podium your row isn't repeated below, so mark you here. */}
+              {you && (
+                <View style={{ position: 'absolute', bottom: -8, alignSelf: 'center' }}>
+                  <YouBadge tokens={t} />
+                </View>
+              )}
             </View>
             <View style={{ width: '100%', alignItems: 'center' }}>
               <Text style={kt(you ? 'semibold' : 'regular', 12, you ? t.accentText : t.textMuted)} numberOfLines={1}>{r.name}</Text>
@@ -574,6 +623,9 @@ function Podium({ tokens: t, colors: c, rows, userId, drawn }: {
                 <Text style={kt('bold', i === 0 ? 26 : 20, col, 0, i === 0 ? 28 : 22)}>{i + 1}</Text>
                 <Text style={kt('semibold', 10, t.textFaint, 1)}>{getCountryCode(r.country)}</Text>
               </View>
+              {you && (
+                <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: h, borderWidth: 2, borderBottomWidth: 0, borderColor: t.accent, borderTopLeftRadius: 12, borderTopRightRadius: 12 }} />
+              )}
             </Animated.View>
           </View>
         );

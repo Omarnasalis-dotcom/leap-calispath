@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, PanResponder, Pressable, useWindowDimensions, View } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import Reanimated, { Easing as REasing, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { KIT_EASE } from './kit/AnimatedRing';
 import { isRTL } from '../../i18n';
 
@@ -15,6 +16,12 @@ interface Props {
    */
   renderCard: (i: number, active: boolean) => React.ReactNode;
   cardHeight?: number;
+  /**
+   * Per-card heights (Strength: each card's measured height). Cards are
+   * top-aligned at their own height and the carousel eases to the centred
+   * card's height. Missing entries use `cardHeight`.
+   */
+  cardHeights?: readonly (number | undefined)[];
   /** Card width cap (Static 326, Strength 318); shrinks on narrow phones. */
   maxCardWidth?: number;
   /** Opacity of the side cards (Static .42, Strength .45). */
@@ -69,9 +76,17 @@ const RENDER_WINDOW = 2;
  * remounts one.
  */
 export function SkillCarousel({
-  count, index, onIndexChange, renderCard, cardHeight = 306, maxCardWidth = 326, inactiveOpacity = 0.42,
+  count, index, onIndexChange, renderCard, cardHeight = 306, cardHeights, maxCardWidth = 326, inactiveOpacity = 0.42,
   containerRef, onContainerLayout, swipeHintKey, onSwipingChange,
 }: Props) {
+  // The container follows the centred card's height (Reanimated, its own
+  // value: never mixed with the native-driven `pos` below).
+  const activeH = (cardHeights?.[index] ?? cardHeight) + 12;
+  const containerH = useSharedValue(activeH);
+  useEffect(() => {
+    containerH.value = withTiming(activeH, { duration: 280, easing: REasing.out(REasing.cubic) });
+  }, [activeH, containerH]);
+  const containerStyle = useAnimatedStyle(() => ({ height: containerH.value }));
   const { width } = useWindowDimensions();
   const cardW = Math.min(maxCardWidth, width - 76);
   const step = cardW + GAP;
@@ -165,8 +180,8 @@ export function SkillCarousel({
   }), [count, pos]);
 
   return (
-    <View ref={containerRef} onLayout={onContainerLayout} collapsable={false} style={{ height: cardHeight + 12, overflow: 'hidden' }} {...responder.panHandlers}>
-      <Animated.View style={{ position: 'absolute', top: 6, left: offset, flexDirection: 'row', gap: GAP, transform: [{ translateX: pos }] }}>
+    <Reanimated.View ref={containerRef} onLayout={onContainerLayout} collapsable={false} style={[{ overflow: 'hidden' }, containerStyle]} {...responder.panHandlers}>
+      <Animated.View style={{ position: 'absolute', top: 6, left: offset, flexDirection: 'row', alignItems: 'flex-start', gap: GAP, transform: [{ translateX: pos }] }}>
         {Array.from({ length: count }).map((_, i) => (
           <CarouselSlot
             key={i}
@@ -176,7 +191,7 @@ export function SkillCarousel({
             pos={pos}
             step={step}
             cardW={cardW}
-            cardHeight={cardHeight}
+            cardHeight={cardHeights?.[i] ?? cardHeight}
             inactiveOpacity={inactiveOpacity}
             onSelect={onIndexChangeRef}
           >
@@ -184,7 +199,7 @@ export function SkillCarousel({
           </CarouselSlot>
         ))}
       </Animated.View>
-    </View>
+    </Reanimated.View>
   );
 }
 

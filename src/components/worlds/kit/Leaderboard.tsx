@@ -94,8 +94,14 @@ function Podium({ tokens: t, rows, myId }: { tokens: WorldKitTokens; rows: Board
               alignItems: 'center', justifyContent: 'center',
               backgroundColor: first ? `${t.gold}1F` : 'transparent',
             }}>
-              <View style={{ width: av, height: av, borderRadius: av / 2, borderWidth: 2, borderColor: you ? t.accent : place, backgroundColor: t.buttonTint, alignItems: 'center', justifyContent: 'center' }}>
+              <View style={{ width: av, height: av, borderRadius: av / 2, borderWidth: you ? 2.5 : 2, borderColor: you ? t.accent : place, backgroundColor: t.buttonTint, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={kt('bold', first ? 18 : 15, t.text, 1)}>{initials(r.name)}</Text>
+                {/* On the podium your row isn't repeated below, so mark you here. */}
+                {you && (
+                  <View style={{ position: 'absolute', bottom: -8, alignSelf: 'center' }}>
+                    <YouBadge tokens={t} />
+                  </View>
+                )}
               </View>
             </View>
             <Text style={kt('medium', 12, you ? t.accentText : t.textSecondary)} numberOfLines={1}>{r.name}</Text>
@@ -103,7 +109,7 @@ function Podium({ tokens: t, rows, myId }: { tokens: WorldKitTokens; rows: Board
               width: '100%', height: PODIUM_HEIGHTS[i], borderTopLeftRadius: 14, borderTopRightRadius: 14,
               alignItems: 'center', gap: 3, paddingTop: 12,
               backgroundColor: first ? t.tintStrong : t.tint,
-              borderWidth: 1, borderBottomWidth: 0, borderColor: t.emptyRowBorder,
+              borderWidth: you ? 2 : 1, borderBottomWidth: 0, borderColor: you ? t.accent : t.emptyRowBorder,
             }}>
               <Text style={kt('bold', first ? 30 : 24, place, 0, first ? 32 : 26)}>{i + 1}</Text>
               <Text style={kt('semibold', 15, t.text, 0.4)}>{fmt2(r.points)}</Text>
