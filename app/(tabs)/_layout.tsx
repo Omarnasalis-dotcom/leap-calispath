@@ -4,6 +4,7 @@ import { Tabs, useSegments } from 'expo-router';
 import { useAuth } from '../../src/contexts/AuthContext';
 import { BottomTabBar, ProfileTab } from '../../src/components/profile/BottomTabBar';
 import { ProfileSubTabProvider, useProfileSubTab } from '../../src/contexts/ProfileSubTabContext';
+import { FairPlayNotice } from '../../src/components/fairPlay/FairPlayNotice';
 
 // Leaf route segment -> the ProfileTab id BottomTabBar expects. 'profile'
 // isn't listed here on purpose: it resolves to either 'profile' or
@@ -54,6 +55,8 @@ export default function TabsLayout() {
           <Tabs.Screen name="my-journey" />
         </Tabs>
         <PersistentTabBar />
+        {/* Fair Play: leaderboard review / welcome-back notice (opens itself when needed). */}
+        <FairPlayNotice />
       </View>
     </ProfileSubTabProvider>
   );

@@ -11,6 +11,7 @@ import { t, FLIP_X, CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from 
 import { setAppLanguage } from '../../i18n/language';
 import { supabase } from '../../lib/supabase';
 import { invalidatePowerLeaderboardCache, invalidateStrengthLeaderboardCache } from '../../lib/leaderboard';
+import { openFairPlaySheet, useFairPlay } from '../../services/FairPlayService';
 
 interface SettingsSheetProps {
   visible: boolean;
@@ -21,6 +22,9 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { theme, mode, toggleTheme } = useTheme();
   const { signOut, profile, refreshProfile } = useAuth();
   const hidden = !!profile?.leaderboard_hidden;
+  // An admin review / inactivity hide (Fair Play): reopen its notice from here.
+  const { status: fairPlay } = useFairPlay();
+  const underReview = (fairPlay?.holds.length ?? 0) > 0;
   const [savingHidden, setSavingHidden] = useState(false);
 
   // "Hide me from leaderboards": others stop seeing you on every board (Team
@@ -128,6 +132,16 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             </View>
             <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{isMuted ? t('settings.muted') : t('settings.on')}</Text>
           </TouchableOpacity>
+
+          {underReview && (
+            <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={() => { onClose(); openFairPlaySheet(); }}>
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="shield-alert-outline" size={18} color={theme.text.secondary} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.leaderboardReview')}</Text>
+              </View>
+              <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{t('settings.lbHidden')}</Text>
+            </TouchableOpacity>
+          )}
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleToggleHidden} disabled={savingHidden}>
             <View style={styles.rowLeft}>
