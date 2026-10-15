@@ -66,16 +66,24 @@ const DAY_SLOT_SIZE = (Dimensions.get('window').width - 32 /* quickBuildPanel le
 // to /paywall and picked back up by the restore effect below, so "your
 // days stay exactly as you built them" (UpgradeToSaveModal's copy) is
 // actually true instead of just a promise the code doesn't keep.
+import { parsePendingProgram, pendingAutoCreates, pendingExpired } from '../lib/pendingProgram';
+
 const pendingProgramStorageKey = (userId: string) => `pending_custom_program_${userId}`;
+// Audit fix (2026-10-15): the stash used to live forever, so becoming Pro
+// weeks later by any route created that old build on the next visit, with no
+// tap, replacing the active program. Now it's created automatically only when
+// fresh (straight back from buying); older it's just restored as a
+// selection, and after a day it's dropped.
 
 async function persistPendingProgram(userId: string | undefined, workouts: StandaloneWorkoutSummary[]) {
   if (!userId || workouts.length === 0) return;
   try {
-    await AsyncStorage.setItem(pendingProgramStorageKey(userId), JSON.stringify(workouts.map((w) => w.id)));
+    await AsyncStorage.setItem(pendingProgramStorageKey(userId), JSON.stringify({ ids: workouts.map((w) => w.id), at: Date.now() }));
   } catch (err) {
     console.error('persistPendingProgram failed:', err);
   }
 }
+
 
 type DaySlot = StandaloneWorkoutSummary | null;
 type DragPayload = { type: 'workout'; workout: StandaloneWorkoutSummary } | { type: 'slot'; index: number };
@@ -734,12 +742,15 @@ export function CustomizeProgramScreen() {
         const raw = await AsyncStorage.getItem(key);
         if (!raw) return;
         await AsyncStorage.removeItem(key);
-        const ids: string[] = JSON.parse(raw);
-        const restored = ids
+        const pending = parsePendingProgram(raw);
+        if (!pending || pendingExpired(pending)) return;
+        const restored = pending.ids
           .map((id) => workoutItems.find((w) => w.id === id))
           .filter((w): w is StandaloneWorkoutSummary => !!w);
         if (restored.length === 0) return;
-        if (isPro) {
+        // Created for them only straight after a purchase; otherwise they
+        // review the restored days and tap Create themselves.
+        if (isPro && pendingAutoCreates(pending)) {
           setBuildSummarySource('browse');
           setSelectedDayWorkouts(restored);
           setBuildSummaryVisible(true);
