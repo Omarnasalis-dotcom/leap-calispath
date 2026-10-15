@@ -1,4 +1,5 @@
 import React from 'react';
+import { useOwnLeaderboardHidden } from '../../../lib/ownLeaderboardHidden';
 import { Text, View } from 'react-native';
 import { WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { kt } from './type';
@@ -71,10 +72,12 @@ export function TopList({ tokens: t, title, rightLabel, rows, emptyText }: {
   );
 }
 
+/** The YOU pill; reads "YOU · HIDDEN" while you've hidden yourself from leaderboards. */
 export function YouBadge({ tokens: t }: { tokens: WorldKitTokens }) {
+  const hidden = useOwnLeaderboardHidden();
   return (
     <View style={{ paddingVertical: 1, paddingHorizontal: 6, borderRadius: 5, backgroundColor: t.accent }}>
-      <Text style={kt('bold', 10, t.onAccent, 1.2)}>{tr('kit.you')}</Text>
+      <Text style={kt('bold', 10, t.onAccent, 1.2)}>{tr(hidden ? 'kit.youHidden' : 'kit.you')}</Text>
     </View>
   );
 }

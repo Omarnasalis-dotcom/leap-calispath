@@ -95,7 +95,9 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
   // Public boards for every tier (card stats show all ten at once).
   const [boards, setBoards] = useState<(LeaderboardEntry[] | null)[]>(() => TIERS.map(() => null));
-  const [communityBoard, setCommunityBoard] = useState<{ tier: number; entries: LeaderboardEntry[] } | null>(null);
+  const [communityBoard, setCommunityBoard] = useState<{ tier: number; entries: LeaderboardEntry[]; outside: LeaderboardEntry | null } | null>(null);
+  // Your own row per tier when you're past the board's top 100 (true rank).
+  const [outsides, setOutsides] = useState<(LeaderboardEntry | null)[]>(() => TIERS.map(() => null));
   // Tiers you've completed a trial on yourself; tiers below yours that
   // aren't in here were placed by the onboarding assessment.
   const [completedTiers, setCompletedTiers] = useState<Set<number> | undefined>(undefined);
@@ -133,8 +135,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   const loadBoards = useCallback(async () => {
     if (!userId) return;
     const results = await Promise.all(TIERS.map(tier =>
-      getTierLeaderboard(tier, userId, null).then(r => r.entries).catch(() => null)));
-    if (isMounted.current) setBoards(prev => results.map((r, i) => r ?? prev[i]));
+      getTierLeaderboard(tier, userId, null).catch(() => null)));
+    if (!isMounted.current) return;
+    setBoards(prev => results.map((r, i) => r?.entries ?? prev[i]));
+    setOutsides(prev => results.map((r, i) => (r ? r.outside : prev[i])));
   }, [userId, isMounted]);
 
   const loadCompleted = useCallback(async () => {
@@ -151,7 +155,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     if (scope !== 'community' || !userId || !profile?.community_id) return;
     let live = true;
     getTierLeaderboard(selected, userId, profile.community_id)
-      .then(r => { if (live && isMounted.current) setCommunityBoard({ tier: selected, entries: r.entries }); })
+      .then(r => { if (live && isMounted.current) setCommunityBoard({ tier: selected, entries: r.entries, outside: r.outside }); })
       .catch(() => {});
     return () => { live = false; };
   }, [scope, selected, userId, profile?.community_id, isMounted]);
@@ -165,6 +169,10 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     gender,
   ), [source, gender]);
   const loading = source == null;
+  // Past the top 100: your true rank (overall, so only on the ALL filter).
+  const outside = gender === 'ALL'
+    ? (scope === 'community' ? (communityBoard?.tier === selected ? communityBoard.outside : null) : outsides[selected])
+    : null;
 
   // Mount animations: bars, climb fill and podium grow from zero after 120ms.
   const drawn = useRef(new Animated.Value(0)).current;
@@ -318,7 +326,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
               <View ref={podiumRef} onLayout={onPodiumLayout} collapsable={false}>
                 <Podium tokens={t} colors={c} rows={list} userId={userId} drawn={drawn} />
               </View>
-              <YouRow tokens={t} colors={c} rows={list} userId={userId} status={selectedStatus} />
+              <YouRow tokens={t} colors={c} rows={list} userId={userId} status={selectedStatus} outside={outside} />
               <Pressable
                 accessibilityRole="button"
                 accessibilityLabel={tr('strength.seeFullBoard')}
@@ -635,12 +643,15 @@ function Podium({ tokens: t, colors: c, rows, userId, drawn }: {
   );
 }
 
-function YouRow({ tokens: t, colors: c, rows, userId, status }: {
+function YouRow({ tokens: t, colors: c, rows, userId, status, outside }: {
   tokens: WorldKitTokens; colors: Colors; rows: Row[]; userId?: string; status: TierStatus;
+  /** Your row past the top 100, with its true rank. */
+  outside?: LeaderboardEntry | null;
 }) {
-  const idx = userId ? rows.findIndex(r => r.user_id === userId) : -1;
+  const found = userId ? rows.findIndex(r => r.user_id === userId) : -1;
+  const idx = found >= 0 ? found : outside && rows.length > 0 ? outside.rank - 1 : -1;
   if (idx > 2) {
-    const me = rows[idx];
+    const me = found >= 0 ? rows[found] : { user_id: outside!.user_id, name: outside!.display_name, points: outside!.best_time_seconds, country: outside!.country, gender: outside!.gender };
     return (
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, height: 62, paddingHorizontal: 16, borderRadius: 16, backgroundColor: `${t.accent}12`, borderWidth: 1, borderColor: `${t.accent}66` }}>
         <Text style={[kt('bold', 18, t.accentText), { width: 34 }]}>{`#${idx + 1}`}</Text>

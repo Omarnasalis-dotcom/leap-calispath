@@ -9,6 +9,8 @@ import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { DeleteAccountModal } from './DeleteAccountModal';
 import { t, FLIP_X, CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from '../../i18n';
 import { setAppLanguage } from '../../i18n/language';
+import { supabase } from '../../lib/supabase';
+import { invalidatePowerLeaderboardCache, invalidateStrengthLeaderboardCache } from '../../lib/leaderboard';
 
 interface SettingsSheetProps {
   visible: boolean;
@@ -17,7 +19,41 @@ interface SettingsSheetProps {
 
 export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const { theme, mode, toggleTheme } = useTheme();
-  const { signOut } = useAuth();
+  const { signOut, profile, refreshProfile } = useAuth();
+  const hidden = !!profile?.leaderboard_hidden;
+  const [savingHidden, setSavingHidden] = useState(false);
+
+  // "Hide me from leaderboards": others stop seeing you on every board (Team
+  // boards and Champions Arena excepted); you still see your own rows.
+  const handleToggleHidden = () => {
+    if (!profile?.id || savingHidden) return;
+    const next = !hidden;
+    Alert.alert(
+      t(next ? 'settings.hideTitle' : 'settings.showTitle'),
+      t(next ? 'settings.hideBody' : 'settings.showBody'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t(next ? 'settings.hideConfirm' : 'settings.showConfirm'),
+          onPress: async () => {
+            setSavingHidden(true);
+            try {
+              const { error } = await supabase.from('profiles').update({ leaderboard_hidden: next }).eq('id', profile.id);
+              if (error) throw error;
+              invalidateStrengthLeaderboardCache();
+              invalidatePowerLeaderboardCache();
+              await refreshProfile();
+            } catch (err) {
+              console.warn('Leaderboard visibility update failed:', err);
+              Alert.alert(t('settings.couldNotSave'));
+            } finally {
+              setSavingHidden(false);
+            }
+          },
+        },
+      ],
+    );
+  };
   const { start: startTutorial } = useTutorial();
   const isDark = mode === 'dark';
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
@@ -91,6 +127,14 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
               <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.sounds')}</Text>
             </View>
             <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{isMuted ? t('settings.muted') : t('settings.on')}</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleToggleHidden} disabled={savingHidden}>
+            <View style={styles.rowLeft}>
+              <MaterialCommunityIcons name={hidden ? 'eye-off-outline' : 'eye-outline'} size={18} color={theme.text.secondary} />
+              <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.leaderboards')}</Text>
+            </View>
+            <Text style={[styles.rowValue, { color: theme.text.tertiary }]}>{hidden ? t('settings.lbHidden') : t('settings.lbShown')}</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={toggleTheme}>

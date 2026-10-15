@@ -20,6 +20,7 @@ import { trackAppOpened } from '../lib/analytics';
 import { checkPaywallEnabled } from '../lib/appVersion';
 import { withNetworkRetry, isTransientNetworkError } from '../lib/submitErrors';
 import { currentLanguage } from '../i18n';
+import { setOwnLeaderboardHidden } from '../lib/ownLeaderboardHidden';
 
 let googleSigninConfigured = false;
 function ensureGoogleSigninConfigured() {
@@ -63,6 +64,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
+  // Shared UI marks 'YOU · HIDDEN' from this (see ownLeaderboardHidden).
+  useEffect(() => { setOwnLeaderboardHidden(!!profile?.leaderboard_hidden); }, [profile?.leaderboard_hidden]);
   const [loading, setLoading] = useState(true);
   const [profileLoading, setProfileLoading] = useState(false);
   const [profileLoadFailed, setProfileLoadFailed] = useState(false);

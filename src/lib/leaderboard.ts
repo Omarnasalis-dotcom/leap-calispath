@@ -56,12 +56,16 @@ export function invalidatePowerLeaderboardCache(): void {
  * Get leaderboard for a specific tier
  * Returns ranked list of all users with best times for that tier
  */
+/** Rows the tier board shows; your own row beyond them comes back as `outside`. */
+export const TIER_BOARD_SIZE = 100;
+
 export async function getTierLeaderboard(
   tier: number,
   currentUserId: string,
   communityId?: string | null
-): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null }> {
-  const key = boardCacheKey(tier, communityId);
+): Promise<{ entries: LeaderboardEntry[]; personalBest: PersonalBest | null; outside: LeaderboardEntry | null }> {
+  // The payload includes the caller's own row (p_include_me), so the cache is per user.
+  const key = `${currentUserId}:${boardCacheKey(tier, communityId)}`;
   const cached = strengthBoardCache.get(key);
 
   let data: any[];
@@ -71,8 +75,10 @@ export async function getTierLeaderboard(
     // Use RPC function that bypasses RLS. RPCs are POSTs, which supabase-js
     // never retries on its own (it only retries GETs) — a gateway blip comes
     // back as an empty-bodied error, so give that one more try.
+    // Hidden athletes are filtered by the server (leaderboard_hidden); with
+    // p_include_me your own row comes back with its true rank past #100.
     const fetchBoard = () => supabase
-      .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null });
+      .rpc('get_tier_leaderboard', { tier_num: tier, p_community_id: communityId || null, p_include_me: true });
     let { data: fetched, error, status } = await fetchBoard();
     if (error && (!error.code || status >= 500)) {
       await new Promise(resolve => setTimeout(resolve, 800));
@@ -81,26 +87,28 @@ export async function getTierLeaderboard(
 
     if (error || !fetched) {
       console.error('Error fetching leaderboard:', { status, code: error?.code, message: error?.message });
-      return { entries: [], personalBest: null };
+      return { entries: [], personalBest: null, outside: null };
     }
     data = Array.isArray(fetched) ? fetched : [];
     strengthBoardCache.set(key, { data, timestamp: Date.now() });
   }
 
-  // Convert to entries with ranking
-  const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
+  // Convert to entries with ranking (the server's rank: visible athletes only)
+  const all: LeaderboardEntry[] = data.map((record: any, index: number) => ({
     user_id: record.user_id,
     display_name: record.display_name || 'Unknown Warrior',
     tier,
     best_time_seconds: record.best_time,
-    rank: index + 1,
+    rank: Number(record.rank ?? index + 1),
     is_current_user: record.user_id === currentUserId,
     country: record.country,
     gender: record.gender,
   }));
+  const entries = all.filter(e => e.rank <= TIER_BOARD_SIZE);
+  const outside = all.find(e => e.is_current_user && e.rank > TIER_BOARD_SIZE) ?? null;
 
-  // Find personal best
-  const personalEntry = entries.find(e => e.is_current_user);
+  // Find personal best (true rank, even past the board)
+  const personalEntry = all.find(e => e.is_current_user);
   const personalBest: PersonalBest | null = personalEntry
     ? {
         tier,
@@ -110,7 +118,7 @@ export async function getTierLeaderboard(
       }
     : null;
 
-  return { entries, personalBest };
+  return { entries, personalBest, outside };
 }
 
 /**
@@ -129,24 +137,10 @@ export async function getPowerTierLeaderboard(
   if (cached && Date.now() - cached.timestamp < LEADERBOARD_CACHE_TTL) {
     data = cached.data;
   } else {
-    let query = supabase
-      .from('profiles')
-      .select(`
-        id,
-        display_name,
-        power_points,
-        country,
-        gender
-      `)
-      .eq('power_tier', tier);
-
-    if (communityId) {
-      query = query.eq('community_id', communityId);
-    }
-
-    const { data: fetched, error } = await query
-      .order('power_points', { ascending: false })
-      .limit(100);
+    // Server function (hidden athletes filtered); the app used to read
+    // profiles directly, which couldn't honour "Hide me from leaderboards".
+    const { data: fetched, error } = await supabase
+      .rpc('get_power_tier_board', { p_tier: tier, p_community_id: communityId || null });
 
     if (error || !fetched) {
       console.error('Error fetching power leaderboard:', error);
@@ -157,12 +151,12 @@ export async function getPowerTierLeaderboard(
   }
 
   const entries: LeaderboardEntry[] = data.map((record: any, index: number) => ({
-    user_id: record.id,
+    user_id: record.user_id,
     display_name: record.display_name || 'Unknown Warrior',
     tier,
-    best_time_seconds: record.power_points || 0,
-    rank: index + 1,
-    is_current_user: record.id === currentUserId,
+    best_time_seconds: Number(record.power_points) || 0,
+    rank: Number(record.rank ?? index + 1),
+    is_current_user: record.user_id === currentUserId,
     country: record.country,
     gender: record.gender,
   }));

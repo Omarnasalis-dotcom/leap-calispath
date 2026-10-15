@@ -1,6 +1,8 @@
 import { User } from '@supabase/supabase-js';
 
 export interface Profile {
+  /** Hidden from every leaderboard other people see (Settings → Leaderboards). */
+  leaderboard_hidden?: boolean;
   id: string;
   email: string;
   display_name: string | null;

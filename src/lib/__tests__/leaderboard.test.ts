@@ -118,17 +118,30 @@ describe('getTierLeaderboard caching', () => {
     expect(supabase.rpc).toHaveBeenCalledTimes(2);
   });
 
-  it('caches the shared rows but derives per-user fields on every call', async () => {
+  it('caches per user (the payload carries the caller\'s own row) and derives per-user fields', async () => {
     (supabase.rpc as jest.Mock).mockResolvedValue({ data: strengthRows, error: null });
 
     const asU1 = await getTierLeaderboard(3, 'u1');
     const asU2 = await getTierLeaderboard(3, 'u2');
+    await getTierLeaderboard(3, 'u1');
 
-    expect(supabase.rpc).toHaveBeenCalledTimes(1); // shared cache reused across users
+    expect(supabase.rpc).toHaveBeenCalledTimes(2); // one fetch per user, then cached
     expect(asU1.entries.find(e => e.is_current_user)?.user_id).toBe('u1');
     expect(asU2.entries.find(e => e.is_current_user)?.user_id).toBe('u2');
     expect(asU1.personalBest?.total_attempts).toBe(4);
     expect(asU2.personalBest?.total_attempts).toBe(2);
+  });
+
+  it('returns your own row past the top 100 as `outside`, not in the list', async () => {
+    const top = Array.from({ length: 100 }, (_, i) => ({ user_id: `x${i}`, display_name: `X${i}`, best_time: 100 + i, total_attempts: 1, rank: i + 1 }));
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: [...top, { user_id: 'me', display_name: 'Me', best_time: 400, total_attempts: 3, rank: 250 }], error: null });
+
+    const res = await getTierLeaderboard(3, 'me');
+
+    expect(supabase.rpc).toHaveBeenCalledWith('get_tier_leaderboard', { tier_num: 3, p_community_id: null, p_include_me: true });
+    expect(res.entries).toHaveLength(100);
+    expect(res.outside?.rank).toBe(250);
+    expect(res.personalBest?.rank).toBe(250);
   });
 
   it('keys the cache by tier (different tiers fetch separately)', async () => {
@@ -169,22 +182,11 @@ describe('getPowerTierLeaderboard caching', () => {
   let now = 1_000_000;
   let nowSpy: jest.SpyInstance;
 
+  // get_power_tier_board rows (server-ranked, hidden athletes already out).
   const powerRows = [
-    { id: 'p1', display_name: 'Alpha', power_points: 300, country: 'US', gender: 'male' },
-    { id: 'p2', display_name: 'Bravo', power_points: 250, country: 'GB', gender: 'female' },
+    { user_id: 'p1', display_name: 'Alpha', power_points: 300, country: 'US', gender: 'male', rank: 1 },
+    { user_id: 'p2', display_name: 'Bravo', power_points: 250, country: 'GB', gender: 'female', rank: 2 },
   ];
-
-  // Minimal chainable stand-in for the supabase-js query builder used by
-  // getPowerTierLeaderboard: .select().eq()[.eq()].order().limit()
-  function mockPowerQuery(rows: any[]) {
-    const builder: any = {
-      select: jest.fn(() => builder),
-      eq: jest.fn(() => builder),
-      order: jest.fn(() => builder),
-      limit: jest.fn(() => Promise.resolve({ data: rows, error: null })),
-    };
-    return builder;
-  }
 
   beforeEach(() => {
     jest.resetAllMocks();
@@ -192,7 +194,7 @@ describe('getPowerTierLeaderboard caching', () => {
     invalidatePowerLeaderboardCache();
     now = 1_000_000;
     nowSpy = jest.spyOn(Date, 'now').mockImplementation(() => now);
-    (supabase.from as jest.Mock).mockImplementation(() => mockPowerQuery(powerRows));
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: powerRows, error: null });
   });
 
   afterEach(() => {
@@ -203,9 +205,11 @@ describe('getPowerTierLeaderboard caching', () => {
     const first = await getPowerTierLeaderboard(2, 'p1');
     await getPowerTierLeaderboard(2, 'p1');
 
-    expect(supabase.from).toHaveBeenCalledTimes(1);
+    expect(supabase.rpc).toHaveBeenCalledTimes(1);
+    expect(supabase.rpc).toHaveBeenCalledWith('get_power_tier_board', { p_tier: 2, p_community_id: null });
     expect(first.entries).toHaveLength(2);
     expect(first.entries[0].is_current_user).toBe(true);
+    expect(first.entries[1].rank).toBe(2);
   });
 
   it('re-fetches after invalidation (e.g. the user just logged a power PB)', async () => {
@@ -213,7 +217,7 @@ describe('getPowerTierLeaderboard caching', () => {
     invalidatePowerLeaderboardCache();
     await getPowerTierLeaderboard(2, 'p1');
 
-    expect(supabase.from).toHaveBeenCalledTimes(2);
+    expect(supabase.rpc).toHaveBeenCalledTimes(2);
   });
 });
 
