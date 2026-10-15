@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, I18nManager, Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getWorldKitTokens, WorldKitTokens } from '../../../constants/worldKitTokens';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
@@ -128,10 +129,21 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
       )}
 
       {!!hold.admin_note && (
-        <Text style={kt('regular', 13.5, t.textSecondary, 0, 20)}>{tr('fairPlay.adminNote', { note: hold.admin_note })}</Text>
+        <View style={{ borderRadius: 14, backgroundColor: t.tint, padding: 12, gap: 6 }}>
+          <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('fairPlay.fromTheTeam')}</Text>
+          {/* The admin writes in either language: follow the note, not the app. */}
+          <Text style={[kt('regular', 14, t.text, 0, 21), noteDirection(hold.admin_note)]}>{hold.admin_note}</Text>
+        </View>
       )}
-      {hold.counts_as_strike && <Text style={kt('semibold', 13, t.accentText, 0.4, 19)}>{tr('fairPlay.strike')}</Text>}
-      {!permanent && strikes > 0 && <Text style={kt('regular', 13, t.textSecondary, 0, 19)}>{tr('fairPlay.strikeWarning')}</Text>}
+      {!permanent && (hold.counts_as_strike || strikes > 0) && (
+        <View style={{ flexDirection: 'row', gap: 10, borderRadius: 14, borderWidth: 1, borderColor: t.accent, padding: 12 }}>
+          <MaterialCommunityIcons name="alert-outline" size={18} color={t.accentText} style={{ marginTop: 1 }} />
+          <View style={{ flex: 1, gap: 4 }}>
+            {hold.counts_as_strike && <Text style={kt('semibold', 13.5, t.accentText, 0.4, 19)}>{tr('fairPlay.strike')}</Text>}
+            <Text style={kt('regular', 13, t.textSecondary, 0, 19)}>{tr('fairPlay.strikeWarning')}</Text>
+          </View>
+        </View>
+      )}
 
       {appeal && (
         <View style={{ borderRadius: 14, backgroundColor: t.tint, padding: 12, gap: 4 }}>
@@ -176,6 +188,13 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
       )}
     </View>
   );
+}
+
+const ARABIC = /[\u0600-\u06FF]/;
+function noteDirection(note: string) {
+  const arabic = ARABIC.test(note);
+  // Under native RTL 'left' means the start side, so align to the note's own start.
+  return { writingDirection: arabic ? 'rtl' as const : 'ltr' as const, textAlign: arabic === I18nManager.isRTL ? 'left' as const : 'right' as const };
 }
 
 function PrimaryButton({ t, label, busy, disabled, onPress }: { t: WorldKitTokens; label: string; busy: boolean; disabled?: boolean; onPress: () => void }) {

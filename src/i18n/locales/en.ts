@@ -2059,7 +2059,7 @@ const en = {
     permanentTitle: 'Removed from leaderboards',
     permanentBody: "After a review you've been removed from leaderboards permanently. You can still train, follow your program and use the coach. If you think this isn't fair, send us a note.",
     flaggedResults: 'RESULTS UNDER REVIEW',
-    adminNote: 'Note from the team: {{note}}',
+    fromTheTeam: 'NOTE FROM THE TEAM',
     strike: 'This counts as a strike.',
     strikeWarning: 'If another result is confirmed as unrealistic, you can be removed from leaderboards permanently.',
     appealPending: "Your note was sent. You'll stay hidden until we reply.",
