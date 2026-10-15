@@ -6,7 +6,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path, Rect } from 'react-native-svg';
+import Svg, { Circle, Path, Rect, Text as SvgText } from 'react-native-svg';
 import { countPassed } from '../../lib/fx/easing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { shareCardImage } from '../../lib/shareCard';
@@ -34,6 +34,8 @@ export interface PRCelebrationProps {
   /** null / 0 for a first record. */
   previous: number | null;
   handle: string;
+  /** Strength: leaderboard rank before → after the new best (row counts it up). */
+  rank?: { from: number; to: number; of: number } | null;
   onDismiss: () => void;
 }
 
@@ -94,7 +96,7 @@ export function PRCelebration(props: PRCelebrationProps) {
   return <PRCelebrationModal {...props} />;
 }
 
-function PRCelebrationModal({ world, movement, value, previous, handle, onDismiss }: PRCelebrationProps) {
+function PRCelebrationModal({ world, movement, value, previous, handle, rank, onDismiss }: PRCelebrationProps) {
   const { mode } = useTheme();
   const t: PRTokens = useMemo(() => getPRTokens(world, mode), [world, mode]);
   const insets = useSafeAreaInsets();
@@ -103,7 +105,9 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
   const prev = previous != null && previous > 0 ? previous : null;
   const stack = useMemo(() => (world === 'power' ? plateStack(value) : null), [world, value]);
   const lock = stack ? stack.lock : RING_LOCK;
-  const end = settledAt(lock);
+  // The rank count (Strength) can run past the usual settled frame; skip and
+  // Reduce Motion land after it, on the final rank.
+  const end = rank ? Math.max(settledAt(lock), rankSchedule(lock, rank).end + 0.3) : settledAt(lock);
   const landTimes = useMemo(() => stack?.plates.map(p => p.land) ?? [], [stack]);
   const strength = world === 'strength';
   const gain = gainOf(value, prev, strength);
@@ -120,6 +124,8 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
 
   useEffect(() => {
     let alive = true;
+    // Sounds loaded before their beats (the first play is otherwise late).
+    SoundService.preload();
     AccessibilityInfo.isReduceMotionEnabled().then(rm => {
       if (!alive) return;
       setReduceMotion(rm);
@@ -325,6 +331,8 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
                 </View>
               </Animated.View>
 
+              {rank && <RankRow clock={clock} tokens={t} lock={lock} rank={rank} reduceMotion={reduceMotion} />}
+
               <Animated.View style={[{ marginTop: 18, alignItems: 'center' }, logoStyle]}>
                 <View style={{ height: 30, paddingHorizontal: 12, borderRadius: 15, borderWidth: 1, borderColor: t.pillBorder, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                   <LeapLogo size={18} animated={false} />
@@ -366,5 +374,114 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
         </Animated.View>
       </ScrollView>
     </Modal>
+  );
+}
+
+const PODIUM = ['#F5C451', '#C9CED6', '#CD7F32'] as const;
+
+/**
+ * Rank count timing: constant deceleration, like braking evenly. The count
+ * starts at full speed and its speed falls in a straight line to zero just as
+ * it reaches your rank: position = 1 − (1 − t)², so place k is passed at
+ * t = 1 − √(1 − k/n). The whole count lasts 0.8·√n s (0.8–3.2 s), which makes
+ * the last place take about 0.8 s on any board. `steps[i]` = absolute clock.
+ */
+function rankSchedule(lock: number, rank: { to: number; of: number }) {
+  const start = lock + AFTER_LOCK.stats + 0.15;
+  const n = Math.max(0, rank.of - rank.to);
+  const total = n > 0 ? Math.min(3.2, Math.max(0.8, 0.8 * Math.sqrt(n))) : 0;
+  const steps = Array.from({ length: n }, (_, i) => start + total * (1 - Math.sqrt(1 - (i + 1) / n)));
+  // A tick for every place slow enough to hear on its own (≥ 0.1 s since the
+  // previous one); the quick run-in of a big board stays quiet.
+  const audible = steps.map((t, i) => t - (i === 0 ? start : steps[i - 1]) >= 0.1);
+  return { start, steps, end: start + total, audible };
+}
+
+/**
+ * Strength: the leaderboard rank the new best earned, counted from the
+ * board's size down to it (#48 → #5) under constant deceleration, a tick on
+ * each of the last three. Top 3 lands with a crown (1st) or a silver / bronze medal. Inside
+ * the card, so it's in the shared image.
+ */
+function RankRow({ clock, tokens: t, lock, rank, reduceMotion }: {
+  clock: SharedValue<number>; tokens: PRTokens; lock: number; rank: { from: number; to: number; of: number }; reduceMotion: boolean;
+}) {
+  // Reduce Motion: no count, the final rank at once (the rank usually
+  // arrives after the card opened, so the clock alone can't settle it).
+  const sched = useMemo(() => (reduceMotion ? { start: 0, steps: [] as number[], end: 0, audible: [] as boolean[] } : rankSchedule(lock, rank)), [lock, rank, reduceMotion]);
+  const steps = sched.steps;
+  const improved = Math.max(0, rank.from - rank.to);
+  const podium = rank.to <= 3 ? rank.to : 0;
+  const [shown, setShown] = useState(reduceMotion ? rank.to : rank.of);
+  const tick = () => { Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light).catch(() => {}); SoundService.playTick(); };
+  const land = () => {
+    if (podium) Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+    else Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    SoundService.playLand();
+  };
+  const audible = sched.audible;
+  useAnimatedReaction(
+    () => countPassed(steps, clock.value),
+    (now, was) => {
+      if (now === was || reduceMotion) return;
+      runOnJS(setShown)(rank.of - now);
+      // One cue per place as the number changes (a skip jumps several: quiet,
+      // except the landing). Sounds respect the app mute inside SoundService.
+      if (was == null || now <= was) return;
+      if (now === steps.length) runOnJS(land)();
+      else if (now - was === 1 && audible[now - 1]) runOnJS(tick)();
+    },
+  );
+  const rowStyle = useFadeUp(clock, sched.start - 0.3, 10, 0.35);
+  const popAt = sched.end;
+  const chipStyle = useAnimatedStyle(() => {
+    const p = clamp01((clock.value - popAt) / 0.3);
+    return { opacity: clamp01(p * 2.5), transform: [{ scale: p > 0 ? 0.6 + 0.4 * easeOutBack(p) : 0.6 }] };
+  });
+  const medalStyle = useAnimatedStyle(() => {
+    const p = clamp01((clock.value - popAt) / 0.4);
+    return { opacity: clamp01(p * 2.5), transform: [{ scale: p > 0 ? 0.3 + 0.7 * easeOutBack(p) : 0.3 }, { rotate: `${(1 - clamp01(p)) * -25}deg` }] };
+  });
+  const numBump = useAnimatedStyle(() => {
+    const b = clock.value > popAt && clock.value < popAt + 0.35 ? Math.sin(((clock.value - popAt) / 0.35) * Math.PI) : 0;
+    return { transform: [{ scale: 1 + 0.2 * b }] };
+  });
+  const numColor = podium ? PODIUM[podium - 1] : t.text;
+  return (
+    <Animated.View style={[{
+      marginTop: 12, flexDirection: 'row', alignItems: 'center', paddingVertical: 12, paddingHorizontal: 18, borderRadius: 18,
+      backgroundColor: t.statsBg, borderWidth: 1, borderColor: t.statsBorder,
+    }, rowStyle]}>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('prCelebration.rankLabel')}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 2 }}>
+          {podium > 0 && (
+            <Animated.View style={medalStyle}>
+              {podium === 1 ? <KitIcon name="crown" size={22} color={PODIUM[0]} /> : <Medal color={PODIUM[podium - 1]} n={podium} />}
+            </Animated.View>
+          )}
+          <Animated.Text style={[kt('bold', 26, shown === rank.to ? numColor : t.text, 0.4), numBump]}>{ltr(`#${shown}`)}</Animated.Text>
+          <Text style={kt('medium', 12, t.textFaint)} numberOfLines={1}>{tr('prCelebration.rankOf', { n: rank.of })}</Text>
+        </View>
+      </View>
+      {improved > 0 && (
+        <Animated.View style={[{ height: 28, paddingHorizontal: 12, borderRadius: 14, backgroundColor: t.accent, flexDirection: 'row', alignItems: 'center', gap: 5 }, chipStyle]}>
+          <Svg width={10} height={10} viewBox="0 0 10 10"><Path d="M5 1.5L9 7.5H1z" fill={t.onAccent} /></Svg>
+          <Text style={kt('bold', 13, t.onAccent, 0.4)}>{ltr(String(improved))}</Text>
+        </Animated.View>
+      )}
+    </Animated.View>
+  );
+}
+
+/** Silver / bronze medal: a disc with its place on a short ribbon. */
+function Medal({ color, n }: { color: string; n: number }) {
+  return (
+    <Svg width={22} height={22} viewBox="0 0 24 24">
+      <Path d="M7 2h4l2 6H9zM13 2h4l-2 6h-4z" fill={color} opacity={0.7} />
+      <Circle cx={12} cy={15} r={7} fill={color} />
+      <Circle cx={12} cy={15} r={5} fill="none" stroke="#ffffff" strokeOpacity={0.55} strokeWidth={1.2} />
+      <SvgText x={12} y={18.4} fontSize={9} fontWeight="bold" fill="#ffffff" textAnchor="middle">{n}</SvgText>
+    </Svg>
   );
 }

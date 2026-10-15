@@ -110,3 +110,21 @@ describe('strength new best (lower is better)', () => {
     expect(formatClock(9)).toBe('0:09');
   });
 });
+
+describe('rankChange', () => {
+  const { rankChange } = require('../leaderboard');
+  const board = [
+    { user_id: 'a', best_time_seconds: 150 }, { user_id: 'b', best_time_seconds: 170 }, { user_id: 'me', best_time_seconds: 175 },
+    { user_id: 'c', best_time_seconds: 190 }, { user_id: 'd', best_time_seconds: 200 }, { user_id: 'e', best_time_seconds: 230 },
+  ];
+  it('moves you from the old best rank to the new one', () => {
+    expect(rankChange(board, 'me', 175, 210)).toEqual({ from: 5, to: 3, of: 6 });
+  });
+  it('places you after an equal time', () => {
+    expect(rankChange(board, 'me', 170, 190)).toEqual({ from: 4, to: 3, of: 6 });
+  });
+  it('works when the board still has your old best', () => {
+    const stale = board.map(e => (e.user_id === 'me' ? { ...e, best_time_seconds: 210 } : e));
+    expect(rankChange(stale, 'me', 160, 210)).toEqual({ from: 5, to: 2, of: 6 });
+  });
+});

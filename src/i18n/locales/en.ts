@@ -1179,6 +1179,8 @@ const en = {
     share: 'Share achievement',
   },
   prCelebration: {
+    rankLabel: 'LEADERBOARD RANK',
+    rankOf: 'OF {{n}}',
     newBestTime: 'NEW BEST TIME',
     time: 'TIME',
     timeSaved: 'TIME SAVED',

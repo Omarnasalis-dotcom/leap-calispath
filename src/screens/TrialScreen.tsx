@@ -32,6 +32,7 @@ import { getStepProgress, submitStep, stepErrorCode } from '../services/StepServ
 import { getTrialStep, StepNumber } from '../lib/trialSteps';
 import { StepClearedCard } from '../components/strength/StepClearedCard';
 import { PRCelebration } from '../components/celebration/PRCelebration';
+import { getTierLeaderboard, invalidateStrengthLeaderboardCache, RankChange, rankChange } from '../lib/leaderboard';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
@@ -92,6 +93,8 @@ export function TrialScreen({
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
   /** A new best on a tier you'd already completed: the animated PR card. */
   const [newBest, setNewBest] = useState<{ time: number; previous: number } | null>(null);
+  /** The rank the new best earned on the tier board (loads while the card plays). */
+  const [newBestRank, setNewBestRank] = useState<RankChange | null>(null);
   const prepStartTimeRef = useRef<number | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -507,7 +510,16 @@ export function TrialScreen({
           const previous = result.previous_best_time_seconds ?? null;
           if (previous != null && previous > timeSeconds) {
             // Beat your own best on a tier you'd already completed.
+            setNewBestRank(null);
             setNewBest({ time: timeSeconds, previous });
+            // Fresh board (the cached one predates this run): old rank → new.
+            invalidateStrengthLeaderboardCache();
+            getTierLeaderboard(trial.tier, user.id)
+              .then(({ entries }) => {
+                if (entries.length === 0) return;
+                setNewBestRank(rankChange(entries, user.id, timeSeconds, previous));
+              })
+              .catch(() => {});
           } else {
             setFeedbackCard({ kind: 'new_best', tier: trial.tier, timeSeconds, previousTimeSeconds: previous });
           }
@@ -944,8 +956,10 @@ export function TrialScreen({
         value={newBest?.time ?? timeSeconds}
         previous={newBest?.previous ?? null}
         handle={profile?.display_name ?? ''}
+        rank={newBestRank}
         onDismiss={() => {
           setNewBest(null);
+          setNewBestRank(null);
           onBack ? onBack() : null;
         }}
       />

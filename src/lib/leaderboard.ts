@@ -300,3 +300,26 @@ export function getOrdinalRank(rank: number): string {
   return rank + (suffixes[(v - 20) % 10] || suffixes[v] || suffixes[0]);
 }
 
+
+export interface RankChange {
+  /** Rank your previous best had on this board. */
+  from: number;
+  /** Rank of the new best. */
+  to: number;
+  /** Athletes on the board, you included. */
+  of: number;
+}
+
+/**
+ * Where a new trial best moved you on a tier board: the previous best's rank
+ * (among everyone else's bests) and the new one's. Lower times rank higher;
+ * a tie goes to the athlete who set it first, so you rank after equal times.
+ */
+export function rankChange(entries: { user_id: string; best_time_seconds: number }[], userId: string, newTime: number, previous: number): RankChange {
+  const others = entries.filter(e => e.user_id !== userId);
+  return {
+    from: 1 + others.filter(e => e.best_time_seconds <= previous).length,
+    to: 1 + others.filter(e => e.best_time_seconds <= newTime).length,
+    of: others.length + 1,
+  };
+}

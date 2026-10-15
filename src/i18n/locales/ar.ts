@@ -1266,6 +1266,8 @@ const ar: Translations = {
     share: 'مشاركة الإنجاز',
   },
   prCelebration: {
+    rankLabel: 'ترتيبك في اللوحة',
+    rankOf: 'من {{n}}',
     newBestTime: 'أفضل وقت جديد',
     time: 'الوقت',
     timeSaved: 'الوقت الموفَّر',
