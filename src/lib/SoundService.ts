@@ -138,6 +138,42 @@ class SoundService {
   // -------------------------------------------------------------------------
   // Mobile (expo-av) helper: play a synthesised WAV data URI
   // -------------------------------------------------------------------------
+  // Each synthesised sound is built and loaded ONCE, then replayed. Building
+  // and loading a WAV on every play took a noticeable moment on a phone, so
+  // sounds landed after the animation beat they belong to (owner report: the
+  // NEW BEST card's sounds didn't match). preload() warms the common ones.
+  private sounds = new Map<string, Promise<InstanceType<typeof Audio.Sound> | null>>();
+  private audioModeSet = false;
+
+  private loadMobileSound(
+    durationMs: number,
+    frequencies: number[],
+    amplitudes: number[],
+    type: 'sine' | 'square' | 'triangle',
+    fadeOutRatio: number,
+  ): Promise<InstanceType<typeof Audio.Sound> | null> {
+    const key = `${durationMs}|${frequencies.join(',')}|${amplitudes.join(',')}|${type}|${fadeOutRatio}`;
+    let loading = this.sounds.get(key);
+    if (!loading) {
+      loading = (async () => {
+        try {
+          if (!this.audioModeSet) {
+            await Audio.setAudioModeAsync({ playsInSilentModeIOS: true, staysActiveInBackground: false });
+            this.audioModeSet = true;
+          }
+          const uri = synthesizeWAV(durationMs, frequencies, amplitudes, type, fadeOutRatio);
+          const { sound } = await Audio.Sound.createAsync({ uri } as any, { shouldPlay: false });
+          return sound;
+        } catch {
+          this.sounds.delete(key); // try again next time
+          return null;
+        }
+      })();
+      this.sounds.set(key, loading);
+    }
+    return loading;
+  }
+
   private async playMobileSound(
     durationMs: number,
     frequencies: number[],
@@ -146,22 +182,20 @@ class SoundService {
     fadeOutRatio = 0.7,
   ) {
     try {
-      await Audio.setAudioModeAsync({
-        playsInSilentModeIOS: true,
-        staysActiveInBackground: false,
-      });
-      const uri = synthesizeWAV(durationMs, frequencies, amplitudes, type, fadeOutRatio);
-      const { sound } = await Audio.Sound.createAsync({ uri } as any, { shouldPlay: true });
-      // Unload after playback to avoid memory leaks
-      sound.setOnPlaybackStatusUpdate((status) => {
-        if (!status.isLoaded) return;
-        if (status.didJustFinish) {
-          sound.unloadAsync().catch(() => {});
-        }
-      });
+      const sound = await this.loadMobileSound(durationMs, frequencies, amplitudes, type, fadeOutRatio);
+      // From the start each time (a replay cuts the previous one short).
+      await sound?.replayAsync();
     } catch (e) {
       // Silently fail — sound is non-critical
     }
+  }
+
+  /** Loads the short cues ahead of an animation so the first one isn't late. */
+  preload() {
+    if (Platform.OS === 'web') return;
+    this.loadMobileSound(120, [880], [0.15], 'sine', 0.3);
+    this.loadMobileSound(1500, [440, 880, 1200], [0.30, 0.15, 0.10], 'sine', 0.2);
+    this.loadMobileSound(420, [660, 990], [0.16, 0.1], 'sine', 0.5);
   }
 
   // -------------------------------------------------------------------------
@@ -192,6 +226,34 @@ class SoundService {
     } else {
       // Mobile: short 880 Hz blip, 120 ms
       this.playMobileSound(120, [880], [0.15], 'sine', 0.3);
+    }
+  }
+
+  /**
+   * Short bright chime (a fifth, 660 + 990 Hz) for a counter landing, e.g. the
+   * NEW BEST card's rank.
+   */
+  playLand() {
+    if (this.isMuted) return;
+    if (Platform.OS === 'web') {
+      const ctx = this.getCtx();
+      if (!ctx) return;
+      try {
+        [660, 990].forEach((freq, i) => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'sine';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime);
+          gain.gain.setValueAtTime(0.16 / (i + 1), ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.42);
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+          osc.start();
+          osc.stop(ctx.currentTime + 0.42);
+        });
+      } catch (e) {}
+    } else {
+      this.playMobileSound(420, [660, 990], [0.16, 0.1], 'sine', 0.5);
     }
   }
 
