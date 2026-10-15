@@ -11,6 +11,11 @@ import { UserDetailPage } from '@/pages/users/UserDetailPage';
 import { CommunitiesPage } from '@/pages/communities/CommunitiesPage';
 import { LeaderboardsPage } from '@/pages/leaderboards/LeaderboardsPage';
 import { WaitlistPage } from '@/pages/waitlist/WaitlistPage';
+import { FlagsPage } from '@/pages/fairPlay/FlagsPage';
+import { AppealsPage } from '@/pages/fairPlay/AppealsPage';
+import { InactivePage } from '@/pages/fairPlay/InactivePage';
+import { LimitsPage } from '@/pages/fairPlay/LimitsPage';
+import { AthleteFairPlayPage } from '@/pages/fairPlay/AthleteFairPlayPage';
 import { AiCoachReportsPage } from '@/pages/aiCoachReports/AiCoachReportsPage';
 import { GrowthPage } from '@/pages/growth/GrowthPage';
 import { TournamentsPage } from '@/pages/tournaments/TournamentsPage';
@@ -73,6 +78,11 @@ export function App() {
                 <Route path="challenges/teams" element={<TeamChallengesPage />} />
                 <Route path="leaderboards" element={<LeaderboardsPage />} />
                 <Route path="waitlist" element={<WaitlistPage />} />
+                <Route path="fair-play" element={<FlagsPage />} />
+                <Route path="fair-play/appeals" element={<AppealsPage />} />
+                <Route path="fair-play/inactive" element={<InactivePage />} />
+                <Route path="fair-play/limits" element={<LimitsPage />} />
+                <Route path="fair-play/athlete/:id" element={<AthleteFairPlayPage />} />
                 <Route path="tournaments" element={<TournamentsPage />} />
                 <Route path="growth" element={<GrowthPage />} />
                 <Route path="ai-coach-reports" element={<AiCoachReportsPage />} />

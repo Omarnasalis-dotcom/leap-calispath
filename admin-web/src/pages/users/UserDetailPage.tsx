@@ -126,7 +126,8 @@ export function UserDetailPage() {
             <Link to="/users" style={{ textDecoration: 'none' }}>
               Users
             </Link>{' '}
-            / profile
+            / profile ·{' '}
+            <Link to={`/fair-play/athlete/${id}`}>Fair Play history</Link>
           </div>
           <h1>{u ? u.display_name || u.email || 'Unnamed warrior' : '…'}</h1>
           {u && (
