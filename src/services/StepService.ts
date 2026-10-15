@@ -19,12 +19,22 @@ export function stepErrorCode(error: unknown): StepErrorCode | null {
   return (m?.[0] as StepErrorCode) ?? null;
 }
 
+// Screens showing step progress refresh the moment a step is saved (coming
+// back from the trial screen doesn't always re-focus them).
+const savedListeners = new Set<() => void>();
+export function onStepSaved(listener: () => void): () => void {
+  savedListeners.add(listener);
+  return () => { savedListeners.delete(listener); };
+}
+
 export async function submitStep(tier: number, step: StepNumber, seconds: number): Promise<StepSubmitResult> {
-  return withNetworkRetry(async () => {
+  const result = await withNetworkRetry(async () => {
     const { data, error } = await supabase.rpc('submit_strength_step', { p_tier: tier, p_step: step, p_seconds: seconds });
     if (error) throw error;
     return data as StepSubmitResult;
   });
+  savedListeners.forEach(l => l());
+  return result;
 }
 
 export interface StepProgress {
@@ -47,4 +57,20 @@ export async function getStepProgress(userId: string, tier: number): Promise<Ste
     best[row.step] = Math.min(best[row.step] ?? Infinity, row.seconds);
   }
   return { cleared: Object.keys(best).map(Number).sort(), best };
+}
+
+/** Finished steps for every tier (Strength tab: current path + practice on past tiers). */
+export async function getAllStepProgress(userId: string): Promise<Record<number, StepProgress>> {
+  const { data, error } = await supabase
+    .from('strength_step_attempts')
+    .select('tier, step, seconds')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const out: Record<number, StepProgress> = {};
+  for (const row of (data ?? []) as { tier: number; step: number; seconds: number }[]) {
+    const p = (out[row.tier] ??= { cleared: [], best: {} });
+    p.best[row.step] = Math.min(p.best[row.step] ?? Infinity, row.seconds);
+  }
+  for (const p of Object.values(out)) p.cleared = Object.keys(p.best).map(Number).sort();
+  return out;
 }

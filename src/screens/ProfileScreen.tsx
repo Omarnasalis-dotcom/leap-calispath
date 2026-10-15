@@ -141,6 +141,17 @@ export function ProfileScreen({
       }
     }, [initialActiveTab, setActiveTab])
   );
+  // A local PROFILE/STRENGTH switch doesn't navigate, so the route's
+  // ?activeTab= kept the old value, and the resync above put the athlete back
+  // on it after any pushed screen (a trial, a step) returned here. Keep the
+  // param in step with the switch.
+  useEffect(() => {
+    if ((initialActiveTab === 'strength' || initialActiveTab === 'profile') && initialActiveTab !== activeTab) {
+      router.setParams({ activeTab });
+    }
+    // Only on a switch; the param itself is synced on focus above.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeTab]);
   const [showSettings, setShowSettings] = useState(false);
   const [showTierModal, setShowTierModal] = useState(false);
   const [modalTier, setModalTier] = useState<number | null>(null);

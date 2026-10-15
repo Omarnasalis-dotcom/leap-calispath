@@ -19,6 +19,9 @@ import { PlusTaskRow, TapOrigin, TrayMode } from '../components/journey/PlusTask
 import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
 import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
 import { useJourneyCommunity } from '../hooks/useJourneyCommunity';
+import { useStepProgress } from '../hooks/useStepProgress';
+import { ClimbItem, nextClimbItem } from '../lib/trialSteps';
+import { tierName } from '../lib/strengthClimb';
 import { AchievementsSheet } from '../components/journey/achievements/AchievementsSheet';
 import { AchievementCelebration } from '../components/journey/achievements/AchievementCelebration';
 import { useAchievementCelebration } from '../hooks/useAchievementCelebration';
@@ -2299,6 +2302,43 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // (see the trial's onPressCta below, which now passes questSlotKey).
   const trialResolved = isQuestSlotResolved(trialSlotKey);
 
+  // Strength Trial Steps (docs/features/STRENGTH_TRIAL_STEPS_PLAN.md): the
+  // checkpoint offers the athlete's next item on the climb — Step 1, Step 2,
+  // then their trial. Points come only from here (the slot's payout counts a
+  // finished step like a passed trial). The item offered is remembered per
+  // slot, so a finished checkpoint keeps saying what was done.
+  const climbTier = profile?.strength_tier ?? 0;
+  const { progress: stepProgress } = useStepProgress(profile?.id, climbTier);
+  const climbMemoKey = profile?.id && journeyData?.warriorProgramId && trialSlotKey
+    ? `journey_climb_item:v1:${profile.id}:${journeyData.warriorProgramId}:${trialSlotKey}`
+    : null;
+  const [startedClimbItem, setStartedClimbItem] = useState<ClimbItem | null>(null);
+  useEffect(() => {
+    setStartedClimbItem(null);
+    if (!climbMemoKey) return;
+    let live = true;
+    AsyncStorage.getItem(climbMemoKey)
+      .then(v => { if (live && v) setStartedClimbItem(JSON.parse(v) as ClimbItem); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [climbMemoKey]);
+  const liveClimbItem = nextClimbItem(climbTier, stepProgress?.cleared ?? []);
+  const climbItem = trialResolved && startedClimbItem ? startedClimbItem : liveClimbItem;
+  const startClimbItem = () => {
+    if (climbMemoKey && liveClimbItem) AsyncStorage.setItem(climbMemoKey, JSON.stringify(liveClimbItem)).catch(() => {});
+    if (liveClimbItem?.kind === 'step') {
+      router.push({
+        pathname: '/trial',
+        params: { mode: 'step', step: String(liveClimbItem.step), returnTo: 'journey', questSlotKey: trialSlotKey },
+      });
+    } else {
+      router.push({
+        pathname: '/trial',
+        params: { mode: 'progression', returnTo: 'journey', questSlotKey: trialSlotKey },
+      });
+    }
+  };
+
   // Single source of truth for "which row is the current step" -- the auto-
   // scroll ref used to be independently claimed at ~5 different render
   // sites (each milestone, the day rows, the trial row), which only stayed
@@ -2848,7 +2888,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   state={trialResolved ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
-                  title={t('journey.strengthTrial')}
+                  title={climbItem?.kind === 'step'
+                    ? t('trialSteps.title', { tier: tierName(climbItem.tier), n: climbItem.step })
+                    : t('journey.strengthTrial')}
                   desc={
                     trialSkipped
                       ? t('journey.skipped')
@@ -2857,17 +2899,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       : !isTrialWeek
                       ? t('journey.trialEvery2Weeks', { week: journeyData.currentWeek + 1 })
                       : weekComplete
-                      ? t('journey.trialReady')
+                      ? (climbItem?.kind === 'step' ? t('trialSteps.journeyReady', { tier: tierName(climbItem.tier) }) : t('journey.trialReady'))
                       : t('journey.trialLocked')
                   }
                   image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel={t('journey.start')}
-                  onPressCta={() =>
-                    router.push({
-                      pathname: '/trial',
-                      params: { mode: 'progression', returnTo: 'journey', questSlotKey: trialSlotKey },
-                    })
-                  }
+                  onPressCta={startClimbItem}
                   secondaryCtaLabel={!trialResolved ? t('journey.skip') : undefined}
                   onPressSecondaryCta={!trialResolved ? () => handleSkipQuest(trialSlotKey) : undefined}
                   isLast

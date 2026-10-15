@@ -21,6 +21,8 @@ export interface TrialStep {
   step: StepNumber;
   kind: StepKind;
   movements: TrialMovement[];
+  /** How many of `movements` are the opening (new) movements. */
+  openers: number;
   /** Same as the base trial's minimum. */
   minSeconds: number;
 }
@@ -86,6 +88,7 @@ export function getTrialStep(tier: number, step: StepNumber): TrialStep | undefi
     step,
     kind: step === 1 ? 'firstTaste' : 'bridge',
     movements: [...opening.map(m => ({ ...m })), ...body],
+    openers: opening.length,
     minSeconds: TIER_HARD_FLOORS[base],
   };
 }

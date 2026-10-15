@@ -1,4 +1,4 @@
-import { useFocusEffect } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, Text, useWindowDimensions, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -20,6 +20,10 @@ import {
   BoardFilters, filterByGender, KIT_EASE, kt, rankColor, WorldPage, WorldSheet, YouBadge, Gender, Scope,
 } from '../worlds/kit';
 import { t as tr, isArabic } from '../../i18n';
+import { useAllStepProgress } from '../../hooks/useStepProgress';
+import { StepProgress } from '../../services/StepService';
+import { stepCount, StepNumber } from '../../lib/trialSteps';
+import { PathChip, StepPathCard } from './StepPathCard';
 
 interface Props {
   profile: any;
@@ -60,6 +64,7 @@ function climbColors(t: WorldKitTokens) {
 }
 
 const NO_ENTRIES: LeaderboardEntry[] = [];
+const NO_PROGRESS: StepProgress = { cleared: [], best: {} };
 
 export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: Props) {
   const { mode } = useTheme();
@@ -74,6 +79,21 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
   const [selected, setSelected] = useState(currentTier);
   useEffect(() => { setSelected(currentTier); }, [currentTier]);
+  // Steps for every tier: the current card's path, practice on past tiers.
+  const { all: allSteps } = useAllStepProgress(userId);
+  const stepProgress = allSteps ? allSteps[currentTier] ?? NO_PROGRESS : null;
+  // The current card holds the path to the trial when the tier has steps; the
+  // carousel takes its measured height (never shorter than the other cards).
+  const hasPath = stepCount(currentTier) > 0;
+  const { height: screenH } = useWindowDimensions();
+  const compactCard = screenH < 760;
+  // Measured heights of the path cards (current + past tiers with steps); the
+  // carousel takes the tallest so every card fits.
+  const [pathHeights, setPathHeights] = useState<Record<number, number>>({});
+  const onPathMeasured = useCallback((tier: number, h: number) => {
+    setPathHeights(prev => (prev[tier] === h ? prev : { ...prev, [tier]: h }));
+  }, []);
+  const pathCardH = Object.values(pathHeights).reduce((m, h) => Math.max(m, h), 0);
 
   // Public boards for every tier (card stats show all ten at once).
   const [boards, setBoards] = useState<(LeaderboardEntry[] | null)[]>(() => TIERS.map(() => null));
@@ -148,6 +168,13 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     onStartTrialRef.current(tier < currentTier ? tier : undefined);
   }, [currentTier]);
   const showDetailsFor = useCallback((tier: number) => onShowTierDetailsRef.current(tier), []);
+  const startStep = useCallback((step: StepNumber) => router.push({ pathname: '/trial', params: { mode: 'step', step: String(step) } }), []);
+  // Practice: a past tier's step (no points, never changes tier).
+  const startPracticeStep = useCallback((tier: number, step: StepNumber) =>
+    router.push({ pathname: '/trial', params: { mode: 'step', step: String(step), tier: String(tier) } }), []);
+  const startCurrentTrial = useCallback(() => onStartTrialRef.current(undefined), []);
+  const showCurrentDetails = useCallback(() => onShowTierDetailsRef.current(currentTier), [currentTier]);
+
 
   return (
     <WorldPage tokens={t}>
@@ -160,14 +187,52 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
             onIndexChange={setSelected}
             // Arabic lines (Cairo) are taller; the fixed card needs the room
             // or the start-trial button spills over its bottom edge.
-            cardHeight={isArabic ? 380 : 336}
+            cardHeight={Math.max(isArabic ? 380 : 336, pathCardH)}
             maxCardWidth={318}
             inactiveOpacity={0.45}
             containerRef={tierCardsRef}
             onContainerLayout={onTierCardsLayout}
             swipeHintKey="strength"
             onSwipingChange={setSwiping}
-            renderCard={(tier, active) => (
+            renderCard={(tier, active) => hasPath && tier === currentTier ? (
+              <StepPathCard
+                tokens={t}
+                chip={{ text: tr('strength.current'), bg: t.accent, fg: t.onAccent, border: 'transparent' }}
+                caption={tierCaption(tier, currentTier, completedTiers)}
+                cardBg={c.cardCurrentBg}
+                cardBorder={c.cardCurrentBorder}
+                ghostColor={c.ghostCurrent}
+                tier={tier}
+                progress={stepProgress}
+                compact={compactCard}
+                active={active}
+                onStartStep={startStep}
+                onStartTrial={startCurrentTrial}
+                onShowDetails={showCurrentDetails}
+                onMeasured={h => onPathMeasured(tier, h)}
+                buttonRef={trialButtonRef}
+                onButtonLayout={onTrialButtonLayout}
+              />
+            ) : tier < currentTier && stepCount(tier) > 0 ? (
+              // Past tiers with steps: the same path card, as practice.
+              <StepPathCard
+                tokens={t}
+                mode="practice"
+                chip={pastChip(t, c, tierStatus(tier, currentTier, completedTiers))}
+                caption={tierCaption(tier, currentTier, completedTiers)}
+                cardBg={c.cardBg}
+                cardBorder={c.cardDoneBorder}
+                ghostColor={c.ghostOther}
+                tier={tier}
+                progress={allSteps ? allSteps[tier] ?? NO_PROGRESS : null}
+                compact={compactCard}
+                active={active}
+                onStartStep={step => startPracticeStep(tier, step)}
+                onStartTrial={() => startTrialFor(tier)}
+                onShowDetails={() => showDetailsFor(tier)}
+                onMeasured={h => onPathMeasured(tier, h)}
+              />
+            ) : (
               <TierCard
                 tokens={t}
                 colors={c}
@@ -396,6 +461,15 @@ const TierCard = React.memo(function TierCard({ tokens: t, colors: c, tier, curr
     </View>
   );
 });
+
+// ------------------------------------------------------------ past chip
+
+/** COMPLETE / PLACED chip for a past tier (same as TierCard's). */
+function pastChip(t: WorldKitTokens, c: Colors, status: ReturnType<typeof tierStatus>): PathChip {
+  return status === 'complete'
+    ? { text: tr('strength.complete'), bg: 'transparent', fg: c.green, border: c.greenBorder }
+    : { text: tr('strength.placed'), bg: 'transparent', fg: t.textSecondary, border: t.borderStrong };
+}
 
 // ------------------------------------------------------------ climb line
 

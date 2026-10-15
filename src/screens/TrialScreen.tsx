@@ -28,7 +28,7 @@ import { TIER_HARD_FLOORS } from '../constants/Progression';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 import { TrialService } from '../services/TrialService';
-import { submitStep, stepErrorCode } from '../services/StepService';
+import { getStepProgress, submitStep, stepErrorCode } from '../services/StepService';
 import { getTrialStep, StepNumber } from '../lib/trialSteps';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
@@ -98,6 +98,8 @@ export function TrialScreen({
   const isStep = initialMode === 'step';
   /** Set when a step is saved: drives the step result card. */
   const [stepResult, setStepResult] = useState<{ firstClear: boolean; best: number } | null>(null);
+  /** The athlete's best on this step before this attempt (null = never finished). */
+  const [stepBest, setStepBest] = useState<number | null>(null);
 
   const getTierAccentColor = (tier: number) => {
     if (tier <= 2) return '#B0BEC5'; // Foundation - Steel
@@ -141,8 +143,9 @@ export function TrialScreen({
 
   // Determine which tier to use
   const nextTier = profile ? profile.strength_tier : 0;
-  const targetTier = initialMode === 'practice' && initialPracticeTier !== null
-    ? initialPracticeTier
+  // A step is for the current tier, or a tier below it as practice (`tier` param).
+  const targetTier = (initialMode === 'practice' || initialMode === 'step') && initialPracticeTier !== null
+    ? Math.min(initialPracticeTier, nextTier)
     : initialMode === 'eternal'
       ? 8 // Demigod Eternal
       : nextTier;
@@ -156,6 +159,16 @@ export function TrialScreen({
       }
     }
   }, [profile, targetTier, hasStarted, trial, initialMode, initialStep]);
+
+  // A step shows your best before you start, and the result compares with it.
+  useEffect(() => {
+    if (!isStep || !user || !trial) return;
+    let live = true;
+    getStepProgress(user.id, trial.tier + 1)
+      .then(p => { if (live) setStepBest(p.best[initialStep] ?? null); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [isStep, user, trial, initialStep]);
 
   useEffect(() => {
     if (isRunning) {
@@ -227,7 +240,7 @@ export function TrialScreen({
       // Already ranked past it, left too long, or over the server's ceiling.
       const stale = !savedTrial
         || (saved.mode === 'progression' && saved.tier !== profile.strength_tier)
-        || (saved.mode === 'step' && saved.tier + 1 !== profile.strength_tier)
+        || (saved.mode === 'step' && saved.tier + 1 > profile.strength_tier)
         || saved.tier > profile.strength_tier
         || Date.now() - saved.savedAt > RESUME_WINDOW_MS
         || (saved.finishedSeconds === undefined && elapsed > MAX_TRIAL_SECONDS);
@@ -721,7 +734,8 @@ export function TrialScreen({
     );
   }
 
-  const stepKind = stepResult?.firstClear ? 'first_completion' : stepResult && timeSeconds <= stepResult.best ? 'new_best' : 'attempt';
+  const stepKind = stepResult?.firstClear ? 'first_completion'
+    : stepResult && (stepBest == null || timeSeconds < stepBest) ? 'new_best' : 'attempt';
   const currentStep = trial.movements[currentStepIdx];
   const nextStep1 = currentStepIdx + 1 < trial.movements.length ? trial.movements[currentStepIdx + 1] : null;
   const nextStep2 = currentStepIdx + 2 < trial.movements.length ? trial.movements[currentStepIdx + 2] : null;
@@ -756,6 +770,11 @@ export function TrialScreen({
               <Text style={[styles.badgeText, { color: theme.accent }]}>{t('trial.practiceMode')}</Text>
             </View>
           )}
+          {isStep && trial.tier + 1 < (profile?.strength_tier ?? 0) && (
+            <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
+              <Text style={[styles.badgeText, { color: theme.accent }]}>{t('trial.practiceMode')}</Text>
+            </View>
+          )}
           {isStep && (
             <View style={[styles.badge, { backgroundColor: accentColor }]}>
               <Text style={[styles.badgeText, { color: '#FFF' }]}>{t(initialStep === 1 ? 'trialSteps.firstTaste' : 'trialSteps.bridge')}</Text>
@@ -767,7 +786,7 @@ export function TrialScreen({
             </View>
           )}
           <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
-            <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(trial.tier).toUpperCase()}</Text>
+            <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(isStep ? trial.tier + 1 : trial.tier).toUpperCase()}</Text>
           </View>
         </View>
 
@@ -778,6 +797,11 @@ export function TrialScreen({
               {hasStarted ? t('trial.trialClock') : t('trial.ready')}
             </Text>
             <Text style={[styles.timer, { color: theme.text.primary }]}>{formatTime(timeSeconds)}</Text>
+            {isStep && stepBest != null && (
+              <Text style={[styles.timerLabel, { color: theme.text.tertiary, marginTop: 4 }]}>
+                {t('trialSteps.yourBest', { time: ltr(formatTime(stepBest)) })}
+              </Text>
+            )}
           </Animated.View>
         </View>
 
@@ -904,11 +928,10 @@ export function TrialScreen({
       <TrialFeedbackModal
         visible={stepResult !== null}
         kind={stepKind}
-        tier={trial.tier}
+        tier={trial.tier + 1}
         timeSeconds={timeSeconds}
-        // The server returns the best after this attempt, so only a slower
-        // attempt has a best to compare with.
-        previousTimeSeconds={stepKind === 'attempt' ? stepResult?.best : null}
+        // New best: old → new (the best before this attempt); slower: vs the best.
+        previousTimeSeconds={stepKind === 'new_best' ? stepBest : stepKind === 'attempt' ? stepResult?.best : null}
         stepTitle={trialDisplayName}
         onDismiss={() => {
           setStepResult(null);
