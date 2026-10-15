@@ -1179,6 +1179,9 @@ const en = {
     share: 'Share achievement',
   },
   prCelebration: {
+    newBestTime: 'NEW BEST TIME',
+    time: 'TIME',
+    timeSaved: 'TIME SAVED',
     newRecord: 'NEW PERSONAL RECORD',
     seconds: 'SECONDS',
     reps: 'REPS',
@@ -1201,6 +1204,7 @@ const en = {
     tapToSkip: 'Tap to skip to the end',
   },
   celebration: {
+    strengthWorld: 'STRENGTH',
     staticWorld: 'STATIC WORLD',
     powerWorld: 'POWER WORLD',
     enduranceWorld: 'ENDURANCE WORLD',

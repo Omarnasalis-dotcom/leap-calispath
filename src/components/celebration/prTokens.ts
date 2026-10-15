@@ -43,7 +43,7 @@ export interface PRTokens {
   floorLine: string;
 }
 
-const ACCENT: Record<PRWorld, string> = { static: '#8E6BFF', endurance: '#FF6B2C', power: '#FF4A3D' };
+const ACCENT: Record<PRWorld, string> = { static: '#8E6BFF', endurance: '#FF6B2C', power: '#FF4A3D', strength: '#FC5454' };
 
 const DARK: Record<PRWorld, Pick<PRTokens, 'cardBg' | 'statsBg' | 'statsBorder' | 'track' | 'tickOld' | 'pillBorder' | 'saveBorder' | 'saveText' | 'onAccent' | 'markerIdle' | 'mote' | 'floorLine'>> = {
   static: {
@@ -61,9 +61,15 @@ const DARK: Record<PRWorld, Pick<PRTokens, 'cardBg' | 'statsBg' | 'statsBorder' 
     pillBorder: '#3a1a18', saveBorder: '#5a2622', saveText: '#ff9d94', onAccent: '#ffffff',
     markerIdle: '#6a3a36', mote: 'rgba(255,120,110,0.5)', floorLine: '#2a1614',
   },
+  // Strength trial new best (same family; the app's coral).
+  strength: {
+    cardBg: '#0e0808', statsBg: '#140a0a', statsBorder: '#2a1616', track: '#2a1d1d', tickOld: '#2a1d1d',
+    pillBorder: '#3a1c1c', saveBorder: '#5a2626', saveText: '#ff9a9a', onAccent: '#ffffff',
+    markerIdle: '#6a3a3a', mote: 'rgba(252,120,120,0.5)', floorLine: '#2a1616',
+  },
 };
 
-const KIT_KEY: Record<PRWorld, 'static' | 'onemm' | 'power'> = { static: 'static', endurance: 'onemm', power: 'power' };
+const KIT_KEY: Record<PRWorld, 'static' | 'onemm' | 'power' | 'strength'> = { static: 'static', endurance: 'onemm', power: 'power', strength: 'strength' };
 
 export function getPRTokens(world: PRWorld, mode: ThemeMode): PRTokens {
   const accent = ACCENT[world];

@@ -1,4 +1,5 @@
 import {
+  formatClock,
   formatKg,
   gainOf,
   plateBreakdown,
@@ -96,5 +97,16 @@ describe('timeline', () => {
     expect(settledAt(2.1)).toBeCloseTo(3.6);
     expect(timeAtFill(0.5)).toBeCloseTo(1.35);
     expect(ringProgress(timeAtFill(8 / 11))).toBeCloseTo(8 / 11);
+  });
+});
+
+describe('strength new best (lower is better)', () => {
+  it('counts the time saved as the gain', () => {
+    expect(gainOf(192, 220, true)).toEqual({ gain: 28, pct: 13 });
+  });
+  it('formats trial times as m:ss', () => {
+    expect(formatClock(192)).toBe('3:12');
+    expect(formatClock(65)).toBe('1:05');
+    expect(formatClock(9)).toBe('0:09');
   });
 });

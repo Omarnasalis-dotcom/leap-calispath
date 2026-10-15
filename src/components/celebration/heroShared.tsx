@@ -39,8 +39,10 @@ export function useLocked(clock: SharedValue<number>, lock: number): boolean {
 }
 
 /** The big counter + unit in the middle of the ring, with the LOCK bump. */
-export function RingNumber({ clock, tokens: t, lock, count, unit, locked }: {
-  clock: SharedValue<number>; tokens: PRTokens; lock: number; count: number; unit: string; locked: boolean;
+export function RingNumber({ clock, tokens: t, lock, count, unit, locked, fontSize = 92 }: {
+  clock: SharedValue<number>; tokens: PRTokens; lock: number; count: number | string; unit: string; locked: boolean;
+  /** Strength shows m:ss, which needs a smaller size to fit the ring. */
+  fontSize?: number;
 }) {
   const bump = useAnimatedStyle(() => {
     const T = clock.value;
@@ -53,7 +55,7 @@ export function RingNumber({ clock, tokens: t, lock, count, unit, locked }: {
         style={[
           // Oswald's digits are taller than 1× — a tight line box clipped the top and
           // boxed in the glow, so give both room.
-          kt('bold', 92, t.text, 0, 116),
+          kt('bold', fontSize, t.text, 0, Math.round(fontSize * 1.26)),
           { fontVariant: ['tabular-nums'], paddingHorizontal: 22, marginVertical: -10 },
           locked && { textShadowColor: t.accent, textShadowRadius: 14, textShadowOffset: { width: 0, height: 0 } },
           bump,

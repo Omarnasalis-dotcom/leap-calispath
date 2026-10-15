@@ -7,6 +7,7 @@ import { AchievementCelebration } from '../src/components/journey/achievements/A
 import { CelebrationData } from '../src/lib/journeyCelebration';
 import { ACHIEVEMENTS } from '../src/lib/journeyAchievements';
 import { WelcomeTourCard } from '../src/components/tutorial/WelcomeTourCard';
+import { PRCelebration } from '../src/components/celebration/PRCelebration';
 import { t } from '../src/i18n';
 
 /**
@@ -62,6 +63,7 @@ export default function DevBadges() {
   const insets = useSafeAreaInsets();
   const [playing, setPlaying] = useState<CelebrationData | null>(null);
   const [welcome, setWelcome] = useState<{ tier: number; name: string | null } | null>(null);
+  const [strengthPR, setStrengthPR] = useState(false);
   if (!__DEV__) return <Redirect href="/" />;
   return (
     <ScrollView style={{ flex: 1, backgroundColor: '#000' }} contentContainerStyle={{ paddingTop: insets.top + 12, paddingBottom: insets.bottom + 40 }}>
@@ -102,6 +104,9 @@ export default function DevBadges() {
       <View style={{ paddingHorizontal: 20, paddingBottom: 16, gap: 10 }}>
         <Text style={{ color: '#8a8a8a', fontFamily: 'Oswald-Medium', fontSize: 11, letterSpacing: 2 }}>STRENGTH TRIAL STEPS (YOUR TIER)</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          <Pressable onPress={() => setStrengthPR(true)} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: '#FC5454', justifyContent: 'center' }}>
+            <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>TRIAL NEW BEST</Text>
+          </Pressable>
           {(['1', '2'] as const).map(step => (
             <Pressable key={step} onPress={() => router.push({ pathname: '/trial', params: { mode: 'step', step } })} style={{ paddingHorizontal: 12, height: 34, borderRadius: 10, borderWidth: 1, borderColor: '#FC5454', justifyContent: 'center' }}>
               <Text style={{ color: '#FC5454', fontFamily: 'Oswald-SemiBold', fontSize: 12, letterSpacing: 1.2 }}>STEP {step}</Text>
@@ -109,6 +114,7 @@ export default function DevBadges() {
           ))}
         </View>
       </View>
+      <PRCelebration visible={strengthPR} world="strength" movement="Hoplite Trial" value={192} previous={220} handle="you" onDismiss={() => setStrengthPR(false)} />
       <WelcomeTourCard visible={welcome != null} tier={welcome?.tier ?? 0} name={welcome?.name} onStart={() => setWelcome(null)} onSkip={() => setWelcome(null)} />
       {[false, true].map(light => (
         <View key={String(light)} style={{ backgroundColor: light ? '#f3f1ef' : '#0c0b0d', paddingHorizontal: 20, paddingVertical: 8 }}>

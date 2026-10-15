@@ -31,6 +31,7 @@ import { TrialService } from '../services/TrialService';
 import { getStepProgress, submitStep, stepErrorCode } from '../services/StepService';
 import { getTrialStep, StepNumber } from '../lib/trialSteps';
 import { StepClearedCard } from '../components/strength/StepClearedCard';
+import { PRCelebration } from '../components/celebration/PRCelebration';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
@@ -89,6 +90,8 @@ export function TrialScreen({
     previousTimeSeconds?: number | null;
   } | null>(null);
   const [prepCountdown, setPrepCountdown] = useState<number | null>(null);
+  /** A new best on a tier you'd already completed: the animated PR card. */
+  const [newBest, setNewBest] = useState<{ time: number; previous: number } | null>(null);
   const prepStartTimeRef = useRef<number | null>(null);
   const prepTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -501,12 +504,13 @@ export function TrialScreen({
         } else if (result?.is_first_completion) {
           setFeedbackCard({ kind: 'first_completion', tier: trial.tier, timeSeconds });
         } else if (result?.is_new_best) {
-          setFeedbackCard({
-            kind: 'new_best',
-            tier: trial.tier,
-            timeSeconds,
-            previousTimeSeconds: result.previous_best_time_seconds ?? null,
-          });
+          const previous = result.previous_best_time_seconds ?? null;
+          if (previous != null && previous > timeSeconds) {
+            // Beat your own best on a tier you'd already completed.
+            setNewBest({ time: timeSeconds, previous });
+          } else {
+            setFeedbackCard({ kind: 'new_best', tier: trial.tier, timeSeconds, previousTimeSeconds: previous });
+          }
           NotificationService.notify(
             user.id,
             'new_best_time',
@@ -930,6 +934,18 @@ export function TrialScreen({
         previousTimeSeconds={feedbackCard?.previousTimeSeconds}
         onDismiss={() => {
           setFeedbackCard(null);
+          onBack ? onBack() : null;
+        }}
+      />
+      <PRCelebration
+        visible={newBest !== null}
+        world="strength"
+        movement={trialDisplayName}
+        value={newBest?.time ?? timeSeconds}
+        previous={newBest?.previous ?? null}
+        handle={profile?.display_name ?? ''}
+        onDismiss={() => {
+          setNewBest(null);
           onBack ? onBack() : null;
         }}
       />

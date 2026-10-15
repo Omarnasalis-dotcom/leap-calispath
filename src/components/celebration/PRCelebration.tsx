@@ -6,7 +6,7 @@ import Animated, {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
 import * as Haptics from 'expo-haptics';
-import Svg, { Path } from 'react-native-svg';
+import Svg, { Path, Rect } from 'react-native-svg';
 import { countPassed } from '../../lib/fx/easing';
 import { useTheme } from '../../contexts/ThemeContext';
 import { shareCardImage } from '../../lib/shareCard';
@@ -15,12 +15,13 @@ import { KitIcon, kt } from '../worlds/kit';
 import { LeapLogo } from '../LeapLogo';
 import { initials } from '../../lib/worldStanding';
 import {
-  AFTER_LOCK, clamp01, easeOutBack, easeOutCubic, formatKg, gainOf, plateStack, PRWorld, RING_LOCK, ringProgress, settledAt,
+  AFTER_LOCK, clamp01, easeOutBack, easeOutCubic, formatKg, gainOf, plateStack, PRWorld, RING_LOCK, ringProgress, settledAt, formatClock,
 } from '../../lib/prCelebration';
 import { getPRTokens, PRTokens } from './prTokens';
 import { StaticHero } from './StaticHero';
 import { EnduranceHero } from './EnduranceHero';
 import { PowerHero } from './PowerHero';
+import { StrengthHero } from './StrengthHero';
 import { Motes } from './Motes';
 import { isArabic, ltr, t as tr } from '../../i18n';
 
@@ -43,15 +44,18 @@ const WORLD_TITLE: Record<PRWorld, string> = {
   static: 'celebration.staticWorld',
   endurance: 'celebration.enduranceWorld',
   power: 'celebration.powerWorld',
+  strength: 'celebration.strengthWorld',
 };
 
 export function formatPRValue(world: PRWorld, v: number): string {
+  if (world === 'strength') return formatClock(v);
   if (world === 'power') return tr('prCelebration.valueKg', { v: formatKg(v) });
   if (world === 'static') return tr('prCelebration.valueSec', { v: Math.round(v) });
   return tr('prCelebration.valueReps', { count: Math.round(v) });
 }
 
 function formatGain(world: PRWorld, gain: number): string {
+  if (world === 'strength') return `−${formatClock(gain)}`;
   if (world === 'power') return tr('prCelebration.gainKg', { v: formatKg(gain) });
   if (world === 'static') return tr('prCelebration.gainSec', { v: Math.round(gain) });
   return tr('prCelebration.gainReps', { count: Math.round(gain) });
@@ -75,6 +79,13 @@ function ShareIcon({ color }: { color: string }) {
 }
 
 function WorldIcon({ world, color }: { world: PRWorld; color: string }) {
+  if (world === 'strength') {
+    return (
+      <Svg width={12} height={12} viewBox="0 0 13 13">
+        {[0, 1, 2, 3].map(i => <Rect key={i} x={i * 3.4} y={9 - i * 2.6} width={2.4} height={4 + i * 2.6} rx={1} fill={color} />)}
+      </Svg>
+    );
+  }
   return <KitIcon name={world === 'static' ? 'snowflake' : world === 'endurance' ? 'stopwatch' : 'bolt'} size={12} color={color} strokeWidth={2.6} />;
 }
 
@@ -94,7 +105,8 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
   const lock = stack ? stack.lock : RING_LOCK;
   const end = settledAt(lock);
   const landTimes = useMemo(() => stack?.plates.map(p => p.land) ?? [], [stack]);
-  const gain = gainOf(value, prev);
+  const strength = world === 'strength';
+  const gain = gainOf(value, prev, strength);
 
   const clock = useSharedValue(0);
   const fade = useSharedValue(1);
@@ -144,7 +156,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
   // A tick per count on the ring worlds — only for short counts, so a big
   // number doesn't turn into a buzz.
   useAnimatedReaction(
-    () => (world !== 'power' && value <= 30 ? Math.round(ringProgress(clock.value) * value) : -1),
+    () => (world !== 'power' && !strength && value <= 30 ? Math.round(ringProgress(clock.value) * value) : -1),
     (now, was) => { if (was != null && now > was && now - was === 1 && clock.value < lock) runOnJS(tick)(); },
   );
 
@@ -265,12 +277,13 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
               </View>
 
               <Animated.Text style={[kt('semibold', 12, t.textSecondary, 4), { marginTop: 20, textAlign: 'center' }, titleStyle]}>
-                {tr('prCelebration.newRecord')}
+                {tr(strength ? 'prCelebration.newBestTime' : 'prCelebration.newRecord')}
               </Animated.Text>
 
               {world === 'static' && <StaticHero {...heroProps} />}
               {world === 'endurance' && <EnduranceHero {...heroProps} />}
               {world === 'power' && stack && <PowerHero {...heroProps} stack={stack} />}
+              {strength && <StrengthHero {...heroProps} />}
 
               <Animated.View style={[{ marginTop: 16 }, nameStyle]}>
                 <Text style={[kt('bold', 30, t.text, 1.4, 34), { textAlign: 'center' }]} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.7}>
@@ -299,7 +312,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
                   </Text>
                 </View>
                 <View style={{ flex: 1, paddingHorizontal: 18, borderStartWidth: 1, borderStartColor: t.statsBorder }}>
-                  <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('prCelebration.gain')}</Text>
+                  <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr(strength ? 'prCelebration.timeSaved' : 'prCelebration.gain')}</Text>
                   <View style={{ flexDirection: 'row', flexWrap: 'wrap', alignItems: 'baseline', columnGap: 6, marginTop: 4 }}>
                     <Animated.Text
                       style={[kt('bold', gainText.length > 8 ? 20 : 24, t.accentText), gainPop]}
@@ -307,7 +320,7 @@ function PRCelebrationModal({ world, movement, value, previous, handle, onDismis
                     >
                       {ltr(gainText)}
                     </Animated.Text>
-                    {gain && <Text style={kt('medium', 12, t.textFaint)}>{ltr(`+${gain.pct}%`)}</Text>}
+                    {gain && <Text style={kt('medium', 12, t.textFaint)}>{ltr(`${strength ? '−' : '+'}${gain.pct}%`)}</Text>}
                   </View>
                 </View>
               </Animated.View>

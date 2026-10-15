@@ -7,7 +7,7 @@
  * the UI thread; in Jest they are plain functions.
  */
 
-export type PRWorld = 'static' | 'endurance' | 'power';
+export type PRWorld = 'static' | 'endurance' | 'power' | 'strength';
 
 // ── Easing ────────────────────────────────────────────────────────────────
 export const clamp01 = (x: number) => {
@@ -80,9 +80,10 @@ export function formatKg(v: number): string {
 }
 
 /** Gain over the previous best; null previous = first record. */
-export function gainOf(value: number, previous: number | null): { gain: number; pct: number } | null {
+/** Gain over the previous best; `lowerIsBetter` (Strength trial times) counts the time saved. */
+export function gainOf(value: number, previous: number | null, lowerIsBetter = false): { gain: number; pct: number } | null {
   if (previous == null || previous <= 0) return null;
-  const gain = value - previous;
+  const gain = lowerIsBetter ? previous - value : value - previous;
   return { gain, pct: Math.round((gain / Math.max(1, previous)) * 100) };
 }
 
@@ -174,4 +175,13 @@ export function plateStack(kg: number): PlateStack {
   // No plate fits a sub-1.25 kg weight: the number still slams onto the pin.
   const numberStart = (plates.length ? t : FILL_START) + 0.12;
   return { plates, stackTop: plates.length ? y : floor, numberStart, lock: numberStart + 0.3 };
+}
+
+/** m:ss for a Strength trial time (worklet-safe: also used on the UI thread). */
+export function formatClock(seconds: number): string {
+  'worklet';
+  const s = Math.max(0, Math.round(seconds));
+  const m = Math.floor(s / 60);
+  const r = s % 60;
+  return `${m}:${r < 10 ? '0' : ''}${r}`;
 }

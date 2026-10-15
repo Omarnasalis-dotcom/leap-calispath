@@ -1266,6 +1266,9 @@ const ar: Translations = {
     share: 'مشاركة الإنجاز',
   },
   prCelebration: {
+    newBestTime: 'أفضل وقت جديد',
+    time: 'الوقت',
+    timeSaved: 'الوقت الموفَّر',
     newRecord: 'رقم شخصي جديد',
     seconds: 'ثانية',
     reps: 'تكرار',
@@ -1296,6 +1299,7 @@ const ar: Translations = {
     tapToSkip: 'انقر للانتقال إلى النهاية',
   },
   celebration: {
+    strengthWorld: 'القوة',
     staticWorld: 'عالم الثبات',
     powerWorld: 'عالم الطاقة',
     enduranceWorld: 'عالم التحمّل',
