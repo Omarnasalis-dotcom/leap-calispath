@@ -2124,6 +2124,12 @@ const en = {
     finish: 'FINISH STEP',
     cleared: 'STEP CLEARED',
     notAvailable: "This step isn't available any more. Your tier or steps changed.",
+    // Journey trial checkpoint: pick Step 1, Step 2 or the trial (owner decision 2026-10-16).
+    switchA11y: 'Choose a different trial',
+    switchTitle: 'CHOOSE YOUR TRIAL',
+    switchSub: 'Pick what you do at this checkpoint. Finish any of them here to earn the points.',
+    switchLocked: 'Clear Step {{n}} first',
+    switchCleared: 'CLEARED',
   },
   trial: {
     name: '{{tier}} Trial',

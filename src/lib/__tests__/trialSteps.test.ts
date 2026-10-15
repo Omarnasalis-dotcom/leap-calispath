@@ -1,4 +1,4 @@
-import { getTrialStep, nextClimbItem, plusTwo, stepCount } from '../trialSteps';
+import { climbOptions, getTrialStep, isClimbItemAvailable, nextClimbItem, plusTwo, sameClimbItem, stepCount } from '../trialSteps';
 import { RITES_OF_PASSAGE } from '../trials';
 import { TIER_HARD_FLOORS } from '../../constants/Progression';
 
@@ -99,5 +99,35 @@ describe('trialSteps', () => {
     expect(nextClimbItem(0, [])).toEqual({ kind: 'trial', tier: 0 });
     expect(nextClimbItem(9, [1, 2])).toEqual({ kind: 'trial', tier: 9 });
     expect(nextClimbItem(10, [])).toBeNull();
+  });
+  it('lists the checkpoint switch options: steps in order, then the trial', () => {
+    expect(climbOptions(4, [])).toEqual([
+      { item: { kind: 'step', tier: 4, step: 1 }, cleared: false, locked: false },
+      { item: { kind: 'step', tier: 4, step: 2 }, cleared: false, locked: true },
+      { item: { kind: 'trial', tier: 4 }, cleared: false, locked: false },
+    ]);
+    expect(climbOptions(4, [1]).map(o => [o.cleared, o.locked])).toEqual([[true, false], [false, false], [false, false]]);
+    // Not loaded yet: Step 2 waits.
+    expect(climbOptions(4, null)[1].locked).toBe(true);
+    expect(climbOptions(1, []).map(o => o.item.kind)).toEqual(['step', 'trial']);
+    expect(climbOptions(0, [])).toEqual([{ item: { kind: 'trial', tier: 0 }, cleared: false, locked: false }]);
+  });
+
+  it('keeps a remembered pick only while it still fits the athlete', () => {
+    expect(isClimbItemAvailable({ kind: 'trial', tier: 4 }, 4, [])).toBe(true);
+    expect(isClimbItemAvailable({ kind: 'step', tier: 4, step: 1 }, 4, [1, 2])).toBe(true);
+    expect(isClimbItemAvailable({ kind: 'step', tier: 4, step: 2 }, 4, [])).toBe(false);
+    expect(isClimbItemAvailable({ kind: 'step', tier: 4, step: 2 }, 4, [1])).toBe(true);
+    expect(isClimbItemAvailable({ kind: 'step', tier: 4, step: 2 }, 4, null)).toBe(true);
+    // Ranked up since the pick, or a step the tier doesn't have.
+    expect(isClimbItemAvailable({ kind: 'step', tier: 4, step: 1 }, 5, [])).toBe(false);
+    expect(isClimbItemAvailable({ kind: 'step', tier: 1, step: 2 }, 1, [1])).toBe(false);
+  });
+
+  it('compares climb items', () => {
+    expect(sameClimbItem({ kind: 'step', tier: 4, step: 1 }, { kind: 'step', tier: 4, step: 1 })).toBe(true);
+    expect(sameClimbItem({ kind: 'step', tier: 4, step: 1 }, { kind: 'step', tier: 4, step: 2 })).toBe(false);
+    expect(sameClimbItem({ kind: 'trial', tier: 4 }, { kind: 'step', tier: 4, step: 1 })).toBe(false);
+    expect(sameClimbItem({ kind: 'trial', tier: 4 }, null)).toBe(false);
   });
 });

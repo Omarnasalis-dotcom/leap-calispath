@@ -136,3 +136,8 @@ const lightStyles = StyleSheet.create({
   closeBtn: { ...darkStyles.closeBtn, borderColor: 'rgba(0,0,0,0.15)' },
   closeText: { ...darkStyles.closeText, color: 'rgba(0,0,0,0.65)' },
 });
+
+/** The same sheet look for the Journey's other switch sheets (SwitchTrialSheet). */
+export function useSwitchSheetStyles() {
+  return useTheme().mode === 'light' ? lightStyles : darkStyles;
+}

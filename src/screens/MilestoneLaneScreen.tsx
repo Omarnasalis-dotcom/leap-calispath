@@ -12,6 +12,7 @@ import { RankUpToast } from '../components/trial/RankUpToast';
 import { ProgramReadyReveal } from '../components/trial/ProgramReadyReveal';
 import { WelcomeIntro } from '../components/onboarding/WelcomeIntro';
 import { SwitchDaySheet } from '../components/journey/SwitchDaySheet';
+import { SwitchTrialSheet } from '../components/journey/SwitchTrialSheet';
 import { POINTS_BAR_HEIGHT } from '../components/journey/JourneyPointsBar';
 import { BURST_LAND_MS } from '../components/journey/RewardFx';
 import { JourneyPointsOverlay, JourneyPointsOverlayHandle } from '../components/journey/JourneyPointsOverlay';
@@ -20,7 +21,7 @@ import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
 import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
 import { useJourneyCommunity } from '../hooks/useJourneyCommunity';
 import { useStepProgress } from '../hooks/useStepProgress';
-import { ClimbItem, nextClimbItem } from '../lib/trialSteps';
+import { ClimbItem, climbOptions, isClimbItemAvailable, nextClimbItem, stepCount } from '../lib/trialSteps';
 import { tierName } from '../lib/strengthClimb';
 import { AchievementsSheet } from '../components/journey/achievements/AchievementsSheet';
 import { AchievementCelebration } from '../components/journey/achievements/AchievementCelebration';
@@ -532,6 +533,7 @@ function JourneyCardBody({
   showHereBadge,
   mirrorPhotoInRTL = true,
   onPressSwitch,
+  switchLabel,
 }: {
   state: NodeState;
   // Active/locked render it full-bleed; complete renders a small rounded
@@ -553,8 +555,10 @@ function JourneyCardBody({
   // so its subject would sit under the text -- mirrored instead. Off for
   // covers with readable text in them.
   mirrorPhotoInRTL?: boolean;
-  // Active day cards only: the small top-corner "switch day" icon.
+  // Active day cards (and the trial checkpoint): the small top-corner switch icon.
   onPressSwitch?: () => void;
+  /** Screen-reader label for that icon (default "Switch day"). */
+  switchLabel?: string;
 }) {
   const styles = useLaneStyles();
   const isLight = useTheme().mode === 'light';
@@ -651,7 +655,7 @@ function JourneyCardBody({
           onPress={onPressSwitch}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel={t('journey.switchDay')}
+          accessibilityLabel={switchLabel ?? t('journey.switchDay')}
         >
           <MaterialCommunityIcons name="swap-horizontal" size={15} color={isLight ? LIGHT_INK : '#FFFFFF'} />
         </TouchableOpacity>
@@ -714,6 +718,7 @@ function NodeRow({
   children,
   mirrorPhotoInRTL,
   onPressSwitch,
+  switchLabel,
   glowSignal,
 }: {
   number: number;
@@ -741,6 +746,7 @@ function NodeRow({
   children?: React.ReactNode;
   mirrorPhotoInRTL?: boolean;
   onPressSwitch?: () => void;
+  switchLabel?: string;
   glowSignal?: number;
 }) {
   const styles = useLaneStyles();
@@ -796,6 +802,7 @@ function NodeRow({
             onPressCta={onPressCta}
             secondaryCtaLabel={secondaryCtaLabel}
             onPressSwitch={onPressSwitch}
+            switchLabel={switchLabel}
             glowSignal={glowSignal}
             onPressSecondaryCta={onPressSecondaryCta}
             showHereBadge={state === 'active'}
@@ -2307,7 +2314,32 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       .catch(() => {});
     return () => { live = false; };
   }, [climbMemoKey]);
-  const liveClimbItem = nextClimbItem(climbTier, stepProgress?.cleared ?? []);
+  // The athlete can switch this checkpoint to Step 1, Step 2 or the trial
+  // (owner decision 2026-10-16; any one finished here pays, a replayed
+  // cleared step included). The pick is remembered per slot and dropped
+  // when it no longer fits (rank-up, Step 2 before Step 1).
+  const climbPickKey = climbMemoKey ? climbMemoKey.replace('journey_climb_item:v1:', 'journey_climb_pick:v1:') : null;
+  const [pickedClimbItem, setPickedClimbItem] = useState<ClimbItem | null>(null);
+  const [switchTrialOpen, setSwitchTrialOpen] = useState(false);
+  useEffect(() => {
+    setPickedClimbItem(null);
+    if (!climbPickKey) return;
+    let live = true;
+    AsyncStorage.getItem(climbPickKey)
+      .then(v => { if (live && v) setPickedClimbItem(JSON.parse(v) as ClimbItem); })
+      .catch(() => {});
+    return () => { live = false; };
+  }, [climbPickKey]);
+  const clearedSteps = stepProgress?.cleared ?? null;
+  const liveClimbItem = pickedClimbItem && isClimbItemAvailable(pickedClimbItem, climbTier, clearedSteps)
+    ? pickedClimbItem
+    : nextClimbItem(climbTier, clearedSteps ?? []);
+  const canSwitchClimbItem = stepCount(climbTier) > 0;
+  const handlePickClimbItem = (item: ClimbItem) => {
+    setSwitchTrialOpen(false);
+    setPickedClimbItem(item);
+    if (climbPickKey) AsyncStorage.setItem(climbPickKey, JSON.stringify(item)).catch(() => {});
+  };
   const climbItem = trialResolved && startedClimbItem ? startedClimbItem : liveClimbItem;
   const startClimbItem = () => {
     if (climbMemoKey && liveClimbItem) AsyncStorage.setItem(climbMemoKey, JSON.stringify(liveClimbItem)).catch(() => {});
@@ -2567,6 +2599,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       days={switchableDays}
       onPick={handleSwitchDay}
       onClose={() => setSwitchDayOpen(false)}
+    />
+    <SwitchTrialSheet
+      visible={switchTrialOpen}
+      options={climbOptions(climbTier, clearedSteps)}
+      current={liveClimbItem}
+      best={stepProgress?.best}
+      onPick={handlePickClimbItem}
+      onClose={() => setSwitchTrialOpen(false)}
     />
     {showRankToast && (
       <RankUpToast
@@ -2890,6 +2930,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}
                   ctaLabel={t('journey.start')}
                   onPressCta={startClimbItem}
+                  onPressSwitch={!trialResolved && weekComplete && isTrialWeek && canSwitchClimbItem ? () => setSwitchTrialOpen(true) : undefined}
+                  switchLabel={t('trialSteps.switchA11y')}
                   secondaryCtaLabel={!trialResolved ? t('journey.skip') : undefined}
                   onPressSecondaryCta={!trialResolved ? () => handleSkipQuest(trialSlotKey) : undefined}
                   isLast

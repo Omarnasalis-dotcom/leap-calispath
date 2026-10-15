@@ -109,3 +109,49 @@ export function nextClimbItem(tier: number, clearedSteps: readonly number[]): Cl
   }
   return { kind: 'trial', tier };
 }
+
+export interface ClimbOption {
+  item: ClimbItem;
+  /** Step finished at least once (it can still be picked and replayed). */
+  cleared: boolean;
+  /** Step 2 before Step 1 is cleared. */
+  locked: boolean;
+}
+
+/**
+ * What the Journey trial checkpoint's switch sheet offers (owner decision
+ * 2026-10-16): every step of the athlete's tier, in order, then the trial.
+ * The trial and Step 1 are always open; a later step opens once the one
+ * before it is cleared. `clearedSteps` null = not loaded yet: later steps
+ * show locked until it is.
+ */
+export function climbOptions(tier: number, clearedSteps: readonly number[] | null): ClimbOption[] {
+  const cleared = clearedSteps ?? [];
+  const out: ClimbOption[] = [];
+  for (let s = 1; s <= stepCount(tier); s++) {
+    out.push({
+      item: { kind: 'step', tier, step: s as StepNumber },
+      cleared: cleared.includes(s),
+      locked: s > 1 && !cleared.includes(s - 1),
+    });
+  }
+  out.push({ item: { kind: 'trial', tier }, cleared: false, locked: false });
+  return out;
+}
+
+/**
+ * Whether a remembered pick still fits the athlete: same tier, a real step,
+ * and not locked. With `clearedSteps` null (not loaded) the order check is
+ * left to the server (it rejects Step 2 before Step 1).
+ */
+export function isClimbItemAvailable(item: ClimbItem, tier: number, clearedSteps: readonly number[] | null): boolean {
+  if (item.tier !== tier) return false;
+  if (item.kind === 'trial') return true;
+  if (item.step < 1 || item.step > stepCount(tier)) return false;
+  return clearedSteps == null || item.step === 1 || clearedSteps.includes(item.step - 1);
+}
+
+export function sameClimbItem(a: ClimbItem | null, b: ClimbItem | null): boolean {
+  if (!a || !b) return false;
+  return a.kind === b.kind && a.tier === b.tier && (a.kind === 'trial' || (b.kind === 'step' && a.step === b.step));
+}

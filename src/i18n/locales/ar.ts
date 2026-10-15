@@ -2265,6 +2265,11 @@ const ar: Translations = {
     finish: 'إنهاء الخطوة',
     cleared: 'اكتملت الخطوة',
     notAvailable: 'هذه الخطوة لم تعد متاحة. تغيّر مستواك أو خطواتك.',
+    switchA11y: 'اختر اختبارًا آخر',
+    switchTitle: 'اختر اختبارك',
+    switchSub: 'اختر ما ستؤديه في هذه المحطة. أنهِ أيًّا منها هنا لتحصل على النقاط.',
+    switchLocked: 'أكمل الخطوة {{n}} أولًا',
+    switchCleared: 'مكتملة',
   },
   trial: {
     name: 'اختبار {{tier}}',

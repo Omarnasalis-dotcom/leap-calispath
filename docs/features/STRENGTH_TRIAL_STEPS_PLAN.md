@@ -121,6 +121,7 @@ A trial is the exam to **leave** a tier (a Spartan takes the Spartan trial to be
 8. **Kept forever:** cleared steps stay cleared; after a rank-up, the next tier's steps unlock.
 9. A short "STEP CLEARED" card, and pips on the current tier card in Strength.
 10. Movement names stay in English in the Arabic app, like the trials.
+11. **Switch at the checkpoint (2026-10-16):** the open Journey trial card has a small switch button (like Switch day). The athlete picks Step 1, Step 2 or the trial; Step 1 and the trial are always open, Step 2 opens once Step 1 is cleared. Any pick finished there closes the checkpoint and pays the 100, a replay of a cleared step included. The pick is remembered for that checkpoint only.
 
 ## How it would be built
 
