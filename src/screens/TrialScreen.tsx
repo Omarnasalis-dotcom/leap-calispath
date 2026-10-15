@@ -27,7 +27,7 @@ import { TIER_NAMES } from '../types';
 import { TIER_HARD_FLOORS } from '../constants/Progression';
 import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
-import { TrialService } from '../services/TrialService';
+import { TrialService, newTrialAttemptId } from '../services/TrialService';
 import { getStepProgress, submitStep, stepErrorCode } from '../services/StepService';
 import { getTrialStep, StepNumber } from '../lib/trialSteps';
 import { StepClearedCard } from '../components/strength/StepClearedCard';
@@ -307,7 +307,7 @@ export function TrialScreen({
       setCurrentStepIdx(savedTrial.movements.length - 1);
       setHasStarted(true);
       setTimerSeconds(saved.finishedSeconds);
-      submitTrial(savedTrial, saved.finishedSeconds, saved.mode, (saved.step ?? 1) as StepNumber);
+      submitTrial(savedTrial, saved.finishedSeconds, saved.mode, (saved.step ?? 1) as StepNumber, saved.attemptId ?? newTrialAttemptId());
       return;
     }
     const elapsed = Math.max(1, resumedElapsedSeconds(saved));
@@ -457,6 +457,8 @@ export function TrialScreen({
 
     stopTimer();
     finishedRef.current = true;
+    // One id for this finished trial, kept for every resend of it.
+    const attemptId = newTrialAttemptId();
     // The result is final now — if the save below never lands (network,
     // app closed), the next open offers to save this exact time.
     if (startedAtRef.current !== null) {
@@ -468,12 +470,13 @@ export function TrialScreen({
         savedAt: Date.now(),
         stepIdx: currentStepIdx,
         finishedSeconds: timeSeconds,
+        attemptId,
       });
     }
-    submitTrial(trial, timeSeconds, initialMode, initialStep);
+    submitTrial(trial, timeSeconds, initialMode, initialStep, attemptId);
   }
 
-  function submitTrial(trial: Trial, timeSeconds: number, submitMode: TrialMode, step: StepNumber = 1) {
+  function submitTrial(trial: Trial, timeSeconds: number, submitMode: TrialMode, step: StepNumber, attemptId: string) {
     if (!user) return;
     if (submitMode === 'step') {
       submitStepResult(trial, timeSeconds, step);
@@ -485,6 +488,7 @@ export function TrialScreen({
         tier: trial.tier,
         timeSeconds,
         isProgression: submitMode === 'progression',
+        attemptId,
       });
       clearSavedTrial(user.id);
 
@@ -555,7 +559,7 @@ export function TrialScreen({
           // be redone just because the network blipped after the work was done.
           Alert.alert(t('trial.error'), describeSubmitError(error, t('trial.saveFailed')), [
             { text: t('trial.cancel'), style: 'cancel' },
-            { text: t('trial.tryAgain'), onPress: () => submitTrial(trial, timeSeconds, submitMode) },
+            { text: t('trial.tryAgain'), onPress: () => submitTrial(trial, timeSeconds, submitMode, step, attemptId) },
           ]);
         }
       }

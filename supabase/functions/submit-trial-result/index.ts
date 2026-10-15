@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
   }
 
   // Parse request body
-  let body: { tier: number; time_seconds: number; mode: string };
+  let body: { tier: number; time_seconds: number; mode: string; attempt_id?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -114,6 +114,11 @@ Deno.serve(async (req) => {
   }
 
   const { tier, time_seconds, mode } = body;
+  // Set by app 1.2.13+: one id per finished trial, the same on every resend
+  // (submit_trial_result answers a repeat with the first result).
+  const attemptId = typeof body.attempt_id === "string" && body.attempt_id.length >= 8 && body.attempt_id.length <= 64
+    ? body.attempt_id
+    : null;
 
   // Validate required fields
   if (tier === undefined || time_seconds === undefined) {
@@ -158,8 +163,10 @@ Deno.serve(async (req) => {
     { global: { headers: { Authorization: authHeader } } }
   );
 
-  // Rate limit check — when was the last submission?
-  const { data: lastSubmission } = await supabase
+  // Rate limit check — when was the last submission? Skipped for a tagged
+  // attempt: a resend of a saved trial must get its result back, not "too
+  // fast", and submit_trial_result still keeps its own per-tier cooldown.
+  const { data: lastSubmission } = attemptId ? { data: null } : await supabase
     .from("trial_history")
     .select("attempted_at")
     .eq("user_id", userId)
@@ -189,6 +196,7 @@ Deno.serve(async (req) => {
     p_tier: tier,
     p_time_seconds: time_seconds,
     p_mode: mode,
+    p_attempt_id: attemptId,
   });
 
   if (rpcError) {
@@ -204,6 +212,30 @@ Deno.serve(async (req) => {
   }
 
   if (!result?.success) {
+    if (result?.error === "COOLDOWN") {
+      return new Response(JSON.stringify({ error: "TOO_FAST", message: result.message ?? "Please wait before submitting again." }), {
+        status: 429,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (result?.error === "DISHONOR") {
+      return new Response(JSON.stringify({ error: "DISHONOR", message: result.message }), {
+        status: 422,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (result?.error === "INVALID_TIME" || result?.error === "INVALID_TIER" || result?.error === "INVALID_ATTEMPT") {
+      return new Response(JSON.stringify({ error: result.error }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+    if (result?.error === "UNAUTHENTICATED") {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     if (result?.error === "FORBIDDEN") {
       return new Response(JSON.stringify({ error: "FORBIDDEN", message: "This tier is currently locked." }), {
         status: 403,

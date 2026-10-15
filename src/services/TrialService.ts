@@ -8,6 +8,8 @@ export interface TrialResult {
   tier: number;
   timeSeconds: number;
   isProgression: boolean;
+  /** One per finished trial, the same on every resend (see newTrialAttemptId). */
+  attemptId?: string;
 }
 
 export interface TrialResultResponse {
@@ -17,6 +19,17 @@ export interface TrialResultResponse {
   tier_advanced: boolean;
   previous_best_time_seconds: number | null;
   overtaken_notification_id: string | null;
+  /** The server had already saved this attempt; this is its first answer. */
+  replayed?: boolean;
+}
+
+/**
+ * Tags a finished trial so a resend (lost reply, Try Again, "Save now" after
+ * reopening) gets the first result back instead of "too fast" or a
+ * duplicate. Unique per athlete is enough.
+ */
+export function newTrialAttemptId(): string {
+  return `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
 }
 
 // Use the same URL pattern as supabase.ts (graceful fallback — never crash at module level)
@@ -39,7 +52,7 @@ export class TrialService {
    * The Edge Function handles: auth, hard floor check, cooldown, and DB write.
    */
   static async submitResult(result: TrialResult): Promise<TrialResultResponse> {
-    const { tier, timeSeconds, isProgression } = result;
+    const { tier, timeSeconds, isProgression, attemptId } = result;
 
     // Client-side pre-check for immediate UX feedback
     if (!this.isTimeValid(tier, timeSeconds)) {
@@ -77,6 +90,7 @@ export class TrialService {
             tier,
             time_seconds: timeSeconds,
             mode: isProgression ? 'progression' : 'practice',
+            ...(attemptId ? { attempt_id: attemptId } : null),
           }),
           signal: controller.signal,
         });

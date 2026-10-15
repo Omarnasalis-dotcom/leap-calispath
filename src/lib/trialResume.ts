@@ -16,6 +16,8 @@ export interface SavedTrial {
   stepIdx: number;
   // Set once FINISH was tapped: the result is final, only the save is missing.
   finishedSeconds?: number;
+  // The finished trial's attempt id: a later "Save now" resends the same one.
+  attemptId?: string;
 }
 
 // Same ceiling the server enforces (submit-trial-result MAX_TIME_SECONDS).
