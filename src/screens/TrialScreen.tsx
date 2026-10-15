@@ -30,6 +30,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { TrialService } from '../services/TrialService';
 import { getStepProgress, submitStep, stepErrorCode } from '../services/StepService';
 import { getTrialStep, StepNumber } from '../lib/trialSteps';
+import { StepClearedCard } from '../components/strength/StepClearedCard';
 import { describeSubmitError } from '../lib/submitErrors';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
@@ -58,6 +59,8 @@ interface TrialScreenProps {
   practiceTier?: number | null;
   /** mode 'step': which step of the current tier. */
   stepNumber?: StepNumber;
+  /** Opened from the Journey trial checkpoint (a step there earns +100). */
+  fromJourney?: boolean;
   onComplete?: () => void;
   onAbandon?: () => void;
   onBack?: () => void;
@@ -67,6 +70,7 @@ export function TrialScreen({
   mode = 'progression',
   practiceTier = null,
   stepNumber = 1,
+  fromJourney = false,
   onComplete,
   onAbandon,
   onBack,
@@ -100,6 +104,8 @@ export function TrialScreen({
   const [stepResult, setStepResult] = useState<{ firstClear: boolean; best: number } | null>(null);
   /** The athlete's best on this step before this attempt (null = never finished). */
   const [stepBest, setStepBest] = useState<number | null>(null);
+  /** Steps of this tier cleared before this attempt (the result card's path). */
+  const [stepClearedBefore, setStepClearedBefore] = useState<number[]>([]);
 
   const getTierAccentColor = (tier: number) => {
     if (tier <= 2) return '#B0BEC5'; // Foundation - Steel
@@ -165,7 +171,7 @@ export function TrialScreen({
     if (!isStep || !user || !trial) return;
     let live = true;
     getStepProgress(user.id, trial.tier + 1)
-      .then(p => { if (live) setStepBest(p.best[initialStep] ?? null); })
+      .then(p => { if (live) { setStepBest(p.best[initialStep] ?? null); setStepClearedBefore(p.cleared); } })
       .catch(() => {});
     return () => { live = false; };
   }, [isStep, user, trial, initialStep]);
@@ -734,8 +740,6 @@ export function TrialScreen({
     );
   }
 
-  const stepKind = stepResult?.firstClear ? 'first_completion'
-    : stepResult && (stepBest == null || timeSeconds < stepBest) ? 'new_best' : 'attempt';
   const currentStep = trial.movements[currentStepIdx];
   const nextStep1 = currentStepIdx + 1 < trial.movements.length ? trial.movements[currentStepIdx + 1] : null;
   const nextStep2 = currentStepIdx + 2 < trial.movements.length ? trial.movements[currentStepIdx + 2] : null;
@@ -924,16 +928,18 @@ export function TrialScreen({
           onBack ? onBack() : null;
         }}
       />
-      {/* Step result (build step 4 replaces this with the STEP CLEARED card). */}
-      <TrialFeedbackModal
-        visible={stepResult !== null}
-        kind={stepKind}
-        tier={trial.tier + 1}
-        timeSeconds={timeSeconds}
-        // New best: old → new (the best before this attempt); slower: vs the best.
-        previousTimeSeconds={stepKind === 'new_best' ? stepBest : stepKind === 'attempt' ? stepResult?.best : null}
-        stepTitle={trialDisplayName}
-        onDismiss={() => {
+      {/* STEP CLEARED (design_handoff_trial_steps, piece B). */}
+      <StepClearedCard
+        data={stepResult ? {
+          tier: trial.tier + 1,
+          step: initialStep,
+          timeSeconds,
+          previousBest: stepResult.firstClear ? null : stepBest ?? stepResult.best,
+          clearedBefore: stepClearedBefore,
+          fromJourney,
+          practice: trial.tier + 1 < (profile?.strength_tier ?? 0),
+        } : null}
+        onDone={() => {
           setStepResult(null);
           // The route closes the Journey checkpoint when the step was opened from it.
           onComplete ? onComplete() : onBack?.();
@@ -950,7 +956,6 @@ function TrialFeedbackModal({
   tier,
   timeSeconds,
   previousTimeSeconds,
-  stepTitle,
   onDismiss,
 }: {
   visible: boolean;
@@ -958,8 +963,6 @@ function TrialFeedbackModal({
   tier: number;
   timeSeconds: number;
   previousTimeSeconds?: number | null;
-  /** A step's result: its name as the title. */
-  stepTitle?: string;
   onDismiss: () => void;
 }) {
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -978,11 +981,8 @@ function TrialFeedbackModal({
   }, [visible]);
 
   const tierName = TIER_NAMES[tier];
-  const label = stepTitle
-    ? (kind === 'first_completion' ? t('trialSteps.cleared') : kind === 'new_best' ? t('trial.personalRecord') : t('trial.result'))
-    : kind === 'first_completion' ? t('trial.milestone') : kind === 'new_best' ? t('trial.personalRecord') : t('trial.result');
-  const title = stepTitle
-    ?? (kind === 'first_completion' ? t('trial.tierComplete') : kind === 'new_best' ? t('trial.newBestTime') : t('trial.trialComplete'));
+  const label = kind === 'first_completion' ? t('trial.milestone') : kind === 'new_best' ? t('trial.personalRecord') : t('trial.result');
+  const title = kind === 'first_completion' ? t('trial.tierComplete') : kind === 'new_best' ? t('trial.newBestTime') : t('trial.trialComplete');
   const icon = kind === 'first_completion' ? 'shield-star' : kind === 'new_best' ? 'trophy-award' : 'timer-outline';
   const showImprovementComparison = kind === 'new_best' && previousTimeSeconds != null;
   const showBestComparison = kind === 'attempt' && previousTimeSeconds != null;

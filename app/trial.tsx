@@ -7,7 +7,7 @@ import { useAuth } from '../src/contexts/AuthContext';
 
 export default function Route() {
   const { mode, tier, step } = useLocalSearchParams<{ mode: string; tier: string; step: string }>();
-  const { questSlotKey, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
+  const { returnTo, questSlotKey, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
   const { user } = useAuth();
 
   return (
@@ -17,6 +17,7 @@ export default function Route() {
         mode={(mode as 'progression' | 'practice' | 'eternal' | 'step') || 'progression'}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
         stepNumber={step === '2' ? 2 : 1}
+        fromJourney={returnTo === 'journey' && !!questSlotKey}
         // TrialScreen's onComplete only ever fires from a genuine pass (the
         // RankUpReveal/showVictory branch) -- previously just replaced to
         // '/my-journey' directly, which never told the lane the Strength
