@@ -37,7 +37,6 @@ import { getUserGroup } from '../lib/weeklyChallenge';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useScreenTour } from '../hooks/useScreenTour';
 import { WelcomeTourCard } from '../components/tutorial/WelcomeTourCard';
-import { CURRENT_TRIAL_QUEST_SENTINEL } from '../hooks/useReturnTo';
 import { t, FLIP_X } from '../i18n';
 
 // Trophy gold (same as GROUP_NAMES' Legends color) for the Weekly Challenge card.
@@ -60,21 +59,10 @@ export function ProfileScreen({
   const onOpenAssessment = () => router.push('/assessment');
   const onStartTrial = (tier?: number) => {
     const mode = tier !== undefined && tier < (profile?.strength_tier || 0) ? 'practice' : 'progression';
-    // A progression trial IS the athlete's real next-tier trial, the same
-    // one the Milestone Lane's own trial card gates on — passing it here
-    // (this tier grid, not the lane's embedded card) used to leave that
-    // card stuck showing "open" forever, since nothing told the lane a
-    // trial was resolved. questSlotKey (via the shared sentinel — this
-    // screen has no idea what the lane's current week is) closes that gap:
-    // the athlete comes back here, and the lane resolves its trial card the
-    // next time it opens (see markCurrentTrialDone). Practice trials don't
-    // advance tier and aren't "the" journey trial, so they pass nothing.
-    router.push({
-      pathname: '/trial',
-      params: mode === 'progression'
-        ? { tier, mode, questSlotKey: CURRENT_TRIAL_QUEST_SENTINEL }
-        : { tier, mode },
-    });
+    // Owner rule (2026-10-15): trial points come only from the Journey trial
+    // checkpoint, so a trial started here never resolves (or pays) it. After a
+    // rank-up the checkpoint simply offers the new tier's next item.
+    router.push({ pathname: '/trial', params: { tier, mode } });
   };
   const onOpenPowerAssessment = () => router.push('/power-world');
   const onOpenWeeklyChallenge = () => router.push('/weekly-challenge');

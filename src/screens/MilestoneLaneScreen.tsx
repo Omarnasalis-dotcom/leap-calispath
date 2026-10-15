@@ -47,7 +47,7 @@ import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { GOALS } from './GoalsEquipmentScreen';
-import { CURRENT_TRIAL_QUEST_SENTINEL, consumeCurrentTrialDone } from '../hooks/useReturnTo';
+
 import { t, FLIP_X, isRTL } from '../i18n';
 
 // Cover photos for the milestone/journey list rows' photo cards, organized
@@ -1523,6 +1523,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       // and anything the server lacks (a save that failed) is sent again.
       const cached = await readCachedQuestSlots(profileId, programId);
       if (server) {
+        // A finished trial checkpoint counts only once the server has it (it
+        // drops one that wasn't open, see 20261015140000). A copy only this
+        // phone has is stale: forget it rather than resend it, or it would be
+        // accepted later, once the week is done, without the trial.
+        [...cached.done].filter((k) => k.endsWith('_trial') && !done.has(k)).forEach((k) => cached.done.delete(k));
         const unsentDone = [...cached.done].filter((k) => !done.has(k));
         const unsentSkipped = [...cached.skipped].filter((k) => !skipped.has(k));
         if (unsentDone.length || unsentSkipped.length) {
@@ -1541,7 +1546,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       questSlotsProgramIdRef.current = programId;
       const merge = (prev: Set<string>, next: Set<string>) => (sameProgram ? new Set([...prev, ...next]) : next);
       setCompletedQuestSlots((prev) => {
-        const next = merge(prev, done);
+        // Trial checkpoints: the server's answer wins over a held copy (see above).
+        const held = server ? new Set([...prev].filter((k) => !k.endsWith('_trial') || done.has(k))) : prev;
+        const next = merge(held, done);
         updateLocalFlagsCache(profileId, { completedQuestSlots: next, questSlotsProgramId: programId });
         return next;
       });
@@ -1610,18 +1617,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // A quest screen navigating back with ?questDone=<slotKey> is the one
   // signal that a real log happened there (not just a visit) — persist it
   // and reflect it immediately without waiting for a re-fetch.
-  //
-  // CURRENT_TRIAL_QUEST_SENTINEL is a special case: a progression trial
-  // launched from outside this lane (ProfileScreen's tier grid, the
-  // onboarding tutorial's "Begin Trial") has no way to know this lane's
-  // current week, so it can't send the real `w{N}_trial` key — it sends
-  // this fixed sentinel instead, resolved here the same way trialSlotKey
-  // (declared further below) is computed, rather than being added to the
-  // set literally. Inlined against journeyData directly rather than
-  // referencing trialSlotKey itself — that const isn't initialized yet at
-  // this point in the component body, and this effect's dependency array
-  // (unlike its deferred callback) evaluates immediately. Bails out until
-  // journeyData is actually loaded instead of resolving nothing.
+  // Only quests started from this lane send it: a trial or step done from the
+  // Strength tab never resolves (or pays) the trial checkpoint (owner rule).
   // Shared by finishing and skipping: updates the screen at once, then
   // records the slot on the server (idempotent, so a repeat is harmless).
   // Only once the program is known -- callers wait for journeyData.
@@ -1656,23 +1653,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   useEffect(() => {
     if (!questDone || !profile?.id || !journeyData) return;
-    const currentTrialSlotKey = journeyData ? `w${journeyData.currentWeek}_trial` : '';
-    const resolvedSlotKey = questDone === CURRENT_TRIAL_QUEST_SENTINEL ? currentTrialSlotKey : questDone;
-    markQuestSlotDone(resolvedSlotKey);
+    markQuestSlotDone(questDone);
   }, [questDone, profile?.id, journeyData, markQuestSlotDone]);
 
-  // Same resolution for a trial passed from Strength's tier grid, which
-  // returns there instead of here and leaves a note (markCurrentTrialDone).
-  // Waits for journeyData so the note isn't used up before the week is known.
-  useFocusEffect(
-    useCallback(() => {
-      if (!profile?.id || !journeyData) return;
-      const trialSlot = `w${journeyData.currentWeek}_trial`;
-      consumeCurrentTrialDone(profile.id).then((done) => {
-        if (done) markQuestSlotDone(trialSlot);
-      });
-    }, [profile?.id, journeyData, markQuestSlotDone])
-  );
 
   const handleSkipQuest = useCallback((slotKey: string) => recordQuestSlot(slotKey, 'skipped'), [recordQuestSlot]);
 
@@ -2300,7 +2283,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // still opened after completing the trial." Reuses the exact same
   // questDone/completedQuestSlots plumbing regular side quests already use
   // (see the trial's onPressCta below, which now passes questSlotKey).
-  const trialResolved = isQuestSlotResolved(trialSlotKey);
+  // Never shown finished before it could be started (trial week, every day
+  // done), whatever a stale cache says.
+  const trialResolved = isQuestSlotResolved(trialSlotKey) && (trialSkipped || (isTrialWeek && weekComplete));
 
   // Strength Trial Steps (docs/features/STRENGTH_TRIAL_STEPS_PLAN.md): the
   // checkpoint offers the athlete's next item on the climb — Step 1, Step 2,
