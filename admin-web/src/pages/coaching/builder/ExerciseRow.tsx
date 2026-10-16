@@ -164,14 +164,21 @@ export function ExerciseRow({
   // Tabata's work/rest interval and a ladder's rep sequence are both set once
   // at the block level (ConceptWizard) and apply to every exercise in the
   // block, so per-exercise Sets/Rest/Hold would be redundant or meaningless
-  // there — only "single" gets the full grid; superset/circuit fall back to
-  // one flexible "target reps / work details" field.
+  // there — only "single" gets the full grid; superset/circuit get target
+  // reps plus a hold (2026-10-16: a hold inside a superset is logged per
+  // round in the app now, e.g. Muscle Up 3 reps + Front Lever Hold 8s).
   const isSingle =
     !blockMetadata.structure && !blockMetadata.type
       ? true
       : blockMetadata.structure === 'single' || blockMetadata.type === 'single';
   const isTabata = blockMetadata.timing_system === 'tabata';
   const isLadder = !isTabata && blockMetadata.structure === 'ladder';
+  // Round blocks the app logs round by round (not AMRAP/For Time, which run
+  // on their own timer): each exercise can be reps or a hold.
+  const isRoundBlock =
+    (blockMetadata.structure === 'superset' || blockMetadata.structure === 'circuit') &&
+    blockMetadata.timing_system !== 'amrap' &&
+    blockMetadata.timing_system !== 'fortime';
 
   const [videoOpen, setVideoOpen] = useState(false);
   // The dropdown only offers exercises the viewer can pick, but the
@@ -292,6 +299,25 @@ export function ExerciseRow({
       ) : isLadder ? (
         <div className="field" style={{ textAlign: 'center', color: 'var(--warn)', fontWeight: 700 }}>
           {BlockConceptParser.getLadderSequence(blockMetadata) || 'Set ladder rounds/start above'}
+        </div>
+      ) : isRoundBlock ? (
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 6 }}>
+          <StatField
+            label="Target reps"
+            title="Target reps for this exercise within the block's rounds"
+            ariaLabel="Target reps"
+            value={exercise.reps}
+            disabled={readOnly}
+            onChange={(v) => onChange({ reps: v })}
+          />
+          <StatField
+            label="Hold"
+            title="Hold seconds per round (for a static hold; leave reps empty)"
+            ariaLabel="Hold seconds"
+            value={exercise.hold_seconds}
+            disabled={readOnly}
+            onChange={(v) => onChange({ hold_seconds: v })}
+          />
         </div>
       ) : (
         <StatField
