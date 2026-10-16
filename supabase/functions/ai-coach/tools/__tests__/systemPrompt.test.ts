@@ -16,4 +16,8 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("`Muscle Up band-assisted`");
     expect(SYSTEM_PROMPT).not.toContain('There is no "Banded Muscle Up" entry');
   });
+
+  it("keeps warm-ups the same week to week unless the athlete flagged them", () => {
+    expect(SYSTEM_PROMPT).toContain("Make one easier only when the athlete flagged it (logged it too hard, RPE 9–10 on it, or said so): fewer reps, or 2 rounds → 1.");
+  });
 });
