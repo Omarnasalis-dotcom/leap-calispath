@@ -93,3 +93,16 @@ describe('TrialScreen resume from the Journey checkpoint', () => {
     expect(buttons().map(b => b.text)).toEqual(['Start Over', 'Continue Trial']);
   });
 });
+
+// Strength Trials audit L5: a bad tier in the link used to leave "Loading" up forever.
+describe('TrialScreen with a bad link', () => {
+  it.each(['abc', '-1'])('tier=%s shows "not available" and goes back', async (tier) => {
+    mockSaved.current = null;
+    const onBack = jest.fn();
+    await open({ mode: 'practice', practiceTier: parseInt(tier, 10), onBack, onComplete: jest.fn() });
+    expect(alertSpy).toHaveBeenCalledTimes(1);
+    expect(alertSpy.mock.calls[0][1]).toBe("This trial isn't available. The link may be old.");
+    act(() => buttons()[0].onPress!());
+    expect(onBack).toHaveBeenCalled();
+  });
+});

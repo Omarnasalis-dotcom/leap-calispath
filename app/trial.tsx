@@ -7,12 +7,14 @@ import { useReturnTo } from '../src/hooks/useReturnTo';
 export default function Route() {
   const { mode, tier, step } = useLocalSearchParams<{ mode: string; tier: string; step: string }>();
   const { returnTo, questSlotKey, goBackOrReturnTo, completeQuestAndReturn } = useReturnTo();
+  // Anything else in the link (an old or bad one) opens the athlete's own trial.
+  const trialMode = mode === 'practice' || mode === 'step' ? mode : 'progression';
 
   return (
     <SpartanLayout hideToggle>
       <Stack.Screen options={{ gestureEnabled: false }} />
       <TrialScreen
-        mode={(mode as 'progression' | 'practice' | 'eternal' | 'step') || 'progression'}
+        mode={trialMode}
         practiceTier={typeof tier !== 'undefined' ? parseInt(tier as string, 10) : undefined}
         stepNumber={step === '2' ? 2 : 1}
         fromJourney={returnTo === 'journey' && !!questSlotKey}

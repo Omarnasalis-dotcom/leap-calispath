@@ -33,7 +33,14 @@ export type AnalyticsEvent =
   | 'team_attempt_submitted'
   // Leaderboard share card (assets/design_handoff_leaderboard_share)
   | 'leaderboard_share_opened'
-  | 'leaderboard_shared';
+  | 'leaderboard_shared'
+  // Strength trials and steps (Strength Trials audit 2026-10-16, L8):
+  // started → finished / too fast / abandoned, by mode and Journey origin.
+  | 'trial_started'
+  | 'trial_finished'
+  | 'trial_too_fast'
+  | 'trial_abandoned'
+  | 'step_finished';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).

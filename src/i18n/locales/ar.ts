@@ -2344,7 +2344,7 @@ const ar: Translations = {
     returnToTraining: 'العودة إلى التدريب',
     back: 'رجوع',
     practiceMode: 'وضع التدريب',
-    eternal: 'أبدي',
+    notAvailable: 'هذا الاختبار غير متاح. ربما يكون الرابط قديمًا.',
     trialClock: 'ساعة الاختبار',
     ready: 'جاهز',
     overview: 'تفاصيل الاختبار',

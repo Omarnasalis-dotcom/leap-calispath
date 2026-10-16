@@ -8,7 +8,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 // doesn't ruin the attempt.
 export interface SavedTrial {
   tier: number;
-  mode: 'progression' | 'practice' | 'eternal' | 'step';
+  mode: 'progression' | 'practice' | 'step';
   /** mode 'step': which step of the tier. */
   step?: number;
   elapsedSeconds: number; // trial clock at the last save

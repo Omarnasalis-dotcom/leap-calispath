@@ -34,6 +34,7 @@ import { StepClearedCard } from '../components/strength/StepClearedCard';
 import { PRCelebration } from '../components/celebration/PRCelebration';
 import { getTierLeaderboard, invalidateStrengthLeaderboardCache, RankChange, rankChange } from '../lib/leaderboard';
 import { describeSubmitError } from '../lib/submitErrors';
+import { track } from '../lib/analytics';
 import { useSlowSubmitNotice } from '../hooks/useSlowSubmitNotice';
 import { useTimer } from '../hooks/useTimer';
 import { useSafeAsync } from '../hooks/useSafeAsync';
@@ -43,7 +44,7 @@ import { t, isArabic, FLIP_X, tierLevelLabel, ltr } from '../i18n';
 
 
 
-type TrialMode = 'progression' | 'practice' | 'eternal' | 'step';
+type TrialMode = 'progression' | 'practice' | 'step';
 
 /**
  * A Strength Trial Step for an athlete of `athleteTier`, as a Trial the
@@ -145,6 +146,14 @@ export function TrialScreen({
   // checkpoint (Olympian, Demigod or Eternity) closes it instead (owner
   // decision 2026-10-16).
   const closesCheckpointRef = useRef(false);
+  // Analytics (audit L8). A step's tier is the athlete's tier it belongs to.
+  const trialEventProps = (extra: Record<string, string | number | boolean | null> = {}) => ({
+    tier: trial ? (isStep ? trial.tier + 1 : trial.tier) : null,
+    mode: initialMode,
+    step: isStep ? initialStep : null,
+    from_journey: fromJourney,
+    ...extra,
+  });
   const leaveAfterResult = () => {
     if (closesCheckpointRef.current && onComplete) onComplete();
     else onBack?.();
@@ -167,9 +176,7 @@ export function TrialScreen({
   // A step is for the current tier, or a tier below it as practice (`tier` param).
   const targetTier = (initialMode === 'practice' || initialMode === 'step') && initialPracticeTier !== null
     ? Math.min(initialPracticeTier, nextTier)
-    : initialMode === 'eternal'
-      ? 8 // Demigod Eternal
-      : nextTier;
+    : nextTier;
 
   useEffect(() => {
     if (profile && !hasStarted && !trial) {
@@ -177,10 +184,11 @@ export function TrialScreen({
       if (next) {
         setTrial(next);
         setCurrentStepIdx(0);
-      } else if (initialMode === 'step' && !missingStepShownRef.current) {
-        // No such step for this tier (e.g. a stale link): don't sit on "Loading".
+      } else if (!missingStepShownRef.current) {
+        // No such step or trial (a stale or bad link, e.g. tier=abc): don't
+        // sit on "Loading" (audit L5).
         missingStepShownRef.current = true;
-        Alert.alert(t('trial.error'), t('trialSteps.notAvailable'), [{ text: t('trial.continue'), onPress: () => onBack?.() }]);
+        Alert.alert(t('trial.error'), t(initialMode === 'step' ? 'trialSteps.notAvailable' : 'trial.notAvailable'), [{ text: t('trial.continue'), onPress: () => onBack?.() }]);
       }
     }
   }, [profile, targetTier, hasStarted, trial, initialMode, initialStep]);
@@ -341,6 +349,7 @@ export function TrialScreen({
   }
 
   function startTrial() {
+    track('trial_started', trialEventProps());
     setPrepCountdown(5);
     prepStartTimeRef.current = Date.now();
   }
@@ -428,6 +437,7 @@ export function TrialScreen({
   }
 
   async function doAbandon() {
+    track('trial_abandoned', trialEventProps({ seconds: timeSeconds, movement: currentStepIdx + 1 }));
     if (user) clearSavedTrial(user.id);
     // Steps never write trial_history, abandoned ones included.
     if (user && trial && !isStep) {
@@ -474,6 +484,7 @@ export function TrialScreen({
     if (!TrialService.isTimeValid(trial.tier, timeSeconds)) {
       stopTimer();
       clearSavedTrial(user.id);
+      track('trial_too_fast', trialEventProps({ seconds: timeSeconds, by: 'app' }));
       setShowDishonor(true);
       return;
     }
@@ -524,6 +535,14 @@ export function TrialScreen({
           && !result?.tier_advanced
           && profile?.strength_tier === ETERNITY_TIER
           && (ETERNITY_REPLAY_TRIALS as readonly number[]).includes(trial.tier);
+        track('trial_finished', {
+          tier: trial.tier,
+          mode: submitMode,
+          step: null,
+          from_journey: fromJourney,
+          seconds: timeSeconds,
+          result: result?.tier_advanced ? 'rank_up' : result?.is_first_completion ? 'first' : result?.is_new_best ? 'new_best' : 'attempt',
+        });
         if (result?.tier_advanced) {
           setShowVictory(true);
           const newTier = trial.tier + 1;
@@ -579,6 +598,7 @@ export function TrialScreen({
       onError: (error: any) => {
         if (error.message?.includes('DISHONOR')) {
           clearSavedTrial(user.id);
+          track('trial_too_fast', { tier: trial.tier, mode: submitMode, step: null, from_journey: fromJourney, seconds: timeSeconds, by: 'server' });
           setShowDishonor(true);
         } else {
           // Timer's already stopped and timeSeconds is already captured, so a
@@ -602,12 +622,16 @@ export function TrialScreen({
       return result;
     }, {
       onSuccess: (result) => {
-        if (result) setStepResult({ firstClear: result.first_clear, best: result.best_seconds });
+        if (result) {
+          track('step_finished', { tier: trial.tier + 1, mode: 'step', step, from_journey: fromJourney, seconds: timeSeconds, first_clear: result.first_clear });
+          setStepResult({ firstClear: result.first_clear, best: result.best_seconds });
+        }
       },
       onError: (error: unknown) => {
         const code = stepErrorCode(error);
         if (code === 'INVALID_TIME') {
           clearSavedTrial(user.id);
+          track('trial_too_fast', { tier: trial.tier + 1, mode: 'step', step, from_journey: fromJourney, seconds: timeSeconds, by: 'server' });
           setShowDishonor(true);
         } else if (code === 'NOT_CURRENT_TIER' || code === 'STEP_LOCKED' || code === 'INVALID_STEP') {
           // The athlete's tier or steps changed on another device: nothing to retry.
@@ -836,11 +860,6 @@ export function TrialScreen({
               <Text style={[styles.badgeText, { color: '#FFF' }]}>{t(initialStep === 1 ? 'trialSteps.firstTaste' : 'trialSteps.bridge')}</Text>
             </View>
           )}
-          {initialMode === 'eternal' && (
-            <View style={[styles.badge, { backgroundColor: accentColor }]}>
-              <Text style={[styles.badgeText, { color: '#FFF' }]}>{t('trial.eternal')}</Text>
-            </View>
-          )}
           <View style={[styles.badge, { backgroundColor: theme.card.border }]}>
             <Text style={[styles.badgeText, { color: theme.text.primary }]}>{tierLevelLabel(isStep ? trial.tier + 1 : trial.tier).toUpperCase()}</Text>
           </View>
@@ -1067,7 +1086,8 @@ function TrialFeedbackModal({
           {showImprovementComparison ? (
             <View style={styles.feedbackTimeRow}>
               <Text style={styles.feedbackOldTime}>{formatTime(previousTimeSeconds!)}</Text>
-              <MaterialCommunityIcons name="arrow-right" size={16} color="rgba(255,255,255,0.35)" style={{ marginHorizontal: 10 }} />
+              {/* The row flips in Arabic, so the arrow does too: old → new (audit L7). */}
+              <MaterialCommunityIcons name="arrow-right" size={16} color="rgba(255,255,255,0.35)" style={[{ marginHorizontal: 10 }, FLIP_X]} />
               <Text style={[styles.feedbackNewTime, styles.feedbackNewTimeInRow]}>{formatTime(timeSeconds)}</Text>
             </View>
           ) : showBestComparison ? (
@@ -1169,16 +1189,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: '#CD7F32',
     backgroundColor: 'rgba(205,127,50,0.2)',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 4,
-    marginTop: 8,
-    letterSpacing: 2,
-  },
-  eternalBadge: {
-    fontSize: 12,
-    color: '#FFFFFF',
-    backgroundColor: '#8B0000',
     paddingHorizontal: 12,
     paddingVertical: 4,
     borderRadius: 4,

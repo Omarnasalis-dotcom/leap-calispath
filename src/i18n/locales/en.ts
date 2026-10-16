@@ -2205,7 +2205,7 @@ const en = {
     returnToTraining: 'RETURN TO TRAINING',
     back: 'Back',
     practiceMode: 'PRACTICE MODE',
-    eternal: 'ETERNAL',
+    notAvailable: "This trial isn't available. The link may be old.",
     trialClock: 'TRIAL CLOCK',
     ready: 'READY',
     overview: 'TRIAL OVERVIEW',
