@@ -8,7 +8,7 @@ import { useAuth } from '../../contexts/AuthContext';
 import { kt } from '../worlds/kit';
 import { invalidatePowerLeaderboardCache, invalidateStrengthLeaderboardCache } from '../../lib/leaderboard';
 import {
-  acceptReset, acknowledgeHold, appealHold, clearFairPlay, closeFairPlaySheet, describeFlag, FairPlayHold, openFairPlaySheet, refreshFairPlay,
+  acceptReset, acknowledgeHold, appealHold, clearFairPlay, closeFairPlaySheet, describeFlag, FairPlayHold, holdScopeLabel, openFairPlaySheet, refreshFairPlay,
   resolveTeamNote, revealAfterInactivity, useFairPlay,
 } from '../../services/FairPlayService';
 import { ltr, t as tr } from '../../i18n';
@@ -94,7 +94,7 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
     finally { setBusy(false); }
   };
 
-  const scope = tr(`fairPlay.scope.${hold.scope}`);
+  const scope = holdScopeLabel(hold);
 
   // Back after an inactivity hide: one tap.
   if (hold.reason === 'inactive') {

@@ -4,7 +4,7 @@ import i18n from '../../i18n';
 import en from '../../i18n/locales/en';
 import ar from '../../i18n/locales/ar';
 import { APPEAL_REPLY_PRESETS, HOLD_NOTE_PRESETS } from '../../../admin-web/src/shared/fairPlayNotes';
-import { describeFlag, FairPlayFlagSummary, resolveTeamNote } from '../FairPlayService';
+import { describeFlag, FairPlayFlagSummary, holdScopeLabel, resolveTeamNote } from '../FairPlayService';
 
 const flag = (p: Partial<FairPlayFlagSummary>): FairPlayFlagSummary => ({
   area: 'static', movement_id: null, value: null, rule: 'ceiling', created_at: '2026-10-16T00:00:00Z', ...p,
@@ -59,5 +59,17 @@ describe('resolveTeamNote', () => {
       expect(en.fairPlay.templates).toHaveProperty(p.id, p.en);
       expect(ar.fairPlay.templates).toHaveProperty(p.id, p.ar);
     }
+  });
+});
+
+describe('holdScopeLabel', () => {
+  it('names the area for a whole-area hold', () => {
+    expect(holdScopeLabel({ scope: 'strength', tiers: null })).toBe('STRENGTH');
+    expect(holdScopeLabel({ scope: 'all' })).toBe('ALL LEADERBOARDS');
+  });
+
+  it('adds the tiers for a per-tier Strength hold', () => {
+    expect(holdScopeLabel({ scope: 'strength', tiers: [3] })).toBe('STRENGTH · TIER 3');
+    expect(holdScopeLabel({ scope: 'strength', tiers: [3, 5] })).toBe('STRENGTH · TIER 3, TIER 5');
   });
 });

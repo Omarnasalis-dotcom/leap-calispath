@@ -4,7 +4,7 @@ import { STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { ONEMM_MOVEMENTS } from '../lib/oneMMLogic';
 import { POWER_MOVEMENTS } from '../lib/powerLogic';
 import { TIER_NAMES } from '../types';
-import i18n, { t } from '../i18n';
+import i18n, { isArabic, t, tierLevelLabel } from '../i18n';
 
 // Fair Play, the athlete's side (docs/features/FAIR_PLAY_MODERATION_PLAN.md):
 // leaderboard holds an admin placed on you, their flagged results, your
@@ -25,6 +25,8 @@ export interface FairPlayFlagSummary {
 export interface FairPlayHold {
   id: number;
   scope: HoldScope;
+  /** Strength only: the tiers hidden; null/absent = every tier. */
+  tiers?: number[] | null;
   reason: 'fair_play' | 'inactive';
   status: 'active' | 'permanent';
   counts_as_strike: boolean;
@@ -72,6 +74,13 @@ export function resolveTeamNote(note: string | null | undefined): { text: string
   const key = `fairPlay.templates.${raw.slice(NOTE_TEMPLATE_PREFIX.length)}` as 'fairPlay.templates.needVideo';
   if (!i18n.exists(key as string)) return null;
   return { text: t(key), preset: true };
+}
+
+/** Where the hold hides you: "STRENGTH", or "STRENGTH · TIER 3" for a per-tier hold. */
+export function holdScopeLabel(h: Pick<FairPlayHold, 'scope' | 'tiers'>): string {
+  const area = t(`fairPlay.scope.${h.scope}` as 'fairPlay.scope.all');
+  if (!h.tiers?.length) return area;
+  return `${area} · ${h.tiers.map(tierLevelLabel).join(isArabic ? '، ' : ', ').toUpperCase()}`;
 }
 
 /** "Full Front Lever · 70 s" — names stay in English, like the rest of the climb. */

@@ -2177,6 +2177,8 @@ const en = {
     switchSub: 'Pick what you do at this checkpoint. Finish any of them here to earn the points.',
     switchLocked: 'Clear Step {{n}} first',
     switchCleared: 'CLEARED',
+    // Eternity athletes after the Eternity trial pick a trial to improve (owner decision 2026-10-16).
+    eternityReplayReady: 'Pick a trial to improve: Olympian, Demigod or Eternity. Finish it here for the points.',
   },
   trial: {
     name: '{{tier}} Trial',

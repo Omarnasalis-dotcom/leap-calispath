@@ -2317,6 +2317,7 @@ const ar: Translations = {
     switchSub: 'اختر ما ستؤديه في هذه المحطة. أنهِ أيًّا منها هنا لتحصل على النقاط.',
     switchLocked: 'أكمل الخطوة {{n}} أولًا',
     switchCleared: 'مكتملة',
+    eternityReplayReady: 'اختر اختبارًا لتحسّن وقتك فيه: Olympian أو Demigod أو Eternity. أنهِه هنا لتحصل على النقاط.',
   },
   trial: {
     name: 'اختبار {{tier}}',

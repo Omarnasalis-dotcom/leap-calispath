@@ -1,4 +1,4 @@
-import { climbOptions, getTrialStep, isClimbItemAvailable, nextClimbItem, plusTwo, sameClimbItem, stepCount } from '../trialSteps';
+import { climbOptions, climbTrialTier, getTrialStep, isClimbItemAvailable, nextClimbItem, plusTwo, sameClimbItem, stepCount } from '../trialSteps';
 import { RITES_OF_PASSAGE } from '../trials';
 import { TIER_HARD_FLOORS } from '../../constants/Progression';
 
@@ -129,5 +129,38 @@ describe('trialSteps', () => {
     expect(sameClimbItem({ kind: 'step', tier: 4, step: 1 }, { kind: 'step', tier: 4, step: 2 })).toBe(false);
     expect(sameClimbItem({ kind: 'trial', tier: 4 }, { kind: 'step', tier: 4, step: 1 })).toBe(false);
     expect(sameClimbItem({ kind: 'trial', tier: 4 }, null)).toBe(false);
+    expect(sameClimbItem({ kind: 'trial', tier: 9 }, { kind: 'trial', tier: 9, trialTier: 9 })).toBe(true);
+    expect(sameClimbItem({ kind: 'trial', tier: 9 }, { kind: 'trial', tier: 9, trialTier: 7 })).toBe(false);
+  });
+
+  // Owner decision 2026-10-16 (Strength Trials audit M5).
+  describe('Eternity checkpoint', () => {
+    it('offers steps then the Eternity trial until it is finished', () => {
+      expect(nextClimbItem(9, [])).toEqual({ kind: 'step', tier: 9, step: 1 });
+      expect(nextClimbItem(9, [1, 2], false)).toEqual({ kind: 'trial', tier: 9 });
+      expect(climbOptions(9, [1, 2], false).map(o => o.item.kind)).toEqual(['step', 'step', 'trial']);
+    });
+
+    it('after the Eternity trial, offers the Olympian, Demigod and Eternity trials', () => {
+      expect(nextClimbItem(9, [], true)).toEqual({ kind: 'trial', tier: 9 });
+      expect(climbOptions(9, [1, 2], true)).toEqual([
+        { item: { kind: 'trial', tier: 9, trialTier: 7 }, cleared: false, locked: false },
+        { item: { kind: 'trial', tier: 9, trialTier: 8 }, cleared: false, locked: false },
+        { item: { kind: 'trial', tier: 9 }, cleared: false, locked: false },
+      ]);
+      expect(climbOptions(9, null, true).map(o => climbTrialTier(o.item as { tier: number; trialTier?: number }))).toEqual([7, 8, 9]);
+    });
+
+    it('keeps a remembered pick only when it fits', () => {
+      expect(isClimbItemAvailable({ kind: 'trial', tier: 9, trialTier: 7 }, 9, [1, 2], true)).toBe(true);
+      expect(isClimbItemAvailable({ kind: 'trial', tier: 9 }, 9, [1, 2], true)).toBe(true);
+      expect(isClimbItemAvailable({ kind: 'step', tier: 9, step: 1 }, 9, [1, 2], true)).toBe(false);
+      expect(isClimbItemAvailable({ kind: 'trial', tier: 9, trialTier: 6 }, 9, [1, 2], true)).toBe(false);
+      // Before the Eternity trial (or while it loads), only the own trial.
+      expect(isClimbItemAvailable({ kind: 'trial', tier: 9, trialTier: 7 }, 9, [1, 2], false)).toBe(false);
+      // Other tiers never get the pick.
+      expect(climbOptions(8, [1, 2], true).map(o => o.item.kind)).toEqual(['step', 'step', 'trial']);
+      expect(isClimbItemAvailable({ kind: 'trial', tier: 8, trialTier: 7 }, 8, [], true)).toBe(false);
+    });
   });
 });

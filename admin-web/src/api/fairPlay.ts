@@ -28,6 +28,8 @@ export interface LeaderboardHold {
   id: number;
   user_id: string;
   scope: HoldScope;
+  /** Strength only: the tiers hidden; null = every tier. */
+  tiers: number[] | null;
   reason: 'fair_play' | 'inactive';
   status: 'active' | 'lifted' | 'permanent';
   counts_as_strike: boolean;
@@ -37,6 +39,8 @@ export interface LeaderboardHold {
   acknowledged_at: string | null;
   lifted_at: string | null;
   lifted_reason: string | null;
+  /** A reset the admin undid (results put back). */
+  restored_at: string | null;
   profiles?: { display_name: string | null } | null;
 }
 
@@ -93,17 +97,22 @@ export async function fetchActiveHolds(): Promise<LeaderboardHold[]> {
   return (data ?? []) as LeaderboardHold[];
 }
 
-export async function fetchAthleteFairPlay(userId: string): Promise<{ flags: FairPlayFlag[]; holds: LeaderboardHold[]; appeals: FairPlayAppeal[] }> {
-  const [flags, holds, appeals] = await Promise.all([
+export async function fetchAthleteFairPlay(userId: string): Promise<{
+  flags: FairPlayFlag[]; holds: LeaderboardHold[]; appeals: FairPlayAppeal[]; restorableHoldIds: Set<number>;
+}> {
+  const [flags, holds, appeals, backups] = await Promise.all([
     supabase.from('fair_play_flags').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from('leaderboard_holds').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
     supabase.from('fair_play_appeals').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+    supabase.from('fair_play_reset_backups').select('hold_id').eq('user_id', userId).is('restored_at', null),
   ]);
-  for (const r of [flags, holds, appeals]) if (r.error) throw new Error(r.error.message);
+  for (const r of [flags, holds, appeals, backups]) if (r.error) throw new Error(r.error.message);
   return {
     flags: (flags.data ?? []) as FairPlayFlag[],
     holds: (holds.data ?? []) as LeaderboardHold[],
     appeals: (appeals.data ?? []) as FairPlayAppeal[],
+    // Resets made before backups existed (none on prod) can't be restored.
+    restorableHoldIds: new Set(((backups.data ?? []) as { hold_id: number }[]).map((b) => b.hold_id)),
   };
 }
 
@@ -144,13 +153,23 @@ async function rpc<T>(fn: string, args: Record<string, unknown>): Promise<T> {
 export const dismissFlags = (flagIds: number[], note?: string) =>
   rpc<number>('admin_fair_play_dismiss', { p_flag_ids: flagIds, p_note: note || null });
 
-export const holdAthlete = (p: { userId: string; scope: HoldScope; flagIds: number[]; strike: boolean; permanent: boolean; note?: string }) =>
+export const holdAthlete = (p: {
+  userId: string; scope: HoldScope; flagIds: number[]; strike: boolean; permanent: boolean; note?: string; tiers?: number[] | null;
+}) =>
   rpc<number>('admin_fair_play_hold', {
     p_user: p.userId, p_scope: p.scope, p_flag_ids: p.flagIds, p_counts_as_strike: p.strike, p_permanent: p.permanent, p_note: p.note || null,
+    p_tiers: p.tiers?.length ? p.tiers : null,
   });
 
-export const liftHold = (holdId: number, note?: string) =>
-  rpc<void>('admin_fair_play_lift', { p_hold_id: holdId, p_note: note || null });
+/** reopen false: the results look real (flags dismissed). true: decide again (flags back in the queue). Clears the strike. */
+export const liftHold = (holdId: number, reopen: boolean, note?: string) =>
+  rpc<void>('admin_fair_play_lift', { p_hold_id: holdId, p_note: note || null, p_reopen: reopen });
+
+/** Back to the queue: dismissed flags, or flags whose hold was lifted. */
+export const reopenFlags = (flagIds: number[]) => rpc<number>('admin_fair_play_reopen_flags', { p_flag_ids: flagIds });
+
+/** Undo an accepted reset: the removed results come back; returns how many. */
+export const restoreReset = (holdId: number) => rpc<number>('admin_fair_play_restore_reset', { p_hold_id: holdId });
 
 export const decideAppeal = (appealId: number, accept: boolean, reply?: string) =>
   rpc<void>('admin_fair_play_decide_appeal', { p_appeal_id: appealId, p_accept: accept, p_reply: reply || null });
@@ -204,6 +223,17 @@ export const AREA_LABEL: Record<HoldScope, string> = {
   power: 'Power',
   weekly: 'Weekly',
 };
+
+/** "Strength · Tier 3, 5" for a per-tier Strength hold. */
+export function holdScopeLabel(h: Pick<LeaderboardHold, 'scope' | 'tiers'>): string {
+  return h.tiers?.length ? `${AREA_LABEL[h.scope]} · Tier ${h.tiers.join(', ')}` : AREA_LABEL[h.scope];
+}
+
+/** The tier of a Strength trial flag (null for a burst, which has no tier). */
+export function flagTier(f: Pick<FairPlayFlag, 'area' | 'movement_id'>): number | null {
+  if (f.area !== 'strength' || f.movement_id == null || !/^\d+$/.test(f.movement_id)) return null;
+  return Number(f.movement_id);
+}
 
 /** "29 s" / "100 reps" / "80 kg" / "3:10" for a flagged value. */
 export function formatFlagValue(f: Pick<FairPlayFlag, 'area' | 'value' | 'rule'>): string {

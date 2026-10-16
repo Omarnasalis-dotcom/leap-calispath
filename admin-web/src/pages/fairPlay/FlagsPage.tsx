@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ErrorNote } from '@/components/bits';
 import { fetchActiveHolds, fetchOpenFlags, type FairPlayFlag } from '@/api/fairPlay';
+import { searchUsers } from '@/api/users';
 import { ActionsBar, FlagTable, HoldRow } from './parts';
 
 /** The review queue: open flags grouped by athlete, newest first. */
@@ -32,6 +33,8 @@ export function FlagsPage() {
           </div>
         </div>
       </div>
+
+      <FindAthlete />
 
       {(flagsQ.error || holdsQ.error) && <ErrorNote error={flagsQ.error ?? holdsQ.error} />}
       {flagsQ.isLoading && <div className="skeleton" style={{ height: 200 }} />}
@@ -81,6 +84,38 @@ function AthleteGroup({ userId, flags }: { userId: string; flags: FairPlayFlag[]
       <div className="panel-body">
         <FlagTable flags={flags} selected={selected} onToggle={toggle} />
         <ActionsBar userId={userId} flags={flags} selected={selected} />
+      </div>
+    </section>
+  );
+}
+
+/** Any athlete's Fair Play history (flags, holds, appeals), flagged or not. */
+function FindAthlete() {
+  const [input, setInput] = useState('');
+  const [query, setQuery] = useState('');
+  const q = useQuery({
+    queryKey: ['fair-play', 'find', query],
+    queryFn: () => searchUsers({ query, sort: 'created_at', desc: true, page: 0, pageSize: 8 }),
+    enabled: query.length >= 2,
+  });
+  return (
+    <section className="panel">
+      <div className="panel-body" style={{ display: 'grid', gap: 8 }}>
+        <form className="row" style={{ gap: 8 }} onSubmit={(e) => { e.preventDefault(); setQuery(input.trim()); }}>
+          <input className="field" style={{ flex: 1 }} placeholder="Find an athlete by name or email" value={input} onChange={(e) => setInput(e.target.value)} />
+          <button className="btn small" type="submit" disabled={input.trim().length < 2}>Search</button>
+        </form>
+        {q.error && <ErrorNote error={q.error} />}
+        {q.data && q.data.length === 0 && <div className="label">No athlete found</div>}
+        {q.data && q.data.length > 0 && (
+          <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
+            {q.data.map((u) => (
+              <Link key={u.id} className="btn small ghost" to={`/fair-play/athlete/${u.id}`}>
+                {u.display_name ?? u.email ?? u.id}
+              </Link>
+            ))}
+          </div>
+        )}
       </div>
     </section>
   );

@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 import {
-  AREA_LABEL, dismissFlags, formatEvidence, formatFlagValue, formatMovement, holdAthlete, liftHold, RULE_LABEL,
+  AREA_LABEL, dismissFlags, flagTier, formatEvidence, formatFlagValue, formatMovement, holdAthlete, holdScopeLabel, liftHold, restoreReset, RULE_LABEL,
   type FairPlayArea, type FairPlayFlag, type HoldScope, type LeaderboardHold,
 } from '@/api/fairPlay';
 import { HOLD_NOTE_PRESETS, noteLabel, TEMPLATE_PREFIX, type NotePreset } from '@/shared/fairPlayNotes';
@@ -19,11 +19,14 @@ export function SeverityBadge({ severity }: { severity: FairPlayFlag['severity']
 }
 
 /** Flags with a checkbox each (selection drives the actions). */
-export function FlagTable({ flags, selected, onToggle, showStatus }: {
+export function FlagTable({ flags, selected, onToggle, showStatus, canReopen, onReopen }: {
   flags: FairPlayFlag[];
   selected?: Set<number>;
   onToggle?: (id: number) => void;
   showStatus?: boolean;
+  /** With showStatus: a Reopen button on flags that can go back to the queue. */
+  canReopen?: (f: FairPlayFlag) => boolean;
+  onReopen?: (id: number) => void;
 }) {
   return (
     <div className="table-wrap">
@@ -55,7 +58,14 @@ export function FlagTable({ flags, selected, onToggle, showStatus }: {
               <td>{RULE_LABEL[f.rule]}</td>
               <td style={{ color: 'var(--ink-2)', fontSize: 13 }}>{formatEvidence(f)}</td>
               <td><SeverityBadge severity={f.severity} /></td>
-              {showStatus && <td>{f.status}</td>}
+              {showStatus && (
+                <td>
+                  <div className="row" style={{ gap: 8 }}>
+                    {f.status}
+                    {onReopen && canReopen?.(f) && <button className="btn small ghost" onClick={() => onReopen(f.id)}>Reopen</button>}
+                  </div>
+                </td>
+              )}
               <td className="label">{formatDateTime(f.created_at)}</td>
             </tr>
           ))}
@@ -74,13 +84,19 @@ export function ActionsBar({ userId, flags, selected }: { userId: string; flags:
   const invalidate = useFairPlayInvalidate();
   const [note, setNote] = useState('');
   const [strike, setStrike] = useState(false);
-  const ids = flags.filter((f) => selected.has(f.id)).map((f) => f.id);
-  const areas = Array.from(new Set(flags.filter((f) => selected.has(f.id)).map((f) => f.area))) as FairPlayArea[];
+  const chosen = flags.filter((f) => selected.has(f.id));
+  const ids = chosen.map((f) => f.id);
+  const areas = Array.from(new Set(chosen.map((f) => f.area))) as FairPlayArea[];
+  // Strength trials: hide only their tiers (a burst flag has no tier, so it hides all of Strength).
+  const strength = chosen.filter((f) => f.area === 'strength');
+  const tiers = strength.length > 0 && strength.every((f) => flagTier(f) != null)
+    ? Array.from(new Set(strength.map((f) => flagTier(f) as number))).sort((a, b) => a - b)
+    : null;
 
   const dismiss = useMutation({ mutationFn: () => dismissFlags(ids, note), onSuccess: invalidate });
   const hold = useMutation({
-    mutationFn: (p: { scope: HoldScope; permanent: boolean }) =>
-      holdAthlete({ userId, scope: p.scope, flagIds: ids, strike, permanent: p.permanent, note }),
+    mutationFn: (p: { scope: HoldScope; permanent: boolean; tiers?: number[] | null }) =>
+      holdAthlete({ userId, scope: p.scope, flagIds: ids, strike, permanent: p.permanent, note, tiers: p.tiers }),
     onSuccess: invalidate,
   });
   const busy = dismiss.isPending || hold.isPending;
@@ -97,11 +113,21 @@ export function ActionsBar({ userId, flags, selected }: { userId: string; flags:
       </div>
       <div className="row" style={{ flexWrap: 'wrap', gap: 8 }}>
         <button className="btn small" disabled={busy || none} onClick={() => dismiss.mutate()}>Dismiss (looks real)</button>
+        {tiers && (
+          <ConfirmButton
+            label={`Hide from Strength · Tier ${tiers.join(', ')}`}
+            title={`Hide from the Strength Tier ${tiers.join(', ')} board${tiers.length > 1 ? 's' : ''}?`}
+            body={`Others stop seeing this athlete on ${tiers.length > 1 ? 'these tier boards' : 'this tier board'} only; other tiers and boards stay. They can accept a reset of the ${ids.length} flagged result(s) or appeal.${strike ? ' Counts as a strike.' : ''}`}
+            confirmLabel="Hide"
+            disabled={busy || none}
+            onConfirm={async () => { await hold.mutateAsync({ scope: 'strength', permanent: false, tiers }); }}
+          />
+        )}
         {areas.map((a) => (
           <ConfirmButton
             key={a}
-            label={`Hide from ${AREA_LABEL[a]}`}
-            title={`Hide from ${AREA_LABEL[a]} leaderboards?`}
+            label={a === 'strength' && tiers ? 'Hide from all Strength tiers' : `Hide from ${AREA_LABEL[a]}`}
+            title={`Hide from ${a === 'strength' ? 'every Strength tier' : `${AREA_LABEL[a]} leaderboards`}?`}
             body={`Others stop seeing this athlete on ${AREA_LABEL[a]} boards${a === 'static' || a === 'power' || a === 'endurance' ? ' and Well-Rounded' : ''}. They can accept a reset of the ${ids.length} flagged result(s) or appeal.${strike ? ' Counts as a strike.' : ''}`}
             confirmLabel="Hide"
             disabled={busy || none}
@@ -168,34 +194,75 @@ export function NotePicker({ presets, value, onChange, placeholder }: {
   );
 }
 
-export function HoldRow({ hold, showName }: { hold: LeaderboardHold; showName?: boolean }) {
+export function HoldRow({ hold, showName, canRestore }: { hold: LeaderboardHold; showName?: boolean; canRestore?: boolean }) {
   const invalidate = useFairPlayInvalidate();
-  const lift = useMutation({ mutationFn: () => liftHold(hold.id), onSuccess: invalidate });
+  const lift = useMutation({ mutationFn: (reopen: boolean) => liftHold(hold.id, reopen), onSuccess: invalidate });
+  const restore = useMutation({ mutationFn: () => restoreReset(hold.id), onSuccess: invalidate });
   const tone = hold.status === 'permanent' ? 'warn' : hold.status === 'active' ? 'accent' : undefined;
+  const fairPlay = hold.reason === 'fair_play';
   return (
-    <div className="row" style={{ justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--line)' }}>
+    <div className="row" style={{ justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--line)', flexWrap: 'wrap', gap: 8 }}>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         {showName && <span style={{ fontWeight: 600 }}>{hold.profiles?.display_name ?? hold.user_id}</span>}
         <Badge tone={tone}>{hold.status}</Badge>
-        <span>{AREA_LABEL[hold.scope]}</span>
+        <span>{holdScopeLabel(hold)}</span>
         <span className="label">{hold.reason === 'inactive' ? 'inactive' : `${hold.flag_ids.length} flagged`}</span>
         {hold.counts_as_strike && <Badge tone="warn">strike</Badge>}
         {hold.admin_note && <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>“{noteLabel(hold.admin_note)}”</span>}
-        {hold.lifted_reason && <span className="label">lifted: {hold.lifted_reason}</span>}
+        {hold.lifted_reason && <span className="label">lifted: {LIFTED_LABEL[hold.lifted_reason] ?? hold.lifted_reason}{hold.lifted_at ? ` · ${formatDateTime(hold.lifted_at)}` : ''}</span>}
+        {hold.restored_at && <Badge tone="ok">results restored</Badge>}
+        {(lift.error || restore.error) && <ErrorNote error={lift.error ?? restore.error} />}
       </div>
-      <div className="row" style={{ gap: 8 }}>
+      <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <span className="label">{formatDateTime(hold.created_at)}</span>
-        {hold.status !== 'lifted' && (
+        {hold.status !== 'lifted' && fairPlay && (
+          <>
+            <ConfirmButton
+              label="Lift · looks real"
+              title="Lift this hold — the results look real?"
+              body="The athlete becomes visible again. The flagged results stay, their flags are closed and the strike is removed."
+              confirmLabel="Lift"
+              disabled={lift.isPending}
+              onConfirm={() => lift.mutateAsync(false)}
+            />
+            <ConfirmButton
+              label="Lift · decide again"
+              title="Lift this hold and decide again?"
+              body="The athlete becomes visible again and the strike is removed. The flags go back to the queue so you can choose a different action."
+              confirmLabel="Lift and reopen"
+              disabled={lift.isPending}
+              onConfirm={() => lift.mutateAsync(true)}
+            />
+          </>
+        )}
+        {hold.status !== 'lifted' && !fairPlay && (
           <ConfirmButton
             label="Lift"
             title="Lift this hold?"
-            body="The athlete becomes visible again on these boards. No results are changed."
+            body="The athlete becomes visible again on every board."
             confirmLabel="Lift"
             disabled={lift.isPending}
-            onConfirm={() => lift.mutateAsync()}
+            onConfirm={() => lift.mutateAsync(false)}
+          />
+        )}
+        {hold.lifted_reason === 'reset' && !hold.restored_at && canRestore && (
+          <ConfirmButton
+            label="Restore results"
+            title="Undo this reset?"
+            body="The results the reset removed come back (a result the athlete has beaten since stays as it is). Their flags are closed as real and the strike is removed."
+            confirmLabel="Restore"
+            disabled={restore.isPending}
+            onConfirm={async () => { await restore.mutateAsync(); }}
           />
         )}
       </div>
     </div>
   );
 }
+
+const LIFTED_LABEL: Record<string, string> = {
+  reset: 'athlete accepted the reset',
+  appeal_accepted: 'appeal accepted',
+  admin: 'by admin',
+  returned: 'athlete came back',
+};

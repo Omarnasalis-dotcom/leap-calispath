@@ -1,6 +1,6 @@
 import { supabase } from '../lib/supabase';
 import { withNetworkRetry } from '../lib/submitErrors';
-import { StepNumber } from '../lib/trialSteps';
+import { ETERNITY_TIER, StepNumber } from '../lib/trialSteps';
 
 // Strength Trial Steps (docs/features/STRENGTH_TRIAL_STEPS_PLAN.md). Saved by
 // submit_strength_step only; never written to trial_history.
@@ -42,6 +42,11 @@ export interface StepProgress {
   cleared: number[];
   /** Best time per step (seconds). */
   best: Partial<Record<number, number>>;
+  /**
+   * Eternity (tier 9) only: the Eternity trial has been finished, so the
+   * Journey checkpoint offers a pick of trials to improve.
+   */
+  eternityDone?: boolean;
 }
 
 /** The athlete's finished steps for one tier (their own rows only, by RLS). */
@@ -56,7 +61,19 @@ export async function getStepProgress(userId: string, tier: number): Promise<Ste
   for (const row of (data ?? []) as { step: number; seconds: number }[]) {
     best[row.step] = Math.min(best[row.step] ?? Infinity, row.seconds);
   }
-  return { cleared: Object.keys(best).map(Number).sort(), best };
+  const progress: StepProgress = { cleared: Object.keys(best).map(Number).sort(), best };
+  if (tier === ETERNITY_TIER) {
+    const { data: done, error: doneError } = await supabase
+      .from('trial_history')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('tier_attempted', ETERNITY_TIER)
+      .eq('completed', true)
+      .limit(1);
+    if (doneError) throw doneError;
+    progress.eternityDone = (done ?? []).length > 0;
+  }
+  return progress;
 }
 
 /** Finished steps for every tier (Strength tab: current path + practice on past tiers). */

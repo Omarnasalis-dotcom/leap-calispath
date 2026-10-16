@@ -29,7 +29,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 
 import { TrialService, newTrialAttemptId } from '../services/TrialService';
 import { getStepProgress, submitStep, stepErrorCode } from '../services/StepService';
-import { getTrialStep, StepNumber } from '../lib/trialSteps';
+import { ETERNITY_REPLAY_TRIALS, ETERNITY_TIER, getTrialStep, StepNumber } from '../lib/trialSteps';
 import { StepClearedCard } from '../components/strength/StepClearedCard';
 import { PRCelebration } from '../components/celebration/PRCelebration';
 import { getTierLeaderboard, invalidateStrengthLeaderboardCache, RankChange, rankChange } from '../lib/leaderboard';
@@ -141,6 +141,14 @@ export function TrialScreen({
   // Once FINISH is tapped the saved copy carries the final time; stop the
   // per-step save below from overwriting it with an in-progress one.
   const finishedRef = useRef(false);
+  // An Eternity athlete can't rank up: a trial they finish from the Journey
+  // checkpoint (Olympian, Demigod or Eternity) closes it instead (owner
+  // decision 2026-10-16).
+  const closesCheckpointRef = useRef(false);
+  const leaveAfterResult = () => {
+    if (closesCheckpointRef.current && onComplete) onComplete();
+    else onBack?.();
+  };
 
   useEffect(() => {
     if (showDishonor) {
@@ -497,6 +505,10 @@ export function TrialScreen({
       return result;
     }, {
       onSuccess: (result) => {
+        closesCheckpointRef.current = fromJourney
+          && !result?.tier_advanced
+          && profile?.strength_tier === ETERNITY_TIER
+          && (ETERNITY_REPLAY_TRIALS as readonly number[]).includes(trial.tier);
         if (result?.tier_advanced) {
           setShowVictory(true);
           const newTier = trial.tier + 1;
@@ -950,7 +962,7 @@ export function TrialScreen({
         previousTimeSeconds={feedbackCard?.previousTimeSeconds}
         onDismiss={() => {
           setFeedbackCard(null);
-          onBack ? onBack() : null;
+          leaveAfterResult();
         }}
       />
       <PRCelebration
@@ -964,7 +976,7 @@ export function TrialScreen({
         onDismiss={() => {
           setNewBest(null);
           setNewBestRank(null);
-          onBack ? onBack() : null;
+          leaveAfterResult();
         }}
       />
       {/* STEP CLEARED (design_handoff_trial_steps, piece B). */}

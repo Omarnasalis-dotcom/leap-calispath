@@ -21,7 +21,7 @@ import { TodayTasksSheet } from '../components/journey/TodayTasksSheet';
 import { PointsHistorySheet } from '../components/journey/PointsHistorySheet';
 import { useJourneyCommunity } from '../hooks/useJourneyCommunity';
 import { useStepProgress } from '../hooks/useStepProgress';
-import { ClimbItem, climbOptions, isClimbItemAvailable, nextClimbItem, stepCount } from '../lib/trialSteps';
+import { ClimbItem, climbOptions, climbTrialTier, isClimbItemAvailable, nextClimbItem, stepCount } from '../lib/trialSteps';
 import { tierName } from '../lib/strengthClimb';
 import { AchievementsSheet } from '../components/journey/achievements/AchievementsSheet';
 import { AchievementCelebration } from '../components/journey/achievements/AchievementCelebration';
@@ -2331,9 +2331,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     return () => { live = false; };
   }, [climbPickKey]);
   const clearedSteps = stepProgress?.cleared ?? null;
-  const liveClimbItem = pickedClimbItem && isClimbItemAvailable(pickedClimbItem, climbTier, clearedSteps)
+  // Eternity athletes who finished the Eternity trial pick the Olympian,
+  // Demigod or Eternity trial to improve (owner decision 2026-10-16).
+  const eternityDone = stepProgress?.eternityDone === true;
+  const liveClimbItem = pickedClimbItem && isClimbItemAvailable(pickedClimbItem, climbTier, clearedSteps, eternityDone)
     ? pickedClimbItem
-    : nextClimbItem(climbTier, clearedSteps ?? []);
+    : nextClimbItem(climbTier, clearedSteps ?? [], eternityDone);
   const canSwitchClimbItem = stepCount(climbTier) > 0;
   const handlePickClimbItem = (item: ClimbItem) => {
     setSwitchTrialOpen(false);
@@ -2347,6 +2350,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       router.push({
         pathname: '/trial',
         params: { mode: 'step', step: String(liveClimbItem.step), returnTo: 'journey', questSlotKey: trialSlotKey },
+      });
+    } else if (liveClimbItem && climbTrialTier(liveClimbItem) < climbTier) {
+      // An Eternity athlete's Olympian or Demigod trial: played as practice.
+      router.push({
+        pathname: '/trial',
+        params: { mode: 'practice', tier: String(climbTrialTier(liveClimbItem)), returnTo: 'journey', questSlotKey: trialSlotKey },
       });
     } else {
       router.push({
@@ -2602,7 +2611,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     />
     <SwitchTrialSheet
       visible={switchTrialOpen}
-      options={climbOptions(climbTier, clearedSteps)}
+      options={climbOptions(climbTier, clearedSteps, eternityDone)}
       current={liveClimbItem}
       best={stepProgress?.best}
       onPick={handlePickClimbItem}
@@ -2915,6 +2924,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   state={trialResolved ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
                   title={climbItem?.kind === 'step'
                     ? t('trialSteps.title', { tier: tierName(climbItem.tier), n: climbItem.step })
+                    : eternityDone && climbItem
+                    ? t('trialSteps.trialName', { tier: tierName(climbTrialTier(climbItem)) })
                     : t('journey.strengthTrial')}
                   desc={
                     trialSkipped
@@ -2924,7 +2935,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       : !isTrialWeek
                       ? t('journey.trialEvery2Weeks', { week: journeyData.currentWeek + 1 })
                       : weekComplete
-                      ? (climbItem?.kind === 'step' ? t('trialSteps.journeyReady', { tier: tierName(climbItem.tier) }) : t('journey.trialReady'))
+                      ? (climbItem?.kind === 'step'
+                        ? t('trialSteps.journeyReady', { tier: tierName(climbItem.tier) })
+                        : eternityDone ? t('trialSteps.eternityReplayReady') : t('journey.trialReady'))
                       : t('journey.trialLocked')
                   }
                   image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}

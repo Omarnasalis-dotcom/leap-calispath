@@ -2,14 +2,14 @@ import React from 'react';
 import { Modal, View, Text, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useSwitchSheetStyles } from './SwitchDaySheet';
-import { ClimbItem, ClimbOption, sameClimbItem } from '../../lib/trialSteps';
+import { ClimbItem, ClimbOption, climbTrialTier, sameClimbItem } from '../../lib/trialSteps';
 import { formatTime } from '../../lib/trials';
 import { TIER_NAMES } from '../../types';
 import { t, ltr } from '../../i18n';
 
 interface SwitchTrialSheetProps {
   visible: boolean;
-  /** Steps of the athlete's tier in order, then the trial (climbOptions). */
+  /** Steps of the athlete's tier in order, then the trial; or an Eternity athlete's trials to improve (climbOptions). */
   options: ClimbOption[];
   /** What the checkpoint offers now. */
   current: ClimbItem | null;
@@ -38,10 +38,9 @@ export function SwitchTrialSheet({ visible, options, current, best, onPick, onCl
           <View style={{ gap: 8 }}>
             {options.map((o) => {
               const isCurrent = sameClimbItem(o.item, current);
-              const tierName = (TIER_NAMES[o.item.tier] ?? '').toUpperCase();
               const name = o.item.kind === 'step'
-                ? t('trialSteps.title', { tier: tierName, n: o.item.step })
-                : t('trialSteps.trialName', { tier: tierName });
+                ? t('trialSteps.title', { tier: (TIER_NAMES[o.item.tier] ?? '').toUpperCase(), n: o.item.step })
+                : t('trialSteps.trialName', { tier: (TIER_NAMES[climbTrialTier(o.item)] ?? '').toUpperCase() });
               const stepBest = o.item.kind === 'step' ? best?.[o.item.step] : undefined;
               const meta = o.locked && o.item.kind === 'step'
                 ? t('trialSteps.switchLocked', { n: o.item.step - 1 })
@@ -52,7 +51,7 @@ export function SwitchTrialSheet({ visible, options, current, best, onPick, onCl
               const icon = o.locked ? 'lock-outline' : o.item.kind === 'trial' ? 'sword-cross' : o.cleared ? 'check' : 'stairs-up';
               return (
                 <TouchableOpacity
-                  key={o.item.kind === 'step' ? `step-${o.item.step}` : 'trial'}
+                  key={o.item.kind === 'step' ? `step-${o.item.step}` : `trial-${climbTrialTier(o.item)}`}
                   style={[styles.row, isCurrent && styles.rowCurrent, o.locked && { opacity: 0.5 }]}
                   onPress={() => onPick(o.item)}
                   disabled={o.locked}

@@ -93,17 +93,43 @@ export function getTrialStep(tier: number, step: StepNumber): TrialStep | undefi
   };
 }
 
+/**
+ * `tier` is always the athlete's tier. A trial item plays `trialTier` when
+ * set (an Eternity athlete's replay of the Olympian or Demigod trial),
+ * otherwise the trial of `tier`.
+ */
 export type ClimbItem =
   | { kind: 'step'; tier: number; step: StepNumber }
-  | { kind: 'trial'; tier: number };
+  | { kind: 'trial'; tier: number; trialTier?: number };
+
+/** The last tier: its trial can't rank anyone up. */
+export const ETERNITY_TIER = 9;
+/**
+ * Owner decision 2026-10-16: once an Eternity athlete has finished the
+ * Eternity trial, their checkpoint is a pick of these trials to improve.
+ */
+export const ETERNITY_REPLAY_TRIALS = [7, 8, 9] as const;
+
+/** The trial a trial item plays. */
+export function climbTrialTier(item: { tier: number; trialTier?: number }): number {
+  return item.trialTier ?? item.tier;
+}
+
+/** An Eternity athlete who has finished the Eternity trial picks a trial to improve. */
+function isEternityReplay(tier: number, eternityDone: boolean | null | undefined): boolean {
+  return tier === ETERNITY_TIER && eternityDone === true;
+}
 
 /**
  * The athlete's next item on the climb (what the Journey's Strength Trial
  * checkpoint offers): their first uncleared step, in order, then their
- * tier's trial. Null past the last trial.
+ * tier's trial. An Eternity athlete who has finished the Eternity trial
+ * (`eternityDone`) is offered the Eternity trial again. Null past the last
+ * trial.
  */
-export function nextClimbItem(tier: number, clearedSteps: readonly number[]): ClimbItem | null {
+export function nextClimbItem(tier: number, clearedSteps: readonly number[], eternityDone = false): ClimbItem | null {
   if (tier > 9) return null;
+  if (isEternityReplay(tier, eternityDone)) return { kind: 'trial', tier };
   for (let s = 1; s <= stepCount(tier); s++) {
     if (!clearedSteps.includes(s)) return { kind: 'step', tier, step: s as StepNumber };
   }
@@ -123,9 +149,17 @@ export interface ClimbOption {
  * 2026-10-16): every step of the athlete's tier, in order, then the trial.
  * The trial and Step 1 are always open; a later step opens once the one
  * before it is cleared. `clearedSteps` null = not loaded yet: later steps
- * show locked until it is.
+ * show locked until it is. An Eternity athlete who has finished the
+ * Eternity trial picks one of ETERNITY_REPLAY_TRIALS instead.
  */
-export function climbOptions(tier: number, clearedSteps: readonly number[] | null): ClimbOption[] {
+export function climbOptions(tier: number, clearedSteps: readonly number[] | null, eternityDone = false): ClimbOption[] {
+  if (isEternityReplay(tier, eternityDone)) {
+    return ETERNITY_REPLAY_TRIALS.map(trialTier => ({
+      item: trialTier === tier ? { kind: 'trial', tier } : { kind: 'trial', tier, trialTier },
+      cleared: false,
+      locked: false,
+    }));
+  }
   const cleared = clearedSteps ?? [];
   const out: ClimbOption[] = [];
   for (let s = 1; s <= stepCount(tier); s++) {
@@ -142,16 +176,21 @@ export function climbOptions(tier: number, clearedSteps: readonly number[] | nul
 /**
  * Whether a remembered pick still fits the athlete: same tier, a real step,
  * and not locked. With `clearedSteps` null (not loaded) the order check is
- * left to the server (it rejects Step 2 before Step 1).
+ * left to the server (it rejects Step 2 before Step 1). After the Eternity
+ * trial, only the replay trials fit, and a lower tier's trial fits only then.
  */
-export function isClimbItemAvailable(item: ClimbItem, tier: number, clearedSteps: readonly number[] | null): boolean {
+export function isClimbItemAvailable(item: ClimbItem, tier: number, clearedSteps: readonly number[] | null, eternityDone = false): boolean {
   if (item.tier !== tier) return false;
-  if (item.kind === 'trial') return true;
+  if (isEternityReplay(tier, eternityDone)) {
+    return item.kind === 'trial' && (ETERNITY_REPLAY_TRIALS as readonly number[]).includes(climbTrialTier(item));
+  }
+  if (item.kind === 'trial') return climbTrialTier(item) === tier;
   if (item.step < 1 || item.step > stepCount(tier)) return false;
   return clearedSteps == null || item.step === 1 || clearedSteps.includes(item.step - 1);
 }
 
 export function sameClimbItem(a: ClimbItem | null, b: ClimbItem | null): boolean {
   if (!a || !b) return false;
-  return a.kind === b.kind && a.tier === b.tier && (a.kind === 'trial' || (b.kind === 'step' && a.step === b.step));
+  if (a.kind !== b.kind || a.tier !== b.tier) return false;
+  return a.kind === 'trial' ? b.kind === 'trial' && climbTrialTier(a) === climbTrialTier(b) : b.kind === 'step' && a.step === b.step;
 }
