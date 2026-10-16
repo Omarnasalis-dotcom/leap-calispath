@@ -6,9 +6,7 @@ import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts, TimerAlert } from '../../hooks/useBackgroundTimerAlerts';
-
-/** Get-ready countdown before a hold timer starts. */
-const HOLD_READY_SECONDS = 5;
+import { useExerciseHoldTimer } from '../../hooks/useExerciseHoldTimer';
 
 export interface ExerciseDetail {
   id: string | number;
@@ -110,97 +108,16 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
 
   // Hold timer on the HOLD badge (straight sets): tap → 5 s get-ready
   // countdown → the planned hold counting down → buzzer. Tap again to stop.
-  // Same wall-clock anchoring as the rest timer.
+  // Shared with the superset/circuit round cards (useExerciseHoldTimer).
   const holdSecs = parseInt(String(exercise.hold_seconds || '0'), 10) || 0;
-  const [holdPhase, setHoldPhase] = useState<'idle' | 'ready' | 'holding' | 'done'>('idle');
-  const [holdLeft, setHoldLeft] = useState(0);
-  const holdEndRef = useRef<number | null>(null);
-  const holdIntervalRef = useRef<any>(null);
+  const { holdPhase, holdLeft, holdRunning, startHold, stopHold } = useExerciseHoldTimer(holdSecs);
 
-  // Phase/seconds mirrored in refs so the interval reads them without
-  // side effects inside state updaters.
-  const holdPhaseRef = useRef<'idle' | 'ready' | 'holding' | 'done'>('idle');
-  const holdLeftRef = useRef(0);
-  const setPhase = (p: 'idle' | 'ready' | 'holding' | 'done') => {
-    holdPhaseRef.current = p;
-    setHoldPhase(p);
-  };
-  const setLeft = (n: number) => {
-    holdLeftRef.current = n;
-    setHoldLeft(n);
-  };
-
-  const stopHold = () => {
-    clearInterval(holdIntervalRef.current);
-    holdEndRef.current = null;
-    setPhase('idle');
-    setLeft(0);
-  };
-
-  const startHold = () => {
-    if (holdSecs <= 0) return;
-    holdEndRef.current = Date.now() + HOLD_READY_SECONDS * 1000;
-    setLeft(HOLD_READY_SECONDS);
-    setPhase('ready');
-    SoundServiceInstance.playTick();
-  };
-
-  const tickHold = () => {
-    if (holdEndRef.current === null) return;
-    const remaining = Math.max(0, Math.ceil((holdEndRef.current - Date.now()) / 1000));
-    if (holdPhaseRef.current === 'ready') {
-      if (remaining <= 0) {
-        // The hold starts when the get-ready ended (maybe while the app was
-        // in the background), not when this tick ran.
-        holdEndRef.current = holdEndRef.current + holdSecs * 1000;
-        setPhase('holding');
-        SoundServiceInstance.playBoxingBell();
-        tickHold();
-        return;
-      } else if (remaining !== holdLeftRef.current) {
-        setLeft(remaining);
-        SoundServiceInstance.playTick();
-      }
-    } else if (holdPhaseRef.current === 'holding') {
-      if (remaining !== holdLeftRef.current) setLeft(remaining);
-      if (remaining <= 0) {
-        clearInterval(holdIntervalRef.current);
-        holdEndRef.current = null;
-        setPhase('done');
-        SoundServiceInstance.playDigitalBuzzer(3);
-      }
-    }
-  };
-
-  const holdRunning = holdPhase === 'ready' || holdPhase === 'holding';
-  useEffect(() => {
-    if (!holdRunning) return;
-    clearInterval(holdIntervalRef.current);
-    holdIntervalRef.current = setInterval(tickHold, 250);
-    return () => clearInterval(holdIntervalRef.current);
-  }, [holdRunning]);
-
-  // Catch up straight away when the app returns to the foreground.
-  useEffect(() => {
-    if (!holdRunning) return;
-    const sub = AppState.addEventListener('change', (next) => {
-      if (next === 'active') tickHold();
-    });
-    return () => sub.remove();
-  }, [holdRunning]);
-
-  // Rest over / hold done while the app is in the background.
+  // Rest over while the app is in the background (the hold timer notifies
+  // on its own, in useExerciseHoldTimer).
   useBackgroundTimerAlerts(() => {
-    const now = Date.now();
     const alerts: TimerAlert[] = [];
     if (restActive && restEndTimeRef.current !== null) {
-      alerts.push({ inSeconds: (restEndTimeRef.current - now) / 1000, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') });
-    }
-    if (holdEndRef.current !== null && holdPhaseRef.current === 'ready') {
-      const startIn = (holdEndRef.current - now) / 1000;
-      alerts.push({ inSeconds: startIn + holdSecs, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });
-    } else if (holdEndRef.current !== null && holdPhaseRef.current === 'holding') {
-      alerts.push({ inSeconds: (holdEndRef.current - now) / 1000, title: t('timerAlerts.holdDone'), body: t('timerAlerts.holdDoneBody') });
+      alerts.push({ inSeconds: (restEndTimeRef.current - Date.now()) / 1000, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') });
     }
     return alerts;
   });

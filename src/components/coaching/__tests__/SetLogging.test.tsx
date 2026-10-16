@@ -105,4 +105,29 @@ describe('CircuitRoundCard (supersets / circuits)', () => {
       { exerciseId: 'b', reps: 7, weight: undefined },
     ]);
   });
+
+  // 2026-10-16: a superset of reps + a hold (Muscle Up 3 + Straddle Front
+  // Lever Hold 8s) showed and saved the hold as 0 reps.
+  it('a hold counts seconds from its plan and is saved as a hold, next to a rep exercise', () => {
+    const onRoundComplete = jest.fn();
+    const mixed = [
+      { id: 'mu', name: 'Muscle Up', targetReps: 3 },
+      { id: 'fl', name: 'Straddle Front Lever Hold', targetReps: 0, holdSeconds: 8 },
+    ];
+    const r = mount(
+      <CircuitRoundCard roundNumber={1} totalRounds={3} exercises={mixed} restSeconds={0} theme={theme} bronzeGold="#C9A227"
+        isLocked={false} completed onRoundComplete={onRoundComplete} />,
+    );
+    expect(allText(r)).toContain('8 | SEC');
+    press(r, 'Straddle Front Lever Hold SEC +');
+    expect(onRoundComplete).toHaveBeenLastCalledWith([
+      { exerciseId: 'mu', reps: 3, weight: undefined },
+      { exerciseId: 'fl', reps: 0, hold: 9, weight: undefined },
+    ]);
+    press(r, 'Muscle Up REPS −');
+    expect(onRoundComplete).toHaveBeenLastCalledWith([
+      { exerciseId: 'mu', reps: 2, weight: undefined },
+      { exerciseId: 'fl', reps: 0, hold: 9, weight: undefined },
+    ]);
+  });
 });

@@ -128,18 +128,40 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
             </View>
           </View>
         ) : (
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
-            <TextInput
-              style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
-              value={localReps}
-              onChangeText={setLocalReps}
-              onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
-              onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
-              placeholder="E.g. 10 reps, or 30s holds"
-              placeholderTextColor={theme.text.tertiary}
-            />
-          </View>
+          <>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.exInputLabel, { color: theme.text.secondary }]}>TARGET REPS / WORK DETAILS</Text>
+              <TextInput
+                style={[styles.exField, { color: theme.text.primary, borderColor: theme.card.border, width: '100%' }]}
+                value={localReps}
+                onChangeText={setLocalReps}
+                onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
+                onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'reps', localReps)}
+                // Reps are saved as a whole number: "30s holds" used to
+                // become 30 reps. Holds go in HOLD (S) below.
+                placeholder="E.g. 10"
+                placeholderTextColor={theme.text.tertiary}
+              />
+            </View>
+            {/* Round blocks (superset/circuit) log each exercise per round,
+                holds included, so a hold can be set here like in a single block. */}
+            {(blockMetadata?.structure === 'superset' || blockMetadata?.structure === 'circuit') &&
+              blockMetadata?.timing_system !== 'amrap' && blockMetadata?.timing_system !== 'fortime' && (
+              <View style={styles.exInputCol}>
+                <Text style={[styles.exInputLabel, { color: '#7E57C2' }]}>HOLD (S)</Text>
+                <TextInput
+                  style={[styles.exField, { color: '#7E57C2', borderColor: '#7E57C2' }]}
+                  value={localHold}
+                  onChangeText={setLocalHold}
+                  onBlur={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
+                  onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
+                  keyboardType="numeric"
+                  placeholder="—"
+                  placeholderTextColor="rgba(126,87,194,0.3)"
+                />
+              </View>
+            )}
+          </>
         )}
       </View>
 

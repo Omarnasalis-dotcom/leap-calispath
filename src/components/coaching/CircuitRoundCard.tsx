@@ -1,10 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
+import { useExerciseHoldTimer } from '../../hooks/useExerciseHoldTimer';
 import { parseKg } from '../../lib/parseKg';
 import { WeightStepper } from './WeightStepper';
 
@@ -12,6 +14,10 @@ export interface CircuitExercise {
   id: string | number;
   name: string;
   targetReps: number;
+  /** Planned hold (s): this exercise counts seconds instead of reps, the
+   * same way SetRow does for single blocks (a hold in a superset used to
+   * show and save as 0 reps). */
+  holdSeconds?: number;
   youtube_url?: string;
   /** Weighted exercise: the round gets a kg entry for it. */
   isWeighted?: boolean;
@@ -28,7 +34,7 @@ interface CircuitRoundCardProps {
   bronzeGold: string;
   isLocked: boolean;
   completed: boolean;
-  onRoundComplete: (entries: { exerciseId: string | number; reps: number; weight?: number }[]) => void;
+  onRoundComplete: (entries: { exerciseId: string | number; reps: number; weight?: number; hold?: number }[]) => void;
   activeVideoExerciseId?: string | number | null;
   onToggleVideo?: (exerciseId: string | number, url: string) => void;
   // Reports whether this round currently holds unsaved progress (a running
@@ -51,8 +57,11 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   onToggleVideo,
   onActiveChange,
 }) => {
+  const isHold = (ex: CircuitExercise) => !!ex.holdSeconds && ex.holdSeconds > 0;
+  // The stepper's planned value: seconds for a hold, reps otherwise.
+  const target = (ex: CircuitExercise) => (isHold(ex) ? ex.holdSeconds! : ex.targetReps);
   const [repsByExercise, setRepsByExercise] = useState<Record<string | number, number>>(
-    () => Object.fromEntries(exercises.map(ex => [ex.id, ex.targetReps]))
+    () => Object.fromEntries(exercises.map(ex => [ex.id, target(ex)]))
   );
   // kg typed per weighted exercise this round ('' = none).
   const [kgByExercise, setKgByExercise] = useState<Record<string | number, string>>({});
@@ -60,7 +69,9 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const entriesFor = (reps: Record<string | number, number>, kg: Record<string | number, string>) =>
     exercises.map(ex => ({
       exerciseId: ex.id,
-      reps: reps[ex.id] ?? 0,
+      // A hold logs its seconds in `hold` (reps 0), like SetRow's entries.
+      reps: isHold(ex) ? 0 : reps[ex.id] ?? 0,
+      ...(isHold(ex) ? { hold: reps[ex.id] ?? 0 } : {}),
       weight: ex.isWeighted ? parseKg(kg[ex.id] ?? '') : undefined,
     }));
   const [restActive, setRestActive] = useState(false);
@@ -79,7 +90,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
       onActiveChange?.(roundNumber, false);
       return;
     }
-    const repsEdited = exercises.some(ex => (repsByExercise[ex.id] ?? 0) !== ex.targetReps);
+    const repsEdited = exercises.some(ex => (repsByExercise[ex.id] ?? 0) !== target(ex));
     onActiveChange?.(roundNumber, restActive || repsEdited);
   }, [restActive, repsByExercise, completed]);
 
@@ -147,17 +158,21 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
               style={[styles.stepperBtn, { borderColor: theme.card.border }]}
               disabled={isLocked}
               accessibilityRole="button"
-              accessibilityLabel={`${ex.name} ${t('blocks.reps')} −`}
+              accessibilityLabel={`${ex.name} ${isHold(ex) ? t('blocks.sec') : t('blocks.reps')} −`}
               onPress={() => adjustReps(ex.id, -1)}
             >
               <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>−</Text>
             </TouchableOpacity>
-            <Text style={[styles.repsValue, { color: theme.text.primary }]}>{repsByExercise[ex.id] ?? 0}</Text>
+            {isHold(ex) ? (
+              <HoldValue seconds={repsByExercise[ex.id] ?? 0} name={ex.name} disabled={isLocked} theme={theme} />
+            ) : (
+              <Text style={[styles.repsValue, { color: theme.text.primary }]}>{repsByExercise[ex.id] ?? 0}</Text>
+            )}
             <TouchableOpacity
               style={[styles.stepperBtn, { borderColor: theme.card.border }]}
               disabled={isLocked}
               accessibilityRole="button"
-              accessibilityLabel={`${ex.name} ${t('blocks.reps')} +`}
+              accessibilityLabel={`${ex.name} ${isHold(ex) ? t('blocks.sec') : t('blocks.reps')} +`}
               onPress={() => adjustReps(ex.id, 1)}
             >
               <Text style={[styles.stepperBtnText, { color: theme.text.primary }]}>+</Text>
@@ -204,6 +219,37 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
         </TouchableOpacity>
       )}
     </View>
+  );
+};
+
+// A hold's seconds in a round: tap to run the same hold timer as a single
+// exercise's HOLD badge (5 s get-ready, then the hold counting down, buzzer
+// at the end; tap again to stop). Times the current value, so a hold the
+// athlete raised to 9 s runs for 9 s. Logging stays on the − / + stepper.
+const HoldValue: React.FC<{ seconds: number; name: string; disabled: boolean; theme: any }> = ({ seconds, name, disabled, theme }) => {
+  const { holdPhase, holdLeft, holdRunning, startHold, stopHold } = useExerciseHoldTimer(seconds);
+  const color = holdPhase === 'holding' ? '#FF7043' : holdPhase === 'done' ? '#4CAF50' : holdPhase === 'ready' ? '#7E57C2' : theme.text.primary;
+  const label =
+    holdPhase === 'ready' ? t('blocks.holdReady')
+    : holdPhase === 'holding' ? t('blocks.holding')
+    : holdPhase === 'done' ? t('blocks.holdDone')
+    : t('blocks.sec');
+  return (
+    <TouchableOpacity
+      style={styles.valueCol}
+      disabled={disabled || seconds <= 0}
+      onPress={holdRunning ? stopHold : startHold}
+      accessibilityRole="button"
+      accessibilityLabel={`${name} ${t('blocks.hold')} ${t('units.sec', { value: seconds })}`}
+    >
+      <Text style={[styles.repsValue, { color }]}>{holdRunning ? holdLeft : seconds}</Text>
+      <View style={styles.unitRow}>
+        <Text style={[styles.unitLabel, { color: holdPhase === 'idle' ? theme.text.tertiary : color }]}>{label}</Text>
+        {!holdRunning && (
+          <MaterialCommunityIcons name={holdPhase === 'done' ? 'restart' : 'timer-outline'} size={10} color={holdPhase === 'done' ? '#4CAF50' : '#7E57C2'} />
+        )}
+      </View>
+    </TouchableOpacity>
   );
 };
 
@@ -275,6 +321,19 @@ const styles = StyleSheet.create({
     fontSize: 16,
     minWidth: 24,
     textAlign: 'center',
+  },
+  valueCol: {
+    alignItems: 'center',
+  },
+  unitRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 2,
+  },
+  unitLabel: {
+    fontFamily: 'BarlowCondensed-Bold',
+    fontSize: 8,
+    letterSpacing: 0.5,
   },
   actionBtnGradientBorder: {
     padding: 1.2,

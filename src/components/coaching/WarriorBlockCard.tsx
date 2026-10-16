@@ -596,6 +596,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                             id: ex.id,
                             name: ex.name,
                             targetReps: parseInt(String(ex.reps || '0'), 10) || 0,
+                            holdSeconds: parseInt(String(ex.hold_seconds || '0'), 10) || 0,
                             youtube_url: ex.youtube_url,
                             isWeighted: !!ex.is_weighted,
                             // + on an empty kg box starts from the latest earlier round's weight.
@@ -609,7 +610,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                           isLocked={roundLocked}
                           completed={roundCompleted}
                           onRoundComplete={(entries) => {
-                            entries.forEach(e => onSetLogged?.(block.id, e.exerciseId, { setIndex: roundNum, reps: e.reps, weight: e.weight }));
+                            entries.forEach(e => onSetLogged?.(block.id, e.exerciseId, { setIndex: roundNum, reps: e.reps, weight: e.weight, hold: e.hold }));
                           }}
                           activeVideoExerciseId={activeVideoExerciseId}
                           onToggleVideo={onToggleVideo}
