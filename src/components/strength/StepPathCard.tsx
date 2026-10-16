@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import Animated, { Easing, SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import Svg, { Circle, Defs, Path, RadialGradient, Stop, Text as SvgText } from 'react-native-svg';
 import * as Haptics from 'expo-haptics';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { WorldKitTokens, WORLD_FONTS } from '../../../constants/worldKitTokens';
 import { kt } from '../worlds/kit';
 import { easeInOutCubic, easeOutCubic, seg } from '../../lib/fx/easing';
@@ -17,7 +18,7 @@ import { FLIP_X, isRTL, ltr, t as tr } from '../../i18n';
  * piece A): Step 1 → Step 2, the line running into the trial button. The line
  * below each cleared step turns coral. Steps started here pay no points; the trial is never blocked. Mount:
  * one 1 s clock, transform and opacity only, replayed only when the path
- * changed since the last visit.
+ * changed since the last visit (remembered across launches).
  *
  * mode 'practice' (past tiers): the same card with PRACTICE instead of START,
  * no locking, no "you are here" highlight, and the past tier's chip/colours.
@@ -45,8 +46,24 @@ function pathTokens(t: WorldKitTokens) {
 }
 type PT = ReturnType<typeof pathTokens>;
 
-// Which states this session has already drawn, per tier (no replay unless changed).
+// Which states have already been drawn, per tier (no replay unless changed).
+// Kept on the phone too, so a relaunch doesn't replay the draw-in on a path
+// that hasn't changed; read once when the app loads this file.
+const DRAWN_KEY = 'step_path_drawn:v1';
 const drawnState = new Map<number, string>();
+AsyncStorage.getItem(DRAWN_KEY)
+  .then(raw => {
+    if (!raw) return;
+    for (const [tier, key] of Object.entries(JSON.parse(raw) as Record<string, string>)) {
+      if (!drawnState.has(Number(tier))) drawnState.set(Number(tier), key);
+    }
+  })
+  .catch(() => {});
+function markDrawn(tier: number, key: string) {
+  if (drawnState.get(tier) === key) return;
+  drawnState.set(tier, key);
+  AsyncStorage.setItem(DRAWN_KEY, JSON.stringify(Object.fromEntries(drawnState))).catch(() => {});
+}
 
 interface Row { step: StepNumber; state: 'locked' | 'next' | 'open' | 'cleared' }
 
@@ -98,9 +115,9 @@ export const StepPathCard = React.memo(function StepPathCard({
   const clock = useSharedValue(drawnState.get(tier) === stateKey || !active ? END : 0);
   useEffect(() => {
     if (progress == null) return;
-    if (!active) { drawnState.set(tier, stateKey); clock.value = END; return; }
+    if (!active) { markDrawn(tier, stateKey); clock.value = END; return; }
     if (drawnState.get(tier) === stateKey) { clock.value = END; return; }
-    drawnState.set(tier, stateKey);
+    markDrawn(tier, stateKey);
     clock.value = 0;
     clock.value = withTiming(END, { duration: END * 1000, easing: Easing.linear });
   }, [active, progress, stateKey, tier, clock]);
