@@ -1086,6 +1086,7 @@ const ar: Translations = {
     seeFullBoard: 'عرض لوحة الصدارة كاملة',
     seeMore: 'عرض المزيد',
     loading: 'جارٍ التحميل…',
+    boardLoadFailed: 'تعذّر تحميل لوحة الصدارة هذه. تحقّق من اتصالك وحاول مرة أخرى.',
     leaderboardTitle: 'لوحة صدارة {{tier}}',
     title: 'عالم القوة',
     current: 'الحالي',

@@ -1003,6 +1003,7 @@ const en = {
     seeFullBoard: 'See the full leaderboard',
     seeMore: 'SEE MORE',
     loading: 'LOADING…',
+    boardLoadFailed: "Couldn't load this leaderboard. Check your connection and try again.",
     leaderboardTitle: '{{tier}} LEADERBOARD',
     title: 'STRENGTH',
     current: 'CURRENT',

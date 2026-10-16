@@ -158,10 +158,10 @@ describe('getTierLeaderboard caching', () => {
       .mockResolvedValueOnce({ data: null, error: { message: 'boom', code: 'P0001' }, status: 400 })
       .mockResolvedValueOnce({ data: strengthRows, error: null });
 
-    const failed = await getTierLeaderboard(3, 'u1');
+    // A failure throws (audit M6): never an empty board that reads as "no one yet".
+    await expect(getTierLeaderboard(3, 'u1')).rejects.toThrow('Leaderboard load failed');
     const ok = await getTierLeaderboard(3, 'u1');
 
-    expect(failed.entries).toHaveLength(0);
     expect(ok.entries).toHaveLength(2);
     expect(supabase.rpc).toHaveBeenCalledTimes(2); // error wasn't cached, so retried
   });
@@ -174,6 +174,12 @@ describe('getTierLeaderboard caching', () => {
     const result = await getTierLeaderboard(3, 'u1');
 
     expect(result.entries).toHaveLength(2);
+    expect(supabase.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it('throws when the gateway retry fails too', async () => {
+    (supabase.rpc as jest.Mock).mockResolvedValue({ data: null, error: { message: '', code: '' }, status: 502 });
+    await expect(getTierLeaderboard(3, 'u1')).rejects.toThrow('Leaderboard load failed (502)');
     expect(supabase.rpc).toHaveBeenCalledTimes(2);
   });
 });

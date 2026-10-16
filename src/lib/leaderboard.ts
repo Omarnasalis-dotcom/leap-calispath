@@ -85,9 +85,11 @@ export async function getTierLeaderboard(
       ({ data: fetched, error, status } = await fetchBoard());
     }
 
+    // Throw, never return an empty board: callers show "couldn't load"
+    // (or keep the board they have) instead of "no one yet" (audit M6).
     if (error || !fetched) {
       console.error('Error fetching leaderboard:', { status, code: error?.code, message: error?.message });
-      return { entries: [], personalBest: null, outside: null };
+      throw new Error(`Leaderboard load failed (${status ?? '?'}): ${error?.message ?? 'no data'}`);
     }
     data = Array.isArray(fetched) ? fetched : [];
     strengthBoardCache.set(key, { data, timestamp: Date.now() });
@@ -144,7 +146,7 @@ export async function getPowerTierLeaderboard(
 
     if (error || !fetched) {
       console.error('Error fetching power leaderboard:', error);
-      return { entries: [], personalBest: null };
+      throw new Error(`Power leaderboard load failed: ${error?.message ?? 'no data'}`);
     }
     data = Array.isArray(fetched) ? fetched : [];
     powerBoardCache.set(key, { data, timestamp: Date.now() });

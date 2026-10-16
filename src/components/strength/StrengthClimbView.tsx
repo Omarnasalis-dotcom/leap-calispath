@@ -17,9 +17,9 @@ import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { SkillCarousel } from '../worlds/SkillCarousel';
 import {
-  BoardFilters, filterByGender, KIT_EASE, kt, rankColor, WorldPage, WorldSheet, YouBadge, Gender, Scope,
+  BoardFilters, filterByGender, KIT_EASE, kt, LoadErrorCard, rankColor, WorldPage, WorldSheet, YouBadge, Gender, Scope,
 } from '../worlds/kit';
-import { t as tr, isArabic } from '../../i18n';
+import { t as tr, isArabic, FLIP_X } from '../../i18n';
 import { useAllStepProgress } from '../../hooks/useStepProgress';
 import { StepProgress } from '../../services/StepService';
 import { stepCount, StepNumber } from '../../lib/trialSteps';
@@ -132,6 +132,9 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
   // Page scrolling is off while a tier card is being swiped (see SkillCarousel).
   const [swiping, setSwiping] = useState(false);
 
+  // A board that failed to load and has nothing to keep shows "couldn't
+  // load" with a retry, never the empty "no one yet" board (audit M6).
+  const [boardFailed, setBoardFailed] = useState<boolean[]>(() => TIERS.map(() => false));
   const loadBoards = useCallback(async () => {
     if (!userId) return;
     const results = await Promise.all(TIERS.map(tier =>
@@ -139,6 +142,7 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     if (!isMounted.current) return;
     setBoards(prev => results.map((r, i) => r?.entries ?? prev[i]));
     setOutsides(prev => results.map((r, i) => (r ? r.outside : prev[i])));
+    setBoardFailed(results.map(r => r === null));
   }, [userId, isMounted]);
 
   const loadCompleted = useCallback(async () => {
@@ -151,14 +155,17 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
 
   useFocusEffect(useCallback(() => { loadBoards(); loadCompleted(); }, [loadBoards, loadCompleted]));
 
+  const [communityFailedTier, setCommunityFailedTier] = useState<number | null>(null);
+  const [communityAttempt, setCommunityAttempt] = useState(0);
   useEffect(() => {
     if (scope !== 'community' || !userId || !profile?.community_id) return;
     let live = true;
+    setCommunityFailedTier(null);
     getTierLeaderboard(selected, userId, profile.community_id)
       .then(r => { if (live && isMounted.current) setCommunityBoard({ tier: selected, entries: r.entries, outside: r.outside }); })
-      .catch(() => {});
+      .catch(() => { if (live && isMounted.current) setCommunityFailedTier(selected); });
     return () => { live = false; };
-  }, [scope, selected, userId, profile?.community_id, isMounted]);
+  }, [scope, selected, userId, profile?.community_id, isMounted, communityAttempt]);
 
   const selectedStatus = tierStatus(selected, currentTier, completedTiers);
   const source = scope === 'community'
@@ -169,6 +176,14 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
     gender,
   ), [source, gender]);
   const loading = source == null;
+  const loadFailed = source == null && (scope === 'community' ? communityFailedTier === selected : boardFailed[selected]);
+  const retryBoard = () => {
+    if (scope === 'community') setCommunityAttempt(n => n + 1);
+    else {
+      setBoardFailed(prev => prev.map((f, i) => (i === selected ? false : f)));
+      loadBoards();
+    }
+  };
   // Past the top 100: your true rank (overall, so only on the ALL filter).
   const outside = gender === 'ALL'
     ? (scope === 'community' ? (communityBoard?.tier === selected ? communityBoard.outside : null) : outsides[selected])
@@ -334,9 +349,11 @@ export function StrengthClimbView({ profile, onStartTrial, onShowTierDetails }: 
                 style={({ pressed }) => ({ height: 48, borderRadius: 14, backgroundColor: t.pillTrack, borderWidth: 1, borderColor: c.divider, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, opacity: pressed ? 0.8 : 1 })}
               >
                 <Text style={kt('semibold', 13, t.textSecondary, 2)}>{tr('strength.seeMore')}</Text>
-                <Svg width={14} height={14} viewBox="0 0 24 24"><Path d="M9 6l6 6-6 6" fill="none" stroke={t.textSecondary} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" /></Svg>
+                <Svg width={14} height={14} viewBox="0 0 24 24" style={FLIP_X}><Path d="M9 6l6 6-6 6" fill="none" stroke={t.textSecondary} strokeWidth={2.6} strokeLinecap="round" strokeLinejoin="round" /></Svg>
               </Pressable>
             </>
+          ) : loadFailed ? (
+            <LoadErrorCard tokens={t} message={tr('strength.boardLoadFailed')} onRetry={retryBoard} />
           ) : loading ? (
             <Text style={[kt('medium', 13, t.textFaint, 1.2), { textAlign: 'center', paddingVertical: 24 }]}>{tr('strength.loading')}</Text>
           ) : (
