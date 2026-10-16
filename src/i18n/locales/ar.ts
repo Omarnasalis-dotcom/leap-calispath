@@ -2318,6 +2318,9 @@ const ar: Translations = {
     switchSub: 'اختر ما ستؤديه في هذه المحطة. أنهِ أيًّا منها هنا لتحصل على النقاط.',
     switchLocked: 'أكمل الخطوة {{n}} أولًا',
     switchCleared: 'مكتملة',
+    loadingCheckpoint: 'جارٍ تحميل اختبارك التالي…',
+    loadFailed: 'تعذّر تحميل اختبارك التالي. تحقّق من اتصالك وحاول مرة أخرى.',
+    retryLoad: 'حاول مرة أخرى',
     eternityReplayReady: 'اختر اختبارًا لتحسّن وقتك فيه: Olympian أو Demigod أو Eternity. أنهِه هنا لتحصل على النقاط.',
   },
   trial: {

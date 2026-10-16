@@ -2300,7 +2300,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // finished step like a passed trial). The item offered is remembered per
   // slot, so a finished checkpoint keeps saying what was done.
   const climbTier = profile?.strength_tier ?? 0;
-  const { progress: stepProgress } = useStepProgress(profile?.id, climbTier);
+  const { progress: stepProgress, failed: stepProgressFailed, refresh: refreshStepProgress } = useStepProgress(profile?.id, climbTier);
+  // Until the athlete's steps are known the checkpoint can't say what it is
+  // (it would offer Step 1 to someone who cleared it, or miss the Eternity
+  // pick), so START waits: loading, or "couldn't load" with a retry (audit M4).
+  const climbProgressPending = stepCount(climbTier) > 0 && stepProgress == null;
   const climbMemoKey = profile?.id && journeyData?.warriorProgramId && trialSlotKey
     ? `journey_climb_item:v1:${profile.id}:${journeyData.warriorProgramId}:${trialSlotKey}`
     : null;
@@ -2922,7 +2926,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                 <NodeRow
                   number={journeyData.weeks.reduce((sum, w) => sum + w.days.length, 0) + 1}
                   state={trialResolved ? 'complete' : weekComplete && isTrialWeek ? 'active' : 'locked'}
-                  title={climbItem?.kind === 'step'
+                  title={climbProgressPending && !trialResolved
+                    ? t('journey.strengthTrial')
+                    : climbItem?.kind === 'step'
                     ? t('trialSteps.title', { tier: tierName(climbItem.tier), n: climbItem.step })
                     : eternityDone && climbItem
                     ? t('trialSteps.trialName', { tier: tierName(climbTrialTier(climbItem)) })
@@ -2934,6 +2940,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       ? t('journey.doneNiceWork')
                       : !isTrialWeek
                       ? t('journey.trialEvery2Weeks', { week: journeyData.currentWeek + 1 })
+                      : weekComplete && climbProgressPending
+                      ? t(stepProgressFailed ? 'trialSteps.loadFailed' : 'trialSteps.loadingCheckpoint')
                       : weekComplete
                       ? (climbItem?.kind === 'step'
                         ? t('trialSteps.journeyReady', { tier: tierName(climbItem.tier) })
@@ -2941,9 +2949,11 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       : t('journey.trialLocked')
                   }
                   image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}
-                  ctaLabel={t('journey.start')}
-                  onPressCta={startClimbItem}
-                  onPressSwitch={!trialResolved && weekComplete && isTrialWeek && canSwitchClimbItem ? () => setSwitchTrialOpen(true) : undefined}
+                  ctaLabel={climbProgressPending && !trialResolved
+                    ? (stepProgressFailed ? t('trialSteps.retryLoad') : undefined)
+                    : t('journey.start')}
+                  onPressCta={climbProgressPending && !trialResolved ? refreshStepProgress : startClimbItem}
+                  onPressSwitch={!trialResolved && weekComplete && isTrialWeek && canSwitchClimbItem && !climbProgressPending ? () => setSwitchTrialOpen(true) : undefined}
                   switchLabel={t('trialSteps.switchA11y')}
                   secondaryCtaLabel={!trialResolved ? t('journey.skip') : undefined}
                   onPressSecondaryCta={!trialResolved ? () => handleSkipQuest(trialSlotKey) : undefined}

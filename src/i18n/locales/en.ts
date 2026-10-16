@@ -2179,6 +2179,10 @@ const en = {
     switchLocked: 'Clear Step {{n}} first',
     switchCleared: 'CLEARED',
     // Eternity athletes after the Eternity trial pick a trial to improve (owner decision 2026-10-16).
+    // Checkpoint before the athlete's steps are known (audit M4).
+    loadingCheckpoint: 'Loading your next trial…',
+    loadFailed: "Couldn't load your next trial. Check your connection and try again.",
+    retryLoad: 'TRY AGAIN',
     eternityReplayReady: 'Pick a trial to improve: Olympian, Demigod or Eternity. Finish it here for the points.',
   },
   trial: {

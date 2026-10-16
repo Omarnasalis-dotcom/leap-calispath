@@ -10,20 +10,24 @@ const cache = new Map<string, StepProgress>();
 /**
  * The athlete's finished Strength Trial Steps for their tier (Journey's trial
  * checkpoint and the Strength tab). null until loaded; failures keep the
- * last value. Tiers without steps never query.
+ * last value, and `failed` says the last load failed. Tiers without steps
+ * never query.
  */
 export function useStepProgress(userId: string | undefined, tier: number) {
   const key = `${userId}:${tier}`;
   const [progress, setProgress] = useState<StepProgress | null>(() => cache.get(key) ?? null);
+  const [failed, setFailed] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!userId || stepCount(tier) === 0) return;
+    setFailed(false);
     try {
       const next = await getStepProgress(userId, tier);
       cache.set(`${userId}:${tier}`, next);
       setProgress(next);
     } catch (err) {
       console.warn('Strength step progress failed:', err);
+      setFailed(true);
     }
   }, [userId, tier]);
 
@@ -33,7 +37,7 @@ export function useStepProgress(userId: string | undefined, tier: number) {
   }, [refresh, userId, tier]));
   useEffect(() => onStepSaved(() => { refresh(); }), [refresh]);
 
-  return { progress, refresh };
+  return { progress, failed, refresh };
 }
 
 const allCache = new Map<string, Record<number, StepProgress>>();
