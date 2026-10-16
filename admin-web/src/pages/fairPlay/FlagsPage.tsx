@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { ErrorNote } from '@/components/bits';
-import { fetchActiveHolds, fetchOpenFlags, type FairPlayFlag } from '@/api/fairPlay';
+import { fetchActiveHolds, fetchLiftedOutOfQueue, fetchOpenFlags, type FairPlayFlag } from '@/api/fairPlay';
 import { searchUsers } from '@/api/users';
 import { ActionsBar, FlagTable, HoldRow } from './parts';
 
@@ -10,6 +10,7 @@ import { ActionsBar, FlagTable, HoldRow } from './parts';
 export function FlagsPage() {
   const flagsQ = useQuery({ queryKey: ['fair-play', 'open-flags'], queryFn: fetchOpenFlags });
   const holdsQ = useQuery({ queryKey: ['fair-play', 'active-holds'], queryFn: fetchActiveHolds });
+  const liftedQ = useQuery({ queryKey: ['fair-play', 'lifted-out-of-queue'], queryFn: fetchLiftedOutOfQueue });
 
   const groups = useMemo(() => {
     const m = new Map<string, FairPlayFlag[]>();
@@ -57,6 +58,19 @@ export function FlagsPage() {
           <div className="panel-head"><span style={{ fontWeight: 700 }}>Active holds ({holdsQ.data.length})</span></div>
           <div className="panel-body">
             {holdsQ.data.map((h) => <HoldRow key={h.id} hold={h} showName />)}
+          </div>
+        </section>
+      )}
+
+      {liftedQ.error && <ErrorNote error={liftedQ.error} />}
+      {liftedQ.data && liftedQ.data.length > 0 && (
+        <section className="panel">
+          <div className="panel-head">
+            <span style={{ fontWeight: 700 }}>Lifted, not in the queue ({liftedQ.data.length})</span>
+            <span className="label">Lifted by you or by an accepted appeal. Send the flags back to decide again.</span>
+          </div>
+          <div className="panel-body">
+            {liftedQ.data.map((h) => <HoldRow key={h.id} hold={h} showName backToFlags={h.waiting} />)}
           </div>
         </section>
       )}

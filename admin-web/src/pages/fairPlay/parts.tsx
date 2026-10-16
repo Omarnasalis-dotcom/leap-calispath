@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 import {
-  AREA_LABEL, dismissFlags, flagTier, formatEvidence, formatFlagValue, formatMovement, holdAthlete, holdScopeLabel, liftHold, restoreReset, RULE_LABEL,
+  AREA_LABEL, dismissFlags, flagTier, formatEvidence, formatFlagValue, formatMovement, holdAthlete, holdScopeLabel, liftHold, reopenFlags, restoreReset, RULE_LABEL,
   type FairPlayArea, type FairPlayFlag, type HoldScope, type LeaderboardHold,
 } from '@/api/fairPlay';
 import { HOLD_NOTE_PRESETS, noteLabel, TEMPLATE_PREFIX, type NotePreset } from '@/shared/fairPlayNotes';
@@ -194,8 +194,15 @@ export function NotePicker({ presets, value, onChange, placeholder }: {
   );
 }
 
-export function HoldRow({ hold, showName, canRestore }: { hold: LeaderboardHold; showName?: boolean; canRestore?: boolean }) {
+export function HoldRow({ hold, showName, canRestore, backToFlags }: {
+  hold: LeaderboardHold;
+  showName?: boolean;
+  canRestore?: boolean;
+  /** A lifted hide's flags that are out of the queue: offer to send them back. */
+  backToFlags?: number[];
+}) {
   const invalidate = useFairPlayInvalidate();
+  const reopen = useMutation({ mutationFn: () => reopenFlags(backToFlags ?? []), onSuccess: invalidate });
   const lift = useMutation({ mutationFn: (reopen: boolean) => liftHold(hold.id, reopen), onSuccess: invalidate });
   const restore = useMutation({ mutationFn: () => restoreReset(hold.id), onSuccess: invalidate });
   const tone = hold.status === 'permanent' ? 'warn' : hold.status === 'active' ? 'accent' : undefined;
@@ -211,7 +218,7 @@ export function HoldRow({ hold, showName, canRestore }: { hold: LeaderboardHold;
         {hold.admin_note && <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>“{noteLabel(hold.admin_note)}”</span>}
         {hold.lifted_reason && <span className="label">lifted: {LIFTED_LABEL[hold.lifted_reason] ?? hold.lifted_reason}{hold.lifted_at ? ` · ${formatDateTime(hold.lifted_at)}` : ''}</span>}
         {hold.restored_at && <Badge tone="ok">results restored</Badge>}
-        {(lift.error || restore.error) && <ErrorNote error={lift.error ?? restore.error} />}
+        {(lift.error || restore.error || reopen.error) && <ErrorNote error={lift.error ?? restore.error ?? reopen.error} />}
       </div>
       <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
         <span className="label">{formatDateTime(hold.created_at)}</span>
@@ -243,6 +250,16 @@ export function HoldRow({ hold, showName, canRestore }: { hold: LeaderboardHold;
             confirmLabel="Lift"
             disabled={lift.isPending}
             onConfirm={() => lift.mutateAsync(false)}
+          />
+        )}
+        {hold.status === 'lifted' && !!backToFlags?.length && (
+          <ConfirmButton
+            label="Back to Flags"
+            title="Send these flags back to the queue?"
+            body={`The ${backToFlags.length} flag${backToFlags.length > 1 ? 's' : ''} from this hide go back to Flags so you can act again. The athlete stays visible until you do.`}
+            confirmLabel="Back to Flags"
+            disabled={reopen.isPending}
+            onConfirm={async () => { await reopen.mutateAsync(); }}
           />
         )}
         {hold.lifted_reason === 'reset' && !hold.restored_at && canRestore && (

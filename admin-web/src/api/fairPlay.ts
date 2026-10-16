@@ -16,7 +16,7 @@ export interface FairPlayFlag {
   source_id: string;
   movement_id: string | null;
   value: number | null;
-  rule: 'absolute' | 'jump' | 'burst' | 'floor_margin' | 'weekly_outlier';
+  rule: 'absolute' | 'jump' | 'burst' | 'floor_margin' | 'weekly_outlier' | 'manual';
   severity: 'flag' | 'strong';
   detail: Record<string, unknown>;
   status: 'open' | 'dismissed' | 'actioned' | 'reset';
@@ -116,6 +116,28 @@ export async function fetchAthleteFairPlay(userId: string): Promise<{
   };
 }
 
+/**
+ * Lifted hides (by you or an accepted appeal) whose flags are still closed
+ * as "actioned", i.e. out of the queue. Each with the flag ids that can go back.
+ */
+export async function fetchLiftedOutOfQueue(): Promise<(LeaderboardHold & { waiting: number[] })[]> {
+  const { data, error } = await supabase
+    .from('leaderboard_holds')
+    .select(`*, ${NAME}`)
+    .eq('reason', 'fair_play')
+    .eq('status', 'lifted')
+    .in('lifted_reason', ['admin', 'appeal_accepted'])
+    .order('lifted_at', { ascending: false })
+    .limit(100);
+  if (error) throw new Error(error.message);
+  const holds = (data ?? []) as LeaderboardHold[];
+  const flags = await fetchFlagsByIds(Array.from(new Set(holds.flatMap((h) => h.flag_ids))));
+  const actioned = new Set(flags.filter((f) => f.status === 'actioned').map((f) => f.id));
+  return holds
+    .map((h) => ({ ...h, waiting: h.flag_ids.filter((id) => actioned.has(id)) }))
+    .filter((h) => h.waiting.length > 0);
+}
+
 export async function fetchPendingAppeals(): Promise<FairPlayAppeal[]> {
   const { data, error } = await supabase
     .from('fair_play_appeals')
@@ -168,6 +190,25 @@ export const liftHold = (holdId: number, reopen: boolean, note?: string) =>
 /** Back to the queue: dismissed flags, or flags whose hold was lifted. */
 export const reopenFlags = (flagIds: number[]) => rpc<number>('admin_fair_play_reopen_flags', { p_flag_ids: flagIds });
 
+/** One result of an athlete, for review whether flagged or not. */
+export interface AthleteResult {
+  source_table: string;
+  source_id: string;
+  area: FairPlayArea;
+  movement_id: string | null;
+  value: number;
+  label: string | null;       // weekly: the challenge title
+  at: string | null;
+  removed: boolean;           // endurance attempt that no longer counts
+  flag_status: FairPlayFlag['status'] | null;
+}
+
+export const fetchAthleteResults = (userId: string) => rpc<AthleteResult[]>('admin_fair_play_results', { p_user: userId });
+
+/** Put results in the queue as "picked by an admin" flags; returns how many are newly open. */
+export const flagResults = (userId: string, items: Pick<AthleteResult, 'source_table' | 'source_id' | 'movement_id'>[]) =>
+  rpc<number>('admin_fair_play_flag_results', { p_user: userId, p_items: items });
+
 /** Undo an accepted reset: the removed results come back; returns how many. */
 export const restoreReset = (holdId: number) => rpc<number>('admin_fair_play_restore_reset', { p_hold_id: holdId });
 
@@ -213,6 +254,7 @@ export const RULE_LABEL: Record<FairPlayFlag['rule'], string> = {
   burst: 'Many results in an hour',
   floor_margin: 'Near the trial minimum',
   weekly_outlier: 'Far from the challenge median',
+  manual: 'Picked by an admin',
 };
 
 export const AREA_LABEL: Record<HoldScope, string> = {
