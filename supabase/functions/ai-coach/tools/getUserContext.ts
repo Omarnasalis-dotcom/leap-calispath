@@ -25,9 +25,13 @@ export const getUserContext: ToolDefinition = {
       .order("attempted_at", { ascending: false })
       .limit(5);
 
+    // Filtered to the caller's own program explicitly: RLS also shows a
+    // coach their clients' programs and an admin every program, so without
+    // this an admin/coach got an error (several rows) or a client's program.
     const { data: activeProgram } = await userClient
       .from("warrior_programs")
       .select("id, template_id, coach_id, current_week, program_templates(name)")
+      .eq("warrior_id", (profile as { id?: string } | null)?.id)
       .eq("status", "active")
       .maybeSingle();
 

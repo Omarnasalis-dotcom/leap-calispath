@@ -384,18 +384,15 @@ const AMRAP_FORTIME_DEFAULT_TIME_CAP_MIN: Record<LevelBand, number> = {
 // to model-written names.
 const WARMUP_PAD_STANDARD = ["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"];
 const WARMUP_PAD_LEGS = ["Inchworm", "Reverse Lunges", "Hip Flexors Stretch", "Banded Arm Circles", "wrist pressure"];
+// Fallbacks for when the coach picks no warm-up names (2026-10-16, owner):
+// pull days had the push-up shoulder warm-up (Scapula Push Ups), and
+// beginners' legs warm-up opened with Inchworm and Reverse Lunges.
+// Verified against the live library 2026-10-16.
+const WARMUP_PAD_PULL = ["Banded Arm Circles", "banded Shoulder External Rotation", "wrist pressure", "Scapula Pulls", "Band Apart"];
+const WARMUP_PAD_LEGS_BEGINNER = ["Air Squat", "Glutes Bridge", "Hip Flexors Stretch", "Banded Arm Circles", "wrist pressure"];
 const COOLDOWN_PAD_STANDARD = ["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"];
 const COOLDOWN_PAD_LEGS = ["Pancake Stretch", "Shoulder stretch", "Laying Hamstring Stretch", "Adductor Stretch", "Child Pose Sided"];
 const COOLDOWN_PAD_TARGET = 4;
-
-// Server-built Warm-Up/Cool-Down (2026-09-18, per-day-latency pass): real
-// production names, verified live before being hardcoded — the two
-// non-list names here ("Prone Shoulder opener", "Pike Walk out") had a
-// casing mismatch against §8's own prose ("Prone Shoulder Opener", "Pike
-// Walk Out") that never mattered while the model wrote these itself
-// (resolveExerciseIds' case-insensitive fallback covers it), but matters
-// now that this file writes them directly.
-const MOBILITY_LIST = ["Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out"];
 
 export type WarmUpMarker = "default" | "push" | "legs";
 export type CoolDownMarker = "default" | "legs";
@@ -412,8 +409,36 @@ export type CoolDownMarker = "default" | "legs";
 // validateBlockStructure rejects rounds on single blocks — carrying
 // rounds:"1" here made every server-built cool-down fail validation, which
 // sent the model into 2-4 retries per day (or no day card at all).
-const WARMUP_PRESCRIPTION = { rounds: "2", rest_after_round: 60 } as const;
+// Warm-up volume by level band (2026-10-16, owner): every tier used to get
+// 5 exercises x 10 reps x 2 rounds, too much for a tier 0-2 beginner. One
+// round needs no rest_after_round.
+const WARMUP_VOLUME: Record<LevelBand, { rounds: string; reps: string; maxExercises: number }> = {
+  beginner: { rounds: "1", reps: "8", maxExercises: 4 },
+  intermediate: { rounds: "2", reps: "10", maxExercises: 5 },
+  advanced: { rounds: "2", reps: "10", maxExercises: 5 },
+};
 const COOLDOWN_PRESCRIPTION = {} as const;
+
+// Exact names the athlete-fit check can hard-reject (a tested max, or 0
+// strict pull-ups). Never accepted from the coach's warm-up/mobility picks,
+// so a warm-up choice can never fail a whole day.
+const FIT_CHECKED_NAMES = ["pull ups (normal grip)", "dips", "push ups", "muscle up"];
+
+export interface WarmUpOptions {
+  levelBand?: LevelBand;
+  // The coach's own picks (2026-10-16): names only, the server sets the
+  // volume. Unknown, ineligible or duplicate names are dropped, never a
+  // rejected day; fewer than MIN_WARMUP_COOLDOWN_EXERCISES valid picks are
+  // topped up from the fallback list.
+  warmUpNames?: string[];
+  // Only when the athlete needs mobility (a mobility goal, a skill that
+  // needs range, a limitation). No names, no Mobility block.
+  mobilityNames?: string[];
+  // Extra names never to accept (the athlete's skill checkpoints).
+  excludeNames?: string[];
+  // Filled with one line per dropped pick, for the tool result.
+  notes?: string[];
+}
 
 // Builds whichever of Warm-Up/Cool-Down/Mobility the model didn't write
 // itself, from the verified lists above — this is the actual latency win:
@@ -435,50 +460,102 @@ export async function buildServerWarmUpCoolDown(
   warmUpMarker: WarmUpMarker | undefined,
   coolDownMarker: CoolDownMarker | undefined,
   needsWarmUp: boolean,
-  needsCoolDown: boolean
+  needsCoolDown: boolean,
+  opts: WarmUpOptions = {}
 ): Promise<ClaudeBlock[]> {
-  if (!needsWarmUp && !needsCoolDown) return [];
+  const pickedWarmUp = needsWarmUp ? (opts.warmUpNames ?? []).filter((n) => typeof n === "string" && n.trim()) : [];
+  const pickedMobility = (opts.mobilityNames ?? []).filter((n) => typeof n === "string" && n.trim());
+  if (!needsWarmUp && !needsCoolDown && pickedMobility.length === 0) return [];
 
+  const band: LevelBand = opts.levelBand ?? "intermediate";
+  const volume = WARMUP_VOLUME[band];
+  // "push" no longer adds a Mobility block (2026-10-16, owner): mobility is
+  // added for a need, through mobilityNames, not for every push day.
   const effectiveWarmUp: WarmUpMarker = warmUpMarker ?? (focusTag === "LEGS" ? "legs" : focusTag === "PUSH" ? "push" : "default");
   const effectiveCoolDown: CoolDownMarker = coolDownMarker ?? (focusTag === "LEGS" ? "legs" : "default");
-  const warmList = effectiveWarmUp === "legs" ? WARMUP_PAD_LEGS : WARMUP_PAD_STANDARD;
+  const warmList = (effectiveWarmUp === "legs"
+    ? (band === "beginner" ? WARMUP_PAD_LEGS_BEGINNER : WARMUP_PAD_LEGS)
+    : focusTag === "PULL" ? WARMUP_PAD_PULL : WARMUP_PAD_STANDARD
+  ).slice(0, volume.maxExercises);
   const coolList = effectiveCoolDown === "legs" ? COOLDOWN_PAD_LEGS : COOLDOWN_PAD_STANDARD;
-  const wantMobility = needsWarmUp && effectiveWarmUp === "push";
 
+  // One library lookup for everything, as before: the fallback lists plus
+  // the coach's picks (with category/difficulty to check eligibility).
   const candidateNames = new Set<string>();
-  if (needsWarmUp) for (const n of warmList) candidateNames.add(n);
+  if (needsWarmUp) for (const n of [...warmList, ...pickedWarmUp]) candidateNames.add(n.trim());
   if (needsCoolDown) for (const n of coolList) candidateNames.add(n);
-  if (wantMobility) for (const n of MOBILITY_LIST) candidateNames.add(n);
+  for (const n of pickedMobility) candidateNames.add(n.trim());
 
-  const { data } = await userClient.from("exercise_library").select("name").in("name", [...candidateNames]);
-  const resolvable = new Set((data ?? []).map((r: { name: string }) => r.name));
+  const { data } = await userClient.from("exercise_library").select("name, category, difficulty").in("name", [...candidateNames]);
+  const rows = (data ?? []) as Array<{ name: string; category?: string | null; difficulty?: string | null }>;
+  const resolvable = new Set(rows.map((r) => r.name));
+  const rowByName = new Map(rows.map((r) => [r.name, r]));
+  const excluded = new Set([...FIT_CHECKED_NAMES, ...(opts.excludeNames ?? []).map((n) => n.trim().toLowerCase())]);
+
+  // Keeps the coach's picks that are real, eligible, not fit-checked and not
+  // repeated; notes every one it drops.
+  const acceptPicks = (picks: string[], eligible: (r: { category?: string | null; difficulty?: string | null }) => boolean, label: string) => {
+    const kept: string[] = [];
+    const seen = new Set<string>();
+    for (const raw of picks) {
+      const name = raw.trim();
+      const key = name.toLowerCase();
+      const row = rowByName.get(name);
+      let reason: string | null = null;
+      if (seen.has(key)) reason = "listed twice";
+      else if (!row) reason = "not an exact library name";
+      else if (excluded.has(key)) reason = "a main movement checked against the athlete's max, not a warm-up";
+      else if (!eligible(row)) reason = "not a beginner, mobility or flexibility exercise";
+      if (reason) {
+        opts.notes?.push(`${label}: dropped "${name}" (${reason}).`);
+        continue;
+      }
+      seen.add(key);
+      kept.push(name);
+    }
+    return kept;
+  };
+  const isMobilityRow = (r: { category?: string | null }) => /mobility|flexibility/i.test(r.category ?? "");
+  const isWarmUpRow = (r: { category?: string | null; difficulty?: string | null }) =>
+    isMobilityRow(r) || (r.difficulty ?? "").trim().toLowerCase() === "beginner";
 
   const blocks: ClaudeBlock[] = [];
-  const warmUpMeta = { timing_system: "straight_set" as const, structure: "circuit" as const, focus_tag: focusTag, is_weighted: false, ...WARMUP_PRESCRIPTION };
+  const circuitMeta = {
+    timing_system: "straight_set" as const,
+    structure: "circuit" as const,
+    focus_tag: focusTag,
+    is_weighted: false,
+    rounds: volume.rounds,
+    ...(volume.rounds === "1" ? {} : { rest_after_round: 60 }),
+  };
   // single/straight_set, never circuit: a cool-down is static holds, not
   // reps run round after round — see this function's own header comment.
   const coolDownMeta = { timing_system: "straight_set" as const, structure: "single" as const, focus_tag: focusTag, is_weighted: false, ...COOLDOWN_PRESCRIPTION };
+  const repsExercise = (name: string) => ({ name, sets: "1", reps: volume.reps, rest_seconds: "0" });
 
   if (needsWarmUp) {
-    const names = warmList.filter((n) => resolvable.has(n));
-    if (names.length > 0) {
-      blocks.push({
-        day_name: dayName,
-        block_name: "Warm-Up",
-        metadata: { ...warmUpMeta },
-        exercises: names.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
-      });
-    }
-    if (wantMobility) {
-      const mobilityNames = MOBILITY_LIST.filter((n) => resolvable.has(n));
-      if (mobilityNames.length > 0) {
-        blocks.push({
-          day_name: dayName,
-          block_name: "Mobility",
-          metadata: { ...warmUpMeta },
-          exercises: mobilityNames.map((name) => ({ name, sets: "1", reps: "10", rest_seconds: "0" })),
-        });
+    let names = acceptPicks(pickedWarmUp, isWarmUpRow, "Warm-Up").slice(0, volume.maxExercises);
+    if (pickedWarmUp.length === 0) {
+      names = warmList.filter((n) => resolvable.has(n));
+    } else if (names.length < MIN_WARMUP_COOLDOWN_EXERCISES) {
+      const have = new Set(names.map((n) => n.toLowerCase()));
+      for (const n of warmList) {
+        if (names.length >= MIN_WARMUP_COOLDOWN_EXERCISES) break;
+        if (resolvable.has(n) && !have.has(n.toLowerCase())) names.push(n);
       }
+      opts.notes?.push(`Warm-Up: topped up to ${names.length} exercises from the standard list.`);
+    }
+    if (names.length > 0) {
+      blocks.push({ day_name: dayName, block_name: "Warm-Up", metadata: { ...circuitMeta }, exercises: names.map(repsExercise) });
+    }
+  }
+
+  if (pickedMobility.length > 0) {
+    const names = acceptPicks(pickedMobility, isMobilityRow, "Mobility").slice(0, 4);
+    if (names.length > 0) {
+      blocks.push({ day_name: dayName, block_name: "Mobility", metadata: { ...circuitMeta }, exercises: names.map(repsExercise) });
+    } else {
+      opts.notes?.push("Mobility: no usable exercise, so no Mobility block was added.");
     }
   }
 
@@ -512,20 +589,34 @@ export async function assembleDayWithServerBlocks(
   blocks: ClaudeBlock[],
   dayName: string,
   warmUpMarker: WarmUpMarker | undefined,
-  coolDownMarker: CoolDownMarker | undefined
+  coolDownMarker: CoolDownMarker | undefined,
+  opts: WarmUpOptions = {}
 ): Promise<ClaudeBlock[]> {
   const hasPhase = (phase: string) => blocks.some((b) => getBlockParts(b).phase.toLowerCase() === phase);
   const needsWarmUp = !hasPhase("warm-up");
   const needsCoolDown = !hasPhase("cool-down");
-  if (!needsWarmUp && !needsCoolDown) return blocks;
+  // A Mobility block the coach wrote itself wins over its picked names.
+  const mobilityNames = hasPhase("mobility") ? [] : (opts.mobilityNames ?? []);
+  if (!needsWarmUp && !needsCoolDown && mobilityNames.length === 0) return blocks;
 
   const focusTag =
     (blocks.find((b) => b.metadata?.focus_tag && b.metadata.focus_tag !== "REST")?.metadata?.focus_tag as string | undefined) ?? "FULL_BODY";
-  const serverBlocks = await buildServerWarmUpCoolDown(userClient, dayName, focusTag, warmUpMarker, coolDownMarker, needsWarmUp, needsCoolDown);
+  const serverBlocks = await buildServerWarmUpCoolDown(
+    userClient, dayName, focusTag, warmUpMarker, coolDownMarker, needsWarmUp, needsCoolDown,
+    { ...opts, mobilityNames }
+  );
 
-  const warmUpAndMobility = serverBlocks.filter((b) => getBlockParts(b).phase.toLowerCase() !== "cool-down");
-  const coolDown = serverBlocks.filter((b) => getBlockParts(b).phase.toLowerCase() === "cool-down");
-  const assembled = [...warmUpAndMobility, ...blocks, ...coolDown];
+  const phaseOf = (b: ClaudeBlock) => getBlockParts(b).phase.toLowerCase();
+  const warmUp = serverBlocks.filter((b) => phaseOf(b) === "warm-up");
+  const mobility = serverBlocks.filter((b) => phaseOf(b) === "mobility");
+  const coolDown = serverBlocks.filter((b) => phaseOf(b) === "cool-down");
+  const assembled = [...warmUp, ...blocks, ...coolDown];
+  // Mobility goes right after the Warm-Up, whoever wrote the Warm-Up.
+  if (mobility.length > 0) {
+    let lastWarmUp = -1;
+    assembled.forEach((b, i) => { if (phaseOf(b) === "warm-up") lastWarmUp = i; });
+    assembled.splice(lastWarmUp + 1, 0, ...mobility);
+  }
   assembled.forEach((b, i) => {
     b.order_index = i;
   });
@@ -925,14 +1016,27 @@ export function warnSplitCoverage(splitDays: string[], daysPerWeek: number): str
 // tell the athlete, rather than a hard reject forcing a rebuild.
 // `daySkillNames` maps each day name (including the day currently being
 // proposed) to the set of lowercased exercise names trained that day.
+// Position/method words of the skill grids (§8), so every step of one line
+// shares a key: "Straddle Front Lever Hold" and "Single Leg Front lever Hold"
+// are both "front lever". Library misspellings ("Adance", "Asisted") included.
+const SKILL_STEP_WORDS = /\b(tuck|advanced|adance|single|leg|straddle|half|lay|full|hold|negative|press|lean|wall|belly|to|free|box|kneeling|strict|parallet|pulses|alternating|elevated|asisted|assisted|kicks)\b/g;
+export function skillLineKey(name: string): string {
+  return name.toLowerCase().replace(/[^a-z\s-]/g, " ").replace(SKILL_STEP_WORDS, " ").replace(/\s+/g, " ").trim();
+}
+
 export function warnSkillCoverage(daySkillNames: Map<string, Set<string>>, skills: SkillFitCheckpoint[]): string[] {
   const warnings: string[] = [];
   for (const skill of skills ?? []) {
     const target = (skill.checkpointExercise ?? "").trim().toLowerCase();
     if (!target) continue;
+    // A day counts when it trains the checkpoint or another step of the same
+    // line (2026-10-16): a volume day on an easier position is still that
+    // skill's training, not a missing day.
+    const key = skillLineKey(target);
+    const sameLine = (n: string) => key.length >= 4 && n.includes(key);
     let dayCount = 0;
     for (const names of daySkillNames.values()) {
-      if (names.has(target)) dayCount += 1;
+      if (names.has(target) || [...names].some(sameLine)) dayCount += 1;
     }
     if (dayCount < 2) {
       warnings.push(
@@ -1444,6 +1548,40 @@ export function validateBuildBrief(brief: unknown): BuildBrief {
 // would let a typo write junk into a library 188 curated exercises depend
 // on, one row per affected athlete. Unresolved names throw, with near-miss
 // suggestions so the model can fix itself in one retry.
+// Equipment and load words that library names leave out: the library has
+// "Biceps Curl", not "Dumbbell Biceps Curl", and writes dumbbell work as
+// "DB ...". Only the word-match fallback ignores them, never the exact-phrase
+// search that always runs first (audit 2026-10-16: "dumbbell biceps curl"
+// came back as not in the library).
+const SEARCH_IGNORED_WORDS = new Set([
+  "dumbbell", "dumbbells", "db", "barbell", "bb", "kettlebell", "kb",
+  "heavy", "light", "weighted", "with", "the", "and",
+]);
+
+// The meaningful words of a search term, plural "s" dropped so "curls"
+// still finds "Biceps Curl". Empty when only ignored words were given.
+export function searchWords(term: string): string[] {
+  return (term.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
+    .filter((w) => w.length >= 2 && !SEARCH_IGNORED_WORDS.has(w))
+    .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w))
+    .slice(0, 4);
+}
+
+// Library rows whose name contains every one of `words`, in any order.
+export async function findByWords(
+  userClient: { from: (t: string) => any },
+  words: string[],
+  fields: string,
+  limit: number
+): Promise<any[]> {
+  if (words.length === 0) return [];
+  let q = userClient.from("exercise_library").select(fields);
+  for (const w of words) q = q.ilike("name", `%${w}%`);
+  const { data, error } = await q.limit(limit);
+  if (error) throw new Error(`Exercise lookup failed: ${error.message}`);
+  return data ?? [];
+}
+
 export async function resolveExerciseIds(
   userClient: { from: (t: string) => any },
   blocks: ClaudeBlock[]
@@ -1493,12 +1631,18 @@ export async function resolveExerciseIds(
   if (unresolved.length > 0) {
     const suggestions = await Promise.all(
       unresolved.slice(0, 5).map(async (n) => {
-        const token = n.split(/\s+/).sort((a, b) => b.length - a.length)[0] ?? n;
-        const { data } = await userClient
-          .from("exercise_library")
-          .select("name")
-          .ilike("name", `%${token}%`)
-          .limit(3);
+        // Every meaningful word first ("Dumbbell Biceps Curl" -> Biceps Curl,
+        // Banded Biceps Curl); the old longest-word guess only as a fallback,
+        // since on its own it suggested "Burpees Over Dumbbell" here.
+        let data = await findByWords(userClient, searchWords(n), "name", 3).catch(() => [] as any[]);
+        if (data.length === 0) {
+          const token = n.split(/\s+/).sort((a, b) => b.length - a.length)[0] ?? n;
+          ({ data } = await userClient
+            .from("exercise_library")
+            .select("name")
+            .ilike("name", `%${token}%`)
+            .limit(3));
+        }
         const near = (data ?? []).map((r: { name: string }) => r.name);
         return near.length ? `"${n}" — did you mean: ${near.join(", ")}?` : `"${n}" — no close match`;
       })
@@ -1705,7 +1849,7 @@ export const BLOCKS_SCHEMA = {
             rest_seconds: { type: "string", description: 'e.g. "60", or "0" inside a circuit/superset. Omit the field entirely if rest does not apply — do not send an empty string.' },
             hold_seconds: { type: "string", description: 'e.g. "30" for a static hold. Omit the field entirely for anything that is not a timed hold — do not send an empty string.' },
             is_weighted: { type: "boolean", description: "The source of truth for whether THIS exercise uses external load — independent of the block-level is_weighted." },
-            notes: { type: "string" },
+            notes: { type: "string", description: "A cue for this exercise only, e.g. a band on one exercise of a superset (system-prompt.ts §18)." },
             order_index: { type: "integer" },
           },
           required: ["name"],

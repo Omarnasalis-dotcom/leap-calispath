@@ -48,13 +48,17 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 // approved Step 1/2 cleanup items.
 async function buildProgramAction(
   userClient: SupabaseClient,
+  userId: string,
   toolName: string,
   input: Record<string, unknown>,
   result: Record<string, unknown>
 ) {
+  // The caller's own active program only — RLS also shows coaches their
+  // clients' programs and admins every program (see getUserContext.ts).
   const { data: active } = await userClient
     .from("warrior_programs")
     .select("id, template_id, coach_id")
+    .eq("warrior_id", userId)
     .eq("status", "active")
     .maybeSingle();
 
@@ -679,7 +683,20 @@ serve(async (req: Request) => {
         return;
       }
       const turnStart = Date.now();
-      const claudeResponse = await callClaude(messages);
+      let claudeResponse;
+      try {
+        claudeResponse = await callClaude(messages);
+      } catch (err) {
+        // A failed call on a later turn (provider error, network) skips every
+        // exit below, so the turns already paid for would never count toward
+        // the athlete's budget (audit 2026-10-16, L1). Record them before the
+        // error reaches the stream's handler. A first-turn failure spent
+        // nothing and stays unrecorded, as before.
+        const spent = totalUsage.input_tokens + totalUsage.output_tokens +
+          totalUsage.cache_creation_input_tokens + totalUsage.cache_read_input_tokens;
+        if (spent > 0) await recordCost();
+        throw err;
+      }
       logTurn(turn, Date.now() - turnStart, Date.now() - startedAt, claudeResponse);
       totalUsage = addUsage(totalUsage, (claudeResponse.usage ?? {}) as ClaudeUsage);
 
@@ -807,7 +824,7 @@ serve(async (req: Request) => {
             block.name === "propose_program_from_workouts" ||
             block.name === "propose_append_week"
           ) {
-            programAction = await buildProgramAction(userClient, block.name, block.input ?? {}, result as Record<string, unknown>);
+            programAction = await buildProgramAction(userClient, user.id, block.name, block.input ?? {}, result as Record<string, unknown>);
           }
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {

@@ -1,4 +1,5 @@
 import { ToolDefinition } from "./types.ts";
+import { findByWords, searchWords } from "./blockHelpers.ts";
 
 // exercise_library is GRANT SELECT-open to authenticated (only
 // INSERT/UPDATE/DELETE are coach/admin-gated — confirmed against the RLS
@@ -29,6 +30,8 @@ const BATCH_MATCH_LIMIT = 3;
 const BATCH_FIELDS = "id, name";
 const SINGLE_MATCH_LIMIT = 20;
 const SINGLE_FIELDS = "id, name, category, difficulty";
+const APPROXIMATE_NOTE =
+  "approximate: true means no exercise has that exact name; these are the nearest real ones. Use one only if it fits, and tell the athlete which one you used.";
 
 export const searchExercises: ToolDefinition = {
   name: "search_exercises",
@@ -70,13 +73,22 @@ export const searchExercises: ToolDefinition = {
       if (input.category) q = q.eq("category", input.category as string);
       const { data, error } = await q;
       if (error) throw new Error(`search_exercises failed for "${term}": ${error.message}`);
-      return data ?? [];
+      if ((data ?? []).length > 0) return { matches: data, approximate: false };
+      // Nothing contains the whole phrase: match its words in any order,
+      // without equipment/load words ("Dumbbell Biceps Curl" -> Biceps Curl).
+      // These are the nearest real exercises, not an exact match.
+      const near = await findByWords(userClient, searchWords(term), fields, limit);
+      return { matches: near, approximate: near.length > 0 };
     };
 
     if (rawQueries.length > 0) {
       const terms = rawQueries.slice(0, MAX_QUERIES);
       const settled = await Promise.all(terms.map((t) => runOne(t, BATCH_MATCH_LIMIT, BATCH_FIELDS)));
-      const results = terms.map((term, i) => ({ query: term, matches: settled[i] }));
+      const results = terms.map((term, i) => ({
+        query: term,
+        matches: settled[i].matches,
+        ...(settled[i].approximate ? { approximate: true } : {}),
+      }));
       const missing = results.filter((r) => r.matches.length === 0).map((r) => r.query);
       return {
         results,
@@ -86,9 +98,11 @@ export const searchExercises: ToolDefinition = {
         // tell the athlete, never invent an id for these.
         not_found: missing,
         truncated: rawQueries.length > MAX_QUERIES ? rawQueries.length - MAX_QUERIES : 0,
+        ...(results.some((r) => "approximate" in r) ? { note: APPROXIMATE_NOTE } : {}),
       };
     }
 
-    return { matches: await runOne(single as string, SINGLE_MATCH_LIMIT, SINGLE_FIELDS) };
+    const one = await runOne(single as string, SINGLE_MATCH_LIMIT, SINGLE_FIELDS);
+    return { matches: one.matches, ...(one.approximate ? { approximate: true, note: APPROXIMATE_NOTE } : {}) };
   },
 };

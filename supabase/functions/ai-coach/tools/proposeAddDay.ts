@@ -46,7 +46,7 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 export const proposeAddDay: ToolDefinition = {
   name: "propose_add_day",
   description:
-    "Propose the NEXT day of a program currently being built, one day at a time — this does NOT write anything until the athlete taps the card. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). Never write Warm-Up or Cool-Down blocks yourself — send `warm_up`/`cool_down` markers instead (or omit them) and the server builds them from the verified standard lists; only write one yourself if this specific day genuinely needs something different. `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
+    "Propose the NEXT day of a program currently being built, one day at a time — this does NOT write anything until the athlete taps the card. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). Don't write Warm-Up, Mobility or Cool-Down blocks: pick 3-5 warm-up exercise names for this athlete and day in `warm_up_exercises` (the server sets rounds and reps by level and builds the block), add `mobility_exercises` only when they need mobility, and the server builds the Cool-Down. `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
   input_schema: {
     type: "object",
     properties: {
@@ -54,8 +54,10 @@ export const proposeAddDay: ToolDefinition = {
       day_number: { type: "integer", description: "This day's position in the confirmed structure (e.g. 2, if this is the second day the athlete agreed to). Only affects the card's label — never whether this adds a new day or redoes one already added, which is always decided server-side from the real program state. Fill it in from the confirmed structure when you know it, e.g. when redoing an earlier day so the card still reads its real position instead of the current total day count. Omit it if genuinely unsure; the label falls back to a day count." },
       reason: { type: "string", description: "One sentence shown to the athlete on the confirmation card explaining why you're proposing this day." },
       brief: BUILD_BRIEF_SCHEMA,
-      blocks: { ...BLOCKS_SCHEMA, description: "This day's non-standard blocks — Skills/Strength/Accessories/Finisher etc. Omit Warm-Up and Cool-Down entirely unless this day needs something other than the standard prescription; use warm_up/cool_down instead." },
-      warm_up: { type: "string", enum: ["default", "push", "legs"], description: "Which standard Warm-Up list to build server-side: \"push\" also adds the Mobility block (Push/Handstand days). Omit to infer from this day's own focus_tag. Ignored if `blocks` already includes a Warm-Up block." },
+      blocks: { ...BLOCKS_SCHEMA, description: "This day's non-standard blocks — Skills/Strength/Accessories/Finisher etc. Omit Warm-Up, Mobility and Cool-Down; use warm_up_exercises and mobility_exercises instead." },
+      warm_up: { type: "string", enum: ["default", "push", "legs"], description: "Fallback only, used when warm_up_exercises is omitted: which standard Warm-Up list to build. Omit to infer from this day's own focus_tag." },
+      warm_up_exercises: { type: "array", items: { type: "string" }, description: "3-5 exact library names for this athlete's Warm-Up today: easy, rep-based moves that prepare what this day trains, within their level and equipment (system-prompt.ts §11). Names only, the server sets rounds and reps by level. Never main lifts (Pull Ups (Normal Grip), Dips, Push Ups, Muscle Up)." },
+      mobility_exercises: { type: "array", items: { type: "string" }, description: "Only when the athlete needs mobility (a mobility goal, a skill that needs range, a limitation they mentioned): 2-4 exact library mobility or flexibility names. Omit otherwise, and no Mobility block is added." },
       cool_down: { type: "string", enum: ["default", "legs"], description: "Which standard Cool-Down list to build server-side. Omit to infer from this day's own focus_tag. Ignored if `blocks` already includes a Cool-Down block." },
       source_workout_id: { type: "string", description: "The id of the library workout this day was matched from (from search_workouts/get_workout_detail), if any. Optional — omit for a from-scratch day. When present, the day is checked against that workout's real blocks; if it comes back effectively unedited, the result names what to check before proposing again." },
     },
@@ -92,17 +94,25 @@ export const proposeAddDay: ToolDefinition = {
     // Server-built Warm-Up/Cool-Down (2026-09-18, per-day-latency pass) —
     // same reasoning as propose_new_program: build whichever the model
     // didn't write itself, before normalize/validate ever see this day.
+    const { data: profile } = await userClient.rpc("get_my_profile").single();
+    const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
+    const warmUpNotes: string[] = [];
     blocks = await assembleDayWithServerBlocks(
       userClient,
       blocks as never[],
       dayName,
       input.warm_up as WarmUpMarker | undefined,
-      input.cool_down as CoolDownMarker | undefined
+      input.cool_down as CoolDownMarker | undefined,
+      {
+        levelBand,
+        warmUpNames: Array.isArray(input.warm_up_exercises) ? (input.warm_up_exercises as string[]) : undefined,
+        mobilityNames: Array.isArray(input.mobility_exercises) ? (input.mobility_exercises as string[]) : undefined,
+        excludeNames: brief.skills.map((s) => s.checkpointExercise),
+        notes: warmUpNotes,
+      }
     );
 
-    const { data: profile } = await userClient.rpc("get_my_profile").single();
-    const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
-    const autoFixed = await normalizeBlockStructure(blocks as never[], levelBand, userClient);
+    const autoFixed = [...warmUpNotes, ...(await normalizeBlockStructure(blocks as never[], levelBand, userClient))];
 
     validateBlockStructure(blocks as never[], { requireDayPhases: true });
 
@@ -130,6 +140,7 @@ export const proposeAddDay: ToolDefinition = {
     const { data: activeProgram } = await userClient
       .from("warrior_programs")
       .select("template_id")
+      .eq("warrior_id", (profile as { id?: string } | null)?.id)
       .eq("status", "active")
       .eq("coach_id", AI_COACH_SYSTEM_PROFILE_ID)
       .maybeSingle();

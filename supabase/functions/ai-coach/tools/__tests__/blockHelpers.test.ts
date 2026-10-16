@@ -16,6 +16,7 @@ import {
   validateExerciseList,
   warnSplitCoverage,
   warnSkillCoverage,
+  skillLineKey,
   warnTimingMismatch,
   warnUneditedFromSource,
   validateAthleteFit,
@@ -192,6 +193,7 @@ const ALL_PAD_NAMES_RESOLVABLE = [
   "Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener",
   "Pancake Stretch", "Laying Hamstring Stretch", "Adductor Stretch",
   "Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out",
+  "Scapula Pulls", "Band Apart", "Air Squat", "Glutes Bridge",
 ];
 const REAL_CLIENT = makeMockClient(ALL_PAD_NAMES_RESOLVABLE);
 
@@ -713,6 +715,35 @@ describe("warnSkillCoverage (added 2026-09-17): non-fatal, checked only on the l
 
   it("returns no warnings when no skills were named", () => {
     expect(warnSkillCoverage(new Map(), [])).toEqual([]);
+  });
+
+  // 2026-10-16: an intensity day at the checkpoint plus a volume day on an
+  // easier position of the same line is two days of that skill.
+  it("counts a volume day on an easier step of the same line", () => {
+    const straddle = [{ skill: "front_lever", checkpointExercise: "Straddle Front Lever Hold", maxHoldSeconds: 10, maxReps: null }];
+    const daySkillNames = new Map<string, Set<string>>([
+      ["PULL DAY", new Set(["straddle front lever hold"])],
+      ["PULL DAY 2", new Set(["single leg front lever hold", "band row"])],
+    ]);
+    expect(warnSkillCoverage(daySkillNames, straddle)).toEqual([]);
+  });
+
+  it("does not count a different line (back lever is not front lever)", () => {
+    const straddle = [{ skill: "front_lever", checkpointExercise: "Straddle Front Lever Hold", maxHoldSeconds: 10, maxReps: null }];
+    const daySkillNames = new Map<string, Set<string>>([
+      ["PULL DAY", new Set(["straddle front lever hold"])],
+      ["PULL DAY 2", new Set(["straddle back lever hold"])],
+    ]);
+    expect(warnSkillCoverage(daySkillNames, straddle)).toEqual([expect.stringContaining("only appears in 1 day")]);
+  });
+
+  it("skillLineKey gives every step of a line the same key", () => {
+    expect(skillLineKey("Straddle Front Lever Hold")).toBe("front lever");
+    expect(skillLineKey("Single Leg Front lever Hold")).toBe("front lever");
+    expect(skillLineKey("Adance tuck Front Lever Hold")).toBe("front lever");
+    expect(skillLineKey("Full Back Lever Press")).toBe("back lever");
+    expect(skillLineKey("Free Handstand")).toBe("handstand");
+    expect(skillLineKey("Negative Muscle Up")).toBe("muscle up");
   });
 });
 
@@ -1453,7 +1484,8 @@ describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", (
     const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
     const coolDown = blocks.find((b) => b.block_name === "Cool-Down")!;
     expect(warmUp.metadata).toMatchObject({ timing_system: "straight_set", structure: "circuit", focus_tag: "PULL", rounds: "2", rest_after_round: 60 });
-    expect(warmUp.exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"]);
+    // Pull days get the pull fallback (2026-10-16): Scapula Pulls, not Scapula Push Ups.
+    expect(warmUp.exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "banded Shoulder External Rotation", "wrist pressure", "Scapula Pulls", "Band Apart"]);
     expect(warmUp.exercises.every((e) => e.sets === "1" && e.reps === "10")).toBe(true);
     expect(coolDown.metadata).toMatchObject({ timing_system: "straight_set", structure: "single", focus_tag: "PULL" });
     // No rounds on a single block — validateBlockStructure rejects that (2026-09-26 fix).
@@ -1474,11 +1506,10 @@ describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", (
     expect(coolDown.exercises.filter((e) => e.name !== "Pancake Stretch").every((e) => e.hold_seconds === "30")).toBe(true);
   });
 
-  it("a \"push\" warm_up marker also builds a separate Mobility block", async () => {
+  it("a \"push\" warm_up marker no longer adds a Mobility block (2026-10-16: Mobility only when needed)", async () => {
     const blocks = await buildServerWarmUpCoolDown(REAL_CLIENT, "PUSH DAY", "PUSH", "push", undefined, true, false);
-    expect(blocks.map((b) => b.block_name)).toEqual(["Warm-Up", "Mobility"]);
-    const mobility = blocks.find((b) => b.block_name === "Mobility")!;
-    expect(mobility.exercises.map((e) => e.name)).toEqual(["Tuck Overhead Reach Foam roller", "Prone Shoulder opener", "Pike Walk out"]);
+    expect(blocks.map((b) => b.block_name)).toEqual(["Warm-Up"]);
+    expect(blocks[0].exercises.map((e) => e.name)).toEqual(["Banded Arm Circles", "Inchworm", "banded Shoulder External Rotation", "wrist pressure", "Scapula Push Ups"]);
   });
 
   it("infers legs from focus_tag when the marker is omitted", async () => {
@@ -1498,7 +1529,7 @@ describe("buildServerWarmUpCoolDown (added 2026-09-18, per-day-latency pass)", (
 
   it("skips a name that no longer resolves live rather than trusting the hardcoded list blindly", async () => {
     const partialClient = makeMockClient(["Inchworm", "Scapula Push Ups"]); // only 2 of the 5 warm-up names
-    const blocks = await buildServerWarmUpCoolDown(partialClient, "PULL DAY 1", "PULL", undefined, undefined, true, false);
+    const blocks = await buildServerWarmUpCoolDown(partialClient, "PUSH DAY", "PUSH", undefined, undefined, true, false);
     const warmUp = blocks.find((b) => b.block_name === "Warm-Up")!;
     expect(warmUp.exercises.map((e) => e.name).sort()).toEqual(["Inchworm", "Scapula Push Ups"]);
   });

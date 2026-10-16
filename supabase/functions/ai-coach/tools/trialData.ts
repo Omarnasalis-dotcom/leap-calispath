@@ -92,7 +92,14 @@ const RITES_OF_PASSAGE: Trial[] = [
   ] },
 ];
 
+// The trial an athlete takes next is the one for their CURRENT tier: passing
+// tier N's trial is what moves them to N + 1 (TrialScreen's
+// getTrialForTier(strength_tier); submit_trial_result advances only when
+// p_tier = strength_tier). This used to return tier + 1's trial, one ahead
+// of what the app actually gives them (audit 2026-10-16, H1).
 export function getNextTrial(currentTier: number): Trial | null {
-  const targetTier = Math.min(Math.max(currentTier, 0) + 1, 9);
-  return RITES_OF_PASSAGE.find((t) => t.tier === targetTier) ?? null;
+  const tier = Math.min(Math.max(Math.floor(currentTier), 0), 9);
+  return RITES_OF_PASSAGE.find((t) => t.tier === tier) ?? null;
 }
+
+export { RITES_OF_PASSAGE };
