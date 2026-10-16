@@ -2373,6 +2373,9 @@ const ar: Translations = {
     unsavedBody: 'أنهيت {{name}} في {{time}} لكن النتيجة لم تُحفظ. هل تريد حفظها الآن؟',
     startOver: 'البدء من جديد',
     saveNow: 'حفظ',
+    otherRunningTitle: 'هناك اختبار ما زال مفتوحًا',
+    otherRunningBody: '{{name}} ما زال قيد التنفيذ. بدء هذه المحطة سيغلقه، وستبدأ من جديد باختبار جديد.',
+    otherUnsavedBody: 'أنهيت {{name}} في {{time}} لكن النتيجة لم تُحفظ. بدء هذه المحطة سيغلقه دون حفظ، وستبدأ من جديد باختبار جديد.',
   },
   coach: {
     recStrength: 'جرّب اختبار القوة',

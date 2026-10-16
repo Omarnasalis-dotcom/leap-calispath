@@ -2234,6 +2234,10 @@ const en = {
     unsavedBody: 'Your {{name}} finished in {{time}} but was not saved. Save it now?',
     startOver: 'Start Over',
     saveNow: 'Save',
+    // Journey checkpoint opened while a different trial is saved on the phone (audit M2).
+    otherRunningTitle: 'A Trial Is Still Open',
+    otherRunningBody: 'Your {{name}} is still in progress. Starting this checkpoint will close it, and you start over with a new trial.',
+    otherUnsavedBody: 'Your {{name}} finished in {{time}} but was not saved. Starting this checkpoint will close it without saving, and you start over with a new trial.',
   },
   coach: {
     recStrength: 'Try the Strength Trial',

@@ -277,6 +277,21 @@ export function TrialScreen({
         ? t('trialSteps.title', { tier: (TIER_NAMES[saved.tier + 1] ?? '').toUpperCase(), n: saved.step ?? 1 })
         : isArabic ? t('trial.name', { tier: TIER_NAMES[saved.tier] ?? saved.tier }) : savedTrial!.name;
       const discard = { text: t('trial.startOver'), style: 'destructive' as const, onPress: () => { clearSavedTrial(user.id); } };
+      // Opened from the Journey checkpoint, a saved trial is never resumed
+      // or saved (audit M2, owner decision 2026-10-16): only the checkpoint's
+      // own trial, started over, can close it. Warn that the saved one will
+      // be closed; Cancel goes back and keeps it.
+      if (fromJourney) {
+        Alert.alert(
+          t('trial.otherRunningTitle'),
+          saved.finishedSeconds !== undefined
+            ? t('trial.otherUnsavedBody', { name, time: ltr(formatTime(saved.finishedSeconds)) })
+            : t('trial.otherRunningBody', { name }),
+          [{ text: t('trial.cancel'), style: 'cancel', onPress: () => onBack?.() }, discard],
+          { cancelable: false },
+        );
+        return;
+      }
       if (saved.finishedSeconds !== undefined) {
         Alert.alert(
           t('trial.unsavedTitle'),
