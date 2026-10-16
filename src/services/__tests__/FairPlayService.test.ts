@@ -1,6 +1,10 @@
 jest.mock('../../lib/supabase', () => ({ supabase: { rpc: jest.fn() } }));
 
-import { describeFlag, FairPlayFlagSummary } from '../FairPlayService';
+import i18n from '../../i18n';
+import en from '../../i18n/locales/en';
+import ar from '../../i18n/locales/ar';
+import { APPEAL_REPLY_PRESETS, HOLD_NOTE_PRESETS } from '../../../admin-web/src/shared/fairPlayNotes';
+import { describeFlag, FairPlayFlagSummary, resolveTeamNote } from '../FairPlayService';
 
 const flag = (p: Partial<FairPlayFlagSummary>): FairPlayFlagSummary => ({
   area: 'static', movement_id: null, value: null, rule: 'ceiling', created_at: '2026-10-16T00:00:00Z', ...p,
@@ -28,5 +32,32 @@ describe('describeFlag', () => {
   it('falls back when a value or movement is missing', () => {
     expect(describeFlag(flag({ area: 'static', movement_id: 'unknown_hold' }))).toBe('unknown_hold');
     expect(describeFlag(flag({ area: 'weekly', value: 300 }))).toBe('Weekly Challenge · 300');
+  });
+});
+
+describe('resolveTeamNote', () => {
+  afterEach(() => { i18n.changeLanguage('en'); });
+
+  it('shows a preset in the app language', () => {
+    expect(resolveTeamNote('tpl:needVideo')).toEqual({ text: en.fairPlay.templates.needVideo, preset: true });
+    i18n.changeLanguage('ar');
+    expect(resolveTeamNote('tpl:needVideo')).toEqual({ text: ar.fairPlay.templates.needVideo, preset: true });
+  });
+
+  it('shows a custom note exactly as typed', () => {
+    expect(resolveTeamNote('  Send the video please ')).toEqual({ text: 'Send the video please', preset: false });
+  });
+
+  it('shows nothing for no note or an unknown preset', () => {
+    expect(resolveTeamNote(null)).toBeNull();
+    expect(resolveTeamNote('   ')).toBeNull();
+    expect(resolveTeamNote('tpl:addedLater')).toBeNull();
+  });
+
+  it('has app text in both languages for every admin preset', () => {
+    for (const p of [...HOLD_NOTE_PRESETS, ...APPEAL_REPLY_PRESETS]) {
+      expect(en.fairPlay.templates).toHaveProperty(p.id, p.en);
+      expect(ar.fairPlay.templates).toHaveProperty(p.id, p.ar);
+    }
   });
 });

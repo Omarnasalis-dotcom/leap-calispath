@@ -4,6 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Badge, ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 import { fetchAthleteFairPlay } from '@/api/fairPlay';
+import { noteLabel } from '@/shared/fairPlayNotes';
 import { ActionsBar, FlagTable, HoldRow } from './parts';
 
 /** One athlete: strikes, holds, appeals, every flag; act on the open ones. */
@@ -66,7 +67,7 @@ export function AthleteFairPlayPage() {
                     <span className="label">{formatDateTime(a.created_at)}</span>
                   </div>
                   <div style={{ marginTop: 4 }}>“{a.message}”</div>
-                  {a.admin_reply && <div style={{ marginTop: 4, color: 'var(--ink-2)' }}>Reply: {a.admin_reply}</div>}
+                  {a.admin_reply && <div style={{ marginTop: 4, color: 'var(--ink-2)' }}>Reply: {noteLabel(a.admin_reply)}</div>}
                 </div>
               ))}
             </div>

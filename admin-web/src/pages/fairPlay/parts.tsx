@@ -6,6 +6,7 @@ import {
   AREA_LABEL, dismissFlags, formatEvidence, formatFlagValue, formatMovement, holdAthlete, liftHold, RULE_LABEL,
   type FairPlayArea, type FairPlayFlag, type HoldScope, type LeaderboardHold,
 } from '@/api/fairPlay';
+import { HOLD_NOTE_PRESETS, noteLabel, TEMPLATE_PREFIX, type NotePreset } from '@/shared/fairPlayNotes';
 
 /** Invalidate every Fair Play view after an action. */
 export function useFairPlayInvalidate() {
@@ -89,7 +90,7 @@ export function ActionsBar({ userId, flags, selected }: { userId: string; flags:
     <div style={{ display: 'grid', gap: 10, marginTop: 12 }}>
       {(dismiss.error || hold.error) && <ErrorNote error={dismiss.error ?? hold.error} />}
       <div className="row" style={{ flexWrap: 'wrap', gap: 10 }}>
-        <input className="field" style={{ flex: 1, minWidth: 220 }} placeholder="Note to the athlete (shown in the app)" value={note} onChange={(e) => setNote(e.target.value)} />
+        <NotePicker presets={HOLD_NOTE_PRESETS} value={note} onChange={setNote} placeholder="Note to the athlete (shown in the app)" />
         <label className="row" style={{ gap: 6, fontSize: 13 }}>
           <input type="checkbox" checked={strike} onChange={(e) => setStrike(e.target.checked)} /> Counts as a strike
         </label>
@@ -129,6 +130,44 @@ export function ActionsBar({ userId, flags, selected }: { userId: string; flags:
   );
 }
 
+/**
+ * A note to the athlete: a preset (stored as tpl:<id>, shown in the athlete's
+ * own language) or a custom note (shown exactly as typed).
+ */
+export function NotePicker({ presets, value, onChange, placeholder }: {
+  presets: NotePreset[]; value: string; onChange: (v: string) => void; placeholder: string;
+}) {
+  const [custom, setCustom] = useState(false);
+  const preset = value.startsWith(TEMPLATE_PREFIX) ? presets.find((p) => TEMPLATE_PREFIX + p.id === value) : undefined;
+  const choice = preset ? preset.id : custom ? 'custom' : '';
+  return (
+    <div style={{ display: 'grid', gap: 6, flex: 1, minWidth: 220 }}>
+      <select
+        className="field"
+        value={choice}
+        onChange={(e) => {
+          const v = e.target.value;
+          setCustom(v === 'custom');
+          onChange(v === '' || v === 'custom' ? '' : TEMPLATE_PREFIX + v);
+        }}
+      >
+        <option value="">No note</option>
+        {presets.map((p) => <option key={p.id} value={p.id}>{p.en}</option>)}
+        <option value="custom">Custom note…</option>
+      </select>
+      {choice === 'custom' && (
+        <input className="field" placeholder={`${placeholder} — shown exactly as typed`} value={value} onChange={(e) => onChange(e.target.value)} />
+      )}
+      {preset && (
+        <div style={{ fontSize: 12.5, color: 'var(--ink-2)', display: 'grid', gap: 2 }}>
+          <span>The athlete sees it in their app language:</span>
+          <span dir="rtl" style={{ textAlign: 'right' }}>{preset.ar}</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function HoldRow({ hold, showName }: { hold: LeaderboardHold; showName?: boolean }) {
   const invalidate = useFairPlayInvalidate();
   const lift = useMutation({ mutationFn: () => liftHold(hold.id), onSuccess: invalidate });
@@ -141,7 +180,7 @@ export function HoldRow({ hold, showName }: { hold: LeaderboardHold; showName?: 
         <span>{AREA_LABEL[hold.scope]}</span>
         <span className="label">{hold.reason === 'inactive' ? 'inactive' : `${hold.flag_ids.length} flagged`}</span>
         {hold.counts_as_strike && <Badge tone="warn">strike</Badge>}
-        {hold.admin_note && <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>“{hold.admin_note}”</span>}
+        {hold.admin_note && <span style={{ color: 'var(--ink-2)', fontSize: 13 }}>“{noteLabel(hold.admin_note)}”</span>}
         {hold.lifted_reason && <span className="label">lifted: {hold.lifted_reason}</span>}
       </div>
       <div className="row" style={{ gap: 8 }}>

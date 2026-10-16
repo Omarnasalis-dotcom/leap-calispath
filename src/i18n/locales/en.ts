@@ -2074,6 +2074,17 @@ const en = {
     send: 'Send',
     noteHint: 'One note per decision. You stay hidden until we reply.',
     failed: "Couldn't do that. Check your connection and try again.",
+    // Preset notes from the team, stored as tpl:<id> (admin-web/src/shared/fairPlayNotes.ts).
+    templates: {
+      unrealistic: "This result is far beyond what's realistic for your level. If it's real, send us a video link.",
+      needVideo: 'Please send us a video link of this attempt so we can confirm it.',
+      fullReps: 'Only full-range reps count. Results with partial reps are not valid.',
+      typo: 'This looks like a typing mistake. Accept the reset, then log the result again.',
+      repeated: 'Several of your results were flagged. Please log only what you actually did.',
+      appealConfirmed: "Thanks, your proof confirms the result. You're back on the leaderboards.",
+      appealNoProof: "We couldn't confirm this result without a video.",
+      appealNotValid: 'The video shows the result does not meet the standard, so the decision stays.',
+    },
     scope: {
       all: 'ALL LEADERBOARDS',
       strength: 'STRENGTH',

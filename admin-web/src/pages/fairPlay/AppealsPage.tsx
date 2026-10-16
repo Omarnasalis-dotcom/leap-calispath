@@ -4,7 +4,8 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Badge, ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
 import { AREA_LABEL, decideAppeal, fetchFlagsByIds, fetchPendingAppeals, type FairPlayAppeal } from '@/api/fairPlay';
-import { FlagTable, useFairPlayInvalidate } from './parts';
+import { APPEAL_REPLY_PRESETS, noteLabel } from '@/shared/fairPlayNotes';
+import { FlagTable, NotePicker, useFairPlayInvalidate } from './parts';
 
 /** Pending appeals, oldest first. Accept = unhide, no reset, strike removed. */
 export function AppealsPage() {
@@ -55,10 +56,10 @@ function AppealCard({ appeal: a }: { appeal: FairPlayAppeal }) {
       </div>
       <div className="panel-body" style={{ display: 'grid', gap: 10 }}>
         {decide.error && <ErrorNote error={decide.error} />}
-        {hold?.admin_note && <div style={{ color: 'var(--ink-2)' }}>Your note: “{hold.admin_note}”</div>}
+        {hold?.admin_note && <div style={{ color: 'var(--ink-2)' }}>Your note: “{noteLabel(hold.admin_note)}”</div>}
         <div style={{ fontSize: 15 }}>“{a.message}”</div>
         {flagsQ.data && flagsQ.data.length > 0 && <FlagTable flags={flagsQ.data} />}
-        <textarea className="field" rows={2} placeholder="Reply to the athlete (optional)" value={reply} onChange={(e) => setReply(e.target.value)} />
+        <NotePicker presets={APPEAL_REPLY_PRESETS} value={reply} onChange={setReply} placeholder="Reply to the athlete" />
         <div className="row" style={{ gap: 8 }}>
           <button className="btn small primary" disabled={decide.isPending} onClick={() => decide.mutate(true)}>Accept · unhide</button>
           <button className="btn small danger" disabled={decide.isPending} onClick={() => decide.mutate(false)}>Reject</button>

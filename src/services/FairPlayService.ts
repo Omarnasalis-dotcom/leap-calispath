@@ -4,6 +4,7 @@ import { STATIC_MOVEMENTS } from '../lib/staticLogic';
 import { ONEMM_MOVEMENTS } from '../lib/oneMMLogic';
 import { POWER_MOVEMENTS } from '../lib/powerLogic';
 import { TIER_NAMES } from '../types';
+import i18n, { t } from '../i18n';
 
 // Fair Play, the athlete's side (docs/features/FAIR_PLAY_MODERATION_PLAN.md):
 // leaderboard holds an admin placed on you, their flagged results, your
@@ -55,6 +56,23 @@ export const acknowledgeHold = (holdId: number) => call('fair_play_acknowledge',
 export const appealHold = (holdId: number, message: string) => call('fair_play_appeal', { p_hold_id: holdId, p_message: message });
 export const acceptReset = (holdId: number) => call('fair_play_accept_reset', { p_hold_id: holdId });
 export const revealAfterInactivity = (holdId: number) => call('fair_play_reveal', { p_hold_id: holdId });
+
+/**
+ * A note from the team (hold note or appeal reply). A preset is stored as
+ * tpl:<id> and shown in the athlete's own language (fairPlay.templates.<id>;
+ * the ids come from admin-web/src/shared/fairPlayNotes.ts). Anything else is
+ * a custom note, shown exactly as typed. Null for no note, or a preset this
+ * version doesn't know yet (better nothing than "tpl:…").
+ */
+export const NOTE_TEMPLATE_PREFIX = 'tpl:';
+export function resolveTeamNote(note: string | null | undefined): { text: string; preset: boolean } | null {
+  const raw = note?.trim();
+  if (!raw) return null;
+  if (!raw.startsWith(NOTE_TEMPLATE_PREFIX)) return { text: raw, preset: false };
+  const key = `fairPlay.templates.${raw.slice(NOTE_TEMPLATE_PREFIX.length)}` as 'fairPlay.templates.needVideo';
+  if (!i18n.exists(key as string)) return null;
+  return { text: t(key), preset: true };
+}
 
 /** "Full Front Lever · 70 s" — names stay in English, like the rest of the climb. */
 export function describeFlag(f: FairPlayFlagSummary): string {

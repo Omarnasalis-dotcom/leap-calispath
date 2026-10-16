@@ -9,7 +9,7 @@ import { kt } from '../worlds/kit';
 import { invalidatePowerLeaderboardCache, invalidateStrengthLeaderboardCache } from '../../lib/leaderboard';
 import {
   acceptReset, acknowledgeHold, appealHold, clearFairPlay, closeFairPlaySheet, describeFlag, FairPlayHold, openFairPlaySheet, refreshFairPlay,
-  revealAfterInactivity, useFairPlay,
+  resolveTeamNote, revealAfterInactivity, useFairPlay,
 } from '../../services/FairPlayService';
 import { ltr, t as tr } from '../../i18n';
 
@@ -109,6 +109,8 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
 
   const permanent = hold.status === 'permanent';
   const appeal = hold.appeal;
+  const teamNote = resolveTeamNote(hold.admin_note);
+  const reply = resolveTeamNote(appeal?.admin_reply);
   return (
     <View style={{ gap: 12 }}>
       <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, height: 24, borderRadius: 12, justifyContent: 'center', backgroundColor: permanent ? '#3a1414' : t.tint, borderWidth: 1, borderColor: permanent ? '#7a2a2a' : t.border }}>
@@ -128,11 +130,11 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
         </View>
       )}
 
-      {!!hold.admin_note && (
+      {teamNote && (
         <View style={{ borderRadius: 14, backgroundColor: t.tint, padding: 12, gap: 6 }}>
           <Text style={kt('medium', 10.5, t.textMuted, 2)}>{tr('fairPlay.fromTheTeam')}</Text>
-          {/* The admin writes in either language: follow the note, not the app. */}
-          <Text style={[kt('regular', 14, t.text, 0, 21), noteDirection(hold.admin_note)]}>{hold.admin_note}</Text>
+          {/* A preset is already in the app's language; a custom note can be in either: follow the note, not the app. */}
+          <Text style={[kt('regular', 14, t.text, 0, 21), !teamNote.preset && noteDirection(teamNote.text)]}>{teamNote.text}</Text>
         </View>
       )}
       {!permanent && (hold.counts_as_strike || strikes > 0) && (
@@ -150,7 +152,7 @@ function HoldCard({ t, hold, strikes }: { t: WorldKitTokens; hold: FairPlayHold;
           <Text style={kt('semibold', 13, t.text, 0.4)}>
             {tr(appeal.status === 'pending' ? 'fairPlay.appealPending' : 'fairPlay.appealRejected')}
           </Text>
-          {!!appeal.admin_reply && <Text style={kt('regular', 13, t.textSecondary, 0, 19)}>{tr('fairPlay.reply', { reply: appeal.admin_reply })}</Text>}
+          {reply && <Text style={kt('regular', 13, t.textSecondary, 0, 19)}>{tr('fairPlay.reply', { reply: reply.text })}</Text>}
         </View>
       )}
 
