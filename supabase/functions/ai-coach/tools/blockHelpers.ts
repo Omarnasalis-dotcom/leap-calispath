@@ -1563,6 +1563,9 @@ const SEARCH_IGNORED_WORDS = new Set([
 export function searchWords(term: string): string[] {
   return (term.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [])
     .filter((w) => w.length >= 2 && !SEARCH_IGNORED_WORDS.has(w))
+    // "banded" -> "band": library names say "band" ("Muscle Up band-assisted")
+    // as often as "Banded".
+    .map((w) => (w === "banded" ? "band" : w))
     .map((w) => (w.length > 3 && w.endsWith("s") ? w.slice(0, -1) : w))
     .slice(0, 4);
 }
@@ -1580,6 +1583,25 @@ export async function findByWords(
   const { data, error } = await q.limit(limit);
   if (error) throw new Error(`Exercise lookup failed: ${error.message}`);
   return data ?? [];
+}
+
+// findByWords with one word allowed to miss (2026-10-16): "Muscle Up
+// band-assisted easy" or a word the library spells differently still finds
+// the exercise. Tries every word first, then each set of all-but-one, the
+// trailing word dropped first. At most words.length + 1 lookups.
+export async function findNearestByWords(
+  userClient: { from: (t: string) => any },
+  words: string[],
+  fields: string,
+  limit: number
+): Promise<any[]> {
+  const all = await findByWords(userClient, words, fields, limit);
+  if (all.length > 0 || words.length < 2) return all;
+  for (let i = words.length - 1; i >= 0; i--) {
+    const rows = await findByWords(userClient, words.filter((_, j) => j !== i), fields, limit);
+    if (rows.length > 0) return rows;
+  }
+  return [];
 }
 
 export async function resolveExerciseIds(
@@ -1634,7 +1656,7 @@ export async function resolveExerciseIds(
         // Every meaningful word first ("Dumbbell Biceps Curl" -> Biceps Curl,
         // Banded Biceps Curl); the old longest-word guess only as a fallback,
         // since on its own it suggested "Burpees Over Dumbbell" here.
-        let data = await findByWords(userClient, searchWords(n), "name", 3).catch(() => [] as any[]);
+        let data = await findNearestByWords(userClient, searchWords(n), "name", 3).catch(() => [] as any[]);
         if (data.length === 0) {
           const token = n.split(/\s+/).sort((a, b) => b.length - a.length)[0] ?? n;
           ({ data } = await userClient

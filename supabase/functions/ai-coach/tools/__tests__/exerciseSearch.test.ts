@@ -3,12 +3,13 @@
 // biceps curl" was reported as not in the library, and the suggestion was
 // "Burpees Over Dumbbell"). The fake client below runs the same
 // select/ilike/in/limit chain against real library names.
-import { findByWords, resolveExerciseIds, searchWords } from "../blockHelpers";
+import { findByWords, findNearestByWords, resolveExerciseIds, searchWords } from "../blockHelpers";
 
 const LIBRARY = [
   "Banded Biceps Curl", "Biceps Curl", "Burpees Over Dumbbell", "DB Bench Press", "DB Lateral Raise",
   "Hammer Curls", "Incline DB Bench Press", "Leg curl", "Ring Curls", "Pull Ups (Normal Grip)",
   "Scapula Pulls", "Barbell Hip Thrusts", "Toes To KB",
+  "Muscle Up", "Negative Muscle Up", "Muscle Up band-assisted", "Banded Pull Ups",
 ].map((name, i) => ({ id: `id-${i}`, name }));
 
 function likeToRegex(pattern: string): RegExp {
@@ -86,5 +87,39 @@ describe("resolveExerciseIds suggestions", () => {
     await expect(resolveExerciseIds(fakeClient(), block("Zzz Nothing"))).rejects.toThrow(
       /These exercises are not in the library, so the program was not built: "Zzz Nothing" — no close match/
     );
+  });
+});
+
+// 2026-10-16: the coach wrote a muscle-up name the library didn't have, and
+// "every word must match" found nothing to suggest.
+describe("muscle-up band-assisted and one-word-off names", () => {
+  it("reads banded as band", () => {
+    expect(searchWords("Banded Muscle Up")).toEqual(["band", "muscle", "up"]);
+  });
+
+  it("finds Muscle Up band-assisted for 'Banded Muscle Up'", async () => {
+    const rows = await findNearestByWords(fakeClient(), searchWords("Banded Muscle Up"), "id, name", 3);
+    expect(rows.map((r) => r.name)).toEqual(["Muscle Up band-assisted"]);
+  });
+
+  it("lets one word miss when nothing matches every word", async () => {
+    const rows = await findNearestByWords(fakeClient(), searchWords("Muscle Up band assisted easy"), "id, name", 3);
+    expect(rows.map((r) => r.name)).toEqual(["Muscle Up band-assisted"]);
+  });
+
+  it("still prefers a match on every word", async () => {
+    const rows = await findNearestByWords(fakeClient(), searchWords("dumbbell biceps curl"), "id, name", 3);
+    expect(rows.map((r) => r.name)).toEqual(["Banded Biceps Curl", "Biceps Curl"]);
+  });
+
+  it("the not-in-library message suggests the band-assisted muscle-up", async () => {
+    const block = [{ day_name: "PULL DAY", block_name: "Skills", exercises: [{ name: "Banded Muscle Up" }] }] as never[];
+    await expect(resolveExerciseIds(fakeClient(), block)).rejects.toThrow(/did you mean: Muscle Up band-assisted\?/);
+  });
+
+  it("resolves the real name exactly", async () => {
+    const block = [{ day_name: "PULL DAY", block_name: "Skills", exercises: [{ name: "Muscle Up band-assisted" }] }] as never[];
+    const ids = await resolveExerciseIds(fakeClient(), block);
+    expect(ids.get("muscle up band-assisted")).toBeDefined();
   });
 });

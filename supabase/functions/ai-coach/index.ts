@@ -483,8 +483,17 @@ serve(async (req: Request) => {
     return json({ error: "Server misconfiguration" }, 500);
   }
 
+  // Automatic caching of the growing conversation (2026-10-16): a top-level
+  // cache_control lets every turn of the tool loop read the turns before it
+  // from cache instead of re-sending them uncached (a week build re-sent its
+  // ~35k-token logs on every turn: 76% of that message's cost). It uses one
+  // of the 4 cache slots (system + last tool use the other two), all 5-minute.
+  // If the API ever rejects it, the call is retried once without it and
+  // caching stays off for the rest of this request, so it can't take the
+  // coach down.
+  let autoCache = true;
   async function callClaude(messages: unknown[]) {
-    const response = await fetch("https://api.anthropic.com/v1/messages", {
+    const post = () => fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
       headers: {
         "x-api-key": ANTHROPIC_API_KEY!,
@@ -542,8 +551,20 @@ serve(async (req: Request) => {
         // a global change, not build-calls-only — no beta header needed for
         // a static top-level value like this either way.
         output_config: { effort: "low" },
+        ...(autoCache ? { cache_control: { type: "ephemeral" } } : {}),
       }),
     });
+    let response = await post();
+    if (!response.ok && response.status === 400 && autoCache) {
+      const errText = await response.text();
+      if (!/cache/i.test(errText)) {
+        console.error(`[ai-coach] Anthropic ${response.status}: ${errText.slice(0, 500)}`);
+        throw new Error(`Anthropic API error ${response.status}: ${errText}`);
+      }
+      console.error(`[ai-coach] Automatic caching rejected, retrying without it: ${errText.slice(0, 300)}`);
+      autoCache = false;
+      response = await post();
+    }
     if (!response.ok) {
       const errText = await response.text();
       // Surface the real upstream status/body in logs — a bare rethrow here

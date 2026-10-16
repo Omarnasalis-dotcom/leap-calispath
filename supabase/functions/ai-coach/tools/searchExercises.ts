@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { findByWords, searchWords } from "./blockHelpers.ts";
+import { findNearestByWords, searchWords } from "./blockHelpers.ts";
 
 // exercise_library is GRANT SELECT-open to authenticated (only
 // INSERT/UPDATE/DELETE are coach/admin-gated — confirmed against the RLS
@@ -77,7 +77,7 @@ export const searchExercises: ToolDefinition = {
       // Nothing contains the whole phrase: match its words in any order,
       // without equipment/load words ("Dumbbell Biceps Curl" -> Biceps Curl).
       // These are the nearest real exercises, not an exact match.
-      const near = await findByWords(userClient, searchWords(term), fields, limit);
+      const near = await findNearestByWords(userClient, searchWords(term), fields, limit);
       return { matches: near, approximate: near.length > 0 };
     };
 
