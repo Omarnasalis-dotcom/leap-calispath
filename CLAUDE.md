@@ -51,7 +51,7 @@ The app uses **Expo Router** with a file-based route structure under `app/`. Nav
 2. Unauthenticated users → `/auth`
 3. Signed in without a username (first Google/Apple sign-in) → `/complete-profile`
 4. Unassessed users → `/onboarding-journey` (the Milestone Lane owns the "Start Assessment" CTA)
-5. Assessed but `onboarding_completed_at` null → `/onboarding-journey` (Goals & Equipment, build-program routes and `/paywall` are exempt)
+5. Assessed but `onboarding_completed_at` null → `/onboarding-journey` (build-program routes and `/paywall` are exempt)
 6. Fully onboarded users are kept out of auth/assessment/onboarding routes
 7. Strength tier gates: `static-world` ≥ 1, `power-world` ≥ 6, `arena-workout` ≥ 9
 8. Coaching routes (`coaching-hub`, `my-clients`, `client-dashboard`, `program-builder`, `progress-tracking`) require `is_coach` or `is_admin`
@@ -71,7 +71,7 @@ Each file under `app/` imports its corresponding screen from `src/screens/`. The
 - **PowerWorldScreen / StaticWorldScreen / OneMinMaxScreen / WeeklyChallengeScreen / ChampionsArenaScreen** — the worlds and challenges
 - **team/** — Team Challenge (`docs/features/TEAM_CHALLENGE_PLAN.md`): `TeamHub` is the TEAM side of Weekly Challenge's SOLO/TEAM switch (shown when `app_config.team_challenge_enabled` or to admins); `TeamLobbyScreen` (`/team-lobby?teamId=`) runs the roster, the live attempt (`TeamAttempt.tsx`) and the result on the server clock (`useServerClock`)
 - **TrainingCenterScreen, CustomizeProgramScreen, ProgramTemplatesScreen, QuickWorkoutScreen** — program building and workouts
-- **CoachScreen** — AI Coach chat (paid; free users see `FreeCoachIntake`, then the paywall)
+- **CoachScreen** — AI Coach chat (paid). Everyone first answers `CoachSetup` (goal + days/week, then equipment; gate is `needsCoachSetup` in `src/lib/coachSetup.ts`); free users then get the paywall
 - **PaywallScreen** — RevenueCat paywall
 - **coaching/** — `WarriorProgramScreen` (workout runner, used by athletes too), `ProgramBuilderScreen`, `MyClientsScreen`, `ClientDashboardScreen`, `ProgressTrackingScreen`, etc.
 

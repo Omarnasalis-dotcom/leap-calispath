@@ -47,7 +47,6 @@ import {
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
-import { GOALS } from './GoalsEquipmentScreen';
 
 import { t, FLIP_X, isRTL } from '../i18n';
 
@@ -98,10 +97,9 @@ const RANDOM_IMAGES: ImageSourcePropType[] = [
   require('../../assets/Milestone Cards/random/random-01.jpg'),
 ];
 
-// Dedicated (not pooled) covers for the 3 onboarding milestone cards --
+// Dedicated (not pooled) covers for the 2 onboarding milestone cards --
 // each one specific to its own step rather than picked from RANDOM_IMAGES.
 const ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/assessment.png');
-const GOALS_EQUIPMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/goals-equipment.png');
 const BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/build-your-program.png');
 
 // Light-mode covers: same categories, daytime versions, under
@@ -135,7 +133,6 @@ interface CardImageSet {
   legs: ImageSourcePropType[];
   random: ImageSourcePropType[];
   assessment: ImageSourcePropType;
-  goalsEquipment: ImageSourcePropType;
   buildProgram: ImageSourcePropType;
 }
 
@@ -145,7 +142,6 @@ const DARK_CARD_IMAGES: CardImageSet = {
   legs: LEGS_IMAGES,
   random: RANDOM_IMAGES,
   assessment: ASSESSMENT_IMAGE,
-  goalsEquipment: GOALS_EQUIPMENT_IMAGE,
   buildProgram: BUILD_PROGRAM_IMAGE,
 };
 
@@ -157,7 +153,6 @@ const LIGHT_CARD_IMAGES: CardImageSet = {
   legs: LIGHT_LEGS_IMAGES.length ? LIGHT_LEGS_IMAGES : LEGS_IMAGES,
   random: LIGHT_RANDOM_IMAGES.length ? LIGHT_RANDOM_IMAGES : RANDOM_IMAGES,
   assessment: require('../../assets/Milestone Cards/light/onboarding/assessment.jpeg'),
-  goalsEquipment: require('../../assets/Milestone Cards/light/onboarding/goals-equipment.jpeg'),
   buildProgram: require('../../assets/Milestone Cards/light/onboarding/build-your-program.png'),
 };
 
@@ -841,13 +836,20 @@ function GhostNode() {
   );
 }
 
-// Built from GoalsEquipmentScreen's own GOALS list rather than duplicating
-// the id->label mapping -- 'other' is deliberately absent here since its
-// display text comes from the athlete's own goal_other_text, not a fixed
-// label (see goalLabel below).
-const GOAL_LABELS: Record<string, string> = Object.fromEntries(
-  GOALS.filter((g) => g.id !== 'other').map((g) => [g.id, g.label])
-);
+// Members from before the Milestone Lane shipped had onboarding_completed_at
+// backfilled to exactly their assessed_at (20260908190000), and never set a
+// goal. A real new member's onboarding_completed_at is written later, when
+// they finish Build Your Program, so it never matches.
+function isLegacyMember(profile: {
+  assessed_at?: string | null;
+  onboarding_completed_at?: string | null;
+  goals?: string[] | null;
+  primary_goal?: string | null;
+}): boolean {
+  if (!profile.assessed_at || !profile.onboarding_completed_at) return false;
+  if (profile.primary_goal || (profile.goals && profile.goals.length)) return false;
+  return new Date(profile.onboarding_completed_at).getTime() === new Date(profile.assessed_at).getTime();
+}
 
 function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeBadge }: { icon: string; title: string; desc: string; onPress: () => void; showProBadge?: boolean; showFreeBadge?: boolean }) {
   const styles = useLaneStyles();
@@ -1383,7 +1385,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     if (programReady === '1') setShowProgramReady(true);
   }, [programReady]);
   // Shown once the lane reappears after RankUpReveal is dismissed -- ties
-  // the rank just earned to milestone 2 unlocking underneath it. Cleared
+  // the rank just earned to Build Your Program unlocking underneath it. Cleared
   // either by its own auto-dismiss timer or a tap (see RankUpToast).
   const [showRankToast, setShowRankToast] = useState(false);
   // Whether we've determined (sync from revealShownCache, or async via
@@ -1455,11 +1457,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const refreshPointsRef = useRef<(() => void) | null>(null);
   // Existing members from before this feature shipped got onboarding_completed_at
   // backfilled to unblock them from AuthGuard, but never actually saw
-  // milestones 2/3 — primary_goal is the real signal for that (backfill never
-  // touched it; only the genuine new-flow milestone-2 screen sets it).
-  // Confirmed against prod: 261 accounts match this, 1 has genuinely
-  // completed the new flow. Shown once until acknowledged (picking any
-  // milestone-3 option), then this screen behaves like any other returning
+  // the onboarding milestones — see isLegacyMember for how they're told
+  // apart. Shown once until acknowledged (picking any Build Your Program
+  // option), then this screen behaves like any other returning
   // user's — never silently skipped straight to the day path without the
   // user ever having seen it.
   const [legacyAcknowledged, setLegacyAcknowledged] = useState(() =>
@@ -1588,18 +1588,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
           return;
         }
         // First time this has ever been decided for this account — lock it
-        // in permanently now. Checks both the legacy single-value field and
-        // the newer multi-select goals array so an account that completed
-        // milestone 2 through either version of this screen isn't
-        // misclassified as legacy.
-        const hasGoal = !!profile.primary_goal || !!(profile.goals && profile.goals.length);
-        const decided = !hasGoal;
+        // in permanently now. Goals are no longer a Journey step (the AI
+        // Coach asks for them), so "no goal" alone no longer means legacy:
+        // a new member who picked Templates has none either. Legacy members
+        // are the ones whose onboarding_completed_at was backfilled to their
+        // assessed_at, and who never set a goal afterwards.
+        const decided = isLegacyMember(profile);
         setLegacyFlowActive(decided);
         updateLocalFlagsCache(profile.id, { legacyFlowActive: decided });
         AsyncStorage.setItem(flowKey, decided ? 'true' : 'false').catch(() => {});
       })
       .catch(() => {
-        const fallback = !profile.primary_goal && !(profile.goals && profile.goals.length);
+        const fallback = isLegacyMember(profile);
         setLegacyFlowActive(fallback);
         updateLocalFlagsCache(profile.id, { legacyFlowActive: fallback });
       });
@@ -1611,7 +1611,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   const acknowledgeLegacyOnboarding = useCallback(() => {
     // No-op during genuine (mandatory) onboarding — this flag only matters
     // for the free-roam journey tab's legacy-member view; a real new user
-    // never ends up back in that state (milestone 2 is mandatory for them),
+    // never ends up back in that state (they finish Build Your Program first),
     // so writing it there would just be dead data.
     if (mode !== 'journey') return;
     setLegacyAcknowledged(true);
@@ -2253,26 +2253,19 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     [journeyPoints.undoTask]
   );
 
-  // Same sequential gating everywhere — milestone 3 always waits on
-  // milestone 2, mandatory onboarding and the legacy journey view alike.
-  // "Keep it open" for legacy members means milestone 2 stays genuinely
-  // available to complete (not skipped/backfilled/hidden), not that
-  // milestone 3 gets to bypass it.
-  // OR'd with the legacy single-value field so an account that saved its
-  // goal through the old single-select screen still reads as complete.
-  const hasGoal = !!(profile?.goals && profile.goals.length) || !!profile?.primary_goal;
   const milestone1State: NodeState = profile?.assessed_at ? 'complete' : 'active';
-  const milestone2State: NodeState = hasGoal ? 'complete' : profile?.assessed_at ? 'active' : 'locked';
-  // Was 'active' forever once assessed+goaled, with no 'complete' branch at
+  // Was 'active' forever once assessed, with no 'complete' branch at
   // all -- meaning it never actually reflected "you already have a
   // program," even weeks into one, and (since 'active' is exactly what
   // claims the auto-scroll ref below) it permanently contested that ref
   // against the real current day row on every single render. Confirmed via
   // journeyData?.warriorProgramId -- the same signal an active program
-  // really exists that the rest of this screen already uses.
-  const milestone3State: NodeState = journeyData?.warriorProgramId
+  // really exists that the rest of this screen already uses. Goals &
+  // Equipment used to sit between the two; the AI Coach asks for them now
+  // (CoachSetup), so Build Your Program unlocks straight after assessment.
+  const milestone2State: NodeState = journeyData?.warriorProgramId
     ? 'complete'
-    : profile?.assessed_at && hasGoal
+    : profile?.assessed_at
     ? 'active'
     : 'locked';
   // The strength trial is the one exception that keeps a real gate: it
@@ -2372,7 +2365,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Single source of truth for "which row is the current step" -- the auto-
   // scroll ref used to be independently claimed at ~5 different render
   // sites (each milestone, the day rows, the trial row), which only stayed
-  // mutually exclusive by coincidence: milestone3State being permanently
+  // mutually exclusive by coincidence: the build-program milestone being permanently
   // 'active' (see its own comment above, now fixed) meant it and the real
   // current day row briefly both matched at once, and whichever one's ref
   // callback committed last (normally the day row, by JSX order) won by
@@ -2380,7 +2373,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // having every row just compare against it makes two rows matching at
   // once structurally impossible, not just unlikely.
   type CurrentTarget =
-    | { kind: 'milestone'; n: 1 | 2 | 3 }
+    | { kind: 'milestone'; n: 1 | 2 }
     | { kind: 'day'; weekNumber: number; dayIndex: number }
     | { kind: 'trial' }
     | null;
@@ -2389,8 +2382,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       ? { kind: 'milestone', n: 1 }
       : milestone2State === 'active'
       ? { kind: 'milestone', n: 2 }
-      : milestone3State === 'active'
-      ? { kind: 'milestone', n: 3 }
       : mode === 'journey' && journeyData && latestWeek && !weekComplete
       ? { kind: 'day', weekNumber: latestWeek.weekNumber, dayIndex: dayGateBlockedByQuest ? latestDayPointer - 1 : latestDayPointer }
       : mode === 'journey' && journeyData && weekComplete && !trialResolved
@@ -2571,17 +2562,6 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
 
   const showLegacyMilestones = mode === 'journey' && legacyFlowActive === true && !legacyAcknowledged;
 
-  // Multi-select goals joined for display, 'other' substituted with the
-  // athlete's own free text; falls back to the legacy single-value field
-  // for accounts that only ever set that one.
-  const goalLabel = profile?.goals?.length
-    ? profile.goals
-        .map((g) => (g === 'other' ? profile.goal_other_text?.trim() || t('goals.other') : GOAL_LABELS[g] ?? g))
-        .join(', ')
-    : profile?.primary_goal
-    ? GOAL_LABELS[profile.primary_goal] ?? profile.primary_goal
-    : null;
-
   // Moves the picked day to the front of this week's unfinished days, at
   // once on screen, then saves the pick. The program itself never changes.
   const handleSwitchDay = (entry: DayStateEntry) => {
@@ -2658,36 +2638,18 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
               title={t('journey.step2Title')}
               desc={
                 milestone2State === 'complete'
-                  ? goalLabel ?? t('journey.saved')
-                  : milestone2State === 'active'
-                  ? t('journey.step2Todo')
-                  : t('journey.step2Locked')
-              }
-              image={cardImages.goalsEquipment}
-              ctaLabel={t('journey.start')}
-              onPressCta={() => router.push('/goals-equipment')}
-              isLast={false}
-              staggerIndex={2}
-              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 2 ? activeStepRef : undefined}
-            />
-            <NodeRow
-              number={3}
-              state={milestone3State}
-              title={t('journey.step3Title')}
-              desc={
-                milestone3State === 'complete'
-                  ? t('journey.step3Done', { name: journeyData?.programName ?? t('journey.yourProgramLower') })
-                  : milestone3State !== 'active'
-                  ? t('journey.step3Locked')
+                  ? t('journey.step2Done', { name: journeyData?.programName ?? t('journey.yourProgramLower') })
+                  : milestone2State !== 'active'
+                  ? t('journey.step2Locked')
                   : showLegacyMilestones
-                  ? t('journey.step3Legacy')
-                  : t('journey.step3Todo')
+                  ? t('journey.step2Legacy')
+                  : t('journey.step2Todo')
               }
               image={cardImages.buildProgram}
               mirrorPhotoInRTL={false}
               isLast
-              staggerIndex={3}
-              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 3 ? activeStepRef : undefined}
+              staggerIndex={2}
+              containerRef={currentTarget?.kind === 'milestone' && currentTarget.n === 2 ? activeStepRef : undefined}
             >
               <View style={styles.choiceStack}>
                 {showLegacyMilestones && journeyData ? (
@@ -2741,7 +2703,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                     goal set, no program yet) -- a returning journey-tab user
                     isn't stuck (they already have the tab bar), so it'd be a
                     redundant, confusing duplicate action for them. */}
-                {mode === 'onboarding' && milestone3State === 'active' && (
+                {mode === 'onboarding' && milestone2State === 'active' && (
                   <View style={styles.onboardingExitRow}>
                     <TouchableOpacity
                       style={styles.skipOnboardingBtn}
@@ -2767,11 +2729,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
             </NodeRow>
 
             {/* Per direct request: keep the onboarding steps (Assessment/
-                Goals/Build Program) permanently visible as the first few
+                Build Program) permanently visible as the first few
                 steps of the lane, rather than collapsing them into a one-
-                line summary once done -- milestone 2's own Finished card
-                already shows the saved goal, so the old summary banner's
-                job is redundant now. */}
+                line summary once done. */}
             {mode === 'journey' && (journeyLoading ? (
               <Text style={styles.journeyMuted}>{t('journey.loadingProgram')}</Text>
             ) : journeyData ? (

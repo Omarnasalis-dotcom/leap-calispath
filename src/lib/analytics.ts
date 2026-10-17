@@ -17,6 +17,7 @@ export type AnalyticsEvent =
   | 'purchase_cancelled'
   | 'paywall_failed'
   | 'ai_coach_opened'
+  | 'coach_setup_step'
   | 'welcome_intro_completed'
   | 'welcome_intro_skipped'
   // Onboarding → first training (Growth audit 2026-10-05): where people

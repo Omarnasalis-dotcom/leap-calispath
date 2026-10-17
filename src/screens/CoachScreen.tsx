@@ -41,7 +41,8 @@ import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
 import { canAccessPro, getSubscriptionTier, isProRequiredError } from '../lib/entitlement';
 import { track } from '../lib/analytics';
-import { FreeCoachIntake } from '../components/coach/FreeCoachIntake';
+import { CoachSetup } from '../components/coach/CoachSetup';
+import { needsCoachSetup } from '../lib/coachSetup';
 import { t, FLIP_X } from '../i18n';
 import { stageVerb } from '../components/coach/ActivityBubble';
 
@@ -255,6 +256,17 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const isDark = mode === 'dark';
   const c = isDark ? COACH_COLORS.dark : COACH_COLORS.light;
 
+  // Every athlete answers goal + days, then equipment, before the chat
+  // (CoachSetup). setupDone covers the gap if the profile refresh after the
+  // last save hasn't landed yet.
+  const [setupDone, setSetupDone] = useState(false);
+  const isPro = canAccessPro(profile, paywallEnabled);
+  const showSetup = !isPro || (!setupDone && needsCoachSetup(profile));
+  const handleSetupComplete = () => {
+    setSetupDone(true);
+    if (initialPrompt && messages.length === 0) sendMessage(initialPrompt);
+  };
+
   // Analytics (audit M5): once per visit, split free vs paid.
   useEffect(() => {
     track('ai_coach_opened', { access: canAccessPro(profile, paywallEnabled) ? 'paid' : 'free' });
@@ -297,10 +309,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // Set by CoachFab when a starter prompt chip is tapped — sends it as
       // the athlete's first message instead of showing the empty welcome
       // screen. Never overrides a real, already-ongoing conversation. Free
-      // tier never sends a live message here at all — FreeCoachIntake picks
-      // up initialPrompt as Step 1's free-text prefill instead (see render
-      // below), since free accounts don't get chat until they upgrade.
-      if (!hadSavedHistory && initialPrompt && canAccessPro(profile, paywallEnabled)) {
+      // tier never sends a live message here at all — CoachSetup picks
+      // up initialPrompt as the goal's free-text prefill instead (see render
+      // below), since free accounts don't get chat until they upgrade. An
+      // athlete still in setup sends it once setup finishes (handleSetupComplete).
+      if (!hadSavedHistory && initialPrompt && canAccessPro(profile, paywallEnabled) && !needsCoachSetup(profile)) {
         sendMessage(initialPrompt);
       }
       hasLoadedFromStorageRef.current = true;
@@ -788,7 +801,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <Text style={[styles.headerSub, { color: theme.accent }]}>{statusLine}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
-              {canAccessPro(profile, paywallEnabled) && (
+              {!showSetup && (
                 <>
                   <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.newSession')} onPress={startSession} style={styles.iconBtn}><MaterialCommunityIcons name="refresh" size={20} color={theme.accent} /></TouchableOpacity>
                   <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.clearChat')} onPress={clearHistory} style={styles.iconBtn}><MaterialCommunityIcons name="delete-outline" size={20} color={c.secondaryText} /></TouchableOpacity>
@@ -797,8 +810,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             </View>
           </View>
 
-          {!canAccessPro(profile, paywallEnabled) ? (
-            <FreeCoachIntake theme={theme} c={c} initialPrompt={initialPrompt} />
+          {showSetup ? (
+            <CoachSetup theme={theme} c={c} isPro={isPro} initialPrompt={initialPrompt} onComplete={handleSetupComplete} />
           ) : (
           <>
           <ScrollView ref={scrollViewRef} style={styles.scroll} contentContainerStyle={styles.scrollContent} onContentSizeChange={() => scrollViewRef.current?.scrollToEnd({ animated: true })}>

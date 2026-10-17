@@ -279,12 +279,11 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   const inCompleteProfile = segments[0] === 'complete-profile';
   const isResetPassword = segments[0] === 'reset-password';
   // Milestone Lane onboarding (post-assessment, pre-onboarding_completed_at):
-  // the lane itself, its Goals & Equipment sub-step, and the 3 "Build Your
-  // Program" destinations it links out to (also ordinary, freely-reachable
+  // the lane itself and the 3 "Build Your Program" destinations it links
+  // out to (goals, days and equipment are asked inside AI Coach) (also ordinary, freely-reachable
   // app routes once onboarded — only exempted here, never added to rule 6's
   // block-list below).
   const inOnboardingJourney = segments[0] === 'onboarding-journey';
-  const inGoalsEquipment = segments[0] === 'goals-equipment';
   // 'warrior-program' deliberately NOT included here (was previously, back
   // when this screen wrote onboarding_completed_at on mount -- see its own
   // git history): all 3 build flows now redirect mid-onboarding to
@@ -340,14 +339,14 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
         return <Redirect href="/onboarding-journey" />;
       }
     } else if (!profile?.onboarding_completed_at) {
-      // 5b. Assessed but onboarding not finished (Goals & Equipment / Build
-      // Your Program still pending) — same default-landing role as 5 above,
+      // 5b. Assessed but onboarding not finished (Build Your Program still
+      // pending) — same default-landing role as 5 above,
       // one tier further along. inAssessmentGroup is deliberately NOT
       // exempted here (unlike rule 5): assessment is already done at this
       // point, so finishing it must bounce the user back to the lane for
       // the tier-reveal, not strand them on the now-finished assessment
       // screen — that screen relies entirely on this redirect to leave.
-      if (!inOnboardingJourney && !inGoalsEquipment && !inBuildProgramRoute && !inPaywall) {
+      if (!inOnboardingJourney && !inBuildProgramRoute && !inPaywall) {
         return <Redirect href="/onboarding-journey" />;
       }
     } else {
@@ -356,12 +355,6 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // whatever session happens to already exist (a stale cached session, or the
       // transient USER_UPDATED event fired mid-flow by updateUser() during the reset
       // itself) — otherwise this redirect fires before the reset flow ever completes.
-      // inGoalsEquipment is deliberately NOT blocked here (unlike inOnboardingJourney/
-      // inAssessmentGroup) — a legacy member's onboarding_completed_at is already set
-      // (backfilled), which puts them in this fully-onboarded branch, but the Journey
-      // tab's own "ADD GOAL" link and legacy milestone 2 still need to reach this
-      // route at any time, not just during the one-time mandatory flow. Without this
-      // exemption, tapping either one bounced straight back to /profile.
       if (inAssessmentGroup || inOnboardingJourney || (inAuthGroup && !isResetPassword)) {
         return <Redirect href="/" />;
       }

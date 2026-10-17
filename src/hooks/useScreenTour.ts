@@ -7,8 +7,8 @@ import { useMountedRef } from './useMountedRef';
 import { TourId } from '../types/tutorial';
 
 // Tours only auto-start for users who finished onboarding this recently.
-// Keyed off onboarding_completed_at (not assessed_at): onboarding runs Goals
-// & Equipment + program building after the assessment. The window also
+// Keyed off onboarding_completed_at (not assessed_at): onboarding runs program
+// building after the assessment. The window also
 // keeps tours from firing for legacy members, whose onboarding_completed_at
 // was backfilled to their old assessed_at.
 const TOUR_AUTO_START_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
