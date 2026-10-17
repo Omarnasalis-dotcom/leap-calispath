@@ -42,6 +42,7 @@ import { FunctionsHttpError } from '@supabase/functions-js';
 import { canAccessPro, getSubscriptionTier, isProRequiredError } from '../lib/entitlement';
 import { track } from '../lib/analytics';
 import { CoachSetup } from '../components/coach/CoachSetup';
+import { CoachMessageText } from '../components/coach/CoachMessageText';
 import { needsCoachSetup } from '../lib/coachSetup';
 import { t, FLIP_X } from '../i18n';
 import { stageVerb } from '../components/coach/ActivityBubble';
@@ -841,27 +842,32 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               </View>
             )}
 
-            {messages.map((m, i) => (
-              <View key={i} style={[styles.messageRow, m.role === 'user' ? styles.userRow : styles.assistantRow]}>
-                {m.role === 'assistant' && (
-                  <View style={[styles.avatar, { borderColor: theme.accent }]}>
-                    <View style={[styles.avatarDot, { backgroundColor: theme.accent }]} />
+            {/* Coach replies run the full width as plain text (no bubble, no
+                side avatar) so long recaps have room; the athlete's own
+                messages stay as accent bubbles on the trailing side. */}
+            {messages.map((m, i) => m.role === 'user' ? (
+              <View key={i} style={styles.userRow}>
+                <View style={[styles.bubble, styles.userBubble, { backgroundColor: theme.accent }]}>
+                  {renderText(m.content, true)}
+                </View>
+              </View>
+            ) : (
+              <View key={i} style={styles.assistantRow}>
+                {messages[i - 1]?.role !== 'assistant' && (
+                  <View style={styles.coachLabelRow}>
+                    <View style={[styles.coachLabelDot, { backgroundColor: theme.accent }]} />
+                    <Text style={[styles.coachLabel, { color: c.secondaryText }]}>{t('coach.title')}</Text>
                   </View>
                 )}
-                <View style={[styles.bubble, m.role === 'user'
-                  ? [styles.userBubble, { backgroundColor: theme.accent }]
-                  : [styles.assistantBubble, { backgroundColor: c.bubbleBg, borderColor: c.bubbleBorder }]]}
-                >
-                  {renderText(m.content, m.role === 'user')}
-                  {m.role === 'assistant' && m.blocks?.map((b, bi) => (
-                    <ResponseBlockView key={bi} block={b} accent={theme.accent} colors={c} />
-                  ))}
-                </View>
-                {m.role === 'assistant' && m.content.length > 0 && (
+                {m.content.length > 0 && <CoachMessageText content={m.content} accent={theme.accent} colors={c} />}
+                {m.blocks?.map((b, bi) => (
+                  <ResponseBlockView key={bi} block={b} accent={theme.accent} colors={c} />
+                ))}
+                {m.content.length > 0 && (
                   <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.reportA11y')}
                     style={styles.reportButton}
                     onPress={() => handleReportMessage(i)}
-                    hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                   >
                     <MaterialCommunityIcons name="flag-outline" size={13} color={c.secondaryText} />
                   </TouchableOpacity>
@@ -870,10 +876,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             ))}
 
             {loading && (
-              <View style={[styles.messageRow, styles.assistantRow]}>
-                <View style={[styles.avatar, { borderColor: theme.accent }]}>
-                  <View style={[styles.avatarDot, { backgroundColor: theme.accent }]} />
-                </View>
+              <View style={styles.assistantRow}>
+                {messages[messages.length - 1]?.role !== 'assistant' && (
+                  <View style={styles.coachLabelRow}>
+                    <View style={[styles.coachLabelDot, { backgroundColor: theme.accent }]} />
+                    <Text style={[styles.coachLabel, { color: c.secondaryText }]}>{t('coach.title')}</Text>
+                  </View>
+                )}
                 {stages.length > 0 ? (
                   <ActivityBubble stages={stages} accent={theme.accent} colors={c} />
                 ) : (
@@ -1184,20 +1193,21 @@ const styles = StyleSheet.create({
   headerTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   iconBtn: { padding: 6 },
   scroll: { flex: 1 },
-  scrollContent: { padding: 20, paddingBottom: 40 },
-  messageRow: { flexDirection: 'row', marginBottom: 20, alignItems: 'flex-end', gap: 10 },
-  userRow: { justifyContent: 'flex-end' },
-  assistantRow: { justifyContent: 'flex-start' },
-  avatar: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, justifyContent: 'center', alignItems: 'center', marginBottom: 4 },
-  avatarDot: { width: 8, height: 8, borderRadius: 4 },
-  bubble: { paddingHorizontal: 15, paddingVertical: 13, borderRadius: 16, maxWidth: '85%' },
-  userBubble: { borderBottomRightRadius: 4 },
-  assistantBubble: { borderBottomLeftRadius: 4, borderWidth: 1 },
-  reportButton: { padding: 4, opacity: 0.5 },
+  scrollContent: { paddingHorizontal: 16, paddingTop: 18, paddingBottom: 40 },
+  userRow: { alignItems: 'flex-end', marginBottom: 22 },
+  assistantRow: { alignItems: 'stretch', marginBottom: 22 },
+  coachLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  coachLabelDot: { width: 6, height: 6, borderRadius: 3 },
+  coachLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1.6 },
+  bubble: { paddingHorizontal: 15, paddingVertical: 11, borderRadius: 18, maxWidth: '82%' },
+  userBubble: { borderBottomEndRadius: 4 },
+  // Loading/indicator bubble only — coach replies themselves have no bubble.
+  assistantBubble: { alignSelf: 'flex-start', borderBottomStartRadius: 4, borderWidth: 1 },
+  reportButton: { alignSelf: 'flex-start', marginTop: 8, padding: 2, opacity: 0.45 },
   // Handoff spec's fontWeight:300 read faint/blurry on real devices at this
   // size (hex contrast was fine on paper, thin system-font strokes weren't
   // legible in practice) — bumped to a normal weight for real legibility.
-  messageText: { fontSize: 14.5, lineHeight: 22, fontWeight: '400' },
+  messageText: { fontSize: 15.5, lineHeight: 23, fontWeight: '500' },
   inputContainer: { flexDirection: 'row', padding: 16, alignItems: 'flex-end', borderTopWidth: 1, gap: 10 },
   // Static, always-visible note — never per-message, never dismissible.
   // Sits in normal flow (not absolutely positioned) right after

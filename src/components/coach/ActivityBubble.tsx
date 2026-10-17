@@ -152,7 +152,7 @@ const styles = StyleSheet.create({
   bubble: {
     borderWidth: 1,
     borderRadius: 16,
-    borderBottomLeftRadius: 4,
+    borderBottomStartRadius: 4,
     padding: 13,
     minWidth: 232,
     maxWidth: '84%',

@@ -40,7 +40,7 @@ function StatBarRow({ row, max, accent, colors }: { row: StatBarRow; max: number
           ]}
         />
       </View>
-      <Text style={[styles.statValue, { color: row.emphasize ? accent : '#fff', fontWeight: row.emphasize ? '700' : '600' }]}>
+      <Text style={[styles.statValue, { color: row.emphasize ? accent : colors.bodyText, fontWeight: row.emphasize ? '700' : '600' }]}>
         {row.value.toFixed(2)}
       </Text>
     </View>
