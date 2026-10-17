@@ -1098,9 +1098,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('coach.send')}
               onPress={() => sendMessage()}
               disabled={loading || !inputText.trim() || rateLimited}
-              style={[styles.sendBtn, { backgroundColor: theme.accent, opacity: (loading || rateLimited) ? 0.5 : 1 }]}
+              style={[styles.sendBtn, { backgroundColor: theme.accent, opacity: (loading || rateLimited || !inputText.trim()) ? 0.4 : 1 }]}
             >
-              <MaterialCommunityIcons name={inputText.trim() ? 'send' : 'microphone'} size={18} color="#fff" style={inputText.trim() ? FLIP_X : undefined} />
+              {/* Always the send arrow: an empty box used to show a microphone
+                  here, but there is no voice input and the button is disabled. */}
+              <MaterialCommunityIcons name="send" size={18} color="#fff" style={FLIP_X} />
             </TouchableOpacity>
           </View>
           <Text style={[styles.disclaimer, { color: c.secondaryText }]}>
