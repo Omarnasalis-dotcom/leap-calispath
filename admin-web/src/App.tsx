@@ -35,7 +35,7 @@ import { NotificationsPage } from '@/pages/notifications/NotificationsPage';
 import { BuilderClipboardProvider } from '@/contexts/BuilderClipboardContext';
 
 function Gate() {
-  const { session, loading, denied } = useAuth();
+  const { session, loading, denied, profileError, retryProfile, signOut } = useAuth();
 
   if (loading) {
     return (
@@ -45,6 +45,28 @@ function Gate() {
     );
   }
   if (!session) return <Navigate to="/login" replace />;
+  if (profileError) {
+    return (
+      <div className="auth-wrap">
+        <div className="auth-card" role="alert">
+          <span className="label" style={{ color: 'var(--danger)' }}>
+            Couldn't load your account
+          </span>
+          <p style={{ margin: 0, fontSize: 13, color: 'var(--ink-2)' }}>
+            Check your connection and try again.
+          </p>
+          <div style={{ display: 'flex', gap: 8 }}>
+            <button className="btn small" onClick={retryProfile}>
+              Retry
+            </button>
+            <button className="btn small" onClick={() => void signOut()}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
   if (denied) return <AccessDenied />;
   return <AppShell />;
 }

@@ -21,6 +21,9 @@ interface AuthState {
   loading: boolean;
   /** signed in but has neither is_admin, is_coach, nor an assistant relationship — no role at all */
   denied: boolean;
+  /** the role check itself failed (network etc.) and no profile is loaded — not the same as denied */
+  profileError: boolean;
+  retryProfile: () => void;
   isAdmin: boolean;
   isCoach: boolean;
   /** is_coach, has a coaching_paused_at set by an admin — read-only, all writes blocked server-side */
@@ -48,61 +51,97 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const lastActivity = useRef(Date.now());
 
+  // Bumped to re-run the profile load (Retry button on the error screen).
+  const [reloadKey, setReloadKey] = useState(0);
+  const [profileError, setProfileError] = useState(false);
+
   useEffect(() => {
     let cancelled = false;
+    // Only the newest load may write state — a slow, failed earlier load must
+    // not land after a newer one.
+    let seq = 0;
+    let loadedUserId: string | null | undefined;
 
-    async function loadProfile(s: Session | null) {
-      if (!s) {
-        if (!cancelled) {
-          setProfile(null);
-          setAssistingCoachIds([]);
-          setPausedAssistingCoachIds([]);
-          setLoading(false);
-        }
-        return;
-      }
+    async function fetchRoles(userId: string) {
       // Same own-profile read path as the mobile app; keeps working after
       // the profiles PII column re-lockdown.
-      const [{ data, error }, { data: assistantRows }] = await Promise.all([
+      const [{ data, error }, { data: assistantRows, error: assistantError }] = await Promise.all([
         supabase.rpc('get_my_profile').single(),
-        supabase.from('coach_assistants').select('coach_id').eq('assistant_id', s.user.id),
+        supabase.from('coach_assistants').select('coach_id').eq('assistant_id', userId),
       ]);
-      if (cancelled) return;
-      setProfile(error ? null : (data as MyProfile));
+      if (error || assistantError || !data) return null;
       const coachIds = (assistantRows ?? []).map((r) => r.coach_id as string);
-      setAssistingCoachIds(coachIds);
 
+      let pausedIds: string[] = [];
       if (coachIds.length > 0) {
-        const { data: pausedRows } = await supabase
+        const { data: pausedRows, error: pausedError } = await supabase
           .from('profiles')
           .select('id')
           .in('id', coachIds)
           .not('coaching_paused_at', 'is', null);
-        if (cancelled) return;
-        setPausedAssistingCoachIds((pausedRows ?? []).map((r) => r.id as string));
-      } else {
+        if (pausedError) return null;
+        pausedIds = (pausedRows ?? []).map((r) => r.id as string);
+      }
+      return { profile: data as MyProfile, coachIds, pausedIds };
+    }
+
+    async function loadProfile(s: Session | null) {
+      const mine = ++seq;
+      if (!s) {
+        setProfile(null);
+        setAssistingCoachIds([]);
         setPausedAssistingCoachIds([]);
+        setProfileError(false);
+        setLoading(false);
+        return;
       }
 
+      // A failed read is NOT "this account has no role": a network blip or a
+      // laptop waking from sleep used to null the profile, which rendered
+      // AccessDenied and signed the admin out. Retry, then surface an error.
+      let result = null;
+      for (let attempt = 0; attempt < 3 && !result; attempt++) {
+        if (attempt > 0) await new Promise((r) => setTimeout(r, attempt * 1500));
+        if (cancelled || mine !== seq) return;
+        result = await fetchRoles(s.user.id);
+      }
+      if (cancelled || mine !== seq) return;
+
+      if (result) {
+        setProfile(result.profile);
+        setAssistingCoachIds(result.coachIds);
+        setPausedAssistingCoachIds(result.pausedIds);
+        setProfileError(false);
+      } else {
+        // Keep whatever profile we already had.
+        setProfileError(true);
+      }
       setLoading(false);
     }
 
+    function handleSession(s: Session | null) {
+      setSession(s);
+      // TOKEN_REFRESHED (hourly) and the SIGNED_IN that fires on tab focus
+      // carry the same user — roles haven't changed, don't refetch.
+      const userId = s?.user.id ?? null;
+      if (userId === loadedUserId) return;
+      loadedUserId = userId;
+      void loadProfile(s);
+    }
+
     supabase.auth.getSession().then(({ data }) => {
-      if (cancelled) return;
-      setSession(data.session);
-      void loadProfile(data.session);
+      if (!cancelled) handleSession(data.session);
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, s) => {
-      setSession(s);
-      void loadProfile(s);
+      if (!cancelled) handleSession(s);
     });
 
     return () => {
       cancelled = true;
       sub.subscription.unsubscribe();
     };
-  }, []);
+  }, [reloadKey]);
 
   useEffect(() => {
     const bump = () => {
@@ -130,7 +169,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     profile,
     loading,
-    denied: !!session && !loading && !isAdmin && !isCoach && !isAssistant,
+    denied: !!session && !loading && !!profile && !isAdmin && !isCoach && !isAssistant,
+    profileError: profileError && !profile,
+    retryProfile: () => {
+      setLoading(true);
+      setReloadKey((k) => k + 1);
+    },
     isAdmin,
     isCoach,
     isCoachPaused: isCoach && !isAdmin && !!profile?.coaching_paused_at,
