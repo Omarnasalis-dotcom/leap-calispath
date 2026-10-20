@@ -540,7 +540,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    const { error } = await supabase.auth.signOut();
+    // 'local': the default 'global' scope also revokes the account's other
+    // sessions — other devices and the admin panel.
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
     setPendingAppleName(null);
   }
