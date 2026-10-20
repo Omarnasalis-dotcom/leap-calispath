@@ -11,8 +11,26 @@ import { supabase } from '@/lib/supabase';
 import type { MyProfile } from '@/shared/types';
 
 // 8h without any pointer/key activity → sign out (localStorage sessions on
-// shared machines). Checked once a minute.
+// shared machines). Checked once a minute. Activity is shared across tabs
+// through localStorage, so a forgotten background tab doesn't count as idle
+// while another tab is in use.
 const IDLE_LIMIT_MS = 8 * 60 * 60 * 1000;
+const LAST_ACTIVITY_KEY = 'leap-admin-last-activity';
+
+// supabase.auth.signOut() defaults to scope 'global', which revokes every
+// session of the account — other admin tabs, other browsers and the mobile
+// app. Signing out here must only end this browser's session.
+function signOutLocal() {
+  return supabase.auth.signOut({ scope: 'local' });
+}
+
+function readSharedActivity(): number {
+  try {
+    return Number(window.localStorage.getItem(LAST_ACTIVITY_KEY)) || 0;
+  } catch {
+    return 0;
+  }
+}
 
 interface AuthState {
   session: Session | null;
@@ -145,13 +163,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const bump = () => {
-      lastActivity.current = Date.now();
+      const now = Date.now();
+      // Throttled: pointer/key events fire constantly.
+      if (now - lastActivity.current < 30_000) return;
+      lastActivity.current = now;
+      try {
+        window.localStorage.setItem(LAST_ACTIVITY_KEY, String(now));
+      } catch {
+        // Storage blocked — fall back to this tab's own activity.
+      }
     };
     window.addEventListener('pointerdown', bump);
     window.addEventListener('keydown', bump);
     const timer = window.setInterval(() => {
-      if (session && Date.now() - lastActivity.current > IDLE_LIMIT_MS) {
-        void supabase.auth.signOut();
+      const last = Math.max(lastActivity.current, readSharedActivity());
+      if (session && Date.now() - last > IDLE_LIMIT_MS) {
+        void signOutLocal();
       }
     }, 60_000);
     return () => {
@@ -186,7 +213,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return error ? error.message : null;
     },
     signOut: async () => {
-      await supabase.auth.signOut();
+      await signOutLocal();
     },
   };
 
