@@ -17,6 +17,13 @@
 -- There is no cron: any call that touches a room first runs live_advance(),
 -- which closes an expired logging window, ends the match after the last half
 -- and expires stale rooms.
+--
+-- Connection handling: every call a phone makes records when that player was
+-- last seen (live_room_presence), so the room shows who is online and a
+-- lobby whose host has been gone 2 minutes passes the host role on. When a
+-- half starts, every other player gets a "Half N starts now" notification
+-- (sent by the send-live-room-push Edge Function), so a locked phone doesn't
+-- miss the 5-second countdown.
 
 -- ── Tables ────────────────────────────────────────────────────────────────
 
@@ -96,23 +103,35 @@ CREATE TABLE public.live_half_results (
   UNIQUE (room_id, half, user_id)
 );
 
+-- When each player's phone last talked to the server. Kept out of
+-- live_room_players on purpose: that table sends realtime events, and a
+-- write on every poll would make every phone in the room reload constantly.
+CREATE TABLE public.live_room_presence (
+  room_id uuid NOT NULL REFERENCES public.live_rooms(id) ON DELETE CASCADE,
+  user_id uuid NOT NULL REFERENCES public.profiles(id) ON DELETE CASCADE,
+  last_seen_at timestamptz NOT NULL DEFAULT now(),
+  PRIMARY KEY (room_id, user_id)
+);
+
 -- ── Access: read-only for the app, writes only through the functions below ──
 
 ALTER TABLE public.live_challenges ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_rooms ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_room_players ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.live_half_results ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.live_room_presence ENABLE ROW LEVEL SECURITY;
 
 REVOKE ALL ON public.live_challenges, public.live_rooms, public.live_room_players,
-  public.live_half_results FROM PUBLIC, anon, authenticated;
+  public.live_half_results, public.live_room_presence FROM PUBLIC, anon, authenticated;
 GRANT ALL ON public.live_challenges, public.live_rooms, public.live_room_players,
-  public.live_half_results TO service_role;
+  public.live_half_results, public.live_room_presence TO service_role;
 
 -- Players can read their own room and roster (RLS below), which realtime
 -- needs. The room code isn't hidden: only players already in the room can
 -- read the row. live_half_results has no client grant at all: other
 -- players' numbers stay hidden until logging closes, which only
--- get_live_room_state can decide.
+-- get_live_room_state can decide. live_room_presence has none either (the
+-- state RPC reports who is online).
 GRANT SELECT ON public.live_challenges, public.live_rooms, public.live_room_players TO authenticated;
 
 CREATE FUNCTION public.is_live_room_player(p_room_id uuid)
@@ -209,8 +228,39 @@ AS $function$
   FROM jsonb_array_elements(p_movements) WITH ORDINALITY AS m(value, ord);
 $function$;
 
+-- Online = seen within this long. Phones check in every 2 s while the room
+-- screen is open, so a locked or offline phone turns grey after ~15 s.
+CREATE FUNCTION public.live_is_online(p_room_id uuid, p_user_id uuid, p_within interval DEFAULT interval '15 seconds')
+RETURNS boolean
+LANGUAGE sql
+STABLE
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  SELECT EXISTS (
+    SELECT 1 FROM live_room_presence
+    WHERE room_id = p_room_id AND user_id = p_user_id AND last_seen_at > now() - p_within
+  );
+$function$;
+
+-- Records that the caller's phone is here.
+CREATE FUNCTION public.live_touch(p_room_id uuid)
+RETURNS void
+LANGUAGE sql
+SECURITY DEFINER
+SET search_path TO 'public'
+AS $function$
+  INSERT INTO live_room_presence (room_id, user_id, last_seen_at)
+  SELECT p_room_id, auth.uid(), now()
+  WHERE auth.uid() IS NOT NULL
+  ON CONFLICT (room_id, user_id) DO UPDATE SET last_seen_at = now();
+$function$;
+
 -- The room's host: host_id while that user is still in the room, otherwise
--- the earliest-joined remaining player.
+-- the earliest-joined remaining player. In the lobby, a host whose phone has
+-- been gone 2 minutes hands over (for as long as they're gone) to the
+-- earliest-joined player seen in that time, so a dropped host can't stall
+-- the room. Once the match runs, start_live_half has its own fallback.
 CREATE FUNCTION public.live_room_host(p_room_id uuid)
 RETURNS uuid
 LANGUAGE sql
@@ -218,14 +268,27 @@ STABLE
 SECURITY DEFINER
 SET search_path TO 'public'
 AS $function$
-  SELECT COALESCE(
-    (SELECT r.host_id FROM live_rooms r
-      WHERE r.id = p_room_id
-        AND EXISTS (SELECT 1 FROM live_room_players p WHERE p.room_id = r.id AND p.user_id = r.host_id)),
-    (SELECT p.user_id FROM live_room_players p
-      WHERE p.room_id = p_room_id AND p.user_id IS NOT NULL
-      ORDER BY p.joined_at, p.id LIMIT 1)
-  );
+  WITH r AS (
+    SELECT r.id, r.status,
+      CASE WHEN EXISTS (SELECT 1 FROM live_room_players p WHERE p.room_id = r.id AND p.user_id = r.host_id)
+           THEN r.host_id END AS host_id
+    FROM live_rooms r WHERE r.id = p_room_id
+  )
+  SELECT CASE
+    WHEN r.host_id IS NOT NULL
+         AND (r.status <> 'lobby' OR public.live_is_online(r.id, r.host_id, interval '2 minutes'))
+      THEN r.host_id
+    ELSE COALESCE(
+      (SELECT p.user_id FROM live_room_players p
+        WHERE p.room_id = r.id AND p.user_id IS NOT NULL AND r.status = 'lobby'
+          AND public.live_is_online(r.id, p.user_id, interval '2 minutes')
+        ORDER BY p.joined_at, p.id LIMIT 1),
+      r.host_id,
+      (SELECT p.user_id FROM live_room_players p
+        WHERE p.room_id = r.id AND p.user_id IS NOT NULL
+        ORDER BY p.joined_at, p.id LIMIT 1))
+  END
+  FROM r;
 $function$;
 
 -- Closes the current half at p_at and, after the last half, ends the match.
@@ -352,6 +415,7 @@ BEGIN
   IF NOT FOUND OR NOT public.is_live_room_player(p_room_id) THEN
     RAISE EXCEPTION 'NOT_IN_ROOM';
   END IF;
+  PERFORM public.live_touch(p_room_id);
   RETURN v_room;
 END;
 $function$;
@@ -578,6 +642,7 @@ BEGIN
   END LOOP;
 
   INSERT INTO live_room_players (room_id, user_id) VALUES (v_room_id, v_uid);
+  PERFORM public.live_touch(v_room_id);
 
   RETURN QUERY SELECT v_room_id, v_code;
 END;
@@ -605,6 +670,7 @@ BEGIN
     RAISE EXCEPTION 'INVALID_CODE';
   END IF;
   IF EXISTS (SELECT 1 FROM live_room_players WHERE room_id = v_room.id AND user_id = v_uid) THEN
+    PERFORM public.live_touch(v_room.id);
     RETURN v_room.id;
   END IF;
 
@@ -621,6 +687,7 @@ BEGIN
   END IF;
 
   INSERT INTO live_room_players (room_id, user_id) VALUES (v_room.id, v_uid);
+  PERFORM public.live_touch(v_room.id);
   UPDATE live_rooms SET last_activity_at = now() WHERE id = v_room.id;
   RETURN v_room.id;
 END;
@@ -711,6 +778,7 @@ BEGIN
   END IF;
 
   DELETE FROM live_room_players WHERE room_id = p_room_id AND user_id = v_target;
+  DELETE FROM live_room_presence WHERE room_id = p_room_id AND user_id = v_target;
 
   IF v_target IS NOT DISTINCT FROM v_host THEN
     SELECT user_id INTO v_next FROM live_room_players
@@ -731,7 +799,10 @@ $function$;
 
 -- Starts half 1 (from the lobby) or the next half (once logging of the
 -- previous one closed). The host starts; if the host hasn't 3 minutes after
--- logging closed, any player can. The half starts 3 s later (3-2-1).
+-- logging closed, any player can. The half starts 5 s later (countdown, so
+-- a player whose phone is locked has time to open the notification). Every
+-- other player gets a "Half N starts now" notification row; the starter's
+-- phone then calls send-live-room-push to deliver them.
 CREATE FUNCTION public.start_live_half(p_room_id uuid)
 RETURNS TABLE (half smallint, half_started_at timestamptz, half_ends_at timestamptz, server_now timestamptz)
 LANGUAGE plpgsql
@@ -746,7 +817,7 @@ DECLARE
   v_host uuid;
   v_next smallint;
   v_duration integer;
-  v_started timestamptz := now() + interval '3 seconds';
+  v_started timestamptz := now() + interval '5 seconds';
   v_bad integer;
 BEGIN
   v_room := public.live_lock_room(p_room_id);
@@ -804,6 +875,22 @@ BEGIN
       started_at = COALESCE(started_at, now()),
       last_activity_at = now()
   WHERE id = p_room_id;
+
+  INSERT INTO notifications (user_id, type, title, body, data)
+  SELECT p.user_id, 'live_half_started',
+    CASE WHEN pr.language = 'ar' THEN format('الشوط %s يبدأ الآن', v_next)
+         ELSE format('Half %s starts now', v_next) END,
+    CASE WHEN pr.language = 'ar' THEN format('افتح %s، العد التنازلي بدأ.', v_challenge.title)
+         ELSE format('Open %s, the countdown is on.', v_challenge.title) END,
+    jsonb_build_object('screen', 'live-room', 'roomId', p_room_id::text, 'room_id', p_room_id::text,
+                       'half', v_next)
+  FROM live_room_players p
+  JOIN profiles pr ON pr.id = p.user_id
+  WHERE p.room_id = p_room_id AND p.user_id IS NOT NULL AND p.user_id <> v_uid
+    AND NOT EXISTS (
+      SELECT 1 FROM notification_preferences np
+      WHERE np.user_id = p.user_id AND (np.prefs->>'live_half_started') = 'false'
+    );
 
   RETURN QUERY SELECT v_next, v_started, v_started + make_interval(secs => v_duration), now();
 END;
@@ -927,6 +1014,7 @@ BEGIN
   IF v_uid IS NULL OR NOT public.is_live_room_player(p_room_id) THEN
     RAISE EXCEPTION 'NOT_IN_ROOM';
   END IF;
+  PERFORM public.live_touch(p_room_id);
   PERFORM public.live_advance(p_room_id);
 
   SELECT * INTO v_room FROM live_rooms WHERE id = p_room_id;
@@ -951,7 +1039,10 @@ BEGIN
       SELECT jsonb_agg(jsonb_build_object(
                'user_id', p.user_id, 'display_name', pr.display_name, 'side', p.side,
                'is_ready', p.is_ready, 'is_host', p.user_id IS NOT DISTINCT FROM v_host,
-               'joined_at', p.joined_at)
+               'joined_at', p.joined_at,
+               'online', p.user_id IS NOT NULL AND public.live_is_online(p_room_id, p.user_id),
+               'last_seen_at', (SELECT x.last_seen_at FROM live_room_presence x
+                                WHERE x.room_id = p_room_id AND x.user_id = p.user_id))
              ORDER BY p.joined_at, p.id)
       FROM live_room_players p LEFT JOIN profiles pr ON pr.id = p.user_id
       WHERE p.room_id = p_room_id), '[]'::jsonb),
@@ -1057,6 +1148,7 @@ $function$;
 -- Internal helpers: owner only (they run inside the definer functions above).
 REVOKE EXECUTE ON FUNCTION public.live_valid_halves(jsonb), public.live_half_movements(jsonb, integer),
   public.live_reps_points(jsonb, integer[]), public.live_room_host(uuid),
+  public.live_is_online(uuid, uuid, interval), public.live_touch(uuid),
   public.live_close_half(uuid, timestamptz), public.live_advance(uuid),
   public.live_prepare_user(uuid), public.live_lock_room(uuid)
   FROM PUBLIC, anon, authenticated;

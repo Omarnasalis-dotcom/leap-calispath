@@ -19,6 +19,7 @@ import {
   lobbyStatus,
   logSecondsLeft,
   maxHalfPoints,
+  offlinePlayers,
   playersNotLogged,
   playerTotals,
   restSecondsLeft,
@@ -255,6 +256,16 @@ describe('standings', () => {
   it('best player tie goes to whoever logged last earliest', () => {
     const tie = [result(1, 'late', 1, [10, 0, 0], 9), result(1, 'early', 2, [10, 0, 0], 2)];
     expect(bestPlayer(tie)?.user_id).toBe('early');
+  });
+
+  it('offline players with a side', () => {
+    const ps = [
+      { ...player('p1', 1), online: true },
+      { ...player('p2', 1), online: false },
+      { ...player('p3', null), online: false }, // no side yet: not counted
+      { ...player(null, 2), online: false }, // deleted account
+    ];
+    expect(offlinePlayers(ps).map(p => p.user_id)).toEqual(['p2']);
   });
 
   it('who still has to log', () => {

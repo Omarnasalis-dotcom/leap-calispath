@@ -136,6 +136,20 @@ export class LiveTournamentService {
   }
 
   /**
+   * Delivers the "Half N starts now" notifications start_live_half queued
+   * for the other players (send-live-room-push). Call it right after
+   * startHalf succeeds. Best effort: a failed push never blocks the match,
+   * the half has already started on the server.
+   */
+  static async sendHalfStartedPush(roomId: string): Promise<void> {
+    try {
+      await supabase.functions.invoke('send-live-room-push', { body: { room_id: roomId } });
+    } catch (error) {
+      if (__DEV__) console.log('[LiveTournament] half-start push failed', error);
+    }
+  }
+
+  /**
    * Logs reps per exercise for `half`: yours (`userId` omitted) or, as host,
    * someone else's. Saving again before logging closes replaces the log.
    */

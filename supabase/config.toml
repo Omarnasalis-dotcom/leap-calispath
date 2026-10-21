@@ -54,6 +54,12 @@ verify_jwt = true
 import_map = "./functions/send-overtake-notification-push/deno.json"
 entrypoint = "./functions/send-overtake-notification-push/index.ts"
 
+[functions.send-live-room-push]
+enabled = true
+verify_jwt = true
+import_map = "./functions/send-live-room-push/deno.json"
+entrypoint = "./functions/send-live-room-push/index.ts"
+
 [functions.send-client-attention-alerts]
 enabled = true
 verify_jwt = false

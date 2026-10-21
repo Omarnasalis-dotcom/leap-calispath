@@ -29,10 +29,28 @@ Players in the same place play a live match against each other, in sides, over 2
 5. **Players can't join, leave or switch sides after Start.** Someone who drops out just gets 0 for the halves they don't log.
 6. **Logging:** a player can fix their log until logging closes. It closes when everyone has logged or after 2 minutes, whichever comes first.
 7. **Hidden until close:** while a half is being logged, players only see *who* has logged, not other players' numbers. Numbers and standings show once logging closes.
-8. **Host gone:** if the host hasn't started the next half 3 minutes after logging closed, any player in the room can start it. If the host leaves in the lobby, the earliest-joined player becomes host.
+8. **Host gone:** if the host hasn't started the next half 3 minutes after logging closed, any player in the room can start it. If the host leaves in the lobby, the earliest-joined player becomes host. *(Owner)* If the host's phone has been gone **2 minutes in the lobby**, the earliest-joined player who is here hosts until the host is back.
 9. **Stale rooms:** a lobby with no activity for 2 hours is abandoned. A match where nobody starts the next half within 30 minutes ends with the halves played so far (results kept).
 10. **Best player tie:** the player whose last log came first.
 11. **Ending early:** the host can abandon the room at any time (with a confirmation in the app). An abandoned room keeps no result.
+
+## 2b. Lost connection, locked phone, leaving the app *(owner, 2026-10-22)*
+
+The server keeps the time, so a phone only needs internet to join, pick a side, start, and send its log.
+
+| Situation | Behavior |
+|---|---|
+| Offline in the lobby | Still in the room. Shows **Reconnecting…**; catches up on reconnect. Grey dot for the others after 15 s |
+| Offline during a half | Nothing breaks: the timer runs from the synced clock. Exercises stay on screen |
+| Offline while logging | The log is kept on the phone (AsyncStorage) and sent automatically on reconnect. If the 2-minute window closes first, 0 (the host can still log for them before it closes) |
+| Host offline | Between halves: anyone can start after 3 min. In the lobby: next player hosts after 2 min |
+| App killed / reopened | `get_my_live_room()` reopens the room at the right step |
+| Screen | Kept awake while in a room (`useKeepAwakeWhile`) |
+| Phone locked / app in background | Local alerts for known moments (`useBackgroundTimerAlerts`): half start, time's up, 30 s left to log. **Push** "Half N starts now" for the host's start, which the phone can't predict |
+| Online dots *(owner)* | Every call records `last_seen_at` in `live_room_presence` (no realtime on it). Green = seen in the last 15 s. The host gets a warning before Start if someone is grey |
+| Countdown | 5 s (was 3), so a locked phone has time to open from the notification |
+
+**Push details:** `start_live_half` inserts one `notifications` row per other player (`type = live_half_started`, EN/AR from `profiles.language`, respects `notification_preferences.prefs.live_half_started = false`, `data.screen = live-room`). The starter's phone then calls the `send-live-room-push` Edge Function, which checks the caller is in the room, atomically claims only that room's unsent rows from the last 2 minutes, refuses above 24 pending (fan-out cap), and sends one Expo batch. The app's foreground handler must stay silent for this type while the room screen is open (step 4).
 
 ## 3. Data model (new migration, no change to existing tables)
 
@@ -46,6 +64,7 @@ live_rooms        id, challenge_id, code (6 chars), host_id, side_count (2–4),
                   last_activity_at, created_at, started_at, finished_at
 live_room_players room_id, user_id, side (null until picked), is_ready, joined_at
 live_half_results room_id, half, user_id, side, reps int[], points, entered_by, entered_at, updated_at
+live_room_presence room_id, user_id, last_seen_at   (no client access, no realtime)
 ```
 
 **Access:** RLS on, `REVOKE ALL` from anon/authenticated. Clients may SELECT `live_challenges` (active only), and `live_rooms` (without `code`) / `live_room_players` for rooms they're in (for realtime). `live_half_results` has no client grant: values come only through `get_live_room_state`, which hides other players' numbers until logging closes. Every write is a SECURITY DEFINER RPC; every time is a server timestamp.
@@ -98,4 +117,6 @@ Live Challenges page: create/edit (halves editor with the shared MovementsEditor
 - **Realtime + polling load:** up to 24 phones polling every 2 s per room. Each poll is one RPC; fine at current scale, worth watching.
 - **Gym signal:** a phone that loses signal keeps the timer (server-anchored) but can't log until it reconnects; the 2-minute window is the limit.
 - **Same-place assumption:** nothing stops remote players from joining a room with the code. Accepted for v1.
+- **Push is sent by the starter's phone.** If its connection drops right after Start, nobody gets the push (players nearby still see the countdown). A database-triggered send would remove this, at the cost of more server setup.
+- **`send-live-room-push` was not run locally** (Docker was down). Test it on prod with a real room before launch, after a read-only check of pending rows.
 - **No moderation of rooms yet** beyond admin abandon. No names are user-entered (sides are A/B/C/D), so there is nothing offensive to moderate.

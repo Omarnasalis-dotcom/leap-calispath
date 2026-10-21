@@ -51,6 +51,9 @@ export interface LivePlayer {
   is_ready: boolean;
   is_host: boolean;
   joined_at: string;
+  /** Phone checked in within ONLINE_WINDOW_SEC (from get_live_room_state). */
+  online?: boolean;
+  last_seen_at?: string | null;
 }
 
 export interface LiveResult {
@@ -94,7 +97,12 @@ export interface LiveHistoryRow {
 
 // ── Server constants (keep in sync with the migration) ─────────────────────
 
-export const COUNTDOWN_SEC = 3;
+/** Countdown before each half: long enough to open a locked phone from the notification. */
+export const COUNTDOWN_SEC = 5;
+/** A player counts as online when their phone checked in within this. */
+export const ONLINE_WINDOW_SEC = 15;
+/** In the lobby, a host gone this long hands the host role to the next player who is here. */
+export const LOBBY_HOST_HANDOVER_SEC = 120;
 /** Logging closes this long after a half's timer ends (or when everyone logged). */
 export const LOG_WINDOW_SEC = 120;
 /** After logging closes, anyone in the room can start the next half after this. */
@@ -206,6 +214,11 @@ export function canStartNextHalf(
   if (userId === room.host_id) return true;
   const closed = closedAtMs(room, nowMs);
   return closed != null && nowMs >= closed + HOST_FALLBACK_SEC * 1000;
+}
+
+/** Players with a side whose phone isn't checking in (shown grey; the host is warned before Start). */
+export function offlinePlayers(players: LivePlayer[]): LivePlayer[] {
+  return players.filter(p => p.user_id != null && p.side != null && p.online === false);
 }
 
 // ── Lobby (mirrors start_live_half's checks) ───────────────────────────────
