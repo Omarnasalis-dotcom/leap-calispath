@@ -23,6 +23,7 @@ const ADMIN_NAV: Array<
   { to: '/challenges', label: 'Week editor', end: true },
   { to: '/challenges/templates', label: 'Templates' },
   { to: '/challenges/teams', label: 'Team challenges' },
+  { to: '/challenges/live', label: 'Live challenges' },
   { to: '/challenges/analytics', label: 'Analytics' },
   { section: 'Coaching' },
   { to: '/coaching', label: 'Clients', end: true },
