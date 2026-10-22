@@ -1,6 +1,6 @@
 # Live Tournament: Implementation Plan
 
-Status: planning done 2026-10-22; step 1 (database) in progress. This feature is fully separate from Team Challenge (`TEAM_CHALLENGE_PLAN.md`) and from the V2-locked Tournament/Clash feature: it uses only new `live_*` tables and functions, so no existing function changes and older app versions can't see it.
+Status (2026-10-22): database applied to prod (flag off); app logic, admin page and app screens built on branch `live-tournament`; `send-live-room-push` not deployed; no device test yet. This feature is fully separate from Team Challenge (`TEAM_CHALLENGE_PLAN.md`) and from the V2-locked Tournament/Clash feature: it uses only new `live_*` tables and functions, so no existing function changes and older app versions can't see it.
 
 ## 1. What we're building
 
