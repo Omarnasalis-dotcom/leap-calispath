@@ -67,9 +67,10 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     return () => { cancelled = true; };
   }, []);
   const showTeam = isAdmin || teamEnabled;
-  // Also on the local web dev server (never in a store build or the website),
-  // so a room can be tested with several browser windows as different players.
-  const showLive = isAdmin || liveEnabled || (__DEV__ && Platform.OS === 'web');
+  // Also in every development build (simulator, local web, a phone on the
+  // dev server) so rooms can be tested with test accounts. Store builds are
+  // never __DEV__, so players only get it through the flag.
+  const showLive = isAdmin || liveEnabled || __DEV__;
 
   // ── Data ────────────────────────────────────────────────────────────────
   const [weeks, setWeeks] = useState<string[]>([currentWeek]);
