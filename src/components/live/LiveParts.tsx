@@ -154,53 +154,60 @@ export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }
 
 const BLOCK_HEIGHTS = [84, 60, 46]; // by podium spot: 1st, 2nd, 3rd
 
+/** One entry on a podium board (a side in a room, or a player / team on the public board). */
+export interface PodiumItem {
+  key: string;
+  /** 1 = first; equal values share a place and colour. */
+  place: number;
+  name: string;
+  score: string;
+  mine: boolean;
+  /** Small line under the name in list rows (e.g. the players of a team). */
+  sub?: string;
+}
+
 /**
- * Top 3 sides on a podium (2nd · 1st · 3rd, bottom-aligned), the same look
- * as the Weekly board; a 4th side shows as a row underneath. Tied sides
- * share a place number and colour. `wrap` lets the final celebration
- * animate each column in (index 0 = the winner).
+ * The top 3 on a podium (2nd · 1st · 3rd, bottom-aligned), the same look as
+ * the Weekly board; everyone after them as rows underneath. `wrap` lets the
+ * final celebration animate each entry in (index 0 = first).
  */
-export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
+export function PodiumBoard({ tokens: t, items, wrap }: {
   tokens: WeeklyTokens;
-  rows: SideStanding[];
-  names?: Record<string, string>;
-  mySide: number | null | undefined;
+  items: PodiumItem[];
   wrap?: (index: number, node: React.ReactNode) => React.ReactNode;
 }) {
-  const order = [1, 0, 2].filter(i => rows[i]);
-  const rest = rows.slice(3);
-  const placeColor = (place: number) => [t.gold, t.silver, t.bronze][Math.min(place, 3) - 1];
+  const order = [1, 0, 2].filter(i => items[i]);
+  const rest = items.slice(3);
+  const placeColor = (place: number) => [t.gold, t.silver, t.bronze][Math.min(Math.max(place, 1), 3) - 1];
   return (
     <View style={{ gap: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 6 }}>
         {order.map(i => {
-          const r = rows[i];
-          const mine = r.side === mySide;
+          const it = items[i];
           const first = i === 0;
-          const color = placeColor(r.place);
+          const color = placeColor(it.place);
           const av = first ? 56 : 44;
-          const name = sideLabel(r.side, names);
           const column = (
             <View style={{ alignItems: 'center', gap: 8 }}>
-              <View style={{ width: av, height: av, borderRadius: av / 2, backgroundColor: t.tile, borderWidth: 2, borderColor: mine ? t.accent : color, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={kt('semibold', first ? 18 : 15, t.text)}>{initials(name)}</Text>
+              <View style={{ width: av, height: av, borderRadius: av / 2, backgroundColor: t.tile, borderWidth: 2, borderColor: it.mine ? t.accent : color, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={kt('semibold', first ? 18 : 15, t.text)}>{initials(it.name)}</Text>
               </View>
               <View style={{ alignItems: 'center', gap: 1, maxWidth: '100%' }}>
-                <Text style={kt(mine ? 'semibold' : 'regular', 12, mine ? t.accentText : t.textDim)} numberOfLines={1}>{name}</Text>
-                <Text style={kt('semibold', 16, t.text)} numberOfLines={1}>{formatPts(r.total)}</Text>
-                {mine && <YouBadge tokens={t} />}
+                <Text style={kt(it.mine ? 'semibold' : 'regular', 12, it.mine ? t.accentText : t.textDim)} numberOfLines={1}>{it.name}</Text>
+                <Text style={kt('semibold', 16, t.text)} numberOfLines={1}>{it.score}</Text>
+                {it.mine && <YouBadge tokens={t} />}
               </View>
               <View style={{
                 width: '100%', height: BLOCK_HEIGHTS[i], borderTopLeftRadius: 12, borderTopRightRadius: 12,
                 borderTopWidth: 2, borderTopColor: color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
               }}>
                 <LinearGradient colors={first ? t.podiumFirst : t.podiumOther} style={StyleSheet.absoluteFillObject} />
-                <Text style={kt('bold', first ? 26 : 20, color, 0, first ? 28 : 22)}>{r.place}</Text>
+                <Text style={kt('bold', first ? 26 : 20, color, 0, first ? 28 : 22)}>{it.place}</Text>
               </View>
             </View>
           );
           return (
-            <View key={r.side} style={{ flex: 1, minWidth: 0 }}>
+            <View key={it.key} style={{ flex: 1, minWidth: 0 }}>
               {wrap ? wrap(i, column) : column}
             </View>
           );
@@ -208,9 +215,24 @@ export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
       </View>
       {rest.length > 0 && (
         <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
-          {rest.map((r, k) => {
-            const row = <StandingRow tokens={t} row={r} first={k === 0} halfCount={1} mine={r.side === mySide} names={names} />;
-            return <React.Fragment key={r.side}>{wrap ? wrap(3 + k, row) : row}</React.Fragment>;
+          {rest.map((it, k) => {
+            const row = (
+              <View style={{
+                flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 56, paddingHorizontal: 16, paddingVertical: 8,
+                borderTopWidth: k ? 1 : 0, borderTopColor: t.divider, backgroundColor: it.mine ? t.accentSoft : 'transparent',
+              }}>
+                <Text style={[kt('bold', 16, rankColor(t, it.place - 1, false)), { minWidth: 26 }]}>{it.place}</Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                    <Text style={[kt(it.mine ? 'semibold' : 'regular', 14, it.mine ? t.text : t.textSecondary), { flexShrink: 1 }]} numberOfLines={1}>{it.name}</Text>
+                    {it.mine && <YouBadge tokens={t} />}
+                  </View>
+                  {it.sub ? <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2 }]} numberOfLines={1}>{it.sub}</Text> : null}
+                </View>
+                <Text style={kt('semibold', 15, t.text)}>{it.score}</Text>
+              </View>
+            );
+            return <React.Fragment key={it.key}>{wrap ? wrap(3 + k, row) : row}</React.Fragment>;
           })}
         </View>
       )}
@@ -218,3 +240,19 @@ export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
   );
 }
 
+/** Sides of one room on the podium. */
+export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
+  tokens: WeeklyTokens;
+  rows: SideStanding[];
+  names?: Record<string, string>;
+  mySide: number | null | undefined;
+  wrap?: (index: number, node: React.ReactNode) => React.ReactNode;
+}) {
+  return (
+    <PodiumBoard
+      tokens={t}
+      wrap={wrap}
+      items={rows.map(r => ({ key: String(r.side), place: r.place, name: sideLabel(r.side, names), score: formatPts(r.total), mine: r.side === mySide }))}
+    />
+  );
+}

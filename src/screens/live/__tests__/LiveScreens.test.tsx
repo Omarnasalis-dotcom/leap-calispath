@@ -72,7 +72,7 @@ jest.mock('../../../services/LiveTournamentService', () => {
     LiveTournamentError,
     LiveTournamentService: {
       getRoomState: fn(), getOpenChallenges: fn(), getMyRoom: fn(), getHistory: fn(), createRoom: fn(), joinRoom: fn(),
-      pickSide: fn(), nameSide: fn(), setReady: fn(), leaveRoom: fn(), startHalf: fn(), sendHalfStartedPush: fn(), submitReps: fn(),
+      pickSide: fn(), nameSide: fn(), setReady: fn(), getPlayerBoard: fn(), getTeamBoard: fn(), leaveRoom: fn(), startHalf: fn(), sendHalfStartedPush: fn(), submitReps: fn(),
       abandonRoom: fn(),
     },
   };
@@ -368,8 +368,9 @@ describe('LiveRoomScreen · match', () => {
     const results = [result(1, 'me', 1, 120), result(1, 'u3', 2, 120)];
     mockService.getRoomState.mockResolvedValue(timed(makeState(logging({ half_closed_at: iso(-5000) }), FOUR, { results })));
     const r = await render(<LiveRoomScreen roomId="r1" />);
-    const places = r.root.findAll(n => typeof n.props.children === 'number' && n.props.children === 1 && n.type === 'Text');
-    expect(places.length).toBeGreaterThanOrEqual(2);
+    // Both podium blocks read 1 (place numbers render as text nodes).
+    const ones = texts(r.toJSON()).filter(x => x === '1');
+    expect(ones.length).toBeGreaterThanOrEqual(2);
   });
 
   it('rest, not the host: waits until the fallback', async () => {
@@ -481,6 +482,46 @@ describe('LiveHub', () => {
     await act(async () => { button(r, 'CREATE', true).props.onPress(); });
     expect(mockService.createRoom).toHaveBeenCalledWith('c1', 2);
     expect(mockPush).toHaveBeenCalledWith({ pathname: '/live-room', params: { roomId: 'r7' } });
+  });
+
+  it('leaderboard: players podium, then the teams tab', async () => {
+    mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([]);
+    mockService.getPlayerBoard.mockResolvedValue([
+      { rank: 1, user_id: 'u2', display_name: 'Sara', country: null, points: 410, team_name: 'Lions', achieved_at: iso(-1), is_mine: false },
+      { rank: 2, user_id: 'me', display_name: 'Omar', country: null, points: 335, team_name: 'Iron Wolves', achieved_at: iso(-1), is_mine: true },
+      { rank: 3, user_id: 'u3', display_name: 'Ali', country: null, points: 300, team_name: 'Lions', achieved_at: iso(-1), is_mine: false },
+      { rank: 4, user_id: 'u4', display_name: 'Mona', country: null, points: 12.5, team_name: null, achieved_at: iso(-1), is_mine: false },
+    ]);
+    mockService.getTeamBoard.mockResolvedValue([
+      { rank: 1, room_id: 'r1', side: 1, team_name: 'Iron Wolves', members: [{ user_id: 'me', display_name: 'Omar' }, { user_id: 'u2', display_name: 'Sara' }],
+        player_count: 2, total: 610, points_per_player: 305, achieved_at: iso(-1), is_mine: true },
+    ]);
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    let text = allText(r);
+    expect(text).toContain('LEADERBOARD');
+    expect(text).toContain('410 PTS');
+    expect(text).toContain('Mona'); // 4th, in the list under the podium
+    expect(text).toContain('12.5 PTS');
+    expect(mockService.getPlayerBoard).toHaveBeenCalledWith('c1');
+
+    const teamsTab = r.root.findAll(n => n.props.accessibilityRole === 'tab' && texts(n.children as any).join('').includes('TEAMS'))[0];
+    await act(async () => { teamsTab.props.onPress(); });
+    text = allText(r);
+    expect(text).toContain('Scored as points per player');
+    expect(text).toContain('Iron Wolves');
+    expect(text).toContain('305 PTS');
+  });
+
+  it('leaderboard: empty', async () => {
+    mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([]);
+    mockService.getPlayerBoard.mockResolvedValue([]);
+    mockService.getTeamBoard.mockResolvedValue([]);
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    expect(allText(r)).toContain('No finished matches yet');
   });
 
   it('history row', async () => {

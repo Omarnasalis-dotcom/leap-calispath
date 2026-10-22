@@ -1,14 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
-import { KitButton, KitIcon, WorldSheet, kt } from '../../components/worlds/kit';
+import { KitButton, KitIcon, SegmentedSwitch, WorldSheet, kt } from '../../components/worlds/kit';
 import { WeeklyTokens } from '../../components/weekly/weeklyTokens';
 import { Label, WeeklyHeader } from '../../components/weekly/WeeklyParts';
 import { closesInLabel } from '../../components/team/TeamParts';
-import { HalvesList, LiveChallengeCard, formatPts, sideLabel } from '../../components/live/LiveParts';
+import { HalvesList, LiveChallengeCard, PodiumBoard, PodiumItem, formatPts, sideLabel } from '../../components/live/LiveParts';
 import { LeapLogo } from '../../components/LeapLogo';
 import { LiveTournamentError, LiveTournamentService } from '../../services/LiveTournamentService';
-import { LiveChallenge, LiveHistoryRow, MAX_SIDES, MIN_SIDES, ROOM_CODE_LENGTH } from '../../lib/liveTournament';
+import {
+  LiveChallenge, LiveHistoryRow, LivePlayerBoardRow, LiveTeamBoardRow, MAX_SIDES, MIN_SIDES, ROOM_CODE_LENGTH,
+} from '../../lib/liveTournament';
 import { track } from '../../lib/analytics';
 import { useMountedRef } from '../../hooks/useMountedRef';
 import { isArabic, ltr, t as tr } from '../../i18n';
@@ -183,6 +185,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
             )}
 
             <HalvesList tokens={t} halves={challenge.halves} />
+            <LiveBoards tokens={t} challengeId={challenge.id} />
           </>
         )}
 
@@ -278,3 +281,82 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
     </View>
   );
 }
+
+type BoardKind = 'players' | 'teams';
+
+/** The challenge's public leaderboards: every finished room that played all halves. */
+function LiveBoards({ tokens: t, challengeId }: { tokens: WeeklyTokens; challengeId: string }) {
+  const isMounted = useMountedRef();
+  const [kind, setKind] = useState<BoardKind>('players');
+  const [players, setPlayers] = useState<LivePlayerBoardRow[] | null>(null);
+  const [teams, setTeams] = useState<LiveTeamBoardRow[] | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [p, tm] = await Promise.all([
+        LiveTournamentService.getPlayerBoard(challengeId),
+        LiveTournamentService.getTeamBoard(challengeId),
+      ]);
+      if (!isMounted.current) return;
+      setPlayers(p);
+      setTeams(tm);
+      setError(null);
+    } catch (e: any) {
+      if (isMounted.current) setError(e?.message ?? tr('live.loadFailed'));
+    }
+  }, [challengeId]);
+
+  // Refreshes on focus too (coming back from a finished room).
+  useFocusEffect(useCallback(() => { load(); }, [load]));
+
+  const items: PodiumItem[] | null = kind === 'players'
+    ? players && players.map(r => ({
+        key: r.user_id,
+        place: r.rank,
+        name: r.display_name || tr('team.deletedUser'),
+        score: formatPts(r.points),
+        mine: r.is_mine,
+        sub: r.team_name ?? undefined,
+      }))
+    : teams && teams.map(r => ({
+        key: `${r.room_id}-${r.side}`,
+        place: r.rank,
+        name: r.team_name || sideLabel(r.side),
+        score: formatPts(r.points_per_player),
+        mine: r.is_mine,
+        sub: r.members.map(m => m.display_name || tr('team.deletedUser')).join(' · '),
+      }));
+
+  return (
+    <View style={{ paddingTop: 28, gap: 12 }}>
+      <Label tokens={t} size={11}>{tr('live.leaderboard')}</Label>
+      <SegmentedSwitch
+        tokens={t}
+        items={[
+          { key: 'players', label: tr('live.boardPlayers') },
+          { key: 'teams', label: tr('live.boardTeams') },
+        ]}
+        active={kind}
+        onChange={setKind}
+        accessibilityLabel={tr('live.leaderboard')}
+      />
+      {kind === 'teams' && <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.teamBoardHint')}</Text>}
+      {error && !items ? (
+        <View style={{ alignItems: 'center', gap: 10 }}>
+          <Text style={[kt('light', 13, t.textMuted, 0, 18), { textAlign: 'center' }]}>{error}</Text>
+          <KitButton tokens={t} variant="outline" label={tr('live.retry')} onPress={load} height={44} />
+        </View>
+      ) : !items ? (
+        <View style={{ paddingVertical: 20, alignItems: 'center' }}><LeapLogo size={28} animated /></View>
+      ) : items.length === 0 ? (
+        <View style={{ borderRadius: 16, padding: 20, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong }}>
+          <Text style={[kt('light', 14, t.textMuted, 0, 20), { textAlign: 'center' }]}>{tr('live.boardEmpty')}</Text>
+        </View>
+      ) : (
+        <PodiumBoard tokens={t} items={items} />
+      )}
+    </View>
+  );
+}
+

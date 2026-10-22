@@ -7,7 +7,9 @@ import {
   LiveErrorCode,
   liveErrorCode,
   LiveHistoryRow,
+  LivePlayerBoardRow,
   LiveRoomState,
+  LiveTeamBoardRow,
 } from '../lib/liveTournament';
 import type { TimedResult } from './TeamChallengeService';
 
@@ -201,6 +203,25 @@ export class LiveTournamentService {
   /** Your unfinished room, if any (to resume after reopening the app). */
   static async getMyRoom(): Promise<string | null> {
     return (await rpc<string | null>('get_my_live_room')) ?? null;
+  }
+
+  /** Public board: each player's best total in any finished full room of the challenge. */
+  static async getPlayerBoard(challengeId: string): Promise<LivePlayerBoardRow[]> {
+    const rows = await rpc<LivePlayerBoardRow[]>('get_live_player_board', { p_challenge_id: challengeId });
+    return (rows ?? []).map(r => ({ ...r, rank: Number(r.rank), points: Number(r.points) }));
+  }
+
+  /** Public board: each group of players' best side, as points per player. */
+  static async getTeamBoard(challengeId: string): Promise<LiveTeamBoardRow[]> {
+    const rows = await rpc<LiveTeamBoardRow[]>('get_live_team_board', { p_challenge_id: challengeId });
+    return (rows ?? []).map(r => ({
+      ...r,
+      rank: Number(r.rank),
+      side: Number(r.side),
+      player_count: Number(r.player_count),
+      total: Number(r.total),
+      points_per_player: Number(r.points_per_player),
+    }));
   }
 
   static async getHistory(): Promise<LiveHistoryRow[]> {

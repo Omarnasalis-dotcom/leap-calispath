@@ -98,6 +98,32 @@ export interface LiveHistoryRow {
   my_side_name: string | null;
 }
 
+/** get_live_player_board: each player's best total in a full room of the challenge. */
+export interface LivePlayerBoardRow {
+  rank: number;
+  user_id: string;
+  display_name: string | null;
+  country: string | null;
+  points: number;
+  team_name: string | null;
+  achieved_at: string;
+  is_mine: boolean;
+}
+
+/** get_live_team_board: each group of players' best side, scored as points per player. */
+export interface LiveTeamBoardRow {
+  rank: number;
+  room_id: string;
+  side: number;
+  team_name: string | null;
+  members: { user_id: string | null; display_name: string | null }[];
+  player_count: number;
+  total: number;
+  points_per_player: number;
+  achieved_at: string;
+  is_mine: boolean;
+}
+
 // ── Server constants (keep in sync with the migration) ─────────────────────
 
 /** Countdown before each half: long enough to open a locked phone from the notification. */
