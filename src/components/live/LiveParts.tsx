@@ -1,9 +1,11 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { kt, rankColor, YouBadge } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
 import { formatClock } from '../../lib/weeklyChallenge';
+import { initials } from '../../lib/worldStanding';
 import { LiveChallenge, LiveHalf, LivePlayer, SideStanding, sideLetter, sideNameOf } from '../../lib/liveTournament';
 import { ltr, t as tr } from '../../i18n';
 
@@ -149,3 +151,70 @@ export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }
     </View>
   );
 }
+
+const BLOCK_HEIGHTS = [84, 60, 46]; // by podium spot: 1st, 2nd, 3rd
+
+/**
+ * Top 3 sides on a podium (2nd · 1st · 3rd, bottom-aligned), the same look
+ * as the Weekly board; a 4th side shows as a row underneath. Tied sides
+ * share a place number and colour. `wrap` lets the final celebration
+ * animate each column in (index 0 = the winner).
+ */
+export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
+  tokens: WeeklyTokens;
+  rows: SideStanding[];
+  names?: Record<string, string>;
+  mySide: number | null | undefined;
+  wrap?: (index: number, node: React.ReactNode) => React.ReactNode;
+}) {
+  const order = [1, 0, 2].filter(i => rows[i]);
+  const rest = rows.slice(3);
+  const placeColor = (place: number) => [t.gold, t.silver, t.bronze][Math.min(place, 3) - 1];
+  return (
+    <View style={{ gap: 12 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, paddingTop: 6 }}>
+        {order.map(i => {
+          const r = rows[i];
+          const mine = r.side === mySide;
+          const first = i === 0;
+          const color = placeColor(r.place);
+          const av = first ? 56 : 44;
+          const name = sideLabel(r.side, names);
+          const column = (
+            <View style={{ alignItems: 'center', gap: 8 }}>
+              <View style={{ width: av, height: av, borderRadius: av / 2, backgroundColor: t.tile, borderWidth: 2, borderColor: mine ? t.accent : color, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={kt('semibold', first ? 18 : 15, t.text)}>{initials(name)}</Text>
+              </View>
+              <View style={{ alignItems: 'center', gap: 1, maxWidth: '100%' }}>
+                <Text style={kt(mine ? 'semibold' : 'regular', 12, mine ? t.accentText : t.textDim)} numberOfLines={1}>{name}</Text>
+                <Text style={kt('semibold', 16, t.text)} numberOfLines={1}>{formatPts(r.total)}</Text>
+                {mine && <YouBadge tokens={t} />}
+              </View>
+              <View style={{
+                width: '100%', height: BLOCK_HEIGHTS[i], borderTopLeftRadius: 12, borderTopRightRadius: 12,
+                borderTopWidth: 2, borderTopColor: color, overflow: 'hidden', alignItems: 'center', justifyContent: 'center',
+              }}>
+                <LinearGradient colors={first ? t.podiumFirst : t.podiumOther} style={StyleSheet.absoluteFillObject} />
+                <Text style={kt('bold', first ? 26 : 20, color, 0, first ? 28 : 22)}>{r.place}</Text>
+              </View>
+            </View>
+          );
+          return (
+            <View key={r.side} style={{ flex: 1, minWidth: 0 }}>
+              {wrap ? wrap(i, column) : column}
+            </View>
+          );
+        })}
+      </View>
+      {rest.length > 0 && (
+        <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
+          {rest.map((r, k) => {
+            const row = <StandingRow tokens={t} row={r} first={k === 0} halfCount={1} mine={r.side === mySide} names={names} />;
+            return <React.Fragment key={r.side}>{wrap ? wrap(3 + k, row) : row}</React.Fragment>;
+          })}
+        </View>
+      )}
+    </View>
+  );
+}
+

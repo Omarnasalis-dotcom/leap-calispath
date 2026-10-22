@@ -11,7 +11,7 @@ import { KitButton, KitIcon, WorldPage, WorldSheet, YouBadge, kt } from '../../c
 import { getWeeklyTokens, WeeklyTokens } from '../../components/weekly/weeklyTokens';
 import { Label, SquareButton, StatusPill, StepButton } from '../../components/weekly/WeeklyParts';
 import {
-  HalfExercises, HalvesList, LiveChallengeCard, OnlineDot, SideStandings, formatPts, playerName, sideLabel,
+  HalfExercises, HalvesList, LiveChallengeCard, LivePodium, OnlineDot, formatPts, playerName, sideLabel,
 } from '../../components/live/LiveParts';
 import { LiveCelebration } from '../../components/live/LiveCelebration';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
@@ -990,7 +990,7 @@ function RestView({ tokens: t, state, now, myId, busy, canStart, onStart }: {
         )}
         <View style={{ paddingTop: 20, gap: 10 }}>
           <Label tokens={t} size={11}>{tr('live.standingsAfter', { n })}</Label>
-          <SideStandings tokens={t} rows={standings} halfCount={n} mySide={me?.side} names={state.side_names} />
+          <LivePodium tokens={t} rows={standings} mySide={me?.side} names={state.side_names} />
         </View>
         {next && (
           <View style={{ paddingTop: 24, gap: 10 }}>

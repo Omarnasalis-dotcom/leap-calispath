@@ -344,6 +344,34 @@ describe('LiveRoomScreen · match', () => {
     expect(button(r, 'START HALF 2')).toBeDefined();
   });
 
+  it('rest with 4 sides: podium for the top 3, the 4th as a row', async () => {
+    const eight = [
+      p('me', 'Omar', 1), p('u2', 'Sara', 1), p('u3', 'Ali', 2), p('u4', 'Mona', 2),
+      p('u5', 'Kareem', 3), p('u6', 'Nour', 3), p('u7', 'Yara', 4), p('u8', 'Ziad', 4),
+    ];
+    const results = [result(1, 'me', 1, 100), result(1, 'u3', 2, 300), result(1, 'u5', 3, 200), result(1, 'u7', 4, 50)];
+    mockService.getRoomState.mockResolvedValue(timed(makeState(
+      { ...logging({ half_closed_at: iso(-5000) }), side_count: 4 }, eight,
+      { results, side_names: { '1': 'Wolves', '2': 'Lions', '3': 'Hawks', '4': 'Bears' } },
+    )));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const text = allText(r);
+    // Podium reads 2nd · 1st · 3rd, then the 4th row.
+    const order = ['Hawks', 'Lions', 'Wolves', 'Bears'].map(n => text.indexOf(n));
+    expect(order.every(i => i >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(text).toContain('300 PTS');
+    expect(text).toContain('50 PTS');
+  });
+
+  it('tied sides share the place number on the podium', async () => {
+    const results = [result(1, 'me', 1, 120), result(1, 'u3', 2, 120)];
+    mockService.getRoomState.mockResolvedValue(timed(makeState(logging({ half_closed_at: iso(-5000) }), FOUR, { results })));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const places = r.root.findAll(n => typeof n.props.children === 'number' && n.props.children === 1 && n.type === 'Text');
+    expect(places.length).toBeGreaterThanOrEqual(2);
+  });
+
   it('rest, not the host: waits until the fallback', async () => {
     mockUserId = 'u2';
     mockService.getRoomState.mockResolvedValue(timed(makeState(logging({ half_closed_at: iso(-5000) }), FOUR)));

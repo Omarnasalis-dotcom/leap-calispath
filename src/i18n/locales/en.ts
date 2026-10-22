@@ -1827,6 +1827,7 @@ const en = {
     save: 'SAVE',
     unnamed: 'NO NAME YET',
     blocker_unnamed: 'Every team needs a name',
+    byHalf: 'BY HALF',
     counterHint: 'Count as you go. Your counts fill in your log when time is up.',
     repsField: 'reps',
     winner: 'WINNER',

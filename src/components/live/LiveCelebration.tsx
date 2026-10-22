@@ -6,7 +6,7 @@ import { router } from 'expo-router';
 import { KitButton, KitIcon, kt } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
-import { StandingRow, formatPts, playerName, sideLabel } from './LiveParts';
+import { LivePodium, SideStandings, formatPts, playerName, sideLabel } from './LiveParts';
 import { clamp01, easeOutBack, easeOutCubic } from '../../lib/prCelebration';
 import { LiveRoomState, bestPlayer, celebrationTimes, playerTotals, sideStandings } from '../../lib/liveTournament';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
@@ -143,13 +143,14 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
         <Pressable onPress={settled ? undefined : jumpToEnd} accessibilityHint={settled ? undefined : tr('live.tapToSkip')} style={{ gap: 14 }}>
           <Text style={[kt('medium', 11, t.textMuted, 2.4), { textAlign: 'center', marginTop: 18 }]}>{tr('live.finalKicker')}</Text>
 
-          <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
-            {standings.map((r, i) => (
-              <FadeUp key={r.side} clock={clock} start={times.rowAt(i)}>
-                <StandingRow tokens={t} row={r} first={i === 0} halfCount={halfCount} mine={r.side === me?.side} names={names} />
-              </FadeUp>
-            ))}
-          </View>
+          {/* Podium columns rise from last place to first. */}
+          <LivePodium
+            tokens={t}
+            rows={standings}
+            names={names}
+            mySide={me?.side}
+            wrap={(i, node) => <FadeUp clock={clock} start={times.rowAt(i)} dy={40}>{node}</FadeUp>}
+          />
 
           <Pop clock={clock} start={times.win}>
             <View style={{ alignItems: 'center', gap: 4, paddingVertical: 8 }}>
@@ -182,6 +183,12 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
 
         {settled && (
           <>
+            {halfCount > 1 && (
+              <View style={{ gap: 8, paddingTop: 6 }}>
+                <Label tokens={t}>{tr('live.byHalf')}</Label>
+                <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} names={names} />
+              </View>
+            )}
             <View style={{ gap: 8, paddingTop: 6 }}>
               <Label tokens={t}>{tr('live.byPlayer')}</Label>
               {players.filter(p => p.user_id && p.side != null)

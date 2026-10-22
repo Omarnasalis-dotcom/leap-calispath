@@ -1926,6 +1926,7 @@ const ar: Translations = {
     save: 'حفظ',
     unnamed: 'بلا اسم بعد',
     blocker_unnamed: 'يحتاج كل فريق إلى اسم',
+    byHalf: 'حسب الشوط',
     counterHint: 'عُدّ أثناء التمرين. تُملأ أعدادك في تسجيلك عند انتهاء الوقت.',
     repsField: 'التكرارات',
     winner: 'الفائز',
