@@ -67,7 +67,9 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     return () => { cancelled = true; };
   }, []);
   const showTeam = isAdmin || teamEnabled;
-  const showLive = isAdmin || liveEnabled;
+  // Also on the local web dev server (never in a store build or the website),
+  // so a room can be tested with several browser windows as different players.
+  const showLive = isAdmin || liveEnabled || (__DEV__ && Platform.OS === 'web');
 
   // ── Data ────────────────────────────────────────────────────────────────
   const [weeks, setWeeks] = useState<string[]>([currentWeek]);
