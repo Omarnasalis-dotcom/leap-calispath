@@ -33,8 +33,13 @@ import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { ltr, t as tr } from '../../i18n';
 import { WORLD_FONTS } from '../../../constants/worldKitTokens';
 
-/** Backstop for dropped realtime events; also how each phone reports it's online. */
-const POLL_MS = 2000;
+/**
+ * Backstop for dropped realtime events; also how each phone reports it's
+ * online (15 s window). Slower while a half runs, when nothing on the
+ * server changes (the phone also reloads at every timer edge). Keeps a
+ * full room light on the database: see 20261023140000_live_load_tuning.
+ */
+const POLL_MS = { idle: 3000, running: 6000 } as const;
 /** Logging alert lead: "30 seconds left to log". */
 const LOG_WARN_SEC = 30;
 
@@ -168,16 +173,19 @@ export function LiveRoomScreen({ roomId }: Props) {
   }, [roomId, load]);
 
   const settled = state?.room.status === 'finished' || state?.room.status === 'abandoned';
+  const halfRunning = !!state && state.room.status === 'playing' && state.room.half_closed_at == null
+    && clock.serverNow() < Date.parse(state.room.half_ends_at ?? '');
+  const pollMs = halfRunning ? POLL_MS.running : POLL_MS.idle;
   useEffect(() => {
     if (!focused || settled) return;
     let active = AppState.currentState === 'active';
-    const id = setInterval(() => { if (active) load(); }, POLL_MS);
+    const id = setInterval(() => { if (active) load(); }, pollMs);
     const sub = AppState.addEventListener('change', next => {
       active = next === 'active';
       if (active) load();
     });
     return () => { clearInterval(id); sub.remove(); };
-  }, [focused, settled, load]);
+  }, [focused, settled, load, pollMs]);
 
   // Reload at the moments the step changes on the server clock (timer end, logging deadline).
   const now = clock.now;

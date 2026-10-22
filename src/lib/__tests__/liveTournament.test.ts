@@ -320,6 +320,27 @@ describe('errors', () => {
     expect(liveErrorCode(null)).toBeNull();
   });
 
+  it('EN and AR have the same LIVE keys (Arabic may add plural forms)', () => {
+    const keys = (o: any, prefix = ''): string[] =>
+      Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? keys(v, `${prefix}${k}.`) : [`${prefix}${k}`]));
+    const base = (k: string) => k.replace(/_(zero|one|two|few|many|other)$/, '');
+    const enKeys = new Set(keys((en as any).live).map(base));
+    const arKeys = new Set(keys((ar as any).live).map(base));
+    expect([...enKeys].filter(k => !arKeys.has(k))).toEqual([]);
+    expect([...arKeys].filter(k => !enKeys.has(k))).toEqual([]);
+  });
+
+  it('EN and AR strings use the same {{placeholders}}', () => {
+    const flat = (o: any, prefix = ''): [string, string][] =>
+      Object.entries(o).flatMap(([k, v]) => (typeof v === 'object' ? flat(v, `${prefix}${k}.`) : [[`${prefix}${k}`, String(v)]]));
+    const vars = (s: string) => [...s.matchAll(/{{(\w+)}}/g)].map(m => m[1]).filter(v => v !== 'count').sort().join(',');
+    const arMap = new Map(flat((ar as any).live));
+    const mismatched = flat((en as any).live)
+      .filter(([k, v]) => arMap.has(k) && vars(v) !== vars(arMap.get(k)!))
+      .map(([k]) => k);
+    expect(mismatched).toEqual([]);
+  });
+
   it('every code the migration raises is listed and translated in EN and AR', () => {
     const sql = ['20261022120000_add_live_tournament.sql', '20261023120000_live_side_names.sql']
       .map(f => fs.readFileSync(path.join(__dirname, '../../../supabase/migrations', f), 'utf8'))

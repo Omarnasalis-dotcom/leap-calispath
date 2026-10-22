@@ -18,7 +18,8 @@ jest.mock('expo-router', () => {
 jest.mock('react-native-safe-area-context', () => ({
   useSafeAreaInsets: () => ({ top: 0, bottom: 0, left: 0, right: 0 }),
 }));
-jest.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark' }) }));
+let mockMode: 'dark' | 'light' = 'dark';
+jest.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: mockMode }) }));
 jest.mock('../../../contexts/TutorialContext', () => ({ useTutorial: () => ({ requestRemeasure: jest.fn() }) }));
 let mockUserId = 'me';
 jest.mock('../../../contexts/AuthContext', () => ({ useAuth: () => ({ user: { id: mockUserId } }) }));
@@ -153,6 +154,7 @@ async function render(el: React.ReactElement): Promise<ReactTestRenderer> {
 
 beforeEach(async () => {
   jest.clearAllMocks();
+  mockMode = 'dark';
   // Drafts and rep counters live in phone storage; start each test clean.
   await require('@react-native-async-storage/async-storage').clear();
   mockUserId = 'me';
@@ -541,3 +543,66 @@ describe('LiveHub', () => {
     expect(text).toContain('BEST PLAYER');
   });
 });
+
+// ── Every screen in EN / AR × dark / light ─────────────────────────────────
+
+describe('LIVE in both languages and both themes', () => {
+  const RAW_KEY = /\b(live|team|weekly|common|submit)\.[a-zA-Z_]+/;
+  const finished = { status: 'finished' as const, current_half: 2, half_closed_at: iso(-100), finished_at: iso(-100) };
+  const fullResults = [result(1, 'me', 1, 280), result(1, 'u3', 2, 120), result(2, 'u2', 1, 275), result(2, 'u4', 2, 15)];
+  const stages: [string, () => LiveRoomState][] = [
+    ['lobby (unnamed side)', () => makeState({}, FOUR, { side_names: { '2': 'الأسود' } })],
+    ['countdown', () => makeState(running({ half_started_at: iso(3000), half_ends_at: iso(63_000), log_closes_at: iso(183_000) }), FOUR)],
+    ['running', () => makeState(running(), FOUR)],
+    ['logging', () => makeState(logging(), FOUR, { logged: ['u2'] })],
+    ['rest', () => makeState(logging({ half_closed_at: iso(-5000) }), FOUR, { results: fullResults.slice(0, 2) })],
+    ['final', () => makeState(finished, FOUR, { results: fullResults })],
+    ['ended', () => makeState({ status: 'abandoned' }, FOUR)],
+  ];
+
+  for (const lang of ['en', 'ar'] as const) {
+    for (const theme of ['dark', 'light'] as const) {
+      for (const [name, build] of stages) {
+        it(`${lang} · ${theme} · ${name}`, async () => {
+          i18n.changeLanguage(lang);
+          mockMode = theme;
+          jest.useFakeTimers();
+          try {
+            mockService.getRoomState.mockResolvedValue(timed(build()));
+            const r = await render(<LiveRoomScreen roomId="r1" />);
+            await act(async () => { jest.advanceTimersByTime(8000); }); // let the celebration settle
+            const text = allText(r);
+            expect(text).not.toMatch(RAW_KEY);
+            expect(text).not.toMatch(/undefined|NaN|\[object/);
+            if (lang === 'ar') expect(text).toMatch(/[\u0600-\u06FF]/);
+          } finally {
+            jest.useRealTimers();
+          }
+        });
+      }
+      it(`${lang} · ${theme} · hub with boards and history`, async () => {
+        i18n.changeLanguage(lang);
+        mockMode = theme;
+        mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
+        mockService.getMyRoom.mockResolvedValue('r9');
+        mockService.getHistory.mockResolvedValue([{
+          room_id: 'r1', challenge_id: 'c1', challenge_title: 'Halves', finished_at: iso(-1), side_count: 2, halves_played: 2,
+          my_side: 1, my_points: 335, side_points: 610, side_place: 1, is_best_player: true, player_count: 4, my_side_name: null,
+        }]);
+        mockService.getPlayerBoard.mockResolvedValue([
+          { rank: 1, user_id: 'me', display_name: 'Omar', country: null, points: 335, team_name: 'الذئاب', achieved_at: iso(-1), is_mine: true },
+        ]);
+        mockService.getTeamBoard.mockResolvedValue([]);
+        const r = await render(<LiveHub tokens={getWeeklyTokens(theme)} onBack={() => {}} modeSlot={null} />);
+        const text = allText(r);
+        expect(text).not.toMatch(RAW_KEY);
+        expect(text).not.toMatch(/undefined|NaN|\[object/);
+        if (lang === 'ar') {
+          expect(text).toContain('شوطان'); // Arabic dual, not "2 أشواط"
+          expect(text).toContain('حتى لاعبَين لكل جانب');
+        }
+      });
+    }
+  }
+});
+

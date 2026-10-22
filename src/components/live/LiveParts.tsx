@@ -142,8 +142,8 @@ export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }
           {mine && <YouBadge tokens={t} />}
         </View>
         {halfCount > 1 && (
-          <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2, writingDirection: 'ltr' }]} numberOfLines={1}>
-            {r.perHalf.slice(0, halfCount).map((p, h) => `H${h + 1} ${Math.round(p * 10) / 10}`).join('  ·  ')}
+          <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2 }]} numberOfLines={1}>
+            {r.perHalf.slice(0, halfCount).map((p, h) => `${tr('live.halfShort', { n: h + 1 })} ${Math.round(p * 10) / 10}`).join('  ·  ')}
           </Text>
         )}
       </View>

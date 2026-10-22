@@ -119,6 +119,22 @@ Live Challenges page: create/edit (halves editor with the shared MovementsEditor
 | 4 | App screens | Simulators, then real phones (2 v 2 = 4 phones), EN + AR |
 | 5 | Release | Migration to prod (flag off) → app build → publish a challenge → flag on |
 
+## 7b. Load during live events (checked 2026-10-22)
+
+Production: 68 MB database, 100% cache hit, **max_connections 60** (small compute), ~23 connections in use at rest.
+
+| Per phone in a room | Cost |
+|---|---|
+| `get_live_room_state` poll | every 3 s (lobby, logging, cool-down), every 6 s while a half runs, none in the background or after the end |
+| Presence write | at most once per 5 s (`live_touch` throttle) |
+| Realtime | 1 socket, 2 filtered channels (`live_rooms`, `live_room_players`) |
+
+**Measured on a throwaway Postgres (Apple silicon), 400 players in 50 rooms:** `get_live_room_state` 2.2 ms average, ~9,200 calls/s on 20 connections, 0 failures; 184k calls produced 1,600 presence writes; leaderboards 13 ms (players) / 7 ms (teams) at 50 finished rooms. 400 live players generate ~70–130 calls/s, so even a 10–20× slower production box has several times the headroom.
+
+Tuning applied (`20261023140000_live_load_tuning.sql`): presence write throttle, no `live_rooms` touch per log (it was a realtime fan-out to every phone in the room), partial index for the push function's notification lookup. App: phase-based polling.
+
+**Watch on event days:** Supabase dashboard → Realtime (concurrent connections and messages per second against the plan quota) and Database (CPU, connections). The realtime connection quota per plan is the first limit a big event would hit, not Postgres.
+
 ## 8. Risks / gaps
 
 - **Honor system:** reps are self-reported, only checked against the max per exercise. Same trust level as Weekly.
