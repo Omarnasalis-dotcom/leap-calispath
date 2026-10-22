@@ -34,6 +34,12 @@ Players in the same place play a live match against each other, in sides, over 2
 10. **Best player tie:** the player whose last log came first.
 11. **Ending early:** the host can abandon the room at any time (with a confirmation in the app). An abandoned room keeps no result.
 
+## 2a. Additions *(owner, 2026-10-22)*
+
+- **Team names:** any player on a side names it in the lobby (1–24 characters, unique in the room). Start is blocked until every side has a name. Names replace "SIDE A" everywhere, including history; the admin rooms list shows them for moderation (an offensive one: abandon the room). Migration `20261023120000_live_side_names.sql`.
+- **Rep counter during a half:** −1 / +1 / +5 / +10 per exercise, capped at the max, private to the phone (saved in AsyncStorage), and it pre-fills the log when time is up.
+- **Final celebration:** sides land from last to first, then the winner pops with confetti, a haptic and the bell, then the best player card; tap to skip; reduce motion jumps to the end. One Reanimated clock (no mixed drivers).
+
 ## 2b. Lost connection, locked phone, leaving the app *(owner, 2026-10-22)*
 
 The server keeps the time, so a phone only needs internet to join, pick a side, start, and send its log.
