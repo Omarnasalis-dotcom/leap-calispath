@@ -200,7 +200,7 @@ export function TeamHub({ tokens: t, onBack, modeSlot }: Props) {
         variant="log"
         title={sheet === 'join' ? tr('team.joinTitle') : tr('team.createTitle')}
       >
-        <View style={{ gap: 14, paddingBottom: 8 }}>
+        <View style={{ gap: 14, paddingBottom: 8, paddingHorizontal: 24 }}>
           <Text style={kt('light', 14, t.textSecondary, 0, 20)}>
             {sheet === 'join' ? tr('team.joinHint') : tr('team.createHint')}
           </Text>
