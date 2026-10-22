@@ -18,7 +18,7 @@ Players in the same place play a live match against each other, in sides, over 2
 | Between halves | Standings (side totals, ranked) + a cool-down timer. The host can start the next half **any time** once logging is done |
 | Points | Reps × points per exercise (Weekly movement points) |
 | End | Ranked reveal (last → first side), points per half and total, **Best player** = most points in the room |
-| Results | Inside the room and in each player's Live history. No global leaderboard in v1 |
+| Results | Inside the room, in each player's Live history, and on the challenge's public PLAYERS / TEAMS leaderboard (§2a) |
 
 ## 2. Defaults chosen by Claude (change any of them)
 
@@ -39,6 +39,8 @@ Players in the same place play a live match against each other, in sides, over 2
 - **Team names:** any player on a side names it in the lobby (1–24 characters, unique in the room). Start is blocked until every side has a name. Names replace "SIDE A" everywhere, including history; the admin rooms list shows them for moderation (an offensive one: abandon the room). Migration `20261023120000_live_side_names.sql`.
 - **Rep counter during a half:** −1 / +1 / +5 / +10 per exercise, capped at the max, private to the phone (saved in AsyncStorage), and it pre-fills the log when time is up.
 - **Final celebration:** sides land from last to first, then the winner pops with confetti, a haptic and the bell, then the best player card; tap to skip; reduce motion jumps to the end. One Reanimated clock (no mixed drivers).
+
+- **Public leaderboard per challenge** *(replaces "no global leaderboard in v1")*: in the LIVE tab under the challenge, with PLAYERS and TEAMS tabs on the podium layout. Only rooms that played every half count. Players: each player's best total; "hide me from leaderboards" is honoured. Teams: each side scored as points per player (fair across 2 v 2 / 3 v 3); the same group of players keeps only its best entry. Top 100 + your own row. Migration `20261023130000_live_challenge_boards.sql`.
 
 ## 2b. Lost connection, locked phone, leaving the app *(owner, 2026-10-22)*
 
