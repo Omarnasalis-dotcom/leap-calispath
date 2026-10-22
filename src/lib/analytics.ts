@@ -32,6 +32,13 @@ export type AnalyticsEvent =
   | 'team_joined'
   | 'team_attempt_started'
   | 'team_attempt_submitted'
+  // Live Tournament (docs/features/LIVE_TOURNAMENT_PLAN.md)
+  | 'live_tab_opened'
+  | 'live_room_created'
+  | 'live_room_joined'
+  | 'live_half_started'
+  | 'live_reps_logged'
+  | 'live_match_finished'
   // Leaderboard share card (assets/design_handoff_leaderboard_share)
   | 'leaderboard_share_opened'
   | 'leaderboard_shared'

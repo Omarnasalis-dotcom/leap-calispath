@@ -3,6 +3,7 @@ import { Platform, View, Text, TouchableOpacity } from 'react-native';
 import { Stack, useRouter, useSegments, useNavigationContainerRef, Redirect } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import * as Notifications from 'expo-notifications';
+import { isLiveRoomOpen } from '../src/lib/liveRoomFocus';
 import * as Linking from 'expo-linking';
 import * as Sentry from '@sentry/react-native';
 
@@ -65,8 +66,11 @@ if (!__DEV__) {
 // lands while the app is open the timer's own sounds already covered it.
 Notifications.setNotificationHandler({
   handleNotification: async (notification) => {
-    const isTimerAlert = !!(notification.request.content.data as { timerAlert?: boolean } | undefined)?.timerAlert;
-    const show = !isTimerAlert;
+    const data = notification.request.content.data as { timerAlert?: boolean; screen?: string; room_id?: unknown } | undefined;
+    const isTimerAlert = !!data?.timerAlert;
+    // "Half N starts now" while that room is already on screen: its own countdown covers it.
+    const isOpenLiveRoom = data?.screen === 'live-room' && isLiveRoomOpen(data.room_id);
+    const show = !isTimerAlert && !isOpenLiveRoom;
     return {
       shouldShowAlert: show,
       shouldShowBanner: show,

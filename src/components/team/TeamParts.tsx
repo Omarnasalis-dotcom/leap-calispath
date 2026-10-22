@@ -8,7 +8,7 @@ import { TeamBoardRow, TeamChallenge, TeamMember, TeamScoringType } from '../../
 import { ltr, t as tr } from '../../i18n';
 import { BoardShareButton, LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 
-export type WeeklyMode = 'solo' | 'team';
+export type WeeklyMode = 'solo' | 'team' | 'live';
 
 /** "4:05.3" for team times (server times have tenths), "386 PTS" for AMRAP. */
 export function formatTeamScore(type: TeamScoringType, score: number): string {
@@ -50,16 +50,18 @@ export function closesInLabel(endsAt: string, now = Date.now()): string {
     : tr('weekly.endsHoursMinutes', { h: hours, m: totalMinutes % 60 });
 }
 
-/** SOLO | TEAM switch at the top of Weekly Challenge. */
-export function ModeSwitch({ tokens: t, mode, onChange }: { tokens: WeeklyTokens; mode: WeeklyMode; onChange: (m: WeeklyMode) => void }) {
+/** SOLO | TEAM | LIVE switch at the top of Weekly Challenge (each extra tab behind its own flag). */
+export function ModeSwitch({ tokens: t, mode, onChange, showTeam = true, showLive = false }: {
+  tokens: WeeklyTokens; mode: WeeklyMode; onChange: (m: WeeklyMode) => void; showTeam?: boolean; showLive?: boolean;
+}) {
+  const items: { key: WeeklyMode; label: string }[] = [{ key: 'solo', label: tr('team.modeSolo') }];
+  if (showTeam) items.push({ key: 'team', label: tr('team.modeTeam') });
+  if (showLive) items.push({ key: 'live', label: tr('live.modeLive') });
   return (
     <View style={{ paddingTop: 16 }}>
       <SegmentedSwitch
         tokens={t}
-        items={[
-          { key: 'solo', label: tr('team.modeSolo') },
-          { key: 'team', label: tr('team.modeTeam') },
-        ]}
+        items={items}
         active={mode}
         onChange={onChange}
         accessibilityLabel={tr('team.modeSwitchLabel')}

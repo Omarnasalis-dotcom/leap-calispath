@@ -85,6 +85,23 @@ export async function checkPaywallEnabled(): Promise<boolean> {
   }
 }
 
+// Remote switch for Live Tournament (docs/features/LIVE_TOURNAMENT_PLAN.md).
+// Fails closed like the Team switch; admins see the LIVE tab regardless.
+export async function checkLiveTournamentEnabled(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('live_tournament_enabled')
+      .eq('platform', Platform.OS)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return (data as { live_tournament_enabled?: boolean }).live_tournament_enabled === true;
+  } catch {
+    return false;
+  }
+}
+
 // Remote switch for Team Challenge (docs/features/TEAM_CHALLENGE_PLAN.md).
 // Fails closed: a network hiccup hides the Team tab rather than showing a
 // feature that may not be live. Admins see it regardless (WeeklyChallengeScreen).

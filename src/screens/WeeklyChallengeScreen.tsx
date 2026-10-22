@@ -25,8 +25,9 @@ import { ChallengeActive } from './weekly/ChallengeActive';
 import { ChallengeLogAmrap, ChallengeLogForTime } from './weekly/ChallengeLog';
 import { LeaderboardShareCard } from '../components/leaderboard/LeaderboardShareCard';
 import { TeamHub } from './team/TeamHub';
+import { LiveHub } from './live/LiveHub';
 import { ModeSwitch, WeeklyMode } from '../components/team/TeamParts';
-import { checkTeamChallengeEnabled } from '../lib/appVersion';
+import { checkLiveTournamentEnabled, checkTeamChallengeEnabled } from '../lib/appVersion';
 import { ltr, t as tr } from '../i18n';
 
 type Phase = 'overview' | 'active' | 'log';
@@ -54,15 +55,19 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
   const group = isAdmin ? adminGroupView : userGroup;
   const currentWeek = ChallengeService.getCurrentWeekStart();
 
-  // Team Challenge: behind app_config.team_challenge_enabled; admins always see it.
+  // Team Challenge / Live Tournament: behind app_config.team_challenge_enabled
+  // and live_tournament_enabled; admins always see both.
   const [teamEnabled, setTeamEnabled] = useState(false);
+  const [liveEnabled, setLiveEnabled] = useState(false);
   const [weeklyMode, setWeeklyMode] = useState<WeeklyMode>('solo');
   useEffect(() => {
     let cancelled = false;
     checkTeamChallengeEnabled().then(on => { if (!cancelled && isMounted.current) setTeamEnabled(on); });
+    checkLiveTournamentEnabled().then(on => { if (!cancelled && isMounted.current) setLiveEnabled(on); });
     return () => { cancelled = true; };
   }, []);
   const showTeam = isAdmin || teamEnabled;
+  const showLive = isAdmin || liveEnabled;
 
   // ── Data ────────────────────────────────────────────────────────────────
   const [weeks, setWeeks] = useState<string[]>([currentWeek]);
@@ -339,10 +344,14 @@ export function WeeklyChallengeScreen({ onClose }: WeeklyChallengeScreenProps) {
     </View>
   ) : undefined;
 
-  const modeSlot = showTeam ? <ModeSwitch tokens={t} mode={weeklyMode} onChange={setWeeklyMode} /> : undefined;
+  const modeSlot = showTeam || showLive
+    ? <ModeSwitch tokens={t} mode={weeklyMode} onChange={setWeeklyMode} showTeam={showTeam} showLive={showLive} />
+    : undefined;
 
   let body: React.ReactNode;
-  if (showTeam && weeklyMode === 'team' && phase === 'overview') {
+  if (showLive && weeklyMode === 'live' && phase === 'overview') {
+    body = <LiveHub tokens={t} onBack={() => onClose?.()} modeSlot={modeSlot} />;
+  } else if (showTeam && weeklyMode === 'team' && phase === 'overview') {
     body = (
       <TeamHub
         tokens={t}

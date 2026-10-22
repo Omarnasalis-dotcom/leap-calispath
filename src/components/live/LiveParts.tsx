@@ -1,0 +1,163 @@
+import React, { useEffect, useRef } from 'react';
+import { Animated, Text, View } from 'react-native';
+import { kt, rankColor, YouBadge } from '../worlds/kit';
+import { WeeklyTokens } from '../weekly/weeklyTokens';
+import { Label } from '../weekly/WeeklyParts';
+import { formatClock } from '../../lib/weeklyChallenge';
+import { LiveChallenge, LiveHalf, LivePlayer, SideStanding, sideLetter } from '../../lib/liveTournament';
+import { ltr, t as tr } from '../../i18n';
+
+export function playerName(p: Pick<LivePlayer, 'display_name'>): string {
+  return p.display_name || tr('team.deletedUser');
+}
+
+/** "SIDE A" (the letter stays Latin in both languages). */
+export const sideLabel = (side: number) => tr('live.side', { letter: sideLetter(side) });
+
+/** Points: whole numbers stay whole, halves (1.5 pts per rep) keep one decimal. */
+export function formatPts(points: number): string {
+  const rounded = Math.round(points * 10) / 10;
+  return tr('weekly.ptsValue', { pts: Number.isInteger(rounded) ? rounded : rounded.toFixed(1) });
+}
+
+function Chip({ tokens: t, text, filled }: { tokens: WeeklyTokens; text: string; filled?: boolean }) {
+  return (
+    <View style={{
+      paddingVertical: 4, paddingHorizontal: 10, borderRadius: 8,
+      backgroundColor: filled ? t.accent : 'transparent', borderWidth: filled ? 0 : 1, borderColor: t.borderStrong,
+    }}>
+      <Text style={kt(filled ? 'bold' : 'semibold', 10.5, filled ? t.onAccent : t.textSecondary, 1.6)} numberOfLines={1}>{text}</Text>
+    </View>
+  );
+}
+
+/** Hero card: halves, players per side, rest, title, how it works, description. */
+export function LiveChallengeCard({ tokens: t, challenge: c, closesIn }: {
+  tokens: WeeklyTokens;
+  challenge: Pick<LiveChallenge, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
+  closesIn?: string;
+}) {
+  return (
+    <View style={{ marginTop: 16, borderRadius: 20, padding: 14, backgroundColor: t.liveBg, borderWidth: 1, borderColor: t.liveBorder, gap: 8 }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        <Chip tokens={t} text={tr('live.kicker')} filled />
+        <Chip tokens={t} text={tr('live.chipHalves', { count: c.halves.length })} />
+        <Chip tokens={t} text={tr('live.chipPerSide', { count: c.team_size })} />
+        {c.rest_sec > 0 && <Chip tokens={t} text={tr('live.chipRest', { sec: c.rest_sec })} />}
+      </View>
+      <Text style={kt('bold', 24, t.text, 1, 28)} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
+        {c.title.toUpperCase()}
+      </Text>
+      <Text style={kt('light', 13, t.textSecondary, 0, 19)}>{tr('live.howItWorks')}</Text>
+      {c.description ? <Text style={kt('light', 13, t.textMuted, 0, 19)}>{c.description}</Text> : null}
+      {closesIn ? (
+        <View style={{ alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7, backgroundColor: t.accentChip }}>
+          <Text style={kt('bold', 10.5, t.accentText, 1.6)}>{tr('weekly.liveEndsIn', { time: closesIn })}</Text>
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
+/** One half's exercises: name, points per rep, max. */
+export function HalfExercises({ tokens: t, half, n, total, highlight }: {
+  tokens: WeeklyTokens; half: LiveHalf; n: number; total: number; highlight?: boolean;
+}) {
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+        <Label tokens={t} size={11} color={highlight ? t.accentText : undefined}>{tr('live.halfOf', { n, total })}</Label>
+        <Text style={kt('medium', 12, t.textSecondary, 1.4)}>{ltr(formatClock(half.duration_sec))}</Text>
+      </View>
+      {half.movements.map((m, i) => (
+        <View key={`${m.name}-${i}`} style={{
+          flexDirection: 'row', alignItems: 'center', gap: 14, minHeight: 52, paddingHorizontal: 16, paddingVertical: 8,
+          borderRadius: 14, backgroundColor: t.card, borderWidth: 1, borderColor: highlight ? t.liveBorder : t.border,
+        }}>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={kt('medium', 16, t.text, 0.4)} numberOfLines={1}>{m.name}</Text>
+            <Text style={[kt('medium', 11, t.textMuted, 1.2), { marginTop: 1 }]}>{tr('weekly.ptsPerRep', { count: m.points })}</Text>
+          </View>
+          <Text style={kt('semibold', 13, t.textSecondary, 1.2)}>{tr('live.maxReps', { reps: m.reps })}</Text>
+        </View>
+      ))}
+    </View>
+  );
+}
+
+/** Every half, the current one (if any) highlighted. */
+export function HalvesList({ tokens: t, halves, current }: { tokens: WeeklyTokens; halves: LiveHalf[]; current?: number }) {
+  return (
+    <View style={{ paddingTop: 24, gap: 18 }}>
+      {halves.map((h, i) => (
+        <HalfExercises key={i} tokens={t} half={h} n={i + 1} total={halves.length} highlight={current === i + 1} />
+      ))}
+      <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.anyOrder')}</Text>
+    </View>
+  );
+}
+
+/** Green when the phone is checking in, grey when it isn't. */
+export function OnlineDot({ tokens: t, online }: { tokens: WeeklyTokens; online: boolean | undefined }) {
+  return (
+    <View
+      accessibilityLabel={online === false ? tr('live.offline') : undefined}
+      style={{ width: 9, height: 9, borderRadius: 4.5, backgroundColor: online === false ? t.textFaint : t.green }}
+    />
+  );
+}
+
+/**
+ * Sides ranked, with points per half. `reveal` animates the rows in from
+ * last place to first (the final result); otherwise they show at once.
+ */
+export function SideStandings({ tokens: t, rows, halfCount, mySide, reveal, onRevealed }: {
+  tokens: WeeklyTokens;
+  rows: SideStanding[];
+  halfCount: number;
+  mySide: number | null | undefined;
+  reveal?: boolean;
+  onRevealed?: () => void;
+}) {
+  const anims = useRef(rows.map(() => new Animated.Value(reveal ? 0 : 1))).current;
+  useEffect(() => {
+    if (!reveal) return;
+    // Last place first, so the winner lands last.
+    const order = [...anims.keys()].reverse();
+    Animated.stagger(
+      700,
+      order.map(i => Animated.timing(anims[i], { toValue: 1, duration: 450, useNativeDriver: true })),
+    ).start(() => onRevealed?.());
+  }, [reveal]);
+
+  return (
+    <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
+      {rows.map((r, i) => {
+        const mine = r.side === mySide;
+        const a = anims[i] ?? new Animated.Value(1);
+        return (
+          <Animated.View key={r.side} style={{
+            opacity: a,
+            transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
+            flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 16, paddingVertical: 8,
+            borderTopWidth: i ? 1 : 0, borderTopColor: t.divider, backgroundColor: mine ? t.accentSoft : 'transparent',
+          }}>
+            <Text style={[kt('bold', 18, rankColor(t, r.place - 1, false)), { width: 26 }]}>{r.place}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <Text style={kt(mine ? 'bold' : 'semibold', 15, t.text, 1.2)}>{sideLabel(r.side)}</Text>
+                {mine && <YouBadge tokens={t} />}
+              </View>
+              {halfCount > 1 && (
+                <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2, writingDirection: 'ltr' }]} numberOfLines={1}>
+                  {r.perHalf.slice(0, halfCount).map((p, h) => `H${h + 1} ${Math.round(p * 10) / 10}`).join('  ·  ')}
+                </Text>
+              )}
+            </View>
+            <Text style={kt('semibold', 17, t.text)}>{formatPts(r.total)}</Text>
+          </Animated.View>
+        );
+      })}
+    </View>
+  );
+}
