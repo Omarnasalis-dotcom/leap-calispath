@@ -220,7 +220,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
         variant="log"
         title={sheet === 'join' ? tr('live.joinTitle') : tr('live.createTitle')}
       >
-        <View style={{ gap: 14, paddingBottom: 8 }}>
+        <View style={{ gap: 14, paddingBottom: 8, paddingHorizontal: 24 }}>
           <Text style={kt('light', 14, t.textSecondary, 0, 20)}>
             {sheet === 'join' ? tr('live.joinHint') : tr('live.createHint')}
           </Text>

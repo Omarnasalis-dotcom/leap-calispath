@@ -470,7 +470,7 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSid
                   <Text style={kt('bold', 15, mine ? t.accentText : t.text, 0.8)} numberOfLines={1}>{sideLabel(side, names)}</Text>
                   <Text style={kt('medium', 11, t.textMuted, 1.2)} numberOfLines={1}>
                     {sideNameOf(names, side) == null
-                      ? `${tr('live.side', { letter: String.fromCharCode(64 + side) })} · ${tr('live.unnamed')} · ${tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}`
+                      ? `${tr('live.unnamed')} · ${tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}`
                       : tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}
                   </Text>
                 </View>
@@ -572,7 +572,7 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSid
       </View>
 
       <WorldSheet tokens={t} visible={naming} onClose={() => { if (!savingName) setNaming(false); }} variant="log" title={tr('live.teamNameTitle')}>
-        <View style={{ gap: 14, paddingBottom: 8 }}>
+        <View style={{ gap: 14, paddingBottom: 8, paddingHorizontal: 24 }}>
           <Text style={kt('light', 14, t.textSecondary, 0, 20)}>{tr('live.teamNameHint')}</Text>
           <TextInput
             value={nameInput}

@@ -1917,6 +1917,7 @@ const ar: Translations = {
     alertTimeUpBody: 'سجّل تكراراتك في Leap Arena.',
     alertLogSoonTitle: 'بقيت 30 ثانية للتسجيل',
     alertLogSoonBody: 'أرسل تكراراتك قبل إغلاق التسجيل.',
+    actionFailed: 'لم ينجح ذلك. حاول مرة أخرى بعد قليل.',
     nameTeam: 'سمِّ فريقك',
     rename: 'إعادة التسمية',
     teamNameTitle: 'اسم الفريق',

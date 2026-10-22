@@ -1818,6 +1818,7 @@ const en = {
     alertTimeUpBody: 'Log your reps in Leap Arena.',
     alertLogSoonTitle: '30 seconds left to log',
     alertLogSoonBody: 'Send your reps before logging closes.',
+    actionFailed: 'That didn\'t work. Please try again in a moment.',
     nameTeam: 'NAME YOUR TEAM',
     rename: 'RENAME',
     teamNameTitle: 'TEAM NAME',

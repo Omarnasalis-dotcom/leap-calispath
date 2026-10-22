@@ -21,7 +21,12 @@ export class LiveTournamentError extends Error {
 
   constructor(cause: any) {
     const code = liveErrorCode(cause);
-    super(code ? t(`live.errors.${code}`) : describeSubmitError(cause, t('submit.networkFailed')));
+    // A PostgREST error that isn't one of ours (PGRST…, e.g. the server
+    // doesn't have a function yet) would otherwise show raw text.
+    const serverOther = !code && typeof cause?.code === 'string' && cause.code.startsWith('PGRST');
+    super(code
+      ? t(`live.errors.${code}`)
+      : serverOther ? t('live.actionFailed') : describeSubmitError(cause, t('submit.networkFailed')));
     this.name = 'LiveTournamentError';
     this.code = code;
     this.cause = cause;
