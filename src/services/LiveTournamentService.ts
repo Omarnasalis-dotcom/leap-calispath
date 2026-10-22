@@ -111,6 +111,11 @@ export class LiveTournamentService {
     await rpc<void>('pick_live_side', { p_room_id: roomId, p_side: side });
   }
 
+  /** Names (or renames) your own side. Lobby only. */
+  static async nameSide(roomId: string, name: string): Promise<void> {
+    await rpc<void>('name_live_side', { p_room_id: roomId, p_name: name.trim() });
+  }
+
   static async setReady(roomId: string, ready: boolean): Promise<void> {
     await rpc<void>('set_live_ready', { p_room_id: roomId, p_ready: ready });
   }
@@ -182,6 +187,7 @@ export class LiveTournamentService {
       ...timed,
       data: {
         ...s,
+        side_names: s.side_names ?? {},
         results: (s.results ?? []).map(r => ({ ...r, points: Number(r.points) })),
       },
     };

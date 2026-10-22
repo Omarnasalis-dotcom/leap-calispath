@@ -72,6 +72,8 @@ export interface LiveRoomState {
   room: LiveRoom;
   challenge: Pick<LiveChallenge, 'id' | 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
   players: LivePlayer[];
+  /** Team name per side, keyed "1".."4" (sides without one are missing). */
+  side_names: Record<string, string>;
   /** Who has logged the current half (their numbers stay hidden until logging closes). */
   logged: (string | null)[];
   /** Every log the caller may see: closed halves, plus their own for the open one. */
@@ -93,6 +95,7 @@ export interface LiveHistoryRow {
   side_place: number;
   is_best_player: boolean;
   player_count: number;
+  my_side_name: string | null;
 }
 
 // ── Server constants (keep in sync with the migration) ─────────────────────
@@ -112,9 +115,16 @@ export const LOG_EARLY_SEC = 2;
 export const MIN_SIDES = 2;
 export const MAX_SIDES = 4;
 export const ROOM_CODE_LENGTH = 6;
+export const SIDE_NAME_MAX = 24;
 
 /** Side 1..4 → A..D (the same letter in English and Arabic screens). */
 export const sideLetter = (side: number) => String.fromCharCode(64 + side);
+
+/** The side's team name, or null while it has none. */
+export function sideNameOf(names: Record<string, string> | null | undefined, side: number): string | null {
+  const name = names?.[String(side)]?.trim();
+  return name ? name : null;
+}
 
 // ── Scoring (mirrors live_reps_points) ─────────────────────────────────────
 
@@ -223,7 +233,7 @@ export function offlinePlayers(players: LivePlayer[]): LivePlayer[] {
 
 // ── Lobby (mirrors start_live_half's checks) ───────────────────────────────
 
-export type LobbyBlocker = 'need_two_players' | 'no_side' | 'not_ready' | 'uneven';
+export type LobbyBlocker = 'need_two_players' | 'no_side' | 'not_ready' | 'uneven' | 'unnamed';
 
 export interface LobbyStatus {
   /** Players on each side, index 0 = side A. */
@@ -232,7 +242,7 @@ export interface LobbyStatus {
   blocker: LobbyBlocker | null;
 }
 
-export function lobbyStatus(players: LivePlayer[], sideCount: number): LobbyStatus {
+export function lobbyStatus(players: LivePlayer[], sideCount: number, sideNames: Record<string, string> = {}): LobbyStatus {
   const real = players.filter(p => p.user_id != null);
   const sideCounts = Array.from({ length: sideCount }, (_, i) => real.filter(p => p.side === i + 1).length);
   let blocker: LobbyBlocker | null = null;
@@ -240,6 +250,7 @@ export function lobbyStatus(players: LivePlayer[], sideCount: number): LobbyStat
   else if (real.some(p => p.side == null)) blocker = 'no_side';
   else if (real.some(p => !p.is_ready)) blocker = 'not_ready';
   else if (sideCounts.some(n => n === 0 || n !== sideCounts[0])) blocker = 'uneven';
+  else if (sideCounts.some((_, i) => sideNameOf(sideNames, i + 1) == null)) blocker = 'unnamed';
   return { sideCounts, blocker };
 }
 
@@ -301,6 +312,41 @@ export function bestPlayer(results: LiveResult[]): PlayerTotal | null {
   return playerTotals(results)[0] ?? null;
 }
 
+// ── Rep counter during a half (private to the phone) ───────────────────────
+
+/** The counter steps shown under each exercise while the half runs. */
+export const TALLY_STEPS = [1, 5, 10] as const;
+
+/** Adds `delta` (negative to undo) to exercise `i`, kept within 0..its max. */
+export function bumpTally(movements: ChallengeMovement[], tally: number[], i: number, delta: number): number[] {
+  return movements.map((m, j) => {
+    const v = Math.floor(Number(tally[j]) || 0);
+    return Math.max(0, Math.min(m.reps, j === i ? v + delta : v));
+  });
+}
+
+// ── Final celebration timeline (seconds on one clock) ──────────────────────
+
+export interface CelebrationTimes {
+  /** When standings row `index` (0 = winner) appears: last place first. */
+  rowAt: (index: number) => number;
+  /** Winner banner + confetti. */
+  win: number;
+  /** Best player card. */
+  best: number;
+  /** Everything settled: the table and Done show. */
+  end: number;
+}
+
+export function celebrationTimes(sideCount: number): CelebrationTimes {
+  const ROW_START = 0.4;
+  const ROW_GAP = 0.65;
+  const rowAt = (index: number) => ROW_START + (sideCount - 1 - index) * ROW_GAP;
+  const win = ROW_START + (sideCount - 1) * ROW_GAP + 0.75;
+  const best = win + 1.4;
+  return { rowAt, win, best, end: best + 0.9 };
+}
+
 /** Players with a side who haven't logged the current half yet. */
 export function playersNotLogged(players: LivePlayer[], logged: (string | null)[]): LivePlayer[] {
   const done = new Set(logged);
@@ -340,6 +386,9 @@ export const LIVE_ERROR_CODES = [
   'LOGGING_CLOSED',
   'TIME_NOT_UP',
   'INVALID_REPS',
+  'INVALID_NAME',
+  'NAME_TAKEN',
+  'SIDES_UNNAMED',
 ] as const;
 
 export type LiveErrorCode = (typeof LIVE_ERROR_CODES)[number];

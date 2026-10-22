@@ -38,6 +38,8 @@ export interface AdminLiveRoom {
   current_half: number;
   host_name: string | null;
   players: Array<{ user_id: string | null; display_name: string | null; side: number | null }>;
+  /** Team name per side, keyed "1".."4" (player-entered: check for moderation). */
+  side_names: Record<string, string>;
   created_at: string;
   started_at: string | null;
   finished_at: string | null;

@@ -226,7 +226,8 @@ export function LiveChallengesPage() {
       render: (r) =>
         Array.from({ length: r.side_count }, (_, i) => {
           const names = r.players.filter((p) => p.side === i + 1).map((p) => p.display_name ?? 'Deleted user');
-          return `${sideLetter(i + 1)}: ${names.length ? names.join(', ') : '—'}`;
+          const team = r.side_names?.[String(i + 1)];
+          return `${sideLetter(i + 1)}${team ? ` “${team}”` : ''}: ${names.length ? names.join(', ') : '—'}`;
         }).join('  ·  ') +
         (r.players.some((p) => p.side == null) ? `  ·  no side: ${r.players.filter((p) => p.side == null).length}` : ''),
     },

@@ -1,18 +1,19 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Text, View } from 'react-native';
+import React from 'react';
+import { Text, View } from 'react-native';
 import { kt, rankColor, YouBadge } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
 import { formatClock } from '../../lib/weeklyChallenge';
-import { LiveChallenge, LiveHalf, LivePlayer, SideStanding, sideLetter } from '../../lib/liveTournament';
+import { LiveChallenge, LiveHalf, LivePlayer, SideStanding, sideLetter, sideNameOf } from '../../lib/liveTournament';
 import { ltr, t as tr } from '../../i18n';
 
 export function playerName(p: Pick<LivePlayer, 'display_name'>): string {
   return p.display_name || tr('team.deletedUser');
 }
 
-/** "SIDE A" (the letter stays Latin in both languages). */
-export const sideLabel = (side: number) => tr('live.side', { letter: sideLetter(side) });
+/** The team name, or "SIDE A" while it has none (the letter stays Latin in both languages). */
+export const sideLabel = (side: number, names?: Record<string, string> | null) =>
+  sideNameOf(names, side) ?? tr('live.side', { letter: sideLetter(side) });
 
 /** Points: whole numbers stay whole, halves (1.5 pts per rep) keep one decimal. */
 export function formatPts(points: number): string {
@@ -107,57 +108,44 @@ export function OnlineDot({ tokens: t, online }: { tokens: WeeklyTokens; online:
   );
 }
 
-/**
- * Sides ranked, with points per half. `reveal` animates the rows in from
- * last place to first (the final result); otherwise they show at once.
- */
-export function SideStandings({ tokens: t, rows, halfCount, mySide, reveal, onRevealed }: {
+/** Sides ranked, with points per half. */
+export function SideStandings({ tokens: t, rows, halfCount, mySide, names }: {
   tokens: WeeklyTokens;
   rows: SideStanding[];
   halfCount: number;
   mySide: number | null | undefined;
-  reveal?: boolean;
-  onRevealed?: () => void;
+  names?: Record<string, string>;
 }) {
-  const anims = useRef(rows.map(() => new Animated.Value(reveal ? 0 : 1))).current;
-  useEffect(() => {
-    if (!reveal) return;
-    // Last place first, so the winner lands last.
-    const order = [...anims.keys()].reverse();
-    Animated.stagger(
-      700,
-      order.map(i => Animated.timing(anims[i], { toValue: 1, duration: 450, useNativeDriver: true })),
-    ).start(() => onRevealed?.());
-  }, [reveal]);
-
   return (
     <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
-      {rows.map((r, i) => {
-        const mine = r.side === mySide;
-        const a = anims[i] ?? new Animated.Value(1);
-        return (
-          <Animated.View key={r.side} style={{
-            opacity: a,
-            transform: [{ translateY: a.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }],
-            flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 16, paddingVertical: 8,
-            borderTopWidth: i ? 1 : 0, borderTopColor: t.divider, backgroundColor: mine ? t.accentSoft : 'transparent',
-          }}>
-            <Text style={[kt('bold', 18, rankColor(t, r.place - 1, false)), { width: 26 }]}>{r.place}</Text>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <Text style={kt(mine ? 'bold' : 'semibold', 15, t.text, 1.2)}>{sideLabel(r.side)}</Text>
-                {mine && <YouBadge tokens={t} />}
-              </View>
-              {halfCount > 1 && (
-                <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2, writingDirection: 'ltr' }]} numberOfLines={1}>
-                  {r.perHalf.slice(0, halfCount).map((p, h) => `H${h + 1} ${Math.round(p * 10) / 10}`).join('  ·  ')}
-                </Text>
-              )}
-            </View>
-            <Text style={kt('semibold', 17, t.text)}>{formatPts(r.total)}</Text>
-          </Animated.View>
-        );
-      })}
+      {rows.map((r, i) => (
+        <StandingRow key={r.side} tokens={t} row={r} first={i === 0} halfCount={halfCount} mine={r.side === mySide} names={names} />
+      ))}
+    </View>
+  );
+}
+
+export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }: {
+  tokens: WeeklyTokens; row: SideStanding; first: boolean; halfCount: number; mine: boolean; names?: Record<string, string>;
+}) {
+  return (
+    <View style={{
+      flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 60, paddingHorizontal: 16, paddingVertical: 8,
+      borderTopWidth: first ? 0 : 1, borderTopColor: t.divider, backgroundColor: mine ? t.accentSoft : 'transparent',
+    }}>
+      <Text style={[kt('bold', 18, rankColor(t, r.place - 1, false)), { width: 26 }]}>{r.place}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <Text style={[kt(mine ? 'bold' : 'semibold', 15, t.text, 0.6), { flexShrink: 1 }]} numberOfLines={1}>{sideLabel(r.side, names)}</Text>
+          {mine && <YouBadge tokens={t} />}
+        </View>
+        {halfCount > 1 && (
+          <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2, writingDirection: 'ltr' }]} numberOfLines={1}>
+            {r.perHalf.slice(0, halfCount).map((p, h) => `H${h + 1} ${Math.round(p * 10) / 10}`).join('  ·  ')}
+          </Text>
+        )}
+      </View>
+      <Text style={kt('semibold', 17, t.text)}>{formatPts(r.total)}</Text>
     </View>
   );
 }

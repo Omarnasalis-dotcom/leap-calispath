@@ -19,6 +19,9 @@ import {
   lobbyStatus,
   logSecondsLeft,
   maxHalfPoints,
+  bumpTally,
+  celebrationTimes,
+  sideNameOf,
   offlinePlayers,
   playersNotLogged,
   playerTotals,
@@ -187,21 +190,31 @@ describe('canStartNextHalf', () => {
 });
 
 describe('lobby', () => {
-  it('mirrors the start checks in order', () => {
-    expect(lobbyStatus([player('p1', 1)], 2).blocker).toBe('need_two_players');
-    expect(lobbyStatus([player('p1', 1), player('p2', null, false)], 2).blocker).toBe('no_side');
-    expect(lobbyStatus([player('p1', 1), player('p2', 2, false)], 2).blocker).toBe('not_ready');
-    expect(lobbyStatus([player('p1', 1), player('p2', 1), player('p3', 2)], 2).blocker).toBe('uneven');
-    expect(lobbyStatus([player('p1', 1), player('p2', 1)], 2).blocker).toBe('uneven'); // side B empty
-    expect(lobbyStatus([player('p1', 1), player('p3', 2)], 2).blocker).toBeNull();
+  const NAMES = { '1': 'Wolves', '2': 'Lions', '3': 'Hawks' };
+
+  it('mirrors the start checks in order (same order as start_live_half)', () => {
+    expect(lobbyStatus([player('p1', 1)], 2, NAMES).blocker).toBe('need_two_players');
+    expect(lobbyStatus([player('p1', 1), player('p2', null, false)], 2, NAMES).blocker).toBe('no_side');
+    expect(lobbyStatus([player('p1', 1), player('p2', 2, false)], 2, NAMES).blocker).toBe('not_ready');
+    expect(lobbyStatus([player('p1', 1), player('p2', 1), player('p3', 2)], 2, NAMES).blocker).toBe('uneven');
+    expect(lobbyStatus([player('p1', 1), player('p2', 1)], 2, NAMES).blocker).toBe('uneven'); // side B empty
+    expect(lobbyStatus([player('p1', 1), player('p3', 2)], 2, NAMES).blocker).toBeNull();
     // 2 v 2 in a 3-a-side challenge is fine; a 3rd empty side isn't
     const four = [player('p1', 1), player('p2', 1), player('p3', 2), player('p4', 2)];
-    expect(lobbyStatus(four, 2)).toEqual({ sideCounts: [2, 2], blocker: null });
-    expect(lobbyStatus(four, 3).blocker).toBe('uneven');
+    expect(lobbyStatus(four, 2, NAMES)).toEqual({ sideCounts: [2, 2], blocker: null });
+    expect(lobbyStatus(four, 3, NAMES).blocker).toBe('uneven');
+  });
+
+  it('every side needs a team name (checked after uneven)', () => {
+    const two = [player('p1', 1), player('p3', 2)];
+    expect(lobbyStatus(two, 2).blocker).toBe('unnamed');
+    expect(lobbyStatus(two, 2, { '1': 'Wolves' }).blocker).toBe('unnamed');
+    expect(lobbyStatus(two, 2, { '1': 'Wolves', '2': '   ' }).blocker).toBe('unnamed');
+    expect(lobbyStatus([player('p1', 1), player('p2', 1), player('p3', 2)], 2).blocker).toBe('uneven');
   });
 
   it('ignores deleted accounts', () => {
-    expect(lobbyStatus([player('p1', 1), player('p3', 2), player(null, null, false)], 2).blocker).toBeNull();
+    expect(lobbyStatus([player('p1', 1), player('p3', 2), player(null, null, false)], 2, NAMES).blocker).toBeNull();
   });
 
   it('side room excludes yourself', () => {
@@ -211,8 +224,33 @@ describe('lobby', () => {
     expect(sideHasRoom(ps, 2, 2)).toBe(true);
   });
 
-  it('side letters', () => {
+  it('side letters and names', () => {
     expect([1, 2, 3, 4].map(sideLetter)).toEqual(['A', 'B', 'C', 'D']);
+    expect(sideNameOf({ '2': ' Lions ' }, 2)).toBe('Lions');
+    expect(sideNameOf({ '2': 'Lions' }, 1)).toBeNull();
+    expect(sideNameOf(undefined, 1)).toBeNull();
+  });
+
+  it('rep counter: steps, undo, kept within 0..max', () => {
+    const ms = HALVES[0].movements;
+    let tally = [0, 0, 0];
+    tally = bumpTally(ms, tally, 0, 10);
+    tally = bumpTally(ms, tally, 0, 5);
+    tally = bumpTally(ms, tally, 1, 1);
+    expect(tally).toEqual([15, 1, 0]);
+    expect(bumpTally(ms, tally, 1, -1)).toEqual([15, 0, 0]);
+    expect(bumpTally(ms, tally, 2, -1)).toEqual([15, 1, 0]); // never below 0
+    expect(bumpTally(ms, [48, 0, 0], 0, 10)).toEqual([50, 0, 0]); // never above the max
+  });
+
+  it('celebration: last place first, then winner, then best player', () => {
+    const c = celebrationTimes(3);
+    expect(c.rowAt(2)).toBeLessThan(c.rowAt(1));
+    expect(c.rowAt(1)).toBeLessThan(c.rowAt(0));
+    expect(c.rowAt(0)).toBeLessThan(c.win);
+    expect(c.win).toBeLessThan(c.best);
+    expect(c.best).toBeLessThan(c.end);
+    expect(celebrationTimes(2).end).toBeLessThan(6);
   });
 });
 
@@ -283,10 +321,9 @@ describe('errors', () => {
   });
 
   it('every code the migration raises is listed and translated in EN and AR', () => {
-    const sql = fs.readFileSync(
-      path.join(__dirname, '../../../supabase/migrations/20261022120000_add_live_tournament.sql'),
-      'utf8',
-    );
+    const sql = ['20261022120000_add_live_tournament.sql', '20261023120000_live_side_names.sql']
+      .map(f => fs.readFileSync(path.join(__dirname, '../../../supabase/migrations', f), 'utf8'))
+      .join('\n');
     const raised = [...new Set([...sql.matchAll(/RAISE EXCEPTION '([A-Z_]+)'/g)].map(m => m[1]))].sort();
     expect([...LIVE_ERROR_CODES].sort()).toEqual(raised);
     for (const code of LIVE_ERROR_CODES) {

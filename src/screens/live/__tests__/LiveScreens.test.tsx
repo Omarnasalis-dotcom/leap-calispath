@@ -49,6 +49,13 @@ jest.mock('expo-keep-awake', () => ({
   deactivateKeepAwake: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../../../lib/analytics', () => ({ track: jest.fn() }));
+jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
+jest.mock('expo-haptics', () => ({
+  impactAsync: jest.fn().mockResolvedValue(undefined),
+  notificationAsync: jest.fn().mockResolvedValue(undefined),
+  ImpactFeedbackStyle: { Light: 'light', Medium: 'medium' },
+  NotificationFeedbackType: { Success: 'success' },
+}));
 jest.mock('../../../components/GlobalErrorBoundary', () => ({
   GlobalErrorBoundary: ({ children }: { children: React.ReactNode }) => children,
 }));
@@ -65,7 +72,7 @@ jest.mock('../../../services/LiveTournamentService', () => {
     LiveTournamentError,
     LiveTournamentService: {
       getRoomState: fn(), getOpenChallenges: fn(), getMyRoom: fn(), getHistory: fn(), createRoom: fn(), joinRoom: fn(),
-      pickSide: fn(), setReady: fn(), leaveRoom: fn(), startHalf: fn(), sendHalfStartedPush: fn(), submitReps: fn(),
+      pickSide: fn(), nameSide: fn(), setReady: fn(), leaveRoom: fn(), startHalf: fn(), sendHalfStartedPush: fn(), submitReps: fn(),
       abandonRoom: fn(),
     },
   };
@@ -111,6 +118,7 @@ function makeState(room: Over = {}, players: LiveRoomState['players'] = [], extr
     },
     challenge: { id: 'c1', title: 'Halves Week 1', description: '', halves: HALVES, rest_sec: 60, team_size: 2 },
     players,
+    side_names: { '1': 'Wolves', '2': 'Lions' },
     logged: [],
     results: [],
     ...extra,
@@ -143,8 +151,10 @@ async function render(el: React.ReactElement): Promise<ReactTestRenderer> {
   return r;
 }
 
-beforeEach(() => {
+beforeEach(async () => {
   jest.clearAllMocks();
+  // Drafts and rep counters live in phone storage; start each test clean.
+  await require('@react-native-async-storage/async-storage').clear();
   mockUserId = 'me';
   mockConnected = true;
   mockNetListeners.length = 0;
@@ -158,8 +168,8 @@ describe('LiveRoomScreen · lobby', () => {
     const r = await render(<LiveRoomScreen roomId="r1" />);
     const text = allText(r);
     expect(text).toContain('K7PQ2M');
-    expect(text).toContain('SIDE A');
-    expect(text).toContain('SIDE B');
+    expect(text).toContain('Wolves');
+    expect(text).toContain('Lions');
     expect(text).toContain('Open spot'); // side B has 1 of 2
     expect(text).toContain('Sides need the same number of players');
     expect(button(r, 'START HALF 1')).toBeUndefined();
@@ -210,8 +220,36 @@ describe('LiveRoomScreen · lobby', () => {
     const r = await render(<LiveRoomScreen roomId="r1" />);
     const text = allText(r);
     expect(text).toContain('رمز الغرفة');
-    expect(text).toContain('الجانب A');
+    expect(text).toContain('Wolves');
+    expect(text).toContain('إعادة التسمية');
     expect(text).toContain('بدء الشوط 1');
+  });
+
+  it('unnamed side: blocks Start, my side shows NAME YOUR TEAM, saving names it', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(makeState({}, FOUR, { side_names: { '2': 'Lions' } })));
+    mockService.nameSide.mockResolvedValue(undefined);
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const text = allText(r);
+    expect(text).toContain('SIDE A');
+    expect(text).toContain('NO NAME YET');
+    expect(text).toContain('Every team needs a name');
+    expect(button(r, 'START HALF 1')).toBeUndefined();
+    await act(async () => { button(r, 'NAME YOUR TEAM').props.onPress(); });
+    const input = r.root.findAll(n => n.props.accessibilityLabel === 'Team name' && n.props.onChangeText)[0];
+    await act(async () => { input.props.onChangeText('  Iron Wolves '); });
+    await act(async () => { button(r, 'SAVE', true).props.onPress(); });
+    expect(mockService.nameSide).toHaveBeenCalledWith('r1', 'Iron Wolves');
+  });
+
+  it('naming a taken name shows the server message and keeps the sheet open', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(makeState({}, FOUR, { side_names: { '2': 'Lions' } })));
+    mockService.nameSide.mockRejectedValue(new LiveTournamentError('Another team in this room has that name. Try a different one.', 'NAME_TAKEN'));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    await act(async () => { button(r, 'NAME YOUR TEAM').props.onPress(); });
+    const input = r.root.findAll(n => n.props.accessibilityLabel === 'Team name' && n.props.onChangeText)[0];
+    await act(async () => { input.props.onChangeText('lions'); });
+    await act(async () => { button(r, 'SAVE', true).props.onPress(); });
+    expect(allText(r)).toContain('Another team in this room has that name');
   });
 });
 
@@ -224,15 +262,36 @@ const running = (over: Over = {}) => ({
 const logging = (over: Over = {}) => running({ half_started_at: iso(-250_000), half_ends_at: iso(-10_000), log_closes_at: iso(110_000), ...over });
 
 describe('LiveRoomScreen · match', () => {
-  it('running half: timer and this half\'s exercises', async () => {
+  it('running half: timer, counters with +1/+5/+10/−1, capped at the max, pre-filling the log', async () => {
     mockService.getRoomState.mockResolvedValue(timed(makeState(running(), FOUR)));
     const r = await render(<LiveRoomScreen roomId="r1" />);
     const text = allText(r);
     expect(text).toContain('HALF 1 OF 2');
     expect(text).toContain('TIME LEFT');
     expect(text).toContain('Pull-ups');
-    expect(text).toContain('MAX 50');
     expect(text).not.toContain('Push-ups'); // half 2 isn't shown yet
+    const tap = async (label: string, times = 1) => {
+      for (let i = 0; i < times; i++) {
+        await act(async () => { r.root.findAll(n => n.props.accessibilityLabel === label && n.props.onPress)[0].props.onPress(); });
+      }
+    };
+    await tap('Pull-ups +10', 4);
+    await tap('Pull-ups +5');
+    await tap('Pull-ups +1');
+    await tap('Pull-ups Undo one');
+    expect(allText(r)).toContain('45/50');
+    await tap('Pull-ups +10'); // 55 → capped at 50
+    expect(allText(r)).toContain('50/50');
+    await tap('Dips +5');
+    expect(allText(r)).toContain('160 PTS'); // 50×3 + 5×2
+
+    // Time's up: the log starts from the counts.
+    mockService.getRoomState.mockResolvedValue(timed(makeState(logging(), FOUR)));
+    mockService.submitReps.mockResolvedValue({ points: 160, halfClosed: false });
+    const r2 = await render(<LiveRoomScreen roomId="r1" />);
+    await act(async () => {});
+    await act(async () => { button(r2, 'SEND REPS').props.onPress(); });
+    expect(mockService.submitReps).toHaveBeenCalledWith('r1', 1, [50, 5, 0], 'me');
   });
 
   it('logging: sends my reps; the host can log for a missing player', async () => {
@@ -299,15 +358,30 @@ describe('LiveRoomScreen · match', () => {
       const r = await render(<LiveRoomScreen roomId="r1" />);
       expect(allText(r)).toContain('FINAL RESULT');
       expect(allText(r)).toContain('610 PTS');
-      await act(async () => { jest.advanceTimersByTime(3000); });
+      expect(allText(r)).not.toContain('DONE'); // the table waits for the end of the celebration
+      await act(async () => { jest.advanceTimersByTime(6000); });
       const text = allText(r);
-      expect(text).toContain('SIDE A WINS');
+      expect(text).toContain('WINNER');
+      expect(text).toContain('WOLVES');
       expect(text).toContain('BEST PLAYER');
       expect(text).toContain('Omar');
       expect(text).toContain('335 PTS');
+      expect(text).toContain('DONE');
     } finally {
       jest.useRealTimers();
     }
+  });
+
+  it('final: tapping skips straight to the table', async () => {
+    const results = [result(1, 'me', 1, 280), result(1, 'u3', 2, 120)];
+    mockService.getRoomState.mockResolvedValue(timed(makeState(
+      { status: 'finished', current_half: 2, half_closed_at: iso(-100), finished_at: iso(-100) }, FOUR, { results },
+    )));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).not.toContain('DONE');
+    const skip = r.root.findAll(n => n.props.accessibilityHint === 'Tap to skip' && n.props.onPress)[0];
+    await act(async () => { skip.props.onPress(); });
+    expect(allText(r)).toContain('DONE');
   });
 
   it('abandoned room', async () => {
@@ -380,10 +454,12 @@ describe('LiveHub', () => {
     mockService.getHistory.mockResolvedValue([{
       room_id: 'r1', challenge_id: 'c1', challenge_title: 'Halves Week 1', finished_at: '2026-10-22T18:00:00Z', side_count: 2,
       halves_played: 2, my_side: 1, my_points: 335, side_points: 610, side_place: 1, is_best_player: true, player_count: 4,
+      my_side_name: 'Iron Wolves',
     }]);
     const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
     const text = allText(r);
     expect(text).toContain('LIVE HISTORY');
+    expect(text).toContain('Iron Wolves');
     expect(text).toContain('335 PTS');
     expect(text).toContain('#1 OF 2');
     expect(text).toContain('BEST PLAYER');

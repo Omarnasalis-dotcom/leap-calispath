@@ -7,19 +7,20 @@ import NetInfo from '@react-native-community/netinfo';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { supabase } from '../../lib/supabase';
-import { KitButton, KitIcon, WorldPage, YouBadge, kt } from '../../components/worlds/kit';
+import { KitButton, KitIcon, WorldPage, WorldSheet, YouBadge, kt } from '../../components/worlds/kit';
 import { getWeeklyTokens, WeeklyTokens } from '../../components/weekly/weeklyTokens';
 import { Label, SquareButton, StatusPill, StepButton } from '../../components/weekly/WeeklyParts';
 import {
   HalfExercises, HalvesList, LiveChallengeCard, OnlineDot, SideStandings, formatPts, playerName, sideLabel,
 } from '../../components/live/LiveParts';
+import { LiveCelebration } from '../../components/live/LiveCelebration';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
 import { LeapLogo } from '../../components/LeapLogo';
 import { LiveTournamentError, LiveTournamentService } from '../../services/LiveTournamentService';
 import {
-  LiveHalf, LivePlayer, LiveRoomState, bestPlayer, canStartNextHalf, clampReps, closedAtMs, countdownLeft, halfPoints,
-  halfSecondsLeft, livePhase, lobbyStatus, logSecondsLeft, offlinePlayers, playerTotals,
-  restSecondsLeft, sideHasRoom, sideLetter, sideStandings, HOST_FALLBACK_SEC,
+  LiveHalf, LivePlayer, LiveRoomState, bumpTally, canStartNextHalf, clampReps, closedAtMs, countdownLeft, halfPoints,
+  halfSecondsLeft, livePhase, lobbyStatus, logSecondsLeft, offlinePlayers, restSecondsLeft, sideHasRoom, sideNameOf,
+  sideStandings, HOST_FALLBACK_SEC, SIDE_NAME_MAX, TALLY_STEPS,
 } from '../../lib/liveTournament';
 import { formatClock } from '../../lib/weeklyChallenge';
 import { setOpenLiveRoom } from '../../lib/liveRoomFocus';
@@ -67,6 +68,17 @@ interface LogDraft {
 }
 
 const draftKey = (roomId: string, half: number, userId: string) => `live-log:${roomId}:${half}:${userId}`;
+/** The player's own rep counter during a half (never sent; it pre-fills their log). */
+const tallyKey = (roomId: string, half: number, userId: string) => `live-tally:${roomId}:${half}:${userId}`;
+
+async function readTally(key: string): Promise<number[] | null> {
+  try {
+    const raw = await AsyncStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as number[]) : null;
+  } catch {
+    return null;
+  }
+}
 
 async function readDraft(key: string): Promise<LogDraft | null> {
   try {
@@ -279,12 +291,13 @@ export function LiveRoomScreen({ roomId }: Props) {
   if (room.status === 'abandoned') {
     body = <EndedView tokens={t} />;
   } else if (phase === 'finished') {
-    body = <FinalView tokens={t} state={state} myId={myId} />;
+    body = <LiveCelebration tokens={t} state={state} myId={myId} />;
   } else if (phase === 'lobby') {
     body = (
       <LobbyView
         tokens={t} state={state} myId={myId} isHost={isHost} busy={busy}
         onPickSide={side => run(() => LiveTournamentService.pickSide(roomId, side))}
+        onNameSide={name => LiveTournamentService.nameSide(roomId, name).then(() => load())}
         onReady={ready => run(() => LiveTournamentService.setReady(roomId, ready))}
         onRemove={p => confirm(tr('live.removeTitle'), tr('live.removeBody', { name: playerName(p) }), tr('live.remove'),
           () => run(() => LiveTournamentService.leaveRoom(roomId, p.user_id!)))}
@@ -304,7 +317,7 @@ export function LiveRoomScreen({ roomId }: Props) {
       />
     );
   } else if (phase === 'countdown' || phase === 'running') {
-    body = <PlayView tokens={t} state={state} now={now} />;
+    body = <PlayView key={`play-${room.current_half}`} tokens={t} state={state} now={now} myId={myId} />;
   } else if (phase === 'logging') {
     body = (
       <LogView
@@ -389,16 +402,41 @@ function PlayerRow({ tokens: t, player, isMe, showReady, canRemove, onRemove }: 
   );
 }
 
-function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onReady, onRemove, onLeave, onStart }: {
+function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSide, onReady, onRemove, onLeave, onStart }: {
   tokens: WeeklyTokens; state: LiveRoomState; myId: string | undefined; isHost: boolean; busy: boolean;
-  onPickSide: (side: number | null) => void; onReady: (ready: boolean) => void; onRemove: (p: LivePlayer) => void;
-  onLeave: () => void; onStart: () => void;
+  onPickSide: (side: number | null) => void; onNameSide: (name: string) => Promise<void>; onReady: (ready: boolean) => void;
+  onRemove: (p: LivePlayer) => void; onLeave: () => void; onStart: () => void;
 }) {
   const insets = useSafeAreaInsets();
-  const { room, challenge, players } = state;
+  const { room, challenge, players, side_names: names } = state;
   const real = players.filter(p => p.user_id);
   const me = real.find(p => p.user_id === myId);
-  const status = lobbyStatus(players, room.side_count);
+  const status = lobbyStatus(players, room.side_count, names);
+
+  // Team name sheet (your own side only).
+  const [naming, setNaming] = useState(false);
+  const [nameInput, setNameInput] = useState('');
+  const [nameError, setNameError] = useState<string | null>(null);
+  const [savingName, setSavingName] = useState(false);
+  const openNaming = () => {
+    setNameInput(me?.side != null ? sideNameOf(names, me.side) ?? '' : '');
+    setNameError(null);
+    setNaming(true);
+  };
+  const saveName = async () => {
+    const value = nameInput.trim();
+    if (!value || savingName) return;
+    setSavingName(true);
+    setNameError(null);
+    try {
+      await onNameSide(value);
+      setNaming(false);
+    } catch (e: any) {
+      setNameError(e?.message ?? tr('live.loadFailed'));
+    } finally {
+      setSavingName(false);
+    }
+  };
   const unassigned = real.filter(p => p.side == null);
 
   const share = () => {
@@ -428,10 +466,25 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onReady, 
           return (
             <View key={side} style={{ paddingTop: 20, gap: 8 }}>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <Text style={kt('bold', 15, mine ? t.accentText : t.text, 1.6)}>{sideLabel(side)}</Text>
-                <Text style={[kt('medium', 12, t.textMuted, 1.2), { flex: 1 }]}>
-                  {tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}
-                </Text>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={kt('bold', 15, mine ? t.accentText : t.text, 0.8)} numberOfLines={1}>{sideLabel(side, names)}</Text>
+                  <Text style={kt('medium', 11, t.textMuted, 1.2)} numberOfLines={1}>
+                    {sideNameOf(names, side) == null
+                      ? `${tr('live.side', { letter: String.fromCharCode(64 + side) })} · ${tr('live.unnamed')} · ${tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}`
+                      : tr('live.sideCount', { n: onSide.length, size: challenge.team_size })}
+                  </Text>
+                </View>
+                {mine && (
+                  <Pressable
+                    accessibilityRole="button"
+                    disabled={busy}
+                    onPress={openNaming}
+                    style={({ pressed }) => ({ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 7, paddingHorizontal: 12, borderRadius: 10, borderWidth: 1, borderColor: t.accent, opacity: pressed || busy ? 0.6 : 1 })}
+                  >
+                    <KitIcon name="pencil" size={12} color={t.accentText} />
+                    <Text style={kt('bold', 11, t.accentText, 1.2)}>{sideNameOf(names, side) == null ? tr('live.nameTeam') : tr('live.rename')}</Text>
+                  </Pressable>
+                )}
                 {canJoin && (
                   <Pressable
                     accessibilityRole="button"
@@ -517,6 +570,32 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onReady, 
           <KitButton tokens={t} variant="outline" label={tr('live.waitingHost')} onPress={() => {}} disabled />
         )}
       </View>
+
+      <WorldSheet tokens={t} visible={naming} onClose={() => { if (!savingName) setNaming(false); }} variant="log" title={tr('live.teamNameTitle')}>
+        <View style={{ gap: 14, paddingBottom: 8 }}>
+          <Text style={kt('light', 14, t.textSecondary, 0, 20)}>{tr('live.teamNameHint')}</Text>
+          <TextInput
+            value={nameInput}
+            onChangeText={v => { setNameInput(v); setNameError(null); }}
+            placeholder={tr('live.teamNamePlaceholder')}
+            placeholderTextColor={t.textFaint}
+            autoFocus
+            autoCorrect={false}
+            autoCapitalize="words"
+            maxLength={SIDE_NAME_MAX}
+            returnKeyType="done"
+            onSubmitEditing={saveName}
+            accessibilityLabel={tr('live.teamNamePlaceholder')}
+            style={[
+              { height: 56, borderRadius: 14, paddingHorizontal: 16, borderWidth: 1, borderColor: nameError ? t.accent : t.tintBorder, backgroundColor: t.inputBg },
+              // kt() swaps in the Arabic face; team names can be Arabic.
+              kt('medium', 17, t.text),
+            ]}
+          />
+          {nameError ? <Text style={kt('regular', 13, t.accentText, 0, 18)}>{nameError}</Text> : null}
+          <KitButton tokens={t} label={tr('live.save')} onPress={saveName} loading={savingName} disabled={savingName || nameInput.trim() === ''} />
+        </View>
+      </WorldSheet>
     </>
   );
 }
@@ -540,11 +619,74 @@ function BigClock({ tokens: t, label, value, hot, countdown }: { tokens: WeeklyT
   );
 }
 
-function PlayView({ tokens: t, state, now }: { tokens: WeeklyTokens; state: LiveRoomState; now: number }) {
-  const { room, challenge } = state;
+/** −1 · +1 · +5 · +10 under one exercise, with the running count. */
+function TallyRow({ tokens: t, name, points, max, value, onBump }: {
+  tokens: WeeklyTokens; name: string; points: number; max: number; value: number; onBump: (delta: number) => void;
+}) {
+  const full = value >= max;
+  return (
+    <View style={{ borderRadius: 14, padding: 12, gap: 10, backgroundColor: t.card, borderWidth: 1, borderColor: full ? t.greenBorder : t.liveBorder }}>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text style={kt('medium', 16, t.text, 0.4)} numberOfLines={1}>{name}</Text>
+          <Text style={kt('medium', 11, t.textMuted, 1.2)}>{tr('weekly.ptsPerRep', { count: points })}</Text>
+        </View>
+        <Text style={{ fontFamily: WORLD_FONTS.bold, fontSize: 30, color: full ? t.green : t.text, writingDirection: 'ltr' }}>
+          {ltr(`${value}/${max}`)}
+        </Text>
+      </View>
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`${name} ${tr('live.undo')}`}
+          disabled={value <= 0}
+          onPress={() => onBump(-1)}
+          style={({ pressed }) => ({ width: 48, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.control, borderWidth: 1, borderColor: t.cardBorder, opacity: value <= 0 ? 0.4 : pressed ? 0.6 : 1 })}
+        >
+          <Text style={[kt('bold', 15, t.textSecondary), { writingDirection: 'ltr' }]}>−1</Text>
+        </Pressable>
+        {TALLY_STEPS.map(step => (
+          <Pressable
+            key={step}
+            accessibilityRole="button"
+            accessibilityLabel={`${name} +${step}`}
+            disabled={full}
+            onPress={() => onBump(step)}
+            style={({ pressed }) => ({ flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: step === 1 ? t.accent : t.buttonTint, opacity: full ? 0.4 : pressed ? 0.7 : 1 })}
+          >
+            <Text style={[kt('bold', 16, step === 1 ? t.onAccent : t.accentText), { writingDirection: 'ltr' }]}>{`+${step}`}</Text>
+          </Pressable>
+        ))}
+      </View>
+    </View>
+  );
+}
+
+function PlayView({ tokens: t, state, now, myId }: { tokens: WeeklyTokens; state: LiveRoomState; now: number; myId: string | undefined }) {
+  const isMounted = useMountedRef();
+  const { room, challenge, players } = state;
   const n = room.current_half;
   const half = challenge.halves[n - 1];
   const counting = now < Date.parse(room.half_started_at ?? '');
+  const playing = players.some(p => p.user_id === myId && p.side != null);
+  const key = myId ? tallyKey(room.id, n, myId) : null;
+  const [tally, setTally] = useState<number[]>(() => half?.movements.map(() => 0) ?? []);
+
+  // Survives the app closing mid-half.
+  useEffect(() => {
+    if (!key || !half) return;
+    readTally(key).then(saved => { if (saved && isMounted.current) setTally(clampReps(half.movements, saved)); });
+  }, [key]);
+
+  const bump = (i: number, delta: number) => {
+    if (!half) return;
+    setTally(prev => {
+      const next = bumpTally(half.movements, prev, i, delta);
+      if (key) AsyncStorage.setItem(key, JSON.stringify(next)).catch(() => {});
+      return next;
+    });
+  };
+
   return (
     <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 48 }} showsVerticalScrollIndicator={false}>
       <BigClock
@@ -554,8 +696,20 @@ function PlayView({ tokens: t, state, now }: { tokens: WeeklyTokens; state: Live
         label={counting ? tr('live.getReady') : tr('live.timeLeft')}
         value={counting ? String(countdownLeft(room, now)) : clockText(halfSecondsLeft(room, now))}
       />
-      {half && <View style={{ paddingTop: 20 }}><HalfExercises tokens={t} half={half} n={n} total={challenge.halves.length} highlight /></View>}
-      <Text style={[kt('light', 12.5, t.textMuted, 0, 18), { marginTop: 12 }]}>{tr('live.anyOrder')}</Text>
+      {half && playing ? (
+        <View style={{ paddingTop: 20, gap: 10 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
+            <Label tokens={t} size={11} color={t.accentText}>{tr('live.halfOf', { n, total: challenge.halves.length })}</Label>
+            <Text style={kt('semibold', 14, t.text)}>{formatPts(halfPoints(half.movements, tally))}</Text>
+          </View>
+          {half.movements.map((m, i) => (
+            <TallyRow key={`${m.name}-${i}`} tokens={t} name={m.name} points={m.points} max={m.reps} value={tally[i] ?? 0} onBump={d => bump(i, d)} />
+          ))}
+          <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.counterHint')}</Text>
+        </View>
+      ) : half ? (
+        <View style={{ paddingTop: 20 }}><HalfExercises tokens={t} half={half} n={n} total={challenge.halves.length} highlight /></View>
+      ) : null}
     </ScrollView>
   );
 }
@@ -613,13 +767,20 @@ function LogForm({ tokens: t, roomId, half, halfN, userId, isSelf, title, online
   const [error, setError] = useState<string | null>(null);
   const sendingRef = useRef(false);
 
-  // Restore a draft (e.g. the app was closed while offline).
+  // Restore a draft (e.g. the app was closed while offline); otherwise start
+  // from the player's own counter from the half.
   useEffect(() => {
-    readDraft(key).then(d => {
-      if (!d || !isMounted.current) return;
-      setReps(clampReps(half.movements, d.reps));
-      setPending(d.pending);
-    });
+    (async () => {
+      const d = await readDraft(key);
+      if (!isMounted.current) return;
+      if (d) {
+        setReps(clampReps(half.movements, d.reps));
+        setPending(d.pending);
+        return;
+      }
+      const counted = isSelf ? await readTally(tallyKey(roomId, halfN, userId)) : null;
+      if (counted && isMounted.current) setReps(clampReps(half.movements, counted));
+    })();
   }, [key]);
 
   const send = useCallback(async (values: number[]) => {
@@ -750,7 +911,7 @@ function LogView({ tokens: t, state, now, myId, isHost, online, onLogged }: {
             }}>
               <OnlineDot tokens={t} online={p.online} />
               <Text style={[kt('medium', 14, t.text), { flex: 1 }]} numberOfLines={1}>{playerName(p)}</Text>
-              <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{sideLabel(p.side!)}</Text>
+              <Text style={[kt('medium', 10.5, t.textFaint, 1.2), { maxWidth: 110 }]} numberOfLines={1}>{sideLabel(p.side!, state.side_names)}</Text>
               {done ? (
                 <Text style={kt('bold', 10.5, t.green, 1.4)}>{tr('live.logged')}</Text>
               ) : canLogFor ? (
@@ -800,7 +961,7 @@ function RestView({ tokens: t, state, now, myId, busy, canStart, onStart }: {
         )}
         <View style={{ paddingTop: 20, gap: 10 }}>
           <Label tokens={t} size={11}>{tr('live.standingsAfter', { n })}</Label>
-          <SideStandings tokens={t} rows={standings} halfCount={n} mySide={me?.side} />
+          <SideStandings tokens={t} rows={standings} halfCount={n} mySide={me?.side} names={state.side_names} />
         </View>
         {next && (
           <View style={{ paddingTop: 24, gap: 10 }}>
@@ -822,61 +983,6 @@ function RestView({ tokens: t, state, now, myId, busy, canStart, onStart }: {
         )}
       </View>
     </>
-  );
-}
-
-// ── Final ──────────────────────────────────────────────────────────────────
-
-function FinalView({ tokens: t, state, myId }: { tokens: WeeklyTokens; state: LiveRoomState; myId: string | undefined }) {
-  const { room, challenge, players, results } = state;
-  const halfCount = challenge.halves.length;
-  const me = players.find(p => p.user_id === myId);
-  const standings = sideStandings(results, room.side_count, halfCount);
-  const best = bestPlayer(results);
-  const totals = playerTotals(results);
-  const bestPlayerRow = best ? players.find(p => p.user_id === best.user_id) : undefined;
-  const [revealed, setRevealed] = useState(false);
-  const winners = standings.filter(s => s.place === 1);
-  const headline = winners.length > 1 ? tr('live.tie') : tr('live.sideWins', { letter: sideLetter(winners[0]?.side ?? 1) });
-
-  return (
-    <ScrollView contentContainerStyle={{ paddingHorizontal: 24, paddingBottom: 48, gap: 14 }} showsVerticalScrollIndicator={false}>
-      <Text style={[kt('medium', 11, t.textMuted, 2.4), { textAlign: 'center', marginTop: 18 }]}>{tr('live.finalKicker')}</Text>
-      <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} reveal onRevealed={() => setRevealed(true)} />
-      {revealed && (
-        <>
-          <Text style={[kt('bold', 26, winners.some(w => w.side === me?.side) ? t.gold : t.text, 1.6), { textAlign: 'center' }]}>{headline}</Text>
-          {best && (
-            <View style={{ borderRadius: 20, padding: 18, alignItems: 'center', gap: 6, backgroundColor: t.liveBg, borderWidth: 1, borderColor: t.liveBorder }}>
-              <KitIcon name="crown" size={22} color={t.gold} />
-              <Label tokens={t}>{tr('live.bestPlayer')}</Label>
-              <Text style={kt('bold', 22, t.text, 1)} numberOfLines={1}>{bestPlayerRow ? playerName(bestPlayerRow) : tr('team.deletedUser')}</Text>
-              <Text style={kt('semibold', 15, t.accentText, 1)}>{`${sideLabel(best.side)} · ${formatPts(best.total)}`}</Text>
-            </View>
-          )}
-          <View style={{ gap: 8, paddingTop: 6 }}>
-            <Label tokens={t}>{tr('live.byPlayer')}</Label>
-            {players.filter(p => p.user_id && p.side != null)
-              .sort((a, b) => (totals.find(x => x.user_id === b.user_id)?.total ?? 0) - (totals.find(x => x.user_id === a.user_id)?.total ?? 0))
-              .map(p => {
-                const total = totals.find(x => x.user_id === p.user_id)?.total ?? 0;
-                const isMe = p.user_id === myId;
-                return (
-                  <View key={p.user_id!} style={{
-                    flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 14, borderRadius: 12,
-                    backgroundColor: isMe ? t.accentSoft : t.card, borderWidth: 1, borderColor: isMe ? t.liveBorder : t.cardBorder,
-                  }}>
-                    <Text style={[kt(isMe ? 'semibold' : 'medium', 14, t.text), { flex: 1 }]} numberOfLines={1}>{playerName(p)}</Text>
-                    <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{sideLabel(p.side!)}</Text>
-                    <Text style={kt('semibold', 14, t.text)}>{formatPts(total)}</Text>
-                  </View>
-                );
-              })}
-          </View>
-          <KitButton tokens={t} label={tr('live.done')} onPress={() => router.back()} style={{ marginTop: 8 }} />
-        </>
-      )}
-    </ScrollView>
   );
 }
 

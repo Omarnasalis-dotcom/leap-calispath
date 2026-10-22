@@ -198,7 +198,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
                   <Text style={kt('medium', 10.5, t.textFaint, 1.4)} numberOfLines={1}>
                     {`${ltr(shortDate(h.finished_at))} · ${h.challenge_title.toUpperCase()}`}
                   </Text>
-                  <Text style={kt('semibold', 15, t.text, 0.4)}>{sideLabel(h.my_side)}</Text>
+                  <Text style={kt('semibold', 15, t.text, 0.4)} numberOfLines={1}>{h.my_side_name ?? sideLabel(h.my_side)}</Text>
                   {h.is_best_player && <Text style={kt('bold', 10.5, t.gold, 1.4)}>{tr('live.bestPlayerTag')}</Text>}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
