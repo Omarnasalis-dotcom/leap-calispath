@@ -231,7 +231,7 @@ describe('lobby', () => {
     expect(sideNameOf(undefined, 1)).toBeNull();
   });
 
-  it('rep counter: steps, undo, kept within 0..max', () => {
+  it('rep counter: steps up and down, kept within 0..max', () => {
     const ms = HALVES[0].movements;
     let tally = [0, 0, 0];
     tally = bumpTally(ms, tally, 0, 10);

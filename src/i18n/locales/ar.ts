@@ -1927,7 +1927,7 @@ const ar: Translations = {
     unnamed: 'بلا اسم بعد',
     blocker_unnamed: 'يحتاج كل فريق إلى اسم',
     counterHint: 'عُدّ أثناء التمرين. تُملأ أعدادك في تسجيلك عند انتهاء الوقت.',
-    undo: 'تراجع واحد',
+    repsField: 'التكرارات',
     winner: 'الفائز',
     tapToSkip: 'اضغط للتخطي',
     errors: {

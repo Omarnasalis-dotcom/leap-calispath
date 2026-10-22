@@ -314,9 +314,6 @@ export function bestPlayer(results: LiveResult[]): PlayerTotal | null {
 
 // ── Rep counter during a half (private to the phone) ───────────────────────
 
-/** The counter steps shown under each exercise while the half runs. */
-export const TALLY_STEPS = [1, 5, 10] as const;
-
 /** Adds `delta` (negative to undo) to exercise `i`, kept within 0..its max. */
 export function bumpTally(movements: ChallengeMovement[], tally: number[], i: number, delta: number): number[] {
   return movements.map((m, j) => {

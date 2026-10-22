@@ -20,7 +20,7 @@ import { LiveTournamentError, LiveTournamentService } from '../../services/LiveT
 import {
   LiveHalf, LivePlayer, LiveRoomState, bumpTally, canStartNextHalf, clampReps, closedAtMs, countdownLeft, halfPoints,
   halfSecondsLeft, livePhase, lobbyStatus, logSecondsLeft, offlinePlayers, restSecondsLeft, sideHasRoom, sideNameOf,
-  sideStandings, HOST_FALLBACK_SEC, SIDE_NAME_MAX, TALLY_STEPS,
+  sideStandings, HOST_FALLBACK_SEC, SIDE_NAME_MAX,
 } from '../../lib/liveTournament';
 import { formatClock } from '../../lib/weeklyChallenge';
 import { setOpenLiveRoom } from '../../lib/liveRoomFocus';
@@ -619,44 +619,70 @@ function BigClock({ tokens: t, label, value, hot, countdown }: { tokens: WeeklyT
   );
 }
 
-/** −1 · +1 · +5 · +10 under one exercise, with the running count. */
-function TallyRow({ tokens: t, name, points, max, value, onBump }: {
-  tokens: WeeklyTokens; name: string; points: number; max: number; value: number; onBump: (delta: number) => void;
+/** One exercise during a half: −5 · −1 · a number you can type · +1 · +5. */
+function TallyRow({ tokens: t, name, points, max, value, onBump, onSet }: {
+  tokens: WeeklyTokens; name: string; points: number; max: number; value: number;
+  onBump: (delta: number) => void; onSet: (value: number) => void;
 }) {
   const full = value >= max;
+  const [text, setText] = useState(String(value));
+  useEffect(() => { setText(String(value)); }, [value]);
+  const step = (delta: number) => {
+    const disabled = delta < 0 ? value <= 0 : full;
+    return (
+      <Pressable
+        key={delta}
+        accessibilityRole="button"
+        accessibilityLabel={`${name} ${delta > 0 ? '+' : '−'}${Math.abs(delta)}`}
+        disabled={disabled}
+        onPress={() => onBump(delta)}
+        style={({ pressed }) => ({
+          flex: 1, height: 48, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: delta > 0 ? (delta === 1 ? t.accent : t.buttonTint) : t.control,
+          borderWidth: delta > 0 ? 0 : 1, borderColor: t.cardBorder,
+          opacity: disabled ? 0.4 : pressed ? 0.7 : 1,
+        })}
+      >
+        <Text style={[kt('bold', 16, delta === 1 ? t.onAccent : delta > 0 ? t.accentText : t.textSecondary), { writingDirection: 'ltr' }]}>
+          {`${delta > 0 ? '+' : '−'}${Math.abs(delta)}`}
+        </Text>
+      </Pressable>
+    );
+  };
   return (
     <View style={{ borderRadius: 14, padding: 12, gap: 10, backgroundColor: t.card, borderWidth: 1, borderColor: full ? t.greenBorder : t.liveBorder }}>
-      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
-        <View style={{ flex: 1, minWidth: 0 }}>
-          <Text style={kt('medium', 16, t.text, 0.4)} numberOfLines={1}>{name}</Text>
-          <Text style={kt('medium', 11, t.textMuted, 1.2)}>{tr('weekly.ptsPerRep', { count: points })}</Text>
-        </View>
-        <Text style={{ fontFamily: WORLD_FONTS.bold, fontSize: 30, color: full ? t.green : t.text, writingDirection: 'ltr' }}>
-          {ltr(`${value}/${max}`)}
-        </Text>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        <Text style={[kt('medium', 16, t.text, 0.4), { flexShrink: 1 }]} numberOfLines={1}>{name}</Text>
+        <Text style={kt('medium', 11, t.textMuted, 1.2)}>{tr('weekly.ptsPerRep', { count: points })}</Text>
       </View>
-      <View style={{ flexDirection: 'row', gap: 8 }}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel={`${name} ${tr('live.undo')}`}
-          disabled={value <= 0}
-          onPress={() => onBump(-1)}
-          style={({ pressed }) => ({ width: 48, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: t.control, borderWidth: 1, borderColor: t.cardBorder, opacity: value <= 0 ? 0.4 : pressed ? 0.6 : 1 })}
-        >
-          <Text style={[kt('bold', 15, t.textSecondary), { writingDirection: 'ltr' }]}>−1</Text>
-        </Pressable>
-        {TALLY_STEPS.map(step => (
-          <Pressable
-            key={step}
-            accessibilityRole="button"
-            accessibilityLabel={`${name} +${step}`}
-            disabled={full}
-            onPress={() => onBump(step)}
-            style={({ pressed }) => ({ flex: 1, height: 44, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: step === 1 ? t.accent : t.buttonTint, opacity: full ? 0.4 : pressed ? 0.7 : 1 })}
-          >
-            <Text style={[kt('bold', 16, step === 1 ? t.onAccent : t.accentText), { writingDirection: 'ltr' }]}>{`+${step}`}</Text>
-          </Pressable>
-        ))}
+      {/* Steps stay in this order in Arabic too (minus on the left, like a number line). */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, direction: 'ltr' }}>
+        {step(-5)}
+        {step(-1)}
+        <View style={{ alignItems: 'center', gap: 2 }}>
+          <TextInput
+            value={text}
+            onChangeText={raw => {
+              const digits = raw.replace(/[^0-9]/g, '');
+              setText(digits);
+              if (digits !== '') onSet(Math.min(max, Number(digits)));
+            }}
+            onBlur={() => setText(String(value))}
+            keyboardType="number-pad"
+            inputMode="numeric"
+            selectTextOnFocus
+            maxLength={3}
+            accessibilityLabel={`${name} ${tr('live.repsField')}`}
+            style={{
+              width: 76, height: 52, borderRadius: 12, borderWidth: 1, borderColor: full ? t.greenBorder : t.tintBorder,
+              backgroundColor: t.inputBg, textAlign: 'center', fontFamily: WORLD_FONTS.bold, fontSize: 28,
+              color: full ? t.green : t.text, padding: 0, writingDirection: 'ltr',
+            }}
+          />
+          <Text style={kt('medium', 10.5, t.textFaint, 1.2)}>{tr('live.maxReps', { reps: max })}</Text>
+        </View>
+        {step(1)}
+        {step(5)}
       </View>
     </View>
   );
@@ -703,7 +729,10 @@ function PlayView({ tokens: t, state, now, myId }: { tokens: WeeklyTokens; state
             <Text style={kt('semibold', 14, t.text)}>{formatPts(halfPoints(half.movements, tally))}</Text>
           </View>
           {half.movements.map((m, i) => (
-            <TallyRow key={`${m.name}-${i}`} tokens={t} name={m.name} points={m.points} max={m.reps} value={tally[i] ?? 0} onBump={d => bump(i, d)} />
+            <TallyRow
+              key={`${m.name}-${i}`} tokens={t} name={m.name} points={m.points} max={m.reps} value={tally[i] ?? 0}
+              onBump={d => bump(i, d)} onSet={v => bump(i, v - (tally[i] ?? 0))}
+            />
           ))}
           <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.counterHint')}</Text>
         </View>

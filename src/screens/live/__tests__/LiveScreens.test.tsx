@@ -262,7 +262,7 @@ const running = (over: Over = {}) => ({
 const logging = (over: Over = {}) => running({ half_started_at: iso(-250_000), half_ends_at: iso(-10_000), log_closes_at: iso(110_000), ...over });
 
 describe('LiveRoomScreen · match', () => {
-  it('running half: timer, counters with +1/+5/+10/−1, capped at the max, pre-filling the log', async () => {
+  it('running half: −5/−1/+1/+5 and a typed number, capped at the max, pre-filling the log', async () => {
     mockService.getRoomState.mockResolvedValue(timed(makeState(running(), FOUR)));
     const r = await render(<LiveRoomScreen roomId="r1" />);
     const text = allText(r);
@@ -270,18 +270,25 @@ describe('LiveRoomScreen · match', () => {
     expect(text).toContain('TIME LEFT');
     expect(text).toContain('Pull-ups');
     expect(text).not.toContain('Push-ups'); // half 2 isn't shown yet
+    expect(r.root.findAll(n => n.props.accessibilityLabel === 'Pull-ups +10')).toHaveLength(0);
     const tap = async (label: string, times = 1) => {
       for (let i = 0; i < times; i++) {
         await act(async () => { r.root.findAll(n => n.props.accessibilityLabel === label && n.props.onPress)[0].props.onPress(); });
       }
     };
-    await tap('Pull-ups +10', 4);
+    const field = (name: string) => r.root.findAll(n => n.props.accessibilityLabel === `${name} reps` && n.props.onChangeText)[0];
+    await act(async () => { field('Pull-ups').props.onChangeText('42'); });
     await tap('Pull-ups +5');
-    await tap('Pull-ups +1');
-    await tap('Pull-ups Undo one');
-    expect(allText(r)).toContain('45/50');
-    await tap('Pull-ups +10'); // 55 → capped at 50
-    expect(allText(r)).toContain('50/50');
+    await tap('Pull-ups −1');
+    expect(field('Pull-ups').props.value).toBe('46');
+    await tap('Pull-ups +5'); // 51 → capped at 50
+    expect(field('Pull-ups').props.value).toBe('50');
+    await act(async () => { field('Dips').props.onChangeText('999'); }); // typed above the max
+    expect(field('Dips').props.value).toBe('50');
+    await tap('Dips −5', 9);
+    expect(field('Dips').props.value).toBe('5');
+    await tap('Dips −5', 2); // never below 0
+    expect(field('Dips').props.value).toBe('0');
     await tap('Dips +5');
     expect(allText(r)).toContain('160 PTS'); // 50×3 + 5×2
 

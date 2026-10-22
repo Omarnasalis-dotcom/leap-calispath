@@ -1828,7 +1828,7 @@ const en = {
     unnamed: 'NO NAME YET',
     blocker_unnamed: 'Every team needs a name',
     counterHint: 'Count as you go. Your counts fill in your log when time is up.',
-    undo: 'Undo one',
+    repsField: 'reps',
     winner: 'WINNER',
     tapToSkip: 'Tap to skip',
     errors: {
