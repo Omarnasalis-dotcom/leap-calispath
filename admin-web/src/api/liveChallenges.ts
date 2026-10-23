@@ -70,7 +70,7 @@ const ADMIN_ERRORS: Record<string, string> = {
   CHALLENGE_LOCKED:
     'Rooms have already played this challenge, so its halves and players per side can no longer change. Title, description, rest, dates and visibility still can.',
   CHALLENGE_HAS_ROOMS:
-    "Rooms have already played this challenge, so deleting it would erase players' history. Hide it instead.",
+    'Rooms have already used this challenge. Delete it together with its rooms, or hide it instead.',
   ROOM_NOT_ACTIVE: 'That room has already ended.',
 };
 
@@ -115,9 +115,9 @@ export async function saveLiveChallenge(input: LiveChallengeInput): Promise<stri
   return data as string;
 }
 
-/** Only works while no room has been created from the challenge. */
-export async function deleteLiveChallenge(id: string): Promise<void> {
-  const { error } = await supabase.rpc('admin_delete_live_challenge', { p_id: id });
+/** `includeRooms` also deletes every room, player, log and team name of the challenge. */
+export async function deleteLiveChallenge(id: string, includeRooms = false): Promise<void> {
+  const { error } = await supabase.rpc('admin_delete_live_challenge', { p_id: id, p_include_rooms: includeRooms });
   if (error) throw toError(error);
 }
 

@@ -161,7 +161,7 @@ export function LiveChallengesPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: deleteLiveChallenge,
+    mutationFn: ({ id, includeRooms }: { id: string; includeRooms: boolean }) => deleteLiveChallenge(id, includeRooms),
     onSuccess: () => {
       setForm(null);
       setSelectedId(null);
@@ -444,18 +444,28 @@ export function LiveChallengesPage() {
                 <span>Visible in the app</span>
               </label>
               <div style={{ flex: 1 }} />
-              {form.id && (selected?.room_count ?? 0) === 0 && (
-                <ConfirmButton
-                  label="Delete challenge"
-                  danger
-                  title={`Delete “${form.title}”?`}
-                  body="No room has used it yet. This can't be undone."
-                  confirmLabel="Delete"
-                  onConfirm={async () => {
-                    await deleteMutation.mutateAsync(form.id!);
-                  }}
-                />
-              )}
+              {form.id && (() => {
+                const rooms = selected?.room_count ?? 0;
+                const live = selected?.live_room_count ?? 0;
+                const players = selected?.player_count ?? 0;
+                const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? '' : 's'}`;
+                return (
+                  <ConfirmButton
+                    label={rooms > 0 ? `Delete challenge + ${plural(rooms, 'room')}` : 'Delete challenge'}
+                    danger
+                    title={`Delete “${form.title}”?`}
+                    body={
+                      rooms > 0
+                        ? `This also deletes ${plural(rooms, 'room')} and everything in them: ${plural(players, 'player')}' results, team names and leaderboard rows, and their Live history for this challenge.${live > 0 ? ` ${plural(live, 'room')} ${live === 1 ? 'is' : 'are'} still in progress and will end for the players in ${live === 1 ? 'it' : 'them'}.` : ''} This can't be undone. To keep the results, hide the challenge instead.`
+                        : "No room has used it yet. This can't be undone."
+                    }
+                    confirmLabel={rooms > 0 ? 'Delete everything' : 'Delete'}
+                    onConfirm={async () => {
+                      await deleteMutation.mutateAsync({ id: form.id!, includeRooms: rooms > 0 });
+                    }}
+                  />
+                );
+              })()}
               <button className="btn primary" disabled={saveMutation.isPending} onClick={save}>
                 {saveMutation.isPending ? 'Saving…' : form.id ? 'Save changes' : 'Publish challenge'}
               </button>
