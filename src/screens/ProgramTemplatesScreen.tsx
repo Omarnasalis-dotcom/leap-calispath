@@ -45,19 +45,13 @@ import { localizedErrorText } from '../lib/asyncErrorHandler';
 const DIFFICULTY_OPTIONS: (DifficultyBand | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced'];
 const LEVEL_LABEL: Record<DifficultyBand, string> = { beginner: t('chips.beginner'), intermediate: t('chips.intermediate'), advanced: t('chips.advanced') };
 
-// Same cover-photo resolution as WorkoutLibraryScreen's getCardImage — an
-// admin-uploaded cover_image_url always wins; otherwise real athlete
-// photography keyed by tier range, then a generic fallback. Always
-// resolves to something real, never blank.
+// An admin-uploaded cover (cover_image_url, or the light-mode one) always
+// wins; every published template has one. A template published without a
+// cover gets a generic photo, so a card is never blank. (The old per-tier
+// bundled covers were dropped 2026-10-23: unused, ~11 MB of app.)
 function getCardImage(rec: LibraryTemplateRecommendation, index: number, mode: 'dark' | 'light') {
   const coverUrl = pickCoverImageUrl(rec, mode);
   if (coverUrl) return { uri: coverUrl };
-  if (rec.tier_range.min === 4 && rec.tier_range.max === 5) return require('../../assets/backpose.png');
-  if (rec.tier_range.min === 5 && rec.tier_range.max === 6) return require('../../assets/backmuscle.png');
-  if (rec.tier_range.min === 2 && rec.tier_range.max === 3) return require('../../assets/parallet.png');
-  if (rec.tier_range.min === 3 && rec.tier_range.max === 4) return require('../../assets/pushup.png');
-  if (rec.tier_range.min === 7 && rec.tier_range.max === 9) return require('../../assets/Fronttouch.png');
-  if (rec.tier_range.min === 6 && rec.tier_range.max === 7) return require('../../assets/Frontpose.png');
   return index % 2 === 0
     ? require('../../assets/programs/fallback-1.jpg')
     : require('../../assets/programs/fallback-2.jpg');
