@@ -92,6 +92,12 @@ const PRODUCT_TIER_MAP: Record<string, { tier: "first" | "pro" | "max"; budgetUs
   "pro:pro-2month": { tier: "pro", budgetUsd: 8.0 },
   "max:max-1month": { tier: "max", budgetUsd: 10.0 },
   "max:max-2month": { tier: "max", budgetUsd: 20.0 },
+  // "-2months" — the original "-2month" Android base plans were created
+  // with a MONTHLY billing period by mistake (Play never lets a base plan's
+  // period change), so these replace them. Keep the old IDs mapped in case
+  // anyone ever bought them.
+  "pro:pro-2months": { tier: "pro", budgetUsd: 8.0 },
+  "max:max-2months": { tier: "max", budgetUsd: 20.0 },
 };
 
 // Events that mean "a new billing period just started" — only these reset
