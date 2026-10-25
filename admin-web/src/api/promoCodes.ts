@@ -43,7 +43,7 @@ export const PROMO_OFFERS: Array<{ product_id: string; offer_id: string; label: 
   { product_id: 'pro:pro-2months', offer_id: 'pro-2months-code', label: 'Pro 2 months · 30% off first period' },
   { product_id: 'max:max-1month', offer_id: 'max-1month-code', label: 'Max 1 month · 29% off × 2 months' },
   { product_id: 'max:max-2months', offer_id: 'max-2months-code', label: 'Max 2 months · 28% off first period' },
-  { product_id: 'first:first-1month', offer_id: 'first-1month-code', label: 'First 1 month · 29% off first month' },
+  { product_id: 'first:first-1month', offer_id: 'first-1month-code', label: 'First 1 month · 29% off × 2 months' },
 ];
 
 const ADMIN_ERRORS: Record<string, string> = {
