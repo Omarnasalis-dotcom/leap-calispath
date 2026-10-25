@@ -14,6 +14,7 @@ const ADMIN_NAV: Array<
   { to: '/users', label: 'Users' },
   { to: '/leaderboards', label: 'Leaderboards' },
   { to: '/ai-coach-reports', label: 'AI Coach reports' },
+  { to: '/promo-codes', label: 'Promo codes' },
   { section: 'Fair Play' },
   { to: '/fair-play', label: 'Flags', end: true },
   { to: '/fair-play/appeals', label: 'Appeals' },
