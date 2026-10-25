@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet, Alert, Platform } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Purchases from 'react-native-purchases';
+import { router } from 'expo-router';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useTutorial } from '../../contexts/TutorialContext';
@@ -182,6 +183,19 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
               <View style={styles.rowLeft}>
                 <MaterialCommunityIcons name="credit-card-outline" size={18} color={theme.text.secondary} />
                 <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.manageSubscription')}</Text>
+              </View>
+              <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} style={FLIP_X} />
+            </TouchableOpacity>
+          )}
+
+          {Platform.OS !== 'web' && (
+            <TouchableOpacity
+              style={[styles.row, { borderBottomColor: theme.card.border }]}
+              onPress={() => { onClose(); router.push('/redeem-code'); }}
+            >
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="ticket-percent-outline" size={18} color={theme.text.secondary} />
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>{t('settings.redeemCode')}</Text>
               </View>
               <MaterialCommunityIcons name="chevron-right" size={18} color={theme.text.tertiary} style={FLIP_X} />
             </TouchableOpacity>

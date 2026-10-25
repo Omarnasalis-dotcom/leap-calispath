@@ -48,7 +48,10 @@ export type AnalyticsEvent =
   | 'trial_finished'
   | 'trial_too_fast'
   | 'trial_abandoned'
-  | 'step_finished';
+  | 'step_finished'
+  // Settings → Redeem a code: code sent to the store → plan unlocked.
+  | 'redeem_code_submitted'
+  | 'redeem_code_unlocked';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).
