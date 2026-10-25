@@ -1,8 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
-  AppState,
-  Linking,
   Platform,
   ScrollView,
   StyleSheet,
@@ -20,7 +18,7 @@ import { useMountedRef } from '../hooks/useMountedRef';
 import { hasActiveAccess } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
-import { isValidRedeemCode, normalizeRedeemCode, redeemUrl, MAX_REDEEM_CODE_LENGTH } from '../lib/redeemCode';
+import { isValidRedeemCode, normalizeRedeemCode, parseClaimResult, playOfferTarget, MAX_REDEEM_CODE_LENGTH } from '../lib/redeemCode';
 import { FLIP_X, t } from '../i18n';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
@@ -52,6 +50,7 @@ export function RedeemCodeScreen() {
   const [code, setCode] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [step, setStep] = useState<Step>('enter');
+  const [busy, setBusy] = useState(false);
   const before = useRef<Profile>(profile);
   const checking = useRef(false);
 
@@ -60,11 +59,6 @@ export function RedeemCodeScreen() {
     checking.current = true;
     setStep('checking');
     try {
-      // Play promo codes are bought outside the app; ask the SDK to pick the
-      // purchase up now. iOS sees new App Store transactions on its own.
-      if (Platform.OS === 'android') {
-        try { await Purchases.syncPurchases(); } catch (err) { console.warn('[Redeem] syncPurchases failed:', err); }
-      }
       for (let attempt = 0; attempt < POLL_ATTEMPTS; attempt++) {
         await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
         if (!isMounted.current) return;
@@ -92,22 +86,13 @@ export function RedeemCodeScreen() {
     }
   }, [refreshProfile, isMounted]);
 
-  // Android: back from Google Play, check right away instead of waiting for
-  // a tap. iOS: Apple's code sheet is inside the app, so instead wait for the
-  // SDK to report the new transaction.
+  // iOS: Apple's code sheet is inside the app; wait for the SDK to report the
+  // new transaction. Also while "not yet": a check can finish before Apple does.
   useEffect(() => {
-    if (isIOS) {
-      // Also while "not yet": a check can finish before Apple does.
-      if (step !== 'opened' && step !== 'notYet') return;
-      const listener = () => { check(); };
-      Purchases.addCustomerInfoUpdateListener(listener);
-      return () => { Purchases.removeCustomerInfoUpdateListener(listener); };
-    }
-    if (step !== 'opened') return;
-    const sub = AppState.addEventListener('change', (state) => {
-      if (state === 'active') check();
-    });
-    return () => sub.remove();
+    if (!isIOS || (step !== 'opened' && step !== 'notYet')) return;
+    const listener = () => { check(); };
+    Purchases.addCustomerInfoUpdateListener(listener);
+    return () => { Purchases.removeCustomerInfoUpdateListener(listener); };
   }, [step, check, isIOS]);
 
   // iOS: Apple's own offer-code sheet (StoreKit), shown over the app. The
@@ -127,22 +112,50 @@ export function RedeemCodeScreen() {
     }
   };
 
+  // Android: the server checks the code and names the Play offer; Leap then
+  // buys exactly that offer through Google's own purchase sheet.
   const handleRedeem = async () => {
     const normalized = normalizeRedeemCode(code);
     if (!isValidRedeemCode(normalized)) {
       setError(t('redeem.invalid'));
       return;
     }
-    if (Platform.OS !== 'android') return;
+    if (Platform.OS !== 'android' || busy) return;
     setError(null);
+    setBusy(true);
     before.current = profile;
     track('redeem_code_submitted', { platform: 'android' });
     try {
-      await Linking.openURL(redeemUrl('android', normalized));
-      setStep('opened');
-    } catch (err) {
-      console.error('[Redeem] openURL failed:', err);
-      setError(t('redeem.couldNotOpen'));
+      const { data, error: rpcError } = await supabase.rpc('claim_promo_code', { p_code: normalized });
+      if (rpcError) throw rpcError;
+      const claim = parseClaimResult(data);
+      if (!claim.ok) {
+        if (isMounted.current) setError(t(`redeem.errors.${claim.error}`));
+        return;
+      }
+      const target = playOfferTarget(claim.productId, claim.offerId);
+      const products = target ? await Purchases.getProducts([target.subscriptionId]) : [];
+      const option = products
+        .find((p) => p.identifier === claim.productId)
+        ?.subscriptionOptions?.find((o) => o.id === target?.optionId);
+      if (!option) {
+        console.error('[Redeem] Play offer not found:', claim.productId, claim.offerId);
+        if (isMounted.current) setError(t('redeem.errors.OFFER_UNAVAILABLE'));
+        return;
+      }
+      await Purchases.purchaseSubscriptionOption(option);
+      // Stats only; access comes from the RevenueCat webhook.
+      supabase.rpc('mark_promo_code_purchased', { p_code: normalized }).then(({ error: e }) => {
+        if (e) console.warn('[Redeem] mark_promo_code_purchased failed:', e);
+      });
+      if (isMounted.current) await check();
+    } catch (err: any) {
+      // Closing Google's sheet isn't an error: stay on the code box.
+      if (err?.userCancelled) return;
+      console.error('[Redeem] redeem failed:', err);
+      if (isMounted.current) setError(t('redeem.errors.UNKNOWN'));
+    } finally {
+      if (isMounted.current) setBusy(false);
     }
   };
 
@@ -212,11 +225,11 @@ export function RedeemCodeScreen() {
             {error && <Text style={styles.error}>{error}</Text>}
             <TouchableOpacity
               accessibilityRole="button"
-              style={[styles.primaryBtn, !code.trim() && styles.disabled]}
-              disabled={!code.trim()}
+              style={[styles.primaryBtn, (!code.trim() || busy) && styles.disabled]}
+              disabled={!code.trim() || busy}
               onPress={handleRedeem}
             >
-              <Text style={styles.primaryBtnText}>{t('redeem.redeem')}</Text>
+              {busy ? <ActivityIndicator color="#000" /> : <Text style={styles.primaryBtnText}>{t('redeem.redeem')}</Text>}
             </TouchableOpacity>
             <Text style={styles.note}>{t('redeem.note')}</Text>
           </>
@@ -224,7 +237,7 @@ export function RedeemCodeScreen() {
 
         {step === 'opened' && (
           <>
-            <Text style={styles.body}>{isIOS ? t('redeem.openedIos') : t('redeem.opened', { store: storeName })}</Text>
+            <Text style={styles.body}>{t('redeem.openedIos')}</Text>
             <TouchableOpacity accessibilityRole="button" style={styles.primaryBtn} onPress={check}>
               <Text style={styles.primaryBtnText}>{t('redeem.checkNow')}</Text>
             </TouchableOpacity>
