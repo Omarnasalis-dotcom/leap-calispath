@@ -42,7 +42,7 @@ export const PROMO_OFFERS: Array<{ product_id: string; offer_id: string; label: 
   { product_id: 'pro:pro-1month', offer_id: 'pro-1month-code', label: 'Pro 1 month · 38% off × 2 months' },
   { product_id: 'pro:pro-2months', offer_id: 'pro-2months-code', label: 'Pro 2 months · 30% off × 2 periods (4 months)' },
   { product_id: 'max:max-1month', offer_id: 'max-1month-code', label: 'Max 1 month · 29% off × 2 months' },
-  { product_id: 'max:max-2months', offer_id: 'max-2months-code', label: 'Max 2 months · 28% off first period' },
+  { product_id: 'max:max-2months', offer_id: 'max-2months-code', label: 'Max 2 months · 28% off × 2 periods (4 months)' },
   { product_id: 'first:first-1month', offer_id: 'first-1month-code', label: 'First 1 month · 29% off × 2 months' },
 ];
 
