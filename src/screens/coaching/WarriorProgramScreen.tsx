@@ -1069,13 +1069,30 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       // archived out from under it.
       const maxWeek = Math.max(...Object.keys(newWeeksMap).map(k => parseInt(k, 10)));
       const rawCurrentWeek = actualAssignment.current_week || 1;
-      const targetWeek = rawToDisplayWeek.get(rawCurrentWeek) ?? maxWeek;
+      const currentDisplayWeek = rawToDisplayWeek.get(rawCurrentWeek) ?? maxWeek;
+      // If that week is already all done (later weeks can be done from their
+      // tabs without current_week moving), open on the first later week with
+      // a day left, else the last week, where ADD NEW WEEK shows.
+      const isWeekDone = (w: number) => {
+        const wDays = newWeeksMap[w] || [];
+        return wDays.length > 0 && deriveDayStates(wDays).every(d => d.status === 'done');
+      };
+      let targetWeek = currentDisplayWeek;
+      if (isWeekDone(targetWeek)) {
+        const later = Object.keys(newWeeksMap).map(k => parseInt(k, 10)).filter(w => w > targetWeek).sort((a, b) => a - b);
+        targetWeek = later.find(w => !isWeekDone(w)) ?? (later.length ? maxWeek : targetWeek);
+      }
       setActiveWeek(targetWeek);
       // Journey "Switch day" pick -- only ever the athlete's own (a coach
       // viewing a client reads nothing back), never blocks the load.
-      fetchDayChoiceForWeek(actualAssignment.id, rawCurrentWeek).then((index) =>
-        setPickedDay(index == null ? null : { week: targetWeek, index })
-      );
+      // It belongs to current_week, so it's skipped when opening on another.
+      if (targetWeek === currentDisplayWeek) {
+        fetchDayChoiceForWeek(actualAssignment.id, rawCurrentWeek).then((index) =>
+          setPickedDay(index == null ? null : { week: targetWeek, index })
+        );
+      } else {
+        setPickedDay(null);
+      }
 
       const targetWeekDays = newWeeksMap[targetWeek] || [];
       if (
