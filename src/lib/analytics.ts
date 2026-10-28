@@ -59,7 +59,10 @@ export type AnalyticsEvent =
   | 'offer_dismissed'
   | 'offer_banner_tapped'
   | 'add_week_locked_tapped'
-  | 'update_chip_tapped';
+  | 'update_chip_tapped'
+  | 'ai_week_review_tapped'
+  | 'ai_week_repeated'
+  | 'ai_week_repeat_undone';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).

@@ -56,7 +56,13 @@ function ensurePurchasesConfigured() {
     purchasesConfigured = true;
   } catch (error) {
     console.error('[Purchases] configure failed:', error);
+    return;
   }
+  // The paywall otherwise follows the phone's language, which can differ
+  // from the app's (chosen in Settings or on the sign-in screen).
+  Purchases.overridePreferredLocale(currentLanguage === 'ar' ? 'ar' : 'en').catch((error) => {
+    console.warn('[Purchases] locale override failed:', error);
+  });
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);

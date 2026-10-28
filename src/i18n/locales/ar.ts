@@ -4,6 +4,7 @@ import type { Translations } from './en';
 // Eternity) and training terms such as AMRAP, Tabata and 1RM.
 const ar: Translations = {
   common: {
+    undo: 'تراجع',
     ok: 'حسنًا',
     cancel: 'إلغاء',
     close: 'إغلاق',
@@ -394,6 +395,15 @@ const ar: Translations = {
     trialLocked: 'يُفتح بعد إكمال جميع أيام هذا الأسبوع.',
     weekComplete: 'اكتمل الأسبوع — أحسنت.',
     weekCompleteLast: 'اكتمل الأسبوع — وهذه كل أسابيع البرنامج.',
+    weekCompleteCoach: 'اكتمل الأسبوع — سيضيف مدربك أسبوعك التالي.',
+    weekCompleteAi: 'اكتمل الأسبوع — راجعه مع Leap Coach لبناء الأسبوع التالي، أو كرّر هذا الأسبوع كما هو.',
+    reviewWithCoach: 'راجِعه مع المدرب',
+    repeatWeek: 'كرّر الأسبوع',
+    aiReviewPrompt: 'أنهيت هذا الأسبوع. لنراجعه ونبني الأسبوع التالي.',
+    repeatWeekLimit: 'أضفت الحد الأقصى من الأسابيع اليوم. حاول مرة أخرى غدًا.',
+    repeatWeekFailed: 'تعذّرت إضافة الأسبوع. تحقق من اتصالك وحاول مرة أخرى.',
+    weekAddedUndo: 'أُضيف الأسبوع {{week}} — مثل الأسبوع السابق.',
+    undoWeekFailed: 'تعذّر التراجع. يمكنك أن تطلب من Leap Coach حذف الأسبوع.',
     startingNextWeek: 'جارٍ بدء الأسبوع التالي…',
     addingWeek: 'جارٍ إضافة أسبوع…',
     startWeek: 'ابدأ الأسبوع {{week}}',
@@ -545,6 +555,8 @@ const ar: Translations = {
     continueFree: 'المتابعة مجانًا',
   },
   workout: {
+    reviewWithCoach: 'راجِعه مع المدرب',
+    repeatWeek: 'كرّر الأسبوع',
     blocksNotLoggedOne: 'قسم واحد لم يُسجَّل بعد',
     blocksNotLoggedMany: '{{count}} أقسام لم تُسجَّل بعد',
     blocksNotLoggedMany_two: 'قسمان لم يُسجَّلا بعد',

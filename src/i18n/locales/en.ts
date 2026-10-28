@@ -2,6 +2,7 @@
 // shape (enforced by its type), so a missing Arabic string is a type error.
 const en = {
   common: {
+    undo: 'UNDO',
     ok: 'OK',
     cancel: 'Cancel',
     close: 'CLOSE',
@@ -342,6 +343,15 @@ const en = {
     trialLocked: 'Unlocks after every day this week is done.',
     weekComplete: 'Week complete — nice work.',
     weekCompleteLast: "Week complete — that's every week in this program.",
+    weekCompleteCoach: 'Week complete — your coach will add your next week.',
+    weekCompleteAi: 'Week complete — review it with Leap Coach to build next week, or repeat this week as it is.',
+    reviewWithCoach: 'REVIEW WITH COACH',
+    repeatWeek: 'REPEAT WEEK',
+    aiReviewPrompt: "I finished this week. Let's review it and build next week.",
+    repeatWeekLimit: "You've added the most weeks for today. Try again tomorrow.",
+    repeatWeekFailed: "Couldn't add the week. Check your connection and try again.",
+    weekAddedUndo: 'Week {{week}} added — same as last week.',
+    undoWeekFailed: "Couldn't undo. You can ask Leap Coach to remove the week.",
     startingNextWeek: 'STARTING NEXT WEEK…',
     addingWeek: 'ADDING WEEK…',
     startWeek: 'START WEEK {{week}}',
@@ -489,6 +499,8 @@ const en = {
     continueFree: 'Continue Free',
   },
   workout: {
+    reviewWithCoach: 'REVIEW WITH COACH',
+    repeatWeek: 'REPEAT WEEK',
     blocksNotLoggedOne: '1 BLOCK NOT LOGGED YET',
     blocksNotLoggedMany: '{{count}} BLOCKS NOT LOGGED YET',
     blocksNotLoggedBody: "Mark them as completed or missed so your coach has the full picture — or continue anyway and they'll be marked as missed automatically.",

@@ -30,6 +30,7 @@ import { useJourneyPoints } from '../hooks/useJourneyPoints';
 import { JourneyPointsSummary, JourneyTask, PointsEntry, programDayPointsToday, questPaidToday, todaySegments } from '../lib/journeyPoints';
 import { measureInWindow, WindowRect } from '../lib/measureView';
 import { track } from '../lib/analytics';
+import { UndoToast } from '../components/UndoToast';
 import { setPostOnboardingDestination } from '../lib/postOnboardingDestination';
 import { TIER_NAMES } from '../types';
 import { supabase } from '../lib/supabase';
@@ -1262,6 +1263,9 @@ interface JourneyProgramData {
   // hardcodes week_number = 1), so this is what actually lets someone keep
   // training past the one week they built instead of hitting a dead end.
   canAddWeek: boolean;
+  // An AI Coach program: past its last week the athlete either reviews it
+  // with the coach (who builds the next week) or repeats it as is.
+  isAiCoachProgram: boolean;
   // Every week from 1 through currentWeek, in order — the full path so
   // far, not just "this week". Past weeks are already fully done (that's
   // how currentWeek got here), so only the last entry ever has an active
@@ -1333,6 +1337,8 @@ const QUEST_SLOT_KEY_PATTERN = /^w[0-9]+_(s[0-9]+|trial)$/;
 // that owns Customize Program / Ready Template programs, as opposed to a
 // real coach or the AI coach profile.
 const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+// Owns programs the AI Coach built (see ai_coach_append_week).
+const AI_COACH_PROFILE_ID = '00000000-0000-0000-0000-000000000002';
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
 }
@@ -1813,6 +1819,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         currentWeek: rawCurrentWeek,
         hasNextWeek,
         canAddWeek: (program as any).coach_id === LEAP_SYSTEM_PROFILE_ID,
+        isAiCoachProgram: (program as any).coach_id === AI_COACH_PROFILE_ID,
         weeks,
       };
       await syncQuestSlots(freshData.warriorProgramId, serverQuestSlots);
@@ -2046,6 +2053,62 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     setAdvancingWeek(false);
     loadJourneyProgram();
   }, [journeyData, router, loadJourneyProgram, profile, paywallEnabled]);
+
+  // AI Coach program past its last week: the coach reviews the week and
+  // builds the next one (it leads with that review on its own; the prompt
+  // just starts it)...
+  const handleReviewWithCoach = useCallback(() => {
+    track('ai_week_review_tapped', { from: 'journey' });
+    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } });
+  }, [router]);
+
+  // The repeated week can be undone for UNDO_WINDOW_MS (UndoToast); after
+  // that only Leap Coach removes it (ai_coach_delete_week, which refuses a
+  // week with logged workouts).
+  const [undoWeek, setUndoWeek] = useState<{ programId: string; week: number } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const handleUndoRepeat = useCallback(async () => {
+    if (!undoWeek || undoing) return;
+    setUndoing(true);
+    const { error } = await supabase.rpc('ai_coach_delete_week', {
+      p_warrior_program_id: undoWeek.programId,
+      p_week_number: undoWeek.week,
+    });
+    setUndoing(false);
+    setUndoWeek(null);
+    if (error) {
+      console.error('Failed to undo the added week:', error);
+      Alert.alert(t('journey.undoWeekFailed'));
+      return;
+    }
+    track('ai_week_repeat_undone', { from: 'journey' });
+    loadJourneyProgram();
+  }, [undoWeek, undoing, loadJourneyProgram]);
+
+  // ...or the finished week repeats as is: ai_coach_append_week with no new
+  // blocks carries every block forward (paid plan, own AI program, 5 a day).
+  const handleRepeatAiWeek = useCallback(async () => {
+    if (!journeyData || advancingWeek) return;
+    track('ai_week_repeated', { from: 'journey' });
+    setAdvancingWeek(true);
+    const { data, error } = await supabase.rpc('ai_coach_append_week', {
+      p_warrior_program_id: journeyData.warriorProgramId,
+      p_blocks: [],
+    });
+    setAdvancingWeek(false);
+    if (error) {
+      console.error('Failed to repeat the week:', error);
+      if (error.message === 'PRO_REQUIRED') router.push('/paywall?from=ai_repeat_week' as never);
+      else if (error.message.startsWith('RATE_LIMIT')) Alert.alert(t('journey.repeatWeekLimit'));
+      else Alert.alert(t('journey.repeatWeekFailed'));
+      return;
+    }
+    const weekOffset = (data as { week_offset?: number } | null)?.week_offset;
+    if (typeof weekOffset === 'number') {
+      setUndoWeek({ programId: journeyData.warriorProgramId, week: weekOffset + 1 });
+    }
+    loadJourneyProgram();
+  }, [journeyData, advancingWeek, router, loadJourneyProgram]);
 
   // Plain function, not useCallback -- it's only ever called directly below
   // in the same render, never passed down as a memoized prop or referenced
@@ -2950,13 +3013,39 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                   containerRef={currentTarget?.kind === 'trial' ? activeStepRef : undefined}
                 />
 
-                {weekComplete && (
+                {weekComplete && !journeyData.hasNextWeek && journeyData.isAiCoachProgram && (
+                  <View style={styles.weekCompleteBanner}>
+                    <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
+                    <Text style={[styles.weekCompleteText, { textAlign: 'center' }]}>{t('journey.weekCompleteAi')}</Text>
+                    <View style={styles.weekCompleteActions}>
+                      <TouchableOpacity
+                        style={[styles.weekCompleteSmallPill, advancingWeek && { opacity: 0.6 }]}
+                        onPress={handleReviewWithCoach}
+                        disabled={advancingWeek}
+                      >
+                        <MaterialCommunityIcons name="message-text-outline" size={12} color="#FFFFFF" />
+                        <Text style={styles.weekCompleteSmallText}>{t('journey.reviewWithCoach')}</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[styles.weekCompleteSmallPill, styles.weekCompleteSmallOutline, advancingWeek && { opacity: 0.6 }]}
+                        onPress={handleRepeatAiWeek}
+                        disabled={advancingWeek}
+                      >
+                        <MaterialCommunityIcons name="repeat" size={12} color={ACCENT} />
+                        <Text style={[styles.weekCompleteSmallText, { color: ACCENT }]}>
+                          {advancingWeek ? t('journey.addingWeek') : t('journey.repeatWeek')}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+                {weekComplete && !(!journeyData.hasNextWeek && journeyData.isAiCoachProgram) && (
                   <View style={styles.weekCompleteBanner}>
                     <MaterialCommunityIcons name="trophy-outline" size={18} color={ACCENT} />
                     <Text style={styles.weekCompleteText}>
                       {journeyData.hasNextWeek || journeyData.canAddWeek
                         ? t('journey.weekComplete')
-                        : t('journey.weekCompleteLast')}
+                        : t('journey.weekCompleteCoach')}
                     </Text>
                     <TouchableOpacity
                       style={[styles.weekCompletePill, advancingWeek && { opacity: 0.6 }]}
@@ -3038,6 +3127,12 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         onUndo={handleUndoTask}
       />
     )}
+    <UndoToast
+      message={undoWeek ? t('journey.weekAddedUndo', { week: undoWeek.week }) : null}
+      onUndo={handleUndoRepeat}
+      onExpire={() => setUndoWeek(null)}
+      busy={undoing}
+    />
     {/* mode='journey' used to render its own BottomTabBar here; it now
         renders once in app/(tabs)/_layout.tsx instead, since that route
         (/my-journey) is one of the screens in that persistent tab group.
@@ -3593,6 +3688,33 @@ const darkStyles = StyleSheet.create({
     fontFamily: 'PlusJakartaSans-ExtraBold',
     fontSize: 12,
     letterSpacing: 1.5,
+  },
+  weekCompleteActions: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  weekCompleteSmallPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    backgroundColor: ACCENT,
+    paddingVertical: 7,
+    paddingHorizontal: 12,
+    borderRadius: 18,
+    borderWidth: 1.5,
+    borderColor: ACCENT,
+  },
+  weekCompleteSmallOutline: {
+    backgroundColor: 'transparent',
+  },
+  weekCompleteSmallText: {
+    color: '#FFFFFF',
+    fontFamily: 'PlusJakartaSans-ExtraBold',
+    fontSize: 10.5,
+    letterSpacing: 1,
   },
   choiceStack: {
     // Extra headroom vs. the plain 12px other lane sections use -- the gold

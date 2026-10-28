@@ -15,6 +15,7 @@ import { View,
   BackHandler,
   Alert } from 'react-native';
 import { track } from '../../lib/analytics';
+import { UndoToast } from '../../components/UndoToast';
 import { useTheme } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { getSubscriptionTier, meetsMinTier } from '../../lib/entitlement';
@@ -85,6 +86,8 @@ interface WarriorProgramScreenProps {
 // constant) rather than a real coach — only those are eligible for
 // self-service week extension via add_week_to_own_program.
 const LEAP_SYSTEM_PROFILE_ID = '00000000-0000-0000-0000-000000000001';
+// Owns programs the AI Coach built (see ai_coach_append_week).
+const AI_COACH_PROFILE_ID = '00000000-0000-0000-0000-000000000002';
 
 // In-progress set logging saved on-device so it survives the app being
 // killed mid-workout (see the restore/save effects in the component).
@@ -201,6 +204,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const maxWeek = weekNumbers.length ? Math.max(...weekNumbers) : 1;
   const isLastWeekDone = days.length > 0 && deriveDayStates(days).every(d => d.status === 'done');
   const canAddWeek = activeWeek === maxWeek && isLastWeekDone && coachId === LEAP_SYSTEM_PROFILE_ID;
+  // An AI Coach program past its last week: review it with the coach, or
+  // repeat the week as is (same as MilestoneLaneScreen).
+  const aiWeekDone = activeWeek === maxWeek && isLastWeekDone && coachId === AI_COACH_PROFILE_ID;
   const [activeDayIndex, setActiveDayIndex] = useState<number>(0);
   // Journey "Switch day" pick for the current week (display week + day index).
   const [pickedDay, setPickedDay] = useState<{ week: number; index: number } | null>(null);
@@ -1146,6 +1152,57 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (bumpError) {
       console.error('Failed to advance to new week:', bumpError);
     }
+    await loadWarriorProgram();
+    setAddingWeek(false);
+  };
+
+  const handleReviewWithCoach = () => {
+    track('ai_week_review_tapped', { from: 'workout' });
+    router.push({ pathname: '/coach', params: { firstPrompt: t('journey.aiReviewPrompt') } });
+  };
+
+  // The repeated week can be undone for UNDO_WINDOW_MS (UndoToast); after
+  // that only Leap Coach removes it.
+  const [undoWeek, setUndoWeek] = useState<{ programId: string; week: number } | null>(null);
+  const [undoing, setUndoing] = useState(false);
+  const handleUndoRepeat = async () => {
+    if (!undoWeek || undoing) return;
+    setUndoing(true);
+    const { error } = await supabase.rpc('ai_coach_delete_week', {
+      p_warrior_program_id: undoWeek.programId,
+      p_week_number: undoWeek.week,
+    });
+    setUndoing(false);
+    setUndoWeek(null);
+    if (error) {
+      console.error('Failed to undo the added week:', error);
+      Alert.alert(t('journey.undoWeekFailed'));
+      return;
+    }
+    track('ai_week_repeat_undone', { from: 'workout' });
+    await loadWarriorProgram();
+  };
+
+  // ai_coach_append_week with no new blocks carries every block of the last
+  // week forward: the week repeats and the program stays the AI Coach's.
+  const handleRepeatAiWeek = async () => {
+    if (addingWeek || !warriorProgramId) return;
+    track('ai_week_repeated', { from: 'workout' });
+    setAddingWeek(true);
+    const { data, error } = await supabase.rpc('ai_coach_append_week', {
+      p_warrior_program_id: warriorProgramId,
+      p_blocks: [],
+    });
+    if (error) {
+      console.error('Failed to repeat the week:', error);
+      setAddingWeek(false);
+      if (error.message === 'PRO_REQUIRED') router.push('/paywall?from=ai_repeat_week' as never);
+      else if (error.message.startsWith('RATE_LIMIT')) Alert.alert(t('journey.repeatWeekLimit'));
+      else Alert.alert(t('journey.repeatWeekFailed'));
+      return;
+    }
+    const weekOffset = (data as { week_offset?: number } | null)?.week_offset;
+    if (typeof weekOffset === 'number') setUndoWeek({ programId: warriorProgramId, week: weekOffset + 1 });
     await loadWarriorProgram();
     setAddingWeek(false);
   };
@@ -2131,6 +2188,52 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   }}
                 />
 
+                {aiWeekDone && (
+                  <View style={{ flexDirection: 'row', gap: 10 }}>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        borderRadius: 10,
+                        paddingVertical: 11,
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 6,
+                        backgroundColor: '#FF5252',
+                        opacity: addingWeek ? 0.6 : 1,
+                      }}
+                      onPress={handleReviewWithCoach}
+                      disabled={addingWeek}
+                    >
+                      <MaterialCommunityIcons name="message-text-outline" size={14} color="#000" />
+                      <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8 }} numberOfLines={1}>
+                        {t('workout.reviewWithCoach')}
+                      </Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity
+                      style={{
+                        flex: 1,
+                        borderRadius: 10,
+                        paddingVertical: 10,
+                        flexDirection: 'row',
+                        justifyContent: 'center',
+                        alignItems: 'center',
+                        gap: 6,
+                        borderWidth: 1.5,
+                        borderColor: '#FF5252',
+                        opacity: addingWeek ? 0.6 : 1,
+                      }}
+                      onPress={handleRepeatAiWeek}
+                      disabled={addingWeek}
+                    >
+                      <MaterialCommunityIcons name="repeat" size={14} color="#FF5252" />
+                      <Text style={{ color: '#FF5252', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8 }} numberOfLines={1}>
+                        {addingWeek ? t('workout.addingWeek') : t('workout.repeatWeek')}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
                 {canAddWeek && (
                   <TouchableOpacity
                     style={{
@@ -2223,6 +2326,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         }}
         onCancel={() => setUpgradeModalVisible(false)}
         onDismiss={handleUpgradeModalDismissed}
+      />
+
+      <UndoToast
+        message={undoWeek ? t('journey.weekAddedUndo', { week: undoWeek.week }) : null}
+        onUndo={handleUndoRepeat}
+        onExpire={() => setUndoWeek(null)}
+        busy={undoing}
       />
 
       {/* LOG DETAILS MODAL */}
