@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { View, Image, StyleSheet, AccessibilityInfo } from 'react-native';
 import { useVideoPlayer, VideoView } from 'expo-video';
 import { getExerciseMedia } from '../data/exerciseMedia';
+import { useTheme } from '../contexts/ThemeContext';
 
 interface ExerciseDemoProps {
   movementId: string;
@@ -10,6 +11,8 @@ interface ExerciseDemoProps {
 
 export function ExerciseDemo({ movementId, label }: ExerciseDemoProps) {
   const media = getExerciseMedia(movementId);
+  const { mode } = useTheme();
+  const light = mode === 'light';
   const [reduceMotion, setReduceMotion] = useState(false);
 
   useEffect(() => {
@@ -25,8 +28,9 @@ export function ExerciseDemo({ movementId, label }: ExerciseDemoProps) {
   }, []);
 
   const showVideo = !!media?.video && !reduceMotion;
+  const source = light && media?.videoLight ? media.videoLight : media?.video;
 
-  const player = useVideoPlayer(showVideo ? media!.video : null, (p) => {
+  const player = useVideoPlayer(showVideo ? source! : null, (p) => {
     p.loop = true;
     p.muted = true;
   });
@@ -46,7 +50,7 @@ export function ExerciseDemo({ movementId, label }: ExerciseDemoProps) {
 
   return (
     <View
-      style={styles.container}
+      style={[styles.container, light && styles.containerLight]}
       accessible
       accessibilityRole="image"
       accessibilityLabel={`Demonstration: ${label}`}
@@ -77,6 +81,9 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     marginBottom: 16,
     backgroundColor: '#000',
+  },
+  containerLight: {
+    backgroundColor: '#F0F0F0',
   },
   media: {
     width: '100%',

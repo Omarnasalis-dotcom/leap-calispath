@@ -28,7 +28,7 @@ import {
 import { preloadExerciseMedia } from '../data/exerciseMedia';
 import { Button } from '../components/Button';
 import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
-import { t } from '../i18n';
+import { ltr, t } from '../i18n';
 
 if (Platform.OS === 'android' && UIManager.setLayoutAnimationEnabledExperimental) {
   UIManager.setLayoutAnimationEnabledExperimental(true);
@@ -285,7 +285,7 @@ export function AssessmentScreen({ onComplete }: { onComplete: () => void }) {
           {!askingReps ? (
             <View style={styles.questionCard}>
               <Text style={[styles.questionPrompt, { color: theme.text.primary }]}>
-                {t('assessment.canYouDo', { label: currentOption.label })}
+                {t('assessment.canYouDo', { label: ltr(currentOption.label) })}
               </Text>
               <Text style={[styles.questionDesc, { color: theme.text.tertiary }]}>
                 {currentOption.description}
