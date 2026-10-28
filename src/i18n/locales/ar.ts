@@ -57,6 +57,8 @@ const ar: Translations = {
     invalidEmail: 'أدخل بريدًا إلكترونيًا صحيحًا.',
   },
   auth: {
+    switchToLight: 'التبديل إلى الوضع الفاتح',
+    switchToDark: 'التبديل إلى الوضع الداكن',
     enterTab: 'دخول',
     joinTab: 'انضمام',
     signUpHeadingLead: 'اصنع ',

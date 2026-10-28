@@ -8,8 +8,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useTutorial } from '../../contexts/TutorialContext';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { DeleteAccountModal } from './DeleteAccountModal';
-import { t, FLIP_X, CAN_CHOOSE_ARABIC, currentLanguage, type AppLanguage } from '../../i18n';
-import { setAppLanguage } from '../../i18n/language';
+import { t, FLIP_X, CAN_CHOOSE_ARABIC } from '../../i18n';
+import { confirmLanguageSwitch } from '../../i18n/language';
 import { supabase } from '../../lib/supabase';
 import { invalidatePowerLeaderboardCache, invalidateStrengthLeaderboardCache } from '../../lib/leaderboard';
 import { openFairPlaySheet, useFairPlay } from '../../services/FairPlayService';
@@ -64,13 +64,7 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
   const [isMuted, setIsMuted] = useState(SoundService.getMuted());
 
   const handleChooseLanguage = () => {
-    const switchTo = (language: AppLanguage) => {
-      if (language === currentLanguage) return;
-      Alert.alert(t('settings.restartTitle'), t('settings.restartMessage'), [
-        { text: t('common.cancel'), style: 'cancel' },
-        { text: t('settings.restart'), onPress: () => setAppLanguage(language) },
-      ]);
-    };
+    const switchTo = confirmLanguageSwitch;
     // Each language is always shown in its own script.
     Alert.alert(t('settings.chooseLanguage'), undefined, [
       { text: 'English', onPress: () => switchTo('en') },

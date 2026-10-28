@@ -14,7 +14,8 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [mode, setMode] = useState<ThemeMode>('dark'); // Default until stored preference loads
+  // Light unless the person chose dark (Settings or the sign-in screen).
+  const [mode, setMode] = useState<ThemeMode>('light');
 
   useEffect(() => {
     AsyncStorage.getItem(THEME_STORAGE_KEY).then((stored) => {

@@ -1,8 +1,8 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { getLocales } from 'expo-localization';
 import { reloadAppAsync } from 'expo';
-import { I18nManager, Platform } from 'react-native';
-import { ARABIC_ENABLED, CAN_CHOOSE_ARABIC, type AppLanguage } from './index';
+import { Alert, I18nManager, Platform } from 'react-native';
+import { ARABIC_ENABLED, CAN_CHOOSE_ARABIC, currentLanguage, t, type AppLanguage } from './index';
 
 const LANGUAGE_KEY = 'app_language_v1';
 // Remembers a restart already made for a language, so a platform that
@@ -73,4 +73,14 @@ export async function setAppLanguage(language: AppLanguage) {
   }
   applyDirection(language);
   await restartOnce(language);
+}
+
+// Switching language restarts the app (Arabic flips the layout), so it asks
+// first. Used by Settings and the sign-in screen.
+export function confirmLanguageSwitch(language: AppLanguage) {
+  if (language === currentLanguage) return;
+  Alert.alert(t('settings.restartTitle'), t('settings.restartMessage'), [
+    { text: t('common.cancel'), style: 'cancel' },
+    { text: t('settings.restart'), onPress: () => setAppLanguage(language) },
+  ]);
 }

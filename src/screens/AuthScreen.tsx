@@ -29,7 +29,8 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { supabase } from '../lib/supabase';
 import { getFriendlyErrorMessage } from '../lib/asyncErrorHandler';
 import * as AppleAuthentication from 'expo-apple-authentication';
-import { t, isRTL } from '../i18n';
+import { t, isRTL, CAN_CHOOSE_ARABIC, isArabic } from '../i18n';
+import { confirmLanguageSwitch } from '../i18n/language';
 
 // Accent is brand-fixed (matches theme.accent — same value in both modes,
 // per constants/Theme.ts), so it's pulled out once here rather than living
@@ -281,6 +282,36 @@ const INVITE_CODE_ENABLED = false;
 
 // Keep in sync with ResetPasswordScreen and the Supabase Auth minimum.
 const MIN_NEW_PASSWORD_LENGTH = 8;
+
+// Language and light/dark, top of the sign-in screen. The language pill
+// names the other language in its own script; switching restarts the app.
+function AuthTopControls({ c }: { c: AuthColors }) {
+  const { mode, setTheme } = useTheme();
+  const pill = [styles.topPill, { borderColor: c.glassBorder, backgroundColor: c.glassFill }];
+  return (
+    <View style={styles.topControls}>
+      {Platform.OS !== 'web' && CAN_CHOOSE_ARABIC && (
+        <TouchableOpacity
+          accessibilityRole="button"
+          accessibilityLabel={t('settings.chooseLanguage')}
+          style={pill}
+          onPress={() => confirmLanguageSwitch(isArabic ? 'en' : 'ar')}
+        >
+          <MaterialCommunityIcons name="translate" size={15} color={c.ink} />
+          <Text style={[styles.topPillText, { color: c.ink }]}>{isArabic ? 'English' : 'العربية'}</Text>
+        </TouchableOpacity>
+      )}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={mode === 'dark' ? t('auth.switchToLight') : t('auth.switchToDark')}
+        style={[pill, styles.topPillIcon]}
+        onPress={() => setTheme(mode === 'dark' ? 'light' : 'dark')}
+      >
+        <MaterialCommunityIcons name={mode === 'dark' ? 'white-balance-sunny' : 'weather-night'} size={17} color={c.ink} />
+      </TouchableOpacity>
+    </View>
+  );
+}
 
 export function AuthScreen() {
   const { mode } = useTheme();
@@ -539,6 +570,7 @@ export function AuthScreen() {
           end={{ x: 0.7, y: 1 }}
           style={StyleSheet.absoluteFillObject}
         />
+        <AuthTopControls c={c} />
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.flex}
@@ -754,6 +786,31 @@ export function AuthScreen() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
+  },
+  topControls: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    gap: 8,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'android' ? 36 : 8,
+  },
+  topPill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    height: 34,
+    paddingHorizontal: 12,
+    borderRadius: 17,
+    borderWidth: 1,
+  },
+  topPillIcon: {
+    width: 34,
+    paddingHorizontal: 0,
+    justifyContent: 'center',
+  },
+  topPillText: {
+    fontFamily: 'PlusJakartaSans-Bold',
+    fontSize: 13,
   },
   flex: {
     flex: 1,

@@ -57,6 +57,8 @@ const en = {
     invalidEmail: 'Please enter a valid email address.',
   },
   auth: {
+    switchToLight: 'Switch to light mode',
+    switchToDark: 'Switch to dark mode',
     enterTab: 'ENTER',
     joinTab: 'JOIN',
     signUpHeadingLead: 'Claim your ',
