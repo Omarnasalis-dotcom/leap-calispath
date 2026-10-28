@@ -439,7 +439,7 @@ const MOMENT_LABEL: Record<OfferAnalytics['moments'][number]['moment'], string> 
 
 const PERIOD_LABEL: Record<string, string> = {
   INTRO: 'Intro offer',
-  PROMOTIONAL: 'Offer code',
+  CODE: 'Offer code',
   NORMAL: 'Full price',
   TRIAL: 'Free trial',
   UNKNOWN: 'Unknown',

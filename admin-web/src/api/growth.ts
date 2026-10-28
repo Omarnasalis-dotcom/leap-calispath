@@ -70,7 +70,7 @@ export interface OfferAnalytics {
   }>;
   add_week: { tapped: number; paywall: number; bought: number };
   // Logged by the RevenueCat webhook. period_type: INTRO = intro offer,
-  // PROMOTIONAL = offer code, NORMAL = full price.
+  // CODE = offer code (either store), NORMAL = full price.
   store: Array<{
     event: 'store_purchase' | 'store_renewal';
     period_type: string;
