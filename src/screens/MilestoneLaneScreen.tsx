@@ -47,6 +47,7 @@ import {
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
+import { offerRoute } from '../lib/offerStore';
 
 import { t, FLIP_X, isRTL } from '../i18n';
 
@@ -1911,7 +1912,13 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     }
     setShowReveal(false);
     setShowRankToast(true);
-  }, [profile?.id, profile?.assessed_at]);
+    // The welcome offer, once, right after the first tier reveal (offerPrompt.ts).
+    if (profile?.id) {
+      offerRoute('assessment', { userId: profile.id, paywallEnabled, profile }).then((route) => {
+        if (route) router.push(route as never);
+      });
+    }
+  }, [profile, paywallEnabled, router]);
 
   // Writes onboarding_completed_at once the user picks either option on
   // ProgramReadyReveal -- the single, correct write site for this flag now
@@ -1992,12 +1999,24 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     // long, fully-blocked wait. Folding the bump into the RPC removes one
     // of the three.
     if (!journeyData.hasNextWeek && journeyData.canAddWeek) {
+      // Adding weeks past the program's own is a paid feature (any plan);
+      // add_week_to_own_program checks it too.
+      if (!canAccessPro(profile, paywallEnabled)) {
+        setAdvancingWeek(false);
+        track('add_week_locked_tapped', { from: 'journey' });
+        router.push('/paywall?from=add_week_journey' as never);
+        return;
+      }
       const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
         p_warrior_program_id: journeyData.warriorProgramId,
       });
       if (addWeekError) {
         console.error('Failed to add a new week:', addWeekError);
         setAdvancingWeek(false);
+        if (addWeekError.message === 'upgrade_required') {
+          router.push('/paywall');
+          return;
+        }
         router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
         return;
       }
@@ -2026,7 +2045,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
     // to keep the whole banner blocked on it too, so this isn't awaited.
     setAdvancingWeek(false);
     loadJourneyProgram();
-  }, [journeyData, router, loadJourneyProgram]);
+  }, [journeyData, router, loadJourneyProgram, profile, paywallEnabled]);
 
   // Plain function, not useCallback -- it's only ever called directly below
   // in the same render, never passed down as a memoized prop or referenced
@@ -2271,6 +2290,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // The strength trial is the one exception that keeps a real gate: it
   // only unlocks once every day this week is done, same as before.
   const weekComplete = !!latestWeek && latestWeek.days.length > 0 && latestDayPointer === -1;
+  // Free users see ADD NEW WEEK locked: it's part of any paid plan.
+  const addWeekLocked = !!journeyData && !journeyData.hasNextWeek && journeyData.canAddWeek
+    && !canAccessPro(profile, paywallEnabled);
   // "Strength trial card can be skipped" -- reuses the exact same
   // skippedQuestSlots/handleSkipQuest plumbing quests already use, with a
   // synthetic per-week slot key rather than a new tracking mechanism.
@@ -2941,6 +2963,9 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                       onPress={handleContinueProgram}
                       disabled={advancingWeek}
                     >
+                      {!advancingWeek && addWeekLocked && (
+                        <MaterialCommunityIcons name="lock" size={12} color="#FFFFFF" />
+                      )}
                       <Text style={styles.weekCompletePillText}>
                         {advancingWeek
                           ? (journeyData.hasNextWeek ? t('journey.startingNextWeek') : journeyData.canAddWeek ? t('journey.addingWeek') : t('journey.startingNextWeek'))
@@ -3554,6 +3579,9 @@ const darkStyles = StyleSheet.create({
     fontSize: 13,
   },
   weekCompletePill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
     marginTop: 6,
     backgroundColor: ACCENT,
     paddingVertical: 10,

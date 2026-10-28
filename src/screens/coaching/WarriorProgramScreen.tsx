@@ -53,6 +53,7 @@ import { fetchDayChoiceForWeek } from '../../lib/journeyLane';
 import { DayCardList } from '../../components/coaching/DayCardList';
 import { t, FLIP_X } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
+import { offerRoute } from '../../lib/offerStore';
 
 function getStartOfIsoWeek(date: Date): Date {
   const d = new Date(date);
@@ -619,6 +620,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   };
 
   const currentTier = getSubscriptionTier(profile, paywallEnabled);
+  // Free users see ADD NEW WEEK locked: it's part of any paid plan.
+  const addWeekLocked = currentTier === 'free';
   const isLockedByTier = !!minAccessTier && !meetsMinTier(currentTier, minAccessTier);
 
   const handleEndLockedProgram = () => {
@@ -1102,6 +1105,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // and reloads so the new week becomes active immediately.
   const handleAddWeek = async () => {
     if (addingWeek || !warriorProgramId) return;
+    // Adding weeks past the program's own is a paid feature (any plan);
+    // add_week_to_own_program checks it too.
+    if (addWeekLocked) {
+      track('add_week_locked_tapped', { from: 'workout' });
+      router.push('/paywall?from=add_week_workout' as never);
+      return;
+    }
     setAddingWeek(true);
     const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
       p_warrior_program_id: warriorProgramId,
@@ -1109,6 +1119,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (addWeekError) {
       console.error('Failed to add a new week:', addWeekError);
       setAddingWeek(false);
+      if (addWeekError.message === 'upgrade_required') router.push('/paywall');
       return;
     }
     const { error: bumpError } = await supabase
@@ -2108,13 +2119,19 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     style={{
                       borderRadius: 12,
                       paddingVertical: 16,
+                      flexDirection: 'row',
+                      justifyContent: 'center',
                       alignItems: 'center',
+                      gap: 8,
                       backgroundColor: '#FF5252',
                       opacity: addingWeek ? 0.6 : 1,
                     }}
                     onPress={handleAddWeek}
                     disabled={addingWeek}
                   >
+                    {!addingWeek && addWeekLocked && (
+                      <MaterialCommunityIcons name="lock" size={15} color="#000" />
+                    )}
                     <Text style={{ color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 15, letterSpacing: 1 }}>
                       {addingWeek ? t('workout.addingWeek') : t('workout.addNewWeek')}
                     </Text>
@@ -2152,10 +2169,19 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         sessionSeconds={sessionStats.sessionSeconds}
         onClose={() => {
           setShowSessionComplete(false);
+          // Last day of the last week: the program is finished. For someone
+          // who never subscribed that's the free program, the moment for the
+          // welcome offer (offerPrompt.ts). After the navigation below settles.
+          const programFinished = activeWeek === maxWeek && isLastWeekDone;
           if (onSessionDone) {
             onSessionDone();
           } else {
             setScreenPhase('list');
+          }
+          if (programFinished && profile?.id) {
+            offerRoute('program_complete', { userId: profile.id, paywallEnabled, profile }).then((route) => {
+              if (route) setTimeout(() => router.push(route as never), 400);
+            });
           }
         }}
       />

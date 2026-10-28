@@ -307,6 +307,9 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
   // the paywall ever presenting -- reported live as "fails to open paywall,
   // navigates back to journey screen" for all 3 build-program tools.
   const inPaywall = segments[0] === 'paywall';
+  // The welcome offer opens right after the assessment's tier reveal, still
+  // mid-onboarding, and leads to the paywall or the code screen.
+  const inOfferRoute = segments[0] === 'welcome-offer' || segments[0] === 'redeem-code';
 
   // 2. Prevent rendering children and redirect when a password reset is required
   if (needsPasswordReset) {
@@ -350,7 +353,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
       // point, so finishing it must bounce the user back to the lane for
       // the tier-reveal, not strand them on the now-finished assessment
       // screen — that screen relies entirely on this redirect to leave.
-      if (!inOnboardingJourney && !inBuildProgramRoute && !inPaywall) {
+      if (!inOnboardingJourney && !inBuildProgramRoute && !inPaywall && !inOfferRoute) {
         return <Redirect href="/onboarding-journey" />;
       }
     } else {

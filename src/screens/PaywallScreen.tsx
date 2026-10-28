@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
-import { useRouter, useNavigation } from 'expo-router';
+import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import Purchases from 'react-native-purchases';
 import { LeapLogo } from '../components/LeapLogo';
@@ -48,6 +48,9 @@ const POLL_INTERVAL_MS = 1500;
 export function PaywallScreen() {
   const router = useRouter();
   const navigation = useNavigation();
+  // Where the paywall was opened from (?from=), for the purchase funnel.
+  const { from } = useLocalSearchParams<{ from?: string }>();
+  const source = typeof from === 'string' && /^[a-z0-9_]{1,40}$/.test(from) ? from : 'other';
   const { profile, paywallEnabled, refreshProfile } = useAuth();
   const alreadySubscribed = hasActiveAccess(profile);
   const currentTier = getSubscriptionTier(profile, paywallEnabled);
@@ -104,13 +107,13 @@ export function PaywallScreen() {
 
   const present = useCallback(async () => {
     setStep('presenting');
-    track('paywall_viewed', { current_tier: currentTier });
+    track('paywall_viewed', { current_tier: currentTier, source });
     try {
       const result = await RevenueCatUI.presentPaywall();
-      if (result === PAYWALL_RESULT.PURCHASED) track('purchase_completed', { from_tier: currentTier });
-      else if (result === PAYWALL_RESULT.RESTORED) track('purchase_restored', { from_tier: currentTier });
-      else if (result === PAYWALL_RESULT.CANCELLED) track('purchase_cancelled', { current_tier: currentTier });
-      else track('paywall_failed', { result: String(result) });
+      if (result === PAYWALL_RESULT.PURCHASED) track('purchase_completed', { from_tier: currentTier, source });
+      else if (result === PAYWALL_RESULT.RESTORED) track('purchase_restored', { from_tier: currentTier, source });
+      else if (result === PAYWALL_RESULT.CANCELLED) track('purchase_cancelled', { current_tier: currentTier, source });
+      else track('paywall_failed', { result: String(result), source });
       if (result === PAYWALL_RESULT.PURCHASED || result === PAYWALL_RESULT.RESTORED) {
         await pollForAccess();
       } else if (result === PAYWALL_RESULT.CANCELLED) {
@@ -132,7 +135,7 @@ export function PaywallScreen() {
       track('paywall_failed', { result: 'exception' });
       setStep('fallback');
     }
-  }, [pollForAccess, router, currentTier]);
+  }, [pollForAccess, router, currentTier, source]);
 
   useEffect(() => {
     // Already-subscribed users land on the 'context' interstitial instead

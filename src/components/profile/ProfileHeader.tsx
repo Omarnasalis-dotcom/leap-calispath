@@ -13,6 +13,8 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { TIER_NAMES, POWER_TIER_NAMES } from '../../types';
 import { CommunitySection } from './CommunitySection';
+import { OfferGiftChip } from './OfferGiftChip';
+import { UpdateChip } from './UpdateChip';
 import { GlobalWellRoundedEntry } from '../../services/LeaderboardService';
 import { useTutorialTarget } from '../../hooks/useTutorialTarget';
 import { WORLD_THEMES, getWorldNeutrals, worldRgba } from '../../../constants/worldThemes';
@@ -284,6 +286,8 @@ export function ProfileHeader({
               <Text style={styles.upgradePillText}>{isExpiredSubscriber ? t('profile.renew') : t('profile.upgrade')}</Text>
             </TouchableOpacity>
           )}
+          <OfferGiftChip />
+          <UpdateChip />
         </View>
 
         <Text style={[styles.name, { color: neutrals.textPrimary }]} numberOfLines={1}>{displayName}</Text>

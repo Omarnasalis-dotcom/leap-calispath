@@ -58,6 +58,27 @@ export async function checkForceUpdate(): Promise<ForceUpdateStatus | null> {
   }
 }
 
+// Profile's soft "update available" card: the store has a newer version
+// (app_config.latest_version) than this install. Never blocks anything, so
+// every error path means no card.
+export async function checkUpdateAvailable(): Promise<{ version: string; storeUrl: string } | null> {
+  if (Platform.OS === 'web') return null;
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('latest_version')
+      .eq('platform', Platform.OS)
+      .maybeSingle();
+    const latest = (data as { latest_version?: string | null } | null)?.latest_version;
+    const installed = Application.nativeApplicationVersion;
+    const storeUrl = STORE_URLS[Platform.OS];
+    if (error || !latest || !installed || !storeUrl) return null;
+    return compareVersions(installed, latest) < 0 ? { version: latest, storeUrl } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Remote kill switch for Pro-feature gating (AI Coach, full Workout
 // Library, etc) — see canAccessPro() in entitlement.ts. While false, every
 // user gets Pro access, which is how new Pro features ship and get tested
@@ -80,6 +101,23 @@ export async function checkPaywallEnabled(): Promise<boolean> {
 
     if (error || !data) return false;
     return data.paywall_enabled === true;
+  } catch {
+    return false;
+  }
+}
+
+// Remote switch for the welcome offer screen (src/lib/offerPrompt.ts).
+// Fails closed: no offer screen unless it's switched on for this platform.
+export async function checkFirstTimeOfferEnabled(): Promise<boolean> {
+  try {
+    const { data, error } = await supabase
+      .from('app_config')
+      .select('first_time_offer_enabled')
+      .eq('platform', Platform.OS)
+      .maybeSingle();
+
+    if (error || !data) return false;
+    return (data as { first_time_offer_enabled?: boolean }).first_time_offer_enabled === true;
   } catch {
     return false;
   }

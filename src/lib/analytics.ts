@@ -51,7 +51,15 @@ export type AnalyticsEvent =
   | 'step_finished'
   // Settings → Redeem a code: code sent to the store → plan unlocked.
   | 'redeem_code_submitted'
-  | 'redeem_code_unlocked';
+  | 'redeem_code_unlocked'
+  // Welcome offer screen (src/lib/offerPrompt.ts), with a trigger property.
+  | 'offer_screen_viewed'
+  | 'offer_claim_tapped'
+  | 'offer_code_tapped'
+  | 'offer_dismissed'
+  | 'offer_banner_tapped'
+  | 'add_week_locked_tapped'
+  | 'update_chip_tapped';
 
 // Fire-and-forget: never throws, never blocks the UI, and does nothing
 // without a signed-in session (the table only accepts a user's own events).

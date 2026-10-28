@@ -201,6 +201,19 @@ export function SettingsSheet({ visible, onClose }: SettingsSheetProps) {
             </TouchableOpacity>
           )}
 
+          {__DEV__ && (
+            <TouchableOpacity
+              style={[styles.row, { borderBottomColor: theme.card.border }]}
+              onPress={() => { onClose(); router.push('/welcome-offer?trigger=assessment&preview=1'); }}
+            >
+              <View style={styles.rowLeft}>
+                <MaterialCommunityIcons name="gift-outline" size={18} color={theme.text.secondary} />
+                {/* Dev builds only, never translated. */}
+                <Text style={[styles.rowText, { color: theme.text.primary }]}>Preview welcome offer (dev)</Text>
+              </View>
+            </TouchableOpacity>
+          )}
+
           <TouchableOpacity style={[styles.row, { borderBottomColor: theme.card.border }]} onPress={handleSignOut}>
             <View style={styles.rowLeft}>
               <MaterialCommunityIcons name="logout" size={18} color={theme.text.secondary} />
