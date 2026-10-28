@@ -55,3 +55,35 @@ export async function fetchDeletedAccounts(days: number): Promise<DeletedAccount
   if (error) throw new Error(error.message);
   return data as DeletedAccounts;
 }
+
+/** The Nov 2026 offers, from admin_get_offer_analytics (people, not taps). */
+export interface OfferAnalytics {
+  days: number;
+  moments: Array<{
+    moment: 'assessment' | 'program_complete' | 'banner';
+    shown: number;
+    claimed: number;
+    code_tapped: number;
+    dismissed: number;
+    paywall: number;
+    bought: number;
+  }>;
+  add_week: { tapped: number; paywall: number; bought: number };
+  // Logged by the RevenueCat webhook. period_type: INTRO = intro offer,
+  // PROMOTIONAL = offer code, NORMAL = full price.
+  store: Array<{
+    event: 'store_purchase' | 'store_renewal';
+    period_type: string;
+    tier: string;
+    platform: 'ios' | 'android' | null;
+    events: number;
+    users: number;
+  }>;
+  codes: Array<{ platform: string; submitted: number; unlocked: number }>;
+}
+
+export async function fetchOfferAnalytics(days: number): Promise<OfferAnalytics> {
+  const { data, error } = await supabase.rpc('admin_get_offer_analytics', { p_days: days });
+  if (error) throw new Error(error.message);
+  return data as OfferAnalytics;
+}

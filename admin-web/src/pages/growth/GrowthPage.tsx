@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDeletedAccounts, fetchGrowthAnalytics, type GrowthFunnelStep } from '@/api/growth';
+import { fetchDeletedAccounts, fetchGrowthAnalytics, fetchOfferAnalytics, type GrowthFunnelStep, type OfferAnalytics } from '@/api/growth';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 
@@ -69,6 +69,10 @@ export function GrowthPage() {
   const deleted = useQuery({
     queryKey: ['deleted-accounts', days],
     queryFn: () => fetchDeletedAccounts(days),
+  });
+  const offers = useQuery({
+    queryKey: ['offer-analytics', days],
+    queryFn: () => fetchOfferAnalytics(days),
   });
 
   const funnel = data?.funnel ?? [];
@@ -259,6 +263,9 @@ export function GrowthPage() {
             </div>
           </section>
 
+          {offers.error && <ErrorNote error={offers.error} />}
+          {offers.data && <OffersPanel data={offers.data} />}
+
           <section className="panel">
             <div className="panel-head">
               <h2>App events</h2>
@@ -420,6 +427,130 @@ function DeletedAccountsPanel({
           </div>
         </>
       )}
+    </section>
+  );
+}
+
+const MOMENT_LABEL: Record<OfferAnalytics['moments'][number]['moment'], string> = {
+  assessment: 'After the assessment',
+  program_complete: 'After finishing the program',
+  banner: 'Profile gift',
+};
+
+const PERIOD_LABEL: Record<string, string> = {
+  INTRO: 'Intro offer',
+  PROMOTIONAL: 'Offer code',
+  NORMAL: 'Full price',
+  TRIAL: 'Free trial',
+  UNKNOWN: 'Unknown',
+};
+
+// The welcome offer, the locked ADD NEW WEEK button, store purchases by
+// discount type and Redeem a Code (admin_get_offer_analytics).
+function OffersPanel({ data }: { data: OfferAnalytics }) {
+  const th = { textAlign: 'right' } as const;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Offers</h2>
+        <span className="label">people, last {data.days} days · offer moments and sources from app 1.2.16</span>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Welcome offer</th>
+              <th style={th}>Shown</th>
+              <th style={th}>Claim</th>
+              <th style={th}>Code</th>
+              <th style={th}>Later</th>
+              <th style={th}>Paywall</th>
+              <th style={th}>Bought</th>
+              <th style={th}>Bought / shown</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.moments.map((m) => (
+              <tr key={m.moment}>
+                <td style={{ fontWeight: 700 }}>{MOMENT_LABEL[m.moment]}</td>
+                <td className="num" style={th}>{m.shown}</td>
+                <td className="num" style={th}>{m.claimed}</td>
+                <td className="num" style={th}>{m.code_tapped}</td>
+                <td className="num" style={th}>{m.dismissed}</td>
+                <td className="num" style={th}>{m.paywall}</td>
+                <td className="num" style={th}>{m.bought}</td>
+                <td className="num" style={th}>{pct(m.bought, m.shown)}</td>
+              </tr>
+            ))}
+            <tr>
+              <td style={{ fontWeight: 700 }}>Locked ADD NEW WEEK</td>
+              <td className="num" style={th}>{data.add_week.tapped}</td>
+              <td className="num dim" style={th}>—</td>
+              <td className="num dim" style={th}>—</td>
+              <td className="num dim" style={th}>—</td>
+              <td className="num" style={th}>{data.add_week.paywall}</td>
+              <td className="num" style={th}>{data.add_week.bought}</td>
+              <td className="num" style={th}>{pct(data.add_week.bought, data.add_week.tapped)}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div className="table-wrap" style={{ marginTop: 16 }}>
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Store</th>
+              <th>Paid as</th>
+              <th>Plan</th>
+              <th>Phone</th>
+              <th style={th}>People</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.store.length === 0 && (
+              <tr>
+                <td colSpan={5} className="dim">No purchases logged yet (logging started 29 Oct 2026).</td>
+              </tr>
+            )}
+            {data.store.map((s) => (
+              <tr key={`${s.event}-${s.period_type}-${s.tier}-${s.platform}`}>
+                <td>{s.event === 'store_purchase' ? 'New purchase' : 'Renewal'}</td>
+                <td>{PERIOD_LABEL[s.period_type] ?? s.period_type}</td>
+                <td>{PLAN_LABEL[s.tier] ?? s.tier}</td>
+                <td>{s.platform === 'ios' ? 'iPhone' : s.platform === 'android' ? 'Android' : '—'}</td>
+                <td className="num" style={th}>{s.users}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+
+      <div className="table-wrap" style={{ marginTop: 16 }}>
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Redeem a Code</th>
+              <th style={th}>Opened</th>
+              <th style={th}>Unlocked</th>
+            </tr>
+          </thead>
+          <tbody>
+            {data.codes.length === 0 && (
+              <tr>
+                <td colSpan={3} className="dim">No codes used yet.</td>
+              </tr>
+            )}
+            {data.codes.map((c) => (
+              <tr key={c.platform}>
+                <td>{c.platform === 'ios' ? 'iPhone' : c.platform === 'android' ? 'Android' : c.platform}</td>
+                <td className="num" style={th}>{c.submitted}</td>
+                <td className="num" style={th}>{c.unlocked}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </section>
   );
 }

@@ -67,6 +67,14 @@ interface RevenueCatEvent {
   // before either of those fields is required.
   transferred_from?: string[];
   transferred_to?: string[];
+  // For the offer funnel (logged to app_events below): "INTRO" is the
+  // store's intro offer, "PROMOTIONAL" an offer code, "NORMAL" full price.
+  period_type?: string;
+  offer_code?: string | null;
+  store?: string;
+  price_in_purchased_currency?: number | null;
+  currency?: string | null;
+  presented_offering_id?: string | null;
 }
 
 // Product IDs set up in App Store Connect/RevenueCat for the 2026-08-29
@@ -352,6 +360,31 @@ Deno.serve(async (req) => {
       });
     } catch (notifyErr) {
       console.error("[revenuecat-webhook] notify_admins failed for INITIAL_PURCHASE:", notifyErr);
+    }
+  }
+
+  // Offer funnel: which purchases used the intro, a code or full price, and
+  // which renewals came after a discounted period. Stats only, so a failed
+  // insert is logged and never fails the delivery.
+  if (event.type === "INITIAL_PURCHASE" || event.type === "RENEWAL") {
+    try {
+      const { error: logError } = await admin.from("app_events").insert({
+        user_id: event.app_user_id,
+        event: event.type === "INITIAL_PURCHASE" ? "store_purchase" : "store_renewal",
+        platform: event.store === "APP_STORE" ? "ios" : event.store === "PLAY_STORE" ? "android" : null,
+        properties: {
+          product_id: resolvedProductId ?? null,
+          tier: mapped?.tier ?? null,
+          period_type: event.period_type ?? null,
+          offer_code: event.offer_code ?? null,
+          price: event.price_in_purchased_currency ?? null,
+          currency: event.currency ?? null,
+          offering: event.presented_offering_id ?? null,
+        },
+      });
+      if (logError) console.error("[revenuecat-webhook] app_events insert failed:", logError);
+    } catch (logErr) {
+      console.error("[revenuecat-webhook] app_events insert failed:", logErr);
     }
   }
 
