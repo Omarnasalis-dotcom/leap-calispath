@@ -1,4 +1,6 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { Appearance } from 'react-native';
+import * as SystemUI from 'expo-system-ui';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ThemeColors, StealthTheme, ThemeMode } from '../../constants/Theme';
 
@@ -26,6 +28,16 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const theme = StealthTheme[mode];
+
+  // Native UI (alerts, keyboard, the RevenueCat sheet) and the root view
+  // behind screens follow the in-app mode, not the phone's. Guarded: a
+  // native call failing here must never block startup.
+  useEffect(() => {
+    try {
+      Appearance.setColorScheme?.(mode);
+    } catch {}
+    SystemUI.setBackgroundColorAsync(StealthTheme[mode].background.primary).catch(() => {});
+  }, [mode]);
 
   const toggleTheme = () => {
     setMode((prevMode: ThemeMode) => {

@@ -6,8 +6,8 @@
     "scheme": "leaparena",
     "orientation": "portrait",
     "icon": "./assets/LEAP.png",
-    "userInterfaceStyle": "dark",
-    "backgroundColor": "#000000",
+    "userInterfaceStyle": "automatic",
+    "backgroundColor": "#FAFAFA",
     "newArchEnabled": true,
     "splash": {
       "image": "./assets/LEAP.png",
