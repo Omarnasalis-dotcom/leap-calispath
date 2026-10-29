@@ -41,8 +41,12 @@ export function tierRangeToDifficultyBand(range: TierRange): DifficultyBand {
 // Index 0 per tier is the Recommended pick; remaining entries are
 // Option 2 / Option 3 in order. Hardcoded (not a DB table) since it's
 // small, fixed, and any future change is a deploy, not a data migration.
+// Three ranges per tier so Recommended is always a full row. The server's
+// select_library_template keeps its own copy but only uses the FIRST range
+// with a published template (a free user's one pick), so a third range
+// appended here doesn't need a matching migration.
 export const TIER_LOOKUP: Record<number, TierRange[]> = {
-  0: [{ min: 0, max: 1 }, { min: 1, max: 2 }],
+  0: [{ min: 0, max: 1 }, { min: 1, max: 2 }, { min: 2, max: 3 }],
   1: [{ min: 0, max: 1 }, { min: 1, max: 2 }, { min: 2, max: 3 }],
   2: [{ min: 1, max: 2 }, { min: 2, max: 3 }, { min: 0, max: 1 }],
   3: [{ min: 2, max: 3 }, { min: 3, max: 4 }, { min: 1, max: 2 }],
@@ -50,8 +54,8 @@ export const TIER_LOOKUP: Record<number, TierRange[]> = {
   5: [{ min: 4, max: 5 }, { min: 5, max: 6 }, { min: 3, max: 4 }],
   6: [{ min: 5, max: 6 }, { min: 6, max: 7 }, { min: 4, max: 5 }],
   7: [{ min: 6, max: 7 }, { min: 7, max: 9 }, { min: 5, max: 6 }],
-  8: [{ min: 7, max: 9 }, { min: 6, max: 7 }],
-  9: [{ min: 7, max: 9 }, { min: 6, max: 7 }],
+  8: [{ min: 7, max: 9 }, { min: 6, max: 7 }, { min: 5, max: 6 }],
+  9: [{ min: 7, max: 9 }, { min: 6, max: 7 }, { min: 5, max: 6 }],
 };
 
 /**

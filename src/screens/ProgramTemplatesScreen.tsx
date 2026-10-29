@@ -465,7 +465,12 @@ export function ProgramTemplatesScreen() {
           {recommendations.length > 0 && (
             <>
               <Text style={styles.sectionLabel}>{t('templates.recommended')}</Text>
-              <View ref={recommendedTourRef} onLayout={onRecommendedTourLayout} style={styles.grid}>
+              {/* A short row (a range with no published template yet) packs from the start instead of leaving a hole. */}
+              <View
+                ref={recommendedTourRef}
+                onLayout={onRecommendedTourLayout}
+                style={[styles.grid, recommendations.length < 3 && { justifyContent: 'flex-start', columnGap: 12 }]}
+              >
                 {recommendations.map((rec, index) => (
                   <RecommendedCard
                     key={rec.id}
