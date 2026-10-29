@@ -2,10 +2,11 @@ import { supabase } from '@/lib/supabase';
 
 export interface GrowthFunnelStep {
   step_order: number;
+  key: 'signed_up' | 'username' | 'assessed' | 'onboarded' | 'opened_workout' | 'trained' | 'week2';
   step: string;
   users: number;
-  // Only set when a step has its own base (e.g. "came back after day 7"
-  // counts only signups at least 7 days old).
+  // Only set when a step has its own base ("active in week 2" counts only
+  // signups at least 14 days old).
   eligible: number | null;
   // How many of `users` have since deleted their account (counted from
   // their anonymous deleted_accounts record).
@@ -15,9 +16,23 @@ export interface GrowthFunnelStep {
 export interface GrowthAnalytics {
   days: number;
   tz: string;
+  // Missing until the 20261029170000 migration is applied.
+  headline?: {
+    signups: number;
+    // Signups in the same-length period before this one.
+    prev_signups: number;
+    // Paid access right now: bought in a store vs codes and manual grants.
+    paying_store: number;
+    paying_other: number;
+    // Distinct active people in the last 7 / 30 days.
+    wau: number;
+    mau: number;
+  };
   funnel: GrowthFunnelStep[];
   // Local calendar days in `tz`; `partial` marks today.
   daily: Array<{ day: string; active_users: number; partial: boolean }>;
+  // People per feature in the range; `days` = person-days of use.
+  features?: Array<{ feature: string; users: number; days: number }>;
   events: Array<{ event: string; events: number; users: number }>;
 }
 
