@@ -8,6 +8,7 @@ import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
+import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -208,10 +209,18 @@ function json(body: unknown, status = 200) {
 // loop starts) stay plain json() — nothing about them needs to stream.
 // A genuine unhandled exception mid-loop becomes `event: error` instead of
 // a fresh HTTP status, since headers are already committed by then.
-function sseResponse(run: (send: (event: "stage" | "final" | "error", data: unknown) => void) => Promise<void>) {
+// onDone runs after the final (or error) event is already sent, before the
+// stream closes — the chat-review row is saved there, off the athlete's
+// wait, with the reply exactly as they received it.
+function sseResponse(
+  run: (send: (event: "stage" | "final" | "error", data: unknown) => void) => Promise<void>,
+  onDone?: (reply: string | null, error: unknown) => Promise<void>,
+) {
   const encoder = new TextEncoder();
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      let finalReply: string | null = null;
+      let runError: unknown = null;
       const send = (event: "stage" | "final" | "error", data: unknown) => {
         // Single enforcement point for every "final" event, model-generated
         // or one of the hardcoded fallback messages above — see
@@ -219,15 +228,24 @@ function sseResponse(run: (send: (event: "stage" | "final" | "error", data: unkn
         // future one can't forget it.
         if (event === "final" && data && typeof (data as { reply?: unknown }).reply === "string") {
           (data as { reply: string }).reply = sanitizeReply((data as { reply: string }).reply);
+          finalReply = (data as { reply: string }).reply;
         }
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
       try {
         await run(send);
       } catch (err) {
+        runError = err;
         console.error("[ai-coach] Unhandled error mid-stream:", err);
         send("error", { message: err instanceof Error ? err.message : "Internal Server Error" });
       } finally {
+        if (onDone) {
+          try {
+            await onDone(finalReply, runError);
+          } catch (err) {
+            console.error("[ai-coach] onDone failed:", err);
+          }
+        }
         controller.close();
       }
     },
@@ -597,6 +615,17 @@ serve(async (req: Request) => {
     );
   }
 
+  // What this exchange did, for the ai_coach_turns row saved in onDone
+  // below (see turnLog.ts). Every exit sets outcome before its final event.
+  const requestStartedAt = Date.now();
+  const turnLog = {
+    outcome: "ok" as TurnOutcome,
+    tools: [] as ToolTrace[],
+    unacted: false,
+    programAction: null as string | null,
+    usage: null as AccumulatedUsage | null,
+  };
+
   return sseResponse(async (send) => {
     const messages: unknown[] = [...initialMessages];
     const recommendations: unknown[] = [];
@@ -637,6 +666,7 @@ serve(async (req: Request) => {
       cache_read_input_tokens: 0,
     };
     async function recordCost() {
+      turnLog.usage = totalUsage;
       if (!chatRequestId) return;
       const costUsd = usageCostUsd(totalUsage, ANTHROPIC_MODEL);
       if (!serviceClient) {
@@ -693,6 +723,7 @@ serve(async (req: Request) => {
       // request already produced is still sent.
       if (turn > 0 && Date.now() - startedAt > TURN_START_DEADLINE_MS) {
         console.error(`[ai-coach] Stopping at turn ${turn}: ${Date.now() - startedAt}ms elapsed, past the ${TURN_START_DEADLINE_MS}ms turn-start deadline.`);
+        turnLog.outcome = "deadline";
         await recordCost();
         send("final", {
           reply: "This is taking longer than it should, so I'm stopping here rather than leave you waiting. Ask me again and I'll pick up from where we are.",
@@ -741,6 +772,7 @@ serve(async (req: Request) => {
             `[ai-coach] Response truncated at max_tokens (turn ${turn}). ` +
             `Text recovered: ${text.length} chars. A tool call was likely lost.`
           );
+          turnLog.outcome = "max_tokens";
           await recordCost();
           send("final", {
             reply: text.trim()
@@ -762,6 +794,7 @@ serve(async (req: Request) => {
         // a real message here, not a blank one calling itself successful.
         if (!text.trim()) {
           console.error(`[ai-coach] Normal turn (stop_reason=${claudeResponse.stop_reason}) ended with empty text (turn ${turn}).`);
+          turnLog.outcome = "empty";
           await recordCost();
           send("final", {
             reply: "That didn't come through with anything to say — ask me again and I'll pick it back up.",
@@ -779,6 +812,7 @@ serve(async (req: Request) => {
         const looksUnacted = calledWriteTools.size === 0 && detectUnactedClaim(turnText);
         if (looksUnacted && !correctionAttempted) {
           correctionAttempted = true;
+          turnLog.unacted = true;
           console.error(`[ai-coach] SUSPECTED NARRATE-WITHOUT-ACTING (turn ${turn}), forcing one correction: "${turnText.slice(0, 300)}"`);
           // Drop the false claim from replyParts (pushed unconditionally
           // above) — if the correction succeeds, the athlete should see the
@@ -798,6 +832,7 @@ serve(async (req: Request) => {
           // claim. Strictly safer than the original bug even when the
           // model fails the same way twice.
           console.error(`[ai-coach] Narrate-without-acting persisted after correction (turn ${turn}) — substituting a safe reply instead of the claim.`);
+          turnLog.outcome = "unacted_blocked";
           await recordCost();
           send("final", {
             reply: "I described that but didn't actually do it — want me to go ahead and make that change now? Say yes and I'll do it in the same message.",
@@ -820,6 +855,7 @@ serve(async (req: Request) => {
         if (block.type !== "tool_use") continue;
         const tool = TOOLS_BY_NAME[block.name];
         if (!tool) {
+          turnLog.tools.push(traceTool(block.name, block.input, 0, { error: `Unknown tool: ${block.name}` }));
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -828,11 +864,12 @@ serve(async (req: Request) => {
           });
           continue;
         }
+        const toolStart = Date.now();
         try {
           send("stage", stageForTool(block.name, (block.input as Record<string, unknown>) ?? {}));
-          const toolStart = Date.now();
           const result = await tool.handler(userClient, block.input ?? {});
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
+          turnLog.tools.push(traceTool(block.name, block.input, Date.now() - toolStart, { result }));
           if (WRITE_TOOL_NAMES.has(block.name)) calledWriteTools.add(block.name);
           if (block.name === "recommend_test") recommendations.push(result);
           if (block.name === "attach_stat_bars" || block.name === "attach_steps") blocks.push(result);
@@ -846,10 +883,12 @@ serve(async (req: Request) => {
             block.name === "propose_append_week"
           ) {
             programAction = await buildProgramAction(userClient, user.id, block.name, block.input ?? {}, result as Record<string, unknown>);
+            turnLog.programAction = block.name;
           }
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {
           console.error(`[ai-coach] Tool ${block.name} failed:`, err);
+          turnLog.tools.push(traceTool(block.name, block.input, Date.now() - toolStart, { error: err instanceof Error ? err.message : String(err) }));
           toolResults.push({
             type: "tool_result",
             tool_use_id: block.id,
@@ -873,6 +912,7 @@ serve(async (req: Request) => {
       `Last tool calls likely looping — check whether search_exercises is being ` +
       `called one-at-a-time instead of batched via \`queries\`.`
     );
+    turnLog.outcome = "max_turns";
     await recordCost();
     send("final", {
       reply:
@@ -882,5 +922,36 @@ serve(async (req: Request) => {
       blocks,
       suggestedReplies,
     });
+  }, async (reply, error) => {
+    // Chat review row (migration 20261030120000). Off until the privacy
+    // policy naming it is live: set the AI_COACH_CHAT_LOG secret to "on".
+    // Never lets a failure here reach the athlete.
+    if (Deno.env.get("AI_COACH_CHAT_LOG") !== "on") return;
+    if (!serviceClient) {
+      console.error("[ai-coach] Missing service role credentials — chat turn NOT saved for review.");
+      return;
+    }
+    const usage = turnLog.usage;
+    const { error: insertError } = await serviceClient.from("ai_coach_turns").insert({
+      user_id: user.id,
+      request_id: chatRequestId ?? null,
+      platform,
+      model: ANTHROPIC_MODEL,
+      user_message: lastUserText(initialMessages),
+      reply,
+      outcome: error ? "error" : turnLog.outcome,
+      error_message: error ? (error instanceof Error ? error.message : String(error)) : null,
+      tools: turnLog.tools,
+      tool_errors: turnLog.tools.filter((t) => !t.ok).length,
+      safety_flags: reply ? detectSafetyFlags(reply) : [],
+      unacted_correction: turnLog.unacted,
+      program_action: turnLog.programAction,
+      history_length: initialMessages.length,
+      latency_ms: Date.now() - requestStartedAt,
+      cost_usd: usage ? usageCostUsd(usage, ANTHROPIC_MODEL) : null,
+      input_tokens: usage ? usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens : null,
+      output_tokens: usage?.output_tokens ?? null,
+    });
+    if (insertError) console.error("[ai-coach] Failed to save chat turn for review:", insertError.message);
   });
 });
