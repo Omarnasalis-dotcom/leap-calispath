@@ -13,6 +13,7 @@ const ADMIN_NAV: Array<
   { to: '/notifications', label: 'Notifications' },
   { to: '/users', label: 'Users' },
   { to: '/leaderboards', label: 'Leaderboards' },
+  { to: '/ai-coach-chats', label: 'AI Coach chats' },
   { to: '/ai-coach-reports', label: 'AI Coach reports' },
   { to: '/promo-codes', label: 'Promo codes' },
   { section: 'Fair Play' },

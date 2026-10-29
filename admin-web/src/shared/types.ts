@@ -321,3 +321,76 @@ export interface UserPerformance {
   completion: CompletionProgram[];
   worlds: WorldWeek[];
 }
+
+// AI Coach chat review (migration 20261030120000_ai_coach_chat_review.sql).
+export type CoachChatFlagKind = 'mistake' | 'bad_choice' | 'bad_behavior';
+export type CoachChatFlagSeverity = 'critical' | 'minor';
+export type CoachChatFlagStatus = 'open' | 'fixing' | 'fixed' | 'wont_fix';
+export type CoachTurnOutcome = 'ok' | 'deadline' | 'max_tokens' | 'empty' | 'unacted_blocked' | 'max_turns' | 'error';
+
+export interface CoachChatUserRow {
+  user_id: string;
+  username: string | null;
+  last_at: string;
+  turns: number;
+  auto_issues: number;
+  open_flags: number;
+}
+
+export interface CoachChatFlag {
+  id: string;
+  turn_id: string;
+  kind: CoachChatFlagKind;
+  severity: CoachChatFlagSeverity;
+  note: string;
+  status: CoachChatFlagStatus;
+  fix_ref: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachToolTrace {
+  name: string;
+  input: string;
+  ok: boolean;
+  error: string | null;
+  result: string | null;
+  ms: number;
+}
+
+export interface CoachChatTurn {
+  id: string;
+  user_id: string;
+  created_at: string;
+  platform: string | null;
+  model: string | null;
+  user_message: string | null;
+  reply: string | null;
+  outcome: CoachTurnOutcome;
+  error_message: string | null;
+  tools: CoachToolTrace[];
+  tool_errors: number;
+  safety_flags: string[];
+  unacted_correction: boolean;
+  program_action: string | null;
+  history_length: number | null;
+  latency_ms: number | null;
+  cost_usd: number | null;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  auto_issue: boolean;
+  flags: CoachChatFlag[];
+}
+
+export interface CoachChatThread {
+  username: string | null;
+  turns: CoachChatTurn[];
+}
+
+export interface CoachChatFlagRow extends CoachChatFlag {
+  user_id: string;
+  username: string | null;
+  turn_created_at: string;
+  user_message: string | null;
+  reply: string | null;
+}

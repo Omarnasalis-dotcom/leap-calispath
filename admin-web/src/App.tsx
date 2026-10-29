@@ -17,6 +17,8 @@ import { InactivePage } from '@/pages/fairPlay/InactivePage';
 import { LimitsPage } from '@/pages/fairPlay/LimitsPage';
 import { AthleteFairPlayPage } from '@/pages/fairPlay/AthleteFairPlayPage';
 import { AiCoachReportsPage } from '@/pages/aiCoachReports/AiCoachReportsPage';
+import { AiCoachChatsPage } from '@/pages/aiCoachChats/AiCoachChatsPage';
+import { CoachFlagsPage } from '@/pages/aiCoachChats/CoachFlagsPage';
 import { GrowthPage } from '@/pages/growth/GrowthPage';
 import { TournamentsPage } from '@/pages/tournaments/TournamentsPage';
 import { ChallengeWeekPage } from '@/pages/challenges/ChallengeWeekPage';
@@ -112,6 +114,9 @@ export function App() {
                 <Route path="tournaments" element={<TournamentsPage />} />
                 <Route path="growth" element={<GrowthPage />} />
                 <Route path="ai-coach-reports" element={<AiCoachReportsPage />} />
+                <Route path="ai-coach-chats" element={<AiCoachChatsPage />} />
+                <Route path="ai-coach-chats/flags" element={<CoachFlagsPage />} />
+                <Route path="ai-coach-chats/:userId" element={<AiCoachChatsPage />} />
               </Route>
               {/* Reachable by admin, coach, and assistant alike — RLS scopes
                   each signed-in user to their own notification rows, so no
