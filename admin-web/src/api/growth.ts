@@ -38,6 +38,17 @@ export interface GrowthAnalytics {
     code_unlocked: number;
     offer_shown: number;
   };
+  // Everyone who ever bought a store subscription, newest purchase first
+  // (store tests and admins left out). Missing until 20261030100000.
+  subscribers?: Array<{
+    username: string | null;
+    plan: string | null;
+    first_at: string;
+    // Latest purchase; "in this range" means last_at falls inside it.
+    last_at: string;
+    ends_at: string | null;
+    paying: boolean;
+  }>;
   funnel: GrowthFunnelStep[];
   // Local calendar days in `tz`; `partial` marks today.
   daily: Array<{ day: string; active_users: number; partial: boolean }>;
