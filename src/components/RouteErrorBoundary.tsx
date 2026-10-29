@@ -4,6 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sentry from '@sentry/react-native';
 import { router, type ErrorBoundaryProps } from 'expo-router';
 import { t } from '../i18n';
+import { useThemeOrDefault } from '../contexts/ThemeContext';
 
 // Per-screen error boundary (audit 2026-09-25, L22). Each route file
 // re-exports this as `ErrorBoundary`, which Expo Router renders in place of
@@ -14,20 +15,21 @@ export function RouteErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   useEffect(() => {
     Sentry.captureException(error, { tags: { boundary: 'route' } });
   }, [error]);
+  const { theme } = useThemeOrDefault();
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <MaterialCommunityIcons name="alert-circle-outline" size={64} color="#EF4444" />
       <Text style={styles.title}>{t('system.routeErrorTitle')}</Text>
-      <Text style={styles.subtitle}>{t('system.routeErrorBody')}</Text>
-      <Text style={styles.errorText} numberOfLines={3}>
+      <Text style={[styles.subtitle, { color: theme.text.secondary }]}>{t('system.routeErrorBody')}</Text>
+      <Text style={[styles.errorText, { color: theme.text.tertiary }]} numberOfLines={3}>
         {error?.message || t('system.unknownError')}
       </Text>
       <TouchableOpacity style={styles.button} onPress={retry} accessibilityRole="button">
         <Text style={styles.buttonText}>{t('system.tryAgain')}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.secondaryButton} onPress={() => router.replace('/')} accessibilityRole="button">
-        <Text style={styles.secondaryButtonText}>{t('system.goHome')}</Text>
+        <Text style={[styles.secondaryButtonText, { color: theme.text.secondary }]}>{t('system.goHome')}</Text>
       </TouchableOpacity>
     </View>
   );

@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import * as Sentry from '@sentry/react-native';
 import { t } from '../i18n';
+import { useThemeOrDefault } from '../contexts/ThemeContext';
 
 interface Props {
   children: React.ReactNode;
@@ -36,22 +37,28 @@ export class GlobalErrorBoundary extends React.Component<Props, State> {
 
   render() {
     if (this.state.hasError) {
-      return (
-        <View style={styles.container}>
-          <MaterialCommunityIcons name="alert-circle-outline" size={80} color="#EF4444" />
-          <Text style={styles.title}>{t('system.failureTitle')}</Text>
-          <Text style={styles.subtitle}>{t('system.failureBody')}</Text>
-          <Text style={styles.errorText} numberOfLines={3}>
-            {this.state.error?.message || t('system.unknownError')}
-          </Text>
-          <TouchableOpacity style={styles.button} onPress={this.handleReset}>
-            <Text style={styles.buttonText}>{t('system.reboot')}</Text>
-          </TouchableOpacity>
-        </View>
-      );
+      return <FailureView message={this.state.error?.message} onReset={this.handleReset} />;
     }
     return this.props.children;
   }
+}
+
+// A function component so it can read the theme (this can render outside ThemeProvider).
+function FailureView({ message, onReset }: { message?: string; onReset: () => void }) {
+  const { theme } = useThemeOrDefault();
+  return (
+    <View style={[styles.container, { backgroundColor: theme.background.primary }]}>
+      <MaterialCommunityIcons name="alert-circle-outline" size={80} color="#EF4444" />
+      <Text style={styles.title}>{t('system.failureTitle')}</Text>
+      <Text style={[styles.subtitle, { color: theme.text.secondary }]}>{t('system.failureBody')}</Text>
+      <Text style={[styles.errorText, { color: theme.text.tertiary }]} numberOfLines={3}>
+        {message || t('system.unknownError')}
+      </Text>
+      <TouchableOpacity style={styles.button} onPress={onReset}>
+        <Text style={styles.buttonText}>{t('system.reboot')}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({

@@ -15,15 +15,16 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { t } from '../../i18n';
+import { useTheme } from '../../contexts/ThemeContext';
 import type { Feel } from './FeelRpePicker';
 import type { MissedReason } from './MissedReasonPicker';
 
 // Log Block sheet — design handoff assets/design_handoff_log_workout_sheet
-// (README.md is the spec). Fixed dark palette,
-// like the rest of the workout runner. All state lives in
+// (README.md is the spec; dark-only, the light palette below keeps the same
+// relationships with greys that clear AA on white). All state lives in
 // WarriorProgramScreen; this component only renders and reports changes.
 
-const C = {
+const DARK = {
   sheet: '#141416',
   card: '#0E0E10',
   control: '#18181B',
@@ -52,6 +53,51 @@ const C = {
   amberInk: '#1A1406',
   grabber: '#3A3A40',
   ink: '#0C0C0E',
+  /** Text on the gradient, the coral RPE cells and the saved check. */
+  onColor: '#FFFFFF',
+  coralText: '#FF6A4D',
+  amberText: '#E0B54A',
+  tileOffText: '#4A4A52',
+  noteBorder: '#33333A',
+  notePlus: '#B0B0BA',
+};
+type Palette = typeof DARK;
+
+const LIGHT: Palette = {
+  sheet: '#FFFFFF',
+  card: '#F6F6F7',
+  control: '#EFEFF2',
+  control2: '#E8E8EC',
+  input: '#FFFFFF',
+  border: '#E4E4E8',
+  border2: '#DCDCE1',
+  border3: '#D2D2D8',
+  border4: '#D2D2D8',
+  divider: '#EEEEF1',
+  white: '#0B0B0D', // primary text
+  secondary: '#2E2E33',
+  muted: '#56565E',
+  faint: '#6E6E77',
+  faint2: '#6E6E77',
+  coral: '#FF6A4D',
+  coralLight: '#C2412A',
+  coralTint: '#FFEDE8',
+  green: '#4CD964',
+  greenTint: '#E6F7E9',
+  greenBorder: '#9ED7A6',
+  greenText: '#1E7A2E',
+  greenSub: '#2E7D3B',
+  amber: '#E0B54A',
+  amberTint: '#FFF4DA',
+  amberInk: '#1A1406',
+  grabber: '#D2D2D8',
+  ink: '#0C0C0E',
+  onColor: '#FFFFFF',
+  coralText: '#C2412A',
+  amberText: '#8A6410',
+  tileOffText: '#6E6E77',
+  noteBorder: '#D2D2D8',
+  notePlus: '#6E6E77',
 };
 const GRADIENT = ['#8A5CD0', '#FF5A55', '#FF7A45'] as const;
 const GRADIENT_STOPS = [0, 0.6, 1] as const;
@@ -131,6 +177,7 @@ export interface LogBlockSheetProps {
 }
 
 export function LogBlockSheet(p: LogBlockSheetProps) {
+  const { C, s } = useSheetTheme();
   const insets = useSafeAreaInsets();
   const isDone = p.status === 'completed';
   const ready = isDone || !!p.reason;
@@ -239,7 +286,7 @@ export function LogBlockSheet(p: LogBlockSheetProps) {
                               onPress={() => p.setReason(r)}
                               style={[s.reason, on && { borderColor: C.amber, backgroundColor: C.amberTint }]}
                             >
-                              <Text style={[s.reasonText, on && { color: C.amber }]}>{t(`logModal.missed_${r}`)}</Text>
+                              <Text style={[s.reasonText, on && { color: C.amberText }]}>{t(`logModal.missed_${r}`)}</Text>
                             </TouchableOpacity>
                           );
                         })}
@@ -277,7 +324,7 @@ export function LogBlockSheet(p: LogBlockSheetProps) {
                   >
                     {ready && isDone ? (
                       <LinearGradient colors={GRADIENT} locations={GRADIENT_STOPS} start={{ x: 0, y: 0 }} end={{ x: 1, y: 0 }} style={s.cta}>
-                        <Text style={[s.ctaText, { color: C.white }]}>{saving ? t('logSheet.saving') : t('logSheet.logBlock')}</Text>
+                        <Text style={[s.ctaText, { color: C.onColor }]}>{saving ? t('logSheet.saving') : t('logSheet.logBlock')}</Text>
                       </LinearGradient>
                     ) : (
                       <View style={[s.cta, { backgroundColor: ready ? C.amber : C.border }]}>
@@ -298,6 +345,7 @@ export function LogBlockSheet(p: LogBlockSheetProps) {
 }
 
 function SectionLabel({ label, helper }: { label: string; helper?: string }) {
+  const { C, s } = useSheetTheme();
   return (
     <View style={s.labelRow}>
       <Text style={s.label}>{label}</Text>
@@ -316,6 +364,7 @@ function SetsCard({
   holdSecs,
   setHoldSecs,
 }: { card: SheetCard } & LogBlockSheetProps) {
+  const { C, s } = useSheetTheme();
   const count = counts[card.id] ?? (card.ticked > 0 ? card.ticked : card.defaultCount ?? card.plan);
   const isTouched = touched[card.id];
   const status =
@@ -340,7 +389,7 @@ function SetsCard({
           <Text style={s.exName} numberOfLines={1}>
             {card.name}
           </Text>
-          <Text style={[s.cardStatus, count === 0 && { color: C.amber }]} numberOfLines={1}>
+          <Text style={[s.cardStatus, count === 0 && { color: C.amberText }]} numberOfLines={1}>
             {status}
           </Text>
         </View>
@@ -382,7 +431,7 @@ function SetsCard({
               ]}
             >
               <Text style={[s.tileTop, { color: ticked ? C.ink : on ? C.greenText : C.faint2 }]}>{on ? '✓' : '✕'}</Text>
-              <Text style={[s.tileBottom, { color: ticked ? C.ink : on ? C.greenSub : '#4A4A52' }]} numberOfLines={1}>
+              <Text style={[s.tileBottom, { color: ticked ? C.ink : on ? C.greenSub : C.tileOffText }]} numberOfLines={1}>
                 {bottom}
               </Text>
             </TouchableOpacity>
@@ -418,6 +467,7 @@ function SetsCard({
 }
 
 function BigStepper({ label, value, onChange }: { label: string; value: number; onChange: (v: number) => void }) {
+  const { C, s } = useSheetTheme();
   return (
     <View style={[s.card, { flex: 1, alignItems: 'center', gap: 8, padding: 14 }]}>
       <Text style={[s.label, { fontSize: 12 }]}>{label}</Text>
@@ -435,6 +485,7 @@ function BigStepper({ label, value, onChange }: { label: string; value: number; 
 }
 
 function ForTime({ forTime, setForTime }: LogBlockSheetProps) {
+  const { C, s } = useSheetTheme();
   const { min, sec, cap } = forTime;
   const part = (val: number, onUp: () => void, onDown: () => void, label: string) => (
     <View style={{ alignItems: 'center', gap: 4 }}>
@@ -471,6 +522,7 @@ function ForTime({ forTime, setForTime }: LogBlockSheetProps) {
 }
 
 function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
+  const { C, s } = useSheetTheme();
   return (
     <View style={{ gap: 8 }}>
       <SectionLabel label={t('logSheet.feel')} helper={t('logSheet.optional')} />
@@ -485,7 +537,7 @@ function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
               onPress={() => setFeel(on ? null : f)}
               style={[s.feel, on && { borderColor: C.coral, backgroundColor: C.coralTint }]}
             >
-              <Text style={[s.feelText, on && { color: C.coral }]} numberOfLines={1} adjustsFontSizeToFit>
+              <Text style={[s.feelText, on && { color: C.coralText }]} numberOfLines={1} adjustsFontSizeToFit>
                 {t(`logModal.feel_${f}`)}
               </Text>
             </TouchableOpacity>
@@ -517,7 +569,7 @@ function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
                 { backgroundColor: lit ? `rgba(255,106,77,${0.25 + v * 0.075})` : C.control },
               ]}
             >
-              <Text style={[s.rpeNum, { color: lit ? C.white : C.faint }]}>{v}</Text>
+              <Text style={[s.rpeNum, { color: lit ? C.onColor : C.faint }]}>{v}</Text>
             </TouchableOpacity>
           );
         })}
@@ -527,6 +579,7 @@ function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
 }
 
 function Saved({ isDone, title, summary }: { isDone: boolean; title: string; summary: string }) {
+  const { C, s } = useSheetTheme();
   const inner = (
     <View style={s.checkMark} />
   );
@@ -545,7 +598,7 @@ function Saved({ isDone, title, summary }: { isDone: boolean; title: string; sum
   );
 }
 
-const s = StyleSheet.create({
+const makeStyles = (C: Palette) => StyleSheet.create({
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'flex-end' },
   sheetWrap: { maxHeight: '92%' },
   sheet: {
@@ -652,13 +705,13 @@ const s = StyleSheet.create({
     borderRadius: 14,
     borderWidth: 1,
     borderStyle: 'dashed',
-    borderColor: '#33333A',
+    borderColor: C.noteBorder,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
     gap: 8,
   },
-  addNotePlus: { fontSize: 20, lineHeight: 22, color: '#B0B0BA' },
+  addNotePlus: { fontSize: 20, lineHeight: 22, color: C.notePlus },
   addNoteText: { fontFamily: BODY, fontSize: 15, color: C.muted },
   note: {
     height: 84,
@@ -684,9 +737,18 @@ const s = StyleSheet.create({
     height: 16,
     borderLeftWidth: 5,
     borderBottomWidth: 5,
-    borderColor: C.white,
+    borderColor: C.onColor,
     transform: [{ rotate: '-45deg' }, { translateX: 2 }, { translateY: -3 }],
   },
   savedTitle: { fontFamily: COND_800, fontSize: 30, letterSpacing: 1, color: C.white, textAlign: 'center' },
   savedSub: { fontFamily: BODY, fontSize: 15, color: C.muted, maxWidth: 290, textAlign: 'center' },
 });
+
+const THEMES = {
+  dark: { C: DARK, s: makeStyles(DARK) },
+  light: { C: LIGHT, s: makeStyles(LIGHT) },
+};
+
+function useSheetTheme() {
+  return THEMES[useTheme().mode];
+}

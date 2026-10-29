@@ -3,6 +3,7 @@ import { act, create } from 'react-test-renderer';
 import { TouchableOpacity } from 'react-native';
 import { QuickWorkoutTimerModal } from '../QuickWorkoutTimerModal';
 
+jest.mock('@react-native-async-storage/async-storage', () => require('@react-native-async-storage/async-storage/jest/async-storage-mock'));
 jest.mock('../../../lib/SoundService', () => ({
   SoundServiceInstance: {
     playTick: jest.fn(),

@@ -1050,6 +1050,7 @@ function TrialFeedbackModal({
   previousTimeSeconds?: number | null;
   onDismiss: () => void;
 }) {
+  const isLight = useTheme().mode === 'light';
   const [fadeAnim] = useState(new Animated.Value(0));
   const [scaleAnim] = useState(new Animated.Value(0.85));
 
@@ -1074,35 +1075,35 @@ function TrialFeedbackModal({
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onDismiss}>
-      <View style={styles.feedbackOverlay}>
-        <Animated.View style={[styles.feedbackCard, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
+      <View style={[styles.feedbackOverlay, isLight && feedbackLight.feedbackOverlay]}>
+        <Animated.View style={[styles.feedbackCard, isLight && feedbackLight.feedbackCard, { opacity: fadeAnim, transform: [{ scale: scaleAnim }] }]}>
           <View style={styles.feedbackSeal}>
             <MaterialCommunityIcons name={icon} size={40} color="#FF5252" />
           </View>
-          <Text style={styles.feedbackLabel}>{label}</Text>
-          <Text style={styles.feedbackTitle}>{title}</Text>
-          <Text style={styles.feedbackSubtitle}>{t('trial.tierLine', { name: tierName?.toUpperCase(), tier })}</Text>
+          <Text style={[styles.feedbackLabel, isLight && feedbackLight.feedbackLabel]}>{label}</Text>
+          <Text style={[styles.feedbackTitle, isLight && feedbackLight.feedbackTitle]}>{title}</Text>
+          <Text style={[styles.feedbackSubtitle, isLight && feedbackLight.feedbackSubtitle]}>{t('trial.tierLine', { name: tierName?.toUpperCase(), tier })}</Text>
 
           {showImprovementComparison ? (
             <View style={styles.feedbackTimeRow}>
-              <Text style={styles.feedbackOldTime}>{formatTime(previousTimeSeconds!)}</Text>
+              <Text style={[styles.feedbackOldTime, isLight && feedbackLight.feedbackOldTime]}>{formatTime(previousTimeSeconds!)}</Text>
               {/* The row flips in Arabic, so the arrow does too: old → new (audit L7). */}
-              <MaterialCommunityIcons name="arrow-right" size={16} color="rgba(255,255,255,0.35)" style={[{ marginHorizontal: 10 }, FLIP_X]} />
-              <Text style={[styles.feedbackNewTime, styles.feedbackNewTimeInRow]}>{formatTime(timeSeconds)}</Text>
+              <MaterialCommunityIcons name="arrow-right" size={16} color={isLight ? 'rgba(0,0,0,0.4)' : 'rgba(255,255,255,0.35)'} style={[{ marginHorizontal: 10 }, FLIP_X]} />
+              <Text style={[styles.feedbackNewTime, isLight && feedbackLight.feedbackNewTime, styles.feedbackNewTimeInRow]}>{formatTime(timeSeconds)}</Text>
             </View>
           ) : showBestComparison ? (
             <View style={styles.feedbackCompareRow}>
-              <View style={styles.feedbackCompareBox}>
-                <Text style={styles.feedbackCompareLabel}>{t('trial.yourBest')}</Text>
-                <Text style={styles.feedbackCompareValue}>{formatTime(previousTimeSeconds!)}</Text>
+              <View style={[styles.feedbackCompareBox, isLight && feedbackLight.feedbackCompareBox]}>
+                <Text style={[styles.feedbackCompareLabel, isLight && feedbackLight.feedbackCompareLabel]}>{t('trial.yourBest')}</Text>
+                <Text style={[styles.feedbackCompareValue, isLight && feedbackLight.feedbackCompareValue]}>{formatTime(previousTimeSeconds!)}</Text>
               </View>
-              <View style={[styles.feedbackCompareBox, styles.feedbackCompareBoxAttempt]}>
-                <Text style={[styles.feedbackCompareLabel, styles.feedbackCompareLabelAttempt]}>{t('trial.thisAttempt')}</Text>
-                <Text style={styles.feedbackCompareValue}>{formatTime(timeSeconds)}</Text>
+              <View style={[styles.feedbackCompareBox, isLight && feedbackLight.feedbackCompareBox, styles.feedbackCompareBoxAttempt]}>
+                <Text style={[styles.feedbackCompareLabel, isLight && feedbackLight.feedbackCompareLabel, styles.feedbackCompareLabelAttempt, isLight && feedbackLight.feedbackCompareLabelAttempt]}>{t('trial.thisAttempt')}</Text>
+                <Text style={[styles.feedbackCompareValue, isLight && feedbackLight.feedbackCompareValue]}>{formatTime(timeSeconds)}</Text>
               </View>
             </View>
           ) : (
-            <Text style={styles.feedbackNewTime}>{formatTime(timeSeconds)}</Text>
+            <Text style={[styles.feedbackNewTime, isLight && feedbackLight.feedbackNewTime]}>{formatTime(timeSeconds)}</Text>
           )}
 
           <TouchableOpacity style={styles.feedbackButton} onPress={onDismiss}>
@@ -1519,4 +1520,19 @@ const styles = StyleSheet.create({
     fontWeight: '900',
     fontVariant: ['tabular-nums'],
   },
+});
+
+// Light overrides for the result card (the base styles are the dark look).
+const feedbackLight = StyleSheet.create({
+  feedbackOverlay: { backgroundColor: 'rgba(0,0,0,0.45)' },
+  feedbackCard: { backgroundColor: '#FFFFFF', shadowOpacity: 0.18 },
+  feedbackLabel: { color: '#C93030' },
+  feedbackTitle: { color: '#111111' },
+  feedbackSubtitle: { color: 'rgba(0,0,0,0.6)' },
+  feedbackOldTime: { color: 'rgba(0,0,0,0.58)' },
+  feedbackNewTime: { color: '#111111' },
+  feedbackCompareBox: { borderColor: 'rgba(0,0,0,0.12)' },
+  feedbackCompareLabel: { color: 'rgba(0,0,0,0.6)' },
+  feedbackCompareLabelAttempt: { color: '#C93030' },
+  feedbackCompareValue: { color: '#111111' },
 });

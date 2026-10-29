@@ -2618,7 +2618,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   }, [mode, profile?.id, journeyData?.currentWeek, latestWeek, latestDayPointer, dayGateBlockedByQuest]);
 
   if (welcomeState === 'checking') {
-    return <View style={{ flex: 1, backgroundColor: '#000' }} />;
+    return <View style={{ flex: 1, backgroundColor: theme.background.primary }} />;
   }
   if (welcomeState === 'show') {
     return <WelcomeIntro name={profile?.display_name} onDone={handleWelcomeDone} />;

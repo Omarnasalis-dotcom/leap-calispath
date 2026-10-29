@@ -1126,7 +1126,7 @@ export function CustomizeProgramScreen() {
 
       <StandaloneWorkoutDetailModal
         visible={workoutDetail !== null || workoutDetailLoading}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         detail={workoutDetail}
         loading={workoutDetailLoading}
         mode="select"
@@ -1140,7 +1140,7 @@ export function CustomizeProgramScreen() {
 
       <BuildSummaryModal
         visible={buildSummaryVisible}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         days={buildSummarySource === 'quickBuild' ? filledDaySlots : selectedDayWorkouts}
         switchWarning={
           currentProgramName
@@ -1163,7 +1163,7 @@ export function CustomizeProgramScreen() {
 
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         title={t('customize.upgradeTitle')}
         body={t('customize.upgradeBody')}
         cancelLabel={t('customize.keepEditing')}

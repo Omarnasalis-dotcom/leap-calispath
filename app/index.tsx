@@ -13,7 +13,7 @@ export default function Index() {
   // Handle the race condition where AuthGuard unblocks but profile hasn't loaded
   if (user && !profile) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme?.background?.primary || '#000' }}>
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.background.primary }}>
         <LeapLogo size={40} animated />
       </View>
     );

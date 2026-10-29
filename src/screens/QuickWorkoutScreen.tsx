@@ -365,7 +365,7 @@ export function QuickWorkoutScreen() {
       <QuickWorkoutTimerModal
         visible={timerVisible}
         workout={activeWorkout}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         onClose={() => {
           setTimerVisible(false);
           setActiveWorkout(null);
@@ -374,7 +374,7 @@ export function QuickWorkoutScreen() {
 
       <UpgradeToSaveModal
         visible={upgradeModalContent !== null}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         title={upgradeModalContent?.title || ''}
         body={upgradeModalContent?.body || ''}
         cancelLabel={t('quickWorkout.maybeLater')}

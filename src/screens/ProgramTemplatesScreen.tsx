@@ -519,7 +519,7 @@ export function ProgramTemplatesScreen() {
 
       <ProgramPreviewModal
         visible={previewRec !== null}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         templateName={previewRec?.template_name || ''}
         weekCount={previewRec?.week_count || 1}
         week1={previewWeek1}
@@ -537,7 +537,7 @@ export function ProgramTemplatesScreen() {
 
       <UpgradeToSaveModal
         visible={upgradeModalContent !== null}
-        theme={StealthTheme.dark}
+        theme={StealthTheme[mode]}
         title={upgradeModalContent?.title || ''}
         body={upgradeModalContent?.body || ''}
         cancelLabel={t('templates.maybeLater')}

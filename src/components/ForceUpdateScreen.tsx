@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, Linking, SafeAreaView } from 'react-native';
 import { LeapLogo } from './LeapLogo';
 import { Button } from './Button';
+import { useTheme } from '../contexts/ThemeContext';
 import { t, isArabic } from '../i18n';
 
 interface ForceUpdateScreenProps {
@@ -13,12 +14,13 @@ interface ForceUpdateScreenProps {
 // modal over the app. Rendered instead of the normal app tree, never
 // alongside it.
 export function ForceUpdateScreen({ message, storeUrl }: ForceUpdateScreenProps) {
+  const { theme } = useTheme();
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, { backgroundColor: theme.background.primary }]}>
       <View style={styles.content}>
         <LeapLogo size={100} animated={false} />
-        <Text style={styles.title}>{t('system.updateTitle')}</Text>
-        <Text style={styles.message}>{isArabic ? t('system.updateMessage') : message}</Text>
+        <Text style={[styles.title, { color: theme.text.primary }]}>{t('system.updateTitle')}</Text>
+        <Text style={[styles.message, { color: theme.text.secondary }]}>{isArabic ? t('system.updateMessage') : message}</Text>
         {!!storeUrl && (
           <Button title={t('system.updateNow')} onPress={() => Linking.openURL(storeUrl)} />
         )}
@@ -30,7 +32,6 @@ export function ForceUpdateScreen({ message, storeUrl }: ForceUpdateScreenProps)
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   content: {
     flex: 1,
@@ -42,13 +43,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
     letterSpacing: 1,
     marginTop: 16,
   },
   message: {
     fontSize: 16,
-    color: '#B0BEC5',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 8,

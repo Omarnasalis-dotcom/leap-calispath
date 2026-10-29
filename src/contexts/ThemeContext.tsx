@@ -54,3 +54,9 @@ export function useTheme() {
   }
   return context;
 }
+
+/** For UI that can render outside ThemeProvider (error boundaries, tests): light, the default, when there's no provider. */
+export function useThemeOrDefault(): { mode: ThemeMode; theme: ThemeColors } {
+  const ctx = useContext(ThemeContext);
+  return ctx ? { mode: ctx.mode, theme: ctx.theme } : { mode: 'light', theme: StealthTheme.light };
+}

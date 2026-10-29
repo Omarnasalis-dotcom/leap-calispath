@@ -40,9 +40,76 @@ import { advanceIntervals, upcomingBoundaries } from '../../lib/intervalClock';
 import { formatTime } from '../../lib/trials';
 import { StandaloneWorkoutDetail, StandaloneWorkoutExercise } from '../../lib/workoutLibrary';
 import { t } from '../../i18n';
+import { useThemeOrDefault } from '../../contexts/ThemeContext';
 
 const PREP_SECONDS = 3;
 const CORAL = '#FC5454';
+
+// Dark is the workout-runner handoff's palette; light keeps the same
+// relationships with text greys that clear AA on white.
+const DARK = {
+  coralText: CORAL,
+  ink: '#EDEDED',
+  inkStrong: '#fff',
+  muted: '#8a8a8a',
+  dim: '#6d6d6d',
+  dim2: '#5a5a5a',
+  eyebrow: '#4a4a4a',
+  eyebrow2: '#3f3f3f',
+  emptyText: '#4a4444',
+  deltaSlower: '#8a6a6a',
+  deltaFaster: '#6a8a6a',
+  divider: '#221c1c',
+  pipNext: '#5a2626',
+  pipIdle: '#191515',
+  coralBorder: '#3a1d1d',
+  border: '#241f1f',
+  summaryBg: '#0c0707',
+  rule: '#161212',
+  rowIdleBg: '#0a0808',
+  rowDoneBorder: '#2a1d1d',
+  borderFaint: '#1d1919',
+  wash015: 'rgba(255,255,255,.015)',
+  wash016: 'rgba(255,255,255,.016)',
+  wash02: 'rgba(255,255,255,.02)',
+  wash05: 'rgba(255,255,255,.05)',
+  roundBtnBg: 'rgba(0,0,0,.4)',
+  screen: '#000000',
+  ringOuter: '#141010',
+  ringTrack: '#120e0e',
+};
+type Palette = typeof DARK;
+const LIGHT: Palette = {
+  coralText: '#C93030',
+  ink: '#111111',
+  inkStrong: '#0B0B0D',
+  muted: '#56565E',
+  dim: '#6E6E77',
+  dim2: '#6E6E77',
+  eyebrow: '#6E6E77',
+  eyebrow2: '#6E6E77',
+  emptyText: '#6E6E77',
+  deltaSlower: '#A33A3A',
+  deltaFaster: '#2E7D3B',
+  divider: '#E5DADA',
+  pipNext: '#F0B3B3',
+  pipIdle: '#EEE4E4',
+  coralBorder: 'rgba(252,84,84,.35)',
+  border: '#E2D8D8',
+  summaryBg: '#FBF6F6',
+  rule: '#EEE4E4',
+  rowIdleBg: '#FFFFFF',
+  rowDoneBorder: '#EEE4E4',
+  borderFaint: '#E8DEDE',
+  wash015: 'rgba(0,0,0,.02)',
+  wash016: 'rgba(0,0,0,.025)',
+  wash02: 'rgba(0,0,0,.03)',
+  wash05: 'rgba(0,0,0,.05)',
+  roundBtnBg: 'rgba(0,0,0,.04)',
+  screen: '#FFFFFF',
+  ringOuter: '#F0E6E6',
+  ringTrack: '#EEDADA',
+};
 
 interface Interval {
   seconds: number;
@@ -141,6 +208,7 @@ function TimerDial({
   roundLine: string;
   roundOf: string | null;
 }) {
+  const { Q, dialStyles, qwStyles } = useQwTheme();
   const [reduceMotion, setReduceMotion] = useState(false);
   const anim = useRef(new Animated.Value(0)).current;
   const size = 246;
@@ -170,8 +238,8 @@ function TimerDial({
   return (
     <View style={{ width: size, height: size, alignItems: 'center', justifyContent: 'center' }}>
       <Svg width={size} height={size} style={{ position: 'absolute', transform: [{ rotate: '-90deg' }] }}>
-        <Circle cx={size / 2} cy={size / 2} r={112} stroke="#141010" strokeWidth={2} fill="none" />
-        <Circle cx={size / 2} cy={size / 2} r={r} stroke="#120e0e" strokeWidth={strokeWidth} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={112} stroke={Q.ringOuter} strokeWidth={2} fill="none" />
+        <Circle cx={size / 2} cy={size / 2} r={r} stroke={Q.ringTrack} strokeWidth={strokeWidth} fill="none" />
         <AnimatedCircle
           cx={size / 2} cy={size / 2} r={r} stroke={CORAL} strokeWidth={strokeWidth} fill="none"
           strokeLinecap="round" strokeDasharray={`${circumference} ${circumference}`} strokeDashoffset={strokeDashoffset}
@@ -184,7 +252,7 @@ function TimerDial({
         {clockText}
       </Animated.Text>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 }}>
-        <Text style={[dialStyles.roundLine, roundLine === t('qwTimer.complete') && { color: CORAL }]}>{roundLine}</Text>
+        <Text style={[dialStyles.roundLine, roundLine === t('qwTimer.complete') && { color: Q.coralText }]}>{roundLine}</Text>
         {!!roundOf && (
           <>
             <View style={dialStyles.roundDivider} />
@@ -197,18 +265,19 @@ function TimerDial({
 }
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
-const dialStyles = StyleSheet.create({
-  eyebrow: { color: '#4a4a4a', fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6, marginTop: -4 },
-  clock: { color: '#EDEDED', fontFamily: 'BarlowCondensed-Light', fontSize: 58, fontVariant: ['tabular-nums'], letterSpacing: -1, marginTop: 4 },
-  roundLine: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.2 },
-  roundDivider: { width: 1, height: 10, backgroundColor: '#221c1c' },
-  roundOf: { color: '#6d6d6d', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.2 },
+const makeDialStyles = (Q: Palette) => StyleSheet.create({
+  eyebrow: { color: Q.eyebrow, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6, marginTop: -4 },
+  clock: { color: Q.ink, fontFamily: 'BarlowCondensed-Light', fontSize: 58, fontVariant: ['tabular-nums'], letterSpacing: -1, marginTop: 4 },
+  roundLine: { color: Q.inkStrong, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.2 },
+  roundDivider: { width: 1, height: 10, backgroundColor: Q.divider },
+  roundOf: { color: Q.dim, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.2 },
 });
 
 // One 3pt tick per round — done = coral, current = wide dim-coral, pending
 // = dark. Only rendered for formats with a real fixed round count (EMOM,
 // Tabata, For Time when a target round count is set).
 function RoundPips({ total, completed }: { total: number; completed: number }) {
+  const { Q, dialStyles, qwStyles } = useQwTheme();
   return (
     <View style={{ flexDirection: 'row', gap: 5, marginTop: 14, marginBottom: 4 }}>
       {Array.from({ length: total }, (_, i) => (
@@ -216,7 +285,7 @@ function RoundPips({ total, completed }: { total: number; completed: number }) {
           key={i}
           style={{
             width: i === completed ? 24 : 9, height: 3, borderRadius: 2,
-            backgroundColor: i < completed ? CORAL : i === completed ? '#5a2626' : '#191515',
+            backgroundColor: i < completed ? CORAL : i === completed ? Q.pipNext : Q.pipIdle,
           }}
         />
       ))}
@@ -230,6 +299,7 @@ function RoundPips({ total, completed }: { total: number; completed: number }) {
 // at-lap, oldest first; deltas compare each round's duration against the
 // one before it.
 function SplitsSection({ splitsAt }: { splitsAt: number[] }) {
+  const { Q, dialStyles, qwStyles } = useQwTheme();
   if (splitsAt.length === 0) {
     return (
       <View style={qwStyles.noSplitsBox}>
@@ -251,7 +321,7 @@ function SplitsSection({ splitsAt }: { splitsAt: number[] }) {
         <View key={row.num} style={qwStyles.splitRow}>
           <Text style={qwStyles.splitNum}>{t('qwTimer.splitRound', { n: row.num })}</Text>
           <View style={qwStyles.splitRule} />
-          <Text style={[qwStyles.splitDelta, { color: row.delta.startsWith('+') ? '#8a6a6a' : '#6a8a6a' }]}>{row.delta}</Text>
+          <Text style={[qwStyles.splitDelta, { color: row.delta.startsWith('+') ? Q.deltaSlower : Q.deltaFaster }]}>{row.delta}</Text>
           <Text style={qwStyles.splitTime}>{formatTime(row.dur)}</Text>
         </View>
       ))}
@@ -270,6 +340,7 @@ export function QuickWorkoutTimerModal({
   theme: any;
   onClose: () => void;
 }) {
+  const { Q, dialStyles, qwStyles } = useQwTheme();
   const isForTime = workout?.format === 'fortime';
   const isAmrap = workout?.format === 'amrap';
   const isEmomOrTabata = workout?.format === 'emom' || workout?.format === 'tabata';
@@ -722,10 +793,10 @@ export function QuickWorkoutTimerModal({
 
   return (
     <Modal visible={visible} transparent={false} animationType="slide" presentationStyle="fullScreen" onRequestClose={handleRequestClose}>
-      <View style={[qwStyles.container, { backgroundColor: '#000000' }]}>
+      <View style={[qwStyles.container, { backgroundColor: Q.screen }]}>
         <View style={[qwStyles.header, { paddingTop: insets.top + 16 }]}>
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('qwTimer.close')} onPress={handleRequestClose} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} style={qwStyles.headerBtn}>
-            <MaterialCommunityIcons name="close" size={18} color="#EDEDED" />
+            <MaterialCommunityIcons name="close" size={18} color={Q.ink} />
           </TouchableOpacity>
           <View style={qwStyles.schemeChip}>
             <Text style={qwStyles.schemeChipText}>{workout.format ? workout.format.toUpperCase() : t('qwTimer.workout')}</Text>
@@ -769,7 +840,7 @@ export function QuickWorkoutTimerModal({
                     onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
                     disabled={phase === 'done'}
                   >
-                    <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={18} color="#EDEDED" />
+                    <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={18} color={Q.ink} />
                     <Text style={qwStyles.pauseBtnText}>{timer.isRunning ? t('qwTimer.pause') : t('qwTimer.resume')}</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
@@ -777,7 +848,7 @@ export function QuickWorkoutTimerModal({
                     onPress={handleSkipInterval}
                     disabled={phase === 'done'}
                   >
-                    <MaterialCommunityIcons name="skip-next" size={18} color="#EDEDED" />
+                    <MaterialCommunityIcons name="skip-next" size={18} color={Q.ink} />
                     <Text style={qwStyles.pauseBtnText}>{t('qwTimer.skip')}</Text>
                   </TouchableOpacity>
                 </View>
@@ -792,7 +863,7 @@ export function QuickWorkoutTimerModal({
                   <Text style={qwStyles.summaryLabel}>{t('qwTimer.totalTime')}</Text>
                 </View>
                 <View style={qwStyles.summaryCol}>
-                  <Text style={[qwStyles.summaryVal, { color: CORAL }]}>
+                  <Text style={[qwStyles.summaryVal, { color: Q.coralText }]}>
                     {roundSplits.length > 0 ? formatTime(Math.round(timer.seconds / roundSplits.length)) : '0:00'}
                   </Text>
                   <Text style={qwStyles.summaryLabel}>{t('qwTimer.avgRound')}</Text>
@@ -825,8 +896,8 @@ export function QuickWorkoutTimerModal({
                               {on && <MaterialCommunityIcons name="check" size={14} color="#000" />}
                             </View>
                             <Text style={[qwStyles.logName, on && qwStyles.logNameDone]} numberOfLines={1}>{ex.name}</Text>
-                            <View style={[qwStyles.logTargetPill, next && { borderColor: '#3a1d1d', backgroundColor: 'rgba(252,84,84,.08)' }]}>
-                              <Text style={[qwStyles.logTargetText, next && { color: CORAL }]}>× {ex.reps ?? ex.hold_seconds ?? '—'}</Text>
+                            <View style={[qwStyles.logTargetPill, next && { borderColor: Q.coralBorder, backgroundColor: 'rgba(252,84,84,.08)' }]}>
+                              <Text style={[qwStyles.logTargetText, next && { color: Q.coralText }]}>× {ex.reps ?? ex.hold_seconds ?? '—'}</Text>
                             </View>
                           </TouchableOpacity>
                         );
@@ -860,7 +931,7 @@ export function QuickWorkoutTimerModal({
                     <View style={[qwStyles.logRow, qwStyles.logRowNext]}>
                       <View style={[qwStyles.logDot, { backgroundColor: CORAL }]} />
                       <Text style={qwStyles.logName} numberOfLines={1}>{currentInterval.exercise.name}</Text>
-                      <Text style={[qwStyles.logMetaText, { color: CORAL }]}>{exerciseSubtitle(currentInterval.exercise)}</Text>
+                      <Text style={[qwStyles.logMetaText, { color: Q.coralText }]}>{exerciseSubtitle(currentInterval.exercise)}</Text>
                     </View>
                   </View>
                 )}
@@ -881,8 +952,8 @@ export function QuickWorkoutTimerModal({
                         return (
                           <View key={ex.exercise_id + String(ex.order_index)} style={[qwStyles.logRow, isCurrent ? qwStyles.logRowNext : qwStyles.logRowIdle]}>
                             <View style={[qwStyles.logDot, isCurrent && { backgroundColor: CORAL }]} />
-                            <Text style={[qwStyles.logName, { color: isCurrent ? '#fff' : '#8a8a8a' }]} numberOfLines={1}>{ex.name}</Text>
-                            <Text style={[qwStyles.logMetaText, isCurrent && { color: CORAL }]}>{exerciseSubtitle(ex)}</Text>
+                            <Text style={[qwStyles.logName, { color: isCurrent ? Q.inkStrong : Q.muted }]} numberOfLines={1}>{ex.name}</Text>
+                            <Text style={[qwStyles.logMetaText, isCurrent && { color: Q.coralText }]}>{exerciseSubtitle(ex)}</Text>
                           </View>
                         );
                       })}
@@ -910,14 +981,14 @@ export function QuickWorkoutTimerModal({
               onPress={() => (timer.isRunning ? timer.stop() : timer.start())}
               disabled={phase === 'done'}
             >
-              <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={20} color="#EDEDED" />
+              <MaterialCommunityIcons name={timer.isRunning ? 'pause' : 'play'} size={20} color={Q.ink} />
             </TouchableOpacity>
             <TouchableOpacity
               style={[qwStyles.footerPrimaryBtn, committed && qwStyles.footerPrimaryBtnDone]}
               onPress={handlePrimaryPress}
               disabled={committed}
             >
-              <Text style={[qwStyles.footerPrimaryText, committed && { color: '#8a8a8a' }]}>{primaryLabel}</Text>
+              <Text style={[qwStyles.footerPrimaryText, committed && { color: Q.muted }]}>{primaryLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('qwTimer.endWorkoutA11y')} style={qwStyles.footerIconBtn} onPress={handleRequestClose}>
               <MaterialCommunityIcons name="stop" size={20} color={CORAL} />
@@ -929,68 +1000,77 @@ export function QuickWorkoutTimerModal({
   );
 }
 
-const qwStyles = StyleSheet.create({
+const makeQwStyles = (Q: Palette) => StyleSheet.create({
   container: { flex: 1 },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingTop: 16 },
   headerBtn: { width: 34, height: 34, alignItems: 'center', justifyContent: 'center' },
-  schemeChip: { backgroundColor: 'rgba(252,84,84,.12)', borderWidth: 1, borderColor: '#3a1d1d', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
-  schemeChipText: { color: CORAL, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2 },
-  headerMeta: { color: '#5a5a5a', fontFamily: 'Barlow-Regular', fontSize: 9.5, textAlign: 'center', marginTop: 6, paddingHorizontal: 20 },
+  schemeChip: { backgroundColor: 'rgba(252,84,84,.12)', borderWidth: 1, borderColor: Q.coralBorder, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 5 },
+  schemeChipText: { color: Q.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2 },
+  headerMeta: { color: Q.dim2, fontFamily: 'Barlow-Regular', fontSize: 9.5, textAlign: 'center', marginTop: 6, paddingHorizontal: 20 },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
-  prepLabel: { color: '#8a8a8a', fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 2 },
+  prepLabel: { color: Q.muted, fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 2 },
   prepNumber: { fontFamily: 'BarlowCondensed-Bold', fontSize: 96 },
 
   pauseBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: '#241f1f',
+    flexDirection: 'row', alignItems: 'center', gap: 6, borderWidth: 1, borderColor: Q.border,
     borderRadius: 20, paddingHorizontal: 18, paddingVertical: 8, marginTop: 10,
   },
-  pauseBtnText: { color: '#EDEDED', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 },
+  pauseBtnText: { color: Q.ink, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1 },
 
   summaryCard: {
-    flexDirection: 'row', borderRadius: 18, borderWidth: 1, borderColor: '#3a1d1d',
-    backgroundColor: '#0c0707', padding: 18, marginTop: 24,
+    flexDirection: 'row', borderRadius: 18, borderWidth: 1, borderColor: Q.coralBorder,
+    backgroundColor: Q.summaryBg, padding: 18, marginTop: 24,
   },
   summaryCol: { flex: 1, alignItems: 'center' },
-  summaryVal: { color: '#fff', fontFamily: 'BarlowCondensed-Bold', fontSize: 20, fontVariant: ['tabular-nums'] },
-  summaryLabel: { color: '#6d6d6d', fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6, marginTop: 4 },
+  summaryVal: { color: Q.inkStrong, fontFamily: 'BarlowCondensed-Bold', fontSize: 20, fontVariant: ['tabular-nums'] },
+  summaryLabel: { color: Q.dim, fontFamily: 'Barlow-Regular', fontSize: 8.5, letterSpacing: 0.6, marginTop: 4 },
 
-  sectionRule: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: '#161212', paddingBottom: 8, marginBottom: 10 },
-  sectionEyebrow: { color: '#3f3f3f', fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6 },
-  sectionCount: { color: '#5a5a5a', fontFamily: 'Barlow-Regular', fontSize: 9.5 },
+  sectionRule: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderColor: Q.rule, paddingBottom: 8, marginBottom: 10 },
+  sectionEyebrow: { color: Q.eyebrow2, fontFamily: 'BarlowCondensed-Bold', fontSize: 8.5, letterSpacing: 2.6 },
+  sectionCount: { color: Q.dim2, fontFamily: 'Barlow-Regular', fontSize: 9.5 },
 
   logRow: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 15, borderWidth: 1, padding: 13 },
-  logRowIdle: { borderColor: '#191515', backgroundColor: '#0a0808' },
-  logRowNext: { borderColor: '#3a1d1d', backgroundColor: 'rgba(252,84,84,.05)' },
-  logRowDone: { borderColor: '#2a1d1d', backgroundColor: 'rgba(255,255,255,.015)', opacity: 0.58 },
-  logCheck: { width: 26, height: 26, borderRadius: 9, borderWidth: 1, borderColor: '#241f1f', alignItems: 'center', justifyContent: 'center' },
-  logDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: '#6d6d6d' },
-  logName: { flex: 1, color: '#fff', fontFamily: 'Barlow-Regular', fontSize: 14.5 },
-  logNameDone: { color: '#8a8a8a', textDecorationLine: 'line-through' },
-  logMetaText: { color: '#8a8a8a', fontFamily: 'BarlowCondensed-Bold', fontSize: 11 },
-  logTargetPill: { borderWidth: 1, borderColor: '#1d1919', backgroundColor: 'rgba(255,255,255,.02)', borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
-  logTargetText: { color: '#8a8a8a', fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5 },
+  logRowIdle: { borderColor: Q.pipIdle, backgroundColor: Q.rowIdleBg },
+  logRowNext: { borderColor: Q.coralBorder, backgroundColor: 'rgba(252,84,84,.05)' },
+  logRowDone: { borderColor: Q.rowDoneBorder, backgroundColor: Q.wash015, opacity: 0.58 },
+  logCheck: { width: 26, height: 26, borderRadius: 9, borderWidth: 1, borderColor: Q.border, alignItems: 'center', justifyContent: 'center' },
+  logDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Q.dim },
+  logName: { flex: 1, color: Q.inkStrong, fontFamily: 'Barlow-Regular', fontSize: 14.5 },
+  logNameDone: { color: Q.muted, textDecorationLine: 'line-through' },
+  logMetaText: { color: Q.muted, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 },
+  logTargetPill: { borderWidth: 1, borderColor: Q.borderFaint, backgroundColor: Q.wash02, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 6 },
+  logTargetText: { color: Q.muted, fontFamily: 'BarlowCondensed-Bold', fontSize: 11.5 },
 
-  noSplitsBox: { borderWidth: 1, borderColor: '#1d1919', borderStyle: 'dashed', borderRadius: 13, padding: 15, alignItems: 'center' },
-  noSplitsText: { color: '#4a4444', fontFamily: 'Barlow-Regular', fontSize: 10.5, letterSpacing: 0.6, textAlign: 'center' },
-  splitRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, borderRadius: 12, backgroundColor: 'rgba(255,255,255,.016)' },
-  splitNum: { color: '#6d6d6d', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.4, minWidth: 20 },
+  noSplitsBox: { borderWidth: 1, borderColor: Q.borderFaint, borderStyle: 'dashed', borderRadius: 13, padding: 15, alignItems: 'center' },
+  noSplitsText: { color: Q.emptyText, fontFamily: 'Barlow-Regular', fontSize: 10.5, letterSpacing: 0.6, textAlign: 'center' },
+  splitRow: { flexDirection: 'row', alignItems: 'center', gap: 11, padding: 11, borderRadius: 12, backgroundColor: Q.wash016 },
+  splitNum: { color: Q.dim, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.4, minWidth: 20 },
   splitRule: { flex: 1 },
   splitDelta: { fontFamily: 'Barlow-Regular', fontSize: 10, minWidth: 40, textAlign: 'right' },
-  splitTime: { color: '#EDEDED', fontFamily: 'BarlowCondensed-Bold', fontSize: 12.5, minWidth: 52, textAlign: 'right', fontVariant: ['tabular-nums'] },
+  splitTime: { color: Q.ink, fontFamily: 'BarlowCondensed-Bold', fontSize: 12.5, minWidth: 52, textAlign: 'right', fontVariant: ['tabular-nums'] },
 
   footer: {
     position: 'absolute', left: 16, right: 16, bottom: 26,
     flexDirection: 'row', gap: 10, alignItems: 'center',
   },
   footerIconBtn: {
-    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: '#241f1f',
-    alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(0,0,0,.4)',
+    width: 52, height: 52, borderRadius: 15, borderWidth: 1, borderColor: Q.border,
+    alignItems: 'center', justifyContent: 'center', backgroundColor: Q.roundBtnBg,
   },
   footerPrimaryBtn: {
     flex: 1, height: 52, borderRadius: 16, alignItems: 'center', justifyContent: 'center',
     backgroundColor: CORAL,
     shadowColor: '#000', shadowOffset: { width: 0, height: 12 }, shadowOpacity: 0.3, shadowRadius: 30, elevation: 8,
   },
-  footerPrimaryBtnDone: { backgroundColor: 'rgba(255,255,255,.05)', borderWidth: 1, borderColor: '#241f1f', shadowOpacity: 0 },
+  footerPrimaryBtnDone: { backgroundColor: Q.wash05, borderWidth: 1, borderColor: Q.border, shadowOpacity: 0 },
   footerPrimaryText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 13.5, letterSpacing: 1.9 },
 });
+
+const THEMES = {
+  dark: { Q: DARK, dialStyles: makeDialStyles(DARK), qwStyles: makeQwStyles(DARK) },
+  light: { Q: LIGHT, dialStyles: makeDialStyles(LIGHT), qwStyles: makeQwStyles(LIGHT) },
+};
+
+function useQwTheme() {
+  return THEMES[useThemeOrDefault().mode];
+}
