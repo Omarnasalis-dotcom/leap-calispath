@@ -162,6 +162,7 @@ export function GrowthPage() {
       {data?.headline && (
         <>
           {data.key_events && <KeyEvents data={data} />}
+          {data.subscribers && <SubscribersPanel data={data} />}
           <Headline data={data} />
           <FunnelPanel data={data} />
           <DailyPanel data={data} />
@@ -218,6 +219,70 @@ function KeyEvents({ data }: { data: GrowthAnalytics }) {
             {h.paying_store} store · {h.paying_other} codes or grants
           </span>
         </div>
+      </div>
+    </section>
+  );
+}
+
+// Store subscribers by name. The range switch applies to this list only:
+// "This range" = bought (or bought again) inside the page's range, matching
+// Key events' Subscribed; "All time" = everyone who ever subscribed.
+function SubscribersPanel({ data }: { data: GrowthAnalytics }) {
+  const [allTime, setAllTime] = useState(false);
+  const since = Date.now() - data.days * 86_400_000;
+  const all = data.subscribers ?? [];
+  const rows = allTime ? all : all.filter((s) => new Date(s.last_at).getTime() >= since);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Subscribers</h2>
+        <div className="row">
+          <button className={`btn small${!allTime ? ' primary' : ''}`} onClick={() => setAllTime(false)} aria-pressed={!allTime}>
+            Last {data.days} days ({all.filter((s) => new Date(s.last_at).getTime() >= since).length})
+          </button>
+          <button className={`btn small${allTime ? ' primary' : ''}`} onClick={() => setAllTime(true)} aria-pressed={allTime}>
+            All time ({all.length})
+          </button>
+        </div>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Username</th>
+              <th>Plan</th>
+              <th>First bought</th>
+              <th>Ends</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s) => (
+              <tr key={`${s.username}-${s.first_at}`}>
+                <td style={{ fontWeight: 700 }}>{s.username ?? '—'}</td>
+                <td>{PLAN_LABEL[s.plan ?? ''] ?? s.plan ?? '—'}</td>
+                <td className="dim">{formatDate(s.first_at)}</td>
+                <td className="dim">{s.ends_at ? formatDate(s.ends_at) : '—'}</td>
+                <td>
+                  {s.paying ? (
+                    <span style={{ color: 'var(--accent)', fontWeight: 700 }}>Paying</span>
+                  ) : (
+                    <span className="dim">Ended</span>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {rows.length === 0 && (
+          <div className="empty">
+            <span className="label">No subscribers {allTime ? 'yet' : 'in this range'}</span>
+            Store purchases show here; codes and manual grants don't.
+          </div>
+        )}
+      </div>
+      <div className="dim" style={{ marginTop: 8 }}>
+        Store purchases only; tests, refunds within 2 days and deleted accounts aren't listed.
       </div>
     </section>
   );
