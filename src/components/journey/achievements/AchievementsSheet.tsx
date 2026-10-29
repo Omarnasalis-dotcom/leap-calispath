@@ -1,14 +1,15 @@
 import React, { useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
-import Animated, { FadeInDown } from 'react-native-reanimated';
+import { Pressable, Text, View } from 'react-native';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { router } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { getWorldKitTokens, WorldKitTokens } from '../../../../constants/worldKitTokens';
 import { useTheme } from '../../../contexts/ThemeContext';
 import { BoardKicker, KitButton, KitIcon, kt, SegmentedSwitch, WorldSheet } from '../../worlds/kit';
 import { JourneyBadge } from '../badges/JourneyBadge';
 import { BoardShareButton, LeaderboardShareCard } from '../../leaderboard/LeaderboardShareCard';
-import { achievementFor } from '../../../lib/journeyAchievements';
+import { ACHIEVEMENTS, achievementFor } from '../../../lib/journeyAchievements';
 import { BoardPeriod, CommunityBoard, CommunityBoardRow, JourneyAchievementState } from '../../../lib/journeyPoints';
 import { useJourneyCommunity } from '../../../hooks/useJourneyCommunity';
 import { usernameInitials } from '../../../lib/leaderboardShare';
@@ -41,13 +42,22 @@ const pts = (n: number) => n.toLocaleString('en-US');
 
 // ── Your badge ────────────────────────────────────────────────────────────
 
-function YourBadge({ t, state }: { t: WorldKitTokens; state: JourneyAchievementState }) {
+// Tapping the card swaps the leaderboard for every badge in order, and back.
+function YourBadge({ t, state, ladderOpen, onPress }: {
+  t: WorldKitTokens; state: JourneyAchievementState; ladderOpen: boolean; onPress: () => void;
+}) {
   const light = t.mode === 'light';
   const def = achievementFor(state.level);
   const next = state.next_level ? achievementFor(state.next_level) : undefined;
   const progress = state.next_threshold ? Math.min(1, state.lifetime / state.next_threshold) : 1;
   return (
-    <View style={{ marginHorizontal: 24, marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: t.border, backgroundColor: t.tint, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={tr(ladderOpen ? 'journeyAchievements.backToBoard' : 'journeyAchievements.seeAllBadges')}
+      onPress={onPress}
+      style={({ pressed }) => ({ marginHorizontal: 24, marginTop: 14, borderRadius: 18, borderWidth: 1, borderColor: ladderOpen ? t.accent : t.border, backgroundColor: t.tint, padding: 14, gap: 10, opacity: pressed ? 0.85 : 1 })}
+    >
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
       <JourneyBadge level={state.level} size={64} slotColor={light ? '#a8a2a0' : '#5a5a5a'} />
       <View style={{ flex: 1, minWidth: 0, gap: 6 }}>
         {/* Lifetime points: every program except deleted ones, same as the top bar's POINTS. */}
@@ -71,6 +81,60 @@ function YourBadge({ t, state }: { t: WorldKitTokens; state: JourneyAchievementS
           <Text style={kt('regular', 12, t.textMuted, 0, 17)}>{tr('journeyAchievements.noBadgeHint')}</Text>
         )}
       </View>
+    </View>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4 }}>
+        <Text style={kt('semibold', 10.5, t.accentText, 1.6)}>
+          {tr(ladderOpen ? 'journeyAchievements.backToBoard' : 'journeyAchievements.seeAllBadges')}
+        </Text>
+        <MaterialCommunityIcons name={ladderOpen ? 'chevron-up' : 'chevron-down'} size={15} color={t.accentText} />
+      </View>
+    </Pressable>
+  );
+}
+
+// ── Every badge, in order ─────────────────────────────────────────────────
+
+function BadgeLadder({ t, state }: { t: WorldKitTokens; state: JourneyAchievementState }) {
+  const light = t.mode === 'light';
+  return (
+    <View style={{ paddingHorizontal: 24, paddingTop: 16, gap: 8 }}>
+      <Text style={kt('medium', 10, t.textMuted, 2)}>{tr('journeyAchievements.allBadges')}</Text>
+      {ACHIEVEMENTS.map((a, i) => {
+        const earned = state.level >= a.level;
+        const current = state.next_level === a.level;
+        const prevThreshold = i > 0 ? ACHIEVEMENTS[i - 1].threshold : 0;
+        const progress = current ? Math.min(1, Math.max(0, (state.lifetime - prevThreshold) / (a.threshold - prevThreshold))) : 0;
+        return (
+          <Animated.View
+            key={a.key}
+            entering={FadeInDown.delay(i * 55).duration(300)}
+            style={{
+              borderRadius: 14, borderWidth: 1,
+              borderColor: current ? a.tone : t.border,
+              backgroundColor: current ? t.tint : 'transparent',
+            }}
+          >
+            {/* Dimmed on an inner view: the entering fade animates the outer one's opacity. */}
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 10, opacity: earned || current ? 1 : 0.4 }}>
+            <JourneyBadge level={a.level} size={40} simple={!earned} slotColor={light ? '#a8a2a0' : '#5a5a5a'} />
+            <View style={{ flex: 1, minWidth: 0, gap: 4 }}>
+              <Text style={kt('bold', 14, earned || current ? toneForText(a.tone, light) : t.textMuted, 1.2)} numberOfLines={1}>{badgeName(a.level)}</Text>
+              {current ? (
+                <View style={{ height: 4, borderRadius: 2, backgroundColor: t.track, overflow: 'hidden' }}>
+                  <View style={{ width: `${progress * 100}%`, height: 4, borderRadius: 2, backgroundColor: a.tone }} />
+                </View>
+              ) : (
+                <Text style={kt('medium', 10.5, t.textFaint, 1)}>{tr(earned ? 'journeyAchievements.ladderEarned' : 'journeyAchievements.ladderLocked')}</Text>
+              )}
+            </View>
+            <View style={{ alignItems: 'flex-end', gap: 2 }}>
+              {earned && <KitIcon name="check" size={14} color={toneForText(a.tone, light)} />}
+              <Text style={kt('semibold', 11, t.textSecondary, 0.6)}>{ltr(tr('journeyAchievements.lifetimePts', { n: pts(a.threshold) }))}</Text>
+            </View>
+            </View>
+          </Animated.View>
+        );
+      })}
     </View>
   );
 }
@@ -193,6 +257,7 @@ export function AchievementsSheet({ visible, onClose, state, board: weekBoard, u
   const t = useMemo(() => getWorldKitTokens('strength', mode), [mode]);
   const [shareOpen, setShareOpen] = useState(false);
   const [period, setPeriod] = useState<BoardPeriod>('week');
+  const [ladderOpen, setLadderOpen] = useState(false);
   // The ALL TIME board loads the first time its tab is opened.
   const lifetime = useJourneyCommunity(visible && period === 'lifetime' ? userId : undefined, 'lifetime');
   const allTime = period === 'lifetime';
@@ -236,7 +301,11 @@ export function AchievementsSheet({ visible, onClose, state, board: weekBoard, u
         />
       ) : undefined}
     >
-      <YourBadge t={t} state={state} />
+      <YourBadge t={t} state={state} ladderOpen={ladderOpen} onPress={() => setLadderOpen(o => !o)} />
+      {ladderOpen ? (
+        <BadgeLadder t={t} state={state} />
+      ) : (
+      <Animated.View key="board" entering={FadeIn.duration(260)}>
       {locked ? (
         <Locked t={t} onJoin={() => { onClose(); router.push('/profile'); }} />
       ) : weekBoard ? (
@@ -267,6 +336,8 @@ export function AchievementsSheet({ visible, onClose, state, board: weekBoard, u
           ) : null}
         </>
       ) : null}
+      </Animated.View>
+      )}
     </WorldSheet>
   );
 }

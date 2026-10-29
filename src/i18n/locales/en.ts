@@ -1198,6 +1198,11 @@ const en = {
     final: 'FINAL',
   },
   journeyAchievements: {
+    seeAllBadges: 'SEE ALL BADGES',
+    backToBoard: 'BACK TO LEADERBOARD',
+    allBadges: 'ALL BADGES',
+    ladderEarned: 'EARNED',
+    ladderLocked: 'LOCKED',
     rising: 'RISING',
     consistent: 'CONSISTENT',
     committed: 'COMMITTED',
@@ -2610,7 +2615,6 @@ const en = {
   },
   system: {
     updateAvailableTitle: 'New version available — tap to update',
-    updateChip: 'Update',
     updateTitle: 'Update Required',
     updateMessage: 'Please update to continue.',
     updateNow: 'Update Now',

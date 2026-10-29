@@ -1289,6 +1289,11 @@ const ar: Translations = {
     final: 'نهائي',
   },
   journeyAchievements: {
+    seeAllBadges: 'عرض كل الشارات',
+    backToBoard: 'العودة إلى الترتيب',
+    allBadges: 'كل الشارات',
+    ladderEarned: 'حصلت عليها',
+    ladderLocked: 'مقفلة',
     rising: 'الصاعد',
     consistent: 'المواظب',
     committed: 'الملتزم',
@@ -2762,7 +2767,6 @@ const ar: Translations = {
   },
   system: {
     updateAvailableTitle: 'يتوفر إصدار جديد، اضغط للتحديث',
-    updateChip: 'تحديث',
     updateTitle: 'يلزم التحديث',
     updateMessage: 'حدّث التطبيق للمتابعة. يتضمن الإصدار الجديد تحسينات وإصلاحات مهمة.',
     updateNow: 'حدّث الآن',

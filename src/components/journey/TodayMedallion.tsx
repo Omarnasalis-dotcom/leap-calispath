@@ -199,10 +199,16 @@ export function TodayMedallion({ segments, isLight, onPress, onLongPress, badgeL
           { opacity: pillIn, transform: [{ translateY: pillIn.interpolate({ inputRange: [0, 1], outputRange: [6, 0] }) }] },
         ]}
       >
-        <Text style={[styles.pillText, isArabic && styles.pillTextAr, { color: lit ? '#FFFFFF' : c.pillUnlitText }]}>
-          {t(`journeyPoints.stage.${stage}`)}
-          <Text style={styles.pillCount}>{`  ${done}/${total}`}</Text>
-        </Text>
+        {/* Two texts on one row: a nested count wrapped onto a hidden second
+            line on Android, and stacked into a tall box in Arabic. */}
+        <View style={styles.pillRow}>
+          <Text numberOfLines={1} style={[styles.pillText, isArabic && styles.pillTextAr, { color: lit ? '#FFFFFF' : c.pillUnlitText }]}>
+            {t(`journeyPoints.stage.${stage}`)}
+          </Text>
+          <Text numberOfLines={1} style={[styles.pillText, styles.pillCount, { color: lit ? '#FFFFFF' : c.pillUnlitText }]}>
+            {ltr(`${done}/${total}`)}
+          </Text>
+        </View>
       </Animated.View>
     </TouchableOpacity>
   );
@@ -244,15 +250,15 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     justifyContent: 'center',
   },
-  pillText: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 8.5, letterSpacing: 1.2, includeFontPadding: false },
-  pillCount: { opacity: 0.75 },
+  pillRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  pillText: { fontFamily: 'PlusJakartaSans-ExtraBold', fontSize: 8.5, letterSpacing: 1.2, includeFontPadding: false, textAlignVertical: 'center' },
+  pillCount: { opacity: 0.75, letterSpacing: 0.4 },
   rankPip: {
     position: 'absolute', top: -2, right: -8, minWidth: 22, height: 17, paddingHorizontal: 4,
     borderRadius: 9, borderWidth: 2, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center',
   },
   rankPipText: { fontFamily: 'Oswald-Bold', fontSize: 9.5, color: '#FFFFFF', includeFontPadding: false },
-  // Arabic (Cairo) letters are taller than the 17pt pill fits: let it grow,
-  // and a touch bigger so the stage name stays readable.
-  pillAr: { height: undefined, minHeight: 17, paddingVertical: 1, bottom: -11 },
-  pillTextAr: { fontSize: 10 },
+  // Arabic (Cairo) letters are taller: a slightly taller pill, still one line.
+  pillAr: { height: 20, bottom: -11 },
+  pillTextAr: { fontSize: 9.5, letterSpacing: 0, lineHeight: 15 },
 });

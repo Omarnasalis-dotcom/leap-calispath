@@ -1,5 +1,5 @@
 import React, { useCallback, useState } from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity } from 'react-native';
+import { Linking, StyleSheet, TouchableOpacity } from 'react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useFocusEffect } from 'expo-router';
 import { checkUpdateAvailable } from '../../lib/appVersion';
@@ -8,7 +8,7 @@ import { t } from '../../i18n';
 
 const BLUE = '#4A9EFF';
 
-// Profile's "Update" pill, next to the plan badge: shows while the store has
+// Profile's update button (a blue arrow), next to the plan badge: shows while the store has
 // a newer version (app_config.latest_version) than this install, and opens
 // the store page.
 export function UpdateChip() {
@@ -38,29 +38,20 @@ export function UpdateChip() {
       }}
       style={styles.pill}
     >
-      <MaterialCommunityIcons name="arrow-down-circle-outline" size={10} color={BLUE} />
-      <Text style={styles.text}>{t('system.updateChip')}</Text>
+      <MaterialCommunityIcons name="arrow-down" size={11} color={BLUE} />
     </TouchableOpacity>
   );
 }
 
-// Same size as the Upgrade pill beside it, in blue.
+// An icon-only circle, the same size as the gift beside it, in blue.
 const styles = StyleSheet.create({
   pill: {
-    flexShrink: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
+    width: 18,
     height: 18,
-    paddingHorizontal: 7,
-    borderRadius: 999,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderWidth: 1,
     borderColor: 'rgba(74,158,255,0.6)',
-  },
-  text: {
-    fontFamily: 'BarlowCondensed-Bold',
-    fontSize: 9.5,
-    letterSpacing: 0.3,
-    color: BLUE,
   },
 });
