@@ -14,7 +14,7 @@ import {
   isErrorWithCode,
   statusCodes,
 } from '@react-native-google-signin/google-signin';
-import Purchases from 'react-native-purchases';
+import Purchases, { LOG_LEVEL } from 'react-native-purchases';
 import * as Sentry from '@sentry/react-native';
 import { trackAppOpened } from '../lib/analytics';
 import { checkPaywallEnabled } from '../lib/appVersion';
@@ -52,6 +52,8 @@ function ensurePurchasesConfigured() {
       Platform.OS === 'ios'
         ? process.env.EXPO_PUBLIC_REVENUECAT_IOS_API_KEY!
         : process.env.EXPO_PUBLIC_REVENUECAT_ANDROID_API_KEY!;
+    // Dev builds: RevenueCat's own logs (paywall, offerings, locale) in logcat / Xcode.
+    if (__DEV__) Purchases.setLogLevel(LOG_LEVEL.DEBUG);
     Purchases.configure({ apiKey });
     purchasesConfigured = true;
   } catch (error) {
