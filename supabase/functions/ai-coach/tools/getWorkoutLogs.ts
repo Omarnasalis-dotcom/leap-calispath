@@ -1,5 +1,6 @@
 import { ToolDefinition } from "./types.ts";
 import { isUuid } from "./blockHelpers.ts";
+import { athleteNoteFrom } from "./athleteNotes.ts";
 
 // Thin wrapper over get_warrior_progress — already patched (see
 // 20260821171000_allow_warrior_self_access_progress.sql) to allow the
@@ -23,7 +24,7 @@ import { isUuid } from "./blockHelpers.ts";
 export const getWorkoutLogs: ToolDefinition = {
   name: "get_workout_logs",
   description:
-    "Get the athlete's actual logged performance (sets/reps/weight/hold completed, RPE, feel, pain notes, bodyweight trend) for their active program, block by block, week by week — each logged exercise also carries `under_prescribed: true/false`, computed against what the block actually prescribes, so a session marked 'completed' with fewer sets or lower reps than written is never mistaken for full completion. Use this before reviewing a week or deciding on an adjustment — never guess at their performance.",
+    "Get the athlete's actual logged performance (sets/reps/weight/hold completed, RPE, feel, pain notes, bodyweight trend) for their active program, block by block, week by week. athlete_notes lists every note the athlete wrote, in their own words, apart from the app's [LOG] lines (also on each log as athlete_note) — each logged exercise also carries `under_prescribed: true/false`, computed against what the block actually prescribes, so a session marked 'completed' with fewer sets or lower reps than written is never mistaken for full completion. Use this before reviewing a week or deciding on an adjustment — never guess at their performance.",
   input_schema: {
     type: "object",
     properties: {
@@ -53,9 +54,26 @@ export const getWorkoutLogs: ToolDefinition = {
     });
     if (error) throw new Error(`get_workout_logs failed: ${error.message}`);
 
-    const logs = (data?.logs ?? []) as Array<{ block_id: string | null; sets: Array<{ exercise_name: string | null; reps_completed: number | null }> }>;
+    const logs = (data?.logs ?? []) as Array<{
+      block_id: string | null;
+      block_name?: string | null;
+      week_number?: number | null;
+      completed_at?: string | null;
+      status?: string | null;
+      notes?: string | null;
+      missed_detail?: string | null;
+      sets: Array<{ exercise_name: string | null; reps_completed: number | null }>;
+    }>;
+    // Every note the athlete wrote, newest first (the RPC's order), apart
+    // from the app's own [LOG] lines — see athleteNotes.ts.
+    const athlete_notes = logs.flatMap((l) => {
+      const note = athleteNoteFrom(l.notes, l.missed_detail);
+      return note
+        ? [{ week_number: l.week_number ?? null, block_name: l.block_name ?? null, completed_at: l.completed_at ?? null, status: l.status ?? null, note }]
+        : [];
+    });
     const blockIds = [...new Set(logs.map((l) => l.block_id).filter((id): id is string => !!id))];
-    if (blockIds.length === 0) return data;
+    if (blockIds.length === 0) return { ...data, athlete_notes };
 
     const { data: blockExRows, error: beError } = await userClient
       .from("block_exercises")
@@ -95,9 +113,9 @@ export const getWorkoutLogs: ToolDefinition = {
           under_prescribed,
         };
       });
-      return { ...log, exercises_vs_prescribed };
+      return { ...log, athlete_note: athleteNoteFrom(log.notes, log.missed_detail), exercises_vs_prescribed };
     });
 
-    return { ...data, logs: annotatedLogs };
+    return { ...data, logs: annotatedLogs, athlete_notes };
   },
 };

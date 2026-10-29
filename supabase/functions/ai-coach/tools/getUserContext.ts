@@ -1,6 +1,7 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
 import { getNextTrial } from "./trialData.ts";
+import { athleteNoteFrom } from "./athleteNotes.ts";
 
 // Read-only grounding for every turn. get_my_profile() is the same
 // SECURITY DEFINER RPC AuthContext.tsx already calls client-side for the
@@ -13,7 +14,7 @@ import { getNextTrial } from "./trialData.ts";
 export const getUserContext: ToolDefinition = {
   name: "get_user_context",
   description:
-    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids, e.g. weight_loss/strength/learn_skills/other — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), training_days_per_week (integer 1-7, or null if never given — same already-answered convention as goal/equipment: a real number here means don't ask for days per week again), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by propose_append_week or adjust_program) and current_week_complete (every real block in current_week already has a log, completed or missed — see system-prompt.ts §6 for what to do with this on an AI-owned program).",
+    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids, e.g. weight_loss/strength/learn_skills/other — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), training_days_per_week (integer 1-7, or null if never given — same already-answered convention as goal/equipment: a real number here means don't ask for days per week again), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by propose_append_week or adjust_program) and current_week_complete (every real block in current_week already has a log, completed or missed — see system-prompt.ts §6 for what to do with this on an AI-owned program), and recent_athlete_notes (the latest notes the athlete wrote on their workout logs, in their own words, newest first, with block, week and date).",
   input_schema: { type: "object", properties: {} },
   handler: async (userClient) => {
     const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
@@ -111,9 +112,45 @@ export const getUserContext: ToolDefinition = {
             current_week_complete: await isCurrentWeekComplete(userClient, activeProgram),
           }
         : null,
+      recent_athlete_notes: activeProgram ? await recentAthleteNotes(userClient, activeProgram.id) : [],
     };
   },
 };
+
+// The athlete's latest workout-log notes on the active program, so a note
+// reaches the coach in any chat, not only when it calls get_workout_logs
+// for a weekly review (system-prompt.ts §6). Block names come from a second
+// select rather than an embed, same as the rest of this file.
+async function recentAthleteNotes(userClient: SupabaseClient, warriorProgramId: string) {
+  const { data: logRows } = await userClient
+    .from("workout_logs")
+    .select("block_id, notes, missed_detail, completed_at")
+    .eq("warrior_program_id", warriorProgramId)
+    .order("completed_at", { ascending: false })
+    .limit(40);
+  const withNotes = ((logRows ?? []) as Array<{ block_id: string | null; notes: string | null; missed_detail: string | null; completed_at: string }>)
+    .map((l) => ({ ...l, note: athleteNoteFrom(l.notes, l.missed_detail) }))
+    .filter((l) => l.note)
+    .slice(0, 8);
+  if (withNotes.length === 0) return [];
+
+  const blockIds = [...new Set(withNotes.map((l) => l.block_id).filter((id): id is string => !!id))];
+  const { data: blockRows } = blockIds.length
+    ? await userClient.from("program_blocks").select("id, name, week_number").in("id", blockIds)
+    : { data: [] };
+  const blocks = new Map(((blockRows ?? []) as Array<{ id: string; name: string; week_number: number | null }>).map((b) => [b.id, b]));
+
+  return withNotes.map((l) => {
+    const block = l.block_id ? blocks.get(l.block_id) : undefined;
+    return {
+      week_number: block?.week_number ?? null,
+      block_name: block?.name ?? null,
+      completed_at: l.completed_at,
+      status: (l.notes ?? "").startsWith("[STATUS:MISSED]") ? "missed" : "completed",
+      note: l.note,
+    };
+  });
+}
 
 // Mirrors the same day/week-completion grouping logic
 // notify-coach-workout-logged/index.ts uses (no shared server-side "week
