@@ -75,6 +75,8 @@ interface RevenueCatEvent {
   price_in_purchased_currency?: number | null;
   currency?: string | null;
   presented_offering_id?: string | null;
+  // "SANDBOX" for TestFlight / test purchases, "PRODUCTION" for real ones.
+  environment?: string;
 }
 
 // Product IDs set up in App Store Connect/RevenueCat for the 2026-08-29
@@ -380,6 +382,7 @@ Deno.serve(async (req) => {
           price: event.price_in_purchased_currency ?? null,
           currency: event.currency ?? null,
           offering: event.presented_offering_id ?? null,
+          environment: event.environment ?? null,
         },
       });
       if (logError) console.error("[revenuecat-webhook] app_events insert failed:", logError);
