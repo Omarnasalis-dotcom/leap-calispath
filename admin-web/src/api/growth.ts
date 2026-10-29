@@ -28,6 +28,16 @@ export interface GrowthAnalytics {
     wau: number;
     mau: number;
   };
+  // People in the range; store test (sandbox) purchases left out. Missing
+  // until the 20261029180000 migration is applied.
+  key_events?: {
+    paywall_viewed: number;
+    paywall_dismissed: number;
+    subscribed: number;
+    renewed: number;
+    code_unlocked: number;
+    offer_shown: number;
+  };
   funnel: GrowthFunnelStep[];
   // Local calendar days in `tz`; `partial` marks today.
   daily: Array<{ day: string; active_users: number; partial: boolean }>;

@@ -128,16 +128,6 @@ export function GrowthPage() {
     queryFn: () => fetchOfferAnalytics(days),
   });
 
-  const eventCount = (name: string) => data?.events.find((e) => e.event === name);
-  const paywallSteps = [
-    { label: 'Saw the paywall', row: eventCount('paywall_viewed') },
-    { label: 'Dismissed it', row: eventCount('purchase_cancelled') },
-    { label: 'Failed to load', row: eventCount('paywall_failed') },
-    { label: 'Bought', row: eventCount('purchase_completed') },
-    { label: 'Restored', row: eventCount('purchase_restored') },
-  ];
-  const paywallViewers = paywallSteps[0].row?.users ?? 0;
-
   return (
     <div className="page">
       <div className="page-head">
@@ -171,38 +161,12 @@ export function GrowthPage() {
 
       {data?.headline && (
         <>
+          {data.key_events && <KeyEvents data={data} />}
           <Headline data={data} />
           <FunnelPanel data={data} />
           <DailyPanel data={data} />
           <FeaturesPanel data={data} />
         </>
-      )}
-
-      {data && (
-        <section className="panel">
-          <div className="panel-head">
-            <h2>Paywall</h2>
-            <span className="label">people, last {data.days} days · app events</span>
-          </div>
-          <div className="table-wrap">
-            <table className="data">
-              <tbody>
-                {paywallSteps.map(({ label, row }) => (
-                  <tr key={label}>
-                    <td style={{ width: 180 }}>{label}</td>
-                    <td className="num" style={{ textAlign: 'right', width: 60 }}>{row?.users ?? 0}</td>
-                    <td className="num dim" style={{ textAlign: 'right', width: 60 }}>
-                      {label === 'Saw the paywall' ? '' : pct(row?.users ?? 0, paywallViewers)}
-                    </td>
-                    <td>
-                      <Bar value={row?.users ?? 0} max={paywallViewers} />
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
       )}
 
       {offers.error && <ErrorNote error={offers.error} />}
@@ -212,6 +176,50 @@ export function GrowthPage() {
 
       {data && <RawEventsPanel data={data} />}
     </div>
+  );
+}
+
+// The money moments at a glance, in people. Subscribed joins the app's
+// purchase event with the store webhook, so each purchase counts once.
+function KeyEvents({ data }: { data: GrowthAnalytics }) {
+  const k = data.key_events!;
+  const h = data.headline!;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Key events</h2>
+        <span className="label">people, last {data.days} days · store test purchases left out</span>
+      </div>
+      <div className="stat-strip" role="group" aria-label="Key events">
+        <div className="stat-cell">
+          <span className="label">Saw the paywall</span>
+          <span className="value">{k.paywall_viewed}</span>
+          <span className="hint">{k.paywall_dismissed} closed it without buying</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Subscribed</span>
+          <span className="value">{k.subscribed}</span>
+          <span className="hint">{pct(k.subscribed, k.paywall_viewed)} of paywall viewers</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Renewed</span>
+          <span className="value">{k.renewed}</span>
+          <span className="hint">store renewals, from 29 Oct 2026</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Unlocked with a code</span>
+          <span className="value">{k.code_unlocked}</span>
+          <span className="hint">{k.offer_shown} saw the welcome offer</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Paying now</span>
+          <span className="value">{h.paying_store + h.paying_other}</span>
+          <span className="hint">
+            {h.paying_store} store · {h.paying_other} codes or grants
+          </span>
+        </div>
+      </div>
+    </section>
   );
 }
 
@@ -246,13 +254,6 @@ function Headline({ data }: { data: GrowthAnalytics }) {
         <span className="label">Weekly active</span>
         <span className="value">{h.wau}</span>
         <span className="hint">{h.mau} in the last 30 days</span>
-      </div>
-      <div className="stat-cell">
-        <span className="label">Paying now</span>
-        <span className="value">{h.paying_store + h.paying_other}</span>
-        <span className="hint">
-          {h.paying_store} store · {h.paying_other} codes or grants
-        </span>
       </div>
     </div>
   );
