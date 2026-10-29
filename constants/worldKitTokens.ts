@@ -171,7 +171,7 @@ const DARK_NEUTRALS = {
 // Light text greys and accentText darkening are tuned so every text token
 // clears WCAG AA 4.5:1 on the page, white cards and tinted rows.
 const LIGHT_NEUTRALS = {
-  bg: '#F6F6F7',
+  bg: '#FAFAFA', // the app's light page (constants/Theme.ts)
   sheetBg: '#FFFFFF',
   boardBg: '#FAFAFB',
   navBg: '#FFFFFF',

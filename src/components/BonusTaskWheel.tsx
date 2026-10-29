@@ -174,7 +174,7 @@ export function BonusTaskWheel({ visible, onDismiss }: BonusTaskWheelProps) {
           <>
             <View style={[styles.resultBox, { borderColor: theme.accent, backgroundColor: `${theme.accent}15` }]}>
               <Text style={[styles.resultLabel, { color: theme.text.tertiary }]}>{t('bonusWheel.yourTask')}</Text>
-              <Text style={[styles.resultValue, { color: theme.accent }]}>{task.label}</Text>
+              <Text style={[styles.resultValue, { color: theme.accentText }]}>{task.label}</Text>
             </View>
             {rerollsLeft > 0 && (
               <Button

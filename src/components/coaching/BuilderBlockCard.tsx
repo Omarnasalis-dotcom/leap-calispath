@@ -98,7 +98,7 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
                 onBlur={handleNameBlur}
                 onEndEditing={handleNameBlur}
                 placeholder="BLOCK NAME (E.G. WARM-UP)"
-                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                placeholderTextColor={theme.placeholder}
               />
               {!expandedBlocks[block.id] && (
                 <Text style={{ color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: 'BarlowCondensed-Medium', marginTop: -2 }} numberOfLines={1}>
@@ -164,7 +164,7 @@ export const BuilderBlockCard: React.FC<BuilderBlockCardProps> = ({
                 onBlur={handleNotesBlur}
                 onEndEditing={handleNotesBlur}
                 placeholder="Warm up instructions, block objectives, or performance notes..."
-                placeholderTextColor="rgba(255, 255, 255, 0.2)"
+                placeholderTextColor={theme.placeholder}
                 multiline={true}
                 numberOfLines={2}
               />

@@ -248,7 +248,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
       <View style={[styles.container, { backgroundColor: theme.background.primary, justifyContent: 'center', alignItems: 'center' }]}>
         <MaterialCommunityIcons name="trophy" size={80} color={theme.accent} />
         <Text style={[styles.resultTitle, { color: theme.text.primary }]}>TRIAL COMPLETE</Text>
-        <Text style={[styles.resultScore, { color: theme.accent }]}>{finalScore} PTS</Text>
+        <Text style={[styles.resultScore, { color: theme.accentText }]}>{finalScore} PTS</Text>
         <Text style={[styles.resultSub, { color: theme.text.tertiary }]}>Handicap Adjusted Score</Text>
         <TouchableOpacity 
           style={[styles.mainBtn, { backgroundColor: theme.accent, marginTop: 40, width: '80%' }]}
@@ -291,7 +291,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
               {roundConfig.mode === 'amrap' ? 'TIME REMAINING' : 'ELAPSED TIME'}
             </Text>
             {roundConfig.mode === 'for_time' && (roundConfig as any).max_seconds !== undefined && (
-              <Text style={{ fontSize: 10, color: theme.accent, fontWeight: '700', marginTop: 4 }}>
+              <Text style={{ fontSize: 10, color: theme.accentText, fontWeight: '700', marginTop: 4 }}>
                 CAP: {formatTimer(maxSeconds)}
               </Text>
             )}
@@ -339,7 +339,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                       <MaterialCommunityIcons name="minus" size={16} color={theme.text.secondary} />
                     </TouchableOpacity>
                     <View style={{ alignItems: 'center' }}>
-                      <Text style={[styles.repValue, { color: theme.accent, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
+                      <Text style={[styles.repValue, { color: theme.accentText, fontSize: 18, minWidth: 24 }]}>{exerciseExtraReps[i]}</Text>
                       <Text style={{ fontSize: 7, color: theme.text.tertiary, fontWeight: '900' }}>EXTRA</Text>
                     </View>
                     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add extra rep" onPress={() => handleRankExtraRep(i, 1)} style={[styles.repBtn, { width: 32, height: 32 }]}>
@@ -351,7 +351,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
                     <TouchableOpacity onPress={() => handleRep(i, -1)} style={styles.repBtn}>
                       <MaterialCommunityIcons name="minus" size={24} color={theme.text.secondary} />
                     </TouchableOpacity>
-                    <Text style={[styles.repValue, { color: theme.accent }]}>{exerciseReps[i]}</Text>
+                    <Text style={[styles.repValue, { color: theme.accentText }]}>{exerciseReps[i]}</Text>
                     <TouchableOpacity accessibilityRole="button" accessibilityLabel="Add rep" onPress={() => handleRep(i, 1)} style={styles.repBtn}>
                       <MaterialCommunityIcons name="plus" size={24} color={theme.accent} />
                     </TouchableOpacity>
@@ -364,7 +364,7 @@ export function TournamentTrialScreen({ sessionId: propSessionId, roundConfig: p
           <View style={styles.footer}>
             {isPreparing ? (
               <View style={{ alignItems: 'center', width: '100%' }}>
-                <Text style={{ color: theme.accent, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
+                <Text style={{ color: theme.accentText, fontSize: 48, fontWeight: '900' }}>{preCountdown}</Text>
                 <Text style={{ color: theme.text.tertiary, fontSize: 10, fontWeight: '900', letterSpacing: 2, marginBottom: 20 }}>GET READY</Text>
                 <TouchableOpacity 
                   style={[styles.finishBtn, { borderColor: theme.text.tertiary }]} 

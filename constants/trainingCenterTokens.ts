@@ -8,6 +8,10 @@
 
 export interface TCPalette {
   coral: string;
+  /** Coral for text: the brand coral is under AA on light surfaces. */
+  coralText: string;
+  /** Error text. */
+  danger: string;
   screenBg: string;
   cardRaised: string;
   cardFlat: string;
@@ -48,6 +52,8 @@ export interface TCPalette {
 export const TC_COLORS: { dark: TCPalette; light: TCPalette } = {
   dark: {
     coral: '#FC5454',
+    coralText: '#FC5454',
+    danger: '#FF6B6B',
     screenBg: '#000000',
     cardRaised: '#0B0707',
     cardFlat: '#080505',
@@ -77,7 +83,9 @@ export const TC_COLORS: { dark: TCPalette; light: TCPalette } = {
   },
   light: {
     coral: '#FC5454',
-    screenBg: '#FFFFFF',
+    coralText: '#C93030',
+    danger: '#C62828',
+    screenBg: '#FAFAFA', // the app's light page (constants/Theme.ts)
     cardRaised: '#F7F1F1',
     cardFlat: '#FBF6F6',
     cardLocked: '#FCF9F9',
@@ -95,11 +103,12 @@ export const TC_COLORS: { dark: TCPalette; light: TCPalette } = {
     dividerStrong: '#E5E5E5',
     textPrimary: '#2A2A2A',
     textBody: '#4A4A4A',
-    textSecondary: '#6B6B6B',
-    textMuted: '#8A8A8A',
-    textFaint: '#B5B5B5',
-    textFaint2: '#9A9A9A',
-    textFaint3: '#707070',
+    // Greys clear AA 4.5:1 on white and the pink-tinted cards.
+    textSecondary: '#5C5C5C',
+    textMuted: '#636363',
+    textFaint: '#6A6A6A',
+    textFaint2: '#6A6A6A',
+    textFaint3: '#666666',
     static: '#8b5cf6',
     oneMinMax: '#f97316',
     power: '#FC5454',

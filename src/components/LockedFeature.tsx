@@ -26,7 +26,7 @@ export function LockedFeature({ title, description, season = 2 }: LockedFeatureP
         <Text style={[styles.title, { color: theme.text.primary }]}>{title}</Text>
         <Text style={[styles.description, { color: theme.text.secondary }]}>{description}</Text>
         <View style={[styles.badge, { borderColor: theme.accent, marginBottom: 40 }]}>
-          <Text style={[styles.badgeText, { color: theme.accent }]}>{t('system.comingSeason', { season })}</Text>
+          <Text style={[styles.badgeText, { color: theme.accentText }]}>{t('system.comingSeason', { season })}</Text>
         </View>
         <TouchableOpacity 
           style={[styles.backButton, { borderColor: theme.card.border }]} 

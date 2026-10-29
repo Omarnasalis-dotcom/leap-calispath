@@ -813,7 +813,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
       {errorMsg && (
         <View style={styles.errorBanner}>
-          <Text style={styles.errorText}>{errorMsg}</Text>
+          <Text style={[styles.errorText, { color: theme.danger }]}>{errorMsg}</Text>
         </View>
       )}
 
@@ -882,7 +882,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
             {modalError && (
               <View style={styles.modalErrorBanner}>
-                <Text style={styles.modalErrorText}>{modalError}</Text>
+                <Text style={[styles.modalErrorText, { color: theme.danger }]}>{modalError}</Text>
               </View>
             )}
 
@@ -999,7 +999,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
 
             {importError && (
               <View style={styles.modalErrorBanner}>
-                <Text style={styles.modalErrorText}>{importError}</Text>
+                <Text style={[styles.modalErrorText, { color: theme.danger }]}>{importError}</Text>
               </View>
             )}
 
@@ -1048,7 +1048,7 @@ export function ExerciseLibraryScreen({ isAdmin = false, isCoach = false }: Exer
                           multiline
                           numberOfLines={6}
                           placeholder="name,youtube_url,category,difficulty&#10;Handstand,https://youtube.com/watch?v=123,skill,intermediate"
-                          placeholderTextColor="rgba(255,255,255,0.2)"
+                          placeholderTextColor={theme.placeholder}
                           value={csvText}
                           onChangeText={setCsvText}
                         />

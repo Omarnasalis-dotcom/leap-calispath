@@ -237,13 +237,13 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
             {timerRunning || capped ? (
               <TouchableOpacity
                 style={[styles.timerBox, {
-                  borderColor: capped ? '#FF6B6B' : theme.card.border,
+                  borderColor: capped ? theme.danger : theme.card.border,
                   backgroundColor: capped ? 'rgba(255,107,107,0.1)' : 'rgba(255,255,255,0.03)',
                 }]}
                 onPress={handleTimerTap}
               >
-                <Text style={[styles.timerLabel, { color: capped ? '#FF6B6B' : theme.text.primary }]}>{capped ? t('timers.capReached') : 'FOR TIME'}</Text>
-                <Text style={{ color: capped ? '#FF6B6B' : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
+                <Text style={[styles.timerLabel, { color: capped ? theme.danger : theme.text.primary }]}>{capped ? t('timers.capReached') : 'FOR TIME'}</Text>
+                <Text style={{ color: capped ? theme.danger : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                   {formatTime(elapsedTime)}
                 </Text>
               </TouchableOpacity>
@@ -279,7 +279,7 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
                   disabled={roundsCompleted === 0}
                   onPress={handleRemoveRound}
                 >
-                  <Text style={{ color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16 }}>−1</Text>
+                  <Text style={{ color: roundsCompleted === 0 ? theme.text.tertiary : theme.danger, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 16 }}>−1</Text>
                 </TouchableOpacity>
                 <TouchableOpacity onPress={handleAddRound} disabled={roundsCompleted >= totalRounds}>
                   <LinearGradient

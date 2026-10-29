@@ -128,7 +128,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     <View style={[styles.exerciseRow, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
       <View style={[styles.exInfoRow, { justifyContent: 'flex-start' }]}>
         <Text style={[styles.exTitle, { color: theme.text.primary, flex: 1 }]} numberOfLines={1}>
-          {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accent, fontSize: 13 }}>{t('blocks.weighted')}</Text>}
+          {exercise.name.toUpperCase()} {exercise.is_weighted && <Text style={{ color: theme.accentText, fontSize: 13 }}>{t('blocks.weighted')}</Text>}
         </Text>
 
         {exercise.youtube_url ? (

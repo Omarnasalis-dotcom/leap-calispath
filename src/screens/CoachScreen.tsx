@@ -799,7 +799,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                 <PulsingAvatar accent={theme.accent} />
                 <Text style={[styles.headerTitle, { color: c.bodyText }]}>{t('coach.title')}</Text>
               </View>
-              <Text style={[styles.headerSub, { color: theme.accent }]}>{statusLine}</Text>
+              <Text style={[styles.headerSub, { color: theme.accentText }]}>{statusLine}</Text>
             </View>
             <View style={{ flexDirection: 'row', gap: 12 }}>
               {!showSetup && (
@@ -901,7 +901,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               >
                 <MaterialCommunityIcons name="arm-flex" size={18} color={theme.accent} />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.recommendationLabel, { color: theme.accent }]}>{RECOMMENDATION_LABELS[rec.world]}</Text>
+                  <Text style={[styles.recommendationLabel, { color: theme.accentText }]}>{RECOMMENDATION_LABELS[rec.world]}</Text>
                   <Text style={[styles.recommendationReason, { color: c.secondaryText }]}>{rec.reason}</Text>
                 </View>
                 <MaterialCommunityIcons name="chevron-right" size={20} color={theme.accent} />
@@ -1062,7 +1062,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     onPress={() => sendMessage(q)}
                     disabled={loading}
                   >
-                    <Text style={[styles.chipText, { color: theme.accent }]}>{q}</Text>
+                    <Text style={[styles.chipText, { color: theme.accentText }]}>{q}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>

@@ -184,7 +184,7 @@ export function StandaloneWorkoutDetailModal({
               {isSelected ? (
                 <TouchableOpacity style={previewStyles.removeBtn} onPress={onRemove}>
                   <MaterialCommunityIcons name="close-circle-outline" size={16} color="#FF6B6B" />
-                  <Text style={previewStyles.removeBtnText}>{t('workoutModals.removeFromProgram')}</Text>
+                  <Text style={[previewStyles.removeBtnText, { color: theme.danger }]}>{t('workoutModals.removeFromProgram')}</Text>
                 </TouchableOpacity>
               ) : (
                 <TouchableOpacity style={previewStyles.startBtn} onPress={onAdd}>

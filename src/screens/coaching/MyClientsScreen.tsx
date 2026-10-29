@@ -514,7 +514,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
           <View style={{ width: '100%', gap: 24 }}>
             {errorMsg && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{errorMsg}</Text>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{errorMsg}</Text>
               </View>
             )}
 
@@ -545,7 +545,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                       style={styles.clearBtn} 
                       onPress={() => setSelectedWarrior(null)}
                     >
-                      <Text style={{ color: '#FF6B6B', fontSize: 11, fontWeight: 'bold' }}>CHANGE</Text>
+                      <Text style={{ color: theme.danger, fontSize: 11, fontWeight: 'bold' }}>CHANGE</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -553,7 +553,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                     <TextInput
                       style={[styles.inputField, { color: theme.text.primary, borderColor: theme.card.border }]}
                       placeholder="TYPE TO SEARCH WARRIORS..."
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.placeholder}
                       value={searchWarrior}
                       onChangeText={(val: string) => setSearchWarrior(val)}
                     />
@@ -614,7 +614,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                       style={styles.clearBtn} 
                       onPress={() => setSelectedTemplate(null)}
                     >
-                      <Text style={{ color: '#FF6B6B', fontSize: 11, fontWeight: 'bold' }}>CHANGE</Text>
+                      <Text style={{ color: theme.danger, fontSize: 11, fontWeight: 'bold' }}>CHANGE</Text>
                     </TouchableOpacity>
                   </View>
                 ) : (
@@ -855,7 +855,7 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
                         style={[styles.controlBtn, { backgroundColor: 'rgba(255,107,107,0.03)', borderColor: 'rgba(255,107,107,0.2)' }]}
                         onPress={() => handleDeleteClientData(assignment)}
                       >
-                        <Text style={[styles.controlBtnText, { color: '#FF6B6B' }]}>DELETE CLIENT</Text>
+                        <Text style={[styles.controlBtnText, { color: theme.danger }]}>DELETE CLIENT</Text>
                       </TouchableOpacity>
                     </View>
                   </View>
@@ -991,11 +991,11 @@ export function MyClientsScreen({ coachId, isAdmin = false }: MyClientsScreenPro
               </TouchableOpacity>
 
               <TouchableOpacity
-                style={[styles.assignModeCard, { borderColor: '#FF6B6B' }]}
+                style={[styles.assignModeCard, { borderColor: theme.danger }]}
                 onPress={() => handleConfirmAssignMode('overwrite')}
                 disabled={assignModeLoading}
               >
-                <Text style={[styles.assignModeTitle, { color: '#FF6B6B' }]}>OVERWRITE — DELETE</Text>
+                <Text style={[styles.assignModeTitle, { color: theme.danger }]}>OVERWRITE — DELETE</Text>
                 <Text style={[styles.assignModeDesc, { color: theme.text.secondary }]}>
                   Permanently deletes the client's current weeks and all logged workout history for this program. Cannot be undone.
                 </Text>

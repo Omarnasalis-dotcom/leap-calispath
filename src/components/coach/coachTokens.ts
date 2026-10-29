@@ -49,7 +49,7 @@ export const COACH_COLORS: { dark: CoachPalette; light: CoachPalette } = {
     shimmerLight: '#F0F0F0',
   },
   light: {
-    screenBg: '#FFFFFF',
+    screenBg: '#FAFAFA', // the app's light page (constants/Theme.ts)
     bubbleBg: '#F5F0F0',
     bubbleBorder: '#EAD9D9',
     headerDivider: '#EEE4E4',
@@ -61,10 +61,11 @@ export const COACH_COLORS: { dark: CoachPalette; light: CoachPalette } = {
     inputBg: '#FBF6F6',
     inputBorder: '#EAD9D9',
     bodyText: '#2A2A2A',
-    secondaryText: '#6B6B6B',
-    mutedLabel: '#8A8A8A',
-    dimMeta: '#9A9A9A',
-    faint: '#B5B5B5',
+    // Text greys clear AA 4.5:1 on the bubbles; faint is placeholder-only.
+    secondaryText: '#5C5C5C',
+    mutedLabel: '#636363',
+    dimMeta: '#6A6A6A',
+    faint: '#8A8A8A',
     track: '#E5E5E5',
     shimmerDark: '#B5B5B5',
     shimmerLight: '#3A3A3A',

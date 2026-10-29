@@ -394,7 +394,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
               {t('community.codeHint')}
             </Text>
 
-            {formError && <Text style={styles.errorText}>{formError.toUpperCase()}</Text>}
+            {formError && <Text style={[styles.errorText, { color: theme.danger }]}>{formError.toUpperCase()}</Text>}
 
             <TouchableOpacity
               style={[
@@ -436,7 +436,7 @@ export function CommunitySection({ userId, communityId, scrollRef, onOpenCommuni
               maxLength={20}
             />
 
-            {formError && <Text style={styles.errorText}>{formError.toUpperCase()}</Text>}
+            {formError && <Text style={[styles.errorText, { color: theme.danger }]}>{formError.toUpperCase()}</Text>}
 
             <TouchableOpacity
               style={[styles.submitBtn, { backgroundColor: W.accent }]}

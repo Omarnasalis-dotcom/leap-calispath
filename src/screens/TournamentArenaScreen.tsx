@@ -137,14 +137,14 @@ export function TournamentArenaScreen({ navigation }: { navigation: any }) {
             <Text style={[styles.cardTitle, { color: theme.text.primary }]}>{config?.title.toUpperCase()}</Text>
             <View style={styles.badgeRow}>
               <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                <Text style={[styles.badgeText, { color: theme.accent }]}>{config?.type.toUpperCase()}</Text>
+                <Text style={[styles.badgeText, { color: theme.accentText }]}>{config?.type.toUpperCase()}</Text>
               </View>
               <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
                 <Text style={[styles.badgeText, { color: theme.text.tertiary }]}>{session.status.toUpperCase()}</Text>
               </View>
               {config?.allowed_tiers && (
                 <View style={[styles.badge, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
-                  <Text style={[styles.badgeText, { color: theme.accent }]}>
+                  <Text style={[styles.badgeText, { color: theme.accentText }]}>
                     LEVEL: {config.allowed_tiers.length === 9 ? 'ALL' : config.allowed_tiers.sort().join(',')}
                   </Text>
                 </View>

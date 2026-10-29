@@ -119,7 +119,7 @@ export const BuilderDayCard: React.FC<BuilderDayCardProps> = ({
                 onBlur={handleBlur}
                 onEndEditing={handleBlur}
                 placeholder="DAY NAME (E.G. SATURDAY)"
-                placeholderTextColor="rgba(255, 255, 255, 0.25)"
+                placeholderTextColor={theme.placeholder}
                 editable={!useWeeklyStructure}
               />
               {!expandedDays[day.id] && (

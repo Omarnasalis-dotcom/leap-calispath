@@ -233,7 +233,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
     >
       <View style={[styles.panel, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
         <Text style={[styles.heading, { color: theme.text.primary }]}>
-          {t('resetPassword.headingLead')}<Text style={{ color: theme.accent }}>{t('resetPassword.headingAccent')}</Text>
+          {t('resetPassword.headingLead')}<Text style={{ color: theme.accentText }}>{t('resetPassword.headingAccent')}</Text>
         </Text>
 
         {sessionLoading ? (
@@ -245,7 +245,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
           </View>
         ) : inlineSuccess ? (
           <View style={styles.feedbackContainer}>
-            <Text style={[styles.successText, { color: theme.accent }]}>
+            <Text style={[styles.successText, { color: theme.accentText }]}>
               {inlineSuccess}
             </Text>
             <TouchableOpacity
@@ -262,7 +262,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
             </Text>
             {inlineError && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{inlineError}</Text>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{inlineError}</Text>
               </View>
             )}
             <TouchableOpacity
@@ -283,7 +283,7 @@ export function ResetPasswordScreen({ onComplete }: ResetPasswordScreenProps) {
 
             {inlineError && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{inlineError}</Text>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{inlineError}</Text>
               </View>
             )}
 

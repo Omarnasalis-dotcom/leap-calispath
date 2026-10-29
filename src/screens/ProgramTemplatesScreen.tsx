@@ -451,7 +451,7 @@ export function ProgramTemplatesScreen() {
           {currentProgramName && (
             <View style={styles.currentProgramBanner}>
               <Text style={styles.currentProgramText}>
-                {t('templates.currentlyActive')}<Text style={{ color: c.coral }}>{currentProgramName.toUpperCase()}</Text>{t('templates.switchNote')}
+                {t('templates.currentlyActive')}<Text style={{ color: c.coralText }}>{currentProgramName.toUpperCase()}</Text>{t('templates.switchNote')}
               </Text>
             </View>
           )}
@@ -562,7 +562,7 @@ export function ProgramTemplatesScreen() {
 const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
   sectionLabel: { color: c.textFaint3, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1.8, marginTop: 4, marginBottom: 12 },
 
@@ -570,7 +570,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   currentProgramText: { color: c.textFaint3, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 0.5 },
 
   errorBanner: { backgroundColor: 'rgba(255,107,107,0.1)', borderColor: '#FF6B6B', borderWidth: 1, padding: 12, borderRadius: 8, marginBottom: 16 },
-  errorText: { color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center' },
+  errorText: { color: c.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center' },
 
   emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', backgroundColor: c.cardFlat },
   emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },
@@ -579,7 +579,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   lockOverlay: { ...StyleSheet.absoluteFillObject, backgroundColor: 'rgba(0,0,0,0.4)' },
 
   tierPill: { backgroundColor: 'rgba(0,0,0,0.55)', paddingHorizontal: 7, paddingVertical: 4, borderRadius: 6 },
-  tierPillText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
+  tierPillText: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 0.5 },
 
   activeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: '#2ECC71', borderRadius: 20, paddingHorizontal: 8, paddingVertical: 4 },
   activeBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.5 },
@@ -598,7 +598,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   // (getCardImage always resolves to an image, per its own comment), which
   // never changes with the app theme, unlike the page background around it.
   gridTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 12.5, lineHeight: 15 },
-  gridStatus: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.8, marginTop: 3 },
+  gridStatus: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 0.8, marginTop: 3 },
 
   // Browse All — one wide row card per template
   rowCardWrap: { borderRadius: 16, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },

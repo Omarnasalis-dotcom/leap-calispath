@@ -147,7 +147,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
               { backgroundColor: theme.card.background, borderColor: theme.card.border, transform: [{ scale: badgeScale }] },
             ]}
           >
-            <Text style={[styles.chainBadgeText, { color: theme.accent }]}>{chainLength}</Text>
+            <Text style={[styles.chainBadgeText, { color: theme.accentText }]}>{chainLength}</Text>
           </Animated.View>
         </View>
 
@@ -156,7 +156,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
             <View style={[styles.currentCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
               <Text style={[styles.currentLabel, { color: theme.text.tertiary }]}>{t('ladderGame.yourExercise')}</Text>
               <Text style={[styles.currentName, { color: theme.text.primary }]}>{currentExercise.name}</Text>
-              <Text style={[styles.currentBand, { color: theme.accent }]}>
+              <Text style={[styles.currentBand, { color: theme.accentText }]}>
                 {t('ladderGame.range', { band: t(`ladderGame.band_${getDifficultyBand(currentExercise.difficulty)}` as 'ladderGame.band_Elite') })}
               </Text>
             </View>
@@ -212,7 +212,7 @@ export function BeatTheLadderScreen({ onExit }: BeatTheLadderScreenProps) {
               <Text style={[styles.resultKicker, { color: theme.text.tertiary }]}>
                 {status === 'cleared' ? t('ladderGame.cleared') : t('ladderGame.runOver')}
               </Text>
-              <Text style={[styles.resultChain, { color: theme.accent }]}>{chainLength}</Text>
+              <Text style={[styles.resultChain, { color: theme.accentText }]}>{chainLength}</Text>
               <Text style={[styles.resultSub, { color: theme.text.secondary }]}>{t('ladderGame.movesChained')}</Text>
               <Text style={[styles.resultCeiling, { color: theme.text.primary }]}>
                 {status === 'cleared' ? t('ladderGame.toppedOut') : t('ladderGame.reached')}{currentExercise.name}

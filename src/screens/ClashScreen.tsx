@@ -243,7 +243,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
                 <View style={[styles.podiumCircle, styles.podiumCircle1st, { borderColor: theme.accent }]}>
                   <Text style={[styles.podiumRankLabel, { color: theme.text.tertiary, fontSize: 10 }]}>RANK 1</Text>
                   <Text style={[styles.podiumInitial, styles.podiumInitial1st, { color: theme.text.primary }]}>{topWarriors[0].display_name[0].toUpperCase()}</Text>
-                  <Text style={[styles.podiumScore, { color: theme.accent, fontSize: 11 }]}>{topWarriors[0].best_time_seconds} GP</Text>
+                  <Text style={[styles.podiumScore, { color: theme.accentText, fontSize: 11 }]}>{topWarriors[0].best_time_seconds} GP</Text>
                 </View>
                 <Text numberOfLines={1} style={[styles.podiumName, { color: theme.text.primary, fontSize: 12 }]}>{topWarriors[0].display_name.toUpperCase()}</Text>
               </View>
@@ -277,7 +277,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
 
         {activeClashes.length > 0 && (
           <View style={styles.section}>
-            <Text style={[styles.sectionTitle, { color: theme.accent }]}>PENDING BATTLES</Text>
+            <Text style={[styles.sectionTitle, { color: theme.accentText }]}>PENDING BATTLES</Text>
             {activeClashes.map(clash => {
               const isSender = clash.sender_id === user?.id;
               return (
@@ -321,7 +321,7 @@ export function ClashScreen({ onClose, onStartBattle, onOpenRankings }: ClashScr
               <WarriorCard key={warrior.id} style={styles.warriorCard}>
                 <View style={styles.warriorInfo}>
                   <Text style={[styles.warriorName, { color: theme.text.primary }]}>{warrior.display_name?.toUpperCase()}</Text>
-                  <Text style={[styles.warriorTier, { color: theme.accent }]}>TIER {warrior.strength_tier} • {warrior.glory_score} GP</Text>
+                  <Text style={[styles.warriorTier, { color: theme.accentText }]}>TIER {warrior.strength_tier} • {warrior.glory_score} GP</Text>
                 </View>
                 <TouchableOpacity style={[styles.joinBtn, { backgroundColor: theme.accent }]} onPress={() => handleAskToJoin(warrior)}>
                   <Text style={styles.joinBtnText}>ASK TO JOIN</Text>

@@ -576,7 +576,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
           <View style={{ width: '100%', gap: 20 }}>
             {errorMsg && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{errorMsg}</Text>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{errorMsg}</Text>
               </View>
             )}
 
@@ -841,9 +841,9 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
                           </Text>
                           <View style={[
                             styles.statusPill,
-                            { borderColor: isMissed ? '#FF6B6B' : '#4CAF50', backgroundColor: isMissed ? 'rgba(255,107,107,0.1)' : 'rgba(76,175,80,0.1)' }
+                            { borderColor: isMissed ? theme.danger : '#4CAF50', backgroundColor: isMissed ? 'rgba(255,107,107,0.1)' : 'rgba(76,175,80,0.1)' }
                           ]}>
-                            <Text style={{ color: isMissed ? '#FF6B6B' : '#4CAF50', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>
+                            <Text style={{ color: isMissed ? theme.danger : '#4CAF50', fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 0.5 }}>
                               {isMissed ? 'MISSED' : 'DONE'}
                             </Text>
                           </View>

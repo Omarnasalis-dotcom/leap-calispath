@@ -131,8 +131,10 @@ const lightStyles = StyleSheet.create({
   row: { ...darkStyles.row, backgroundColor: '#F6F6F6', borderColor: 'rgba(0,0,0,0.08)' },
   iconWell: { ...darkStyles.iconWell, backgroundColor: 'rgba(0,0,0,0.05)' },
   name: { ...darkStyles.name, color: '#111111' },
-  meta: { ...darkStyles.meta, color: 'rgba(0,0,0,0.5)' },
-  muted: { color: 'rgba(0,0,0,0.45)' },
+  meta: { ...darkStyles.meta, color: 'rgba(0,0,0,0.6)' },
+  muted: { color: 'rgba(0,0,0,0.58)' },
+  // ACCENT is under AA as small text on white.
+  upNextText: { ...darkStyles.upNextText, color: '#C93030' },
   closeBtn: { ...darkStyles.closeBtn, borderColor: 'rgba(0,0,0,0.15)' },
   closeText: { ...darkStyles.closeText, color: 'rgba(0,0,0,0.65)' },
 });

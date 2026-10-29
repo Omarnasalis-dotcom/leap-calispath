@@ -68,7 +68,7 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
         <TouchableOpacity activeOpacity={1} style={[styles.sheet, s.sheet]} onPress={(e) => e.stopPropagation()}>
           <View style={[styles.handle, s.handle]} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
-            <Text style={styles.eyebrow}>{t('journeyPoints.points')}</Text>
+            <Text style={[styles.eyebrow, s.accent]}>{t('journeyPoints.points')}</Text>
             <View style={styles.headRow}>
               <Text style={[styles.total, s.ink]}>{formatTotal(summary.total)}</Text>
               <View style={styles.streakCol}>
@@ -83,13 +83,13 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
                   />
                   <Text style={[styles.streakText, s.ink]}>{t('journeyPoints.fx.streakTitle', { count: summary.streak })}</Text>
                 </View>
-                <Text style={styles.best}>{t('journeyPoints.history.best', { count: summary.best_streak })}</Text>
+                <Text style={[styles.best, s.muted]}>{t('journeyPoints.history.best', { count: summary.best_streak })}</Text>
               </View>
             </View>
 
             <View style={[styles.weekCard, s.card]}>
               <View style={styles.weekHead}>
-                <Text style={styles.weekLabel}>{t('journeyPoints.history.thisWeek')}</Text>
+                <Text style={[styles.weekLabel, s.muted]}>{t('journeyPoints.history.thisWeek')}</Text>
                 <Text style={[styles.weekPts, s.ink]}>{t('journeyPoints.history.pts', { count: weekPts })}</Text>
               </View>
               <View style={styles.bars}>
@@ -104,7 +104,7 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
                         },
                       ]}
                     />
-                    <Text style={styles.barDay}>{t(`journeyPoints.dayLetter.${dayLetterKey(d.date)}`)}</Text>
+                    <Text style={[styles.barDay, s.muted]}>{t(`journeyPoints.dayLetter.${dayLetterKey(d.date)}`)}</Text>
                   </View>
                 ))}
               </View>
@@ -115,18 +115,18 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
               const dayPts = entries.reduce((n, e) => n + e.points, 0);
               return (
                 <View key={date}>
-                  <Text style={styles.dayHeading}>
+                  <Text style={[styles.dayHeading, s.muted]}>
                     {dayHeading(date, summary.today)} · {dayPts}
                   </Text>
                   {entries.length === 0 ? (
-                    <Text style={styles.empty}>{t('journeyPoints.history.emptyToday')}</Text>
+                    <Text style={[styles.empty, s.faint]}>{t('journeyPoints.history.emptyToday')}</Text>
                   ) : (
                     entries.map((e, i) => (
                       <View key={`${e.source}-${i}`} style={[styles.entry, i < entries.length - 1 && s.entryDivider]}>
                         <Text style={[styles.entryLabel, s.ink]} numberOfLines={1}>
                           {entryLabel(e)}
                         </Text>
-                        <Text style={styles.entryPts}>+{e.points}</Text>
+                        <Text style={[styles.entryPts, s.accentSoft]}>+{e.points}</Text>
                       </View>
                     ))
                   )}
@@ -184,6 +184,10 @@ const dark = StyleSheet.create({
   sheet: { backgroundColor: '#131313', borderColor: 'rgba(255,255,255,0.08)' },
   handle: { backgroundColor: '#3A3A3C' },
   ink: { color: '#FFFFFF' },
+  accent: { color: ACCENT },
+  accentSoft: { color: '#FF7C78' },
+  muted: { color: '#8A8A8E' },
+  faint: { color: '#5E6068' },
   card: { backgroundColor: '#1A1A1A' },
   entryDivider: { borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.05)' },
 });
@@ -192,6 +196,11 @@ const light = StyleSheet.create({
   sheet: { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.08)' },
   handle: { backgroundColor: '#D8D8DC' },
   ink: { color: '#151515' },
+  // ACCENT and the dark greys are under AA on white.
+  accent: { color: '#C93030' },
+  accentSoft: { color: '#C93030' },
+  muted: { color: '#5F5F66' },
+  faint: { color: '#5F5F66' },
   card: { backgroundColor: '#F6F6F7' },
   entryDivider: { borderBottomWidth: 1, borderBottomColor: 'rgba(0,0,0,0.06)' },
 });

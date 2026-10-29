@@ -122,9 +122,10 @@ const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
     footerFade: ['rgba(0,0,0,0)', 'rgba(0,0,0,.94)', '#000'],
   },
   light: {
+    // Text greys tuned to clear AA 4.5:1 on the light cards.
     backBtnBg: 'rgba(0,0,0,.03)',
     title: '#2A2A2A',
-    metaLine: '#8A8A8A',
+    metaLine: '#636363',
     tickMissed: '#E8C4C4',
     tickScheduled: '#EAE0E0',
     restBtnBg: '#FFFFFF',
@@ -2080,7 +2081,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           <View style={{ width: '100%', gap: 20 }}>
             {errorMsg && (
               <View style={styles.errorBanner}>
-                <Text style={styles.errorText}>{errorMsg}</Text>
+                <Text style={[styles.errorText, { color: theme.danger }]}>{errorMsg}</Text>
               </View>
             )}
 
@@ -2448,9 +2449,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   );
 }
 
-// Day Blocks design tokens (assets/design_handoff_workout_runner) — fixed
-// dark palette, same choice already made across the rest of the Training
-// Center flow, independent of the app's own light/dark theme toggle.
+// Day Blocks design tokens (assets/design_handoff_workout_runner), built
+// from the DBRPalette for the current mode.
 const getDbRunnerStyles = (dbr: DBRPalette) => StyleSheet.create({
   backBtn: {
     width: 44, height: 44, borderRadius: 14,

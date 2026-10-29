@@ -80,7 +80,7 @@ export function WorkoutLibraryBuilderScreen() {
                 value={b.form.title}
                 onChangeText={(v) => b.updateForm('title', v)}
                 placeholder="Push Power Circuit"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor={theme.placeholder}
               />
             </View>
 
@@ -91,7 +91,7 @@ export function WorkoutLibraryBuilderScreen() {
                 value={b.form.description}
                 onChangeText={(v) => b.updateForm('description', v)}
                 placeholder="Short description shown on the detail card"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor={theme.placeholder}
                 multiline
               />
             </View>
@@ -110,7 +110,7 @@ export function WorkoutLibraryBuilderScreen() {
                   onChangeText={(v) => b.updateForm('tier_min', v)}
                   placeholder="ANY"
                   keyboardType="number-pad"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.placeholder}
                 />
               </View>
               <View style={[styles.inputContainerStyle, { flex: 1 }]}>
@@ -121,7 +121,7 @@ export function WorkoutLibraryBuilderScreen() {
                   onChangeText={(v) => b.updateForm('tier_max', v)}
                   placeholder="ANY"
                   keyboardType="number-pad"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.placeholder}
                 />
               </View>
             </View>
@@ -137,7 +137,7 @@ export function WorkoutLibraryBuilderScreen() {
                     onChangeText={(v) => b.updateForm('duration_minutes', v)}
                     placeholder="20"
                     keyboardType="number-pad"
-                    placeholderTextColor="rgba(255,255,255,0.2)"
+                    placeholderTextColor={theme.placeholder}
                   />
                 </View>
                 {b.form.format === 'emom' && (
@@ -149,7 +149,7 @@ export function WorkoutLibraryBuilderScreen() {
                       onChangeText={(v) => b.updateForm('interval_seconds', v)}
                       placeholder="60 (every minute)"
                       keyboardType="number-pad"
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.placeholder}
                     />
                   </View>
                 )}
@@ -164,7 +164,7 @@ export function WorkoutLibraryBuilderScreen() {
                       onChangeText={(v) => b.updateForm('rounds', v)}
                       placeholder={b.form.format === 'tabata' ? 'e.g. 8' : 'e.g. 3'}
                       keyboardType="number-pad"
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.placeholder}
                     />
                   </View>
                 )}
@@ -194,7 +194,7 @@ export function WorkoutLibraryBuilderScreen() {
                       value={block.name}
                       onChangeText={(v) => b.updateBlockName(bi, v)}
                       placeholder="Block name (e.g. Warm-Up)"
-                      placeholderTextColor="rgba(255,255,255,0.2)"
+                      placeholderTextColor={theme.placeholder}
                     />
                     <View style={styles.blockReorderRow}>
                       <TouchableOpacity style={styles.reorderBtn} onPress={() => b.moveBlock(bi, -1)} disabled={bi === 0}>
@@ -247,7 +247,7 @@ export function WorkoutLibraryBuilderScreen() {
                           value={ex.notes}
                           onChangeText={(v) => b.updateExercise(bi, i, 'notes', v)}
                           placeholder="Notes (optional)"
-                          placeholderTextColor="rgba(255,255,255,0.2)"
+                          placeholderTextColor={theme.placeholder}
                         />
 
                         <TouchableOpacity style={styles.exDeleteBtn} onPress={() => b.removeExercise(bi, i)}>
@@ -393,7 +393,7 @@ export function WorkoutLibraryBuilderScreen() {
                   onPress={() => handleDelete(w.id, w.title)}
                   disabled={b.deletingId === w.id}
                 >
-                  <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>
+                  <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>
                     {b.deletingId === w.id ? 'DELETING...' : 'DELETE'}
                   </Text>
                 </TouchableOpacity>
@@ -471,7 +471,7 @@ function NumField({ theme, label, value, onChange }: { theme: any; label: string
         onChangeText={onChange}
         keyboardType="number-pad"
         placeholder="-"
-        placeholderTextColor="rgba(255,255,255,0.2)"
+        placeholderTextColor={theme.placeholder}
       />
     </View>
   );

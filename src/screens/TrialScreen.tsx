@@ -847,12 +847,12 @@ export function TrialScreen({
         <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 24 }}>
           {initialMode === 'practice' && (
             <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>{t('trial.practiceMode')}</Text>
+              <Text style={[styles.badgeText, { color: theme.accentText }]}>{t('trial.practiceMode')}</Text>
             </View>
           )}
           {isStep && trial.tier + 1 < (profile?.strength_tier ?? 0) && (
             <View style={[styles.badge, { backgroundColor: 'rgba(205,127,50,0.2)' }]}>
-              <Text style={[styles.badgeText, { color: theme.accent }]}>{t('trial.practiceMode')}</Text>
+              <Text style={[styles.badgeText, { color: theme.accentText }]}>{t('trial.practiceMode')}</Text>
             </View>
           )}
           {isStep && (

@@ -47,7 +47,7 @@ export function Input({
           styles.input,
           {
             backgroundColor: theme.card.background,
-            borderColor: theme.card.border,
+            borderColor: theme.card.borderStrong,
             color: theme.text.primary,
           },
           error && styles.inputError
@@ -69,7 +69,7 @@ export function Input({
           autoComplete: autoComplete
         })}
       />
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text style={[styles.error, { color: theme.danger }]}>{error}</Text>}
     </View>
   );
 }

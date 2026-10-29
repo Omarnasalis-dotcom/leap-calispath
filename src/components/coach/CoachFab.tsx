@@ -158,7 +158,7 @@ export function CoachFab({ profile, canAccessCoach, onOpenCoach }: Props) {
               <View style={fabStyles.panelChips}>
                 {teaser.prompts.map((p, i) => (
                   <TouchableOpacity key={i} style={[fabStyles.panelChip, { borderColor: c.chipBorder }]} onPress={() => handlePrompt(p)}>
-                    <Text style={[fabStyles.panelChipText, { color: theme.accent }]}>{p}</Text>
+                    <Text style={[fabStyles.panelChipText, { color: theme.accentText }]}>{p}</Text>
                   </TouchableOpacity>
                 ))}
               </View>

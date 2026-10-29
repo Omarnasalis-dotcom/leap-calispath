@@ -192,7 +192,7 @@ const getPreviewStyles = (c: TCPalette) => StyleSheet.create({
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.7)', alignItems: 'center', justifyContent: 'center', padding: 24 },
   card: { width: '100%', maxWidth: 420, backgroundColor: c.cardRaised, borderRadius: 18, borderWidth: 1, borderColor: c.border, padding: 20 },
   title: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 0.5 },
-  meta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, marginTop: 4 },
+  meta: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1, marginTop: 4 },
   description: { color: c.textMuted, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 12.5, marginTop: 10, lineHeight: 17 },
   exerciseRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderBottomWidth: 1, borderBottomColor: c.border, paddingBottom: 8 },
   exerciseName: { flex: 1, color: c.textPrimary, fontFamily: 'BarlowCondensed-SemiBold', fontSize: 13, marginRight: 10 },
@@ -400,7 +400,7 @@ export function QuickWorkoutScreen() {
 const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
   emptyBox: { borderWidth: 1, borderColor: c.border, borderRadius: 12, padding: 24, alignItems: 'center', marginTop: 16, backgroundColor: c.cardFlat },
   emptyText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, textAlign: 'center' },

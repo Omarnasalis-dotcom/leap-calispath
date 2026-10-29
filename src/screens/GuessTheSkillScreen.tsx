@@ -228,7 +228,7 @@ export function GuessTheSkillScreen({ onExit }: GuessTheSkillScreenProps) {
               { backgroundColor: theme.card.background, borderColor: theme.card.border, transform: [{ scale: scoreScale }] },
             ]}
           >
-            <Text style={[styles.scoreBadgeText, { color: theme.accent }]}>{totalScore}</Text>
+            <Text style={[styles.scoreBadgeText, { color: theme.accentText }]}>{totalScore}</Text>
           </Animated.View>
         </View>
 
@@ -327,7 +327,7 @@ export function GuessTheSkillScreen({ onExit }: GuessTheSkillScreenProps) {
               <View style={[styles.resultCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
                 <Text style={[styles.resultKicker, { color: theme.text.tertiary }]}>{t('guessGame.roundCleared', { round: roundIndex + 1 })}</Text>
                 <Text style={[styles.resultName, { color: theme.text.primary }]}>{exercise.name}</Text>
-                <Text style={[styles.resultScore, { color: theme.accent }]}>+{roundScore}</Text>
+                <Text style={[styles.resultScore, { color: theme.accentText }]}>+{roundScore}</Text>
                 <Text style={[styles.resultSub, { color: theme.text.secondary }]}>
                   {t('guessGame.roundTotals', { total: totalScore, cap: ROUND_HINT_CAPS[roundIndex + 1] })}
                 </Text>
@@ -341,9 +341,9 @@ export function GuessTheSkillScreen({ onExit }: GuessTheSkillScreenProps) {
             <>
               <View style={[styles.resultCard, { backgroundColor: theme.card.background, borderColor: theme.card.border }]}>
                 <Text style={[styles.resultKicker, { color: theme.text.tertiary }]}>{t('guessGame.allCleared', { total: TOTAL_ROUNDS })}</Text>
-                <Text style={[styles.resultScore, { color: theme.accent }]}>{totalScore}</Text>
+                <Text style={[styles.resultScore, { color: theme.accentText }]}>{totalScore}</Text>
                 <Text style={[styles.resultSub, { color: theme.text.secondary }]}>{t('guessGame.totalPoints')}</Text>
-                {isNewBest && <Text style={[styles.newBest, { color: theme.accent }]}>{t('guessGame.newBest')}</Text>}
+                {isNewBest && <Text style={[styles.newBest, { color: theme.accentText }]}>{t('guessGame.newBest')}</Text>}
               </View>
               <Button title={t('guessGame.playAgain')} onPress={handlePlayAgain} />
               <Button title={t('guessGame.exit')} onPress={onExit} variant="secondary" />
@@ -357,9 +357,9 @@ export function GuessTheSkillScreen({ onExit }: GuessTheSkillScreenProps) {
                   {t('guessGame.gameOver', { round: roundIndex + 1, total: TOTAL_ROUNDS })}
                 </Text>
                 <Text style={[styles.resultName, { color: theme.text.primary }]}>{exercise.name}</Text>
-                <Text style={[styles.resultScore, { color: theme.accent }]}>{totalScore}</Text>
+                <Text style={[styles.resultScore, { color: theme.accentText }]}>{totalScore}</Text>
                 <Text style={[styles.resultSub, { color: theme.text.secondary }]}>{t('guessGame.totalPoints')}</Text>
-                {isNewBest && <Text style={[styles.newBest, { color: theme.accent }]}>{t('guessGame.newBest')}</Text>}
+                {isNewBest && <Text style={[styles.newBest, { color: theme.accentText }]}>{t('guessGame.newBest')}</Text>}
 
                 <View style={[styles.skillCard, { borderColor: theme.card.border }]}>
                   {HINT_LABELS.map((label, index) => (

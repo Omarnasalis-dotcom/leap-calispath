@@ -49,7 +49,7 @@ export function TierDetailsModal({
             {/* Modal Header */}
             <View style={styles.modalHeader}>
               <View style={[styles.modalTitleFrame, { borderColor: theme.accent }]}>
-                <Text style={[styles.modalTitle, { color: theme.accent }]}>
+                <Text style={[styles.modalTitle, { color: theme.accentText }]}>
                   {modalTier !== null ? ((category === 'power' ? POWER_TIER_NAMES[modalTier] : TIER_NAMES[modalTier]) || t('tierDetails.unknown')).toUpperCase() : t('tierDetails.tier')}
                 </Text>
               </View>
@@ -81,7 +81,7 @@ export function TierDetailsModal({
                     ]}
                   />
                 </View>
-                <Text style={[styles.modalDifficultyValue, { color: theme.accent }]}>
+                <Text style={[styles.modalDifficultyValue, { color: theme.accentText }]}>
                   {modalTier !== null ? (category === 'power' ? POWER_TIER_REQUIREMENTS : TIER_REQUIREMENTS)[modalTier]?.difficulty : 1}/9
                 </Text>
               </View>

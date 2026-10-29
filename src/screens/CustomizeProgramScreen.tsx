@@ -1207,7 +1207,7 @@ export function CustomizeProgramScreen() {
 const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
   filtersBar: { paddingHorizontal: TC_LAYOUT.screenPadding, paddingBottom: 10 },
 
@@ -1320,7 +1320,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   cardTitle: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold' },
   cardTitleWide: { fontSize: 17, lineHeight: 20 },
   cardTitleGrid: { fontSize: 13.5, lineHeight: 16 },
-  cardMeta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.2, marginTop: 4 },
+  cardMeta: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.2, marginTop: 4 },
   cardMetaGrid: { fontSize: 9 },
 
   buildCta: {

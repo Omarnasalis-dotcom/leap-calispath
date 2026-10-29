@@ -195,7 +195,7 @@ export function ClientDashboardScreen({ warriorId, templateId, coachId }: Client
                       style={[styles.editBtnInner, { backgroundColor: 'rgba(255,107,107,0.05)', borderWidth: 1, borderColor: 'rgba(255,107,107,0.3)' }]}
                       onPress={() => handleDeleteWeek(wNum)}
                     >
-                      <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>DELETE</Text>
+                      <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 0.5 }}>DELETE</Text>
                     </TouchableOpacity>
 
                     <LinearGradient

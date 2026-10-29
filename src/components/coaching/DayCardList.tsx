@@ -48,17 +48,18 @@ const PD_COLORS: { dark: PDPalette; light: PDPalette } = {
     sectionRuleBorder: '#161212', sectionEyebrow: '#3f3f3f', sectionCount: '#4a4a4a',
   },
   light: {
+    // Text greys tuned to clear AA 4.5:1 on the light cards.
     cardBorderNext: '#E8B8B8', cardBorderScheduled: '#EAE0E0',
     cardBgNext: '#FFF0EE', cardBgScheduled: '#FBF8F8',
     plateBorderNext: '#E8B8B8', plateBorderScheduled: '#E5DADA',
     plateBgNext: 'rgba(252,84,84,.08)', plateBgScheduled: 'rgba(0,0,0,.02)',
-    plateLabelNext: '#C57A7A', plateLabelScheduled: '#A89A9A', plateNumberScheduled: '#9A8A8A',
-    statusChipQuietBg: 'rgba(0,0,0,.05)', statusChipQuietText: '#8A8A8A',
-    sessionName: '#2A2A2A', sessionNameDone: '#A89A9A',
-    metaText: '#8A8A8A', metaDivider: '#E5DADA',
+    plateLabelNext: '#B03C3C', plateLabelScheduled: '#6E6060', plateNumberScheduled: '#6E6060',
+    statusChipQuietBg: 'rgba(0,0,0,.05)', statusChipQuietText: '#636363',
+    sessionName: '#2A2A2A', sessionNameDone: '#6E6060',
+    metaText: '#636363', metaDivider: '#E5DADA',
     doneBadgeBorder: '#E5D0D0',
-    startScheduledBorder: '#DDD0D0', startScheduledText: '#8A8A8A',
-    sectionRuleBorder: '#E5DADA', sectionEyebrow: '#B5A5A5', sectionCount: '#9A8A8A',
+    startScheduledBorder: '#DDD0D0', startScheduledText: '#636363',
+    sectionRuleBorder: '#E5DADA', sectionEyebrow: '#6E6060', sectionCount: '#6E6060',
   },
 } as const;
 

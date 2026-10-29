@@ -330,7 +330,7 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
 
           return (
             <View key={dayStr} style={{ marginBottom: 24 }}>
-              <Text style={{ color: theme.accent, fontSize: 13, fontWeight: '900', letterSpacing: 1, marginBottom: 12, opacity: 0.8 }}>
+              <Text style={{ color: theme.accentText, fontSize: 13, fontWeight: '900', letterSpacing: 1, marginBottom: 12, opacity: 0.8 }}>
                 {roundConfig?.title?.toUpperCase() || `ROUND ${day}`}
               </Text>
               {roundMatches.map((m: any) => {
@@ -371,7 +371,7 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
                           <Text style={{ marginLeft: 4, fontSize: 12 }}>❌</Text>
                         )}
                       </View>
-                      <Text style={{ color: theme.accent, fontSize: 14, fontWeight: '700', marginTop: 2 }}>
+                      <Text style={{ color: theme.accentText, fontSize: 14, fontWeight: '700', marginTop: 2 }}>
                         {displayScore}
                       </Text>
                       {isWinner && (
@@ -442,7 +442,7 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
         )}
 
         <View style={styles.roundHeader}>
-          <Text style={[styles.roundTitle, { color: theme.accent }]}>{currentRoundConfig?.title || 'BATTLE'}</Text>
+          <Text style={[styles.roundTitle, { color: theme.accentText }]}>{currentRoundConfig?.title || 'BATTLE'}</Text>
           <View style={styles.timerBox}>
             <MaterialCommunityIcons name="timer-outline" size={16} color={theme.text.tertiary} />
             <Text style={[styles.timerText, { color: theme.text.primary }]}>{timeLeft}</Text>
@@ -498,7 +498,7 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
     return (
       <ScrollView contentContainerStyle={styles.phaseContainer}>
         <View style={styles.roundHeader}>
-          <Text style={[styles.roundTitle, { color: theme.accent }]}>LIVE LEADERBOARD</Text>
+          <Text style={[styles.roundTitle, { color: theme.accentText }]}>LIVE LEADERBOARD</Text>
           <View style={styles.timerBox}>
             <MaterialCommunityIcons name="timer-outline" size={16} color={theme.text.tertiary} />
             <Text style={[styles.timerText, { color: theme.text.primary }]}>{timeLeft}</Text>
@@ -552,7 +552,7 @@ export function TournamentLobbyScreen({ sessionId: propSessionId, onClose, onEnt
 
     return (
       <View style={styles.phaseContainer}>
-        <Text style={[styles.phaseTitle, { color: theme.accent }]}>GAUNTLET CONCLUDED</Text>
+        <Text style={[styles.phaseTitle, { color: theme.accentText }]}>GAUNTLET CONCLUDED</Text>
 
         <View style={styles.podium}>
           {sorted.slice(0, 3).map((p, i) => (

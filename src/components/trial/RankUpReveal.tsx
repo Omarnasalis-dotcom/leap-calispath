@@ -42,7 +42,9 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
   const palette = {
     bg: isDark ? '#000000' : '#FFF8F7',
     ink: isDark ? '#FFFFFF' : '#170707',
-    muted: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(23,7,7,0.45)',
+    muted: isDark ? 'rgba(255,255,255,0.45)' : 'rgba(23,7,7,0.6)',
+    // ACCENT is under AA as small text on the light ground.
+    accentText: isDark ? ACCENT : '#C93030',
     accentDim: isDark ? 'rgba(255,82,82,0.22)' : 'rgba(255,82,82,0.28)',
     bezel: isDark ? 'rgba(255,255,255,0.09)' : 'rgba(23,7,7,0.10)',
     flash: isDark ? '#FFFFFF' : ACCENT,
@@ -215,7 +217,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
         <Animated.View style={[styles.flash, { backgroundColor: palette.flash, opacity: flashOpacity }]} pointerEvents="none" />
 
         <View style={styles.body}>
-          <Animated.Text style={[styles.rankUpLabel, enter(150, 450)]}>{t('rankUp.label')}</Animated.Text>
+          <Animated.Text style={[styles.rankUpLabel, { color: palette.accentText }, enter(150, 450)]}>{t('rankUp.label')}</Animated.Text>
 
           <View style={styles.stage}>
             <Animated.View style={[styles.glowWrap, { opacity: glowOpacity }]} pointerEvents="none">
@@ -265,7 +267,7 @@ export function RankUpReveal({ tier, trialName, timeSeconds, onContinue }: RankU
           <Animated.Text style={[styles.rankName, rankEnter, { color: rankColor }]}>
             {tierName.toUpperCase()}
           </Animated.Text>
-          <Animated.Text style={[styles.tierSubLabel, subEnter]}>
+          <Animated.Text style={[styles.tierSubLabel, { color: palette.accentText }, subEnter]}>
             {t('rankUp.tierOf', { tier, max: maxTier })}
           </Animated.Text>
 

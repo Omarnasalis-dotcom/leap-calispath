@@ -50,6 +50,8 @@ interface AuthColors {
   ink: string;
   inkSecondary: string;
   inkTertiary: string;
+  /** ACCENT is under AA as text on the light page. */
+  accentText: string;
   glassBorder: string;
   glassFill: string;
   blurTint: 'light' | 'dark';
@@ -70,6 +72,7 @@ const AUTH_COLORS: Record<'dark' | 'light', AuthColors> = {
     ink: 'rgba(255,255,255,0.85)',
     inkSecondary: 'rgba(255,255,255,0.45)',
     inkTertiary: 'rgba(255,255,255,0.3)',
+    accentText: ACCENT,
     glassBorder: 'rgba(255,255,255,0.12)',
     glassFill: 'rgba(255,255,255,0.06)',
     blurTint: 'dark',
@@ -86,8 +89,9 @@ const AUTH_COLORS: Record<'dark' | 'light', AuthColors> = {
     bg: '#FAFAFA',
     brand: 'rgba(0,0,0,0.88)',
     ink: 'rgba(0,0,0,0.85)',
-    inkSecondary: 'rgba(0,0,0,0.45)',
-    inkTertiary: 'rgba(0,0,0,0.28)',
+    inkSecondary: 'rgba(0,0,0,0.58)',
+    inkTertiary: 'rgba(0,0,0,0.45)',
+    accentText: '#C93030',
     glassBorder: 'rgba(0,0,0,0.08)',
     glassFill: 'rgba(255,255,255,0.6)',
     blurTint: 'light',
@@ -636,7 +640,7 @@ export function AuthScreen() {
                               onPress={() => Linking.openURL('https://leap-arena.com/request')}
                               style={{ marginTop: 6, alignSelf: 'flex-start' }}
                             >
-                              <Text style={styles.linkText}>{t('auth.requestInvite')}</Text>
+                              <Text style={[styles.linkText, { color: c.accentText }]}>{t('auth.requestInvite')}</Text>
                             </TouchableOpacity>
                           ) : (
                             <Text style={[styles.hintText, { color: c.inkTertiary }]}>{t('auth.inviteHint')}</Text>
@@ -649,7 +653,7 @@ export function AuthScreen() {
                       <TouchableOpacity onPress={() => Linking.openURL('https://leap-arena.com/privacy')}>
                         <Text style={[styles.privacyText, { color: c.inkTertiary }]}>
                           {t('auth.agreePrefix')}
-                          <Text style={styles.privacyLink}>{t('auth.privacyPolicy')}</Text>
+                          <Text style={[styles.privacyLink, { color: c.accentText }]}>{t('auth.privacyPolicy')}</Text>
                         </Text>
                       </TouchableOpacity>
                     </>
@@ -677,9 +681,9 @@ export function AuthScreen() {
                 onPress={() => { setIsSignUp(!isSignUp); setSignupStep('choose'); }}
                 hitSlop={8}
               >
-                <Text style={[styles.switchText, { color: c.inkTertiary }]}>
+                <Text style={[styles.switchText, { color: c.inkSecondary }]}>
                   {isSignUp ? t('auth.haveAccount') : t('auth.newHere')}
-                  <Text style={styles.switchLinkAccent}>
+                  <Text style={[styles.switchLinkAccent, { color: c.accentText }]}>
                     {isSignUp ? t('auth.returnToBattle') : t('auth.beginJourney')}
                   </Text>
                 </Text>
@@ -715,7 +719,7 @@ export function AuthScreen() {
                     <Text style={[styles.resetSentSubtext, { color: c.inkSecondary }]}>
                       {t('auth.resetSentTo')}
                     </Text>
-                    <Text style={styles.resetSentEmail}>{resetEmail}</Text>
+                    <Text style={[styles.resetSentEmail, { color: c.accentText }]}>{resetEmail}</Text>
                     <Text style={[styles.resetSentSubtext, { marginTop: 8, color: c.inkTertiary }]}>
                       {t('auth.checkSpam')}
                     </Text>
@@ -726,7 +730,7 @@ export function AuthScreen() {
                       onPress={handleResetPassword}
                       disabled={resendCooldown > 0 || resetLoading}
                     >
-                      <Text style={[styles.resendButtonText, resendCooldown > 0 && { color: c.inkTertiary }]}>
+                      <Text style={[styles.resendButtonText, { color: c.accentText }, resendCooldown > 0 && { color: c.inkTertiary }]}>
                         {resetLoading
                           ? t('auth.sending')
                           : resendCooldown > 0

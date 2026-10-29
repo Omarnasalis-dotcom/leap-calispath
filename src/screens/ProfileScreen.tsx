@@ -433,7 +433,7 @@ export function ProfileScreen({
             <View style={[styles.modalContent, { backgroundColor: theme.background.primary }]}>
               <View style={styles.modalHeader}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-                  <Text style={[styles.modalTitle, { color: theme.accent }]}>{t('profile.warriorProfile')}</Text>
+                  <Text style={[styles.modalTitle, { color: theme.accentText }]}>{t('profile.warriorProfile')}</Text>
                   <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('profile.editProfile')} onPress={() => { setShowWarriorModal(false); setShowEditProfile(true); }}>
                     <MaterialCommunityIcons name="pencil-outline" size={20} color={theme.accent} />
                   </TouchableOpacity>

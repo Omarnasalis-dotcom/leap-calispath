@@ -93,7 +93,7 @@ export function LeaderboardModals({
                 </TouchableOpacity>
               )}
               <View style={styles.modalHeaderTitle}>
-                <Text style={[styles.lbTitle, { color: theme.accent, textAlign: 'center' }]}>{t('leaderboards.wraTitle')}</Text>
+                <Text style={[styles.lbTitle, { color: theme.accentText, textAlign: 'center' }]}>{t('leaderboards.wraTitle')}</Text>
                 <Text style={[styles.lbSub, { color: theme.text.secondary, textAlign: 'center', marginTop: 4 }]}>{t('leaderboards.wraSub')}</Text>
               </View>
             </View>
@@ -197,7 +197,7 @@ export function LeaderboardModals({
                       </View>
 
                       <View style={styles.lbScoreBox}>
-                        <Text style={[styles.lbScoreText, { color: theme.accent }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
+                        <Text style={[styles.lbScoreText, { color: theme.accentText }]}>{Number(entry.total_score || 0).toFixed(2)}</Text>
                         <Text style={[styles.lbScoreLabel, { color: theme.text.tertiary }]}>{t('leaderboards.pts')}</Text>
                       </View>
                     </View>

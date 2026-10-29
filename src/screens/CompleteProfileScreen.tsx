@@ -130,7 +130,7 @@ export function CompleteProfileScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.panel}>
           <Text style={[styles.heading, { color: theme.text.primary }]}>
-            {t('profileSetup.headingLead')}<Text style={{ color: theme.accent }}>{t('profileSetup.headingAccent')}</Text>
+            {t('profileSetup.headingLead')}<Text style={{ color: theme.accentText }}>{t('profileSetup.headingAccent')}</Text>
           </Text>
           <Text style={[styles.subheading, { color: theme.text.secondary }]}>
             {t('profileSetup.subheading')}

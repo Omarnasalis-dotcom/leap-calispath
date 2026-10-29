@@ -354,7 +354,7 @@ function getStyles(c: TCPalette) {
     shine: { position: 'absolute', top: -20, bottom: -20, left: 0, width: SHINE_W, backgroundColor: 'rgba(255,255,255,0.35)' },
     primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 16, letterSpacing: 1.6 },
     linkBtn: { alignItems: 'center', paddingVertical: 6 },
-    linkText: { color: c.coral, fontFamily: 'PlusJakartaSans-Bold', fontSize: 14 },
+    linkText: { color: c.coralText, fontFamily: 'PlusJakartaSans-Bold', fontSize: 14 },
     laterText: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 },
     note: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, lineHeight: 17, textAlign: 'center' },
   });

@@ -314,7 +314,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                     GOAL: {t.matching_criteria.goal.toUpperCase()} • TIER {t.matching_criteria.tier_range.min}-{t.matching_criteria.tier_range.max}
                   </Text>
                 ) : (
-                  <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 11, marginTop: 4 }}>
+                  <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, marginTop: 4 }}>
                     NO TIER RANGE / GOAL SET
                   </Text>
                 )}
@@ -355,7 +355,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                     onPress={() => handleArchive(t.id)}
                     disabled={archivingId === t.id}
                   >
-                    <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>
+                    <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>
                       {archivingId === t.id ? 'ARCHIVING...' : 'ARCHIVE'}
                     </Text>
                   </TouchableOpacity>
@@ -378,7 +378,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                 value={goalInput}
                 onChangeText={setGoalInput}
                 placeholder="strength"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor={theme.placeholder}
                 autoCapitalize="none"
               />
             </View>
@@ -392,7 +392,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                   onChangeText={setMinInput}
                   keyboardType="number-pad"
                   placeholder="0"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.placeholder}
                 />
               </View>
               <View style={[styles.inputContainerStyle, { flex: 1 }]}>
@@ -403,7 +403,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                   onChangeText={setMaxInput}
                   keyboardType="number-pad"
                   placeholder="9"
-                  placeholderTextColor="rgba(255,255,255,0.2)"
+                  placeholderTextColor={theme.placeholder}
                 />
               </View>
             </View>
@@ -415,7 +415,7 @@ export function TemplateLibraryScreen({ coachId, isAdmin }: Props) {
                 value={equipmentInput}
                 onChangeText={setEquipmentInput}
                 placeholder="pull_bar, resistance_bands"
-                placeholderTextColor="rgba(255,255,255,0.2)"
+                placeholderTextColor={theme.placeholder}
                 autoCapitalize="none"
               />
             </View>

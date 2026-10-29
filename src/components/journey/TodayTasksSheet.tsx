@@ -97,11 +97,11 @@ export function TodayTasksSheet({
           <Text style={[styles.rowLabel, s.ink]} numberOfLines={1}>
             {label}
           </Text>
-          <Text style={styles.rowSub} numberOfLines={1}>
+          <Text style={[styles.rowSub, s.muted]} numberOfLines={1}>
             {sub}
           </Text>
         </View>
-        <Text style={[styles.rowPts, { color: ACCENT }]}>+{v[`task_${task}`] ?? 0}</Text>
+        <Text style={[styles.rowPts, s.accent]}>+{v[`task_${task}`] ?? 0}</Text>
         <Check on={!!tk} />
       </TouchableOpacity>
     );
@@ -113,9 +113,9 @@ export function TodayTasksSheet({
         <TouchableOpacity activeOpacity={1} style={[styles.sheet, s.sheet]} onPress={(e) => e.stopPropagation()}>
           <View style={[styles.handle, s.handle]} />
           <View style={styles.header}>
-            <Text style={styles.title}>{t('journeyPoints.todaysTasks')}</Text>
+            <Text style={[styles.title, s.accent]}>{t('journeyPoints.todaysTasks')}</Text>
             <Text style={[styles.todayPts, s.ink]}>
-              {todayPts} <Text style={styles.todayPtsUnit}>{t('journeyPoints.ptsToday')}</Text>
+              {todayPts} <Text style={[styles.todayPtsUnit, s.muted]}>{t('journeyPoints.ptsToday')}</Text>
             </Text>
           </View>
 
@@ -123,7 +123,7 @@ export function TodayTasksSheet({
             <View style={[styles.capTrack, s.capTrack]}>
               <View style={[styles.capFill, { width: `${Math.min(100, (honorPts / Math.max(cap, 1)) * 100)}%` }]} />
             </View>
-            <Text style={styles.capLabel}>{t('journeyPoints.bonusCap', { pts: honorPts, cap })}</Text>
+            <Text style={[styles.capLabel, s.muted]}>{t('journeyPoints.bonusCap', { pts: honorPts, cap })}</Text>
           </View>
 
           <View style={styles.rows}>
@@ -133,11 +133,11 @@ export function TodayTasksSheet({
                   <Text style={[styles.rowLabel, s.ink]} numberOfLines={1}>
                     {t('journeyPoints.programCardRow', { name: cardName })}
                   </Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>
+                  <Text style={[styles.rowSub, s.muted]} numberOfLines={1}>
                     {t('journeyPoints.autoWhenLogged')}
                   </Text>
                 </View>
-                <Text style={[styles.rowPts, { color: ACCENT }]}>+{v.program_day ?? 0}</Text>
+                <Text style={[styles.rowPts, s.accent]}>+{v.program_day ?? 0}</Text>
                 {summary.trained_today ? <Check on /> : chevron}
               </TouchableOpacity>
             )}
@@ -147,11 +147,11 @@ export function TodayTasksSheet({
                   <Text style={[styles.rowLabel, s.ink]} numberOfLines={1}>
                     {t('journeyPoints.sideQuestRow', { name: questTitle })}
                   </Text>
-                  <Text style={styles.rowSub} numberOfLines={1}>
+                  <Text style={[styles.rowSub, s.muted]} numberOfLines={1}>
                     {questSkipped ? t('journey.skipped') : t('journeyPoints.autoWhenCompleted')}
                   </Text>
                 </View>
-                <Text style={[styles.rowPts, { color: ACCENT }]}>+{v.side_quest ?? 0}</Text>
+                <Text style={[styles.rowPts, s.accent]}>+{v.side_quest ?? 0}</Text>
                 {questDone ? <Check on /> : chevron}
               </TouchableOpacity>
             )}
@@ -172,14 +172,14 @@ export function TodayTasksSheet({
             <MaterialCommunityIcons name="star" size={18} color={ACCENT} />
             <View style={styles.rowText}>
               <Text style={[styles.perfectLabel, s.ink]}>{t('journeyPoints.perfectDay')}</Text>
-              <Text style={styles.rowSub}>
+              <Text style={[styles.rowSub, s.muted]}>
                 {perfect ? t('journeyPoints.perfectEarned') : t('journeyPoints.tasksToGo', { count: left })}
               </Text>
             </View>
-            <Text style={[styles.rowPts, { color: '#FF7C78' }]}>+{v.perfect_day ?? 0}</Text>
+            <Text style={[styles.rowPts, s.accentSoft]}>+{v.perfect_day ?? 0}</Text>
           </View>
 
-          <Text style={styles.footer}>
+          <Text style={[styles.footer, s.faint]}>
             {t('journeyPoints.footer')}
           </Text>
         </TouchableOpacity>
@@ -237,6 +237,10 @@ const dark = StyleSheet.create({
   sheet: { backgroundColor: '#131313', borderColor: 'rgba(255,255,255,0.08)' },
   handle: { backgroundColor: '#3A3A3C' },
   ink: { color: '#FFFFFF' },
+  accent: { color: ACCENT },
+  accentSoft: { color: '#FF7C78' },
+  muted: { color: '#8A8A8E' },
+  faint: { color: '#5E6068' },
   capTrack: { backgroundColor: '#262626' },
   row: { backgroundColor: '#1A1A1A' },
   perfectOff: { borderColor: '#3A3A3C' },
@@ -246,6 +250,11 @@ const light = StyleSheet.create({
   sheet: { backgroundColor: '#FFFFFF', borderColor: 'rgba(0,0,0,0.08)' },
   handle: { backgroundColor: '#D8D8DC' },
   ink: { color: '#151515' },
+  // ACCENT and the dark greys are under AA on white.
+  accent: { color: '#C93030' },
+  accentSoft: { color: '#C93030' },
+  muted: { color: '#5F5F66' },
+  faint: { color: '#5F5F66' },
   capTrack: { backgroundColor: '#EDEDEF' },
   row: { backgroundColor: '#F6F6F7' },
   perfectOff: { borderColor: '#D8D8DC' },

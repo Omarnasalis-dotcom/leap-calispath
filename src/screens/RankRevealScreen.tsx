@@ -72,7 +72,7 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
 
           {/* Title Frame */}
           <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
-            <Text style={[styles.welcomeTitle, { color: theme.accent }]}>
+            <Text style={[styles.welcomeTitle, { color: theme.accentText }]}>
               {profile.display_name ? t('rankReveal.welcomeName', { name: profile.display_name.toUpperCase() }) : t('rankReveal.welcome')}
             </Text>
           </View>
@@ -123,12 +123,12 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
       >
         {/* Rank Seal */}
         <View style={[styles.rankSeal, { borderColor: theme.accent, backgroundColor: theme.background.secondary }]}>
-          <Text style={[styles.rankSealText, { color: theme.accent }]}>{tierName[0]}</Text>
+          <Text style={[styles.rankSealText, { color: theme.accentText }]}>{tierName[0]}</Text>
         </View>
 
         {/* Title Frame */}
         <View style={[styles.titleFrame, { borderColor: theme.accent }]}>
-          <Text style={[styles.rankFrameTitle, { color: theme.accent }]}>{t('rankReveal.rankAssigned')}</Text>
+          <Text style={[styles.rankFrameTitle, { color: theme.accentText }]}>{t('rankReveal.rankAssigned')}</Text>
         </View>
 
         <Text style={[styles.assignedTier, { color: theme.text.primary }]}>{tierName.toUpperCase()}</Text>
@@ -153,7 +153,7 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
                 ]} 
               />
             </View>
-            <Text style={[styles.difficultyValue, { color: theme.accent }]}>
+            <Text style={[styles.difficultyValue, { color: theme.accentText }]}>
               {TIER_DESCRIPTIONS[currentTier]?.difficulty || 1}/9
             </Text>
           </View>
@@ -188,9 +188,9 @@ export function RankRevealScreen({ profile, onContinue, category = 'strength' }:
             </Text>
           )}
           <View style={styles.whatsNextSteps}>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step1')}</Text>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step2')}</Text>
-            <Text style={[styles.whatsNextStep, { color: theme.accent }]}>{t('rankReveal.step3')}</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accentText }]}>{t('rankReveal.step1')}</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accentText }]}>{t('rankReveal.step2')}</Text>
+            <Text style={[styles.whatsNextStep, { color: theme.accentText }]}>{t('rankReveal.step3')}</Text>
           </View>
         </View>
 

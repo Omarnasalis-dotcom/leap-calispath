@@ -278,7 +278,7 @@ function BlocksCard({ program, c, styles }: { program: CompletionProgram | undef
               accessible
               accessibilityLabel={t('progress.blocksWeek', { week: w.week, done: w.completed, total: w.total })}
             >
-              <Text style={[styles.weekPct, current && { color: c.coral }]}>{pct}%</Text>
+              <Text style={[styles.weekPct, current && { color: c.coralText }]}>{pct}%</Text>
               <View style={[styles.weekStack, current && { borderColor: hexA(c.coral, 0.45) }]}>
                 {Array.from({ length: w.total }, (_, k) => (
                   <View
@@ -596,7 +596,7 @@ function MovementsCard({
                   : t('progress.weekLong', { n: wk })
               }
             >
-              <Text style={[styles.mvValue, (on || wk === program?.current_week) && { color: c.coral }]}>
+              <Text style={[styles.mvValue, (on || wk === program?.current_week) && { color: c.coralText }]}>
                 {w ? fmtV(w.reps) : ''}
               </Text>
               <View style={styles.mvTrack}>
@@ -610,7 +610,7 @@ function MovementsCard({
                 </View>
               </View>
               <Text
-                style={[styles.mvLabel, on && { color: c.textPrimary }, wk === program?.current_week && { color: c.coral }]}
+                style={[styles.mvLabel, on && { color: c.textPrimary }, wk === program?.current_week && { color: c.coralText }]}
                 numberOfLines={1}
               >
                 {t('progress.weekShort', { n: wk })}
@@ -912,7 +912,7 @@ function EffortCard({
         series={[
           {
             key: 'rpe',
-            color: c.coral,
+            color: c.coralText,
             values: rpe,
             details: rpe.map((v) => (v === null ? null : t('progress.rpeValue', { value: fmtNum(v) }))),
           },
@@ -966,7 +966,7 @@ const getStyles = (c: TCPalette) =>
       paddingBottom: 10,
     },
     headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
-    headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+    headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
     centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
     errorText: { color: c.textSecondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
     retryBtn: { backgroundColor: c.coral, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },

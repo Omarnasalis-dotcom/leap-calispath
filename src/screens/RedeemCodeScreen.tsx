@@ -318,7 +318,7 @@ function getStyles(c: TCPalette) {
       letterSpacing: 2,
       textAlign: 'center',
     },
-    error: { color: c.coral, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, textAlign: 'center' },
+    error: { color: c.coralText, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13, textAlign: 'center' },
     primaryBtn: { backgroundColor: c.coral, borderRadius: 12, paddingVertical: 15, alignItems: 'center' },
     primaryBtnText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 15, letterSpacing: 1.6 },
     secondaryBtn: { borderColor: c.borderStrong, borderWidth: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },

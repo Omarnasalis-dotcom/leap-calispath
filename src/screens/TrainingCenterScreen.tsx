@@ -806,7 +806,7 @@ export function TrainingCenterScreen() {
                   <Text style={styles.progressEntrySub} numberOfLines={1}>
                     <Text style={styles.progressStatNum}>{data.sessionsDone}</Text> {t('trainingCenter.statSessions')}
                     {'  ·  '}
-                    <Text style={[styles.progressStatNum, { color: c.coral }]}>{data.adherencePct ?? 0}%</Text> {t('trainingCenter.statAdherence')}
+                    <Text style={[styles.progressStatNum, { color: c.coralText }]}>{data.adherencePct ?? 0}%</Text> {t('trainingCenter.statAdherence')}
                     {'  ·  '}
                     <Text style={styles.progressStatNum}>{data.streakDays}</Text> {t('trainingCenter.statStreak')}
                   </Text>
@@ -854,7 +854,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
     paddingBottom: 10,
   },
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 19, letterSpacing: 1.9 },
-  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
   centerFill: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 12 },
   errorText: { color: c.textSecondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 13, textAlign: 'center', paddingHorizontal: 30 },
   retryBtn: { backgroundColor: c.coral, borderRadius: 12, paddingHorizontal: 20, paddingVertical: 10 },
@@ -870,7 +870,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   heroEmptySub: { color: c.textMuted, fontFamily: 'Barlow-Regular', fontSize: 12, textAlign: 'center', marginBottom: 10 },
   heroEyebrow: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 2 },
   heroProgramName: { color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 19, marginTop: 2 },
-  heroMeta: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6, marginTop: 4 },
+  heroMeta: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 10, letterSpacing: 1.6, marginTop: 4 },
   heroNextRow: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 8 },
   heroDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: c.coral },
   heroNextText: { color: c.textBody, fontFamily: 'Barlow-Light', fontSize: 12.5, flexShrink: 1 },

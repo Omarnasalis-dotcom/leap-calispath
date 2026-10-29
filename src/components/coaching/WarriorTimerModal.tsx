@@ -290,8 +290,8 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.preparing')}</Text>
                     </View>
                   ) : timerRunning ? (
-                    <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(230,70,70,0.15)', borderWidth: 1, borderColor: '#FF6B6B' }}>
-                      <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.pause')}</Text>
+                    <View style={{ borderRadius: 6, paddingVertical: 12, alignItems: 'center', backgroundColor: 'rgba(230,70,70,0.15)', borderWidth: 1, borderColor: theme.danger }}>
+                      <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.pause')}</Text>
                     </View>
                   ) : (
                     <LinearGradient
@@ -385,7 +385,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                     <View key={ex.id} style={{ flexDirection: 'column', gap: 4, paddingHorizontal: 12, paddingVertical: 8, backgroundColor: 'rgba(255,255,255,0.02)', borderRadius: 4 }}>
                       <Text style={{ color: theme.text.primary, fontSize: 13, fontFamily: 'BarlowCondensed-Bold', letterSpacing: 0.5 }}>
                         {idx + 1}. {ex.name}
-                        {ex.is_weighted && <Text style={{ color: theme.accent, fontSize: 11 }}>{t('timerModal.weighted')}</Text>}
+                        {ex.is_weighted && <Text style={{ color: theme.accentText, fontSize: 11 }}>{t('timerModal.weighted')}</Text>}
                       </Text>
                       <Text style={{ color: theme.text.secondary, fontSize: 12, fontFamily: 'BarlowCondensed-Medium' }}>
                         {timerType === 'tabata' 
@@ -405,7 +405,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
           {showEndWarning && (
             <View style={styles.warningOverlay}>
               <View style={[styles.modalContent, { backgroundColor: theme.card.background, borderWidth: 1, borderColor: '#FF6B6B', maxWidth: 320, padding: 24 }]}>
-                <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, color: '#FF6B6B', textAlign: 'center', marginBottom: 12, letterSpacing: 1 }}>
+                <Text style={{ fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 20, color: theme.danger, textAlign: 'center', marginBottom: 12, letterSpacing: 1 }}>
                   {t('timerModal.warning')}
                 </Text>
                 <Text style={{ color: theme.text.primary, fontSize: 14, fontFamily: 'Barlow-Regular', textAlign: 'center', marginBottom: 24 }}>
@@ -428,7 +428,7 @@ export const WarriorTimerModal: React.FC<WarriorTimerModalProps> = ({
                       onClose();
                     }}
                   >
-                    <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.endTimer')}</Text>
+                    <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 12 }}>{t('timerModal.endTimer')}</Text>
                   </TouchableOpacity>
                 </View>
               </View>

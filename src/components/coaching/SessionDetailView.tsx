@@ -189,7 +189,7 @@ export function SessionDetailView({
 const getStyles = (c: TCPalette) => StyleSheet.create({
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: TC_LAYOUT.screenPadding, paddingTop: 14, paddingBottom: 10 },
   headerTitle: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 17, letterSpacing: 1.6 },
-  headerSubline: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
+  headerSubline: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 2, marginTop: 3 },
 
   summaryCard: {
     flexDirection: 'row', borderRadius: 18, borderWidth: 1, borderColor: c.heroBorderActive,
@@ -209,7 +209,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   movementCard: { borderRadius: 16, borderWidth: 1, borderColor: c.border, backgroundColor: c.cardRaised, padding: 14 },
   movementTopRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   indexBox: { width: 28, height: 28, borderRadius: 8, backgroundColor: c.iconWell, borderWidth: 1, borderColor: c.borderStrong, alignItems: 'center', justifyContent: 'center' },
-  indexText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 },
+  indexText: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 },
   movementName: { flex: 1, color: c.textPrimary, fontFamily: 'BarlowCondensed-Bold', fontSize: 15 },
   cue: { color: c.textSecondary, fontFamily: 'Barlow-Light', fontSize: 11.5, lineHeight: 15, marginTop: 8 },
   setPillRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 10 },
@@ -219,7 +219,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   restRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   restText: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 1.2 },
   logBtn: { borderWidth: 1, borderColor: c.coral, borderRadius: 8, paddingHorizontal: 12, paddingVertical: 5 },
-  logBtnText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 1 },
+  logBtnText: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 9.5, letterSpacing: 1 },
 
   bottomBar: { position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset },
   startBtn: {

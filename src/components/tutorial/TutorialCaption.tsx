@@ -32,7 +32,7 @@ export function TutorialCaption({ stepIndex, tag, caption, isLight = false }: Tu
 
   return (
     <Animated.View style={{ opacity: fade, transform: [{ translateY }] }}>
-      <Text style={styles.tag}>{tag}</Text>
+      <Text style={[styles.tag, isLight && styles.tagLight]}>{tag}</Text>
       <Text style={[styles.caption, isLight && styles.captionLight]}>{caption}</Text>
     </Animated.View>
   );
@@ -57,4 +57,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   captionLight: { color: '#151515' },
+  // ACCENT is under AA as small text on the light page.
+  tagLight: { color: '#C93030' },
 });

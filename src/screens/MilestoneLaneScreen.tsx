@@ -3032,7 +3032,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         disabled={advancingWeek}
                       >
                         <MaterialCommunityIcons name="repeat" size={12} color={ACCENT} />
-                        <Text style={[styles.weekCompleteSmallText, { color: ACCENT }]}>
+                        <Text style={[styles.weekCompleteSmallText, { color: themeMode === 'light' ? LIGHT_ACCENT_TEXT : ACCENT }]}>
                           {advancingWeek ? t('journey.addingWeek') : t('journey.repeatWeek')}
                         </Text>
                       </TouchableOpacity>
@@ -3854,23 +3854,30 @@ const darkStyles = StyleSheet.create({
 // Built from darkStyles so only the color-bearing keys are restated here.
 const LIGHT_INK = '#151515';
 const LIGHT_CARD_BORDER = 'rgba(0,0,0,0.08)';
+// ACCENT is under AA as small text on the light page.
+const LIGHT_ACCENT_TEXT = '#C93030';
 const lightStyles = StyleSheet.create({
   ...darkStyles,
+  header: { ...darkStyles.header, color: LIGHT_ACCENT_TEXT },
+  nodeNumberActive: { ...darkStyles.nodeNumberActive, color: LIGHT_ACCENT_TEXT },
+  attachedQuestLabel: { ...darkStyles.attachedQuestLabel, color: LIGHT_ACCENT_TEXT },
+  questBubbleLabel: { ...darkStyles.questBubbleLabel, color: LIGHT_ACCENT_TEXT },
+  journeySectionLabel: { ...darkStyles.journeySectionLabel, color: LIGHT_ACCENT_TEXT },
   ctaPillSecondary: { ...darkStyles.ctaPillSecondary, borderColor: 'rgba(0,0,0,0.18)' },
   ctaPillSecondaryText: { ...darkStyles.ctaPillSecondaryText, color: 'rgba(0,0,0,0.65)' },
   finishedCard: { ...darkStyles.finishedCard, backgroundColor: '#FFFFFF' },
   finishedCardBorder: { ...darkStyles.finishedCardBorder, borderColor: LIGHT_CARD_BORDER },
   finishedCardTitle: { ...darkStyles.finishedCardTitle, color: 'rgba(0,0,0,0.8)' },
-  finishedCardDesc: { ...darkStyles.finishedCardDesc, color: 'rgba(0,0,0,0.45)' },
+  finishedCardDesc: { ...darkStyles.finishedCardDesc, color: 'rgba(0,0,0,0.6)' },
   dayCheerText: { ...darkStyles.dayCheerText, color: 'rgba(0,0,0,0.8)' },
   attachedQuestIconLocked: { ...darkStyles.attachedQuestIconLocked, backgroundColor: 'rgba(0,0,0,0.06)' },
   attachedQuestLabelLocked: { ...darkStyles.attachedQuestLabelLocked, color: 'rgba(0,0,0,0.3)' },
   attachedQuestTitle: { ...darkStyles.attachedQuestTitle, color: 'rgba(0,0,0,0.8)' },
   attachedQuestTitleLocked: { ...darkStyles.attachedQuestTitleLocked, color: 'rgba(0,0,0,0.3)' },
-  attachedQuestDesc: { ...darkStyles.attachedQuestDesc, color: 'rgba(0,0,0,0.45)' },
+  attachedQuestDesc: { ...darkStyles.attachedQuestDesc, color: 'rgba(0,0,0,0.6)' },
   questBubble: { ...darkStyles.questBubble, backgroundColor: '#FFFFFF' },
   questBubbleTitle: { ...darkStyles.questBubbleTitle, color: LIGHT_INK },
-  questBubbleDesc: { ...darkStyles.questBubbleDesc, color: 'rgba(0,0,0,0.5)' },
+  questBubbleDesc: { ...darkStyles.questBubbleDesc, color: 'rgba(0,0,0,0.6)' },
   questBubbleCtaSecondary: { ...darkStyles.questBubbleCtaSecondary, borderColor: 'rgba(0,0,0,0.18)' },
   questBubbleCtaSecondaryText: { ...darkStyles.questBubbleCtaSecondaryText, color: 'rgba(0,0,0,0.6)' },
   milestoneCard: { ...darkStyles.milestoneCard, backgroundColor: '#FFFFFF' },
@@ -3887,7 +3894,7 @@ const lightStyles = StyleSheet.create({
   milestoneCardDescLocked: { ...darkStyles.milestoneCardDescLocked, color: 'rgba(0,0,0,0.3)' },
   ghostCircle: { ...darkStyles.ghostCircle, borderColor: 'rgba(0,0,0,0.12)' },
   ghostLabel: { ...darkStyles.ghostLabel, color: 'rgba(0,0,0,0.25)' },
-  journeyMuted: { ...darkStyles.journeyMuted, color: 'rgba(0,0,0,0.45)' },
+  journeyMuted: { ...darkStyles.journeyMuted, color: 'rgba(0,0,0,0.6)' },
   weekCompleteText: { ...darkStyles.weekCompleteText, color: LIGHT_INK },
   choiceCard: { ...darkStyles.choiceCard, backgroundColor: '#FFFFFF', borderColor: LIGHT_CARD_BORDER },
   choiceTitle: { ...darkStyles.choiceTitle, color: LIGHT_INK },

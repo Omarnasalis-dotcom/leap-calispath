@@ -107,7 +107,7 @@ export function WeeklyAdminModal({ visible, onClose, challenge, allChallenges, o
       <View style={styles.modalOverlay}>
         <ScrollView contentContainerStyle={styles.modalScrollContent} showsVerticalScrollIndicator={false}>
           <View style={[styles.adminModalContent, { backgroundColor: theme.background.primary, borderColor: theme.accent }]}>
-            <Text style={[styles.modalTitle, { color: theme.accent }]}>COACH DASHBOARD</Text>
+            <Text style={[styles.modalTitle, { color: theme.accentText }]}>COACH DASHBOARD</Text>
 
             {/* Active Challenges List */}
             <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>ACTIVE CHALLENGES THIS WEEK</Text>
@@ -117,7 +117,7 @@ export function WeeklyAdminModal({ visible, onClose, challenge, allChallenges, o
               allChallenges.map(ac => (
                 <View key={ac.id} style={[styles.activeChallengeRow, { backgroundColor: theme.card.background }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: theme.accent, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
+                    <Text style={{ color: theme.accentText, fontWeight: '700', fontSize: 12 }}>{GROUP_NAMES[ac.group_id as 1 | 2 | 3].name}</Text>
                     <Text style={{ color: theme.text.primary, fontSize: 13 }}>{ac.title}</Text>
                   </View>
                   <TouchableOpacity 
@@ -157,7 +157,7 @@ export function WeeklyAdminModal({ visible, onClose, challenge, allChallenges, o
 
             <View style={{ height: 1, backgroundColor: theme.card.border, width: '100%', marginVertical: 16 }} />
 
-            <Text style={[styles.modalTitle, { color: theme.accent, fontSize: 16 }]}>CREATE NEW CHALLENGE</Text>
+            <Text style={[styles.modalTitle, { color: theme.accentText, fontSize: 16 }]}>CREATE NEW CHALLENGE</Text>
             <Text style={[styles.inputLabel, { color: theme.text.tertiary }]}>TARGET GROUP</Text>
             <View style={styles.groupSelector}>
               {([1, 2, 3] as const).map(g => (

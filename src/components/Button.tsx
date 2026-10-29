@@ -32,7 +32,7 @@ export function Button({
         (disabled || loading) && styles.disabled,
         isPrimary ? { backgroundColor: theme.accent } : {
           backgroundColor: 'transparent',
-          borderColor: theme.card.border
+          borderColor: theme.card.borderStrong
         }
       ]}
     >
@@ -41,7 +41,7 @@ export function Button({
       ) : (
         <Text style={[
           styles.text,
-          isPrimary ? { color: '#FFFFFF' } : { color: theme.accent }
+          isPrimary ? { color: '#FFFFFF' } : { color: theme.accentText }
         ]}>
           {title}
         </Text>

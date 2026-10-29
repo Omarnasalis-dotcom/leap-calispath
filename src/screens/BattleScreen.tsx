@@ -255,7 +255,7 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
                 </View>
                 {done ? <MaterialCommunityIcons name="check-circle" size={32} color="#4CAF50" /> : 
                 <View style={[styles.repTrigger, { borderColor: theme.accent }]}>
-                  <Text style={[styles.repTriggerText, { color: theme.accent }]}>+1</Text>
+                  <Text style={[styles.repTriggerText, { color: theme.accentText }]}>+1</Text>
                 </View>}
               </TouchableOpacity>
             );
@@ -281,7 +281,7 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
 
         {countdown !== null && (
           <View style={[styles.countdownOverlay, { backgroundColor: 'rgba(0,0,0,0.95)' }]}>
-            <Text style={[styles.countdownText, { color: theme.accent }]}>
+            <Text style={[styles.countdownText, { color: theme.accentText }]}>
               {countdown === 0 ? 'GO!' : countdown}
             </Text>
             <Text style={[styles.countdownLabel, { color: '#FFF' }]}>
@@ -347,7 +347,7 @@ export function BattleScreen({ clashId: propsClashId, onFinish }: BattleScreenPr
         <View style={styles.battleHeader}>
           <View>
             <Text style={[styles.battleTitle, { color: theme.text.primary }]}>SPRINT CLASH</Text>
-            <Text style={[styles.timerText, { color: theme.accent }]}>{Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</Text>
+            <Text style={[styles.timerText, { color: theme.accentText }]}>{Math.floor(timer / 60)}:{(timer % 60).toString().padStart(2, '0')}</Text>
           </View>
           <TouchableOpacity style={styles.closeBtn} onPress={handleCancel}>
             <MaterialCommunityIcons name="close" size={28} color={theme.text.tertiary} />

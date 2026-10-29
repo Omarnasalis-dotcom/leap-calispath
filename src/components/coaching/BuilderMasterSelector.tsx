@@ -158,7 +158,7 @@ export function BuilderMasterSelector({
                           style={[styles.catalogCardDelBtn, { borderColor: 'rgba(255,107,107,0.2)' }]}
                           onPress={() => handleDeleteTemplate(t.id)}
                         >
-                          <Text style={{ color: '#FF6B6B', fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>DELETE</Text>
+                          <Text style={{ color: theme.danger, fontFamily: 'BarlowCondensed-Bold', fontSize: 11 }}>DELETE</Text>
                         </TouchableOpacity>
                       </View>
                     </View>

@@ -110,7 +110,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   meta: { color: c.textMuted, fontFamily: 'BarlowCondensed-Bold', fontSize: 9, letterSpacing: 1.2, marginTop: 3, textAlign: 'left' },
   deleteBtn: { width: 32, height: 32, borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   restoreBtn: { borderWidth: 1, borderColor: c.coral, borderRadius: 10, paddingHorizontal: 12, height: 32, alignItems: 'center', justifyContent: 'center' },
-  restoreText: { color: c.coral, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1.4 },
+  restoreText: { color: c.coralText, fontFamily: 'BarlowCondensed-Bold', fontSize: 11, letterSpacing: 1.4 },
   closeBtn: { marginTop: 16, height: 44, borderRadius: 12, borderWidth: 1, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
   closeText: { color: c.textSecondary, fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.6 },
 });

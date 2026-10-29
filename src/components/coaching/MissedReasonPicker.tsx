@@ -36,7 +36,7 @@ export const MissedReasonPicker: React.FC<MissedReasonPickerProps> = ({
             style={[
               styles.reasonBtn,
               {
-                borderColor: missedReason === opt.value ? '#FF6B6B' : theme.card.border,
+                borderColor: missedReason === opt.value ? theme.danger : theme.card.border,
                 backgroundColor: missedReason === opt.value ? 'rgba(255,107,107,0.12)' : 'transparent',
               },
             ]}
@@ -46,7 +46,7 @@ export const MissedReasonPicker: React.FC<MissedReasonPickerProps> = ({
               fontFamily: 'BarlowCondensed-Bold',
               fontSize: 11,
               letterSpacing: 0.5,
-              color: missedReason === opt.value ? '#FF6B6B' : theme.text.secondary,
+              color: missedReason === opt.value ? theme.danger : theme.text.secondary,
             }}>
               {opt.label}
             </Text>
@@ -56,7 +56,7 @@ export const MissedReasonPicker: React.FC<MissedReasonPickerProps> = ({
       <TextInput
         style={[styles.detailInput, { color: theme.text.primary, borderColor: theme.card.border }]}
         placeholder={t('logModal.missedDetail')}
-        placeholderTextColor="rgba(255,255,255,0.15)"
+        placeholderTextColor={theme.placeholder}
         value={missedDetail}
         onChangeText={setMissedDetail}
         multiline

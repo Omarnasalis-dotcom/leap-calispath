@@ -45,6 +45,7 @@ const PD_COLORS: { dark: PDPalette; light: PDPalette } = {
     weekChipText: '#6d6d6d',
   },
   light: {
+    // Text greys tuned to clear AA 4.5:1 on the light cards.
     identityBorder: '#E5DFE8',
     identityGradient: ['#F8F5FA', '#FBF8F8', '#FFFFFF'],
     chipBorder: '#E0D8E8',
@@ -52,11 +53,11 @@ const PD_COLORS: { dark: PDPalette; light: PDPalette } = {
     panelBorder: '#EAE0E0',
     textPrimary: '#2A2A2A',
     textBody: '#5A5A5A',
-    textMuted: '#8A8A8A',
-    textFainter: '#B5B5B5',
+    textMuted: '#636363',
+    textFainter: '#6A6A6A',
     purpleText: '#7C5CD6',
     weekChipBorder: '#E5DADA',
-    weekChipText: '#8A8A8A',
+    weekChipText: '#636363',
   },
 };
 

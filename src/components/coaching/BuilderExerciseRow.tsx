@@ -114,7 +114,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                 onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
                 keyboardType="numeric"
                 placeholder="—"
-                placeholderTextColor="rgba(126,87,194,0.3)"
+                placeholderTextColor={theme.placeholder}
               />
             </View>
           </>
@@ -157,7 +157,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
                   onEndEditing={() => handleUpdateExerciseValue(dayId, blockId, ex.id, 'hold_seconds', localHold)}
                   keyboardType="numeric"
                   placeholder="—"
-                  placeholderTextColor="rgba(126,87,194,0.3)"
+                  placeholderTextColor={theme.placeholder}
                 />
               </View>
             )}
@@ -183,7 +183,7 @@ export const BuilderExerciseRow: React.FC<BuilderExerciseRowProps> = ({
         style={styles.exDeleteBtn}
         onPress={() => handleDeleteExerciseFromBlock(dayId, blockId, ex.id)}
       >
-        <Text style={styles.exDeleteBtnText}>REMOVE EXERCISE</Text>
+        <Text style={[styles.exDeleteBtnText, { color: theme.danger }]}>REMOVE EXERCISE</Text>
       </TouchableOpacity>
     </View>
   );

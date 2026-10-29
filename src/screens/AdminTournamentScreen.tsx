@@ -426,7 +426,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
       </View>
       {rounds.map((r: RoundConfig, i: number) => (
         <View key={i} style={[styles.roundCard, { backgroundColor: theme.card.background }]}>
-          <Text style={[styles.roundTitle, { color: theme.accent }]}>{r.title}</Text>
+          <Text style={[styles.roundTitle, { color: theme.accentText }]}>{r.title}</Text>
           <View style={styles.row}>
             <TouchableOpacity onPress={() => updateRound(i, { mode: r.mode === 'amrap' ? 'for_time' : 'amrap' })} style={[styles.smallBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
               <Text style={{ color: theme.text.primary, fontSize: 10 }}>{r.mode.toUpperCase()}</Text>
@@ -460,7 +460,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
             </View>
           ))}
           <TouchableOpacity onPress={() => { const newRounds = [...rounds]; newRounds[i].exercises.push({ name: 'Push-ups', target_reps: 0, target_rounds: 0, weight_kg: 0 }); setRounds(newRounds); }} style={{ marginTop: 12, padding: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-            <Text style={{ color: theme.accent, fontSize: 10, fontWeight: 'bold' }}>+ ADD EXERCISE</Text>
+            <Text style={{ color: theme.accentText, fontSize: 10, fontWeight: 'bold' }}>+ ADD EXERCISE</Text>
           </TouchableOpacity>
         </View>
       ))}
@@ -505,7 +505,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
       </View>
       <View style={[styles.roundCard, { backgroundColor: theme.card.background }]}>
         <View style={[styles.row, { justifyContent: 'space-between', marginBottom: 12 }]}>
-          <Text style={[styles.roundTitle, { color: theme.accent, marginBottom: 0 }]}>WORKOUT CONFIG</Text>
+          <Text style={[styles.roundTitle, { color: theme.accentText, marginBottom: 0 }]}>WORKOUT CONFIG</Text>
           <TouchableOpacity onPress={() => setRankWorkout({ ...rankWorkout, mode: rankWorkout.mode === 'amrap' ? 'for_time' : 'amrap' })} style={[styles.smallBtn, { backgroundColor: 'rgba(255,255,255,0.05)' }]}>
             <Text style={{ color: theme.text.primary, fontSize: 10 }}>{rankWorkout.mode.toUpperCase()}</Text>
           </TouchableOpacity>
@@ -535,7 +535,7 @@ export function AdminTournamentScreen({ onClose }: { onClose: () => void }) {
           </View>
         ))}
         <TouchableOpacity onPress={() => { setRankWorkout({ ...rankWorkout, exercises: [...rankWorkout.exercises, { name: 'Push-ups', target_reps: 0, target_rounds: 0, weight_kg: 0 }] }); }} style={{ marginTop: 12, padding: 8, alignItems: 'center', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.05)' }}>
-          <Text style={{ color: theme.accent, fontSize: 10, fontWeight: 'bold' }}>+ ADD EXERCISE</Text>
+          <Text style={{ color: theme.accentText, fontSize: 10, fontWeight: 'bold' }}>+ ADD EXERCISE</Text>
         </TouchableOpacity>
       </View>
     </View>

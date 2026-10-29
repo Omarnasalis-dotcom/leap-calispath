@@ -193,13 +193,13 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
             {timerRunning || finished ? (
               <TouchableOpacity
                 style={[styles.timerBox, {
-                  borderColor: finished ? '#FF6B6B' : theme.card.border,
+                  borderColor: finished ? theme.danger : theme.card.border,
                   backgroundColor: finished ? 'rgba(255,107,107,0.1)' : 'rgba(255,255,255,0.03)',
                 }]}
                 onPress={handleTimerTap}
               >
-                <Text style={[styles.timerLabel, { color: finished ? '#FF6B6B' : theme.text.primary }]}>{finished ? t('timers.timeUp') : 'AMRAP'}</Text>
-                <Text style={{ color: finished ? '#FF6B6B' : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
+                <Text style={[styles.timerLabel, { color: finished ? theme.danger : theme.text.primary }]}>{finished ? t('timers.timeUp') : 'AMRAP'}</Text>
+                <Text style={{ color: finished ? theme.danger : theme.text.primary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>
                   {formatTime(timeLeft)}
                 </Text>
               </TouchableOpacity>
@@ -233,8 +233,8 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
               disabled={roundsCompleted === 0}
               onPress={handleRemoveRound}
             >
-              <Text style={[styles.timerLabel, { color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B' }]}>{t('timers.round')}</Text>
-              <Text style={{ color: roundsCompleted === 0 ? theme.text.tertiary : '#FF6B6B', fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>−1</Text>
+              <Text style={[styles.timerLabel, { color: roundsCompleted === 0 ? theme.text.tertiary : theme.danger }]}>{t('timers.round')}</Text>
+              <Text style={{ color: roundsCompleted === 0 ? theme.text.tertiary : theme.danger, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 18 }}>−1</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={handleLogRound}>
               <LinearGradient
