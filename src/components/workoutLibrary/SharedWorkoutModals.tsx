@@ -386,9 +386,13 @@ export function UpgradeToSaveModal({
       track('offer_screen_viewed', { trigger: 'upgrade_popup', percent_off: offer.percentOff });
     }
   }, [visible, offer]);
+  const cancel = () => {
+    if (offer) track('offer_dismissed', { trigger: 'upgrade_popup' });
+    onCancel();
+  };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={cancel} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
         {/* coral is identical in TC_COLORS.dark/.light (brand accent, not a
             surface color) — .dark here is arbitrary, not a theme choice. */}
@@ -433,7 +437,7 @@ export function UpgradeToSaveModal({
           <View style={previewStyles.actions}>
             <TouchableOpacity
               style={[previewStyles.cancelBtn, { borderColor: theme.card.border }, upgrading && { opacity: 0.5 }]}
-              onPress={onCancel}
+              onPress={cancel}
               disabled={upgrading}
             >
               <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{cancelLabel}</Text>

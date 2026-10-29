@@ -96,7 +96,7 @@ export async function fetchDeletedAccounts(days: number): Promise<DeletedAccount
 export interface OfferAnalytics {
   days: number;
   moments: Array<{
-    moment: 'assessment' | 'program_complete' | 'banner';
+    moment: 'assessment' | 'program_complete' | 'banner' | 'upgrade_popup';
     shown: number;
     claimed: number;
     code_tapped: number;

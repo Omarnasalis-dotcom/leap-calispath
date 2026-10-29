@@ -653,6 +653,7 @@ const MOMENT_LABEL: Record<OfferAnalytics['moments'][number]['moment'], string> 
   assessment: 'After the assessment',
   program_complete: 'After finishing the program',
   banner: 'Profile gift',
+  upgrade_popup: 'Upgrade pop-up',
 };
 
 const PERIOD_LABEL: Record<string, string> = {
