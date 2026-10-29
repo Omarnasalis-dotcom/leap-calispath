@@ -1,15 +1,18 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ActivityIndicator, TouchableOpacity } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter, useNavigation, useLocalSearchParams } from 'expo-router';
 import RevenueCatUI, { PAYWALL_RESULT } from 'react-native-purchases-ui';
 import Purchases from 'react-native-purchases';
 import { LeapLogo } from '../components/LeapLogo';
 import { Button } from '../components/Button';
 import { useAuth } from '../contexts/AuthContext';
+import { useTheme } from '../contexts/ThemeContext';
 import { hasActiveAccess, getSubscriptionTier } from '../lib/entitlement';
 import { supabase } from '../lib/supabase';
 import { track } from '../lib/analytics';
-import { t } from '../i18n';
+import { t, isArabic } from '../i18n';
+import { TC_COLORS } from '../../constants/trainingCenterTokens';
 
 type Step = 'context' | 'presenting' | 'confirming' | 'fallback';
 
@@ -52,6 +55,11 @@ export function PaywallScreen() {
   const { from } = useLocalSearchParams<{ from?: string }>();
   const source = typeof from === 'string' && /^[a-z0-9_]{1,40}$/.test(from) ? from : 'other';
   const { profile, paywallEnabled, refreshProfile } = useAuth();
+  const { theme, mode } = useTheme();
+  const c = TC_COLORS[mode];
+  const bg = { backgroundColor: theme.background.primary };
+  const ink = { color: theme.text.primary };
+  const muted = { color: theme.text.secondary };
   const alreadySubscribed = hasActiveAccess(profile);
   const currentTier = getSubscriptionTier(profile, paywallEnabled);
   const [step, setStep] = useState<Step>(alreadySubscribed ? 'context' : 'presenting');
@@ -194,25 +202,48 @@ export function PaywallScreen() {
 
   if (step === 'context') {
     const expiresLabel = profile?.access_expires_at
-      ? new Date(profile.access_expires_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+      ? new Date(profile.access_expires_at).toLocaleDateString(isArabic ? 'ar' : undefined, { month: 'short', day: 'numeric', year: 'numeric' })
       : null;
+    const close = () => (router.canGoBack() ? router.back() : router.replace('/'));
     return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.content}>
-          <LeapLogo size={100} animated={false} />
-          <Text style={styles.currentPlanBadge}>{currentTier.toUpperCase()}</Text>
-          <Text style={styles.title}>{t('paywall.changePlan')}</Text>
-          <Text style={styles.message}>
-            {expiresLabel
-              ? t('paywall.currentPlanRenews', { tier: currentTier.toUpperCase(), date: expiresLabel })
-              : t('paywall.currentPlan', { tier: currentTier.toUpperCase() })}
-          </Text>
-          <Button title={t('paywall.continue')} onPress={present} />
-          <Button
-            title={t('paywall.cancel')}
-            variant="secondary"
-            onPress={() => (router.canGoBack() ? router.back() : router.replace('/'))}
-          />
+      <SafeAreaView style={[styles.container, bg]}>
+        <View style={styles.planScreen}>
+          <TouchableOpacity onPress={close} style={styles.closeBtn} accessibilityRole="button" accessibilityLabel={t('common.close')}>
+            <MaterialCommunityIcons name="close" size={26} color={c.textPrimary} />
+          </TouchableOpacity>
+
+          <Text style={[styles.eyebrow, { color: c.coralText }]}>{t('paywall.yourPlan')}</Text>
+          <Text style={[styles.planTitle, { color: c.textPrimary }]}>{t('paywall.changePlan')}</Text>
+
+          <View style={[styles.planCard, { backgroundColor: c.cardRaised, borderColor: c.border }]}>
+            <View style={styles.planRow}>
+              <Text style={[styles.planName, { color: c.textPrimary }]}>{currentTier.toUpperCase()}</Text>
+              <View style={styles.activeChip}>
+                <View style={styles.activeDot} />
+                <Text style={styles.activeText}>{t('paywall.active')}</Text>
+              </View>
+            </View>
+            {expiresLabel && (
+              <View style={[styles.renewRow, { borderTopColor: c.border }]}>
+                <MaterialCommunityIcons name="calendar-sync-outline" size={18} color={c.textSecondary} />
+                <Text style={[styles.renewText, { color: c.textBody }]}>{t('paywall.renewsOn', { date: expiresLabel })}</Text>
+              </View>
+            )}
+          </View>
+
+          <View style={styles.noteRow}>
+            <MaterialCommunityIcons name="information-outline" size={18} color={c.textSecondary} />
+            <Text style={[styles.noteText, { color: c.textSecondary }]}>{t('paywall.replaceNote')}</Text>
+          </View>
+
+          <View style={styles.planFooter}>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: c.coral }]} onPress={present} accessibilityRole="button">
+              <Text style={styles.primaryBtnText}>{t('paywall.seePlans')}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.notNowBtn} onPress={close} accessibilityRole="button">
+              <Text style={[styles.notNowText, { color: c.textSecondary }]}>{t('paywall.notNow')}</Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </SafeAreaView>
     );
@@ -220,11 +251,11 @@ export function PaywallScreen() {
 
   if (step === 'presenting' || step === 'confirming') {
     return (
-      <SafeAreaView style={styles.container}>
+      <SafeAreaView style={[styles.container, bg]}>
         <View style={styles.content}>
           <LeapLogo size={100} animated />
           <ActivityIndicator color="#FF5252" style={styles.spinner} />
-          <Text style={styles.message}>
+          <Text style={[styles.message, muted]}>
             {step === 'confirming' ? t('paywall.confirming') : t('paywall.loading')}
           </Text>
         </View>
@@ -233,11 +264,11 @@ export function PaywallScreen() {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
+    <SafeAreaView style={[styles.container, bg]}>
       <View style={styles.content}>
         <LeapLogo size={100} animated={false} />
-        <Text style={styles.title}>{t('paywall.loadFailedTitle')}</Text>
-        <Text style={styles.message}>
+        <Text style={[styles.title, ink]}>{t('paywall.loadFailedTitle')}</Text>
+        <Text style={[styles.message, muted]}>
           {t('paywall.loadFailed')}
         </Text>
         <Button title={t('paywall.tryAgain')} onPress={present} />
@@ -255,7 +286,6 @@ export function PaywallScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
   },
   content: {
     flex: 1,
@@ -267,25 +297,33 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 24,
     fontWeight: '800',
-    color: '#FFFFFF',
     letterSpacing: 1,
     marginTop: 16,
   },
-  currentPlanBadge: {
-    marginTop: 12,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 10,
-    backgroundColor: '#FF5252',
-    color: '#000000',
-    fontSize: 12,
-    fontWeight: '800',
-    letterSpacing: 1.5,
-    overflow: 'hidden',
+  planScreen: { flex: 1, paddingHorizontal: 24, paddingTop: 8 },
+  closeBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', marginStart: -10, marginBottom: 24 },
+  eyebrow: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 2.4 },
+  planTitle: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 34, letterSpacing: 0.5, marginTop: 4, marginBottom: 24 },
+  planCard: { borderWidth: 1, borderRadius: 16, paddingHorizontal: 18 },
+  planRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 18 },
+  planName: { fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 28, letterSpacing: 1.5 },
+  activeChip: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: 'rgba(46,125,59,0.12)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 4,
   },
+  activeDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: '#34A853' },
+  activeText: { fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 1.2, color: '#2E7D3B' },
+  renewRow: { flexDirection: 'row', alignItems: 'center', gap: 10, borderTopWidth: 1, paddingVertical: 14 },
+  renewText: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 },
+  noteRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginTop: 18, paddingHorizontal: 2 },
+  noteText: { flex: 1, fontFamily: 'PlusJakartaSans-Medium', fontSize: 13.5, lineHeight: 20, textAlign: 'left' },
+  planFooter: { marginTop: 'auto', paddingBottom: 12, gap: 4 },
+  primaryBtn: { borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
+  primaryBtnText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 17, letterSpacing: 1.6 },
+  notNowBtn: { alignItems: 'center', paddingVertical: 14 },
+  notNowText: { fontFamily: 'PlusJakartaSans-SemiBold', fontSize: 14 },
   message: {
     fontSize: 16,
-    color: '#B0BEC5',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 8,
