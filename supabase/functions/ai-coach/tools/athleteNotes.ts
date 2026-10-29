@@ -8,7 +8,9 @@
 // sat inside notes next to the [LOG] lines, the sets were logged under the
 // prescribed Ring Face Pull, and the coach carried Ring Face Pull and Ring
 // Row into weeks 4 and 5. Pulling the note out on its own is what lets the
-// prompt require a decision on every one (system-prompt.ts §6, §12).
+// prompt require a decision on every one in a weekly review (system-prompt.ts
+// §12). Only the review reads them: the owner doesn't want notes raised on
+// every "hi" (2026-10-29).
 
 const MAX_NOTE_CHARS = 500;
 

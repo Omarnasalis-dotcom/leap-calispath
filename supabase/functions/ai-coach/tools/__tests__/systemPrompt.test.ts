@@ -18,7 +18,7 @@ describe("system prompt", () => {
   });
 
   it("makes the coach act on every athlete note", () => {
-    expect(SYSTEM_PROMPT).toContain("**recent_athlete_notes has a note that matters**");
+    expect(SYSTEM_PROMPT).not.toContain("recent_athlete_notes");
     expect(SYSTEM_PROMPT).toContain("**Every athlete note gets a decision; none is skipped.**");
     expect(SYSTEM_PROMPT).toContain("**A note about what they actually did beats the logged numbers for that exercise:**");
     expect(SYSTEM_PROMPT).toContain('Your note: "[their words, short]" → [what changes]');
