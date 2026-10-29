@@ -979,6 +979,7 @@ const ar: Translations = {
     addAnotherDay: 'أضف يومًا آخر',
     startMyProgram: 'ابدأ برنامجي',
     upgradeToStart: 'اشترك للبدء',
+    upgradeToContinue: 'اشترك للمتابعة',
     introOffer: 'عرض الاشتراك الأول',
     addWeekTitle: 'واصل برنامجك',
     addWeekBody: 'أنهيت كل أسابيع هذا البرنامج. اشترك لإضافة الأسبوع التالي والحفاظ على تقدّمك ونقاطك وسلسلتك.',

@@ -892,6 +892,7 @@ const en = {
     addAnotherDay: 'ADD ANOTHER DAY',
     startMyProgram: 'START MY PROGRAM',
     upgradeToStart: 'UPGRADE TO START',
+    upgradeToContinue: 'UPGRADE TO CONTINUE',
     introOffer: 'FIRST-TIME OFFER',
     addWeekTitle: 'KEEP YOUR PROGRAM GOING',
     addWeekBody: 'You finished every week of this program. Upgrade to add the next week and keep your progress, points and streak going.',

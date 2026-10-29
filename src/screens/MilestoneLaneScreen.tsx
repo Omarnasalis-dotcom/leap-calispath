@@ -2700,6 +2700,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       title={t('workoutModals.addWeekTitle')}
       body={t('workoutModals.addWeekBody')}
       cancelLabel={t('workout.notNow')}
+      upgradeLabel={t('workoutModals.upgradeToContinue')}
       pillLabel={journeyData ? t('journey.weekDonePill', { n: journeyData.currentWeek }) : undefined}
       upgrading={addWeekUpgrading}
       onUpgrade={() => {

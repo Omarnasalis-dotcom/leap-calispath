@@ -337,6 +337,7 @@ export function UpgradeToSaveModal({
   cancelLabel,
   pillLabel,
   pillIcon = 'calendar-check',
+  upgradeLabel,
   upgrading,
   onUpgrade,
   onCancel,
@@ -355,6 +356,9 @@ export function UpgradeToSaveModal({
   // target's stats).
   pillLabel?: string;
   pillIcon?: keyof typeof MaterialCommunityIcons.glyphMap;
+  // Button label without an offer; defaults to "UPGRADE TO START" (Add Week
+  // continues a program instead).
+  upgradeLabel?: string;
   // iOS-only native signal (RN's Modal never calls this on Android) that
   // the dismiss animation has actually finished — see BuildSummaryModal's
   // onDismiss above for why the caller wants this instead of a guessed
@@ -447,7 +451,7 @@ export function UpgradeToSaveModal({
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={upgradeStyles.startBtnText}>{offer ? t('offer.claim') : t('workoutModals.upgradeToStart')}</Text>
+                  <Text style={upgradeStyles.startBtnText}>{offer ? t('offer.claim') : upgradeLabel ?? t('workoutModals.upgradeToStart')}</Text>
                   <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" style={FLIP_X} />
                 </>
               )}

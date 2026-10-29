@@ -2333,6 +2333,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               : t('workout.lockedCoach')
         }
         cancelLabel={t('workout.notNow')}
+        upgradeLabel={upgradeReason === 'add_week' ? t('workoutModals.upgradeToContinue') : undefined}
         upgrading={upgrading}
         onUpgrade={() => {
           if (upgradingRef.current) return;
