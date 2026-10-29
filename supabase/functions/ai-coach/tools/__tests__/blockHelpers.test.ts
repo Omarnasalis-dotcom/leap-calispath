@@ -1220,6 +1220,41 @@ describe("computeAppendWeekOrdering (added 2026-09-18)", () => {
     expect(carryOrderOverrides).toEqual({ "PULL DAY 1 | Warm-Up": 0 });
   });
 
+  it("a day missing from the prior week goes through fillNewDay; existing days don't (2026-10-30)", async () => {
+    const client = makeAppendWeekClient("tmpl-1", [
+      { name: "PULL DAY | Warm-Up", order_index: 0, week_number: 5 },
+      { name: "PULL DAY | Strength", order_index: 1, week_number: 5 },
+      { name: "PULL DAY | Cool-Down", order_index: 2, week_number: 5 },
+    ]);
+    const newBlocks = [
+      makeBlock({ name: "Pull Day | Strength", metadata: {}, exercises: [{ name: "Pull Ups", sets: "3", reps: "8" }] }),
+      makeBlock({ name: "WEIGHTED STRENGTH DAY | Strength - 1", metadata: {}, exercises: [{ name: "Dips", sets: "3", reps: "6" }] }),
+    ];
+    const filledDays: string[] = [];
+    const { orderedBlocks, newDays } = await computeAppendWeekOrdering(client, "wp-1", newBlocks as never, undefined, async (day, dayBlocks) => {
+      filledDays.push(day);
+      return [
+        makeBlock({ name: `${day} | Warm-Up`, exercises: [{ name: "Arm Circles", reps: "10" }] }),
+        ...dayBlocks,
+        makeBlock({ name: `${day} | Cool-Down`, exercises: [{ name: "Child Pose", hold_seconds: "30" }] }),
+      ] as never;
+    });
+
+    expect(newDays).toEqual(["WEIGHTED STRENGTH DAY"]);
+    expect(filledDays).toEqual(["WEIGHTED STRENGTH DAY"]);
+    const order = (orderedBlocks as Array<{ name: string; order_index: number }>)
+      .slice()
+      .sort((a, b) => a.order_index - b.order_index)
+      .map((b) => b.name);
+    // The new day sits after the prior week's days, Warm-Up first, Cool-Down last.
+    expect(order).toEqual([
+      "PULL DAY | Strength",
+      "WEIGHTED STRENGTH DAY | Warm-Up",
+      "WEIGHTED STRENGTH DAY | Strength - 1",
+      "WEIGHTED STRENGTH DAY | Cool-Down",
+    ]);
+  });
+
   it("no previous week (first append, or a bad id) — returns the input unchanged, no error", async () => {
     const client = makeAppendWeekClient(null, []);
     const newBlocks = [makeBlock({ name: "PULL DAY 1 | Warm-Up" })];

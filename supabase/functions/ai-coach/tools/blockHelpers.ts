@@ -252,9 +252,10 @@ export async function computeAppendWeekOrdering(
   userClient: { from: (t: string) => any },
   warriorProgramId: string,
   newBlocks: ClaudeBlock[],
-  removedBlockNames: string[] | null | undefined
-): Promise<{ orderedBlocks: ClaudeBlock[]; carryOrderOverrides: Record<string, number>; newWeekNumber: number | null; removedBlockNames: string[] }> {
-  const noop = { orderedBlocks: newBlocks, carryOrderOverrides: {}, newWeekNumber: null, removedBlockNames: removedBlockNames ?? [] };
+  removedBlockNames: string[] | null | undefined,
+  fillNewDay?: (dayName: string, dayBlocks: ClaudeBlock[]) => Promise<ClaudeBlock[]>
+): Promise<{ orderedBlocks: ClaudeBlock[]; carryOrderOverrides: Record<string, number>; newWeekNumber: number | null; removedBlockNames: string[]; newDays: string[] }> {
+  const noop = { orderedBlocks: newBlocks, carryOrderOverrides: {}, newWeekNumber: null, removedBlockNames: removedBlockNames ?? [], newDays: [] };
 
   const { data: programRows } = await userClient.from("warrior_programs").select("template_id").eq("id", warriorProgramId);
   const templateId = ((programRows ?? []) as Array<{ template_id?: string }>)[0]?.template_id;
@@ -271,6 +272,25 @@ export async function computeAppendWeekOrdering(
   for (const row of previousWeekBlocks) {
     const { day } = getBlockParts({ name: row.name, exercises: [] });
     if (!previousWeekDayOrder.includes(day)) previousWeekDayOrder.push(day);
+  }
+
+  // A day the prior week doesn't have (2026-10-30, owner: a "4 days instead
+  // of 3" week came back with no Warm-Up/Cool-Down on the new day) has
+  // nothing to carry forward, so `fillNewDay` gets to complete it the same
+  // way propose_add_day completes a day.
+  const dayKey = (day: string) => day.replace(/\s+/g, " ").trim().toLowerCase();
+  const priorDayKeys = new Set(previousWeekDayOrder.map(dayKey));
+  const newDays: string[] = [];
+  for (const block of newBlocks) {
+    const { day } = getBlockParts(block);
+    if (!priorDayKeys.has(dayKey(day)) && !newDays.some((d) => dayKey(d) === dayKey(day))) newDays.push(day);
+  }
+  if (fillNewDay) {
+    for (const day of newDays) {
+      const dayBlocks = newBlocks.filter((b) => dayKey(getBlockParts(b).day) === dayKey(day));
+      const filled = await fillNewDay(day, dayBlocks);
+      newBlocks = [...newBlocks.filter((b) => !dayBlocks.includes(b)), ...filled];
+    }
   }
 
   // Exact same predicate ai_coach_append_week's own SQL uses to decide what
@@ -309,7 +329,7 @@ export async function computeAppendWeekOrdering(
     if (rank !== undefined) carryOrderOverrides[name] = rank;
   }
 
-  return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1, removedBlockNames: canonicalRemoved };
+  return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1, removedBlockNames: canonicalRemoved, newDays };
 }
 
 // Real bug found live (2026-08-26): the model left blocks with zero

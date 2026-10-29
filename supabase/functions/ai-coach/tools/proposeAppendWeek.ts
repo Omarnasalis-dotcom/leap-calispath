@@ -1,5 +1,13 @@
 import { ToolDefinition } from "./types.ts";
-import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure, computeAppendWeekOrdering } from "./blockHelpers.ts";
+import {
+  transformBlocksForInsert,
+  BLOCKS_SCHEMA,
+  resolveExerciseIds,
+  validateBlockStructure,
+  computeAppendWeekOrdering,
+  assembleDayWithServerBlocks,
+  levelBandForTier,
+} from "./blockHelpers.ts";
 
 // Weekly review → new week card (2026-09-18, live-build fix): append_week
 // used to be a real write tool — the model called it directly right after
@@ -42,11 +50,24 @@ export const proposeAppendWeek: ToolDefinition = {
     // blocks it sent this turn, not the whole week. Computes the real
     // order server-side instead of trusting it, and the trusted week
     // number (never the model's own claim) for the card's title.
-    const { orderedBlocks, carryOrderOverrides, newWeekNumber, removedBlockNames } = await computeAppendWeekOrdering(
+    // Exception: a day that isn't in the prior week has no Warm-Up/Cool-Down
+    // to carry forward, so it gets the server-built ones propose_add_day
+    // gives a new day, and must then have both phases like any new day.
+    let levelBand: ReturnType<typeof levelBandForTier> | undefined;
+    const { orderedBlocks, carryOrderOverrides, newWeekNumber, removedBlockNames, newDays } = await computeAppendWeekOrdering(
       userClient,
       input.warrior_program_id as string,
       (input.blocks as never[]) ?? [],
-      input.removed_block_names as string[] | undefined
+      input.removed_block_names as string[] | undefined,
+      async (dayName, dayBlocks) => {
+        if (!levelBand) {
+          const { data: profile } = await userClient.rpc("get_my_profile").single();
+          levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
+        }
+        const filled = await assembleDayWithServerBlocks(userClient, dayBlocks, dayName, undefined, undefined, { levelBand });
+        validateBlockStructure(filled as never[], { requireDayPhases: true });
+        return filled;
+      }
     );
     // Validated after matching to last week, so a replaced block's
     // inherited settings (rounds etc.) count — see inheritBlockMetadata.
@@ -60,6 +81,7 @@ export const proposeAppendWeek: ToolDefinition = {
       carry_order_overrides: carryOrderOverrides,
       // Matched to the prior week's exact names (see computeAppendWeekOrdering).
       removed_block_names: removedBlockNames,
+      ...(newDays.length > 0 ? { new_days_completed: `Warm-Up and Cool-Down added server-side to the new day(s): ${newDays.join(", ")}.` } : {}),
     };
   },
 };
