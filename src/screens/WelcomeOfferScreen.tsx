@@ -356,6 +356,6 @@ function getStyles(c: TCPalette) {
     linkBtn: { alignItems: 'center', paddingVertical: 6 },
     linkText: { color: c.coral, fontFamily: 'PlusJakartaSans-Bold', fontSize: 14 },
     laterText: { color: c.textMuted, fontFamily: 'PlusJakartaSans-Medium', fontSize: 14 },
-    note: { color: c.textFaint, fontFamily: 'PlusJakartaSans-Medium', fontSize: 11, lineHeight: 16, textAlign: 'center' },
+    note: { color: c.textSecondary, fontFamily: 'PlusJakartaSans-Medium', fontSize: 12, lineHeight: 17, textAlign: 'center' },
   });
 }
