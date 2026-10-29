@@ -1,5 +1,5 @@
 import React from 'react';
-import { Dimensions, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Dimensions, Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { LeapLoop } from './LeapLoop';
 import { JourneyPointsSummary, PointsEntry, dayLetterKey } from '../../lib/journeyPoints';
 import { t, isArabic } from '../../i18n';
@@ -64,8 +64,11 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
-      <TouchableOpacity style={styles.overlay} activeOpacity={1} onPress={onClose}>
-        <TouchableOpacity activeOpacity={1} style={[styles.sheet, s.sheet]} onPress={(e) => e.stopPropagation()}>
+      {/* The backdrop is a sibling, not a wrapper: a touchable around the
+          ScrollView took the touch first and made the list hard to scroll. */}
+      <View style={styles.overlay}>
+        <Pressable style={StyleSheet.absoluteFill} onPress={onClose} accessibilityRole="button" accessibilityLabel={t('common.close')} />
+        <View style={[styles.sheet, s.sheet]}>
           <View style={[styles.handle, s.handle]} />
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.content}>
             <Text style={[styles.eyebrow, s.accent]}>{t('journeyPoints.points')}</Text>
@@ -134,8 +137,8 @@ export function PointsHistorySheet({ visible, onClose, summary, isLight }: Point
               );
             })}
           </ScrollView>
-        </TouchableOpacity>
-      </TouchableOpacity>
+        </View>
+      </View>
     </Modal>
   );
 }
