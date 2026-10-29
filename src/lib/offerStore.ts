@@ -5,6 +5,10 @@ import { isOfferDue, offerPrice, type OfferPrice } from './offerPrompt';
 // The plan the welcome offer features: the tiers_2026 offering's Pro 1 month package.
 export const FEATURED_PACKAGE = 'pro_1month';
 
+// Dev builds only (Settings → Preview welcome offer, and the upgrade pop-up):
+// sample prices, to check the layout before the store has a live offer.
+export const PREVIEW_PRICE: OfferPrice = { regular: 'E£1,299.00', intro: 'E£999.99', percentOff: 23, months: 2 };
+
 // Store answers are kept for a few minutes, per RevenueCat user, so the
 // Profile gift doesn't ask Apple again on every visit. Errors aren't kept.
 const CACHE_MS = 10 * 60 * 1000;

@@ -49,6 +49,7 @@ import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
 import { offerRoute } from '../lib/offerStore';
+import { UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 
 import { t, FLIP_X, isRTL } from '../i18n';
 
@@ -1980,6 +1981,20 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // clone (hasNextWeek path); only fires on this one explicit "I'm ready to
   // move on" tap, never automatically.
   const [advancingWeek, setAdvancingWeek] = useState(false);
+  // Locked ADD NEW WEEK: the shared upgrade pop-up (it shows the intro offer
+  // when the person can still get it), then the paywall. On iOS the paywall
+  // waits for the pop-up's dismiss (see CustomizeProgramScreen's onUpgrade).
+  const [addWeekUpsellVisible, setAddWeekUpsellVisible] = useState(false);
+  const [addWeekUpgrading, setAddWeekUpgrading] = useState(false);
+  const addWeekUpgradingRef = useRef(false);
+  const addWeekPaywallPending = useRef(false);
+  const openAddWeekUpsell = () => {
+    addWeekUpgradingRef.current = false;
+    setAddWeekUpgrading(false);
+    setAddWeekUpsellVisible(true);
+  };
+  const goToAddWeekPaywall = () => router.push('/paywall?from=add_week_journey' as never);
+
   const handleContinueProgram = useCallback(async () => {
     if (!journeyData) return;
 
@@ -2011,7 +2026,8 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       if (!canAccessPro(profile, paywallEnabled)) {
         setAdvancingWeek(false);
         track('add_week_locked_tapped', { from: 'journey' });
-        router.push('/paywall?from=add_week_journey' as never);
+        // The upgrade pop-up (it shows the intro offer when they can still get it).
+        openAddWeekUpsell();
         return;
       }
       const { error: addWeekError } = await supabase.rpc('add_week_to_own_program', {
@@ -2021,7 +2037,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
         console.error('Failed to add a new week:', addWeekError);
         setAdvancingWeek(false);
         if (addWeekError.message === 'upgrade_required') {
-          router.push('/paywall');
+          openAddWeekUpsell();
           return;
         }
         router.push({ pathname: '/warrior-program', params: { returnTo: 'journey' } });
@@ -2677,6 +2693,29 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
       days={switchableDays}
       onPick={handleSwitchDay}
       onClose={() => setSwitchDayOpen(false)}
+    />
+    <UpgradeToSaveModal
+      visible={addWeekUpsellVisible}
+      theme={theme}
+      title={t('workoutModals.addWeekTitle')}
+      body={t('workoutModals.addWeekBody')}
+      cancelLabel={t('workout.notNow')}
+      pillLabel={journeyData ? t('journey.weekDonePill', { n: journeyData.currentWeek }) : undefined}
+      upgrading={addWeekUpgrading}
+      onUpgrade={() => {
+        if (addWeekUpgradingRef.current) return;
+        addWeekUpgradingRef.current = true;
+        setAddWeekUpgrading(true);
+        setAddWeekUpsellVisible(false);
+        if (Platform.OS === 'ios') addWeekPaywallPending.current = true;
+        else goToAddWeekPaywall();
+      }}
+      onCancel={() => setAddWeekUpsellVisible(false)}
+      onDismiss={() => {
+        if (!addWeekPaywallPending.current) return;
+        addWeekPaywallPending.current = false;
+        goToAddWeekPaywall();
+      }}
     />
     <SwitchTrialSheet
       visible={switchTrialOpen}

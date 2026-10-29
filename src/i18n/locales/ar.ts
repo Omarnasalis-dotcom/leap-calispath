@@ -328,6 +328,7 @@ const ar: Translations = {
     },
   },
   journey: {
+    weekDonePill: 'اكتمل الأسبوع {{n}}',
     header: 'رحلتي',
     youAreHere: 'أنت هنا',
     continues: 'رحلتك مستمرة',
@@ -978,6 +979,9 @@ const ar: Translations = {
     addAnotherDay: 'أضف يومًا آخر',
     startMyProgram: 'ابدأ برنامجي',
     upgradeToStart: 'اشترك للبدء',
+    introOffer: 'عرض الاشتراك الأول',
+    addWeekTitle: 'واصل برنامجك',
+    addWeekBody: 'أنهيت كل أسابيع هذا البرنامج. اشترك لإضافة الأسبوع التالي والحفاظ على تقدّمك ونقاطك وسلسلتك.',
     week1Of: 'الأسبوع 1 من {{count}} — ما ستبدأ به',
     loadingPreview: 'جارٍ تحميل المعاينة...',
     previewUnavailable: 'المعاينة غير متاحة — ما زال بإمكانك بدء البرنامج.',

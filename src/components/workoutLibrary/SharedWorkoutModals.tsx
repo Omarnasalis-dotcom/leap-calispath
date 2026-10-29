@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { TemplateDetailBlock } from '../../lib/templateLibrary';
 import { StandaloneWorkoutSummary, StandaloneWorkoutDetail } from '../../lib/workoutLibrary';
 import { TC_BUTTON_GRADIENT, TC_COLORS } from '../../../constants/trainingCenterTokens';
 import { t, FLIP_X } from '../../i18n';
+import { useIntroOffer } from '../../hooks/useIntroOffer';
+import { track } from '../../lib/analytics';
 
 // Three modals shared across the Training Center's browse screens
 // (ProgramTemplatesScreen, CustomizeProgramScreen — QuickWorkoutScreen
@@ -369,6 +371,18 @@ export function UpgradeToSaveModal({
   onUpgrade: () => void;
   onCancel: () => void;
 }) {
+  // Someone who can still get the intro price sees it here, at every paid
+  // feature, not only at the welcome offer's own moments.
+  const offer = useIntroOffer(visible);
+  const offerTracked = useRef(false);
+  useEffect(() => {
+    if (!visible) offerTracked.current = false;
+    else if (offer && !offerTracked.current) {
+      offerTracked.current = true;
+      track('offer_screen_viewed', { trigger: 'upgrade_popup', percent_off: offer.percentOff });
+    }
+  }, [visible, offer]);
+
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onCancel} onDismiss={onDismiss}>
       <View style={previewStyles.overlay}>
@@ -384,7 +398,27 @@ export function UpgradeToSaveModal({
           {!!pillLabel && (
             <View style={upgradeStyles.metaPill}>
               <MaterialCommunityIcons name={pillIcon} size={12} color={TC_COLORS.dark.coral} />
-              <Text style={upgradeStyles.metaPillText}>{pillLabel}</Text>
+              <Text style={[upgradeStyles.metaPillText, { color: theme.accentText }]}>{pillLabel}</Text>
+            </View>
+          )}
+
+          {offer && (
+            <View style={[upgradeStyles.offerBox, { backgroundColor: theme.card.background }]}>
+              <View style={upgradeStyles.offerTop}>
+                <Text style={[upgradeStyles.offerEyebrow, { color: theme.accentText }]}>{t('workoutModals.introOffer')}</Text>
+                <View style={upgradeStyles.offerBadge}>
+                  <Text style={upgradeStyles.offerBadgeText}>{t('offer.percentOff', { percent: offer.percentOff })}</Text>
+                </View>
+              </View>
+              <View style={upgradeStyles.offerPriceRow}>
+                <Text style={[upgradeStyles.offerOld, { color: theme.text.tertiary }]}>{offer.regular}</Text>
+                <Text style={[upgradeStyles.offerNew, { color: theme.text.primary }]}>{t('offer.perMonth', { price: offer.intro })}</Text>
+              </View>
+              <Text style={[upgradeStyles.offerThen, { color: theme.text.secondary }]}>
+                {offer.months
+                  ? t('offer.thenMonths', { count: offer.months, price: offer.regular })
+                  : t('offer.thenGeneric', { price: offer.regular })}
+              </Text>
             </View>
           )}
 
@@ -401,7 +435,10 @@ export function UpgradeToSaveModal({
               <Text style={[previewStyles.cancelBtnText, { color: theme.text.secondary }]}>{cancelLabel}</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={onUpgrade}
+              onPress={() => {
+                if (offer) track('offer_claim_tapped', { trigger: 'upgrade_popup' });
+                onUpgrade();
+              }}
               disabled={upgrading}
               style={[{ flex: 2 }, upgradeStyles.startBtn, upgrading && { opacity: 0.7 }]}
             >
@@ -410,12 +447,14 @@ export function UpgradeToSaveModal({
                 <LeapLogo size={22} animated />
               ) : (
                 <>
-                  <Text style={upgradeStyles.startBtnText}>{t('workoutModals.upgradeToStart')}</Text>
+                  <Text style={upgradeStyles.startBtnText}>{offer ? t('offer.claim') : t('workoutModals.upgradeToStart')}</Text>
                   <MaterialCommunityIcons name="arrow-right" size={16} color="#FFFFFF" style={FLIP_X} />
                 </>
               )}
             </TouchableOpacity>
           </View>
+
+          {offer && <Text style={[upgradeStyles.offerNote, { color: theme.text.secondary }]}>{t('offer.note')}</Text>}
         </View>
       </View>
     </Modal>
@@ -423,6 +462,24 @@ export function UpgradeToSaveModal({
 }
 
 const upgradeStyles = StyleSheet.create({
+  offerBox: {
+    alignSelf: 'stretch',
+    borderWidth: 1,
+    borderColor: 'rgba(252,84,84,0.35)',
+    borderRadius: 14,
+    padding: 14,
+    gap: 6,
+    marginBottom: 16,
+  },
+  offerTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  offerEyebrow: { fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.8 },
+  offerBadge: { backgroundColor: TC_COLORS.dark.coral, borderRadius: 999, paddingHorizontal: 9, paddingVertical: 2 },
+  offerBadgeText: { color: '#FFFFFF', fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.6 },
+  offerPriceRow: { flexDirection: 'row', alignItems: 'baseline', flexWrap: 'wrap', columnGap: 10 },
+  offerOld: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 14, textDecorationLine: 'line-through' },
+  offerNew: { fontFamily: 'PlusJakartaSans-Bold', fontSize: 20 },
+  offerThen: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 12.5, lineHeight: 18, textAlign: 'left' },
+  offerNote: { fontFamily: 'PlusJakartaSans-Medium', fontSize: 11.5, lineHeight: 16, textAlign: 'center', marginTop: 12 },
   // Plain solid border (not a gradient) — a LinearGradient used as an
   // auto-sized outer wrapper around previewStyles.card's percentage-based
   // maxHeight ('82%') produced a huge, broken render on-device across

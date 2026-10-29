@@ -162,6 +162,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // of the ref/state scaffolding since it previously bounced straight to
   // /paywall with no in-between step.
   const [upgradeModalVisible, setUpgradeModalVisible] = useState(false);
+  // The same pop-up sells a locked session and a locked ADD NEW WEEK.
+  const [upgradeReason, setUpgradeReason] = useState<'locked' | 'add_week'>('locked');
+  const paywallPathRef = useRef('/paywall');
   const [upgrading, setUpgrading] = useState(false);
   const upgradingRef = useRef(false);
   const pendingPaywallNavRef = useRef(false);
@@ -178,13 +181,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (Platform.OS === 'ios') {
       pendingPaywallNavRef.current = true;
     } else {
-      router.push('/paywall');
+      router.push(paywallPathRef.current as never);
     }
   };
   const handleUpgradeModalDismissed = () => {
     if (!pendingPaywallNavRef.current) return;
     pendingPaywallNavRef.current = false;
-    router.push('/paywall');
+    router.push(paywallPathRef.current as never);
   };
   // Timer completion unmounts WarriorTimerModal; showing the log Modal in
   // that same commit swaps two native Modal transactions at once — the
@@ -1127,13 +1130,22 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // screen without ever going through the Journey lane. Clones the current
   // last week forward via add_week_to_own_program, then bumps current_week
   // and reloads so the new week becomes active immediately.
+  const openAddWeekUpsell = () => {
+    upgradingRef.current = false;
+    setUpgrading(false);
+    setUpgradeReason('add_week');
+    paywallPathRef.current = '/paywall?from=add_week_workout';
+    setUpgradeModalVisible(true);
+  };
+
   const handleAddWeek = async () => {
     if (addingWeek || !warriorProgramId) return;
     // Adding weeks past the program's own is a paid feature (any plan);
     // add_week_to_own_program checks it too.
     if (addWeekLocked) {
       track('add_week_locked_tapped', { from: 'workout' });
-      router.push('/paywall?from=add_week_workout' as never);
+      // The upgrade pop-up (it shows the intro offer when they can still get it).
+      openAddWeekUpsell();
       return;
     }
     setAddingWeek(true);
@@ -1143,7 +1155,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (addWeekError) {
       console.error('Failed to add a new week:', addWeekError);
       setAddingWeek(false);
-      if (addWeekError.message === 'upgrade_required') router.push('/paywall');
+      if (addWeekError.message === 'upgrade_required') openAddWeekUpsell();
       return;
     }
     const { error: bumpError } = await supabase
@@ -2117,6 +2129,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     // reopening leaves both buttons permanently disabled).
                     upgradingRef.current = false;
                     setUpgrading(false);
+                    setUpgradeReason('locked');
+                    paywallPathRef.current = '/paywall';
                     setUpgradeModalVisible(true);
                   }}
                 >
@@ -2310,11 +2324,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       <UpgradeToSaveModal
         visible={upgradeModalVisible}
         theme={theme}
-        title={t('workout.upgradeToKeep')}
+        title={upgradeReason === 'add_week' ? t('workoutModals.addWeekTitle') : t('workout.upgradeToKeep')}
         body={
-          minAccessTier === 'pro'
-            ? t('workout.lockedPro')
-            : t('workout.lockedCoach')
+          upgradeReason === 'add_week'
+            ? t('workoutModals.addWeekBody')
+            : minAccessTier === 'pro'
+              ? t('workout.lockedPro')
+              : t('workout.lockedCoach')
         }
         cancelLabel={t('workout.notNow')}
         upgrading={upgrading}

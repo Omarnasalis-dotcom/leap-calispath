@@ -276,6 +276,7 @@ const en = {
     },
   },
   journey: {
+    weekDonePill: 'WEEK {{n}} COMPLETE',
     header: 'MY JOURNEY',
     youAreHere: 'YOU ARE HERE',
     continues: 'YOUR JOURNEY CONTINUES',
@@ -891,6 +892,9 @@ const en = {
     addAnotherDay: 'ADD ANOTHER DAY',
     startMyProgram: 'START MY PROGRAM',
     upgradeToStart: 'UPGRADE TO START',
+    introOffer: 'FIRST-TIME OFFER',
+    addWeekTitle: 'KEEP YOUR PROGRAM GOING',
+    addWeekBody: 'You finished every week of this program. Upgrade to add the next week and keep your progress, points and streak going.',
     week1Of: "WEEK 1 OF {{count}} — WHAT YOU'LL START WITH",
     loadingPreview: 'LOADING PREVIEW...',
     previewUnavailable: 'PREVIEW UNAVAILABLE — YOU CAN STILL START THE PROGRAM.',

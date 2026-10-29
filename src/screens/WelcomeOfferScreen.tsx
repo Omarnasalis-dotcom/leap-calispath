@@ -9,16 +9,13 @@ import { useAuth } from '../contexts/AuthContext';
 import { useMountedRef } from '../hooks/useMountedRef';
 import { track } from '../lib/analytics';
 import { markOfferSeen, type OfferPrice, type OfferTrigger } from '../lib/offerPrompt';
-import { loadOffer } from '../lib/offerStore';
+import { loadOffer, PREVIEW_PRICE } from '../lib/offerStore';
 import { isRTL, t } from '../i18n';
 import { clamp01, easeInOutCubic, easeOutBack, easeOutCubic, seg } from '../lib/fx/easing';
 import { TC_COLORS, TC_LAYOUT, TCPalette } from '../../constants/trainingCenterTokens';
 
 type State = { phase: 'loading' } | { phase: 'ready'; price: OfferPrice };
 
-// Dev builds only (Settings → Preview welcome offer): the screen with sample
-// prices, to check the layout before the store has a live offer.
-const PREVIEW_PRICE: OfferPrice = { regular: 'E£1,299.00', intro: 'E£999.99', percentOff: 23, months: 2 };
 
 interface Props {
   trigger: OfferTrigger;
