@@ -1,14 +1,14 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { fetchDeletedAccounts, fetchGrowthAnalytics, fetchOfferAnalytics, type GrowthFunnelStep, type OfferAnalytics } from '@/api/growth';
+import { fetchDeletedAccounts, fetchGrowthAnalytics, fetchOfferAnalytics, type GrowthAnalytics, type OfferAnalytics } from '@/api/growth';
 import { formatDate } from '@/shared/constants';
 import { ErrorNote } from '@/components/bits';
 
-// Growth funnel from admin_get_growth_analytics (audit 2026-09-25, M5/M18;
-// accuracy fixes 2026-10-05). Funnel steps 1-6 and 8 are derived from
-// existing data, so they cover every signup in the range — including
-// accounts deleted since; "Saw the paywall" and the event table only count
-// from when app_events tracking shipped. Admin accounts are excluded.
+// Growth report from admin_get_growth_analytics (v3, audit 2026-10-29).
+// The funnel and feature use are derived from the data itself, so they cover
+// every signup in the range — including accounts deleted since. Only
+// "Opened a workout" and the Paywall panel depend on app events. Admin
+// accounts are excluded everywhere.
 const RANGES = [7, 30, 90] as const;
 
 const EVENT_LABEL: Record<string, string> = {
@@ -21,12 +21,65 @@ const EVENT_LABEL: Record<string, string> = {
   purchase_cancelled: 'Paywall dismissed',
   paywall_failed: 'Paywall failed to load',
   ai_coach_opened: 'AI Coach opened',
+  coach_setup_step: 'AI Coach setup step',
   welcome_intro_completed: 'Welcome intro completed',
   welcome_intro_skipped: 'Welcome intro skipped',
   training_center_opened: 'Training Center opened',
-  program_started: 'Program started',
+  program_started: 'Program picked',
   quick_workout_started: 'Quick Workout started',
   workout_started: 'Workout started',
+  trial_started: 'Trial started',
+  trial_finished: 'Trial finished',
+  trial_too_fast: 'Trial rejected (too fast)',
+  trial_abandoned: 'Trial abandoned',
+  step_finished: 'Trial step finished',
+  team_tab_opened: 'Team tab opened',
+  team_created: 'Team created',
+  team_joined: 'Team joined',
+  team_attempt_started: 'Team attempt started',
+  team_attempt_submitted: 'Team attempt submitted',
+  live_tab_opened: 'LIVE tab opened',
+  live_room_created: 'LIVE room created',
+  live_room_joined: 'LIVE room joined',
+  live_half_started: 'LIVE half started',
+  live_reps_logged: 'LIVE reps logged',
+  live_match_finished: 'LIVE match finished',
+  leaderboard_share_opened: 'Share card opened',
+  leaderboard_shared: 'Share card shared',
+  redeem_code_submitted: 'Code submitted',
+  redeem_code_unlocked: 'Code unlocked a plan',
+  offer_screen_viewed: 'Offer screen viewed',
+  offer_claim_tapped: 'Offer claimed',
+  offer_code_tapped: 'Offer code tapped',
+  offer_dismissed: 'Offer dismissed',
+  offer_banner_tapped: 'Offer banner tapped',
+  add_week_locked_tapped: 'Locked ADD NEW WEEK tapped',
+  update_chip_tapped: 'Update chip tapped',
+  ai_week_review_tapped: 'AI week review tapped',
+  ai_week_repeated: 'AI week repeated',
+  ai_week_repeat_undone: 'AI week repeat undone',
+  store_purchase: 'Store purchase (webhook)',
+  store_renewal: 'Store renewal (webhook)',
+};
+
+const FEATURE_LABEL: Record<string, string> = {
+  workouts: 'Logged a workout',
+  trials: 'Strength trials & steps',
+  weekly: 'Weekly Challenge',
+  team: 'Team Challenge',
+  live: 'Live Tournament',
+  static: 'Static holds',
+  one_min_max: '1 Min Max',
+  power: 'Power assessment',
+  arena: 'Champions Arena',
+  ai_coach: 'AI Coach messages',
+  share: 'Shared a leaderboard card',
+};
+
+const FUNNEL_NOTE: Partial<Record<GrowthAnalytics['funnel'][number]['key'], string>> = {
+  onboarded: 'includes picking a program',
+  opened_workout: 'started a workout or trial · from 10 Oct 2026, earlier only if they finished one',
+  trained: 'any finished training: workout, trial, hold, 1MM, challenge',
 };
 
 const REASON_LABEL: Record<string, string> = {
@@ -75,44 +128,12 @@ export function GrowthPage() {
     queryFn: () => fetchOfferAnalytics(days),
   });
 
-  const funnel = data?.funnel ?? [];
-  const signups = funnel.find((s) => s.step_order === 1)?.users ?? 0;
-  const firstWorkout = funnel.find((s) => s.step_order === 5)?.users ?? 0;
-  const day7 = funnel.find((s) => s.step_order === 6);
-  const subscribed = funnel.find((s) => s.step_order === 8)?.users ?? 0;
-  const maxDaily = Math.max(0, ...(data?.daily ?? []).map((d) => d.active_users));
-  // Today is still in progress, so it's left out of the average.
-  const fullDays = (data?.daily ?? []).filter((d) => !d.partial);
-  const avgDaily = fullDays.length
-    ? fullDays.reduce((sum, d) => sum + d.active_users, 0) / fullDays.length
-    : 0;
-  const deletedSignups = funnel.find((s) => s.step_order === 1)?.deleted ?? 0;
-  const eventCount = (name: string) => data?.events.find((e) => e.event === name);
-  const paywallSteps = [
-    { label: 'Saw the paywall', row: eventCount('paywall_viewed') },
-    { label: 'Dismissed it', row: eventCount('purchase_cancelled') },
-    { label: 'Failed to load', row: eventCount('paywall_failed') },
-    { label: 'Bought', row: eventCount('purchase_completed') },
-    { label: 'Restored', row: eventCount('purchase_restored') },
-  ];
-  const paywallViewers = paywallSteps[0].row?.users ?? 0;
-
-  // The biggest step-to-step drop is where to look first.
-  let biggestDrop: { from: GrowthFunnelStep; to: GrowthFunnelStep } | null = null;
-  for (let i = 1; i < funnel.length; i++) {
-    const prev = funnel[i - 1];
-    const cur = funnel[i];
-    if (cur.eligible != null || prev.eligible != null || cur.step_order === 7) continue;
-    const lost = prev.users - cur.users;
-    if (!biggestDrop || lost > biggestDrop.from.users - biggestDrop.to.users) biggestDrop = { from: prev, to: cur };
-  }
-
   return (
     <div className="page">
       <div className="page-head">
         <div>
           <h1>Growth</h1>
-          <div className="sub">Where new signups get to, and how many people are active.</div>
+          <div className="sub">Where new signups get to, who keeps training, and what they use.</div>
         </div>
         <div className="row">
           {RANGES.map((r) => (
@@ -131,178 +152,310 @@ export function GrowthPage() {
       {error && <ErrorNote error={error} />}
       {isLoading && <div className="skeleton" style={{ height: 160 }} />}
 
-      {data && (
+      {data && !data.headline && (
+        <div className="empty">
+          <span className="label">Database update pending</span>
+          Apply migration 20261029170000_growth_analytics_v3 to see this report.
+        </div>
+      )}
+
+      {data?.headline && (
         <>
-          <div className="stat-strip" role="group" aria-label="Headline growth stats">
-            <div className="stat-cell">
-              <span className="label">Signups</span>
-              <span className="value">{signups}</span>
-              <span className="hint">
-                last {data.days} days{deletedSignups > 0 ? ` · ${deletedSignups} since deleted` : ''}
-              </span>
-            </div>
-            <div className="stat-cell">
-              <span className="label">Did a first training</span>
-              <span className="value">{pct(firstWorkout, signups)}</span>
-              <span className="hint">{firstWorkout} of {signups}</span>
-            </div>
-            <div className="stat-cell">
-              <span className="label">Back after day 7</span>
-              <span className="value">{day7 ? pct(day7.users, day7.eligible ?? 0) : '—'}</span>
-              <span className="hint">{day7 ? `${day7.users} of ${day7.eligible ?? 0} eligible` : ''}</span>
-            </div>
-            <div className="stat-cell">
-              <span className="label">Subscribed</span>
-              <span className="value">{subscribed}</span>
-              <span className="hint">{pct(subscribed, signups)} of signups</span>
-            </div>
-            <div className="stat-cell">
-              <span className="label">Daily active (avg)</span>
-              <span className="value">{avgDaily.toFixed(1)}</span>
-              <span className="hint">peak {maxDaily} · today not counted</span>
-            </div>
-          </div>
-
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Signup funnel</h2>
-              {biggestDrop && (
-                <span className="label">
-                  Biggest drop: {biggestDrop.from.step} → {biggestDrop.to.step} (
-                  {biggestDrop.from.users - biggestDrop.to.users} people)
-                </span>
-              )}
-            </div>
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Step</th>
-                    <th style={{ textAlign: 'right' }}>People</th>
-                    <th style={{ textAlign: 'right' }}>Of signups</th>
-                    <th style={{ textAlign: 'right' }}>From previous step</th>
-                    <th style={{ width: '30%' }} aria-label="Bar" />
-                  </tr>
-                </thead>
-                <tbody>
-                  {funnel.map((s, i) => {
-                    const prev = i > 0 ? funnel[i - 1] : null;
-                    const base = s.eligible ?? signups;
-                    return (
-                      <tr key={s.step_order}>
-                        <td style={{ fontWeight: 700 }}>
-                          {s.step}
-                          {s.eligible != null && <span className="dim"> · of {s.eligible} old enough</span>}
-                          {s.step_order === 7 && <span className="dim"> · tracked from 28 Sep 2026</span>}
-                          {s.step_order === 8 && <span className="dim"> · store purchase with paid access now</span>}
-                          {s.deleted > 0 && <span className="dim"> · {s.deleted} deleted since</span>}
-                        </td>
-                        <td className="num" style={{ textAlign: 'right' }}>{s.users}</td>
-                        <td className="num" style={{ textAlign: 'right' }}>{pct(s.users, base)}</td>
-                        <td className="num" style={{ textAlign: 'right' }}>
-                          {prev && s.eligible == null && prev.eligible == null && s.step_order !== 7 ? pct(s.users, prev.users) : '—'}
-                        </td>
-                        <td>
-                          <Bar value={s.users} max={base} />
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Daily active users</h2>
-              <span className="label">trained, logged anything, used the AI Coach or opened the app · days in {data.tz}</span>
-            </div>
-            <div className="table-wrap">
-              <table className="data">
-                <tbody>
-                  {[...data.daily].reverse().map((d) => (
-                    <tr key={d.day}>
-                      <td className="dim" style={{ width: 140 }}>
-                        {formatDate(d.day)}
-                        {d.partial && ' · today so far'}
-                      </td>
-                      <td className="num" style={{ textAlign: 'right', width: 60 }}>{d.active_users}</td>
-                      <td>
-                        <Bar value={d.active_users} max={maxDaily} color="var(--violet)" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          <section className="panel">
-            <div className="panel-head">
-              <h2>Paywall</h2>
-              <span className="label">people, last {data.days} days</span>
-            </div>
-            <div className="table-wrap">
-              <table className="data">
-                <tbody>
-                  {paywallSteps.map(({ label, row }) => (
-                    <tr key={label}>
-                      <td style={{ width: 180 }}>{label}</td>
-                      <td className="num" style={{ textAlign: 'right', width: 60 }}>{row?.users ?? 0}</td>
-                      <td className="num dim" style={{ textAlign: 'right', width: 60 }}>
-                        {label === 'Saw the paywall' ? '' : pct(row?.users ?? 0, paywallViewers)}
-                      </td>
-                      <td>
-                        <Bar value={row?.users ?? 0} max={paywallViewers} />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-
-          {offers.error && <ErrorNote error={offers.error} />}
-          {offers.data && <OffersPanel data={offers.data} />}
-
-          <section className="panel">
-            <div className="panel-head">
-              <h2>App events</h2>
-              <span className="label">last {data.days} days</span>
-            </div>
-            <div className="table-wrap">
-              <table className="data">
-                <thead>
-                  <tr>
-                    <th>Event</th>
-                    <th style={{ textAlign: 'right' }}>Times</th>
-                    <th style={{ textAlign: 'right' }}>People</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {data.events.map((e) => (
-                    <tr key={e.event}>
-                      <td>{EVENT_LABEL[e.event] ?? e.event}</td>
-                      <td className="num" style={{ textAlign: 'right' }}>{e.events}</td>
-                      <td className="num" style={{ textAlign: 'right' }}>{e.users}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              {data.events.length === 0 && (
-                <div className="empty">
-                  <span className="label">No events yet</span>
-                  Events start arriving once the app release with analytics is live.
-                </div>
-              )}
-            </div>
-          </section>
+          {data.key_events && <KeyEvents data={data} />}
+          <Headline data={data} />
+          <FunnelPanel data={data} />
+          <DailyPanel data={data} />
+          <FeaturesPanel data={data} />
         </>
       )}
 
+      {offers.error && <ErrorNote error={offers.error} />}
+      {offers.data && <OffersPanel data={offers.data} />}
+
       <DeletedAccountsPanel days={days} data={deleted.data} error={deleted.error} loading={deleted.isLoading} />
+
+      {data && <RawEventsPanel data={data} />}
     </div>
+  );
+}
+
+// The money moments at a glance, in people. Subscribed joins the app's
+// purchase event with the store webhook, so each purchase counts once.
+function KeyEvents({ data }: { data: GrowthAnalytics }) {
+  const k = data.key_events!;
+  const h = data.headline!;
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Key events</h2>
+        <span className="label">people, last {data.days} days · store test purchases left out</span>
+      </div>
+      <div className="stat-strip" role="group" aria-label="Key events">
+        <div className="stat-cell">
+          <span className="label">Saw the paywall</span>
+          <span className="value">{k.paywall_viewed}</span>
+          <span className="hint">{k.paywall_dismissed} closed it without buying</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Subscribed</span>
+          <span className="value">{k.subscribed}</span>
+          <span className="hint">{pct(k.subscribed, k.paywall_viewed)} of paywall viewers</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Renewed</span>
+          <span className="value">{k.renewed}</span>
+          <span className="hint">store renewals, from 29 Oct 2026</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Unlocked with a code</span>
+          <span className="value">{k.code_unlocked}</span>
+          <span className="hint">{k.offer_shown} saw the welcome offer</span>
+        </div>
+        <div className="stat-cell">
+          <span className="label">Paying now</span>
+          <span className="value">{h.paying_store + h.paying_other}</span>
+          <span className="hint">
+            {h.paying_store} store · {h.paying_other} codes or grants
+          </span>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function Headline({ data }: { data: GrowthAnalytics }) {
+  const h = data.headline!;
+  const step = (key: string) => data.funnel.find((s) => s.key === key);
+  const trained = step('trained');
+  const week2 = step('week2');
+  const change = h.prev_signups ? Math.round(((h.signups - h.prev_signups) / h.prev_signups) * 100) : null;
+  return (
+    <div className="stat-strip" role="group" aria-label="Headline growth stats">
+      <div className="stat-cell">
+        <span className="label">New signups</span>
+        <span className="value">{h.signups}</span>
+        <span className="hint">
+          {change == null ? `last ${data.days} days` : `${change >= 0 ? '+' : ''}${change}% vs previous ${data.days} days (${h.prev_signups})`}
+        </span>
+      </div>
+      <div className="stat-cell">
+        <span className="label">Finished a first workout</span>
+        <span className="value">{pct(trained?.users ?? 0, h.signups)}</span>
+        <span className="hint">{trained?.users ?? 0} of {h.signups} signups</span>
+      </div>
+      <div className="stat-cell">
+        <span className="label">Active in week 2</span>
+        <span className="value">{week2?.eligible ? pct(week2.users, week2.eligible) : '—'}</span>
+        <span className="hint">
+          {week2?.eligible ? `${week2.users} of ${week2.eligible} signups 14+ days old` : 'no signups 14+ days old yet'}
+        </span>
+      </div>
+      <div className="stat-cell">
+        <span className="label">Weekly active</span>
+        <span className="value">{h.wau}</span>
+        <span className="hint">{h.mau} in the last 30 days</span>
+      </div>
+    </div>
+  );
+}
+
+function FunnelPanel({ data }: { data: GrowthAnalytics }) {
+  const funnel = data.funnel;
+  const signups = funnel[0]?.users ?? 0;
+  // Steps that share the signup base, in order; week 2 has its own base.
+  const chain = funnel.filter((s) => s.eligible == null);
+  let worst: string | null = null;
+  let worstLost = 0;
+  for (let i = 1; i < chain.length; i++) {
+    const lost = chain[i - 1].users - chain[i].users;
+    if (lost > worstLost) {
+      worstLost = lost;
+      worst = chain[i].key;
+    }
+  }
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>New signups: how far they got</h2>
+        <span className="label">signed up in the last {data.days} days · deleted accounts included</span>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Step</th>
+              <th style={{ textAlign: 'right' }}>People</th>
+              <th style={{ textAlign: 'right' }}>Of signups</th>
+              <th style={{ textAlign: 'right' }}>Lost at this step</th>
+              <th style={{ width: '30%' }} aria-label="Bar" />
+            </tr>
+          </thead>
+          <tbody>
+            {funnel.map((s) => {
+              const idx = chain.indexOf(s);
+              const prev = idx > 0 ? chain[idx - 1] : null;
+              const base = s.eligible ?? signups;
+              const isWorst = s.key === worst;
+              return (
+                <tr key={s.key}>
+                  <td>
+                    <span style={{ fontWeight: 700 }}>{s.step}</span>
+                    {isWorst && <span style={{ color: 'var(--accent)', fontWeight: 700 }}> · biggest drop</span>}
+                    {s.eligible != null && <div className="dim">of the {s.eligible} who signed up 14+ days ago</div>}
+                    {FUNNEL_NOTE[s.key] && <div className="dim">{FUNNEL_NOTE[s.key]}</div>}
+                  </td>
+                  <td className="num" style={{ textAlign: 'right' }}>{s.users}</td>
+                  <td className="num" style={{ textAlign: 'right' }}>{pct(s.users, base)}</td>
+                  <td className="num" style={{ textAlign: 'right', color: isWorst ? 'var(--accent)' : undefined }}>
+                    {prev ? `${prev.users - s.users} (${pct(prev.users - s.users, prev.users)})` : '—'}
+                  </td>
+                  <td>
+                    <Bar value={s.users} max={base} />
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      {funnel[0]?.deleted > 0 && (
+        <div className="dim" style={{ marginTop: 8 }}>
+          {funnel[0].deleted} of these signups have since deleted their account.
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DailyPanel({ data }: { data: GrowthAnalytics }) {
+  const daily = data.daily;
+  const max = Math.max(1, ...daily.map((d) => d.active_users));
+  // Today is still in progress, so it's left out of the average.
+  const full = daily.filter((d) => !d.partial);
+  const avg = full.length ? full.reduce((sum, d) => sum + d.active_users, 0) / full.length : 0;
+  const peak = full.reduce<(typeof daily)[number] | null>((best, d) => (!best || d.active_users > best.active_users ? d : best), null);
+  const labelEvery = Math.ceil(daily.length / 6);
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>Daily active people</h2>
+        <span className="label">
+          avg {avg.toFixed(1)}/day{peak ? ` · peak ${peak.active_users} on ${formatDate(peak.day)}` : ''}
+        </span>
+      </div>
+      <div
+        role="img"
+        aria-label={`Daily active people, last ${data.days} days, average ${avg.toFixed(1)}`}
+        style={{ display: 'flex', alignItems: 'flex-end', gap: daily.length > 45 ? 1 : 3, height: 140, marginTop: 8 }}
+      >
+        {daily.map((d) => (
+          <div
+            key={d.day}
+            title={`${formatDate(d.day)}${d.partial ? ' (today so far)' : ''}: ${d.active_users}`}
+            style={{
+              flex: 1,
+              minWidth: 2,
+              height: `${Math.max((d.active_users / max) * 100, d.active_users > 0 ? 2 : 0)}%`,
+              background: 'var(--violet)',
+              opacity: d.partial ? 0.4 : 1,
+              borderRadius: '3px 3px 0 0',
+            }}
+          />
+        ))}
+      </div>
+      <div style={{ display: 'flex', gap: daily.length > 45 ? 1 : 3, marginTop: 4 }}>
+        {daily.map((d, i) => (
+          <span key={d.day} className="dim" style={{ flex: 1, minWidth: 2, fontSize: 11, whiteSpace: 'nowrap', overflow: 'visible' }}>
+            {i % labelEvery === 0 ? formatDate(d.day) : ''}
+          </span>
+        ))}
+      </div>
+      <div className="dim" style={{ marginTop: 8 }}>
+        Active = trained, logged anything, messaged the AI Coach or opened the app. Days in {data.tz}; the faded bar is today so far.
+      </div>
+    </section>
+  );
+}
+
+function FeaturesPanel({ data }: { data: GrowthAnalytics }) {
+  const features = data.features ?? [];
+  const max = Math.max(0, ...features.map((f) => f.users));
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <h2>What people use</h2>
+        <span className="label">people, last {data.days} days · all app versions</span>
+      </div>
+      <div className="table-wrap">
+        <table className="data">
+          <thead>
+            <tr>
+              <th>Feature</th>
+              <th style={{ textAlign: 'right' }}>People</th>
+              <th style={{ textAlign: 'right' }}>Days used</th>
+              <th style={{ width: '40%' }} aria-label="Bar" />
+            </tr>
+          </thead>
+          <tbody>
+            {features.map((f) => (
+              <tr key={f.feature}>
+                <td>{FEATURE_LABEL[f.feature] ?? f.feature}</td>
+                <td className="num" style={{ textAlign: 'right' }}>{f.users}</td>
+                <td className="num" style={{ textAlign: 'right' }}>{f.days}</td>
+                <td>
+                  <Bar value={f.users} max={max} color="var(--violet)" />
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+        {features.length === 0 && (
+          <div className="empty">
+            <span className="label">Nothing used yet</span>
+            No training or AI Coach use in this range.
+          </div>
+        )}
+      </div>
+      <div className="dim" style={{ marginTop: 8 }}>Days used = one per person per day, however many sets or blocks they logged.</div>
+    </section>
+  );
+}
+
+// Every app event, for digging in — collapsed, since the panels above already
+// read the ones that matter.
+function RawEventsPanel({ data }: { data: GrowthAnalytics }) {
+  return (
+    <section className="panel">
+      <details>
+        <summary style={{ cursor: 'pointer' }}>
+          <h2 style={{ display: 'inline' }}>All app events</h2>
+          <span className="label"> · {data.events.length} kinds, last {data.days} days</span>
+        </summary>
+        <div className="table-wrap" style={{ marginTop: 12 }}>
+          <table className="data">
+            <thead>
+              <tr>
+                <th>Event</th>
+                <th style={{ textAlign: 'right' }}>Times</th>
+                <th style={{ textAlign: 'right' }}>People</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.events.map((e) => (
+                <tr key={e.event}>
+                  <td>
+                    {EVENT_LABEL[e.event] ?? e.event}
+                    <span className="dim"> · {e.event}</span>
+                  </td>
+                  <td className="num" style={{ textAlign: 'right' }}>{e.events}</td>
+                  <td className="num" style={{ textAlign: 'right' }}>{e.users}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
+    </section>
   );
 }
 
