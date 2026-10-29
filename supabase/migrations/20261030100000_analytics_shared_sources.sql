@@ -12,6 +12,8 @@
 --      and strength steps, hold attempts, Team, Live, Arena and the Power log
 --      count. Their Saturday weeks are unchanged (Weekly Challenge weeks).
 --   4. The Offers report leaves out store test (sandbox) purchases too.
+--   5. Growth lists every store subscriber ever (username, plan, dates,
+--      paying now); Key events "Subscribed" is counted from that list.
 
 -- ---------------------------------------------------------------------------
 -- Shared sources. Read only by SECURITY DEFINER admin functions; views run
@@ -228,6 +230,30 @@ BEGIN
     FROM app_events
     WHERE created_at >= v_since AND user_id NOT IN (SELECT id FROM admins)
     GROUP BY event
+  ),
+  -- Everyone who ever bought a store subscription (all time; the page
+  -- filters by range): purchase events, plus store subscriptions from before
+  -- purchase tracking — a profile's store period that isn't a logged
+  -- renewal. A period under 2 days is a test or a refund (e.g. the App Store
+  -- reviewer's sandbox Pro on 23 Sep 2026). Deleted accounts aren't listed.
+  sub_purchases AS (
+    SELECT user_id AS uid, created_at AS ts FROM app_events
+      WHERE event IN ('purchase_completed', 'store_purchase')
+    UNION ALL
+    SELECT p.id, p.entitlement_period_start FROM profiles p
+      WHERE p.rc_original_transaction_id IS NOT NULL
+        AND p.entitlement_source = 'rc_subscription'
+        AND p.entitlement_period_start IS NOT NULL
+        AND p.access_expires_at > p.entitlement_period_start + interval '2 days'
+        AND NOT EXISTS (SELECT 1 FROM app_events r WHERE r.user_id = p.id AND r.event = 'store_renewal'
+                          AND abs(extract(epoch FROM r.created_at - p.entitlement_period_start)) < 3600)
+  ),
+  subs AS (
+    SELECT uid, min(ts) AS first_at, max(ts) AS last_at FROM sub_purchases
+    WHERE uid IS NOT NULL
+      AND uid NOT IN (SELECT id FROM admins)
+      AND uid NOT IN (SELECT user_id FROM test_users)
+    GROUP BY uid
   )
   SELECT jsonb_build_object(
     'days', v_days,
@@ -243,22 +269,7 @@ BEGIN
     'key_events', jsonb_build_object(
       'paywall_viewed', (SELECT count(DISTINCT user_id) FROM range_events WHERE event = 'paywall_viewed'),
       'paywall_dismissed', (SELECT count(DISTINCT user_id) FROM range_events WHERE event = 'purchase_cancelled'),
-      -- Purchase events, plus store subscriptions from before purchase
-      -- tracking: a profile's store period that starts in the range and
-      -- isn't a logged renewal. A period under 2 days is a test or a refund
-      -- (e.g. the App Store reviewer's sandbox Pro on 23 Sep 2026).
-      'subscribed', (SELECT count(DISTINCT uid) FROM (
-          SELECT user_id AS uid FROM range_events WHERE event IN ('purchase_completed', 'store_purchase')
-          UNION
-          SELECT p.id FROM profiles p
-            WHERE p.rc_original_transaction_id IS NOT NULL
-              AND p.entitlement_source = 'rc_subscription'
-              AND p.entitlement_period_start >= v_since
-              AND p.access_expires_at > p.entitlement_period_start + interval '2 days'
-              AND NOT p.is_admin
-              AND p.id NOT IN (SELECT user_id FROM test_users)
-              AND NOT EXISTS (SELECT 1 FROM app_events r WHERE r.user_id = p.id AND r.event = 'store_renewal'
-                                AND abs(extract(epoch FROM r.created_at - p.entitlement_period_start)) < 3600)) s),
+      'subscribed', (SELECT count(*) FROM subs WHERE last_at >= v_since),
       'renewed', (SELECT count(DISTINCT user_id) FROM range_events WHERE event = 'store_renewal'),
       'code_unlocked', (SELECT count(DISTINCT uid) FROM (
           SELECT user_id AS uid FROM range_events WHERE event = 'redeem_code_unlocked'
@@ -267,6 +278,17 @@ BEGIN
               AND user_id NOT IN (SELECT user_id FROM test_users)) c),
       'offer_shown', (SELECT count(DISTINCT user_id) FROM range_events WHERE event = 'offer_screen_viewed')
     ),
+    'subscribers', (SELECT coalesce(jsonb_agg(jsonb_build_object(
+        'username', p.display_name,
+        'plan', p.subscription_tier,
+        'first_at', s.first_at,
+        'last_at', s.last_at,
+        'ends_at', p.access_expires_at,
+        'paying', p.rc_original_transaction_id IS NOT NULL
+                  AND p.subscription_tier IS NOT NULL AND p.subscription_tier <> 'free'
+                  AND (p.access_expires_at IS NULL OR p.access_expires_at > now())
+      ) ORDER BY s.last_at DESC), '[]'::jsonb)
+      FROM subs s JOIN profiles p ON p.id = s.uid),
     'funnel', (SELECT coalesce(jsonb_agg(to_jsonb(f) ORDER BY f.step_order), '[]'::jsonb) FROM funnel f),
     'daily', (SELECT coalesce(jsonb_agg(to_jsonb(d) ORDER BY d.day), '[]'::jsonb) FROM daily d),
     'features', (SELECT coalesce(jsonb_agg(to_jsonb(x) ORDER BY x.users DESC), '[]'::jsonb) FROM features x),
@@ -440,3 +462,89 @@ BEGIN
   ORDER BY offset_weeks ASC;
 END;
 $function$;
+
+-- ---------------------------------------------------------------------------
+-- Offers report: store test (sandbox) purchases left out, as in Growth.
+-- ---------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_get_offer_analytics(p_days integer DEFAULT 30)
+RETURNS jsonb
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public
+AS $function$
+DECLARE
+  v_days integer := LEAST(GREATEST(COALESCE(p_days, 30), 1), 365);
+  v_since timestamptz := now() - make_interval(days => v_days);
+  v_result jsonb;
+BEGIN
+  IF NOT public.is_admin() THEN
+    RAISE EXCEPTION 'ADMIN_ONLY' USING ERRCODE = '42501';
+  END IF;
+
+  WITH ev AS (
+    SELECT e.user_id, e.event, e.properties, e.platform
+    FROM app_events e
+    WHERE e.created_at >= v_since
+      AND e.user_id NOT IN (SELECT id FROM profiles WHERE is_admin)
+      AND NOT (e.event IN ('purchase_completed', 'store_purchase', 'store_renewal', 'redeem_code_unlocked')
+               AND e.user_id IN (SELECT user_id FROM analytics_store_test_users))
+  ),
+  moments AS (
+    SELECT m.moment, m.ord,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'offer_screen_viewed' AND properties->>'trigger' = m.moment) AS shown,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'offer_claim_tapped' AND properties->>'trigger' = m.moment) AS claimed,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'offer_code_tapped' AND properties->>'trigger' = m.moment) AS code_tapped,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'offer_dismissed' AND properties->>'trigger' = m.moment) AS dismissed,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'paywall_viewed' AND properties->>'source' = 'welcome_offer_' || m.moment) AS paywall,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'purchase_completed' AND properties->>'source' = 'welcome_offer_' || m.moment) AS bought
+    FROM (VALUES ('assessment', 1), ('program_complete', 2), ('banner', 3)) AS m(moment, ord)
+  ),
+  add_week AS (
+    SELECT
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'add_week_locked_tapped') AS tapped,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'paywall_viewed' AND properties->>'source' LIKE 'add_week_%') AS paywall,
+      (SELECT count(DISTINCT user_id) FROM ev WHERE event = 'purchase_completed' AND properties->>'source' LIKE 'add_week_%') AS bought
+  ),
+  -- How it was paid. Google reports a code purchase as INTRO with the Play
+  -- offer id in offer_code (ours end in "-code"); Apple reports offer codes
+  -- as PROMOTIONAL with the code's name. The intro itself has no code on
+  -- iOS and a "-intro" offer id on Android.
+  store AS (
+    SELECT event,
+           CASE
+             WHEN properties->>'period_type' = 'PROMOTIONAL'
+               OR properties->>'offer_code' LIKE '%-code'
+               OR (platform = 'ios' AND COALESCE(properties->>'offer_code', '') <> '') THEN 'CODE'
+             WHEN properties->>'period_type' IN ('INTRO', 'TRIAL') THEN properties->>'period_type'
+             WHEN properties->>'period_type' = 'NORMAL' THEN 'NORMAL'
+             ELSE 'UNKNOWN'
+           END AS period_type,
+           COALESCE(properties->>'tier', '?') AS tier, platform,
+           count(*) AS events, count(DISTINCT user_id) AS users
+    FROM ev
+    WHERE event IN ('store_purchase', 'store_renewal')
+    GROUP BY 1, 2, 3, 4
+  ),
+  codes AS (
+    SELECT COALESCE(properties->>'platform', platform, '?') AS platform,
+      count(DISTINCT user_id) FILTER (WHERE event = 'redeem_code_submitted') AS submitted,
+      count(DISTINCT user_id) FILTER (WHERE event = 'redeem_code_unlocked') AS unlocked
+    FROM ev
+    WHERE event IN ('redeem_code_submitted', 'redeem_code_unlocked')
+    GROUP BY 1
+  )
+  SELECT jsonb_build_object(
+    'days', v_days,
+    'moments', (SELECT coalesce(jsonb_agg(to_jsonb(m) - 'ord' ORDER BY m.ord), '[]'::jsonb) FROM moments m),
+    'add_week', (SELECT to_jsonb(a) FROM add_week a),
+    'store', (SELECT coalesce(jsonb_agg(to_jsonb(s) ORDER BY s.event, s.period_type, s.tier), '[]'::jsonb) FROM store s),
+    'codes', (SELECT coalesce(jsonb_agg(to_jsonb(c) ORDER BY c.platform), '[]'::jsonb) FROM codes c)
+  ) INTO v_result;
+
+  RETURN v_result;
+END;
+$function$;
+
+REVOKE EXECUTE ON FUNCTION public.admin_get_offer_analytics(integer) FROM PUBLIC, anon;
+GRANT EXECUTE ON FUNCTION public.admin_get_offer_analytics(integer) TO authenticated, service_role;
