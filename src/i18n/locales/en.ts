@@ -2238,6 +2238,7 @@ const en = {
     endWorkoutA11y: 'End workout',
   },
   customize: {
+    createMyWorkout: 'CREATE MY WORKOUT ({{n}})',
     day: 'DAY {{n}}',
     pro: 'PRO',
     skills: 'Skills',

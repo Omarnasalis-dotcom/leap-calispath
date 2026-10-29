@@ -2390,6 +2390,7 @@ const ar: Translations = {
     endWorkoutA11y: 'إنهاء التمرين',
   },
   customize: {
+    createMyWorkout: 'أنشئ تمريني ({{n}})',
     day: 'اليوم {{n}}',
     pro: 'PRO',
     skills: 'مهارات',

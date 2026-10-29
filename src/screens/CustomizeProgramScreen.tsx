@@ -946,7 +946,7 @@ export function CustomizeProgramScreen() {
           // Extra bottom padding whenever a floating element is on screen
           // (Browse's "create" CTA, or Quick Build's floating trigger/panel)
           // so the last grid row never sits underneath it.
-          paddingBottom: builderMode === 'quickBuild' ? (quickBuildPanelOpen ? 240 : 140) : selectedDayWorkouts.length > 0 ? 140 : 24,
+          paddingBottom: builderMode === 'quickBuild' ? (quickBuildPanelOpen ? 240 : 160) : 160,
         }}
       >
         {loading ? (
@@ -1023,29 +1023,35 @@ export function CustomizeProgramScreen() {
 
       {builderMode === 'browse' && selectedDayWorkouts.length > 0 && (
         <TouchableOpacity
-          style={styles.buildCta}
+          style={[styles.buildCta, mode === 'light' && styles.softShadow]}
           onPress={() => handlePressCreate('browse')}
           activeOpacity={0.85}
         >
           <MaterialCommunityIcons name="calendar-check" size={16} color="#000" />
-          <Text style={styles.buildCtaText}>CREATE MY WORKOUT ({selectedDayWorkouts.length})</Text>
+          <Text style={styles.buildCtaText}>{t('customize.createMyWorkout', { n: selectedDayWorkouts.length })}</Text>
         </TouchableOpacity>
       )}
 
       {builderMode === 'browse' ? (
         // Collapsed trigger — tapping it enters Quick Build and opens the
-        // panel. Bumped up when buildCta is also showing (a Browse
-        // selection in progress) so the two don't overlap; otherwise sits
-        // directly above the tab bar.
+        // panel. Sits directly above the tab bar; while buildCta is showing
+        // (a Browse selection in progress) it shrinks to an icon button on
+        // the same row, beside it — stacked, the CTA's shadow swallowed it.
         <TouchableOpacity
           ref={quickBuildTourRef}
           onLayout={onQuickBuildTourLayout}
-          style={[styles.quickBuildFab, selectedDayWorkouts.length > 0 && { bottom: TC_LAYOUT.bottomBarOffset + 62 }]}
+          style={[
+            styles.quickBuildFab,
+            selectedDayWorkouts.length > 0 && styles.quickBuildFabCompact,
+            mode === 'light' && styles.softShadow,
+          ]}
           onPress={handleEnterQuickBuild}
           activeOpacity={0.85}
+          accessibilityRole="button"
+          accessibilityLabel={t('customize.quickBuild')}
         >
-          <MaterialCommunityIcons name="lightning-bolt" size={16} color="#000" />
-          <Text style={styles.quickBuildFabText}>{t('customize.quickBuild')}</Text>
+          <MaterialCommunityIcons name="lightning-bolt" size={selectedDayWorkouts.length > 0 ? 20 : 16} color="#000" />
+          {selectedDayWorkouts.length === 0 && <Text style={styles.quickBuildFabText}>{t('customize.quickBuild')}</Text>}
         </TouchableOpacity>
       ) : quickBuildPanelOpen ? (
         <View style={styles.quickBuildPanel}>
@@ -1230,6 +1236,13 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
     shadowColor: '#000', shadowOffset: { width: 0, height: 10 }, shadowOpacity: 0.6, shadowRadius: 24, elevation: 10,
   },
   quickBuildFabText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 12, letterSpacing: 1.4 },
+  // Icon-only, at the start of buildCta's row (buildCta starts after it).
+  quickBuildFabCompact: {
+    alignSelf: 'auto', start: 16, width: 52, height: 52, borderRadius: 16,
+    paddingHorizontal: 0, justifyContent: 'center',
+  },
+  // The dark-mode shadows read as a grey smudge on the light page.
+  softShadow: { shadowOpacity: 0.18, shadowRadius: 14 },
 
   // Expanded floating panel — buildCta never renders in Quick Build mode,
   // so this always sits directly above the tab bar, same anchor as the FAB.
@@ -1324,7 +1337,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   cardMetaGrid: { fontSize: 9 },
 
   buildCta: {
-    position: 'absolute', left: 16, right: 16, bottom: TC_LAYOUT.bottomBarOffset,
+    position: 'absolute', start: 16 + 52 + 10, end: 16, bottom: TC_LAYOUT.bottomBarOffset,
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
     backgroundColor: c.coral, borderRadius: 16, height: 52,
     shadowColor: '#000', shadowOffset: { width: 0, height: 14 }, shadowOpacity: 0.7, shadowRadius: 34, elevation: 10,
