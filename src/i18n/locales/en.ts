@@ -2510,6 +2510,7 @@ const en = {
     slowDown: 'Wait {{seconds}} more seconds before sending.',
     programLive: '**{{name}}** is live — check your Workout Program to see it.',
     dayAdded: '**{{name}}** added.',
+    dayUpdated: '**{{name}}** updated.',
     day1: 'Day 1',
     weekDeleted: 'Week {{week}} has been deleted.',
     programEnded: 'Your program has been ended.',

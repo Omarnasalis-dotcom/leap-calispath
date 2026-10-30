@@ -662,7 +662,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         buildComplete = isLastConfirmedDay(pendingProgramAction);
         setMessages(prev => [...prev, {
           role: 'assistant',
-          content: `**${payload.dayName}** ${pendingProgramAction.replacing ? 'updated' : 'added'}.`,
+          content: t(pendingProgramAction.replacing ? 'coach.dayUpdated' : 'coach.dayAdded', { name: payload.dayName }),
         }]);
       } else {
         if (!pendingProgramAction.warriorProgramId) throw new Error('No active program to end.');

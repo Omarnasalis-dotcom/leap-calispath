@@ -2660,6 +2660,7 @@ const ar: Translations = {
     slowDown: 'انتظر {{seconds}} ثوانٍ أخرى قبل الإرسال.',
     programLive: '**{{name}}** جاهز الآن — افتح برنامج تمرينك لتراه.',
     dayAdded: 'تمت إضافة **{{name}}**.',
+    dayUpdated: 'تم تحديث **{{name}}**.',
     day1: 'اليوم 1',
     weekDeleted: 'تم حذف الأسبوع {{week}}.',
     programEnded: 'تم إنهاء برنامجك.',
