@@ -51,6 +51,7 @@ import { DayBlocksProgressRing } from '../../components/coaching/DayBlocksProgre
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { fetchDayChoiceForWeek } from '../../lib/journeyLane';
+import { indexLastTimeLogs, lastTimeFor } from '../../lib/lastTimeLog';
 import { DayCardList } from '../../components/coaching/DayCardList';
 import { t, FLIP_X } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
@@ -846,7 +847,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         // known yet), oldest first so the latest log per block wins.
         supabase
           .from('workout_logs')
-          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at, workout_set_logs(block_exercise_id, set_index, reps_completed, weight_used)')
+          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at, workout_set_logs(block_exercise_id, exercise_id, set_index, reps_completed, weight_used, hold_seconds, source)')
           .eq('warrior_id', warriorId)
           .order('completed_at', { ascending: true }),
       ]);
@@ -997,6 +998,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         exercisesByBlock[ex.block_id].push(ex);
       });
 
+      // Each exercise's "last time" (its newest log from an earlier week).
+      const lastTimeIndex = indexLastTimeLogs(
+        programLogs,
+        new Map((blocksData || []).map(b => [String(b.id), { weekNumber: b.week_number || 1, dayName: parseBlockName(b.name || '').dayName }])),
+        new Map(allExercisesData.map(ex => [String(ex.id), String(ex.exercise_id)])),
+      );
+
       const newWeeksMap: Record<number, ProgramDay[]> = {};
       const weekDaysMap: Record<number, Record<string, ProgramDay>> = {};
       const weekDayOrder: Record<number, string[]> = {};
@@ -1009,6 +1017,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           const lib = Array.isArray(ex.exercise_library)
             ? ex.exercise_library[0]
             : ex.exercise_library;
+          const lastTime = lastTimeFor(lastTimeIndex, ex.exercise_id, block.week_number || 1);
           return {
             id: ex.id,
             name: lib?.name || t('workout.unnamedExercise'),
@@ -1018,7 +1027,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             rest_seconds: ex.rest_seconds || '0',
             hold_seconds: ex.hold_seconds || '',
             is_weighted: ex.is_weighted || false,
-            notes: ex.notes || ''
+            notes: ex.notes || '',
+            last_time: lastTime && { ...lastTime, weekNumber: rawToDisplayWeek.get(lastTime.weekNumber) ?? lastTime.weekNumber },
           };
         });
 
