@@ -192,7 +192,9 @@ function Turn({ turn, userId }: { turn: CoachChatTurn; userId: string }) {
   const [flagging, setFlagging] = useState(false);
   const problems: string[] = [];
   if (turn.outcome !== 'ok') problems.push(OUTCOME_LABEL[turn.outcome]);
-  if (turn.unacted_correction && turn.outcome !== 'unacted_blocked') problems.push('Needed a nudge to act');
+  // Either claim check (ai-coach index.ts): a claim with no tool behind it,
+  // or done-talk while a card was still waiting for the tap.
+  if (turn.unacted_correction && turn.outcome !== 'unacted_blocked') problems.push('Corrected a claim before sending');
   if (turn.tool_errors > 0) problems.push(`${turn.tool_errors} tool ${turn.tool_errors === 1 ? 'error' : 'errors'}`);
   if (turn.safety_flags.length > 0) problems.push(`Safety: ${turn.safety_flags.join(', ')}`);
 
