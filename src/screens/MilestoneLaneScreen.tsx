@@ -638,11 +638,7 @@ function JourneyCardBody({
           style={StyleSheet.absoluteFill}
         />
       )}
-      {locked ? (
-        <View style={styles.milestoneLockBadge}>
-          <MaterialCommunityIcons name="lock-outline" size={11} color={isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)'} />
-        </View>
-      ) : showHereBadge ? (
+      {!locked && showHereBadge ? (
         <Animated.View style={[styles.milestoneHereBadge, { opacity: badgeOpacity }]}>
           <Text style={styles.milestoneHereBadgeText}>{t('journey.youAreHere')}</Text>
         </Animated.View>
@@ -676,9 +672,22 @@ function JourneyCardBody({
           </View>
         ) : (
           <>
-            <Text style={[styles.milestoneCardTitle, styles.milestoneCardTitleLocked]} numberOfLines={2}>
-              {title}
-            </Text>
+            {/* One line, lock inline before it: the card is only 84 tall, so a
+                two-line name ("WEIGHTED STRENGTH DAY") ran out of its top and
+                under a corner badge. */}
+            <View style={styles.milestoneLockedTitleRow}>
+              <View style={styles.milestoneLockBadge}>
+                <MaterialCommunityIcons name="lock-outline" size={11} color={isLight ? 'rgba(0,0,0,0.5)' : 'rgba(255,255,255,0.6)'} />
+              </View>
+              <Text
+                style={[styles.milestoneCardTitle, styles.milestoneCardTitleLocked, { flexShrink: 1 }]}
+                numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.75}
+              >
+                {title}
+              </Text>
+            </View>
             <Text style={[styles.milestoneCardDesc, styles.milestoneCardDescLocked]} numberOfLines={2}>
               {desc}
             </Text>
@@ -3552,10 +3561,12 @@ const darkStyles = StyleSheet.create({
     bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.4)',
   },
+  milestoneLockedTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   milestoneLockBadge: {
-    position: 'absolute',
-    top: 8,
-    left: 8,
     width: 22,
     height: 22,
     borderRadius: 11,
@@ -3604,8 +3615,8 @@ const darkStyles = StyleSheet.create({
   },
   // Open (unlocked) cards center their title + desc vertically (CTA stays
   // pinned at the bottom) instead of the whole block hugging the bottom with
-  // an empty top half. Locked cards stay bottom-anchored: their lock badge sits
-  // top-left, and a centered title would run into it.
+  // an empty top half. Locked cards stay bottom-anchored, with the lock
+  // inline before their one-line title.
   milestoneCardTextWrapCentered: {
     top: 0,
     // Clears the YOU ARE HERE badge (top 8 + ~18 tall).
