@@ -1589,7 +1589,7 @@ export const BUILD_BRIEF_SCHEMA = {
         required: ["skill", "checkpoint_exercise"],
       },
     },
-    trial_focus: { type: "boolean", description: "Whether the athlete also wants to keep progressing toward their tier trial alongside any skill work (system-prompt.ts §8)." },
+    trial_focus: { type: "boolean", description: "Whether trial prep is part of this program, from the athlete's goals (system-prompt.ts §11 goal map): true for strength_trial, or when they took up your trial offer; otherwise false." },
     days_per_week: { type: "integer", description: "Confirmed training days per week." },
     split_days: { type: "array", items: { type: "string" }, description: 'The real category per day, in order, e.g. ["PULL", "LEGS", "PUSH", "FULL_BODY"] — system-prompt.ts §15.' },
     equipment: { type: "array", items: { type: "string" }, description: 'Confirmed equipment, e.g. ["bar", "rings", "bands"].' },

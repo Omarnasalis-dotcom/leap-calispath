@@ -49,6 +49,29 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("say why, offer yours, and wait — never do something different from what they asked in that same reply");
     expect(SYSTEM_PROMPT).toContain("**Describe the app only from what you know.**");
   });
+  it("goals decide the trial; skill guide is judgment, not a gate (2026-10-31)", () => {
+    expect(SYSTEM_PROMPT).not.toContain("always frame progress toward the next trial");
+    expect(SYSTEM_PROMPT).toContain("the app's word is اختبار, never تجربة");
+    expect(SYSTEM_PROMPT).toContain("**What each goal means**");
+    expect(SYSTEM_PROMPT).toContain("strength_trial → trial prep is the main track");
+    expect(SYSTEM_PROMPT).toContain("compete → a real-life calisthenics competition, separate from the in-app trial");
+    expect(SYSTEM_PROMPT).toContain("**Ask once what else they're working toward.**");
+    expect(SYSTEM_PROMPT).toContain("for your judgment, not a gate");
+    expect(SYSTEM_PROMPT).toContain("back lever, planche, handstand → PUSH");
+    for (const dead of ["Tuck Front Lever Negative", "Tuck Back Lever Press", "Advanced Tuck Back Lever Hold", "Single Leg Back Lever Negative", "Advanced Tuck Planche Lean Hold", "Muscle Up (with band)"]) {
+      // "Advanced Tuck Front Lever Negative" is real, so only a bare name counts.
+      expect(SYSTEM_PROMPT).not.toMatch(new RegExp(`(?<!Advanced )${dead.replace(/[()]/g, "\\$&")}`));
+    }
+  });
+  it("band is the muscle-up bridge; one rung back; blocks not sessions; opener language (2026-10-31)", () => {
+    expect(SYSTEM_PROMPT).toContain("Negative Muscle Up is not a step in this line");
+    expect(SYSTEM_PROMPT).toContain("Banded High Pull Up → Muscle Up band-assisted → Muscle Up → 1 Pull Up 1 Muscle Up.");
+    expect(SYSTEM_PROMPT).toContain("step back one rung");
+    expect(SYSTEM_PROMPT).toContain("Blocks done: [x/x]");
+    expect(SYSTEM_PROMPT).not.toContain("Sessions: [x/x]");
+    expect(SYSTEM_PROMPT).toContain("answer that one in get_user_context's app_language");
+    expect(SYSTEM_PROMPT).toContain("Write that framing once, after the tool result");
+  });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
   });
