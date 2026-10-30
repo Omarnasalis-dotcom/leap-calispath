@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { LastTimeLog } from '../../lib/lastTimeLog';
+import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredCountdown, useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 
 export interface LadderExercise {
+  lastTime?: LastTimeLog;
   id: string | number;
   name: string;
   youtube_url?: string;
@@ -67,6 +70,8 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   onToggleVideo,
   onActiveChange,
 }) => {
+  const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
+  const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
   const [selectedIndex, setSelectedIndex] = useState<number | null>(null);
   const [extraReps, setExtraReps] = useState(0);
   const [restActive, setRestActive] = useState(false);
@@ -241,8 +246,12 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
                   </Text>
                 </TouchableOpacity>
               ) : null}
+              {ex.lastTime ? (
+                <LastTimeButton open={lastOpenId === ex.id} onPress={() => setLastOpenId(id => (id === ex.id ? null : ex.id))} theme={theme} />
+              ) : null}
             </View>
           ))}
+          {lastOpen?.lastTime ? <LastTimePanel log={lastOpen.lastTime} theme={theme} title={lastOpen.name} /> : null}
           <View style={styles.sequenceBadge}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.sequenceLabel, { color: bronzeGold }]}>{t('timers.ladderSequence')}</Text>

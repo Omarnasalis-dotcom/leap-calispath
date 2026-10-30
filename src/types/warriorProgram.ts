@@ -1,4 +1,5 @@
 import { ConceptMetadata } from '../lib/BlockConceptParser';
+import { LastTimeLog } from '../lib/lastTimeLog';
 
 // Shared between WarriorProgramScreen.tsx (owns the fetch/state), the
 // day-grouping/day-state helpers in src/lib/warriorProgramDays.ts, and
@@ -16,6 +17,7 @@ export interface ExerciseDetail {
   hold_seconds?: string | number;
   is_weighted?: boolean;
   notes: string;
+  last_time?: LastTimeLog;
 }
 
 export interface ProgramBlock {

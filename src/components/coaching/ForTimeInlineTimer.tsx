@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { LastTimeLog } from '../../lib/lastTimeLog';
+import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 
 export interface ForTimeExercise {
+  lastTime?: LastTimeLog;
   id: string | number;
   name: string;
   reps: string | number;
@@ -57,6 +60,8 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   onToggleVideo,
   onActiveChange,
 }) => {
+  const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
+  const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
   const [timerRunning, setTimerRunning] = useState(false);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [roundsCompleted, setRoundsCompleted] = useState(0);
@@ -222,10 +227,14 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
                     </Text>
                   </TouchableOpacity>
                 ) : null}
+                {ex.lastTime ? (
+                  <LastTimeButton open={lastOpenId === ex.id} onPress={() => setLastOpenId(id => (id === ex.id ? null : ex.id))} theme={theme} />
+                ) : null}
               </View>
               <Text style={[styles.exReps, { color: theme.text.secondary }]}>{ex.reps} REPS</Text>
             </View>
           ))}
+          {lastOpen?.lastTime ? <LastTimePanel log={lastOpen.lastTime} theme={theme} title={lastOpen.name} /> : null}
 
           {hasRounds && (
             <Text style={[styles.roundsCaption, { color: theme.text.tertiary }]}>

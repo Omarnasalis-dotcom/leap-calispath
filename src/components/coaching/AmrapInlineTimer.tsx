@@ -2,11 +2,14 @@ import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { LastTimeLog } from '../../lib/lastTimeLog';
+import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 
 export interface AmrapExercise {
+  lastTime?: LastTimeLog;
   id: string | number;
   name: string;
   reps: string | number;
@@ -46,6 +49,8 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   onToggleVideo,
   onActiveChange,
 }) => {
+  const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
+  const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
   const [timerRunning, setTimerRunning] = useState(false);
   const [timeLeft, setTimeLeft] = useState(timeCapSeconds);
   const [roundsCompleted, setRoundsCompleted] = useState(0);
@@ -184,10 +189,14 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
                     </Text>
                   </TouchableOpacity>
                 ) : null}
+                {ex.lastTime ? (
+                  <LastTimeButton open={lastOpenId === ex.id} onPress={() => setLastOpenId(id => (id === ex.id ? null : ex.id))} theme={theme} />
+                ) : null}
               </View>
               <Text style={[styles.exReps, { color: theme.text.secondary }]}>{ex.reps} REPS</Text>
             </View>
           ))}
+          {lastOpen?.lastTime ? <LastTimePanel log={lastOpen.lastTime} theme={theme} title={lastOpen.name} /> : null}
 
           <View style={styles.controlRow}>
             {timerRunning || finished ? (

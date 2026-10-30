@@ -3,6 +3,8 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { SoundServiceInstance } from '../../lib/SoundService';
+import { LastTimeLog } from '../../lib/lastTimeLog';
+import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
@@ -11,6 +13,7 @@ import { parseKg } from '../../lib/parseKg';
 import { WeightStepper } from './WeightStepper';
 
 export interface CircuitExercise {
+  lastTime?: LastTimeLog;
   id: string | number;
   name: string;
   targetReps: number;
@@ -60,6 +63,8 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   const isHold = (ex: CircuitExercise) => !!ex.holdSeconds && ex.holdSeconds > 0;
   // The stepper's planned value: seconds for a hold, reps otherwise.
   const target = (ex: CircuitExercise) => (isHold(ex) ? ex.holdSeconds! : ex.targetReps);
+  const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
+  const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
   const [repsByExercise, setRepsByExercise] = useState<Record<string | number, number>>(
     () => Object.fromEntries(exercises.map(ex => [ex.id, target(ex)]))
   );
@@ -152,6 +157,9 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
                 </Text>
               </TouchableOpacity>
             ) : null}
+            {ex.lastTime ? (
+              <LastTimeButton open={lastOpenId === ex.id} onPress={() => setLastOpenId(id => (id === ex.id ? null : ex.id))} theme={theme} />
+            ) : null}
           </View>
           <View style={styles.stepperGroup}>
             <TouchableOpacity
@@ -189,6 +197,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
           )}
         </View>
       ))}
+      {lastOpen?.lastTime ? <LastTimePanel log={lastOpen.lastTime} theme={theme} title={lastOpen.name} /> : null}
 
       {restActive ? (
         <View style={[styles.actionBtn, { marginTop: 4, borderColor: theme.card.border, backgroundColor: 'rgba(255,255,255,0.03)' }]}>

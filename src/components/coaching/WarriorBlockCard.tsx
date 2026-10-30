@@ -600,6 +600,8 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                             holdSeconds: parseInt(String(ex.hold_seconds || '0'), 10) || 0,
                             youtube_url: ex.youtube_url,
                             isWeighted: !!ex.is_weighted,
+                            // The (!) last-time panel shows on round 1 only (owner choice).
+                            lastTime: roundNum === 1 ? ex.last_time : undefined,
                             // + on an empty kg box starts from the latest earlier round's weight.
                             suggestedWeight: [...(loggedSetsByExercise?.[ex.id] || [])]
                               .filter(s => s.setIndex < roundNum && (s.weight ?? 0) > 0)
@@ -635,7 +637,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       onFinalize={(summary, rungIndex, extraReps) => onLadderFinalize?.(block.id, summary, rungIndex, extraReps)}
                       finalizeRef={inlineFinalizeRef}
                       hideLogButton
-                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url }))}
+                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url, lastTime: ex.last_time }))}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
                       onActiveChange={setLadderActive}
@@ -648,7 +650,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                     <AmrapInlineTimer
                       theme={innerTheme}
                       bronzeGold={bronzeGold}
-                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url }))}
+                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url, lastTime: ex.last_time }))}
                       timeCapSeconds={amrapTimeCapSeconds}
                       onFinalize={(roundsCompleted) => onAmrapFinalize?.(block.id, roundsCompleted)}
                       finalizeRef={inlineFinalizeRef}
@@ -664,7 +666,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                   <View style={{ marginTop: 4 }}>
                     <ForTimeInlineTimer
                       theme={innerTheme}
-                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url }))}
+                      exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, reps: ex.reps, youtube_url: ex.youtube_url, lastTime: ex.last_time }))}
                       timeCapSeconds={forTimeCapSeconds}
                       totalRounds={totalRounds}
                       onFinalize={(result) => onForTimeFinalize?.(block.id, result)}
