@@ -36,3 +36,32 @@ export function detectUnactedClaim(text: string): boolean {
   if (!trimmed) return false;
   return CLAIM_PATTERNS.some((re) => re.test(trimmed));
 }
+
+// Second check, for a request that DID show a card (2026-10-30, owner's
+// add-a-day chat): "All set, Day 4 now has warm-up, a handstand Skills
+// block… and cool-down" — only the Skills block had been added; the rest sat
+// on an add-day card nobody had tapped. detectUnactedClaim never runs once
+// a write tool has, so it missed this. These are completed-state phrases
+// only: "Week 6 is ready… Tap the card" is the right way to present a card
+// and never matches. A direct edit in the same request can make a claim
+// true, so index.ts only asks the model to re-check its reply against the
+// tool results, it never substitutes a reply.
+const DONE_PATTERNS: RegExp[] = [
+  /\bnow\s+(has|have|includes?|contains?)\b/i,
+  /\b(has|have)\s+been\s+(added|built|created|updated|moved|replaced|fixed|reordered|removed|deleted)\b/i,
+  /\bis\s+now\s+(in|part\s+of)\s+(your|the)\b/i,
+  /(^|[.!\n]\s*)(done|all\s+set)\b/i,
+  // Arabic: "تم إضافة/تعديل…" (was added/changed…), "اتضاف/اتعدل/اتحذف/اتنقل" (got added/changed/deleted/moved)
+  /تم\s*(بناء|إضاف|حذف|تعديل|إنشاء|ترتيب|نقل)/,
+  /(اتضاف|اتضافت|اتعدل|اتعدلت|اتحذف|اتحذفت|اتنقل|اتنقلت)/,
+];
+
+// A sentence that talks about the card or the tap is presenting the card
+// ("All set, tap the card to add it"), not claiming it was applied.
+const ABOUT_THE_CARD = /\b(card|tap)\b|كارت|الكارد|تدوس|دوس/i;
+
+export function detectPendingCardClaim(text: string): boolean {
+  return text
+    .split(/(?<=[.!?؟])\s+|\n+/)
+    .some((sentence) => !ABOUT_THE_CARD.test(sentence) && DONE_PATTERNS.some((re) => re.test(sentence)));
+}

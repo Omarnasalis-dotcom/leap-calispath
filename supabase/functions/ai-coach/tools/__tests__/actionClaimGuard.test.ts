@@ -5,7 +5,7 @@
 // either ships false claims (missed match) or forces pointless correction
 // round-trips on honest replies (false positive), so both directions are
 // pinned below (audit 2026-09-25, H5 #7).
-import { detectUnactedClaim } from "../actionClaimGuard";
+import { detectPendingCardClaim, detectUnactedClaim } from "../actionClaimGuard";
 
 describe("detectUnactedClaim — flags claims that a write already happened", () => {
   it.each([
@@ -61,5 +61,24 @@ describe("detectUnactedClaim — leaves honest replies alone", () => {
   it("returns false for empty or whitespace-only text", () => {
     expect(detectUnactedClaim("")).toBe(false);
     expect(detectUnactedClaim("   \n\t ")).toBe(false);
+  });
+});
+
+describe("detectPendingCardClaim (2026-10-30, owner's add-a-day chat)", () => {
+  it("catches the real 23:47 reply: done-talk about what was only on the card", () => {
+    expect(detectPendingCardClaim(
+      "Now adding warm-up, cool-down, and a handstand skills block to Day 4.\n\nDay 4 now has warm-up, cool-down, and handstand skill work added.\n\nAll set, Day 4 now has warm-up, a handstand Skills block, weighted strength, accessories, and cool-down. Week 6 is ready to go whenever you start it."
+    )).toBe(true);
+    expect(detectPendingCardClaim("Done. The Pull day has been updated.")).toBe(true);
+    expect(detectPendingCardClaim("تم إضافة الإحماء ليوم ٤.")).toBe(true);
+    expect(detectPendingCardClaim("الإحماء اتضاف خلاص.")).toBe(true);
+  });
+
+  it("lets the right way to present a card through", () => {
+    expect(detectPendingCardClaim("Week 6 is ready: Pull/Push/Legs days carry their progressions. Tap the card to start it.")).toBe(false);
+    expect(detectPendingCardClaim("Delete card is up for Week 6. Once you tap it, let me know and I'll rebuild the full week.")).toBe(false);
+    expect(detectPendingCardClaim("All set, tap the card to add Day 4.")).toBe(false);
+    expect(detectPendingCardClaim("Day 4 is on the card with a warm-up and cool-down. Tap Add when you're happy with it.")).toBe(false);
+    expect(detectPendingCardClaim("الكارت جاهز، دوس عليه عشان تضيف اليوم.")).toBe(false);
   });
 });

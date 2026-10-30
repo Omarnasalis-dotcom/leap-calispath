@@ -44,4 +44,9 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("`over_prescribed` → they're ahead of the plan on that exercise; how far to follow is your call");
     expect(SYSTEM_PROMPT).toContain("A ladder, AMRAP, For Time or Tabata log has `judge_by_block_result: true`");
   });
+  it("cards are pending until tapped; ask before doing something else; no guessing how the app works (2026-10-30)", () => {
+    expect(SYSTEM_PROMPT).toContain("Until they tap it, nothing on the card has changed their program: present it as ready to tap, never as done");
+    expect(SYSTEM_PROMPT).toContain("say why, offer yours, and wait — never do something different from what they asked in that same reply");
+    expect(SYSTEM_PROMPT).toContain("**Describe the app only from what you know.**");
+  });
 });

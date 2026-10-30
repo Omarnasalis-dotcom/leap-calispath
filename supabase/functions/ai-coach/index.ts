@@ -4,7 +4,7 @@ import { SYSTEM_PROMPT } from "./system-prompt.ts";
 import { TOOLS_BY_NAME, ANTHROPIC_TOOLS } from "./tools/index.ts";
 import { computeDayPosition, getBlockParts } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
-import { detectUnactedClaim } from "./tools/actionClaimGuard.ts";
+import { detectPendingCardClaim, detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
@@ -656,6 +656,7 @@ serve(async (req: Request) => {
     // once per request so a model that fails it twice doesn't loop forever.
     const calledWriteTools = new Set<string>();
     let correctionAttempted = false;
+    let cardClaimChecked = false;
 
     // A single chat turn (one call to this function) can span multiple
     // Claude API calls — every tool_use iteration below calls callClaude()
@@ -843,6 +844,26 @@ serve(async (req: Request) => {
             recommendations, programAction, blocks, suggestedReplies,
           });
           return;
+        }
+
+        // A card is up and the reply talks as if it were already applied
+        // (see detectPendingCardClaim). One re-check against the tool
+        // results, then ship whatever comes back: edits made directly in
+        // this request are real, so there is no safe reply to substitute.
+        // The whole reply is rewritten, since the claim can sit in an
+        // earlier turn's text ("Day 4 now has…" before the tool calls).
+        if (programAction && !cardClaimChecked && detectPendingCardClaim(text)) {
+          cardClaimChecked = true;
+          turnLog.unacted = true;
+          console.error(`[ai-coach] SUSPECTED CLAIM BEFORE CARD TAP (turn ${turn}), forcing one re-check: "${text.slice(0, 300)}"`);
+          replyParts.length = 0;
+          messages.push({ role: "assistant", content: claudeResponse.content });
+          messages.push({
+            role: "user",
+            content:
+              "[System check] A card in this reply is still waiting for the athlete's tap, and nothing on it has changed their program yet. Write your whole reply to them again: describe what's on the card as ready for them to tap, and say something is already done only if a tool result above confirms it (success: true). Don't call tools again.",
+          });
+          continue;
         }
 
         console.log(`[ai-coach] DONE in ${Date.now() - startedAt}ms after ${turn + 1} turn(s)`);
