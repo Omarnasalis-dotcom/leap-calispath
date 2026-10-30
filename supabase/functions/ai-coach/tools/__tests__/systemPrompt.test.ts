@@ -39,4 +39,9 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("**These rows follow the chat's language (§3), not the Arabic block-type rule above:**");
     expect(SYSTEM_PROMPT).toContain("No weight logged yet for that exercise means no number: write the rep range and RPE instead");
   });
+  it("over/under/RPE flags are facts for judgment; timed blocks judged by result (2026-10-30)", () => {
+    expect(SYSTEM_PROMPT).toContain("facts for your judgment, not instructions");
+    expect(SYSTEM_PROMPT).toContain("`over_prescribed` → they're ahead of the plan on that exercise; how far to follow is your call");
+    expect(SYSTEM_PROMPT).toContain("A ladder, AMRAP, For Time or Tabata log has `judge_by_block_result: true`");
+  });
 });
