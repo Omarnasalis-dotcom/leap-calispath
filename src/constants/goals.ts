@@ -8,6 +8,7 @@ export const GOALS = [
   { id: 'master_basics', label: t('goals.master_basics'), icon: 'checkbox-marked-circle-outline' },
   { id: 'weight_loss', label: t('goals.weight_loss'), icon: 'fire' },
   { id: 'strength', label: t('goals.strength'), icon: 'arm-flex-outline' },
+  { id: 'strength_trial', label: t('goals.strength_trial'), icon: 'stairs-up' },
   { id: 'compete', label: t('goals.compete'), icon: 'trophy-outline' },
   { id: 'muscle', label: t('goals.muscle'), icon: 'weight-lifter' },
   { id: 'other', label: t('goals.other'), icon: 'dots-horizontal-circle-outline' },

@@ -953,7 +953,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                       size={18}
                       color={theme.accent}
                     />
-                    <Text style={[styles.actionCardTitle, { color: '#fff' }]}>
+                    <Text style={[styles.actionCardTitle, { color: c.bodyText }]}>
                       {isDayCard
                         ? t(totalDays ? (dayName ? 'coach.dayCardTitleOfNamed' : 'coach.dayCardTitleOf') : (dayName ? 'coach.dayCardTitleNamed' : 'coach.dayCardTitle'), { verb: dayVerb, n: dayNumber, total: totalDays, name: dayName })
                         : pendingProgramAction.type === 'create_from_workouts'
@@ -1024,7 +1024,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
                 <View style={styles.actionCardHeader}>
                   <MaterialCommunityIcons name="check-circle-outline" size={18} color={theme.accent} />
-                  <Text style={[styles.actionCardTitle, { color: '#fff' }]}>"{justStartedProgram.name}" is ready</Text>
+                  <Text style={[styles.actionCardTitle, { color: c.bodyText }]}>{t('coach.programIsReady', { name: justStartedProgram.name })}</Text>
                 </View>
                 <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{t('coach.keepChatting')}</Text>
                 <View style={styles.actionCardButtons}>
