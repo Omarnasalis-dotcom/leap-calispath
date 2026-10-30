@@ -1,5 +1,5 @@
 import { resolveAddDayWeek } from "../proposeAddDay";
-import { computeAddBlockOrder, daysMissingFromWeek, phaseRank, withExistingDaySpelling } from "../blockHelpers";
+import { computeAddBlockOrder, computeAppendWeekOrdering, daysMissingFromWeek, findRenameDuplicates, phaseRank, withExistingDaySpelling } from "../blockHelpers";
 
 // Fake client for the chains resolveAddDayWeek and isCurrentWeekComplete
 // call: warrior_programs (.eq.eq.limit), program_blocks (.eq.eq),
@@ -117,5 +117,73 @@ describe("block positions in a written week (2026-10-30)", () => {
     const existing = ["PULL DAY | Warm-Up", "PULL DAY | Strength"];
     expect(withExistingDaySpelling("Pull  Day | Skills", existing)).toBe("PULL DAY | Skills");
     expect(withExistingDaySpelling("PULL DAY | Skills", existing)).toBe("PULL DAY | Skills");
+  });
+});
+
+describe("rename duplicates in a week build (2026-10-30)", () => {
+  const carried = [
+    { name: "WEIGHTED STRENGTH DAY | Strength - 1", exerciseNames: ["Pull Ups (Normal Grip)"] },
+    { name: "WEIGHTED STRENGTH DAY | Strength - 2", exerciseNames: ["Dips"] },
+    { name: "WEIGHTED STRENGTH DAY | Warm-Up", exerciseNames: ["Inchworm"] },
+  ];
+
+  it("flags the live case: a new Strength block repeating both old Strength blocks", () => {
+    const found = findRenameDuplicates(
+      [{ name: "WEIGHTED STRENGTH DAY | Strength", exerciseNames: ["Pull Ups (Normal Grip)", "Dips"] }],
+      carried
+    );
+    expect(found.map((d) => d.oldName)).toEqual(["WEIGHTED STRENGTH DAY | Strength - 1", "WEIGHTED STRENGTH DAY | Strength - 2"]);
+  });
+
+  it("never flags the same exercise in a different phase", () => {
+    expect(findRenameDuplicates([{ name: "WEIGHTED STRENGTH DAY | Finisher", exerciseNames: ["Inchworm"] }], carried)).toEqual([]);
+  });
+
+  it("never flags a different day or a block with no shared exercise", () => {
+    expect(findRenameDuplicates([{ name: "PULL DAY | Strength", exerciseNames: ["Dips"] }], carried)).toEqual([]);
+    expect(findRenameDuplicates([{ name: "WEIGHTED STRENGTH DAY | Strength - 3", exerciseNames: ["Weighted Chin Ups"] }], carried)).toEqual([]);
+  });
+
+  function weekClient() {
+    const rows: Record<string, Array<Record<string, unknown>>> = {
+      warrior_programs: [{ template_id: "t-1" }],
+      program_blocks: [
+        { id: "s1", name: "WEIGHTED STRENGTH DAY | Strength - 1", order_index: 0, week_number: 6 },
+        { id: "s2", name: "WEIGHTED STRENGTH DAY | Strength - 2", order_index: 1, week_number: 6 },
+      ],
+      block_exercises: [
+        { block_id: "s1", exercise_library: { name: "Pull Ups (Normal Grip)" } },
+        { block_id: "s2", exercise_library: { name: "Dips" } },
+      ],
+    };
+    return {
+      from: (table: string) => {
+        let data = rows[table];
+        const chain: Record<string, unknown> = {};
+        chain.select = () => chain;
+        chain.eq = () => chain;
+        chain.in = (column: string, values: unknown[]) => {
+          data = data.filter((row) => values.includes(row[column]));
+          return chain;
+        };
+        (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data });
+        return chain;
+      },
+    } as never;
+  }
+  const rebuilt = [{ name: "WEIGHTED STRENGTH DAY | Strength", exercises: [{ name: "Pull Ups (Normal Grip)" }, { name: "Dips" }] }];
+
+  it("the week build refuses it, naming both fixes", async () => {
+    await expect(computeAppendWeekOrdering(weekClient(), "wp-1", rebuilt as never, undefined)).rejects.toThrow(
+      /repeats Pull Ups \(Normal Grip\) from last week's "WEIGHTED STRENGTH DAY \| Strength - 1".*removed_block_names/
+    );
+  });
+
+  it("passes once the old blocks are listed in removed_block_names", async () => {
+    const result = await computeAppendWeekOrdering(weekClient(), "wp-1", rebuilt as never, [
+      "WEIGHTED STRENGTH DAY | Strength - 1",
+      "WEIGHTED STRENGTH DAY | Strength - 2",
+    ]);
+    expect(result.carryOrderOverrides).toEqual({});
   });
 });

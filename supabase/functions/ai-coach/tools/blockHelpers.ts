@@ -265,8 +265,8 @@ export async function computeAppendWeekOrdering(
   const templateId = ((programRows ?? []) as Array<{ template_id?: string }>)[0]?.template_id;
   if (!templateId) return noop;
 
-  const { data: rows } = await userClient.from("program_blocks").select("name, notes, order_index, week_number").eq("template_id", templateId);
-  const allRows = (rows ?? []) as Array<{ name: string; notes?: string | null; order_index: number | null; week_number: number | null }>;
+  const { data: rows } = await userClient.from("program_blocks").select("id, name, notes, order_index, week_number").eq("template_id", templateId);
+  const allRows = (rows ?? []) as Array<{ id?: string; name: string; notes?: string | null; order_index: number | null; week_number: number | null }>;
   if (allRows.length === 0) return noop;
 
   const maxWeek = Math.max(...allRows.map((r) => r.week_number ?? 1));
@@ -321,6 +321,40 @@ export async function computeAppendWeekOrdering(
   const newNames = new Set(canonicalBlocks.map(getBlockName));
   const carriedForwardNames = previousWeekBlocks.map((r) => r.name).filter((n) => !newNames.has(n) && !removedSet.has(n));
 
+  // A renamed block next to its carried-forward original (2026-10-30, owner:
+  // a rebuilt "Strength" with Pull Ups + Dips sat beside last week's
+  // "Strength - 1"/"Strength - 2", doubling the day). Only fetched when a
+  // new-named block shares a day and phase with a carried-forward one.
+  const priorNames = new Set(previousWeekBlocks.map((r) => r.name));
+  const renamed = canonicalBlocks.filter((b) => !priorNames.has(getBlockName(b)));
+  const candidates = previousWeekBlocks.filter(
+    (r) => r.id && carriedForwardNames.includes(r.name) && renamed.some((b) => sameDayAndPhase(getBlockName(b), r.name))
+  );
+  if (candidates.length > 0) {
+    const { data: exRows } = await userClient
+      .from("block_exercises")
+      .select("block_id, exercise_library(name)")
+      .in("block_id", candidates.map((r) => r.id));
+    const namesByBlock = new Map<string, string[]>();
+    for (const row of (exRows ?? []) as Array<{ block_id: string; exercise_library?: { name?: string } | null }>) {
+      const list = namesByBlock.get(row.block_id) ?? [];
+      if (row.exercise_library?.name) list.push(row.exercise_library.name);
+      namesByBlock.set(row.block_id, list);
+    }
+    const duplicates = findRenameDuplicates(
+      renamed.map((b) => ({ name: getBlockName(b), exerciseNames: (b.exercises ?? []).map((e) => e.name ?? "") })),
+      candidates.map((r) => ({ name: r.name, exerciseNames: namesByBlock.get(r.id!) ?? [] }))
+    );
+    if (duplicates.length > 0) {
+      throw new Error(
+        duplicates
+          .map((d) => `"${d.newName}" repeats ${d.shared.join(", ")} from last week's "${d.oldName}", which would also carry forward — the day would have both.`)
+          .join(" ") +
+          ` Either send it under the old block's exact name to replace it, or list the old name in removed_block_names.`
+      );
+    }
+  }
+
   const previousOrder = new Map(previousWeekBlocks.map((r) => [r.name, r.order_index ?? 0]));
   const orderMap = computeWeekOrderIndex([...carriedForwardNames, ...canonicalBlocks.map(getBlockName)], previousWeekDayOrder, previousOrder);
 
@@ -360,6 +394,33 @@ export function computeAddBlockOrder(
   }
   const previousOrder = new Map(sorted.map((r) => [r.name, r.order_index ?? 0]));
   return Object.fromEntries(computeWeekOrderIndex([...sorted.map((r) => r.name), ...newNames], dayOrder, previousOrder));
+}
+
+function sameDayAndPhase(a: string, b: string): boolean {
+  const pa = getBlockParts({ name: a, exercises: [] });
+  const pb = getBlockParts({ name: b, exercises: [] });
+  return dayKey(pa.day) === dayKey(pb.day) && phaseRank(pa.phase) === phaseRank(pb.phase);
+}
+
+// New-named blocks in a week build that repeat an exercise from a
+// carried-forward block of the same day and phase — almost always a rename
+// that would leave both in the day. Same phase only, so a lift showing up in
+// both a Warm-Up and a Finisher is never flagged.
+export function findRenameDuplicates(
+  renamed: Array<{ name: string; exerciseNames: string[] }>,
+  carried: Array<{ name: string; exerciseNames: string[] }>
+): Array<{ newName: string; oldName: string; shared: string[] }> {
+  const key = (n: string) => n.replace(/\s+/g, " ").trim().toLowerCase();
+  const out: Array<{ newName: string; oldName: string; shared: string[] }> = [];
+  for (const n of renamed) {
+    for (const c of carried) {
+      if (!sameDayAndPhase(n.name, c.name)) continue;
+      const mine = new Set(n.exerciseNames.map(key));
+      const shared = c.exerciseNames.filter((e) => mine.has(key(e)));
+      if (shared.length > 0) out.push({ newName: n.name, oldName: c.name, shared });
+    }
+  }
+  return out;
 }
 
 // add_block_to_week adds blocks to days a week already has (2026-10-30,
