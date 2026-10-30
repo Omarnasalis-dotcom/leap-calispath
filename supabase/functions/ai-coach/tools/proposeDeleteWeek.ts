@@ -6,7 +6,7 @@ import { ToolDefinition } from "./types.ts";
 export const proposeDeleteWeek: ToolDefinition = {
   name: "propose_delete_week",
   description:
-    "Propose deleting one specific written week from the athlete's current program — this does NOT delete anything. It shows the athlete a confirmation card in the chat; the week is only actually deleted if they explicitly tap it. Only call this when get_user_context's active_program.is_ai_coach_owned is true. The RPC behind this will refuse if the week already has logged workout history, or if it's the only week left in the program — if that happens, relay the reason plainly rather than retrying differently.",
+    "Propose deleting one specific written week from the athlete's current program — this does NOT delete anything. It shows the athlete a confirmation card in the chat; the week is only actually deleted if they explicitly tap it. Only call this when get_user_context's active_program.is_ai_coach_owned is true. The RPC behind this will refuse if the week already has logged workout history, or if it's the only week left in the program — if that happens, relay the reason plainly rather than retrying differently. The weeks after the deleted one move down one (Week 7 becomes Week 6), so no gap is left.",
   input_schema: {
     type: "object",
     properties: {

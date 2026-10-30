@@ -8,6 +8,7 @@ import {
   CoolDownMarker,
   fetchAthleteFitContext,
   fetchSourceWorkoutBlocks,
+  daysMissingFromWeek,
   getBlockParts,
   levelBandForTier,
   normalizeBlockStructure,
@@ -203,10 +204,33 @@ export async function resolveAddDayWeek(userClient: SupabaseClient, dayName: str
     .limit(1);
   const active = (activeRows as Array<{ id: string; template_id: string | null; current_week: number | null }> | null)?.[0];
   const weekNumber = active?.current_week ?? 1;
-  if (active && (await isCurrentWeekComplete(userClient, active))) {
+  if (!active) return weekNumber;
+  if (await isCurrentWeekComplete(userClient, active)) {
     throw new Error(
       `Week ${weekNumber} is finished, so a day can't be added to it. Add "${dayName}" in the next week build instead: propose_append_week with this day's blocks alongside the other days' changes.`
     );
+  }
+  // Replacing a day the athlete already logged part of is refused here,
+  // before any card (2026-10-30, owner): logged blocks are locked.
+  const { data: weekRows } = await userClient
+    .from("program_blocks")
+    .select("id, name")
+    .eq("template_id", active.template_id ?? "")
+    .eq("week_number", weekNumber);
+  const dayBlockIds = ((weekRows ?? []) as Array<{ id: string; name: string }>)
+    .filter((r) => daysMissingFromWeek([{ name: dayName, exercises: [] } as never], [r.name]).length === 0)
+    .map((r) => r.id);
+  if (dayBlockIds.length > 0) {
+    const { data: logRows } = await userClient
+      .from("workout_logs")
+      .select("block_id")
+      .eq("warrior_program_id", active.id)
+      .in("block_id", dayBlockIds);
+    if ((logRows ?? []).length > 0) {
+      throw new Error(
+        `"${dayName}" is already logged this week, so it can't be replaced — logged blocks are locked. Make this change in the next week build (propose_append_week). Light edits (sets, reps, rest) still work on this week's blocks that aren't logged yet.`
+      );
+    }
   }
   return weekNumber;
 }

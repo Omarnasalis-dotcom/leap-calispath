@@ -6,48 +6,60 @@ import { computeAddBlockOrder, daysMissingFromWeek, phaseRank, withExistingDaySp
 // block_exercises (.in), workout_logs (.eq.in).
 function makeClient(opts: {
   program: { id: string; template_id: string; current_week: number } | null;
-  weekBlockIds?: string[];
+  weekBlocks?: Array<{ id: string; name: string }>;
   loggedBlockIds?: string[];
 }) {
   const rows: Record<string, unknown[]> = {
     warrior_programs: opts.program ? [opts.program] : [],
-    program_blocks: (opts.weekBlockIds ?? []).map((id) => ({ id })),
-    block_exercises: (opts.weekBlockIds ?? []).map((id) => ({ block_id: id })),
+    program_blocks: opts.weekBlocks ?? [],
+    block_exercises: (opts.weekBlocks ?? []).map((b) => ({ block_id: b.id })),
     workout_logs: (opts.loggedBlockIds ?? []).map((id) => ({ block_id: id })),
   };
   return {
     auth: { getUser: async () => ({ data: { user: { id: "athlete-1" } } }) },
     from: (table: string) => {
-      const result = { data: rows[table] };
+      let data = rows[table] as Array<Record<string, unknown>>;
       const chain: Record<string, unknown> = {};
-      for (const method of ["select", "eq", "in", "limit"]) chain[method] = () => chain;
-      (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve(result);
+      for (const method of ["select", "eq", "limit"]) chain[method] = () => chain;
+      chain.in = (column: string, values: unknown[]) => {
+        data = data.filter((row) => values.includes(row[column]));
+        return chain;
+      };
+      (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data });
       return chain;
     },
   } as never;
 }
 
+const program = (current_week: number) => ({ id: "wp-1", template_id: "t-1", current_week });
+const week6 = [
+  { id: "b1", name: "LEGS DAY | Strength" },
+  { id: "b2", name: "WEIGHTED STRENGTH DAY | Strength" },
+];
+
 describe("resolveAddDayWeek (2026-10-30)", () => {
-  it("adds to the athlete's current week while it's in progress", async () => {
-    const client = makeClient({
-      program: { id: "wp-1", template_id: "t-1", current_week: 6 },
-      weekBlockIds: ["b1", "b2"],
-      loggedBlockIds: ["b1"],
-    });
-    await expect(resolveAddDayWeek(client, "WEIGHTED STRENGTH DAY")).resolves.toBe(6);
+  it("adds a new day to the athlete's current week while it's in progress", async () => {
+    const client = makeClient({ program: program(6), weekBlocks: week6, loggedBlockIds: ["b1"] });
+    await expect(resolveAddDayWeek(client, "MOBILITY DAY")).resolves.toBe(6);
+  });
+
+  it("replaces a day of the current week that isn't logged yet", async () => {
+    const client = makeClient({ program: program(6), weekBlocks: week6, loggedBlockIds: ["b1"] });
+    await expect(resolveAddDayWeek(client, "Weighted Strength Day")).resolves.toBe(6);
+  });
+
+  it("refuses to replace a day with a logged block, pointing to the next week build", async () => {
+    const client = makeClient({ program: program(6), weekBlocks: week6, loggedBlockIds: ["b1"] });
+    await expect(resolveAddDayWeek(client, "LEGS DAY")).rejects.toThrow(/already logged.*propose_append_week/);
   });
 
   it("refuses a finished week and points to the next week build", async () => {
-    const client = makeClient({
-      program: { id: "wp-1", template_id: "t-1", current_week: 5 },
-      weekBlockIds: ["b1", "b2"],
-      loggedBlockIds: ["b1", "b2"],
-    });
+    const client = makeClient({ program: program(5), weekBlocks: week6, loggedBlockIds: ["b1", "b2"] });
     await expect(resolveAddDayWeek(client, "WEIGHTED STRENGTH DAY")).rejects.toThrow(/Week 5 is finished.*propose_append_week/);
   });
 
   it("week 1 while a new program is being built (no logs yet)", async () => {
-    const client = makeClient({ program: { id: "wp-1", template_id: "t-1", current_week: 1 }, weekBlockIds: ["b1"] });
+    const client = makeClient({ program: program(1), weekBlocks: [{ id: "b1", name: "PULL DAY | Strength" }] });
     await expect(resolveAddDayWeek(client, "LEGS DAY")).resolves.toBe(1);
   });
 

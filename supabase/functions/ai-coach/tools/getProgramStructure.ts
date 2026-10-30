@@ -15,7 +15,7 @@ import { parseConceptNotes } from "./blockHelpers.ts";
 export const getProgramStructure: ToolDefinition = {
   name: "get_program_structure",
   description:
-    "Get the real block_id and block_exercise_id values for one week of the athlete's active program — this is the ONLY source for the ids adjust_program, replace_block_exercises, and update_block_structure require. Call this before any of those, every time: right after cloning a program from the library (the ids do not exist until the clone is created), and before any edit to an already-written week. Never guess, remember, or reuse an id from an earlier turn without re-fetching — a week can have been edited since. Each block also carries its current metadata (timing_system, structure, rounds, time_cap_min, ladder_*/tabata_* fields) — check this after every clone: a block stuck at timing_system straight_set + structure single for an athlete whose numbers call for something else (§16's role table) needs update_block_structure, not just adjust_program on its exercises.",
+    "Get the real block_id and block_exercise_id values for one week of the athlete's active program — this is the ONLY source for the ids adjust_program, replace_block_exercises, and update_block_structure require. Call this before any of those, every time: right after cloning a program from the library (the ids do not exist until the clone is created), and before any edit to an already-written week. Never guess, remember, or reuse an id from an earlier turn without re-fetching — a week can have been edited since. Each block carries a logged flag: a logged block is locked — adjust_program, replace_block_exercises, update_block_structure and replacing its day all refuse it; that change goes in the next week build. Each block also carries its current metadata (timing_system, structure, rounds, time_cap_min, ladder_*/tabata_* fields) — check this after every clone: a block stuck at timing_system straight_set + structure single for an athlete whose numbers call for something else (§16's role table) needs update_block_structure, not just adjust_program on its exercises.",
   input_schema: {
     type: "object",
     properties: {
@@ -52,6 +52,7 @@ export const getProgramStructure: ToolDefinition = {
       .map((block: any) => ({
         block_id: block.id,
         name: block.name,
+        logged: false,
         metadata: parseConceptNotes(block.notes).metadata,
         exercises: (Array.isArray(block.block_exercises) ? block.block_exercises : [])
           .slice()
@@ -72,6 +73,16 @@ export const getProgramStructure: ToolDefinition = {
     if (blocks.length === 0) {
       throw new Error(`get_program_structure: week ${weekNumber} has no blocks — check the week number against get_user_context's current_week.`);
     }
+
+    // Logged blocks are locked (2026-10-30, owner): every edit tool refuses
+    // them, so the coach sees which ones before trying.
+    const { data: logRows } = await userClient
+      .from("workout_logs")
+      .select("block_id")
+      .eq("warrior_program_id", warriorProgramId)
+      .in("block_id", blocks.map((b: { block_id: string }) => b.block_id));
+    const loggedIds = new Set(((logRows ?? []) as Array<{ block_id: string }>).map((r) => r.block_id));
+    for (const block of blocks as Array<{ block_id: string; logged?: boolean }>) block.logged = loggedIds.has(block.block_id);
 
     return { week_number: weekNumber, blocks };
   },

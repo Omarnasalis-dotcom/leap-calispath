@@ -31,5 +31,8 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("**Add a day** — one rule, decided by current_week_complete.");
     expect(SYSTEM_PROMPT).toContain("add_block_to_week is only for one more block on a day that already exists, never a whole day.");
     expect(SYSTEM_PROMPT).not.toContain("**Add a day** to a week that already exists");
+    expect(SYSTEM_PROMPT).toContain("**A logged block is locked**");
+    expect(SYSTEM_PROMPT).toContain("Deleting a week moves the weeks after it down one");
+    expect(SYSTEM_PROMPT).not.toContain("There is no tool to delete a single block or exercise.");
   });
 });
