@@ -332,6 +332,21 @@ export async function computeAppendWeekOrdering(
   return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1, removedBlockNames: canonicalRemoved, newDays };
 }
 
+// add_block_to_week adds blocks to days a week already has (2026-10-30,
+// owner: one path per job). Returns the days in `blocks` that the week's
+// existing block names don't contain — a whole new day goes through
+// propose_add_day instead, which builds its Warm-Up/Cool-Down and asks first.
+export function daysMissingFromWeek(blocks: ClaudeBlock[], existingNames: string[]): string[] {
+  const dayKey = (day: string) => day.replace(/\s+/g, " ").trim().toLowerCase();
+  const existing = new Set(existingNames.map((name) => dayKey(getBlockParts({ name, exercises: [] }).day)));
+  const missing: string[] = [];
+  for (const block of blocks) {
+    const { day } = getBlockParts(block);
+    if (!existing.has(dayKey(day)) && !missing.some((d) => dayKey(d) === dayKey(day))) missing.push(day);
+  }
+  return missing;
+}
+
 // Real bug found live (2026-08-26): the model left blocks with zero
 // exercises and whole days missing Warm-Up/Cool-Down. Prompt wording alone
 // did not hold up in practice, so this is enforced here — same

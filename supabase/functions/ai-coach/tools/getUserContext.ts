@@ -123,7 +123,7 @@ export const getUserContext: ToolDefinition = {
 // itself can notice a just-finished week on an AI-owned program (2026-09-16
 // — "For AI Coach, he can see the user finished his first week") without
 // needing a push notification, which only fires for a real human coach.
-async function isCurrentWeekComplete(
+export async function isCurrentWeekComplete(
   userClient: SupabaseClient,
   activeProgram: { id: string; template_id: string | null; current_week: number | null }
 ): Promise<boolean> {

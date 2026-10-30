@@ -95,8 +95,11 @@ async function buildProgramAction(
   }
   if (toolName === "propose_add_day") {
     const dayName = typeof input.day_name === "string" ? input.day_name.trim() : "";
+    // The week propose_add_day's handler chose (the athlete's current week,
+    // week 1 during a build) — trusted, never the model's input.
+    const weekNumber = typeof result.week_number === "number" ? result.week_number : 1;
     // Trusted, fresh check — never the model's own claim about what's
-    // already in week 1 — of whether this day_name already exists there.
+    // already in that week — of whether this day_name already exists there.
     // Decides which RPC CoachScreen.tsx's confirm tap calls: a genuinely
     // new day (ai_coach_add_block_to_week) or a redo of one already added
     // (ai_coach_replace_day_in_week, which deletes then re-inserts instead
@@ -108,7 +111,7 @@ async function buildProgramAction(
         .from("program_blocks")
         .select("name")
         .eq("template_id", active.template_id)
-        .eq("week_number", 1);
+        .eq("week_number", weekNumber);
       const position = computeDayPosition((existingBlocks ?? []).map((row: { name: string }) => row.name), dayName);
       replacing = position.replacing;
       dayNumber = position.dayNumber;
@@ -130,6 +133,7 @@ async function buildProgramAction(
     return {
       type: "add_day",
       reason: input.reason,
+      weekNumber,
       replacing,
       dayNumber,
       displayDayNumber: modelDayNumber ?? dayNumber,

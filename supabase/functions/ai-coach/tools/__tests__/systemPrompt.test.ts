@@ -27,4 +27,9 @@ describe("system prompt", () => {
   it("keeps warm-ups the same week to week unless the athlete flagged them", () => {
     expect(SYSTEM_PROMPT).toContain("Make one easier only when the athlete flagged it (logged it too hard, RPE 9–10 on it, or said so): fewer reps, or 2 rounds → 1.");
   });
+  it("has one add-a-day rule, decided by current_week_complete (2026-10-30)", () => {
+    expect(SYSTEM_PROMPT).toContain("**Add a day** — one rule, decided by current_week_complete.");
+    expect(SYSTEM_PROMPT).toContain("add_block_to_week is only for one more block on a day that already exists, never a whole day.");
+    expect(SYSTEM_PROMPT).not.toContain("**Add a day** to a week that already exists");
+  });
 });

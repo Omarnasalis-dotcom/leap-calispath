@@ -1,4 +1,6 @@
+import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
+import { isCurrentWeekComplete } from "./getUserContext.ts";
 import {
   assembleDayWithServerBlocks,
   BLOCKS_SCHEMA,
@@ -46,7 +48,7 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 export const proposeAddDay: ToolDefinition = {
   name: "propose_add_day",
   description:
-    "Propose the NEXT day of a program currently being built, one day at a time — this does NOT write anything until the athlete taps the card. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). Don't write Warm-Up, Mobility or Cool-Down blocks: pick 3-5 warm-up exercise names for this athlete and day in `warm_up_exercises` (the server sets rounds and reps by level and builds the block), add `mobility_exercises` only when they need mobility, and the server builds the Cool-Down. `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
+    "Propose the NEXT day of a program currently being built, one day at a time — or one whole new day for the athlete's current week of an existing program while that week is still in progress. This does NOT write anything until the athlete taps the card. The server picks the week (the athlete's current week; week 1 during a build) and refuses a finished week — that new day goes in propose_append_week instead. Only call this after day 1 was already added (propose_new_program's card was tapped) — never before, and never to build more than one day per call. `day_name` must exactly match this day's blocks' own day_name (e.g. \"LEGS DAY\"). Don't write Warm-Up, Mobility or Cool-Down blocks: pick 3-5 warm-up exercise names for this athlete and day in `warm_up_exercises` (the server sets rounds and reps by level and builds the block), add `mobility_exercises` only when they need mobility, and the server builds the Cool-Down. `brief` is the same full confirmed plan sent with propose_new_program, resent here since nothing carries over between turns. Runs the same checks as propose_new_program: an unknown exercise name or a number at/above the athlete's confirmed max is a hard error naming what to fix; other issues come back as non-fatal `warnings` in the result to use judgment on, not a blocker. If this day_name was already added earlier and the athlete asked to redo it, call this again with the corrected blocks — the confirm step handles replacing it, not you.",
   input_schema: {
     type: "object",
     properties: {
@@ -86,10 +88,7 @@ export const proposeAddDay: ToolDefinition = {
       );
     }
 
-    const badWeek = (blocks as Array<{ week_number?: number }>).find((b) => b.week_number !== undefined && b.week_number !== 1);
-    if (badWeek) {
-      throw new Error(`propose_add_day only ever builds into week 1 — got week_number ${badWeek.week_number}. Omit week_number or set it to 1.`);
-    }
+    const weekNumber = await resolveAddDayWeek(userClient, dayName);
 
     // Server-built Warm-Up/Cool-Down (2026-09-18, per-day-latency pass) —
     // same reasoning as propose_new_program: build whichever the model
@@ -181,9 +180,33 @@ export const proposeAddDay: ToolDefinition = {
     return {
       proposed: true,
       day_name: dayName,
+      week_number: weekNumber,
       resolved_blocks: transformBlocksForInsert(blocks as never[], idMap),
       ...(autoFixed.length > 0 ? { auto_fixed: autoFixed } : {}),
       ...(warnings.length > 0 ? { warnings } : {}),
     };
   },
 };
+
+// The week is the server's call, never the model's (2026-10-30, owner):
+// the athlete's current week — week 1 while a new program is being built.
+// A finished week takes no new day; the next week build does. This used to
+// be week 1 always, so a day added mid-program landed in week 1 (live,
+// Week 6 → Week 1).
+export async function resolveAddDayWeek(userClient: SupabaseClient, dayName: string): Promise<number> {
+  const { data: auth } = await userClient.auth.getUser();
+  const { data: activeRows } = await userClient
+    .from("warrior_programs")
+    .select("id, template_id, current_week")
+    .eq("warrior_id", auth.user?.id ?? "")
+    .eq("status", "active")
+    .limit(1);
+  const active = (activeRows as Array<{ id: string; template_id: string | null; current_week: number | null }> | null)?.[0];
+  const weekNumber = active?.current_week ?? 1;
+  if (active && (await isCurrentWeekComplete(userClient, active))) {
+    throw new Error(
+      `Week ${weekNumber} is finished, so a day can't be added to it. Add "${dayName}" in the next week build instead: propose_append_week with this day's blocks alongside the other days' changes.`
+    );
+  }
+  return weekNumber;
+}
