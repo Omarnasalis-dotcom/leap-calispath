@@ -49,4 +49,7 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("say why, offer yours, and wait — never do something different from what they asked in that same reply");
     expect(SYSTEM_PROMPT).toContain("**Describe the app only from what you know.**");
   });
+  it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
+    expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
+  });
 });
