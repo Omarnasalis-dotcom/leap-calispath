@@ -7,6 +7,8 @@ import {
   computeAppendWeekOrdering,
   assembleDayWithServerBlocks,
   levelBandForTier,
+  fetchLoggedWeights,
+  warnMissingWeights,
 } from "./blockHelpers.ts";
 
 // Weekly review → new week card (2026-09-18, live-build fix): append_week
@@ -74,6 +76,10 @@ export const proposeAppendWeek: ToolDefinition = {
     validateBlockStructure(orderedBlocks as never[], { requireDayPhases: false });
     const idMap = await resolveExerciseIds(userClient, orderedBlocks as never[]);
     const resolvedBlocks = transformBlocksForInsert(orderedBlocks as never[], idMap);
+    // Only the blocks sent this turn: carried-forward blocks keep last
+    // week's notes, weights included.
+    const hasWeighted = (orderedBlocks as Array<{ exercises?: Array<{ is_weighted?: boolean }> }>).some((b) => b.exercises?.some((e) => e.is_weighted));
+    const warnings = hasWeighted ? warnMissingWeights(orderedBlocks as never[], await fetchLoggedWeights(userClient)) : [];
     return {
       proposed: true,
       week_number: newWeekNumber,
@@ -81,6 +87,7 @@ export const proposeAppendWeek: ToolDefinition = {
       carry_order_overrides: carryOrderOverrides,
       // Matched to the prior week's exact names (see computeAppendWeekOrdering).
       removed_block_names: removedBlockNames,
+      ...(warnings.length > 0 ? { warnings } : {}),
       ...(newDays.length > 0 ? { new_days_completed: `Warm-Up and Cool-Down added server-side to the new day(s): ${newDays.join(", ")}.` } : {}),
     };
   },

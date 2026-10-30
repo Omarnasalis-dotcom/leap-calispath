@@ -1,5 +1,5 @@
 import { resolveAddDayWeek } from "../proposeAddDay";
-import { computeAddBlockOrder, computeAppendWeekOrdering, daysMissingFromWeek, findRenameDuplicates, phaseRank, withExistingDaySpelling } from "../blockHelpers";
+import { computeAddBlockOrder, computeAppendWeekOrdering, daysMissingFromWeek, fetchLoggedWeights, findRenameDuplicates, phaseRank, warnMissingWeights, withExistingDaySpelling } from "../blockHelpers";
 
 // Fake client for the chains resolveAddDayWeek and isCurrentWeekComplete
 // call: warrior_programs (.eq.eq.limit), program_blocks (.eq.eq),
@@ -185,5 +185,32 @@ describe("rename duplicates in a week build (2026-10-30)", () => {
       "WEIGHTED STRENGTH DAY | Strength - 2",
     ]);
     expect(result.carryOrderOverrides).toEqual({});
+  });
+});
+
+describe("weights in week builds (2026-10-30)", () => {
+  it("top set of the most recent session, not just its newest row", async () => {
+    const rows = [
+      { weight_used: 20, workout_log_id: "w6", exercise_library: { name: "Dips" } },
+      { weight_used: 22.5, workout_log_id: "w6", exercise_library: { name: "Dips" } },
+      { weight_used: 30, workout_log_id: "w5", exercise_library: { name: "Dips" } },
+    ];
+    const chain: Record<string, unknown> = {};
+    for (const m of ["select", "not", "order", "limit"]) chain[m] = () => chain;
+    (chain as { then: unknown }).then = (resolve: (v: unknown) => void) => resolve({ data: rows });
+    await expect(fetchLoggedWeights({ from: () => chain } as never)).resolves.toEqual({ dips: 22.5 });
+  });
+
+  it("reminds about a rewritten weighted exercise with no weight, never blocks", () => {
+    const blocks = [{ name: "LEGS DAY | Strength", exercises: [
+      { name: "Goblet Squat", is_weighted: true, notes: "" },
+      { name: "Bulgarian Split Squat", is_weighted: true, notes: "" },
+      { name: "Dips", is_weighted: true, notes: "27.5 kg" },
+      { name: "Glutes Bridge", is_weighted: false, notes: "" },
+    ] }];
+    const warnings = warnMissingWeights(blocks as never, { "goblet squat": 27.5 });
+    expect(warnings).toHaveLength(2);
+    expect(warnings[0]).toMatch(/Goblet Squat.*top set was 27.5kg/);
+    expect(warnings[1]).toMatch(/Bulgarian Split Squat.*rep range and RPE/);
   });
 });

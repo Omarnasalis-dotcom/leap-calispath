@@ -916,7 +916,7 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
   it("warns (does not reject) on weighted work with a known logged weight but no number written anywhere — demoted 2026-09-18, per-day-latency pass", () => {
     const block = makeBlock({ exercises: [{ name: "Dips", sets: "3", reps: "8", is_weighted: true, notes: "focus on control" }] });
     const warnings = validateAthleteFit([block] as never, { ...baseFit, loggedWeights: { dips: 20 } });
-    expect(warnings).toEqual([expect.stringContaining("no weight number appears")]);
+    expect(warnings).toEqual([expect.stringContaining("Last session's top set was 20kg")]);
   });
 
   it("accepts weighted work once a real number is written, no warning", () => {
@@ -927,7 +927,7 @@ describe("validateAthleteFit (added 2026-09-16, direct build)", () => {
   it("warns (does not reject) on weighted work with NO logged history and no number either", () => {
     const block = makeBlock({ exercises: [{ name: "Goblet Squat", sets: "3", reps: "8", is_weighted: true, notes: "" }] });
     const warnings = validateAthleteFit([block] as never, { ...baseFit });
-    expect(warnings).toEqual([expect.stringContaining("no logged history and no weight number")]);
+    expect(warnings).toEqual([expect.stringContaining("Don't guess a number: write the rep range and RPE")]);
   });
 
   it("accepts weighted work with no logged history once a real starting estimate is written, no warning", () => {

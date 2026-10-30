@@ -1309,6 +1309,41 @@ const TRACKED_PATTERNS: Array<{ key: keyof AthleteFitContext; exerciseName: stri
   { key: "muscleUpsMax", exerciseName: "Muscle Up" },
 ];
 
+// Top set weight from the most recent session of each exercise, across all
+// history — not scoped to one program, since a brand-new build may have no
+// active program yet and a prior, now-ended one still tells us what they
+// lifted. RLS ("Warriors manage own set logs") already scopes this to the
+// caller. The movement comes from the set's own exercise_id
+// (20261002030000), not via block_exercises: program edits recreate
+// block_exercises and null that link, which hid every weight logged before
+// the last edit. Keyed by lowercase exercise name.
+export async function fetchLoggedWeights(userClient: { from: (t: string) => any }): Promise<Record<string, number>> {
+  const { data: weightRows } = await userClient
+    .from("workout_set_logs")
+    .select("weight_used, workout_log_id, created_at, exercise_library(name)")
+    .not("weight_used", "is", null)
+    .order("created_at", { ascending: false })
+    .limit(300);
+
+  const loggedWeights: Record<string, number> = {};
+  const sessionOf: Record<string, string> = {};
+  for (const row of (weightRows ?? []) as Array<{ weight_used: number; workout_log_id?: string; exercise_library?: { name?: string } }>) {
+    const name = row.exercise_library?.name;
+    if (!name) continue;
+    const key = name.trim().toLowerCase();
+    const weight = Number(row.weight_used);
+    // Rows are newest first: the first row fixes the session, its other
+    // sets can only raise the top weight.
+    if (loggedWeights[key] === undefined) {
+      loggedWeights[key] = weight;
+      sessionOf[key] = row.workout_log_id ?? "";
+    } else if (row.workout_log_id && row.workout_log_id === sessionOf[key] && weight > loggedWeights[key]) {
+      loggedWeights[key] = weight;
+    }
+  }
+  return loggedWeights;
+}
+
 // Returns non-fatal warnings (currently just the reps-floor check below) —
 // day-by-day build (2026-09-17): demoted from a hard reject after real
 // testing showed it rejecting legitimately low-rep skill/trial-complex/
@@ -1351,28 +1386,7 @@ export async function fetchAthleteFitContext(
   const pushUpsMax = raw.pushup_variant === "standard_pushup" ? (raw.pushup_reps as number) ?? null : null;
   const muscleUpsMax = raw.mu_variant === "strict_mu" ? (raw.mu_reps as number) ?? null : null;
 
-  // Most-recent logged weight per exercise, across all history — not
-  // scoped to one program, since a brand-new build may have no active
-  // program yet and a prior, now-ended one still tells us what they lifted.
-  // RLS ("Warriors manage own set logs") already scopes this to the caller.
-  // The movement comes from the set's own exercise_id (20261002030000), not
-  // via block_exercises: program edits recreate block_exercises and null
-  // that link, which hid every weight logged before the last edit.
-  const { data: weightRows } = await userClient
-    .from("workout_set_logs")
-    .select("weight_used, created_at, exercise_library(name)")
-    .not("weight_used", "is", null)
-    .order("created_at", { ascending: false })
-    .limit(300);
-
-  const loggedWeights: Record<string, number> = {};
-  for (const row of (weightRows ?? []) as Array<{ weight_used: number; exercise_library?: { name?: string } }>) {
-    const name = row.exercise_library?.name;
-    if (!name) continue;
-    const key = name.trim().toLowerCase();
-    // First hit wins — rows are ordered most-recent-first.
-    if (loggedWeights[key] === undefined) loggedWeights[key] = row.weight_used;
-  }
+  const loggedWeights = await fetchLoggedWeights(userClient);
 
   return { pullUpsMax, dipsMax, pushUpsMax, muscleUpsMax, skills: brief.skills, loggedWeights };
 }
@@ -1509,26 +1523,32 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     }
   }
 
-  // Weighted work always needs a real number somewhere — even a first-time
-  // estimate, not just once history exists. Demoted to a warning
-  // (2026-09-18, per-day-latency pass): this was a genuinely correct check
-  // (a coach always gives a starting number), but as a hard reject it was
-  // one of the real, measured retry costs in a day's build — the model
-  // gets exactly one more turn to fix it either way, a warning just skips
-  // paying for that turn when the model catches its own note on the first
-  // read instead of after a rejection.
-  for (const { ex, day, phase } of all) {
-    if (!ex.is_weighted) continue;
-    if (/\d/.test(ex.notes ?? "")) continue;
-    const key = (ex.name ?? "").trim().toLowerCase();
-    const logged = fit.loggedWeights?.[key];
-    warnings.push(
-      logged !== undefined
-        ? `"${day} | ${phase}"'s ${ex.name} is weighted and this athlete last logged ${logged}kg, but no weight number appears in its notes. Write the real target weight following system-prompt.ts §18's weighted-progress phrase bank — never a bare "+load".`
-        : `"${day} | ${phase}"'s ${ex.name} is weighted with no logged history and no weight number in its notes. Write a real starting estimate (e.g. "start around 10kg added, adjust from feel") — never leave it unspecified, even for a first-time prescription.`
-    );
-  }
+  warnings.push(...warnMissingWeights(blocks, fit.loggedWeights ?? {}));
 
+  return warnings;
+}
+
+// A weighted exercise whose notes carry no number. Non-fatal: the coach
+// decides the weight (progress, hold or back off). With a log, the reminder
+// quotes last session's top set; without one, a rep range + RPE is the
+// right note, never a guessed number (owner rule 2026-10-30). Runs on new
+// programs, added days and week builds — a rewritten block in a week build
+// is where a weight note used to get dropped silently.
+export function warnMissingWeights(blocks: ClaudeBlock[], loggedWeights: Record<string, number>): string[] {
+  const warnings: string[] = [];
+  for (const block of blocks ?? []) {
+    const { day, phase } = getBlockParts(block);
+    for (const ex of block.exercises ?? []) {
+      if (!ex.is_weighted) continue;
+      if (/\d/.test(ex.notes ?? "")) continue;
+      const logged = loggedWeights[(ex.name ?? "").trim().toLowerCase()];
+      warnings.push(
+        logged !== undefined
+          ? `"${day} | ${phase}"'s ${ex.name} is weighted and its notes have no weight. Last session's top set was ${logged}kg. Write this week's target weight in its notes (your call: progress, hold or back off), using §18's weighted-progress phrase bank in the chat's language.`
+          : `"${day} | ${phase}"'s ${ex.name} is weighted with no weight logged yet. Don't guess a number: write the rep range and RPE in its notes (e.g. "pick a weight you can hit 6–8 reps at RPE 8, add weight while you hit the range").`
+      );
+    }
+  }
   return warnings;
 }
 

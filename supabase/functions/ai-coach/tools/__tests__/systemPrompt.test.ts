@@ -35,4 +35,8 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("Deleting a week moves the weeks after it down one");
     expect(SYSTEM_PROMPT).not.toContain("There is no tool to delete a single block or exercise.");
   });
+  it("weight notes follow the chat's language; no log means rep range + RPE (2026-10-30)", () => {
+    expect(SYSTEM_PROMPT).toContain("**These rows follow the chat's language (§3), not the Arabic block-type rule above:**");
+    expect(SYSTEM_PROMPT).toContain("No weight logged yet for that exercise means no number: write the rep range and RPE instead");
+  });
 });
