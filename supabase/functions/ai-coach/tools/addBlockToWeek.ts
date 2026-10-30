@@ -1,5 +1,5 @@
 import { ToolDefinition } from "./types.ts";
-import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure, daysMissingFromWeek } from "./blockHelpers.ts";
+import { transformBlocksForInsert, BLOCKS_SCHEMA, resolveExerciseIds, validateBlockStructure, daysMissingFromWeek, computeAddBlockOrder, withExistingDaySpelling } from "./blockHelpers.ts";
 
 // Fills the gap neither propose_append_week (only ever writes a brand-new week
 // number) nor adjust_program (only UPDATEs exercises already in a block,
@@ -31,13 +31,15 @@ export const addBlockToWeek: ToolDefinition = {
       .select("template_id")
       .eq("id", input.warrior_program_id as string);
     const templateId = (programRows as Array<{ template_id?: string }> | null)?.[0]?.template_id;
+    let weekBlocks: Array<{ name: string; order_index: number | null }> = [];
     if (templateId) {
       const { data: weekRows } = await userClient
         .from("program_blocks")
-        .select("name")
+        .select("name, order_index")
         .eq("template_id", templateId)
         .eq("week_number", input.week_number as number);
-      const missingDays = daysMissingFromWeek((input.blocks as never[]) ?? [], ((weekRows ?? []) as Array<{ name: string }>).map((r) => r.name));
+      weekBlocks = (weekRows ?? []) as Array<{ name: string; order_index: number | null }>;
+      const missingDays = daysMissingFromWeek((input.blocks as never[]) ?? [], weekBlocks.map((r) => r.name));
       if (missingDays.length > 0) {
         throw new Error(
           `Week ${input.week_number} has no day named ${missingDays.map((d) => `"${d}"`).join(", ")}. add_block_to_week only adds blocks to an existing day. For a whole new day use propose_add_day while the week is in progress, or include it in propose_append_week for the next week.`
@@ -45,11 +47,16 @@ export const addBlockToWeek: ToolDefinition = {
       }
     }
     const idMap = await resolveExerciseIds(userClient, (input.blocks as never[]) ?? []);
-    const blocks = transformBlocksForInsert(input.blocks as never[], idMap);
+    const existingNames = weekBlocks.map((r) => r.name);
+    const blocks = transformBlocksForInsert(input.blocks as never[], idMap).map((b) => ({
+      ...b,
+      name: withExistingDaySpelling(b.name as string, existingNames),
+    }));
     const { data, error } = await userClient.rpc("ai_coach_add_block_to_week", {
       p_warrior_program_id: input.warrior_program_id,
       p_week_number: input.week_number,
       p_blocks: blocks,
+      p_order_overrides: computeAddBlockOrder(weekBlocks, blocks.map((b) => b.name)),
     });
     if (error) throw new Error(`add_block_to_week failed: ${error.message}`);
     return data;

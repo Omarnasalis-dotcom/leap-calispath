@@ -51,6 +51,9 @@ export function isUuid(value: unknown): value is string {
 const nameParts = (s: string) => s.split("|").map((p) => p.trim()).filter(Boolean);
 const sameName = (a: string, b: string) => normalizeBlockNameKey(a) === normalizeBlockNameKey(b);
 
+/** Case- and spacing-insensitive key for comparing day names. */
+const dayKey = (day: string) => day.replace(/\s+/g, " ").trim().toLowerCase();
+
 /** Case- and spacing-insensitive key for comparing block names. */
 export function normalizeBlockNameKey(name: string): string {
   return nameParts(name).map((p) => p.replace(/\s+/g, " ").toLowerCase()).join(" | ");
@@ -125,8 +128,9 @@ export const PHASE_ORDER = ["warm-up", "mobility", "skills", "strength", "access
 // `previousWeekDayOrder` is the previous week's distinct day names, in
 // their real (first-appearance) order. A day not in previousWeekDayOrder
 // (a genuinely new day) is ranked after every known day, in the order it
-// first appears in `blockNames`; an unrecognized phase sorts last within
-// its day. Stable — ties keep their original relative order rather than
+// first appears in `blockNames`; an unrecognized phase ("Core") sorts just
+// before the Cool-Down within its day (2026-10-30, owner — it used to sort
+// last, after the Cool-Down). Stable — ties keep their original relative order rather than
 // shuffling again on every call.
 //
 // Found live (2026-09-30): numbered phases ("Strength - 1", "Strength - 2")
@@ -140,7 +144,7 @@ const phaseKey = (phase: string) => phase.trim().toLowerCase().replace(/[^a-z]/g
 export function phaseRank(phase: string): number {
   const key = phaseKey(phase);
   const idx = PHASE_ORDER.findIndex((p) => key.startsWith(phaseKey(p)));
-  return idx === -1 ? PHASE_ORDER.length : idx;
+  return idx === -1 ? PHASE_ORDER.indexOf("cool-down") - 0.5 : idx;
 }
 
 export function computeWeekOrderIndex(
@@ -278,7 +282,6 @@ export async function computeAppendWeekOrdering(
   // of 3" week came back with no Warm-Up/Cool-Down on the new day) has
   // nothing to carry forward, so `fillNewDay` gets to complete it the same
   // way propose_add_day completes a day.
-  const dayKey = (day: string) => day.replace(/\s+/g, " ").trim().toLowerCase();
   const priorDayKeys = new Set(previousWeekDayOrder.map(dayKey));
   const newDays: string[] = [];
   for (const block of newBlocks) {
@@ -332,12 +335,38 @@ export async function computeAppendWeekOrdering(
   return { orderedBlocks, carryOrderOverrides, newWeekNumber: maxWeek + 1, removedBlockNames: canonicalRemoved, newDays };
 }
 
+// The whole week's order once `newNames` join a written week's blocks
+// (`existing`, name + order_index): the week builder's own
+// computeWeekOrderIndex, so an added block lands inside its day by phase
+// instead of after the week's last block (2026-10-30, owner).
+// A block added to "Pull Day" is stored under the week's own spelling
+// ("PULL DAY | Skills"), so the app groups it with that day and the order
+// below ranks it there.
+export function withExistingDaySpelling(name: string, existingNames: string[]): string {
+  const { day, phase } = getBlockParts({ name, exercises: [] });
+  const match = existingNames.map((n) => getBlockParts({ name: n, exercises: [] }).day).find((d) => dayKey(d) === dayKey(day));
+  return match && match !== day ? `${match} | ${phase}` : name;
+}
+
+export function computeAddBlockOrder(
+  existing: Array<{ name: string; order_index: number | null }>,
+  newNames: string[]
+): Record<string, number> {
+  const sorted = [...existing].sort((a, b) => (a.order_index ?? 0) - (b.order_index ?? 0));
+  const dayOrder: string[] = [];
+  for (const row of sorted) {
+    const { day } = getBlockParts({ name: row.name, exercises: [] });
+    if (!dayOrder.includes(day)) dayOrder.push(day);
+  }
+  const previousOrder = new Map(sorted.map((r) => [r.name, r.order_index ?? 0]));
+  return Object.fromEntries(computeWeekOrderIndex([...sorted.map((r) => r.name), ...newNames], dayOrder, previousOrder));
+}
+
 // add_block_to_week adds blocks to days a week already has (2026-10-30,
 // owner: one path per job). Returns the days in `blocks` that the week's
 // existing block names don't contain — a whole new day goes through
 // propose_add_day instead, which builds its Warm-Up/Cool-Down and asks first.
 export function daysMissingFromWeek(blocks: ClaudeBlock[], existingNames: string[]): string[] {
-  const dayKey = (day: string) => day.replace(/\s+/g, " ").trim().toLowerCase();
   const existing = new Set(existingNames.map((name) => dayKey(getBlockParts({ name, exercises: [] }).day)));
   const missing: string[] = [];
   for (const block of blocks) {

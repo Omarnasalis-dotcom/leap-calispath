@@ -1,5 +1,5 @@
 import { resolveAddDayWeek } from "../proposeAddDay";
-import { daysMissingFromWeek } from "../blockHelpers";
+import { computeAddBlockOrder, daysMissingFromWeek, phaseRank, withExistingDaySpelling } from "../blockHelpers";
 
 // Fake client for the chains resolveAddDayWeek and isCurrentWeekComplete
 // call: warrior_programs (.eq.eq.limit), program_blocks (.eq.eq),
@@ -69,5 +69,41 @@ describe("daysMissingFromWeek (2026-10-30)", () => {
       { day_name: "WEIGHTED STRENGTH DAY", block_name: "Cool-Down", exercises: [] },
     ];
     expect(daysMissingFromWeek(blocks as never, week)).toEqual(["WEIGHTED STRENGTH DAY"]);
+  });
+});
+
+describe("block positions in a written week (2026-10-30)", () => {
+  it("an unrecognised phase sorts after Finisher and before Cool-Down", () => {
+    expect(phaseRank("Core")).toBeGreaterThan(phaseRank("Finisher"));
+    expect(phaseRank("Core")).toBeLessThan(phaseRank("Cool-Down"));
+  });
+
+  it("a Skills block added to an existing day lands inside it, after its Warm-Up", () => {
+    const week = [
+      { name: "PULL DAY | Warm-Up", order_index: 0 },
+      { name: "PULL DAY | Strength", order_index: 1 },
+      { name: "PULL DAY | Cool-Down", order_index: 2 },
+      { name: "WEIGHTED STRENGTH DAY | Warm-Up", order_index: 3 },
+      { name: "WEIGHTED STRENGTH DAY | Strength - 1", order_index: 4 },
+      { name: "WEIGHTED STRENGTH DAY | Cool-Down", order_index: 5 },
+    ];
+    const order: Record<string, number> = computeAddBlockOrder(week, ["WEIGHTED STRENGTH DAY | Skills"]);
+    const sorted = Object.keys(order).sort((a, b) => order[a] - order[b]);
+    expect(sorted).toEqual([
+      "PULL DAY | Warm-Up",
+      "PULL DAY | Strength",
+      "PULL DAY | Cool-Down",
+      "WEIGHTED STRENGTH DAY | Warm-Up",
+      "WEIGHTED STRENGTH DAY | Skills",
+      "WEIGHTED STRENGTH DAY | Strength - 1",
+      "WEIGHTED STRENGTH DAY | Cool-Down",
+    ]);
+    expect(Object.values(order).sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5, 6]);
+  });
+
+  it("a new block uses the week's own spelling of its day", () => {
+    const existing = ["PULL DAY | Warm-Up", "PULL DAY | Strength"];
+    expect(withExistingDaySpelling("Pull  Day | Skills", existing)).toBe("PULL DAY | Skills");
+    expect(withExistingDaySpelling("PULL DAY | Skills", existing)).toBe("PULL DAY | Skills");
   });
 });
