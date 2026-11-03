@@ -72,6 +72,14 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("answer that one in get_user_context's app_language");
     expect(SYSTEM_PROMPT).toContain("Write that framing once, after the tool result");
   });
+  it("selected equipment is the truth; ask once when the goal needs more (2026-11-03)", () => {
+    expect(SYSTEM_PROMPT).not.toContain("a bar is the safe default");
+    expect(SYSTEM_PROMPT).not.toContain("with bar-only work");
+    expect(SYSTEM_PROMPT).toContain("Never assume more than that — not a bar, not rings.");
+    expect(SYSTEM_PROMPT).toContain("**When the goal's main work needs something they don't have, ask once, before proposing the structure");
+    expect(SYSTEM_PROMPT).toContain("never refuse to build");
+    expect(SYSTEM_PROMPT).toContain("This is part of the equipment question, not a fifth blocker");
+  });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
   });
