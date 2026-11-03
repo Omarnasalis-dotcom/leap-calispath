@@ -126,3 +126,35 @@ export async function abandonLiveRoom(roomId: string): Promise<void> {
   const { error } = await supabase.rpc('admin_abandon_live_room', { p_room_id: roomId });
   if (error) throw toError(error);
 }
+
+// Live templates are a plain admin-only table (RLS is_admin), like the weekly
+// challenge_templates. Dates and visibility are set each time one is used.
+
+export interface LiveChallengeTemplate {
+  id: string;
+  name: string;
+  title: string;
+  description: string;
+  halves: LiveHalf[];
+  rest_sec: number;
+  team_size: number;
+  created_at: string;
+}
+
+export type LiveTemplateInput = Omit<LiveChallengeTemplate, 'id' | 'created_at'>;
+
+export async function fetchLiveTemplates(): Promise<LiveChallengeTemplate[]> {
+  const { data, error } = await supabase.from('live_challenge_templates').select('*').order('name');
+  if (error) throw new Error(error.message);
+  return (data ?? []) as LiveChallengeTemplate[];
+}
+
+export async function saveLiveTemplate(t: LiveTemplateInput): Promise<void> {
+  const { error } = await supabase.from('live_challenge_templates').insert(t);
+  if (error) throw new Error(error.message);
+}
+
+export async function deleteLiveTemplate(id: string): Promise<void> {
+  const { error } = await supabase.from('live_challenge_templates').delete().eq('id', id);
+  if (error) throw new Error(error.message);
+}

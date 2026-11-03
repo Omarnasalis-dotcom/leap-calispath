@@ -5,12 +5,15 @@ import {
   deleteLiveChallenge,
   fetchLiveChallenges,
   fetchLiveRooms,
+  fetchLiveTemplates,
   saveLiveChallenge,
+  saveLiveTemplate,
   type AdminLiveChallenge,
   type AdminLiveRoom,
+  type LiveChallengeTemplate,
   type LiveRoomStatus,
 } from '@/api/liveChallenges';
-import type { ChallengeMovement } from '@/api/challenges';
+import { fetchTemplates, type ChallengeMovement } from '@/api/challenges';
 import { currentWeekStart, formatDate, shiftWeekStart } from '@/shared/constants';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { DataTable, type Column } from '@/components/DataTable';
@@ -50,19 +53,29 @@ function emptyForm(): Form {
   };
 }
 
+/** The parts a duplicate or template carries over; dates and visibility are set each time. */
+type Setup = Pick<LiveChallengeTemplate, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
+
+const setupFields = (s: Setup) => ({
+  title: s.title,
+  description: s.description,
+  halves: s.halves.map((h) => ({ minutes: String(h.duration_sec / 60), movements: h.movements })),
+  rest_sec: String(s.rest_sec),
+  team_size: s.team_size,
+});
+
 function formFrom(c: AdminLiveChallenge): Form {
   return {
+    ...setupFields(c),
     id: c.id,
-    title: c.title,
-    description: c.description,
-    halves: c.halves.map((h) => ({ minutes: String(h.duration_sec / 60), movements: h.movements })),
-    rest_sec: String(c.rest_sec),
-    team_size: c.team_size,
     start_date: c.starts_at.slice(0, 10),
     end_date: c.ends_at.slice(0, 10),
     is_active: c.is_active,
   };
 }
+
+/** A new, unsaved challenge with another challenge's or a template's setup. */
+const copyForm = (s: Setup): Form => ({ ...emptyForm(), ...setupFields(s) });
 
 const utcMidnight = (date: string) => `${date}T00:00:00Z`;
 
@@ -70,7 +83,7 @@ const cleanMovements = (movements: ChallengeMovement[]) =>
   movements.filter((m) => m.name.trim() !== '').map((m) => ({ ...m, name: m.name.trim() }));
 
 /** Same limits the server enforces (live_valid_halves), so mistakes show before saving. */
-function validate(f: Form): string | null {
+function validateSetup(f: Form): string | null {
   const title = f.title.trim();
   if (title.length < 1 || title.length > 80) return 'Title must be 1–80 characters.';
   if (f.halves.length < 2 || f.halves.length > 3) return 'A live challenge has 2 or 3 halves.';
@@ -87,6 +100,12 @@ function validate(f: Form): string | null {
   }
   const rest = Number(f.rest_sec);
   if (!Number.isInteger(rest) || rest < 0 || rest > 600) return 'Rest must be 0–600 seconds.';
+  return null;
+}
+
+function validate(f: Form): string | null {
+  const problem = validateSetup(f);
+  if (problem) return problem;
   if (!f.start_date || !f.end_date || f.end_date <= f.start_date)
     return 'End date must be after the start date.';
   return null;
@@ -109,16 +128,31 @@ const ROOM_TONE: Record<LiveRoomStatus, 'ok' | 'accent' | 'warn' | undefined> = 
 
 const sideLetter = (side: number) => String.fromCharCode(64 + side);
 
-const halvesSummary = (c: AdminLiveChallenge) =>
+const halvesSummary = (c: Setup) =>
   c.halves.map((h) => `${h.duration_sec / 60}′`).join(' + ') + ` · ${c.rest_sec}s rest`;
+
+const toHalves = (f: Form) =>
+  f.halves.map((h) => ({
+    duration_sec: Math.round(Number(h.minutes) * 60),
+    movements: cleanMovements(h.movements),
+  }));
 
 export function LiveChallengesPage() {
   const queryClient = useQueryClient();
   const [form, setForm] = useState<Form | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Title of the challenge the open new form was duplicated from, for the heading.
+  const [copiedFrom, setCopiedFrom] = useState<string | null>(null);
+  // "t:<id>" = live template, "c:<id>" = live challenge.
+  const [loadChoice, setLoadChoice] = useState('');
+  // Weekly template picked per half (index → template id).
+  const [weeklyChoice, setWeeklyChoice] = useState<Record<number, string>>({});
+  const [templateSaved, setTemplateSaved] = useState(false);
 
   const challengesQ = useQuery({ queryKey: ['live-challenges'], queryFn: fetchLiveChallenges });
+  const liveTemplatesQ = useQuery({ queryKey: ['live-challenge-templates'], queryFn: fetchLiveTemplates });
+  const weeklyTemplatesQ = useQuery({ queryKey: ['challenge-templates'], queryFn: fetchTemplates });
   const roomsQ = useQuery({
     queryKey: ['live-challenge-rooms', selectedId],
     queryFn: () => fetchLiveRooms(selectedId!),
@@ -143,10 +177,7 @@ export function LiveChallengesPage() {
         id: f.id,
         title: f.title.trim(),
         description: f.description.trim(),
-        halves: f.halves.map((h) => ({
-          duration_sec: Math.round(Number(h.minutes) * 60),
-          movements: cleanMovements(h.movements),
-        })),
+        halves: toHalves(f),
         rest_sec: Number(f.rest_sec),
         team_size: f.team_size,
         starts_at: utcMidnight(f.start_date),
@@ -170,6 +201,68 @@ export function LiveChallengesPage() {
   });
 
   const abandonMutation = useMutation({ mutationFn: abandonLiveRoom, onSuccess: refresh });
+
+  const templateMutation = useMutation({
+    mutationFn: saveLiveTemplate,
+    onSuccess: () => {
+      setTemplateSaved(true);
+      void queryClient.invalidateQueries({ queryKey: ['live-challenge-templates'] });
+    },
+  });
+
+  /** Opens a form and clears everything tied to the previous one. */
+  function openForm(f: Form | null, from: string | null = null) {
+    setForm(f);
+    setCopiedFrom(from);
+    setFormError(null);
+    setLoadChoice('');
+    setWeeklyChoice({});
+    setTemplateSaved(false);
+    saveMutation.reset();
+    templateMutation.reset();
+  }
+
+  function duplicate() {
+    if (!selected) return;
+    openForm(copyForm(selected), selected.title);
+    setSelectedId(null);
+  }
+
+  /** Fills the new form's setup from a live template or challenge; dates and visibility stay. */
+  function applyLoad() {
+    const [kind, id] = [loadChoice.slice(0, 1), loadChoice.slice(2)];
+    const source: Setup | undefined =
+      kind === 't'
+        ? liveTemplatesQ.data?.find((t) => t.id === id)
+        : challengesQ.data?.find((c) => c.id === id);
+    if (!source) return;
+    patch(setupFields(source));
+    setWeeklyChoice({});
+  }
+
+  /** Workout only: weekly templates have one exercise list, so it fills a single half. */
+  function applyWeeklyTemplate(i: number) {
+    const tpl = weeklyTemplatesQ.data?.find((t) => t.id === weeklyChoice[i]);
+    if (tpl) patchHalf(i, { movements: tpl.movements ?? [] });
+  }
+
+  function saveAsTemplate() {
+    if (!form) return;
+    const problem = validateSetup(form);
+    setFormError(problem);
+    if (problem) return;
+    const name = window.prompt('Template name', form.title.trim())?.trim();
+    if (!name) return;
+    setTemplateSaved(false);
+    templateMutation.mutate({
+      name: name.slice(0, 80),
+      title: form.title.trim(),
+      description: form.description.trim(),
+      halves: toHalves(form),
+      rest_sec: Number(form.rest_sec),
+      team_size: form.team_size,
+    });
+  }
 
   function patch(p: Partial<Form>) {
     setForm((f) => (f ? { ...f, ...p } : f));
@@ -266,8 +359,7 @@ export function LiveChallengesPage() {
         <button
           className="btn primary"
           onClick={() => {
-            setForm(emptyForm());
-            setFormError(null);
+            openForm(emptyForm());
             setSelectedId(null);
           }}
         >
@@ -282,12 +374,68 @@ export function LiveChallengesPage() {
       {form && (
         <section className="panel">
           <div className="panel-head">
-            <h2>{form.id ? 'Edit challenge' : 'New challenge'}</h2>
-            <button className="btn small" onClick={() => setForm(null)}>
-              Cancel
-            </button>
+            <h2>{form.id ? 'Edit challenge' : copiedFrom ? `New challenge · copy of “${copiedFrom}”` : 'New challenge'}</h2>
+            <div className="row">
+              {form.id && (
+                <button
+                  className="btn small"
+                  title="Start a new challenge with this one's setup. This challenge and its rooms stay as they are."
+                  onClick={duplicate}
+                >
+                  Duplicate
+                </button>
+              )}
+              <button
+                className="btn small"
+                disabled={templateMutation.isPending}
+                title="Save the title, description, halves, rest and players per side to reuse later"
+                onClick={saveAsTemplate}
+              >
+                {templateMutation.isPending ? 'Saving…' : 'Save as template'}
+              </button>
+              <button className="btn small" onClick={() => openForm(null)}>
+                Cancel
+              </button>
+            </div>
           </div>
           <div className="panel-body" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {templateSaved && <Badge tone="ok">saved as template</Badge>}
+            {templateMutation.error && <ErrorNote error={templateMutation.error} />}
+            {!form.id && (
+              <div className="row">
+                <select
+                  className="field"
+                  style={{ flex: 1, minWidth: 200 }}
+                  value={loadChoice}
+                  onChange={(e) => setLoadChoice(e.target.value)}
+                  aria-label="Load a template or existing challenge"
+                >
+                  <option value="">Load a template or existing challenge…</option>
+                  {(liveTemplatesQ.data?.length ?? 0) > 0 && (
+                    <optgroup label="Live templates">
+                      {liveTemplatesQ.data!.map((t) => (
+                        <option key={t.id} value={`t:${t.id}`}>
+                          {t.name} · {halvesSummary(t)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                  {(challengesQ.data?.length ?? 0) > 0 && (
+                    <optgroup label="Live challenges">
+                      {challengesQ.data!.map((c) => (
+                        <option key={c.id} value={`c:${c.id}`}>
+                          {c.title} · {formatDate(c.starts_at)}
+                        </option>
+                      ))}
+                    </optgroup>
+                  )}
+                </select>
+                <button className="btn small" disabled={!loadChoice} onClick={applyLoad}>
+                  Load
+                </button>
+              </div>
+            )}
+            {liveTemplatesQ.error && <ErrorNote error={liveTemplatesQ.error} />}
             {playLocked && (
               <div className="sub">
                 Rooms have played this challenge, so the halves and players per side can no longer change.
@@ -408,11 +556,33 @@ export function LiveChallengesPage() {
                       <button
                         className="btn small"
                         type="button"
-                        onClick={() => patch({ halves: form.halves.filter((_, idx) => idx !== i) })}
+                        onClick={() => {
+                          patch({ halves: form.halves.filter((_, idx) => idx !== i) });
+                          setWeeklyChoice({});
+                        }}
                       >
                         Remove half
                       </button>
                     )}
+                  </div>
+                  <div className="row">
+                    <select
+                      className="field"
+                      style={{ flex: 1, minWidth: 160 }}
+                      value={weeklyChoice[i] ?? ''}
+                      onChange={(e) => setWeeklyChoice((c) => ({ ...c, [i]: e.target.value }))}
+                      aria-label={`Weekly challenge template for half ${i + 1}`}
+                    >
+                      <option value="">Load exercises from a weekly template…</option>
+                      {weeklyTemplatesQ.data?.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.name}
+                        </option>
+                      ))}
+                    </select>
+                    <button className="btn small" type="button" disabled={!weeklyChoice[i]} onClick={() => applyWeeklyTemplate(i)}>
+                      Load
+                    </button>
                   </div>
                   <MovementsEditor
                     title="Exercises (any order; reps = max a player can log)"
@@ -485,8 +655,7 @@ export function LiveChallengesPage() {
         emptyHint="Create one with “New challenge”."
         onRowClick={(c) => {
           setSelectedId(c.id);
-          setForm(formFrom(c));
-          setFormError(null);
+          openForm(formFrom(c));
         }}
       />
 
