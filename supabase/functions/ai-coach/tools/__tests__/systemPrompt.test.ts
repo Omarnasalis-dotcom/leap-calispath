@@ -92,6 +92,12 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("Never call a library program coach-assigned");
     expect(SYSTEM_PROMPT).not.toContain("point them to their coach or the Workout Library");
   });
+  it("fits every exercise to their equipment and confirms numbers neutrally (2026-11-04)", () => {
+    expect(SYSTEM_PROMPT).toContain("**Fit the day to their equipment, warm-up included — your judgment, not a fixed rule:**");
+    expect(SYSTEM_PROMPT).toContain("a heads-up, never a rejection");
+    expect(SYSTEM_PROMPT).toContain("with a band only: Band Apart.");
+    expect(SYSTEM_PROMPT).toContain("Never tell them it doesn't match their assessment or tier, never call it a claim");
+  });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
   });

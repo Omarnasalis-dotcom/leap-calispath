@@ -1,5 +1,6 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
+import { equipmentFlags, equipmentNotes } from "./equipmentFit.ts";
 import { isCurrentWeekComplete } from "./getUserContext.ts";
 import {
   assembleDayWithServerBlocks,
@@ -97,6 +98,7 @@ export const proposeAddDay: ToolDefinition = {
     const { data: profile } = await userClient.rpc("get_my_profile").single();
     const levelBand = levelBandForTier((profile as { strength_tier?: number } | null)?.strength_tier);
     const warmUpNotes: string[] = [];
+    const equipment = equipmentFlags(brief.equipment);
     blocks = await assembleDayWithServerBlocks(
       userClient,
       blocks as never[],
@@ -108,6 +110,7 @@ export const proposeAddDay: ToolDefinition = {
         warmUpNames: Array.isArray(input.warm_up_exercises) ? (input.warm_up_exercises as string[]) : undefined,
         mobilityNames: Array.isArray(input.mobility_exercises) ? (input.mobility_exercises as string[]) : undefined,
         excludeNames: brief.skills.map((s) => s.checkpointExercise),
+        noBand: !equipment.band,
         notes: warmUpNotes,
       }
     );
@@ -126,6 +129,10 @@ export const proposeAddDay: ToolDefinition = {
 
     const fitContext = await fetchAthleteFitContext(userClient, brief, profile as { assessment_raw?: Record<string, unknown> } | null);
     warnings.push(...validateAthleteFit(blocks as never[], fitContext));
+
+    // Heads-up only, never a change: exercises that seem to need equipment
+    // the brief doesn't list (equipmentFit.ts). The coach decides.
+    warnings.push(...equipmentNotes(blocks as never[], equipment, levelBand));
 
     // Skill-coverage warning (2026-09-17): a separate, read-only query from
     // the trusted collision check index.ts's buildProgramAction runs — that

@@ -515,6 +515,15 @@ const WARMUP_PAD_LEGS = ["Inchworm", "Reverse Lunges", "Hip Flexors Stretch", "B
 // Verified against the live library 2026-10-16.
 const WARMUP_PAD_PULL = ["Banded Arm Circles", "banded Shoulder External Rotation", "wrist pressure", "Scapula Pulls", "Band Apart"];
 const WARMUP_PAD_LEGS_BEGINNER = ["Air Squat", "Glutes Bridge", "Hip Flexors Stretch", "Banded Arm Circles", "wrist pressure"];
+// Band, Banded ..., Muscle Up band-assisted: needs a resistance band.
+export function needsBand(name: string): boolean {
+  return /\bband/i.test(name);
+}
+
+// Band-free fill for an athlete without a band (2026-11-04, owner): the
+// lists above open with band work. Verified against the live library
+// 2026-11-04.
+const WARMUP_PAD_NO_BAND_FILL = ["In out Circles", "rotator cuff Rotations", "I, Y, T Rasies", "Wrist swings"];
 const COOLDOWN_PAD_STANDARD = ["Childe Pose", "Shoulder stretch", "Child Pose Sided", "Lat Stretch SH Opener"];
 const COOLDOWN_PAD_LEGS = ["Pancake Stretch", "Shoulder stretch", "Laying Hamstring Stretch", "Adductor Stretch", "Child Pose Sided"];
 const COOLDOWN_PAD_TARGET = 4;
@@ -561,6 +570,10 @@ export interface WarmUpOptions {
   mobilityNames?: string[];
   // Extra names never to accept (the athlete's skill checkpoints).
   excludeNames?: string[];
+  // No band in the brief's equipment: the server's own fallback list skips
+  // band work. The coach's picks are kept as chosen (owner rule: the coach
+  // decides); equipmentFit.ts only notes a mismatch.
+  noBand?: boolean;
   // Filled with one line per dropped pick, for the tool result.
   notes?: string[];
 }
@@ -598,9 +611,12 @@ export async function buildServerWarmUpCoolDown(
   // added for a need, through mobilityNames, not for every push day.
   const effectiveWarmUp: WarmUpMarker = warmUpMarker ?? (focusTag === "LEGS" ? "legs" : focusTag === "PUSH" ? "push" : "default");
   const effectiveCoolDown: CoolDownMarker = coolDownMarker ?? (focusTag === "LEGS" ? "legs" : "default");
-  const warmList = (effectiveWarmUp === "legs"
+  const padList = effectiveWarmUp === "legs"
     ? (band === "beginner" ? WARMUP_PAD_LEGS_BEGINNER : WARMUP_PAD_LEGS)
-    : focusTag === "PULL" ? WARMUP_PAD_PULL : WARMUP_PAD_STANDARD
+    : focusTag === "PULL" ? WARMUP_PAD_PULL : WARMUP_PAD_STANDARD;
+  const warmList = (opts.noBand
+    ? [...padList.filter((n) => !needsBand(n)), ...WARMUP_PAD_NO_BAND_FILL.filter((n) => !padList.includes(n))]
+    : padList
   ).slice(0, volume.maxExercises);
   const coolList = effectiveCoolDown === "legs" ? COOLDOWN_PAD_LEGS : COOLDOWN_PAD_STANDARD;
 
