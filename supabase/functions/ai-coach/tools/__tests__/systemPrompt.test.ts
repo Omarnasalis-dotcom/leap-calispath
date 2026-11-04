@@ -80,6 +80,13 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("never refuse to build");
     expect(SYSTEM_PROMPT).toContain("This is part of the equipment question, not a fifth blocker");
   });
+  it("weighted work needs weights, everywhere it is handed out (2026-11-04)", () => {
+    expect(SYSTEM_PROMPT).toContain("5 strict Muscle Ups → add weight (only with a weight belt or free weights, §11;");
+    expect(SYSTEM_PROMPT).toContain("they have a weight belt or free weights (§11), and they can do Dips and Pull Ups");
+    expect(SYSTEM_PROMPT).toContain("**Weighted Strength needs a weight belt or free weights (§11)** — without them, keep the day as a bodyweight Strength day");
+    expect(SYSTEM_PROMPT).toContain("their first loaded dips and pull-ups (if they have weights, §11)");
+    expect(SYSTEM_PROMPT).toContain("**D** add load (is_weighted false → true; only with a weight belt or free weights, §11)");
+  });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
   });
