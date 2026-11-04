@@ -256,6 +256,10 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const hasLoadedFromStorageRef = useRef(false);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
+  // Set on the first tap, before any re-render: two taps in one frame both
+  // saw loading=false and sent the same message twice (seen live 2026-11-04,
+  // 7ms apart, charged twice).
+  const sendingRef = useRef(false);
   const [stages, setStages] = useState<Stage[]>([]);
   const [connectionStatus, setConnectionStatus] = useState<'online' | 'offline' | 'reconnecting'>('online');
   const [rateLimited, setRateLimited] = useState(false);
@@ -605,7 +609,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
   const sendMessage = async (text?: string) => {
     const finalInput = text || inputText;
-    if (!finalInput.trim() || loading) return;
+    if (!finalInput.trim() || loading || sendingRef.current) return;
 
     const now = Date.now();
     const secondsSinceLast = (now - lastMessageTime) / 1000;
@@ -616,6 +620,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
     if (rateLimited) return;
 
+    sendingRef.current = true;
     setLastMessageTime(now);
     const userMsg: Message = { role: 'user', content: finalInput };
     const newMsgs = [...messages, userMsg];
@@ -683,6 +688,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         activeRequestRef.current = null;
         saveInflight(null);
       }
+      sendingRef.current = false;
       setLoading(false);
       setStages([]);
     }
@@ -1147,7 +1153,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                       ))}
                     </View>
                   )}
-                  {(isDayCard || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
+                  {(pendingProgramAction.type === 'create' || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && (
                     <Text style={styles.actionCardWarning}>{t('coach.replacesCurrentProgram')}</Text>
                   )}
                   <View style={styles.actionCardButtons}>

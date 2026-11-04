@@ -13,6 +13,8 @@ export interface PreviewExercise {
   reps: number | null;
   hold_seconds: number | null;
   is_weighted: boolean;
+  // The exercise's own note, e.g. "On rings". Absent from older servers.
+  note?: string | null;
 }
 
 export interface PreviewBlock {
@@ -53,9 +55,12 @@ export function DayPreviewList({ blocks, colors }: { blocks: PreviewBlock[]; col
               ) : null}
             </View>
             {block.exercises.map((ex, j) => (
-              <View key={`${ex.name}-${j}`} style={styles.row}>
-                <Text style={[styles.name, { color: colors.secondaryText }]} numberOfLines={2}>{ex.name}</Text>
-                <Text style={[styles.dose, { color: colors.secondaryText }]}>{previewDose(ex, grouped)}</Text>
+              <View key={`${ex.name}-${j}`}>
+                <View style={styles.row}>
+                  <Text style={[styles.name, { color: colors.secondaryText }]} numberOfLines={2}>{ex.name}</Text>
+                  <Text style={[styles.dose, { color: colors.secondaryText }]}>{previewDose(ex, grouped)}</Text>
+                </View>
+                {ex.note ? <Text style={[styles.note, { color: colors.dimMeta }]} numberOfLines={2}>{ex.note}</Text> : null}
               </View>
             ))}
           </View>
@@ -101,5 +106,9 @@ const styles = StyleSheet.create({
     fontSize: 13,
     lineHeight: 18,
     fontVariant: ['tabular-nums'],
+  },
+  note: {
+    fontSize: 11,
+    lineHeight: 15,
   },
 });
