@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/bits';
 import { fetchUnreadCount } from '@/api/notifications';
 import { fetchFairPlayCounts } from '@/api/fairPlay';
+import { UpdateNotice } from './UpdateNotice';
 
 const ADMIN_NAV: Array<
   { section: string } | { to: string; label: string; end?: boolean }
@@ -118,6 +119,7 @@ export function AppShell() {
         </div>
       </nav>
       <main className="main">
+        <UpdateNotice />
         <Outlet />
       </main>
     </div>
