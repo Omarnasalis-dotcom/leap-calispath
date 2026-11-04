@@ -8,6 +8,7 @@ import { detectPendingCardClaim, detectUnactedClaim } from "./tools/actionClaimG
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
+import { neutralizeAppNotes } from "./tools/appNotes.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
 import { createEventSink, finalRow, parseClientRequestId } from "./tools/resultRecovery.ts";
 import { buildDayPreview, exerciseIds, PreviewBlock } from "./tools/dayPreview.ts";
@@ -489,8 +490,10 @@ serve(async (req: Request) => {
   // the sseResponse callback below — TS's narrowing above doesn't survive
   // into a nested closure over the mutable `body` binding.
   // The app's own usage-limit notices are swapped for a neutral note (see
-  // usageNotices.ts) so the model never repeats them as if still true.
-  const initialMessages = neutralizeUsageNotices(body.messages);
+  // usageNotices.ts) so the model never repeats them as if still true, and
+  // its "**PULL DAY** added." confirmations for an app note (appNotes.ts) so
+  // the model never copies them as if it had built something.
+  const initialMessages = neutralizeAppNotes(neutralizeUsageNotices(body.messages));
 
   const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
   if (profileError || !profile) {

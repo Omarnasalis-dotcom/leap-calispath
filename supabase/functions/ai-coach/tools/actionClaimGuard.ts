@@ -26,6 +26,10 @@ const CLAIM_PATTERNS: RegExp[] = [
   // through. Safe to widen — index.ts only runs this guard when no write
   // tool was called in the request, so an honest post-tool reply never trips it.
   /\bI('ve| have)\s+(built|created|started|ended|deleted|removed|added|adjusted|updated|swapped|replaced)\s+((your|the|that|this)\s+)?(program|week|day|block|exercise)\b/i,
+  // The app's own confirmation shape, "**PUSH DAY** added." — copied by the
+  // model live on 2026-11-04 with no tool call (see appNotes.ts).
+  /\*\*[^*\n]{1,60}\*\*\s*(added|updated)\s*[.!]/i,
+  /(تمت\s*إضافة|تم\s*تحديث)\s*\*\*/,
   // Arabic: "تم بناء/إضافة/حذف/تعديل" (was built/added/deleted/adjusted), "برنامجك جاهز" (your program is ready)
   /تم\s*(بناء|إضاف|حذف|تعديل|إنشاء|إنهاء)/,
   /برنامجك\s*(جاهز|جاهزة|اتعمل|إتعمل)/,

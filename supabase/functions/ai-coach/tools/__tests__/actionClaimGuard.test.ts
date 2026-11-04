@@ -22,6 +22,9 @@ describe("detectUnactedClaim — flags claims that a write already happened", ()
     "I have adjusted your program to 4 days.",
     "I've swapped the exercise in day 2.",
     "I have removed the block you didn't like.",
+    // Live 2026-11-04 (TestFlight): the app's own confirmation shape, copied.
+    "Day 2: handstand work first, then pressing.\n\n**PUSH DAY** added. Last one left, Legs.",
+    "**PUSH DAY** updated.",
   ])("English: %s", (text) => {
     expect(detectUnactedClaim(text)).toBe(true);
   });
@@ -33,6 +36,7 @@ describe("detectUnactedClaim — flags claims that a write already happened", ()
     "تم تعديل البرنامج",
     "برنامجك جاهز يا بطل",
     "برنامجك اتعمل خلاص",
+    "تمت إضافة **يوم الدفع**.",
   ])("Arabic (Egyptian register): %s", (text) => {
     expect(detectUnactedClaim(text)).toBe(true);
   });
@@ -54,6 +58,9 @@ describe("detectUnactedClaim — leaves honest replies alone", () => {
     "You can swap any exercise you don't like — just tell me which one.",
     "عايز أضيف يوم خامس؟",
     "قولي لو عايز نعدل البرنامج",
+    "Once **PULL DAY** is added, I'll build Day 2.",
+    "Tap Add on **PUSH DAY** to add it.",
+    "Day 1 is ready: tap the card to add it.",
   ])("%s", (text) => {
     expect(detectUnactedClaim(text)).toBe(false);
   });

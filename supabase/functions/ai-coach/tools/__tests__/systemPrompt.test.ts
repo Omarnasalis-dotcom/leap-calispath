@@ -103,6 +103,11 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain('write "On rings" in that exercise\'s notes');
     expect(SYSTEM_PROMPT).toContain("open that question with a suggestion");
     expect(SYSTEM_PROMPT).toContain("**Plain words for profile values.**");
+    expect(SYSTEM_PROMPT).toContain("never tell them you'll change it later");
+    expect(SYSTEM_PROMPT).toContain("IS confirmed: say in one line which numbers you'll build from");
+    expect(SYSTEM_PROMPT).toContain("a short skill block (one or two exercises, 10 to 15 minutes) fits on any day");
+    expect(SYSTEM_PROMPT).toContain("never internal field or tool names");
+    expect(SYSTEM_PROMPT).toContain('So no "Now building Day 1 with…" before the call');
     // One rule in §10, not three copies.
     expect(SYSTEM_PROMPT.split("never call it a claim").length - 1).toBe(1);
   });
