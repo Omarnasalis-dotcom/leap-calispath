@@ -4,12 +4,12 @@ import { LiveRoomScreen } from '../src/screens/live/LiveRoomScreen';
 import { SpartanLayout } from '../src/components/SpartanLayout';
 
 export default function Route() {
-  const { roomId } = useLocalSearchParams<{ roomId?: string }>();
+  const { roomId, review } = useLocalSearchParams<{ roomId?: string; review?: string }>();
   if (!roomId) return <Redirect href="/weekly-challenge" />;
 
   return (
     <SpartanLayout hideToggle noBottomInset>
-      <LiveRoomScreen roomId={roomId} />
+      <LiveRoomScreen roomId={roomId} review={review === '1'} />
     </SpartanLayout>
   );
 }

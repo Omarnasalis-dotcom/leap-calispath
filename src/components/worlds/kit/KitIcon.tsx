@@ -5,7 +5,7 @@ import { FLIP_X } from '../../../i18n';
 /** Icons drawn from the handoff's own SVG paths (24×24 viewBox). */
 export type KitIconName =
   | 'stopwatch' | 'bolt' | 'snowflake' | 'target' | 'podium' | 'crown'
-  | 'close' | 'back' | 'forward' | 'play' | 'plus' | 'minus' | 'check' | 'pencil';
+  | 'close' | 'back' | 'forward' | 'play' | 'plus' | 'minus' | 'check' | 'pencil' | 'share';
 
 interface Props {
   name: KitIconName;
@@ -59,6 +59,9 @@ export function KitIcon({ name, size = 18, color, strokeWidth = 2.4 }: Props) {
       break;
     case 'pencil':
       body = <Path d="M4 20h4L19 9l-4-4L4 16z" {...stroke} />;
+      break;
+    case 'share':
+      body = (<><Path d="M12 3v12M7 8l5-5 5 5" {...stroke} /><Path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" {...stroke} /></>);
       break;
   }
   return (

@@ -5,9 +5,12 @@
  */
 import { clamp01, easeOutCubic } from './prCelebration';
 
-export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance' | 'journey' | 'team';
-/** reps = the weekly board's PTS (whole numbers); points = Well-Rounded (2 decimals). */
-export type ShareScoreType = 'time' | 'reps' | 'points';
+export type ShareVariant = 'strength' | 'weekly' | 'wellRounded' | 'static' | 'power' | 'endurance' | 'journey' | 'team' | 'live';
+/**
+ * reps = the weekly board's PTS (whole numbers); points = Well-Rounded (2 decimals);
+ * pts = Live Tournament points (whole, or one decimal for 1.5 pts per rep).
+ */
+export type ShareScoreType = 'time' | 'reps' | 'points' | 'pts';
 
 // ── Timeline ──────────────────────────────────────────────────────────────
 /** Rise start per place (index 0 = 1st): 3rd → 2nd → 1st. */
@@ -45,6 +48,10 @@ export interface ShareRow {
   score: number;
   /** Well-Rounded only: Static / Power / Endurance points. */
   split?: [number, number, number];
+  /** Live only: the side's players, under its name. */
+  sub?: string;
+  /** Live only: the place, when tied sides share one (default: position). */
+  place?: number;
 }
 
 export interface SharePlace {
@@ -53,6 +60,8 @@ export interface SharePlace {
   score: number;
   isYou: boolean;
   split?: [number, number, number];
+  sub?: string;
+  place?: number;
 }
 
 export interface ShareYou {
@@ -87,6 +96,7 @@ export function buildShareBoard(rows: ShareRow[], myId: string | undefined, myNa
   const total = rows.length;
   const top3 = rows.slice(0, 3).map(r => ({
     username: r.username, initials: usernameInitials(r.username), score: r.score, isYou: r.user_id === myId, split: r.split,
+    sub: r.sub, place: r.place,
   }));
   const idx = myId ? rows.findIndex(r => r.user_id === myId) : -1;
   const me = idx >= 0 ? rows[idx] : null;
@@ -116,6 +126,10 @@ function clock(seconds: number): string {
 export function formatShareScore(value: number, type: ShareScoreType): string {
   if (type === 'time') return clock(value);
   if (type === 'points') return value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if (type === 'pts') {
+    const v = Math.round(value * 10) / 10;
+    return v.toLocaleString('en-US', { minimumFractionDigits: Number.isInteger(v) ? 0 : 1, maximumFractionDigits: 1 });
+  }
   return Math.round(value).toLocaleString('en-US');
 }
 

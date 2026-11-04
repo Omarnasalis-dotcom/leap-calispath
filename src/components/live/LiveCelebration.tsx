@@ -6,7 +6,8 @@ import { router } from 'expo-router';
 import { KitButton, KitIcon, kt } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
-import { LivePodium, SideStandings, formatPts, playerName, sideLabel } from './LiveParts';
+import { LivePodium, SideStandings, formatPts, playerName, sideLabel, sidePlayers } from './LiveParts';
+import { LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 import { clamp01, easeOutBack, easeOutCubic } from '../../lib/prCelebration';
 import { LiveRoomState, bestPlayer, celebrationTimes, playerTotals, sideStandings } from '../../lib/liveTournament';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
@@ -78,7 +79,11 @@ function Pop({ clock, start, children }: { clock: SharedValue<number>; start: nu
  * The end of a Live Tournament match: sides land from last place to first,
  * then the winner pops with confetti, then the best player. Tap to skip.
  */
-export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyTokens; state: LiveRoomState; myId: string | undefined }) {
+export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false }: {
+  tokens: WeeklyTokens; state: LiveRoomState; myId: string | undefined;
+  /** Reopened from Live history: show the final frame at once, without the bell. */
+  settledAtStart?: boolean;
+}) {
   const { room, challenge, players, results, side_names: names } = state;
   const halfCount = challenge.halves.length;
   const me = players.find(p => p.user_id === myId);
@@ -89,6 +94,16 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
   const winners = standings.filter(s => s.place === 1);
   const iWon = winners.some(w => w.side === me?.side);
   const times = useMemo(() => celebrationTimes(room.side_count), [room.side_count]);
+  const [shareOpen, setShareOpen] = useState(false);
+  // Every side with its players (display names only) for the share image.
+  const shareRows = useMemo(() => standings.map(s => ({
+    user_id: `side-${s.side}`, username: sideLabel(s.side, names), score: s.total, sub: sidePlayers(players, s.side) || undefined, place: s.place,
+  })), [standings, names, players]);
+  const perSide = players.filter(p => p.side === 1).length;
+  const shareSub = [
+    tr('live.chipHalves', { count: Math.min(room.current_half, halfCount) || halfCount }),
+    Array.from({ length: room.side_count }, () => perSide).join(` ${tr('leaderboardShare.vs')} `),
+  ].join(' · ');
 
   const clock = useSharedValue(0);
   const [settled, setSettled] = useState(false);
@@ -114,6 +129,11 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
 
   useEffect(() => {
     let alive = true;
+    if (settledAtStart) {
+      winFired.current = true;
+      jumpToEnd();
+      return () => { cancelAnimation(clock); };
+    }
     const play = () => {
       clock.value = withTiming(CLOCK_END, { duration: CLOCK_END * 1000, easing: Easing.linear });
       timers.current = [
@@ -209,10 +229,25 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
                   );
                 })}
             </View>
-            <KitButton tokens={t} label={tr('live.done')} onPress={() => router.back()} style={{ marginTop: 8 }} />
+            <KitButton tokens={t} variant="outline" icon="share" label={tr('live.shareResult')} onPress={() => setShareOpen(true)} style={{ marginTop: 8 }} />
+            <KitButton tokens={t} label={tr('live.done')} onPress={() => router.back()} />
           </>
         )}
       </ScrollView>
+
+      <LeaderboardShareCard
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="live"
+        title={challenge.title}
+        subLine={shareSub}
+        communityScoped={false}
+        scoreType="pts"
+        rows={shareRows}
+        myId={me?.side != null ? `side-${me.side}` : undefined}
+        myName={me?.side != null ? sideLabel(me.side, names) : ''}
+        match={{ best: best ? { name: bestRow ? playerName(bestRow) : tr('team.deletedUser'), team: sideLabel(best.side, names), score: best.total } : undefined }}
+      />
 
       {/* Confetti over everything, never blocking taps. */}
       <View pointerEvents="none" style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 520, overflow: 'hidden' }}>

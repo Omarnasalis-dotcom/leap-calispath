@@ -107,10 +107,12 @@ async function writeDraft(key: string, draft: LogDraft | null): Promise<void> {
 
 interface Props {
   roomId: string;
+  /** Opened from Live history: a finished match shows its final result at once. */
+  review?: boolean;
 }
 
 /** A Live Tournament room: lobby, each half, logging, standings and the final reveal. */
-export function LiveRoomScreen({ roomId }: Props) {
+export function LiveRoomScreen({ roomId, review = false }: Props) {
   const { mode } = useTheme();
   const t = useMemo(() => getWeeklyTokens(mode), [mode]);
   const insets = useSafeAreaInsets();
@@ -252,7 +254,8 @@ export function LiveRoomScreen({ roomId }: Props) {
 
   const finishedTracked = useRef(false);
   useEffect(() => {
-    if (state?.room.status === 'finished' && !finishedTracked.current) {
+    // A past match reopened from history isn't a new finish.
+    if (state?.room.status === 'finished' && !finishedTracked.current && !review) {
       finishedTracked.current = true;
       track('live_match_finished', { halves: state.room.current_half, sides: state.room.side_count, players: state.players.length });
     }
@@ -299,7 +302,7 @@ export function LiveRoomScreen({ roomId }: Props) {
   if (room.status === 'abandoned') {
     body = <EndedView tokens={t} />;
   } else if (phase === 'finished') {
-    body = <LiveCelebration tokens={t} state={state} myId={myId} />;
+    body = <LiveCelebration tokens={t} state={state} myId={myId} settledAtStart={review} />;
   } else if (phase === 'lobby') {
     body = (
       <LobbyView

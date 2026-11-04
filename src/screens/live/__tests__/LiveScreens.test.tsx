@@ -50,6 +50,8 @@ jest.mock('expo-keep-awake', () => ({
   deactivateKeepAwake: jest.fn().mockResolvedValue(undefined),
 }));
 jest.mock('../../../lib/analytics', () => ({ track: jest.fn() }));
+const mockShareCardImage = jest.fn(async (..._a: unknown[]) => 'shared');
+jest.mock('../../../lib/shareCard', () => ({ shareCardImage: (...a: unknown[]) => mockShareCardImage(...a) }));
 jest.mock('react-native-reanimated', () => require('react-native-reanimated/mock'));
 jest.mock('expo-haptics', () => ({
   impactAsync: jest.fn().mockResolvedValue(undefined),
@@ -412,6 +414,24 @@ describe('LiveRoomScreen · match', () => {
     }
   });
 
+  it('final reopened from history: the result at once, no new finish event', async () => {
+    const { track } = require('../../../lib/analytics');
+    const { SoundServiceInstance: sound } = require('../../../lib/SoundService');
+    (track as jest.Mock).mockClear();
+    (sound.playBoxingBell as jest.Mock).mockClear();
+    const results = [result(1, 'me', 1, 280), result(1, 'u3', 2, 120)];
+    mockService.getRoomState.mockResolvedValue(timed(makeState(
+      { status: 'finished', current_half: 2, half_closed_at: iso(-100), finished_at: iso(-86_400_000) }, FOUR, { results },
+    )));
+    const r = await render(<LiveRoomScreen roomId="r1" review />);
+    const text = allText(r);
+    expect(text).toContain('DONE');
+    expect(text).toContain('SHARE RESULT');
+    expect(track).not.toHaveBeenCalledWith('live_match_finished', expect.anything());
+    const { SoundServiceInstance } = require('../../../lib/SoundService');
+    expect(SoundServiceInstance.playBoxingBell).not.toHaveBeenCalled();
+  });
+
   it('final: tapping skips straight to the table', async () => {
     const results = [result(1, 'me', 1, 280), result(1, 'u3', 2, 120)];
     mockService.getRoomState.mockResolvedValue(timed(makeState(
@@ -426,6 +446,33 @@ describe('LiveRoomScreen · match', () => {
     // Players under each side on the podium and again in the by-half table.
     expect(text.split('Omar · Sara').length - 1).toBe(2);
     expect(text.split('Ali · Mona').length - 1).toBe(2);
+  });
+
+  it('final: SHARE RESULT opens the card with every side, its players and the best player', async () => {
+    const eight = [
+      p('me', 'Omar', 1), p('u2', 'Sara', 1), p('u3', 'Ali', 2), p('u4', 'Mona', 2),
+      p('u5', 'Kareem', 3), p('u6', 'Nour', 3), p('u7', 'Yara', 4), p('u8', 'Ziad', 4),
+    ];
+    const results = [result(1, 'me', 1, 100), result(1, 'u3', 2, 300), result(1, 'u5', 3, 200), result(1, 'u7', 4, 12.5)];
+    mockService.getRoomState.mockResolvedValue(timed(makeState(
+      { status: 'finished', current_half: 2, half_closed_at: iso(-100), finished_at: iso(-100), side_count: 4 }, eight,
+      { results, side_names: { '1': 'Wolves', '2': 'Lions', '3': 'Hawks', '4': 'Bears' } },
+    )));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const skip = r.root.findAll(n => n.props.accessibilityHint === 'Tap to skip' && n.props.onPress)[0];
+    await act(async () => { skip.props.onPress(); });
+    const before = allText(r).split('Yara · Ziad').length;
+    await act(async () => { button(r, 'SHARE RESULT').props.onPress(); });
+    const text = allText(r);
+    expect(text).toContain('LIVE TOURNAMENT');
+    expect(text).toContain('HALVES WEEK 1');
+    expect(text).toContain('2 HALVES · 2 V 2 V 2 V 2');
+    expect(text.split('Yara · Ziad').length).toBe(before + 1); // 4th side as a row on the card
+    expect(text).toContain('12.5');
+    expect(text).toContain('Ali'); // best player: Ali, Lions, 300
+    const shareIcon = r.root.findAll(n => n.props.accessibilityLabel === 'Share leaderboard' && n.props.onPress)[0];
+    await act(async () => { await shareIcon.props.onPress(); });
+    expect(mockShareCardImage).toHaveBeenCalledWith(expect.anything(), 'leaderboard-share-card', 'leap-arena-live-result.png');
   });
 
   it('abandoned room', async () => {
@@ -549,6 +596,43 @@ describe('LiveHub', () => {
     expect(text).toContain('335 PTS');
     expect(text).toContain('#1 OF 2');
     expect(text).toContain('BEST PLAYER');
+    const row = r.root.findAll(n => n.props.accessibilityHint === 'Opens the final result' && n.props.onPress)[0];
+    await act(async () => { row.props.onPress(); });
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/live-room', params: { roomId: 'r1', review: '1' } });
+  });
+
+  it('leaderboard share: top 3 + my row, players and teams', async () => {
+    mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([]);
+    mockService.getPlayerBoard.mockResolvedValue([
+      { rank: 1, user_id: 'u2', display_name: 'Sara', country: null, points: 410, team_name: 'Lions', achieved_at: iso(-1), is_mine: false },
+      { rank: 2, user_id: 'u3', display_name: 'Ali', country: null, points: 300, team_name: 'Lions', achieved_at: iso(-1), is_mine: false },
+      { rank: 3, user_id: 'u5', display_name: 'Kareem', country: 'EG', points: 250, team_name: 'Hawks', achieved_at: iso(-1), is_mine: false },
+      { rank: 4, user_id: 'me', display_name: 'Omar', country: 'EG', points: 12.5, team_name: 'Iron Wolves', achieved_at: iso(-1), is_mine: true },
+    ]);
+    mockService.getTeamBoard.mockResolvedValue([
+      { rank: 1, room_id: 'r1', side: 1, team_name: 'Iron Wolves', members: [{ user_id: 'me', display_name: 'Omar' }, { user_id: 'u2', display_name: 'Sara' }],
+        player_count: 2, total: 611, points_per_player: 305.5, achieved_at: iso(-1), is_mine: true },
+    ]);
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    const shareIcon = () => r.root.findAll(n => n.props.accessibilityLabel === 'Share leaderboard' && n.props.onPress)[0];
+    await act(async () => { shareIcon().props.onPress(); });
+    let text = allText(r);
+    expect(text).toContain('PLAYERS · BEST MATCH');
+    expect(text).toContain('HALVES WEEK 1');
+    expect(text).toContain('#4'); // my row
+    expect(text).toContain('12.5');
+    expect(text).not.toContain('EG'); // never the country
+    await act(async () => { r.root.findAll(n => n.props.accessibilityRole === 'button' && texts(n.children as any).join('') === 'DONE')[0].props.onPress(); });
+
+    const teamsTab = r.root.findAll(n => n.props.accessibilityRole === 'tab' && texts(n.children as any).join('').includes('TEAMS'))[0];
+    await act(async () => { teamsTab.props.onPress(); });
+    await act(async () => { shareIcon().props.onPress(); });
+    text = allText(r);
+    expect(text).toContain('TEAMS · POINTS PER PLAYER');
+    expect(text).toContain('305.5');
+    expect(text.split('Omar · Sara').length - 1).toBe(2); // board + card podium
   });
 });
 
@@ -588,6 +672,26 @@ describe('LIVE in both languages and both themes', () => {
           }
         });
       }
+      it(`${lang} · ${theme} · share card`, async () => {
+        i18n.changeLanguage(lang);
+        mockMode = theme;
+        jest.useFakeTimers();
+        try {
+          mockService.getRoomState.mockResolvedValue(timed(makeState(finished, FOUR, { results: fullResults, side_names: { '1': 'الذئاب', '2': 'Lions' } })));
+          const r = await render(<LiveRoomScreen roomId="r1" />);
+          await act(async () => { jest.advanceTimersByTime(8000); });
+          await act(async () => { button(r, lang === 'ar' ? 'مشاركة النتيجة' : 'SHARE RESULT').props.onPress(); });
+          await act(async () => { jest.advanceTimersByTime(5000); });
+          const text = allText(r);
+          expect(text).toContain(lang === 'ar' ? 'بطولة مباشرة' : 'LIVE TOURNAMENT');
+          expect(text).toContain(lang === 'ar' ? 'شوطان · 2 ضد 2' : '2 HALVES · 2 V 2');
+          expect(text).toContain('Omar · Sara');
+          expect(text).not.toMatch(RAW_KEY);
+          expect(text).not.toMatch(/leaderboardShare\.|undefined|NaN|\[object/);
+        } finally {
+          jest.useRealTimers();
+        }
+      });
       it(`${lang} · ${theme} · hub with boards and history`, async () => {
         i18n.changeLanguage(lang);
         mockMode = theme;
@@ -609,6 +713,12 @@ describe('LIVE in both languages and both themes', () => {
           expect(text).toContain('شوطان'); // Arabic dual, not "2 أشواط"
           expect(text).toContain('حتى لاعبَين لكل جانب');
         }
+        // The board's share card.
+        await act(async () => { r.root.findAll(n => n.props.accessibilityLabel === (lang === 'ar' ? 'مشاركة لوحة الصدارة' : 'Share leaderboard') && n.props.onPress)[0].props.onPress(); });
+        const card = allText(r);
+        expect(card).toContain(lang === 'ar' ? 'اللاعبون · أفضل مباراة' : 'PLAYERS · BEST MATCH');
+        expect(card).not.toMatch(RAW_KEY);
+        expect(card).not.toMatch(/leaderboardShare\.|undefined|NaN|\[object/);
       });
     }
   }

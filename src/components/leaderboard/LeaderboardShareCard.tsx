@@ -36,6 +36,12 @@ export interface LeaderboardShareCardProps {
   rows: ShareRow[];
   myId?: string;
   myName: string;
+  /** Live only: shown instead of the YOU row, under sides 4+ (rows past the podium). */
+  match?: LiveShareMatch;
+}
+
+export interface LiveShareMatch {
+  best?: { name: string; team: string; score: number };
 }
 
 /** Clock runs far past the end so the ambient motes keep drifting. */
@@ -59,6 +65,7 @@ const NOT_RANKED_LINE: Record<ShareVariant, string> = {
   endurance: 'leaderboardShare.notRankedWorld',
   journey: 'leaderboardShare.notRankedJourney',
   team: 'leaderboardShare.notRankedTeam',
+  live: 'leaderboardShare.notRankedLive',
 };
 const BOARD_LABEL: Record<ShareVariant, string> = {
   strength: 'leaderboardShare.strength',
@@ -69,6 +76,7 @@ const BOARD_LABEL: Record<ShareVariant, string> = {
   endurance: 'leaderboardShare.worlds',
   journey: 'leaderboardShare.journey',
   team: 'leaderboardShare.team',
+  live: 'live.kicker',
 };
 const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch' | 'podium'>> = {
   static: 'snowflake',
@@ -76,6 +84,7 @@ const WORLD_ICON: Partial<Record<ShareVariant, 'snowflake' | 'bolt' | 'stopwatch
   endurance: 'stopwatch',
   journey: 'podium',
   team: 'podium',
+  live: 'podium',
 };
 
 function useFadeUp(clock: SharedValue<number>, start: number, dy = 14, dur = 0.5, fade?: SharedValue<number>) {
@@ -181,7 +190,9 @@ function PodiumScore({ clock, i, score, type, first, color }: {
   useAnimatedReaction(
     () => {
       const v = score * scoreProgress(clock.value, i);
-      return type === 'points' ? Math.round(v * 100) / 100 : type === 'time' ? (tenths ? Math.round(v * 10) / 10 : Math.floor(v)) : Math.round(v);
+      if (type === 'points') return Math.round(v * 100) / 100;
+      if (type === 'time') return tenths ? Math.round(v * 10) / 10 : Math.floor(v);
+      return type === 'pts' && tenths ? Math.round(v * 10) / 10 : Math.round(v);
     },
     (now, was) => { if (now !== was) runOnJS(setShown)(now); },
   );
@@ -225,7 +236,9 @@ const Place = React.memo(function Place({ clock, tk, i, place, scoreType, unit, 
   const first = i === 0;
   const filled = !!place;
   const you = !!place?.isYou;
-  const medal = tk.medals[i];
+  // Tied Live sides share a place (and its medal); every other board numbers by position.
+  const shownPlace = place?.place ?? i + 1;
+  const medal = tk.medals[Math.min(shownPlace, 3) - 1];
   const ring = you ? tk.accent : medal;
   const land = placeLand(i);
   const rise = PLACE_RISE[i];
@@ -292,6 +305,11 @@ const Place = React.memo(function Place({ clock, tk, i, place, scoreType, unit, 
         >
           {filled ? place!.username : '—'}
         </Text>
+        {filled && !!place!.sub && (
+          <Text style={[kt('regular', isArabic ? 11 : 10, tk.t4, 0.2, 13), { marginTop: 2, maxWidth: '100%', textAlign: 'center' }]} numberOfLines={2}>
+            {place!.sub}
+          </Text>
+        )}
         {filled && (
           <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, marginTop: 1, direction: 'ltr' }}>
             <PodiumScore clock={clock} i={i} score={place!.score} type={scoreType} first={first} color={tk.t1} />
@@ -319,7 +337,7 @@ const Place = React.memo(function Place({ clock, tk, i, place, scoreType, unit, 
           {you && youOnPodium && (
             <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, { borderTopLeftRadius: 12, borderTopRightRadius: 12, borderWidth: 2, borderColor: tk.accent, backgroundColor: rgba(tk.accent, 0.16) }, youPulseStyle]} />
           )}
-          <Text style={kt('bold', g.num, filled ? medal : tk.t5, 0, g.num + 4)}>{i + 1}</Text>
+          <Text style={kt('bold', g.num, filled ? medal : tk.t5, 0, g.num + 4)}>{shownPlace}</Text>
         </Animated.View>
       </View>
     </View>
@@ -347,6 +365,62 @@ function LiveDot({ clock, color }: { clock: SharedValue<number>; color: string }
   return <Animated.View style={[{ width: 6, height: 6, borderRadius: 3, backgroundColor: color, boxShadow: `0 0 8px ${color}` }, style]} />;
 }
 
+// ── Live match footer ───────────────────────────────────────────────────────
+/** Live: sides past the podium, then the room's best player (in place of the YOU row). */
+function MatchFooter({ clock, tk, rest, myId, best, unit }: {
+  clock: SharedValue<number>; tk: LBTokens; rest: ShareRow[]; myId?: string; best?: LiveShareMatch['best']; unit: string;
+}) {
+  const bestStyle = useFadeUp(clock, LB_LOCK + LB_AFTER.you + 0.1 * (rest.length + 1), 16);
+  return (
+    <View style={{ marginTop: 16, gap: 10 }}>
+      {rest.map((r, k) => <MatchRow key={r.user_id} clock={clock} tk={tk} row={r} n={4 + k} start={LB_LOCK + LB_AFTER.you + 0.1 * k} mine={r.user_id === myId} unit={unit} />)}
+      {best && (
+        <Animated.View style={[{ borderRadius: 18, borderWidth: 1, borderColor: tk.youBorder, backgroundColor: tk.youBg, paddingVertical: 12, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12 }, bestStyle]}>
+          <Svg width={24} height={18} viewBox="0 0 22 16"><Path d="M1.5 4.5l5 4.2L11 1.5l4.5 7.2 5-4.2-1.8 10H3.3z" fill={MEDAL_GOLD} /></Svg>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={kt('semibold', isArabic ? 11.5 : 10, MEDAL_GOLD, 2)}>{tr('live.bestPlayer')}</Text>
+            <Text style={[kt('semibold', 15, tk.t1, 0.3), { marginTop: 2 }]} numberOfLines={1}>{best.name}</Text>
+            <Text style={[kt('medium', isArabic ? 11.5 : 10, tk.t4, 1.2), { marginTop: 1 }]} numberOfLines={1}>{best.team}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, direction: 'ltr' }}>
+            <Text style={[kt('bold', 18, tk.t1), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>{formatShareScore(best.score, 'pts')}</Text>
+            {!!unit && <Text style={kt('medium', 9, tk.t4, 1.2)}>{unit}</Text>}
+          </View>
+        </Animated.View>
+      )}
+    </View>
+  );
+}
+
+function MatchRow({ clock, tk, row, n, start, mine, unit }: {
+  clock: SharedValue<number>; tk: LBTokens; row: ShareRow; n: number; start: number; mine: boolean; unit: string;
+}) {
+  const style = useFadeUp(clock, start, 16);
+  return (
+    <Animated.View style={[{
+      borderRadius: 18, borderWidth: 1, borderColor: mine ? tk.youBorder : tk.floorLine, backgroundColor: mine ? tk.youBg : 'transparent',
+      paddingVertical: 10, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 12,
+    }, style]}>
+      <Text style={[kt('bold', 20, mine ? tk.accent : tk.t3), { minWidth: 22, fontVariant: ['tabular-nums'] }]}>{row.place ?? n}</Text>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <Text style={[kt('semibold', 14, tk.t1, 0.3), { flexShrink: 1 }]} numberOfLines={1}>{row.username}</Text>
+          {mine && (
+            <View style={{ height: 16, paddingHorizontal: 6, borderRadius: 5, backgroundColor: tk.accent, justifyContent: 'center' }}>
+              <Text style={kt('bold', isArabic ? 10 : 9, '#ffffff', 1.4)}>{tr('leaderboardShare.you')}</Text>
+            </View>
+          )}
+        </View>
+        {!!row.sub && <Text style={[kt('regular', isArabic ? 11.5 : 10.5, tk.t4), { marginTop: 2 }]} numberOfLines={2}>{row.sub}</Text>}
+      </View>
+      <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3, direction: 'ltr' }}>
+        <Text style={[kt('bold', 16, tk.t1), { fontVariant: ['tabular-nums'] }]} numberOfLines={1}>{formatShareScore(row.score, 'pts')}</Text>
+        {!!unit && <Text style={kt('medium', 9, tk.t4, 1.2)}>{unit}</Text>}
+      </View>
+    </Animated.View>
+  );
+}
+
 // ── Card ────────────────────────────────────────────────────────────────────
 export function LeaderboardShareCard(props: LeaderboardShareCardProps) {
   if (!props.visible) return null;
@@ -360,7 +434,7 @@ export function LeaderboardShareCard(props: LeaderboardShareCardProps) {
  * One Reanimated clock drives the whole timeline.
  */
 function LeaderboardShareModal({
-  onClose, variant, title, subLine, live = true, communityScoped, scoreType, rows, myId, myName,
+  onClose, variant, title, subLine, live = true, communityScoped, scoreType, rows, myId, myName, match,
 }: LeaderboardShareCardProps) {
   const { mode } = useTheme();
   const tk = useMemo(() => getLBTokens(variant, mode), [variant, mode]);
@@ -420,7 +494,7 @@ function LeaderboardShareModal({
     (now, was) => { if (now && was === false && clock.value < LB_LOCK + LB_AFTER.you + 0.2) runOnJS(light)(); },
   );
   useAnimatedReaction(
-    () => countdown && clock.value >= LB_COUNTDOWN_END,
+    () => countdown && !match && clock.value >= LB_COUNTDOWN_END,
     (now, was) => { if (now && was === false && clock.value < LB_COUNTDOWN_END + 0.2) runOnJS(tick)(); },
   );
 
@@ -453,7 +527,7 @@ function LeaderboardShareModal({
 
   const handleShare = async () => {
     skip();
-    const result = await shareCardImage(cardRef, 'leaderboard-share-card', 'leap-arena-leaderboard.png');
+    const result = await shareCardImage(cardRef, 'leaderboard-share-card', match ? 'leap-arena-live-result.png' : 'leap-arena-leaderboard.png');
     if (result === 'shared') track('leaderboard_shared', { variant });
     else if (result === 'unavailable') Alert.alert(tr('celebration.shareUnavailableTitle'), tr('celebration.shareUnavailable'));
     else Alert.alert(tr('celebration.error'), tr('celebration.shareFailed'));
@@ -461,7 +535,8 @@ function LeaderboardShareModal({
 
   const date = new Date().toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric', year: 'numeric' }).toUpperCase();
   const titleSize = shareTitleSize(title);
-  const eyebrow = variant === 'weekly' && !live ? tr('leaderboardShare.finalStandings') : tr('leaderboardShare.leaderboard');
+  const eyebrow = match ? tr('live.finalKicker')
+    : variant === 'weekly' && !live ? tr('leaderboardShare.finalStandings') : tr('leaderboardShare.leaderboard');
   const rankColor = !ranked ? tk.t5 : youOnPodium ? tk.medals[you.rank! - 1] : tk.accent;
   const gapColor = !ranked ? tk.t3 : you.rank === 1 ? MEDAL_GOLD : tk.accent;
   const gapNum = ranked && you.rank! > 1 ? `${formatShareGap(you.gap, scoreType)}${unit ? ` ${unit}` : ''}` : '';
@@ -558,6 +633,9 @@ function LeaderboardShareModal({
                 ))}
               </View>
 
+              {match ? (
+                <MatchFooter clock={clock} tk={tk} rest={rows.slice(3)} myId={myId} best={match.best} unit={unit} />
+              ) : (
               <Animated.View style={[{ marginTop: 16, borderRadius: 18, borderWidth: 1, borderColor: tk.youBorder, backgroundColor: tk.youBg, paddingTop: 12, paddingHorizontal: 14, paddingBottom: 11 }, youStyle]}>
                 <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                   <RankCounter clock={clock} rank={you.rank} total={total} countdown={countdown} color={rankColor} />
@@ -587,6 +665,7 @@ function LeaderboardShareModal({
                   <Text style={kt('semibold', isArabic ? 12 : 11, gapColor, 1.8)}>{gapLabel}</Text>
                 </View>
               </Animated.View>
+              )}
 
               <Animated.View style={[{ marginTop: 16, alignItems: 'center' }, logoStyle]}>
                 <View style={{ height: 30, paddingHorizontal: 14, borderRadius: 15, borderWidth: 1, borderColor: tk.pillBorder, flexDirection: 'row', alignItems: 'center', gap: 8, direction: 'ltr' }}>

@@ -7,6 +7,8 @@ import { Label, WeeklyHeader } from '../../components/weekly/WeeklyParts';
 import { closesInLabel } from '../../components/team/TeamParts';
 import { HalvesList, LiveChallengeCard, PodiumBoard, PodiumItem, formatPts, sideLabel } from '../../components/live/LiveParts';
 import { LeapLogo } from '../../components/LeapLogo';
+import { BoardShareButton, LeaderboardShareCard } from '../../components/leaderboard/LeaderboardShareCard';
+import { useAuth } from '../../contexts/AuthContext';
 import { LiveTournamentError, LiveTournamentService } from '../../services/LiveTournamentService';
 import {
   LiveChallenge, LiveHistoryRow, LivePlayerBoardRow, LiveTeamBoardRow, MAX_SIDES, MIN_SIDES, ROOM_CODE_LENGTH,
@@ -24,7 +26,8 @@ interface Props {
 
 type Sheet = 'create' | 'join' | null;
 
-export const openLiveRoom = (roomId: string) => router.push({ pathname: '/live-room', params: { roomId } });
+export const openLiveRoom = (roomId: string, review = false) =>
+  router.push({ pathname: '/live-room', params: review ? { roomId, review: '1' } : { roomId } });
 
 const shortDate = (iso: string) =>
   new Date(iso).toLocaleDateString(isArabic ? 'ar' : 'en-US', { month: 'short', day: 'numeric' }).toUpperCase();
@@ -185,7 +188,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
             )}
 
             <HalvesList tokens={t} halves={challenge.halves} />
-            <LiveBoards tokens={t} challengeId={challenge.id} />
+            <LiveBoards tokens={t} challengeId={challenge.id} challengeTitle={challenge.title} />
           </>
         )}
 
@@ -193,10 +196,16 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
           <View style={{ paddingTop: 28, gap: 10 }}>
             <Label tokens={t} size={11}>{tr('live.history')}</Label>
             {history.map(h => (
-              <View key={h.room_id} style={{
-                flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14,
-                backgroundColor: t.card, borderWidth: 1, borderColor: t.border,
-              }}>
+              <Pressable
+                key={h.room_id}
+                accessibilityRole="button"
+                accessibilityHint={tr('live.historyOpenHint')}
+                onPress={() => openLiveRoom(h.room_id, true)}
+                style={({ pressed }) => ({
+                  flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 14,
+                  backgroundColor: t.card, borderWidth: 1, borderColor: t.border, opacity: pressed ? 0.75 : 1,
+                })}
+              >
                 <View style={{ flex: 1, minWidth: 0, gap: 2 }}>
                   <Text style={kt('medium', 10.5, t.textFaint, 1.4)} numberOfLines={1}>
                     {`${ltr(shortDate(h.finished_at))} · ${h.challenge_title.toUpperCase()}`}
@@ -210,7 +219,8 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
                     {tr('live.placeOf', { place: h.side_place, count: h.side_count })}
                   </Text>
                 </View>
-              </View>
+                <KitIcon name="forward" size={14} color={t.textFaint} />
+              </Pressable>
             ))}
           </View>
         )}
@@ -285,8 +295,10 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
 type BoardKind = 'players' | 'teams';
 
 /** The challenge's public leaderboards: every finished room that played all halves. */
-function LiveBoards({ tokens: t, challengeId }: { tokens: WeeklyTokens; challengeId: string }) {
+function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: WeeklyTokens; challengeId: string; challengeTitle: string }) {
   const isMounted = useMountedRef();
+  const { profile } = useAuth();
+  const [shareOpen, setShareOpen] = useState(false);
   const [kind, setKind] = useState<BoardKind>('players');
   const [players, setPlayers] = useState<LivePlayerBoardRow[] | null>(null);
   const [teams, setTeams] = useState<LiveTeamBoardRow[] | null>(null);
@@ -328,9 +340,24 @@ function LiveBoards({ tokens: t, challengeId }: { tokens: WeeklyTokens; challeng
         sub: r.members.map(m => m.display_name || tr('team.deletedUser')).join(' · '),
       }));
 
+  // Share card: top 3 + your own row, the same names as the board on screen.
+  const shareRows = kind === 'players'
+    ? (players ?? []).map(r => ({
+        user_id: r.user_id, username: r.display_name || tr('team.deletedUser'), score: r.points, sub: r.team_name ?? undefined, place: r.rank,
+      }))
+    : (teams ?? []).map(r => ({
+        user_id: `${r.room_id}-${r.side}`, username: r.team_name || sideLabel(r.side), score: r.points_per_player,
+        sub: r.members.map(m => m.display_name || tr('team.deletedUser')).join(' · '), place: r.rank,
+      }));
+  const myTeam = teams?.find(r => r.is_mine);
+  const myShareId = kind === 'players' ? players?.find(r => r.is_mine)?.user_id : myTeam && `${myTeam.room_id}-${myTeam.side}`;
+
   return (
     <View style={{ paddingTop: 28, gap: 12 }}>
-      <Label tokens={t} size={11}>{tr('live.leaderboard')}</Label>
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Label tokens={t} size={11}>{tr('live.leaderboard')}</Label>
+        {!!items?.length && <BoardShareButton color={t.textSecondary} borderColor={t.cardBorder} onPress={() => setShareOpen(true)} />}
+      </View>
       <SegmentedSwitch
         tokens={t}
         items={[
@@ -356,6 +383,18 @@ function LiveBoards({ tokens: t, challengeId }: { tokens: WeeklyTokens; challeng
       ) : (
         <PodiumBoard tokens={t} items={items} />
       )}
+      <LeaderboardShareCard
+        visible={shareOpen}
+        onClose={() => setShareOpen(false)}
+        variant="live"
+        title={challengeTitle}
+        subLine={kind === 'players' ? tr('live.shareBoardPlayers') : tr('live.shareBoardTeams')}
+        communityScoped={false}
+        scoreType="pts"
+        rows={shareRows}
+        myId={myShareId}
+        myName={kind === 'players' ? profile?.display_name || tr('weekly.warrior') : tr('leaderboardShare.yourTeam')}
+      />
     </View>
   );
 }

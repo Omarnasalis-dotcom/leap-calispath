@@ -71,6 +71,9 @@ describe('formatting', () => {
     expect(formatShareScore(5530, 'time')).toBe('1:32:10');
     expect(formatShareScore(1240, 'reps')).toBe('1,240');
     expect(formatShareScore(1204.75, 'points')).toBe('1,204.75');
+    expect(formatShareScore(1240, 'pts')).toBe('1,240');
+    expect(formatShareScore(12.5, 'pts')).toBe('12.5');
+    expect(formatShareScore(12.04, 'pts')).toBe('12');
     // Team times keep their tenths; whole seconds stay as they were.
     expect(formatShareScore(245.3, 'time')).toBe('4:05.3');
     expect(formatShareScore(245, 'time')).toBe('4:05');
