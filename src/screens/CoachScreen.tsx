@@ -24,7 +24,8 @@ import { View,
   KeyboardAvoidingView,
   Animated,
   Easing,
-  Alert } from 'react-native';
+  Alert,
+  AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { BlurView } from 'expo-blur';
@@ -44,6 +45,15 @@ import { track } from '../lib/analytics';
 import { CoachSetup } from '../components/coach/CoachSetup';
 import { CoachMessageText } from '../components/coach/CoachMessageText';
 import { needsCoachSetup } from '../lib/coachSetup';
+import {
+  coachServerError,
+  deliverWithRecovery,
+  InflightMarker,
+  newClientRequestId,
+  pollForResult,
+  resumeTrim,
+  StoredRow,
+} from '../lib/coachRecovery';
 import { t, FLIP_X } from '../i18n';
 import { stageVerb } from '../components/coach/ActivityBubble';
 
@@ -158,6 +168,22 @@ interface ParsedSseResult {
   final: StreamResult | null;
 }
 
+// The final event's payload, from the stream or collected afterwards from
+// ai_coach_get_result (see src/lib/coachRecovery.ts) — same shape both ways.
+function toStreamResult(parsed: any): StreamResult {
+  return {
+    reply: parsed.reply,
+    recommendations: parsed.recommendations ?? [],
+    programAction: parsed.programAction ?? null,
+    blocks: parsed.blocks ?? [],
+    suggestedReplies: parsed.suggestedReplies ?? [],
+  };
+}
+
+// Shown while collecting an answer whose stream broke (mapped to Arabic in
+// ActivityBubble's STAGE_LABEL_KEYS like the server's own stages).
+const RECOVERING_STAGE: Stage = { verb: 'CHECKING', label: "Getting your coach's answer" };
+
 // Parses a full (or partial, if called incrementally with a growing buffer)
 // SSE text blob into stage/final/error events, dispatching stages via
 // onStage as encountered. Shared by both the real incremental-reader path
@@ -176,15 +202,10 @@ function consumeSseBuffer(buffer: string, onStage: (s: Stage) => void): { rest: 
     if (eventMatch[1] === 'stage') {
       onStage(parsed as Stage);
     } else if (eventMatch[1] === 'final') {
-      final = {
-        reply: parsed.reply,
-        recommendations: parsed.recommendations ?? [],
-        programAction: parsed.programAction ?? null,
-        blocks: parsed.blocks ?? [],
-        suggestedReplies: parsed.suggestedReplies ?? [],
-      };
+      final = toStreamResult(parsed);
     } else if (eventMatch[1] === 'error') {
-      throw new Error(parsed?.message || 'Coach stream error');
+      // The server answered with a failure: nothing to collect afterwards.
+      throw coachServerError(parsed?.message || 'Coach stream error');
     }
   }
   return { rest: buffer, final };
@@ -253,6 +274,19 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // messages already are.
   const PROGRAM_ACTION_STORAGE_KEY = `coach_pending_action_v1_${profile?.id}`;
   const JUST_STARTED_STORAGE_KEY = `coach_just_started_v1_${profile?.id}`;
+  // The message still waiting for its answer (src/lib/coachRecovery.ts), so
+  // an answer that finished while the app was closed or the chat was left
+  // is collected the next time the chat opens.
+  const INFLIGHT_STORAGE_KEY = `coach_inflight_v1_${profile?.id}`;
+  // The id of the message whose answer this screen still wants. Cleared by
+  // a chat reset, so a late answer never lands in the new chat.
+  const activeRequestRef = useRef<string | null>(null);
+  // Set in the effect too, so React's dev double-mount doesn't leave it false.
+  const mountedRef = useRef(true);
+  useEffect(() => {
+    mountedRef.current = true;
+    return () => { mountedRef.current = false; };
+  }, []);
 
   const isDark = mode === 'dark';
   const c = isDark ? COACH_COLORS.dark : COACH_COLORS.light;
@@ -280,12 +314,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       await refreshProfile();
 
       let hadSavedHistory = false;
+      let savedMessages: Message[] = [];
       try {
         const saved = await AsyncStorage.getItem(STORAGE_KEY);
         if (saved && saved.startsWith('[')) {
           const parsed = JSON.parse(saved);
           if (Array.isArray(parsed) && parsed.length > 0) {
             setMessages(parsed);
+            savedMessages = parsed;
             hadSavedHistory = true;
           }
         }
@@ -318,9 +354,57 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         sendMessage(initialPrompt);
       }
       hasLoadedFromStorageRef.current = true;
+      // After the flag above, so the collected answer and card are saved.
+      if (hadSavedHistory) resumeInflight(savedMessages);
     };
     init();
   }, [profile?.id]);
+
+  // A message whose answer never reached this chat (app closed, or the chat
+  // left mid-turn): collect it from the server and add it where it belongs.
+  const resumeInflight = async (saved: Message[]) => {
+    let marker: InflightMarker | null = null;
+    try {
+      const raw = await AsyncStorage.getItem(INFLIGHT_STORAGE_KEY);
+      marker = raw ? JSON.parse(raw) : null;
+    } catch (e: any) {
+      console.warn('Failed to load in-flight coach message:', e.message);
+    }
+    if (!marker?.id) return;
+    const errText = t('coach.errReach');
+    if (resumeTrim(marker, saved, errText, Date.now()) === null) {
+      saveInflight(null);
+      return;
+    }
+    const found = marker;
+    activeRequestRef.current = found.id;
+    setLoading(true);
+    setStages([RECOVERING_STAGE]);
+    try {
+      const r = await collectAnswer(found.id, found.startedAt);
+      if (activeRequestRef.current !== found.id) return;
+      if (r.kind === 'done') {
+        const msg = applyResult(toStreamResult(r.payload), 'Something went wrong on my end and that came back empty — ask me again and I\'ll pick it up.');
+        setMessages((prev) => {
+          const trim = resumeTrim(found, prev, errText, Date.now());
+          if (trim === null) return prev;
+          return [...prev.slice(0, prev.length - trim), { role: 'assistant', content: msg.content, blocks: msg.blocks }];
+        });
+      } else {
+        // It can't arrive any more: show the error the send would have shown.
+        setMessages((prev) => (resumeTrim(found, prev, errText, Date.now()) === 0 ? [...prev, { role: 'assistant', content: errText }] : prev));
+      }
+    } catch (e: any) {
+      console.warn('Failed to collect coach answer:', e.message);
+    } finally {
+      if (mountedRef.current && activeRequestRef.current === found.id) {
+        activeRequestRef.current = null;
+        saveInflight(null);
+      }
+      setLoading(false);
+      setStages([]);
+    }
+  };
 
   useEffect(() => {
     if (!hasLoadedFromStorageRef.current) return;
@@ -354,9 +438,13 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // parsed before streaming existed. An early-exit gate (auth/pro/rate
   // limit) still returns plain JSON, not a stream — handled below by
   // checking whether the response actually has a body reader.
-  const callAiCoach = async (history: Message[], onStage: (s: Stage) => void): Promise<StreamResult | null> => {
+  const callAiCoach = async (history: Message[], onStage: (s: Stage) => void, clientRequestId?: string): Promise<StreamResult | null> => {
     const { data, error } = await supabase.functions.invoke('ai-coach', {
-      body: { messages: history.map(({ role, content }) => ({ role, content })), platform: Platform.OS },
+      body: {
+        messages: history.map(({ role, content }) => ({ role, content })),
+        platform: Platform.OS,
+        ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
+      },
     });
 
     if (error) {
@@ -398,6 +486,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         };
       }
       console.error('ai-coach Edge Function error:', error);
+      // An HTTP status means the server answered: nothing to collect. A
+      // network/relay error may have lost an answer that is still coming.
+      if (error instanceof FunctionsHttpError) throw coachServerError(error.message || 'Unknown error');
       throw new Error(error.message || 'Unknown error');
     }
 
@@ -485,6 +576,29 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     }
   };
 
+  // Asks the server for the stored answer to one message until it is done,
+  // failed, or can't arrive any more (see pollForResult).
+  const collectAnswer = (requestId: string, startedAt: number) =>
+    pollForResult(startedAt, {
+      fetchRow: async () => {
+        const { data, error } = await supabase.rpc('ai_coach_get_result', { p_client_request_id: requestId });
+        if (error) throw error;
+        return (data ?? null) as StoredRow;
+      },
+      sleep: (ms) => new Promise((r) => setTimeout(r, ms)),
+      now: Date.now,
+      isCancelled: () => !mountedRef.current || activeRequestRef.current !== requestId,
+    });
+
+  const saveInflight = async (marker: InflightMarker | null) => {
+    try {
+      if (marker) await AsyncStorage.setItem(INFLIGHT_STORAGE_KEY, JSON.stringify(marker));
+      else await AsyncStorage.removeItem(INFLIGHT_STORAGE_KEY);
+    } catch (e: any) {
+      console.warn('Failed to save in-flight coach message:', e.message);
+    }
+  };
+
   const sendMessage = async (text?: string) => {
     const finalInput = text || inputText;
     if (!finalInput.trim() || loading) return;
@@ -514,12 +628,41 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     if (!text) setInputText('');
     setLoading(true);
 
+    // If the connection drops mid-turn (app backgrounded, signal lost), the
+    // server still finishes and keeps the answer under this id; it is
+    // collected instead of showing an error (src/lib/coachRecovery.ts).
+    const requestId = newClientRequestId();
+    const startedAt = Date.now();
+    activeRequestRef.current = requestId;
+    await saveInflight({ id: requestId, startedAt, userMessage: finalInput });
+
     try {
-      const result = await callAiCoach(newMsgs, (s) => setStages((prev) => [...prev, s]));
+      const result = await deliverWithRecovery<StreamResult | null>({
+        call: () => callAiCoach(newMsgs, (s) => setStages((prev) => [...prev, s]), requestId),
+        recover: () => collectAnswer(requestId, startedAt),
+        toResult: toStreamResult,
+        onWake: (wake) => {
+          // iOS can pass through 'inactive' on the way back, so remember the
+          // trip to the background rather than comparing neighbours.
+          let wasInBackground = false;
+          const sub = AppState.addEventListener('change', (next) => {
+            if (next === 'background') wasInBackground = true;
+            if (next === 'active' && wasInBackground) {
+              wasInBackground = false;
+              wake();
+            }
+          });
+          return () => sub.remove();
+        },
+        onRecovering: () => setStages((prev) => [...prev, RECOVERING_STAGE]),
+      });
+      // The chat was reset while this was on its way.
+      if (activeRequestRef.current !== requestId) return;
       if (!result) return;
       const msg = applyResult(result, 'Something went wrong on my end and that came back empty — ask me again and I\'ll pick it up.');
       setMessages((prev) => [...prev, { role: 'assistant', content: msg.content, blocks: msg.blocks }]);
     } catch (error: any) {
+      if (activeRequestRef.current !== requestId) return;
       // Same reasoning as startSession's catch above — log the real error,
       // never show it.
       console.error('Coach Send Error:', error);
@@ -530,6 +673,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         content: t('coach.errReach'),
       }]);
     } finally {
+      // Left in place when the screen closed first: the answer was never
+      // saved to this chat, so the next open collects it.
+      if (mountedRef.current && activeRequestRef.current === requestId) {
+        activeRequestRef.current = null;
+        saveInflight(null);
+      }
       setLoading(false);
       setStages([]);
     }
@@ -726,7 +875,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       setSuggestedReplies([]);
       setPendingProgramAction(null);
       setJustStartedProgram(null);
+      activeRequestRef.current = null;
       await AsyncStorage.removeItem(STORAGE_KEY);
+      await saveInflight(null);
       startSession();
     };
     if (Platform.OS === 'web') { if (window.confirm(t('coach.resetChat'))) performClear(); } else { Alert.alert(t('coach.clearTitle'), t('coach.resetChat'), [{ text: t('coach.cancel'), style: 'cancel' }, { text: t('coach.clear'), style: 'destructive', onPress: performClear }]); }

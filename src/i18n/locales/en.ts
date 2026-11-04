@@ -2598,6 +2598,7 @@ const en = {
     scores: 'Pulling your discipline scores',
     reply: 'Writing your reply',
     working: 'Working on it',
+    recovering: "Getting your coach's answer",
   },
   intake: {
     goalQ: "What's your goal?",

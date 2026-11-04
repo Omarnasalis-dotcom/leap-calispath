@@ -2748,6 +2748,7 @@ const ar: Translations = {
     scores: 'يجلب نتائجك في كل مجال',
     reply: 'يكتب ردّه',
     working: 'يعمل على ذلك',
+    recovering: 'جارٍ جلب ردّ مدربك',
   },
   intake: {
     goalQ: 'ما هدفك؟',

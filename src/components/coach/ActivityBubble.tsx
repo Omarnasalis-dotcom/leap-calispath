@@ -45,6 +45,8 @@ const STAGE_LABEL_KEYS: Record<string, string> = {
   'Pulling your discipline scores': 'coachStages.scores',
   'Writing your reply': 'coachStages.reply',
   'Working on it': 'coachStages.working',
+  // Not from the server: CoachScreen's RECOVERING_STAGE.
+  "Getting your coach's answer": 'coachStages.recovering',
 };
 
 export function stageLabel(label: string): string {
