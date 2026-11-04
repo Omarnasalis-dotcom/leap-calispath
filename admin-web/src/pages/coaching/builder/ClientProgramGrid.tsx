@@ -6,12 +6,14 @@ import {
   fetchArchivedWeeks,
   fetchAssignment,
   fetchExercises,
+  fetchLoggedBlocks,
 } from '@/api/coaching';
 import { Badge, ConfirmButton, ErrorNote } from '@/components/bits';
 import { useAuth } from '@/auth/AuthProvider';
 import { useBuilderClipboard } from '@/contexts/BuilderClipboardContext';
 import { ApplyTemplateForm } from './ApplyTemplateForm';
 import { loadTemplateWeeks, saveTemplateWeeks } from './builderIO';
+import { LoggedBlocksProvider } from './LoggedBlocks';
 import { WeekGrid } from './WeekGrid';
 import type { BuilderWeeks } from './types';
 
@@ -28,6 +30,9 @@ export function ClientProgramGrid() {
   const [saveError, setSaveError] = useState<Error | null>(null);
   const [flash, setFlash] = useState<string | null>(null);
   const [showApply, setShowApply] = useState(false);
+  // Logged blocks whose "already logged" warning the coach has accepted
+  // since the program was last loaded.
+  const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
 
   const assignmentQ = useQuery({
     queryKey: ['assignment', assignmentId],
@@ -53,6 +58,18 @@ export function ClientProgramGrid() {
     queryFn: () => loadTemplateWeeks(templateId as string),
     enabled: !!templateId,
   });
+  const loggedQ = useQuery({
+    queryKey: ['logged-blocks', assignmentId],
+    queryFn: () => fetchLoggedBlocks(assignmentId),
+    enabled: !!assignmentId,
+  });
+  const savedExerciseKeys = useMemo(
+    () =>
+      new Set(
+        Object.values(loadQ.data?.weeks ?? {}).flatMap((ds) => ds.flatMap((d) => d.blocks.flatMap((b) => b.exercises.map((e) => e.id)))),
+      ),
+    [loadQ.data],
+  );
   const archivedQ = useQuery({
     queryKey: ['archived-weeks', templateId],
     queryFn: () => fetchArchivedWeeks(templateId as string),
@@ -64,6 +81,7 @@ export function ClientProgramGrid() {
     setWeeks(loadQ.data.weeks);
     setActiveWeek(Math.min(...Object.keys(loadQ.data.weeks).map(Number)));
     setDirty(false);
+    setAcknowledged(new Set());
   }, [loadQ.data]);
 
   const weekNums = useMemo(() => Object.keys(weeks).map(Number).sort((a, b) => a - b), [weeks]);
@@ -99,6 +117,7 @@ export function ClientProgramGrid() {
       );
       window.setTimeout(() => setFlash(null), 3000);
       void queryClient.invalidateQueries({ queryKey: ['template-weeks', templateId] });
+      void queryClient.invalidateQueries({ queryKey: ['logged-blocks', assignmentId] });
     },
     onError: (err: Error) => setSaveError(err),
   });
@@ -208,15 +227,23 @@ export function ClientProgramGrid() {
             />
           </div>
 
-          <WeekGrid
-            days={days}
-            exerciseOptions={exerciseOptions}
-            readOnly={isCoachPaused}
-            onCommit={(days) => {
-              setWeeks((w) => ({ ...w, [activeWeek]: days }));
-              setDirty(true);
-            }}
-          />
+          <LoggedBlocksProvider
+            athleteName={a?.warrior_name ?? ''}
+            logged={loggedQ.data ?? new Map()}
+            savedExerciseKeys={savedExerciseKeys}
+            acknowledged={acknowledged}
+            onAcknowledge={(blockDbId) => setAcknowledged((prev) => new Set(prev).add(blockDbId))}
+          >
+            <WeekGrid
+              days={days}
+              exerciseOptions={exerciseOptions}
+              readOnly={isCoachPaused}
+              onCommit={(days) => {
+                setWeeks((w) => ({ ...w, [activeWeek]: days }));
+                setDirty(true);
+              }}
+            />
+          </LoggedBlocksProvider>
         </>
       )}
     </div>

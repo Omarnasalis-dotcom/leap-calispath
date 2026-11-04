@@ -16,6 +16,7 @@ import { useBuilderClipboard, type ClipboardBlock } from '@/contexts/BuilderClip
 import { Badge, ConfirmButton } from '@/components/bits';
 import { ConceptWizard } from './ConceptWizard';
 import { ExerciseRow } from './ExerciseRow';
+import { touchesLoggedFields, useLoggedBlockGuard } from './LoggedBlocks';
 import { clientKey, newBlock, type BuilderBlock, type ExerciseOption } from './types';
 
 /** Same prefix BlockConceptParser.getSubtitle composes (structure badge +
@@ -94,6 +95,7 @@ export function BlockCard({
   });
   const clipboard = useBuilderClipboard();
   const [expanded, setExpanded] = useState(false);
+  const { loggedAt, guard, dialog } = useLoggedBlockGuard(block);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -182,8 +184,15 @@ export function BlockCard({
           aria-expanded={expanded}
         >
           <div className="row" style={{ flexWrap: 'nowrap', justifyContent: 'space-between', gap: 8 }}>
-            <span className="label" style={{ color: 'var(--ink)' }}>
-              {getBlockTypeLabel(block.metadata)}
+            <span className="row" style={{ gap: 6 }}>
+              <span className="label" style={{ color: 'var(--ink)' }}>
+                {getBlockTypeLabel(block.metadata)}
+              </span>
+              {loggedAt && (
+                <span title="Already logged by the client: changing its exercises asks first">
+                  <Badge tone="warn">LOGGED</Badge>
+                </span>
+              )}
             </span>
             {expanded ? (
               <ChevronUp size={16} style={{ color: 'var(--ink-2)', flex: 'none' }} />
@@ -271,12 +280,22 @@ export function BlockCard({
                       blockMetadata={block.metadata}
                       readOnly={readOnly}
                       showWorkSeconds={showWorkSeconds}
-                      onChange={(patch) =>
-                        onChange({
-                          exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),
-                        })
-                      }
-                      onRemove={() => onChange({ exercises: block.exercises.filter((x) => x.id !== ex.id) })}
+                      onChange={(patch) => {
+                        const apply = () =>
+                          onChange({
+                            exercises: block.exercises.map((x) => (x.id === ex.id ? { ...x, ...patch } : x)),
+                          });
+                        const name = ex.exercise_name || 'this exercise';
+                        if (!touchesLoggedFields(patch)) apply();
+                        else if (patch.exercise_id !== undefined && patch.exercise_id !== ex.exercise_id)
+                          guard(ex.id, `Swap ${name} for ${patch.exercise_name || 'another exercise'}?`, apply);
+                        else if (patch.exercise_id === undefined) guard(ex.id, `Change ${name}?`, apply);
+                        else apply();
+                      }}
+                      onRemove={() => {
+                        const apply = () => onChange({ exercises: block.exercises.filter((x) => x.id !== ex.id) });
+                        guard(ex.id, `Remove ${ex.exercise_name || 'this exercise'}?`, apply);
+                      }}
                     />
                   ))}
                 </div>
@@ -301,6 +320,7 @@ export function BlockCard({
           </>
         )}
       </div>
+      {dialog}
     </div>
   );
 }

@@ -446,6 +446,24 @@ export async function fetchAssignment(assignmentId: string): Promise<AssignmentR
   return row;
 }
 
+/** Blocks the client has completed on this assignment: block id → latest
+ * completed_at. Missed logs don't count — no work was recorded against the
+ * block's exercises. Feeds the builder's "already logged" warning. */
+export async function fetchLoggedBlocks(warriorProgramId: string): Promise<Map<string, string>> {
+  const { data, error } = await supabase
+    .from('workout_logs')
+    .select('block_id, completed_at, notes')
+    .eq('warrior_program_id', warriorProgramId)
+    .order('completed_at', { ascending: false });
+  if (error) throw new Error(error.message);
+  const logged = new Map<string, string>();
+  for (const r of data ?? []) {
+    if (!r.block_id || !r.completed_at || (r.notes ?? '').startsWith('[STATUS:MISSED]')) continue;
+    if (!logged.has(r.block_id)) logged.set(r.block_id, r.completed_at);
+  }
+  return logged;
+}
+
 export async function fetchArchivedWeeks(templateId: string): Promise<Set<number>> {
   const { data, error } = await supabase
     .from('program_week_archive')
