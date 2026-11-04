@@ -2,14 +2,16 @@ import { supabase } from './supabase';
 
 // Programs the warrior has switched away from (status 'completed'). Starting
 // a new program never deletes the old one, so these keep their blocks and
-// workout logs and can be made active again with restoreProgram(). Only
-// LEAP/AI Coach programs are listed — a human coach's assignment isn't
-// self-service (see 20261001010000_add_past_programs_restore.sql).
+// workout logs and can be made active again with restoreProgram(). A human
+// coach's assignment is listed too since
+// 20261104140000_past_programs_include_coach_programs.sql (is_coach).
 export interface PastProgram {
   id: string;
   name: string;
   min_access_tier: 'first' | 'pro' | null;
   is_ai_coach: boolean;
+  // Absent from servers before that migration.
+  is_coach?: boolean;
   assigned_at: string;
   sessions_done: number;
   last_activity_at: string;

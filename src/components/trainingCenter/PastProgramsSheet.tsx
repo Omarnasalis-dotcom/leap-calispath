@@ -45,7 +45,7 @@ export function PastProgramsSheet({ visible, onClose, programs, restoringId, del
             {programs.map((program) => (
               <View key={program.id} style={styles.row}>
                 <View style={styles.iconWell}>
-                  <MaterialCommunityIcons name={program.is_ai_coach ? 'robot-outline' : 'layers-outline'} size={18} color={c.textMuted} />
+                  <MaterialCommunityIcons name={program.is_ai_coach ? 'robot-outline' : program.is_coach ? 'whistle-outline' : 'layers-outline'} size={18} color={c.textMuted} />
                 </View>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.name} numberOfLines={1}>{program.name.toUpperCase()}</Text>
