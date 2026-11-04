@@ -87,6 +87,11 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("their first loaded dips and pull-ups (if they have weights, §11)");
     expect(SYSTEM_PROMPT).toContain("**D** add load (is_weighted false → true; only with a weight belt or free weights, §11)");
   });
+  it("builds over any current program and names its source right (2026-11-04)", () => {
+    expect(SYSTEM_PROMPT).toContain("**A current program never blocks a new one.**");
+    expect(SYSTEM_PROMPT).toContain("Never call a library program coach-assigned");
+    expect(SYSTEM_PROMPT).not.toContain("point them to their coach or the Workout Library");
+  });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");
   });

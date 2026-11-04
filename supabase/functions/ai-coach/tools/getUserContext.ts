@@ -2,6 +2,17 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.112.0";
 import { ToolDefinition } from "./types.ts";
 import { getNextTrial } from "./trialData.ts";
 
+// Who the active program came from. Without this the coach only saw
+// is_ai_coach_owned: false and, seen live 2026-11-04, called a ready-made
+// library program "assigned by a human coach" and refused to build.
+export type ProgramSource = "ai_coach" | "library" | "coach";
+
+export function programSource(coachId: string | null | undefined): ProgramSource {
+  if (coachId === "00000000-0000-0000-0000-000000000002") return "ai_coach";
+  if (coachId === "00000000-0000-0000-0000-000000000001") return "library";
+  return "coach";
+}
+
 // Read-only grounding for every turn. get_my_profile() is the same
 // SECURITY DEFINER RPC AuthContext.tsx already calls client-side for the
 // user's own profile — self-access to entitlement/tier fields goes through
@@ -13,7 +24,7 @@ import { getNextTrial } from "./trialData.ts";
 export const getUserContext: ToolDefinition = {
   name: "get_user_context",
   description:
-    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids from learn_skills/master_basics/weight_loss/strength/strength_trial/compete/muscle/other, system-prompt.ts §11 says what each means — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), training_days_per_week (integer 1-7, or null if never given — same already-answered convention as goal/equipment: a real number here means don't ask for days per week again), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by propose_append_week or adjust_program) and current_week_complete (every real block in current_week already has a log, completed or missed — see system-prompt.ts §6 for what to do with this on an AI-owned program).",
+    "Get the athlete's current profile: strength tier, the raw onboarding movement-test numbers behind that tier (assessment_raw: pull-up/dip/push-up/muscle-up variant + reps, from their latest assessment — use this to see their actual weak point, not just the tier number), the exact real movements for the trial they're currently working toward (next_trial — quote this exactly, never guess or assume generic calisthenics trial content applies), power/static PBs (static_pbs: real recorded Static World hold times in seconds, keyed by movement id — e.g. wall_handstand), the goal(s) and equipment they already stated during onboarding (goal: array of raw ids from learn_skills/master_basics/weight_loss/strength/strength_trial/compete/muscle/other, system-prompt.ts §11 says what each means — if it includes 'other', goal_other_text has their own words; equipment: array of raw ids, e.g. pull_up_bar/rings/resistance_bands. An empty goal array means onboarding's Goals & Equipment step was never completed — treat that as genuinely unanswered. If goal is non-empty but equipment is empty, that's a real answer: bodyweight-only, not unanswered), training_days_per_week (integer 1-7, or null if never given — same already-answered convention as goal/equipment: a real number here means don't ask for days per week again), total points per world (power_points, one_mm_points, glory_score — real stored totals, not something to compute yourself), assessment dates, trial history recency, and their active training program (if any), including whether that program is AI Coach-owned (only AI-owned programs can be adjusted/extended by propose_append_week or adjust_program), its source (ai_coach = one you built, library = a ready-made Leap program they picked, coach = assigned by their human coach) and current_week_complete (every real block in current_week already has a log, completed or missed — see system-prompt.ts §6 for what to do with this on an AI-owned program).",
   input_schema: { type: "object", properties: {} },
   handler: async (userClient) => {
     const { data: profile, error: profileError } = await userClient.rpc("get_my_profile").single();
@@ -111,6 +122,7 @@ export const getUserContext: ToolDefinition = {
               .program_templates?.name ?? null,
             current_week: activeProgram.current_week,
             is_ai_coach_owned: activeProgram.coach_id === AI_COACH_SYSTEM_PROFILE_ID,
+            source: programSource(activeProgram.coach_id),
             current_week_complete: await isCurrentWeekComplete(userClient, activeProgram),
           }
         : null,
