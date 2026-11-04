@@ -9,6 +9,7 @@ import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { sanitizeReply } from "./tools/replyCleanup.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
+import { createEventSink, finalRow, parseClientRequestId } from "./tools/resultRecovery.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -214,17 +215,26 @@ function json(body: unknown, status = 200) {
 // A genuine unhandled exception mid-loop becomes `event: error` instead of
 // a fresh HTTP status, since headers are already committed by then.
 // onDone runs after the final (or error) event is already sent, before the
-// stream closes — the chat-review row is saved there, off the athlete's
-// wait, with the reply exactly as they received it.
+// stream closes — the chat-review row and the collectable answer (see
+// resultRecovery.ts) are saved there, off the athlete's wait, with the
+// final event exactly as they received it.
+// If the phone disconnects mid-turn, writes to the stream are dropped and
+// the run carries on to the end, so its cost is recorded and the app can
+// collect the answer afterwards.
 function sseResponse(
   run: (send: (event: "stage" | "final" | "error", data: unknown) => void) => Promise<void>,
-  onDone?: (reply: string | null, error: unknown) => Promise<void>,
+  onDone?: (reply: string | null, error: unknown, finalPayload: unknown) => Promise<void>,
 ) {
   const encoder = new TextEncoder();
+  let sink: ReturnType<typeof createEventSink> | null = null;
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      sink = createEventSink((text) => controller.enqueue(encoder.encode(text)));
+      const out = sink;
       let finalReply: string | null = null;
+      let finalPayload: unknown = null;
       let runError: unknown = null;
+      let reportedGone = false;
       const send = (event: "stage" | "final" | "error", data: unknown) => {
         // Single enforcement point for every "final" event, model-generated
         // or one of the hardcoded fallback messages above — see
@@ -234,7 +244,11 @@ function sseResponse(
           (data as { reply: string }).reply = sanitizeReply((data as { reply: string }).reply);
           finalReply = (data as { reply: string }).reply;
         }
-        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        if (event === "final") finalPayload = data;
+        if (!out.write(event, data) && !reportedGone) {
+          reportedGone = true;
+          console.warn(`[ai-coach] Client disconnected before the ${event} event; finishing the turn so the app can collect it.`);
+        }
       };
       try {
         await run(send);
@@ -245,13 +259,24 @@ function sseResponse(
       } finally {
         if (onDone) {
           try {
-            await onDone(finalReply, runError);
+            await onDone(finalReply, runError, finalPayload);
           } catch (err) {
             console.error("[ai-coach] onDone failed:", err);
           }
         }
-        controller.close();
+        if (out.isOpen) {
+          out.close();
+          try {
+            controller.close();
+          } catch {
+            // already closed by the disconnect
+          }
+        }
       }
+    },
+    cancel() {
+      // The phone went away (app backgrounded, signal lost).
+      sink?.close();
     },
   });
   return new Response(stream, {
@@ -430,7 +455,7 @@ serve(async (req: Request) => {
     ? createClient(Deno.env.get("SUPABASE_URL") ?? "", serviceRoleKey)
     : null;
 
-  let body: { messages?: Array<{ role: string; content: unknown }>; platform?: string };
+  let body: { messages?: Array<{ role: string; content: unknown }>; platform?: string; client_request_id?: unknown };
   try {
     body = await req.json();
   } catch {
@@ -504,6 +529,27 @@ serve(async (req: Request) => {
     console.error("[ai-coach] Missing ANTHROPIC_API_KEY");
     return json({ error: "Server misconfiguration" }, 500);
   }
+
+  // The answer the app can collect if its connection drops (see
+  // resultRecovery.ts). 'running' now, so the app knows to keep waiting;
+  // the final event or 'failed' once the turn ends (onDone below). Never
+  // lets a failure here reach the athlete.
+  const clientRequestId = parseClientRequestId(body.client_request_id);
+  const storeResult = async (status: "running" | "done" | "failed", payload: unknown) => {
+    if (!clientRequestId || !serviceClient) return;
+    try {
+      const { error } = await serviceClient.rpc("ai_coach_store_result", {
+        p_user_id: user.id,
+        p_client_request_id: clientRequestId,
+        p_status: status,
+        p_payload: payload,
+      });
+      if (error) console.error(`[ai-coach] ai_coach_store_result (${status}) failed:`, error.message);
+    } catch (err) {
+      console.error(`[ai-coach] ai_coach_store_result (${status}) failed:`, err);
+    }
+  };
+  await storeResult("running", null);
 
   // Automatic caching of the growing conversation (2026-10-16): a top-level
   // cache_control lets every turn of the tool loop read the turns before it
@@ -628,6 +674,39 @@ serve(async (req: Request) => {
     unacted: false,
     programAction: null as string | null,
     usage: null as AccumulatedUsage | null,
+  };
+
+  const saveTurnForReview = async (reply: string | null, error: unknown) => {
+    // Chat review row (migration 20261030120000). Off until the privacy
+    // policy naming it is live: set the AI_COACH_CHAT_LOG secret to "on".
+    // Never lets a failure here reach the athlete.
+    if (Deno.env.get("AI_COACH_CHAT_LOG") !== "on") return;
+    if (!serviceClient) {
+      console.error("[ai-coach] Missing service role credentials — chat turn NOT saved for review.");
+      return;
+    }
+    const usage = turnLog.usage;
+    const { error: insertError } = await serviceClient.from("ai_coach_turns").insert({
+      user_id: user.id,
+      request_id: chatRequestId ?? null,
+      platform,
+      model: ANTHROPIC_MODEL,
+      user_message: lastUserText(initialMessages),
+      reply,
+      outcome: error ? "error" : turnLog.outcome,
+      error_message: error ? (error instanceof Error ? error.message : String(error)) : null,
+      tools: turnLog.tools,
+      tool_errors: turnLog.tools.filter((t) => !t.ok).length,
+      safety_flags: reply ? detectSafetyFlags(reply) : [],
+      unacted_correction: turnLog.unacted,
+      program_action: turnLog.programAction,
+      history_length: initialMessages.length,
+      latency_ms: Date.now() - requestStartedAt,
+      cost_usd: usage ? usageCostUsd(usage, ANTHROPIC_MODEL) : null,
+      input_tokens: usage ? usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens : null,
+      output_tokens: usage?.output_tokens ?? null,
+    });
+    if (insertError) console.error("[ai-coach] Failed to save chat turn for review:", insertError.message);
   };
 
   return sseResponse(async (send) => {
@@ -947,36 +1026,8 @@ serve(async (req: Request) => {
       blocks,
       suggestedReplies,
     });
-  }, async (reply, error) => {
-    // Chat review row (migration 20261030120000). Off until the privacy
-    // policy naming it is live: set the AI_COACH_CHAT_LOG secret to "on".
-    // Never lets a failure here reach the athlete.
-    if (Deno.env.get("AI_COACH_CHAT_LOG") !== "on") return;
-    if (!serviceClient) {
-      console.error("[ai-coach] Missing service role credentials — chat turn NOT saved for review.");
-      return;
-    }
-    const usage = turnLog.usage;
-    const { error: insertError } = await serviceClient.from("ai_coach_turns").insert({
-      user_id: user.id,
-      request_id: chatRequestId ?? null,
-      platform,
-      model: ANTHROPIC_MODEL,
-      user_message: lastUserText(initialMessages),
-      reply,
-      outcome: error ? "error" : turnLog.outcome,
-      error_message: error ? (error instanceof Error ? error.message : String(error)) : null,
-      tools: turnLog.tools,
-      tool_errors: turnLog.tools.filter((t) => !t.ok).length,
-      safety_flags: reply ? detectSafetyFlags(reply) : [],
-      unacted_correction: turnLog.unacted,
-      program_action: turnLog.programAction,
-      history_length: initialMessages.length,
-      latency_ms: Date.now() - requestStartedAt,
-      cost_usd: usage ? usageCostUsd(usage, ANTHROPIC_MODEL) : null,
-      input_tokens: usage ? usage.input_tokens + usage.cache_creation_input_tokens + usage.cache_read_input_tokens : null,
-      output_tokens: usage?.output_tokens ?? null,
-    });
-    if (insertError) console.error("[ai-coach] Failed to save chat turn for review:", insertError.message);
+  }, async (reply, error, finalPayload) => {
+    const row = finalRow(finalPayload);
+    await Promise.all([storeResult(row.status, row.payload), saveTurnForReview(reply, error)]);
   });
 });
