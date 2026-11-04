@@ -62,6 +62,10 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   blocks?: ResponseBlock[];
+  // Written by the app itself (a card the athlete confirmed), not the coach:
+  // shown as a small confirmation chip. The server also recognises these by
+  // their text (supabase/functions/ai-coach/tools/appNotes.ts).
+  kind?: 'app';
 }
 
 interface Recommendation {
@@ -734,6 +738,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         buildComplete = isLastConfirmedDay(pendingProgramAction);
         setMessages(prev => [...prev, {
           role: 'assistant',
+          kind: 'app',
           // Only claims the program is "live" once the build is actually
           // done (a 1-day build, or create_from_workouts) — a multi-day
           // build's day 1 gets the same "day added" phrasing add_day uses,
@@ -754,6 +759,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         if (error) throw error;
         setMessages(prev => [...prev, {
           role: 'assistant',
+          kind: 'app',
           content: t('coach.weekDeleted', { week: pendingProgramAction.weekNumber }),
         }]);
       } else if (pendingProgramAction.type === 'create_from_workouts') {
@@ -768,6 +774,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         buildComplete = true;
         setMessages(prev => [...prev, {
           role: 'assistant',
+          kind: 'app',
           content: t('coach.programLive', { name: payload.name }),
         }]);
       } else if (pendingProgramAction.type === 'append_week') {
@@ -821,6 +828,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         buildComplete = isLastConfirmedDay(pendingProgramAction);
         setMessages(prev => [...prev, {
           role: 'assistant',
+          kind: 'app',
           content: t(pendingProgramAction.replacing ? 'coach.dayUpdated' : 'coach.dayAdded', { name: payload.dayName }),
         }]);
       } else {
@@ -829,7 +837,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_warrior_program_id: pendingProgramAction.warriorProgramId,
         });
         if (error) throw error;
-        setMessages(prev => [...prev, { role: 'assistant', content: t('coach.programEnded') }]);
+        setMessages(prev => [...prev, { role: 'assistant', kind: 'app', content: t('coach.programEnded') }]);
       }
       // Captured before pendingProgramAction is cleared below — needed for
       // the steady-state "Go to Program" card's title. Falls back to
@@ -1012,9 +1020,16 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   {renderText(m.content, true)}
                 </View>
               </View>
+            ) : m.kind === 'app' ? (
+              <View key={i} style={styles.appNoteRow}>
+                <View style={[styles.appNote, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
+                  <MaterialCommunityIcons name="check-circle" size={14} color={theme.accent} />
+                  <Text style={[styles.appNoteText, { color: c.secondaryText }]}>{m.content.replace(/\*\*/g, '')}</Text>
+                </View>
+              </View>
             ) : (
               <View key={i} style={styles.assistantRow}>
-                {messages[i - 1]?.role !== 'assistant' && (
+                {(messages[i - 1]?.role !== 'assistant' || messages[i - 1]?.kind === 'app') && (
                   <View style={styles.coachLabelRow}>
                     <View style={[styles.coachLabelDot, { backgroundColor: theme.accent }]} />
                     <Text style={[styles.coachLabel, { color: c.secondaryText }]}>{t('coach.title')}</Text>
@@ -1038,7 +1053,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
             {loading && (
               <View style={styles.assistantRow}>
-                {messages[messages.length - 1]?.role !== 'assistant' && (
+                {(messages[messages.length - 1]?.role !== 'assistant' || messages[messages.length - 1]?.kind === 'app') && (
                   <View style={styles.coachLabelRow}>
                     <View style={[styles.coachLabelDot, { backgroundColor: theme.accent }]} />
                     <Text style={[styles.coachLabel, { color: c.secondaryText }]}>{t('coach.title')}</Text>
@@ -1483,6 +1498,25 @@ const styles = StyleSheet.create({
   },
   actionCardDayList: {
     gap: 2,
+  },
+  appNoteRow: {
+    alignItems: 'center',
+    marginVertical: 4,
+  },
+  appNote: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderRadius: 999,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    maxWidth: '90%',
+  },
+  appNoteText: {
+    fontSize: 12,
+    fontWeight: '600',
+    flexShrink: 1,
   },
   previewToggle: {
     flexDirection: 'row',
