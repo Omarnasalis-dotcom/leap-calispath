@@ -2705,7 +2705,7 @@ const ar: Translations = {
     deleteWeekQ: 'حذف الأسبوع {{week}}؟',
     startWeek: 'ابدأ الأسبوع {{week}}',
     endProgramQ: 'إنهاء برنامجك الحالي؟',
-    coachAssigned: '⚠️ هذا برنامج عيّنه لك مدربك.',
+    replacesCurrentProgram: 'سينتقل برنامجك الحالي إلى البرامج السابقة، ويمكنك استعادته في أي وقت.',
     changeDay: 'غيّر هذا اليوم',
     ignore: 'تجاهل',
     dayButton: '{{verb}} اليوم {{n}}',

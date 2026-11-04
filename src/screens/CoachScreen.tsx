@@ -1127,7 +1127,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     </View>
                   )}
                   {(isDayCard || pendingProgramAction.type === 'create_from_workouts') && pendingProgramAction.warriorProgramId && !pendingProgramAction.currentProgramIsAiOwned && (
-                    <Text style={styles.actionCardWarning}>{t('coach.coachAssigned')}</Text>
+                    <Text style={styles.actionCardWarning}>{t('coach.replacesCurrentProgram')}</Text>
                   )}
                   <View style={styles.actionCardButtons}>
                     {!isAppendWeekCard && (

@@ -2555,7 +2555,7 @@ const en = {
     deleteWeekQ: 'Delete Week {{week}}?',
     startWeek: 'Start Week {{week}}',
     endProgramQ: 'End your current program?',
-    coachAssigned: '⚠️ This is currently a program your coach assigned.',
+    replacesCurrentProgram: 'Your current program moves to your previous programs. You can restore it anytime.',
     changeDay: 'Change this day',
     ignore: 'IGNORE',
     dayButton: '{{verb}} DAY {{n}}',
