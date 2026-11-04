@@ -7,7 +7,7 @@ const BLOCKS = [
     name: "MUSCLE-UP & PULL FOCUS | Skills",
     notes: '[CONCEPT:{"timing_system":"straight_set","structure":"single","focus_tag":"SKILLS","is_weighted":false}] Muscle-up work first.',
     order_index: 1,
-    exercises: [{ exercise_id: "mu", sets: 4, reps: 3, rest_seconds: 120, hold_seconds: null, is_weighted: false, order_index: 0 }],
+    exercises: [{ exercise_id: "mu", sets: 4, reps: 3, rest_seconds: 120, hold_seconds: null, is_weighted: false, notes: " On rings ", order_index: 0 }],
   },
   {
     name: "MUSCLE-UP & PULL FOCUS | Warm-Up",
@@ -42,21 +42,21 @@ describe("buildDayPreview", () => {
         structure: "circuit",
         rounds: 1,
         exercises: [
-          { name: "Scapula Pulls", sets: 1, reps: 8, hold_seconds: null, is_weighted: false },
-          { name: "I, Y, T Rasies", sets: 1, reps: 8, hold_seconds: null, is_weighted: false },
+          { name: "Scapula Pulls", sets: 1, reps: 8, hold_seconds: null, is_weighted: false, note: null },
+          { name: "I, Y, T Rasies", sets: 1, reps: 8, hold_seconds: null, is_weighted: false, note: null },
         ],
       },
-      { title: "Skills", structure: "single", rounds: null, exercises: [{ name: "Muscle Up", sets: 4, reps: 3, hold_seconds: null, is_weighted: false }] },
-      { title: "Core", structure: "single", rounds: null, exercises: [{ name: "Hollow Hold", sets: 3, reps: null, hold_seconds: 15, is_weighted: false }] },
+      { title: "Skills", structure: "single", rounds: null, exercises: [{ name: "Muscle Up", sets: 4, reps: 3, hold_seconds: null, is_weighted: false, note: "On rings" }] },
+      { title: "Core", structure: "single", rounds: null, exercises: [{ name: "Hollow Hold", sets: 3, reps: null, hold_seconds: 15, is_weighted: false, note: null }] },
     ]);
   });
 
   it("marks weighted work and survives an unknown id or missing notes", () => {
     const [block] = buildDayPreview(
-      [{ name: "PULL | Strength", order_index: 0, exercises: [{ exercise_id: "x", sets: "4", reps: "5", is_weighted: true }] }],
+      [{ name: "PULL | Strength", order_index: 0, exercises: [{ exercise_id: "x", sets: "4", reps: "5", is_weighted: true, note: null }] }],
       new Map(),
     );
-    expect(block).toEqual({ title: "Strength", structure: null, rounds: null, exercises: [{ name: "?", sets: 4, reps: 5, hold_seconds: null, is_weighted: true }] });
+    expect(block).toEqual({ title: "Strength", structure: null, rounds: null, exercises: [{ name: "?", sets: 4, reps: 5, hold_seconds: null, is_weighted: true, note: null }] });
   });
 });
 

@@ -1,5 +1,6 @@
 import { ToolDefinition } from "./types.ts";
 import { getUserContext } from "./getUserContext.ts";
+import { saveAthleteUpdate } from "./saveAthleteUpdate.ts";
 import { searchExercises } from "./searchExercises.ts";
 import { getWorkoutLogs } from "./getWorkoutLogs.ts";
 import { proposeNewProgram } from "./proposeNewProgram.ts";
@@ -55,6 +56,7 @@ export const TOOLS: ToolDefinition[] = [
   attachStatBars,
   attachSteps,
   suggestReplies,
+  saveAthleteUpdate,
 ];
 
 export const TOOLS_BY_NAME: Record<string, ToolDefinition> = Object.fromEntries(

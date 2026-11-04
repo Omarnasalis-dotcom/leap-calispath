@@ -69,11 +69,20 @@ describe("equipmentNotes", () => {
     const blocks = liveDay();
     const notes = equipmentNotes(blocks, equipmentFlags(["rings", "parallettes"]), "beginner");
     expect(blocks).toEqual(liveDay());
-    expect(notes).toHaveLength(3);
+    expect(notes).toHaveLength(5);
+    expect(notes.join(" ")).toContain('"Muscle Up" has no ring entry');
+    expect(notes.join(" ")).toContain('"Hanging Leg Rasies" has no ring entry');
     expect(notes.join(" ")).toContain('"Band Apart" needs a band');
     expect(notes.join(" ")).toContain('"Ring Pull ups" is the version for their rings');
     expect(notes.join(" ")).toContain('"Ring Row" is the version for their rings');
-    expect(notes.every((n) => /Keep it/.test(n))).toBe(true);
+    // Bar and band notes leave the choice to the coach.
+    expect(notes.filter((n) => /needs a/.test(n)).every((n) => /Keep it/.test(n))).toBe(true);
+    // Server-built warm-up exercises get no "on rings" reminder (no note to add there).
+    expect(notes.join(" ")).not.toContain('"Scapula Pulls" has no ring entry');
+  });
+  it("stays quiet once the note already says rings", () => {
+    const notes = equipmentNotes([{ block_name: "Skills", exercises: [{ name: "Muscle Up", notes: "On rings" }] }], equipmentFlags(["rings"]), "intermediate");
+    expect(notes).toEqual([]);
   });
   it("without rings, notes the bar but suggests no ring version", () => {
     const notes = equipmentNotes([{ block_name: "Strength", exercises: [{ name: "Pull Ups (Normal Grip)" }] }], equipmentFlags(["low_parallettes"]), "intermediate");

@@ -341,6 +341,8 @@ function stageForTool(name: string, input: Record<string, unknown>): { verb: str
       return { verb: "BUILDING", label: "Putting your next week together" };
     case "adjust_program":
       return { verb: "ADJUSTING", label: "Applying that change" };
+    case "save_athlete_update":
+      return { verb: "UPDATING", label: "Applying that change" };
     case "replace_block_exercises":
       return { verb: "ADJUSTING", label: "Swapping that exercise" };
     case "add_block_to_week":

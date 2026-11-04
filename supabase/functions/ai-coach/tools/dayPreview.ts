@@ -12,6 +12,7 @@ export interface PreviewExercise {
   reps: number | null;
   hold_seconds: number | null;
   is_weighted: boolean;
+  note: string | null;
 }
 
 export interface PreviewBlock {
@@ -25,7 +26,7 @@ type ResolvedBlock = {
   name: string;
   notes?: string | null;
   order_index?: number;
-  exercises?: Array<{ exercise_id?: string; sets?: unknown; reps?: unknown; hold_seconds?: unknown; is_weighted?: unknown; order_index?: number }>;
+  exercises?: Array<{ exercise_id?: string; sets?: unknown; reps?: unknown; hold_seconds?: unknown; is_weighted?: unknown; notes?: unknown; order_index?: number }>;
 };
 
 const num = (v: unknown): number | null => {
@@ -55,6 +56,7 @@ export function buildDayPreview(blocks: ResolvedBlock[], nameById: Map<string, s
             reps: num(e.reps),
             hold_seconds: num(e.hold_seconds),
             is_weighted: e.is_weighted === true,
+            note: typeof e.notes === "string" && e.notes.trim() ? e.notes.trim().slice(0, 120) : null,
           })),
       };
     })

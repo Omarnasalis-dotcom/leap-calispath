@@ -97,6 +97,14 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("a heads-up, never a rejection");
     expect(SYSTEM_PROMPT).toContain("with a band only: Band Apart.");
     expect(SYSTEM_PROMPT).toContain("Never tell them it doesn't match their assessment or tier, never call it a claim");
+    expect(SYSTEM_PROMPT).toContain("**Their own newer numbers win.**");
+    expect(SYSTEM_PROMPT).toContain("put the numbers this build relies on in brief.current_maxes");
+    expect(SYSTEM_PROMPT).toContain("save their full current list with save_athlete_update");
+    expect(SYSTEM_PROMPT).toContain('write "On rings" in that exercise\'s notes');
+    expect(SYSTEM_PROMPT).toContain("open that question with a suggestion");
+    expect(SYSTEM_PROMPT).toContain("**Plain words for profile values.**");
+    // One rule in §10, not three copies.
+    expect(SYSTEM_PROMPT.split("never call it a claim").length - 1).toBe(1);
   });
   it("older weeks come as summary lines (fix #8, 2026-10-30)", () => {
     expect(SYSTEM_PROMPT).toContain("older weeks come as one line per exercise in older_weeks");

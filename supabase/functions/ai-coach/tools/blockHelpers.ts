@@ -1382,10 +1382,35 @@ export async function fetchLoggedWeights(userClient: { from: (t: string) => any 
 // brief — same principle as resolveExerciseIds not trusting a model-typed
 // exercise id. A hallucinated "10 pull-ups" in the brief cannot become a
 // false pass here; only what's actually in assessment_raw can.
+// Which strict max the safety check uses (2026-11-04, owner): the numbers
+// confirmed for this build, then the athlete's saved current_maxes when
+// they are newer than the assessment, then the onboarding assessment. The
+// coach is told to trust the athlete's newer numbers (§10); checking only
+// the assessment rejected days built on them.
+export function newerMax(
+  key: keyof CurrentMaxes,
+  briefMaxes: unknown,
+  profile: { current_maxes?: unknown; assessed_at?: unknown } | null,
+): number | null {
+  const valid = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? Math.floor(v) : null);
+  const fromBrief = briefMaxes && typeof briefMaxes === "object" ? valid((briefMaxes as Record<string, unknown>)[key]) : null;
+  if (fromBrief !== null) return fromBrief;
+  const saved = profile?.current_maxes;
+  if (saved && typeof saved === "object") {
+    const savedAt = Date.parse(String((saved as Record<string, unknown>).updated_at ?? ""));
+    const assessedAt = Date.parse(String(profile?.assessed_at ?? ""));
+    if (Number.isNaN(assessedAt) || (!Number.isNaN(savedAt) && savedAt > assessedAt)) {
+      const fromSaved = valid((saved as Record<string, unknown>)[key]);
+      if (fromSaved !== null) return fromSaved;
+    }
+  }
+  return null;
+}
+
 export async function fetchAthleteFitContext(
   userClient: { rpc: (fn: string, args?: Record<string, unknown>) => any; from: (t: string) => any },
-  brief: { skills: AthleteFitContext["skills"] },
-  profile: { assessment_raw?: Record<string, unknown> } | null
+  brief: { skills: AthleteFitContext["skills"]; current_maxes?: unknown },
+  profile: { assessment_raw?: Record<string, unknown>; current_maxes?: unknown; assessed_at?: unknown } | null
 ): Promise<AthleteFitContext> {
   const raw = profile?.assessment_raw ?? {};
 
@@ -1397,10 +1422,17 @@ export async function fetchAthleteFitContext(
   // banded_mu/jumping_mu). Getting this wrong in the lenient direction
   // (crediting an assisted number as unassisted) is exactly the failure
   // mode these checks exist to prevent.
-  const pullUpsMax = raw.pullup_variant === "strict_pullup" ? (raw.pullup_reps as number) ?? null : null;
-  const dipsMax = raw.dip_variant === "standard_dip" ? (raw.dip_reps as number) ?? null : null;
-  const pushUpsMax = raw.pushup_variant === "standard_pushup" ? (raw.pushup_reps as number) ?? null : null;
-  const muscleUpsMax = raw.mu_variant === "strict_mu" ? (raw.mu_reps as number) ?? null : null;
+  const assessed = {
+    pull_ups: raw.pullup_variant === "strict_pullup" ? (raw.pullup_reps as number) ?? null : null,
+    dips: raw.dip_variant === "standard_dip" ? (raw.dip_reps as number) ?? null : null,
+    push_ups: raw.pushup_variant === "standard_pushup" ? (raw.pushup_reps as number) ?? null : null,
+    muscle_ups: raw.mu_variant === "strict_mu" ? (raw.mu_reps as number) ?? null : null,
+  };
+  const max = (key: keyof CurrentMaxes) => newerMax(key, brief.current_maxes, profile) ?? assessed[key];
+  const pullUpsMax = max("pull_ups");
+  const dipsMax = max("dips");
+  const pushUpsMax = max("push_ups");
+  const muscleUpsMax = max("muscle_ups");
 
   const loggedWeights = await fetchLoggedWeights(userClient);
 
@@ -1430,7 +1462,7 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     for (const { ex, day, phase } of all) {
       if (nameIs(ex.name, "Muscle Up") && /\bband\b/i.test(ex.notes ?? "")) {
         throw new Error(
-          `"${day} | ${phase}" cues a band on Muscle Up, but this athlete's assessment_raw shows ${fit.muscleUpsMax} strict muscle-ups — band assistance is for someone who can't yet do the movement unassisted. Remove the band cue.`
+          `"${day} | ${phase}" cues a band on Muscle Up, but this athlete's latest numbers show ${fit.muscleUpsMax} strict muscle-ups — band assistance is for someone who can't yet do the movement unassisted. Remove the band cue.`
         );
       }
     }
@@ -1442,7 +1474,7 @@ export function validateAthleteFit(blocks: ClaudeBlock[], fit: AthleteFitContext
     for (const { ex, day, phase } of all) {
       if (nameIs(ex.name, "Pull Ups (Normal Grip)")) {
         throw new Error(
-          `"${day} | ${phase}" programs Pull Ups (Normal Grip), but this athlete's assessment_raw shows 0 strict pull-ups. Use Banded Pull Ups or another step from system-prompt.ts §9's ladder instead.`
+          `"${day} | ${phase}" programs Pull Ups (Normal Grip), but this athlete's latest numbers show 0 strict pull-ups. Use Banded Pull Ups or another step from system-prompt.ts §9's ladder instead.`
         );
       }
     }
@@ -1575,6 +1607,8 @@ export function warnMissingWeights(blocks: ClaudeBlock[], loggedWeights: Record<
 // step, NOT itself the gate — see that file's own comment for why a
 // separate tool call can't be trusted as the enforcement point under
 // system-prompt.ts §2's "each turn is fresh" rule).
+export type CurrentMaxes = Partial<Record<"pull_ups" | "dips" | "push_ups" | "muscle_ups", number>>;
+
 export interface BuildBrief {
   goal: string;
   skills: SkillFitCheckpoint[];
@@ -1583,6 +1617,7 @@ export interface BuildBrief {
   split_days: string[];
   equipment: string[];
   pacing: "day_by_day" | "direct";
+  current_maxes?: CurrentMaxes;
 }
 
 export const BUILD_BRIEF_SCHEMA = {
@@ -1610,6 +1645,16 @@ export const BUILD_BRIEF_SCHEMA = {
     split_days: { type: "array", items: { type: "string" }, description: 'The real category per day, in order, e.g. ["PULL", "LEGS", "PUSH", "FULL_BODY"] — system-prompt.ts §15.' },
     equipment: { type: "array", items: { type: "string" }, description: 'Confirmed equipment, e.g. ["bar", "rings", "bands"].' },
     pacing: { type: "string", enum: ["day_by_day", "direct"], description: "Which pacing the athlete chose (system-prompt.ts §11)." },
+    current_maxes: {
+      type: "object",
+      description: "Optional. Strict max reps the athlete gave you in this chat that are newer than assessment_raw (system-prompt.ts §10). The safety check uses these instead of the onboarding assessment.",
+      properties: {
+        pull_ups: { type: "integer" },
+        dips: { type: "integer" },
+        push_ups: { type: "integer" },
+        muscle_ups: { type: "integer" },
+      },
+    },
   },
   required: ["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment", "pacing"],
 };

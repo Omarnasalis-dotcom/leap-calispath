@@ -41,13 +41,22 @@ export function ringVersion(name: string, levelBand: LevelBand): string | null {
   return null;
 }
 
-type DayBlock = { block_name?: string; exercises?: Array<{ name?: string }> };
+// Hanging and over-the-bar work with no ring entry in the library: on
+// rings it keeps its name, so the exercise's note should say "on rings".
+const NO_RING_ENTRY = new Set([
+  "muscle up", "1 pull up 1 muscle up", "negative muscle up", "hanging leg rasies", "hanging knee raises",
+  "deadhang", "scapula pulls", "chin ups", "toes to bar", "high pull ups", "chest to bar pull up",
+]);
+
+type DayBlock = { block_name?: string; exercises?: Array<{ name?: string; notes?: string | null }> };
 
 // One note per exercise that seems to need equipment the brief doesn't
 // list. Nothing is changed: the coach decides.
 export function equipmentNotes(blocks: DayBlock[], flags: EquipmentFlags, levelBand: LevelBand): string[] {
   const notes: string[] = [];
   for (const block of blocks) {
+    // The server builds these from names only, so there is no note to add.
+    const serverBuilt = /^(warm-up|mobility|cool-down)$/i.test((block.block_name ?? "").trim());
     for (const ex of block.exercises ?? []) {
       if (typeof ex.name !== "string") continue;
       const where = `${block.block_name ?? "Block"}: "${ex.name}"`;
@@ -57,6 +66,8 @@ export function equipmentNotes(blocks: DayBlock[], flags: EquipmentFlags, levelB
       if (needsBar || needsDipBar) {
         const ring = flags.rings ? ringVersion(ex.name, levelBand) : null;
         notes.push(`${where} usually needs a ${needsBar ? "bar" : "dip bar"}, which isn't in their equipment.${ring ? ` "${ring}" is the version for their rings.` : ""} Keep it if they have access to one.`);
+      } else if (!serverBuilt && flags.rings && !flags.pullBar && NO_RING_ENTRY.has(key) && !/ring/i.test(ex.notes ?? "")) {
+        notes.push(`${where} has no ring entry in the library. If they'll do it on their rings, say so in its notes ("On rings").`);
       } else if (!flags.band && needsBand(ex.name)) {
         notes.push(`${where} needs a band, which isn't in their equipment. Keep it only if they have one.`);
       }
