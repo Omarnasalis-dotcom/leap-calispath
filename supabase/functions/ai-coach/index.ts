@@ -10,6 +10,7 @@ import { sanitizeReply } from "./tools/replyCleanup.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
 import { createEventSink, finalRow, parseClientRequestId } from "./tools/resultRecovery.ts";
+import { buildDayPreview, exerciseIds, PreviewBlock } from "./tools/dayPreview.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -48,6 +49,22 @@ const AI_COACH_SYSTEM_PROFILE_ID = "00000000-0000-0000-0000-000000000002";
 // used to be real and deliberate ("an extra DB query, not a correctness
 // issue, not touched" — see git history); collapsing it was one of the
 // approved Step 1/2 cleanup items.
+// The day card's "See exercises" list (dayPreview.ts). One name lookup for
+// the day's exercise ids; any failure just leaves the card without it.
+async function dayPreview(userClient: SupabaseClient, blocks: unknown): Promise<PreviewBlock[] | null> {
+  if (!Array.isArray(blocks) || blocks.length === 0) return null;
+  try {
+    const ids = exerciseIds(blocks);
+    const { data, error } = await userClient.from("exercise_library").select("id, name").in("id", ids);
+    if (error) throw error;
+    const nameById = new Map(((data ?? []) as Array<{ id: string; name: string }>).map((r) => [r.id, r.name]));
+    return buildDayPreview(blocks, nameById);
+  } catch (err) {
+    console.error("[ai-coach] Day preview failed:", err instanceof Error ? err.message : err);
+    return null;
+  }
+}
+
 async function buildProgramAction(
   userClient: SupabaseClient,
   userId: string,
@@ -91,6 +108,7 @@ async function buildProgramAction(
         dayName,
         blocks: resolvedBlocks,
       },
+      preview: await dayPreview(userClient, resolvedBlocks),
       ...base,
     };
   }
@@ -143,6 +161,7 @@ async function buildProgramAction(
         dayName,
         blocks: result.resolved_blocks ?? [],
       },
+      preview: await dayPreview(userClient, result.resolved_blocks),
       ...base,
     };
   }
