@@ -25,6 +25,8 @@
 // collision). 'create_from_workouts' is unrelated to this flow (an
 // athlete's explicit "just give me one exact ready-made session" ask) and
 // keeps its original Start/Ignore copy.
+import type { PreviewBlock } from './DayPreview';
+
 export interface ProgramAction {
   type: 'create' | 'add_day' | 'end' | 'delete_week' | 'create_from_workouts' | 'append_week';
   reason: string;
@@ -48,6 +50,9 @@ export interface ProgramAction {
     | null;
   warriorProgramId: string | null;
   currentProgramIsAiOwned: boolean;
+  // Day cards only: the day's blocks and exercises for "See exercises"
+  // (DayPreview.tsx). Absent from servers before 2026-11-04.
+  preview?: PreviewBlock[] | null;
   weekNumber: number | null;
 }
 

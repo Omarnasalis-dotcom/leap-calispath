@@ -37,6 +37,7 @@ import { ActivityBubble, Stage } from '../components/coach/ActivityBubble';
 import { ResponseBlockView, ResponseBlock } from '../components/coach/RichBlocks';
 import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
 import { ProgramAction, getChangeDayMessage, isLastConfirmedDay } from '../components/coach/programAction';
+import { DayPreviewList } from '../components/coach/DayPreview';
 
 import { supabase } from '../lib/supabase';
 import { FunctionsHttpError } from '@supabase/functions-js';
@@ -219,6 +220,9 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const [suggestedReplies, setSuggestedReplies] = useState<string[]>([]);
   const [pendingProgramAction, setPendingProgramAction] = useState<ProgramAction | null>(null);
   const [confirmingAction, setConfirmingAction] = useState(false);
+  // The day card's "See exercises" list; closed again for every new card.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  useEffect(() => setPreviewOpen(false), [pendingProgramAction]);
   // Shown after a successful program creation for an already-onboarded
   // athlete — the onboarding funnel (createdProgram && !onboarding_completed_at
   // below) has its own dedicated celebration screen and is untouched; this
@@ -1117,6 +1121,23 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                     </Text>
                   </View>
                   <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{pendingProgramAction.reason}</Text>
+                  {isDayCard && pendingProgramAction.preview && pendingProgramAction.preview.length > 0 && (
+                    <>
+                      <TouchableOpacity
+                        accessibilityRole="button"
+                        accessibilityState={{ expanded: previewOpen }}
+                        onPress={() => setPreviewOpen((open) => !open)}
+                        style={styles.previewToggle}
+                        hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+                      >
+                        <Text style={[styles.previewToggleText, { color: theme.accent }]}>
+                          {previewOpen ? t('coach.hideExercises') : t('coach.seeExercises')}
+                        </Text>
+                        <MaterialCommunityIcons name={previewOpen ? 'chevron-up' : 'chevron-down'} size={16} color={theme.accent} />
+                      </TouchableOpacity>
+                      {previewOpen && <DayPreviewList blocks={pendingProgramAction.preview} colors={c} />}
+                    </>
+                  )}
                   {pendingProgramAction.type === 'create_from_workouts' && pendingProgramAction.payload && 'dayTitles' in pendingProgramAction.payload && (
                     <View style={styles.actionCardDayList}>
                       {pendingProgramAction.payload.dayTitles.map((title, i) => (
@@ -1456,6 +1477,16 @@ const styles = StyleSheet.create({
   },
   actionCardDayList: {
     gap: 2,
+  },
+  previewToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    gap: 2,
+  },
+  previewToggleText: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   actionCardDayItem: {
     fontSize: 12,
