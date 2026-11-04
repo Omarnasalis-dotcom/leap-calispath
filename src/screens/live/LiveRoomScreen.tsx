@@ -998,7 +998,7 @@ function RestView({ tokens: t, state, now, myId, busy, canStart, onStart }: {
         )}
         <View style={{ paddingTop: 20, gap: 10 }}>
           <Label tokens={t} size={11}>{tr('live.standingsAfter', { n })}</Label>
-          <LivePodium tokens={t} rows={standings} mySide={me?.side} names={state.side_names} />
+          <LivePodium tokens={t} rows={standings} mySide={me?.side} names={state.side_names} players={players} />
         </View>
         {next && (
           <View style={{ paddingTop: 24, gap: 10 }}>

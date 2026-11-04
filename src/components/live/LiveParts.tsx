@@ -13,6 +13,11 @@ export function playerName(p: Pick<LivePlayer, 'display_name'>): string {
   return p.display_name || tr('team.deletedUser');
 }
 
+/** The players on a side, joined as "Omar · Ali" (same as the public TEAMS board). */
+export function sidePlayers(players: Pick<LivePlayer, 'display_name' | 'side'>[], side: number): string {
+  return players.filter(p => p.side === side).map(playerName).join(' · ');
+}
+
 /** The team name, or "SIDE A" while it has none (the letter stays Latin in both languages). */
 export const sideLabel = (side: number, names?: Record<string, string> | null) =>
   sideNameOf(names, side) ?? tr('live.side', { letter: sideLetter(side) });
@@ -111,24 +116,28 @@ export function OnlineDot({ tokens: t, online }: { tokens: WeeklyTokens; online:
 }
 
 /** Sides ranked, with points per half. */
-export function SideStandings({ tokens: t, rows, halfCount, mySide, names }: {
+export function SideStandings({ tokens: t, rows, halfCount, mySide, names, players }: {
   tokens: WeeklyTokens;
   rows: SideStanding[];
   halfCount: number;
   mySide: number | null | undefined;
   names?: Record<string, string>;
+  /** Shows each side's players under its name. */
+  players?: Pick<LivePlayer, 'display_name' | 'side'>[];
 }) {
   return (
     <View style={{ borderRadius: 16, borderWidth: 1, borderColor: t.border, backgroundColor: t.boardBg, overflow: 'hidden' }}>
       {rows.map((r, i) => (
-        <StandingRow key={r.side} tokens={t} row={r} first={i === 0} halfCount={halfCount} mine={r.side === mySide} names={names} />
+        <StandingRow key={r.side} tokens={t} row={r} first={i === 0} halfCount={halfCount} mine={r.side === mySide} names={names}
+          members={players ? sidePlayers(players, r.side) : undefined} />
       ))}
     </View>
   );
 }
 
-export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }: {
+export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names, members }: {
   tokens: WeeklyTokens; row: SideStanding; first: boolean; halfCount: number; mine: boolean; names?: Record<string, string>;
+  members?: string;
 }) {
   return (
     <View style={{
@@ -141,6 +150,7 @@ export function StandingRow({ tokens: t, row: r, first, halfCount, mine, names }
           <Text style={[kt(mine ? 'bold' : 'semibold', 15, t.text, 0.6), { flexShrink: 1 }]} numberOfLines={1}>{sideLabel(r.side, names)}</Text>
           {mine && <YouBadge tokens={t} />}
         </View>
+        {members ? <Text style={[kt('regular', 11.5, t.textDim), { marginTop: 2 }]} numberOfLines={2}>{members}</Text> : null}
         {halfCount > 1 && (
           <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2 }]} numberOfLines={1}>
             {r.perHalf.slice(0, halfCount).map((p, h) => `${tr('live.halfShort', { n: h + 1 })} ${Math.round(p * 10) / 10}`).join('  ·  ')}
@@ -194,6 +204,7 @@ export function PodiumBoard({ tokens: t, items, wrap }: {
               </View>
               <View style={{ alignItems: 'center', gap: 1, maxWidth: '100%' }}>
                 <Text style={kt(it.mine ? 'semibold' : 'regular', 12, it.mine ? t.accentText : t.textDim)} numberOfLines={1}>{it.name}</Text>
+                {it.sub ? <Text style={[kt('regular', 10.5, t.textFaint, 0, 14), { textAlign: 'center' }]} numberOfLines={2}>{it.sub}</Text> : null}
                 <Text style={kt('semibold', 16, t.text)} numberOfLines={1}>{it.score}</Text>
                 {it.mine && <YouBadge tokens={t} />}
               </View>
@@ -227,7 +238,7 @@ export function PodiumBoard({ tokens: t, items, wrap }: {
                     <Text style={[kt(it.mine ? 'semibold' : 'regular', 14, it.mine ? t.text : t.textSecondary), { flexShrink: 1 }]} numberOfLines={1}>{it.name}</Text>
                     {it.mine && <YouBadge tokens={t} />}
                   </View>
-                  {it.sub ? <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2 }]} numberOfLines={1}>{it.sub}</Text> : null}
+                  {it.sub ? <Text style={[kt('regular', 11.5, t.textFaint), { marginTop: 2 }]} numberOfLines={2}>{it.sub}</Text> : null}
                 </View>
                 <Text style={kt('semibold', 15, t.text)}>{it.score}</Text>
               </View>
@@ -240,11 +251,12 @@ export function PodiumBoard({ tokens: t, items, wrap }: {
   );
 }
 
-/** Sides of one room on the podium. */
-export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
+/** Sides of one room on the podium, each with its players under the name. */
+export function LivePodium({ tokens: t, rows, names, players, mySide, wrap }: {
   tokens: WeeklyTokens;
   rows: SideStanding[];
   names?: Record<string, string>;
+  players: Pick<LivePlayer, 'display_name' | 'side'>[];
   mySide: number | null | undefined;
   wrap?: (index: number, node: React.ReactNode) => React.ReactNode;
 }) {
@@ -252,7 +264,10 @@ export function LivePodium({ tokens: t, rows, names, mySide, wrap }: {
     <PodiumBoard
       tokens={t}
       wrap={wrap}
-      items={rows.map(r => ({ key: String(r.side), place: r.place, name: sideLabel(r.side, names), score: formatPts(r.total), mine: r.side === mySide }))}
+      items={rows.map(r => ({
+        key: String(r.side), place: r.place, name: sideLabel(r.side, names), score: formatPts(r.total), mine: r.side === mySide,
+        sub: sidePlayers(players, r.side) || undefined,
+      }))}
     />
   );
 }

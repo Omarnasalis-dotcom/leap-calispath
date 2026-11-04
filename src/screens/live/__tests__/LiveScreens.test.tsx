@@ -341,6 +341,8 @@ describe('LiveRoomScreen · match', () => {
     expect(text).toContain('STANDINGS AFTER HALF 1');
     expect(text).toContain('COOL-DOWN');
     expect(text).toContain('280 PTS');
+    expect(text).toContain('Omar · Sara'); // players under each side
+    expect(text).toContain('Ali · Mona');
     expect(text).toContain('NEXT UP · HALF 2');
     expect(text).toContain('Push-ups');
     expect(button(r, 'START HALF 2')).toBeDefined();
@@ -419,7 +421,11 @@ describe('LiveRoomScreen · match', () => {
     expect(allText(r)).not.toContain('DONE');
     const skip = r.root.findAll(n => n.props.accessibilityHint === 'Tap to skip' && n.props.onPress)[0];
     await act(async () => { skip.props.onPress(); });
-    expect(allText(r)).toContain('DONE');
+    const text = allText(r);
+    expect(text).toContain('DONE');
+    // Players under each side on the podium and again in the by-half table.
+    expect(text.split('Omar · Sara').length - 1).toBe(2);
+    expect(text.split('Ali · Mona').length - 1).toBe(2);
   });
 
   it('abandoned room', async () => {
@@ -506,6 +512,7 @@ describe('LiveHub', () => {
     expect(text).toContain('410 PTS');
     expect(text).toContain('Mona'); // 4th, in the list under the podium
     expect(text).toContain('12.5 PTS');
+    expect(text).toContain('Iron Wolves'); // team name under a top-3 player
     expect(mockService.getPlayerBoard).toHaveBeenCalledWith('c1');
 
     const teamsTab = r.root.findAll(n => n.props.accessibilityRole === 'tab' && texts(n.children as any).join('').includes('TEAMS'))[0];
@@ -514,6 +521,7 @@ describe('LiveHub', () => {
     expect(text).toContain('Scored as points per player');
     expect(text).toContain('Iron Wolves');
     expect(text).toContain('305 PTS');
+    expect(text).toContain('Omar · Sara'); // players under the top-3 team
   });
 
   it('leaderboard: empty', async () => {

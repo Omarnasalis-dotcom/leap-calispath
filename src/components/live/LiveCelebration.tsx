@@ -148,6 +148,7 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
             tokens={t}
             rows={standings}
             names={names}
+            players={players}
             mySide={me?.side}
             wrap={(i, node) => <FadeUp clock={clock} start={times.rowAt(i)} dy={40}>{node}</FadeUp>}
           />
@@ -186,7 +187,7 @@ export function LiveCelebration({ tokens: t, state, myId }: { tokens: WeeklyToke
             {halfCount > 1 && (
               <View style={{ gap: 8, paddingTop: 6 }}>
                 <Label tokens={t}>{tr('live.byHalf')}</Label>
-                <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} names={names} />
+                <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} names={names} players={players} />
               </View>
             )}
             <View style={{ gap: 8, paddingTop: 6 }}>
