@@ -105,30 +105,42 @@ const RANDOM_IMAGES: ImageSourcePropType[] = [
 const ASSESSMENT_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/assessment.png');
 const BUILD_PROGRAM_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/onboarding/build-your-program.png');
 
-// Light-mode covers: same categories, daytime versions, under
-// assets/Milestone Cards/light/. Same space-free filename rule as above.
+// Light-mode covers: same categories on a white background, under
+// assets/Milestone Cards/light-v2/. Same space-free filename rule as above.
 const LIGHT_PUSH_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/light/push/push-ups.jpeg'),
-  require('../../assets/Milestone Cards/light/push/incline-pushup.jpeg'),
-  require('../../assets/Milestone Cards/light/push/pike-pushup.jpeg'),
-  require('../../assets/Milestone Cards/light/push/dips.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/push/incline-pushup.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/push/dips.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/push/ring-dips.jpeg'),
 ];
 const LIGHT_PULL_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/light/pull/pull-up.png'),
-  require('../../assets/Milestone Cards/light/pull/inverted-rows.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/pull/pull-up.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/pull/one-arm-pull-up.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/pull/front-lever.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/pull/inverted-rows.jpeg'),
 ];
 const LIGHT_LEGS_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/light/lower body/squats.jpeg'),
-  require('../../assets/Milestone Cards/light/lower body/weighted-squat.jpeg'),
-  require('../../assets/Milestone Cards/light/lower body/pistol-squat.jpeg'),
-  require('../../assets/Milestone Cards/light/lower body/runners-lunge.jpeg'),
-  require('../../assets/Milestone Cards/light/lower body/kneeling-lunge.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/squats.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/weighted-squat.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/pistol-squat.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/step-up.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/bulgarian-split-squat.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/side-lunge.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/lower body/hip-thrust.jpeg'),
 ];
+const LIGHT_PLANK_IMAGE: ImageSourcePropType = require('../../assets/Milestone Cards/light-v2/random/plank.jpeg');
 const LIGHT_RANDOM_IMAGES: ImageSourcePropType[] = [
-  require('../../assets/Milestone Cards/light/random/hanging-knee-raise.jpeg'),
-  require('../../assets/Milestone Cards/light/random/knee-tuck-hang.png'),
-  require('../../assets/Milestone Cards/light/random/sprint.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/random/v-ups.jpeg'),
+  require('../../assets/Milestone Cards/light-v2/random/mountain-climber.jpeg'),
+  LIGHT_PLANK_IMAGE,
+  require('../../assets/Milestone Cards/light-v2/random/sit-up.jpeg'),
 ];
+
+// The plank's head already sits on the far side; shifting it would cut it off.
+const LIGHT_SHIFTED_PHOTOS = new Set<ImageSourcePropType>(
+  [...LIGHT_PUSH_IMAGES, ...LIGHT_PULL_IMAGES, ...LIGHT_LEGS_IMAGES, ...LIGHT_RANDOM_IMAGES].filter(
+    (photo) => photo !== LIGHT_PLANK_IMAGE,
+  ),
+);
 
 interface CardImageSet {
   push: ImageSourcePropType[];
@@ -561,6 +573,9 @@ function JourneyCardBody({
   const styles = useLaneStyles();
   const isLight = useTheme().mode === 'light';
   const locked = state === 'locked';
+  // White-background photos sit shifted toward the far side of the card,
+  // clear of the text. Scenic photos can't: the gap would show.
+  const shiftedPhoto = !!image && LIGHT_SHIFTED_PHOTOS.has(image);
   const pulse = usePulse(state === 'active' && !!showHereBadge);
   const badgeOpacity = pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 0.4] });
 
@@ -613,7 +628,21 @@ function JourneyCardBody({
 
   return (
     <View style={[styles.milestoneCard, locked && styles.milestoneCardLocked]}>
-      <Image source={image} style={[styles.milestoneCardImage, isRTL && mirrorPhotoInRTL && FLIP_X]} resizeMode="cover" />
+      <Image
+        source={image}
+        style={[shiftedPhoto ? styles.milestoneCardImageShifted : styles.milestoneCardImage, isRTL && mirrorPhotoInRTL && FLIP_X]}
+        resizeMode="cover"
+      />
+      {shiftedPhoto && (
+        <LinearGradient
+          pointerEvents="none"
+          colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+          // Physical, not layout-mirrored: in Arabic this edge faces right.
+          start={{ x: isRTL ? 1 : 0, y: 0.5 }}
+          end={{ x: isRTL ? 0 : 1, y: 0.5 }}
+          style={styles.milestoneCardImageEdgeFade}
+        />
+      )}
       {/* RN's Image has no CSS-filter equivalent (no grayscale/brightness) —
           a flat dark scrim is the native approximation for "locked, dimmed
           photo" the design spec asks for. */}
@@ -621,15 +650,24 @@ function JourneyCardBody({
       {isLight ? (
         // White wash from the text side (right in Arabic) instead of the
         // dark bottom scrim, so dark text sits on white and the photo
-        // stays bright on the far side.
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']}
-          locations={[0, 0.35, 0.66]}
-          start={{ x: isRTL ? 1 : 0, y: 0.5 }}
-          end={{ x: isRTL ? 0 : 1, y: 0.5 }}
-          style={StyleSheet.absoluteFill}
-        />
+        // stays bright on the far side, plus a slight black shadow along
+        // the bottom edge.
+        <>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.82)', 'rgba(255,255,255,0.6)', 'rgba(255,255,255,0)']}
+            locations={[0, 0.35, 0.66]}
+            start={{ x: isRTL ? 1 : 0, y: 0.5 }}
+            end={{ x: isRTL ? 0 : 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)']}
+            locations={[0.68, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        </>
       ) : (
         <LinearGradient
           pointerEvents="none"
@@ -3552,6 +3590,22 @@ const darkStyles = StyleSheet.create({
     bottom: 0,
     width: '100%',
     height: '100%',
+  },
+  // left flips in Arabic, so the photo moves away from the text there too.
+  milestoneCardImageShifted: {
+    position: 'absolute',
+    top: 0,
+    left: '20%',
+    width: '100%',
+    height: '100%',
+  },
+  // Hides the seam between the photo's near-white background and the card.
+  milestoneCardImageEdgeFade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '20%',
+    width: 28,
   },
   milestoneCardLockedScrim: {
     position: 'absolute',
