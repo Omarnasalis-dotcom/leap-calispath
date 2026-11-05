@@ -2521,6 +2521,7 @@ const en = {
     programIsReady: '"{{name}}" is ready',
     day1: 'Day 1',
     weekDeleted: 'Week {{week}} has been deleted.',
+    weekName: 'Week {{week}}',
     programEnded: 'Your program has been ended.',
     actionFailed: 'COULD NOT COMPLETE THIS',
     resetChat: 'Reset chat?',

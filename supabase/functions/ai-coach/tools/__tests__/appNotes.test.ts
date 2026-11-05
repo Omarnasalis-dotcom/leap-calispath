@@ -14,6 +14,7 @@ describe("appNoteFor", () => {
     it(`recognises every ${lang} app confirmation`, () => {
       const cases: Array<[string, string]> = [
         [render(strings.dayAdded, { name: "PULL DAY" }), '"PULL DAY" was added'],
+        [render(strings.dayAdded, { name: render(strings.weekName, { week: 7 }) }), `"${render(strings.weekName, { week: 7 })}" was added`],
         [render(strings.dayUpdated, { name: "PUSH DAY" }), '"PUSH DAY" was replaced'],
         [render(strings.programLive, { name: "Intermediate C" }), '"Intermediate C" is now their active program'],
         [render(strings.weekDeleted, { week: 3 }), "week 3 was deleted"],

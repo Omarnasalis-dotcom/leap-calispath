@@ -2671,6 +2671,7 @@ const ar: Translations = {
     programIsReady: '"{{name}}" جاهز',
     day1: 'اليوم 1',
     weekDeleted: 'تم حذف الأسبوع {{week}}.',
+    weekName: 'الأسبوع {{week}}',
     programEnded: 'تم إنهاء برنامجك.',
     actionFailed: 'تعذّر إتمام ذلك',
     resetChat: 'إعادة تعيين المحادثة؟',

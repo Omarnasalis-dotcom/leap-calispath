@@ -808,6 +808,16 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           p_carry_order_overrides: payload.carryOrderOverrides,
         });
         if (error) throw error;
+        // Same line as a day card, so the chat shows what the tap did. Its
+        // shape is one appNotes.ts already swaps for a note, so the coach
+        // never reads it as its own words.
+        if (pendingProgramAction.weekNumber != null) {
+          setMessages(prev => [...prev, {
+            role: 'assistant',
+            kind: 'app',
+            content: t('coach.dayAdded', { name: t('coach.weekName', { week: pendingProgramAction.weekNumber }) }),
+          }]);
+        }
         setPendingProgramAction(null);
         await refreshProfile();
         router.replace('/my-journey');
