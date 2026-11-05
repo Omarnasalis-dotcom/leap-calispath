@@ -11,7 +11,8 @@ import { BoardShareButton, LeaderboardShareCard } from '../../components/leaderb
 import { useAuth } from '../../contexts/AuthContext';
 import { LiveTournamentError, LiveTournamentService } from '../../services/LiveTournamentService';
 import {
-  LiveChallenge, LiveHistoryRow, LivePlayerBoardRow, LiveTeamBoardRow, MAX_SIDES, MIN_SIDES, ROOM_CODE_LENGTH,
+  isSolo, LiveChallenge, LiveHistoryRow, LivePlayerBoardRow, LiveTeamBoardRow, MAX_SIDES, MIN_SIDES, ROOM_CODE_LENGTH,
+  SOLO_MAX_PLAYERS,
 } from '../../lib/liveTournament';
 import { track } from '../../lib/analytics';
 import { useMountedRef } from '../../hooks/useMountedRef';
@@ -90,7 +91,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
       let roomId: string;
       if (sheet === 'create') {
         roomId = (await LiveTournamentService.createRoom(challenge!.id, sides)).roomId;
-        track('live_room_created', { sides, halves: challenge!.halves.length, team_size: challenge!.team_size });
+        track('live_room_created', { format: challenge!.format, sides, halves: challenge!.halves.length, team_size: challenge!.team_size });
       } else {
         roomId = await LiveTournamentService.joinRoom(code);
         track('live_room_joined');
@@ -171,7 +172,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
                     >
                       <Text style={kt('bold', 12, on ? t.onAccent : t.text, 1)} numberOfLines={1}>{c.title.toUpperCase()}</Text>
                       <Text style={kt('medium', 10, on ? t.onAccent : t.textMuted, 1.2)} numberOfLines={1}>
-                        {`${tr('live.chipHalves', { count: c.halves.length })} · ${tr('live.chipPerSide', { count: c.team_size })}`}
+                        {`${tr('live.chipHalves', { count: c.halves.length })} · ${isSolo(c) ? tr('live.kickerSolo') : tr('live.chipPerSide', { count: c.team_size })}`}
                       </Text>
                     </Pressable>
                   );
@@ -188,7 +189,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
             )}
 
             <HalvesList tokens={t} halves={challenge.halves} />
-            <LiveBoards tokens={t} challengeId={challenge.id} challengeTitle={challenge.title} />
+            <LiveBoards key={challenge.id} tokens={t} challengeId={challenge.id} challengeTitle={challenge.title} solo={isSolo(challenge)} />
           </>
         )}
 
@@ -210,8 +211,8 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
                   <Text style={kt('medium', 10.5, t.textFaint, 1.4)} numberOfLines={1}>
                     {`${ltr(shortDate(h.finished_at))} · ${h.challenge_title.toUpperCase()}`}
                   </Text>
-                  <Text style={kt('semibold', 15, t.text, 0.4)} numberOfLines={1}>{h.my_side_name ?? sideLabel(h.my_side)}</Text>
-                  {h.is_best_player && <Text style={kt('bold', 10.5, t.gold, 1.4)}>{tr('live.bestPlayerTag')}</Text>}
+                  <Text style={kt('semibold', 15, t.text, 0.4)} numberOfLines={1}>{h.format === 'solo' ? tr('live.kickerSolo') : h.my_side_name ?? sideLabel(h.my_side)}</Text>
+                  {h.is_best_player && h.format !== 'solo' && <Text style={kt('bold', 10.5, t.gold, 1.4)}>{tr('live.bestPlayerTag')}</Text>}
                 </View>
                 <View style={{ alignItems: 'flex-end', gap: 2 }}>
                   <Text style={kt('semibold', 15, t.text)}>{formatPts(h.my_points)}</Text>
@@ -235,7 +236,9 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
       >
         <View style={{ gap: 14, paddingBottom: 8, paddingHorizontal: 24 }}>
           <Text style={kt('light', 14, t.textSecondary, 0, 20)}>
-            {sheet === 'join' ? tr('live.joinHint') : tr('live.createHint')}
+            {sheet === 'join'
+              ? tr('live.joinHint')
+              : challenge && isSolo(challenge) ? tr('live.createHintSolo', { max: SOLO_MAX_PLAYERS }) : tr('live.createHint')}
           </Text>
           {sheet === 'join' ? (
             <TextInput
@@ -256,7 +259,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
                 fontFamily: WORLD_FONTS.bold, fontSize: 24, letterSpacing: 6, textAlign: 'center', writingDirection: 'ltr',
               }}
             />
-          ) : (
+          ) : challenge && isSolo(challenge) ? null : (
             <View style={{ flexDirection: 'row', gap: 8 }}>
               {Array.from({ length: MAX_SIDES - MIN_SIDES + 1 }, (_, i) => MIN_SIDES + i).map(n => {
                 const on = n === sides;
@@ -295,7 +298,7 @@ export function LiveHub({ tokens: t, onBack, modeSlot }: Props) {
 type BoardKind = 'players' | 'teams';
 
 /** The challenge's public leaderboards: every finished room that played all halves. */
-function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: WeeklyTokens; challengeId: string; challengeTitle: string }) {
+function LiveBoards({ tokens: t, challengeId, challengeTitle, solo }: { tokens: WeeklyTokens; challengeId: string; challengeTitle: string; solo: boolean }) {
   const isMounted = useMountedRef();
   const { profile } = useAuth();
   const [shareOpen, setShareOpen] = useState(false);
@@ -308,7 +311,7 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
     try {
       const [p, tm] = await Promise.all([
         LiveTournamentService.getPlayerBoard(challengeId),
-        LiveTournamentService.getTeamBoard(challengeId),
+        solo ? Promise.resolve<LiveTeamBoardRow[]>([]) : LiveTournamentService.getTeamBoard(challengeId),
       ]);
       if (!isMounted.current) return;
       setPlayers(p);
@@ -317,7 +320,7 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
     } catch (e: any) {
       if (isMounted.current) setError(e?.message ?? tr('live.loadFailed'));
     }
-  }, [challengeId]);
+  }, [challengeId, solo]);
 
   // Refreshes on focus too (coming back from a finished room).
   useFocusEffect(useCallback(() => { load(); }, [load]));
@@ -361,16 +364,18 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
         <Label tokens={t} size={11}>{tr('live.leaderboard')}</Label>
         {!!items?.length && <BoardShareButton color={t.textSecondary} borderColor={t.cardBorder} onPress={() => setShareOpen(true)} />}
       </View>
-      <SegmentedSwitch
-        tokens={t}
-        items={[
-          { key: 'players', label: tr('live.boardPlayers') },
-          { key: 'teams', label: tr('live.boardTeams') },
-        ]}
-        active={kind}
-        onChange={setKind}
-        accessibilityLabel={tr('live.leaderboard')}
-      />
+      {!solo && (
+        <SegmentedSwitch
+          tokens={t}
+          items={[
+            { key: 'players', label: tr('live.boardPlayers') },
+            { key: 'teams', label: tr('live.boardTeams') },
+          ]}
+          active={kind}
+          onChange={setKind}
+          accessibilityLabel={tr('live.leaderboard')}
+        />
+      )}
       {kind === 'teams' && <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.teamBoardHint')}</Text>}
       {error && !items ? (
         <View style={{ alignItems: 'center', gap: 10 }}>

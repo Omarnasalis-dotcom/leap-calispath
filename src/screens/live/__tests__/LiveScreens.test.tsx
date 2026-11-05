@@ -119,7 +119,7 @@ function makeState(room: Over = {}, players: LiveRoomState['players'] = [], extr
       half_started_at: null, half_ends_at: null, log_closes_at: null, half_closed_at: null, anyone_can_start_at: null,
       created_at: iso(-60_000), started_at: null, finished_at: null, ...room,
     },
-    challenge: { id: 'c1', title: 'Halves Week 1', description: '', halves: HALVES, rest_sec: 60, team_size: 2 },
+    challenge: { id: 'c1', title: 'Halves Week 1', description: '', halves: HALVES, rest_sec: 60, team_size: 2, format: 'teams' },
     players,
     side_names: { '1': 'Wolves', '2': 'Lions' },
     logged: [],
@@ -669,6 +669,191 @@ describe('LiveHub', () => {
 
 // ── Every screen in EN / AR × dark / light ─────────────────────────────────
 
+// ── Solo Battle ────────────────────────────────────────────────────────────
+
+const ONE_HALF = [HALVES[0]];
+const solo = (halves = ONE_HALF) => ({ id: 'c2', title: 'Solo Week 1', description: '', halves, rest_sec: 60, team_size: 1, format: 'solo' as const });
+const soloState = (room: Over, players: LiveRoomState['players'], extra: Partial<LiveRoomState> = {}, halves = ONE_HALF) =>
+  makeState({ side_count: 12, ...room }, players, { challenge: solo(halves), side_names: {}, ...extra });
+const seat = (user_id: string, name: string, side: number, is_ready = true, online = true) => p(user_id, name, side, is_ready, online);
+const THREE = [seat('me', 'Omar', 1), seat('u2', 'Sara', 2), seat('u3', 'Ali', 3)];
+const TWELVE = Array.from({ length: 12 }, (_, i) => (i === 0 ? seat('me', 'Omar', 1) : seat(`u${i + 1}`, `Player ${i + 1}`, i + 1)));
+
+describe('Solo Battle · room', () => {
+  it('lobby: players in one list, no sides or team names, host starts the match', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(soloState({}, THREE)));
+    mockService.startHalf.mockResolvedValue({ data: { half: 1, halfStartedAt: iso(5000), halfEndsAt: iso(245_000) }, clockOffsetMs: 0, roundTripMs: 40 });
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const text = allText(r);
+    expect(text).toContain('SOLO BATTLE');
+    expect(text).toContain('3/12');
+    expect(text).toContain('OPEN SPOTS: 9');
+    expect(text).toContain('Sara');
+    expect(text).not.toContain('SIDE A');
+    expect(text).not.toContain('NAME YOUR TEAM');
+    expect(text).not.toContain('Pick a side');
+    await act(async () => { button(r, 'START MATCH').props.onPress(); });
+    expect(mockService.startHalf).toHaveBeenCalledWith('r1');
+  });
+
+  it('lobby: a full room has no open spots, 2-half solo says START HALF 1', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(soloState({}, TWELVE, {}, HALVES)));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).toContain('12/12');
+    expect(allText(r)).not.toContain('OPEN SPOTS');
+    expect(button(r, 'START HALF 1')).toBeDefined();
+  });
+
+  it('lobby: alone in the room, the host waits for players', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(soloState({}, [seat('me', 'Omar', 1)])));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).toContain('Waiting for players');
+    expect(button(r, 'START MATCH')).toBeUndefined();
+  });
+
+  it('one half: the running match says MATCH, not HALF 1 OF 1', async () => {
+    mockService.getRoomState.mockResolvedValue(timed(soloState(running({ side_count: 3 }), THREE)));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).toContain('MATCH');
+    expect(allText(r)).not.toContain('HALF 1 OF 1');
+  });
+
+  it('logging: the host can only log for a player offline 30 s, 30 s after time is up', async () => {
+    const seen = (user_id: string, name: string, side: number, ago: number) => ({ ...seat(user_id, name, side), online: ago < 15, last_seen_at: iso(-ago * 1000) });
+    const players = [seat('me', 'Omar', 1), seen('u2', 'Sara', 2, 2), seen('u3', 'Ali', 3, 45)];
+    const logButtons = (r: ReactTestRenderer) => r.root.findAll(n => n.props.accessibilityRole === 'button' && n.props.onPress && texts(n.children as any).join('') === 'LOG');
+
+    mockService.getRoomState.mockResolvedValue(timed(soloState(logging({ side_count: 3, half_ends_at: iso(-10_000) }), players)));
+    let r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).toContain('offline for 30 seconds');
+    expect(logButtons(r)).toHaveLength(0); // only 10 s since time was up
+
+    mockService.getRoomState.mockResolvedValue(timed(soloState(logging({ side_count: 3, half_ends_at: iso(-40_000) }), players)));
+    r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(logButtons(r)).toHaveLength(1); // Ali, not Sara who is online
+  });
+
+  it('logging: a player never gets the host button and sees no side labels', async () => {
+    mockUserId = 'u2';
+    mockService.getRoomState.mockResolvedValue(timed(soloState(logging({ side_count: 3, half_ends_at: iso(-40_000) }), THREE)));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const text = allText(r);
+    expect(text).toContain('LOG YOUR REPS');
+    expect(text).not.toContain('SIDE A');
+    expect(text).not.toContain('offline for 30 seconds');
+  });
+
+  it('rest: player names on the podium, no side labels', async () => {
+    const results = [result(1, 'me', 1, 300), result(1, 'u2', 2, 200), result(1, 'u3', 3, 100)];
+    mockService.getRoomState.mockResolvedValue(timed(soloState(logging({ side_count: 3, half_closed_at: iso(-5000) }), THREE, { results }, HALVES)));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    const text = allText(r);
+    expect(text).toContain('STANDINGS AFTER HALF 1');
+    expect(text).toContain('Sara');
+    expect(text).not.toContain('SIDE');
+  });
+
+  it('final: winner by name, no best player card, every player ranked', async () => {
+    jest.useFakeTimers();
+    try {
+      const results = TWELVE.map((pl, i) => result(1, pl.user_id!, i + 1, 500 - i * 10));
+      mockService.getRoomState.mockResolvedValue(timed(soloState(
+        { status: 'finished', side_count: 12, current_half: 1, half_closed_at: iso(-100), finished_at: iso(-100) }, TWELVE, { results },
+      )));
+      const r = await render(<LiveRoomScreen roomId="r1" />);
+      await act(async () => { jest.advanceTimersByTime(5000); }); // the 12-player reveal has settled
+      const text = allText(r);
+      expect(text).toContain('WINNER');
+      expect(text).toContain('OMAR');
+      expect(text).toContain('Player 12');
+      expect(text).toContain('DONE');
+      expect(text).not.toContain('BEST PLAYER');
+      expect(text).not.toContain('BY PLAYER');
+      expect(text).not.toContain('SIDE');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('final: a tie for 1st shows both winners', async () => {
+    jest.useFakeTimers();
+    try {
+      const results = [result(1, 'me', 1, 300), result(1, 'u2', 2, 300), result(1, 'u3', 3, 100)];
+      mockService.getRoomState.mockResolvedValue(timed(soloState(
+        { status: 'finished', side_count: 3, current_half: 1, half_closed_at: iso(-100), finished_at: iso(-100) }, THREE, { results },
+      )));
+      const r = await render(<LiveRoomScreen roomId="r1" />);
+      await act(async () => { jest.advanceTimersByTime(5000); });
+      const text = allText(r);
+      expect(text).toContain("IT'S A TIE");
+      expect(text).toContain('OMAR · SARA');
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('a one-half team match also says MATCH', async () => {
+    const state = makeState(running(), FOUR);
+    state.challenge = { ...state.challenge, halves: ONE_HALF };
+    mockService.getRoomState.mockResolvedValue(timed(state));
+    const r = await render(<LiveRoomScreen roomId="r1" />);
+    expect(allText(r)).not.toContain('HALF 1 OF 1');
+    expect(allText(r)).toContain('MATCH');
+  });
+});
+
+describe('Solo Battle · hub', () => {
+  const open = (c: any) => {
+    mockService.getOpenChallenges.mockResolvedValue([c]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([]);
+    mockService.getPlayerBoard.mockResolvedValue([]);
+    mockService.getTeamBoard.mockResolvedValue([]);
+  };
+  const SOLO = { ...solo(), starts_at: iso(-1000), ends_at: iso(86_400_000), is_active: true };
+
+  it('card says Solo Battle, up to 12, one match; no teams board', async () => {
+    open(SOLO);
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    const text = allText(r);
+    expect(text).toContain('SOLO BATTLE');
+    expect(text).toContain('UP TO 12 PLAYERS');
+    expect(text).toContain('ONE MATCH');
+    expect(text).not.toContain('PER SIDE');
+    expect(text).not.toContain('S REST');
+    expect(text).not.toContain('TEAMS');
+    expect(mockService.getTeamBoard).not.toHaveBeenCalled();
+  });
+
+  it('create sheet has no sides choice', async () => {
+    open(SOLO);
+    mockService.createRoom.mockResolvedValue({ roomId: 'r9', code: 'ABC234' });
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    await act(async () => { button(r, 'CREATE ROOM').props.onPress(); });
+    expect(allText(r)).toContain('Everyone plays for themselves');
+    expect(allText(r)).not.toContain('3 SIDES');
+    await act(async () => { button(r, 'CREATE', true).props.onPress(); });
+    expect(mockService.createRoom).toHaveBeenCalledWith('c2', 2);
+    expect(mockPush).toHaveBeenCalledWith({ pathname: '/live-room', params: { roomId: 'r9' } });
+  });
+
+  it('history row: Solo Battle, no best player tag', async () => {
+    mockService.getOpenChallenges.mockResolvedValue([]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([{
+      room_id: 'r1', challenge_id: 'c2', challenge_title: 'Solo Week 1', finished_at: '2026-11-06T18:00:00Z', side_count: 8,
+      halves_played: 1, my_side: 3, my_points: 250, side_points: 250, side_place: 1, is_best_player: true, player_count: 8,
+      my_side_name: null, format: 'solo',
+    }]);
+    const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+    const text = allText(r);
+    expect(text).toContain('SOLO BATTLE');
+    expect(text).toContain('#1 OF 8');
+    expect(text).not.toContain('BEST PLAYER');
+    expect(text).not.toContain('SIDE C');
+  });
+});
+
 describe('LIVE in both languages and both themes', () => {
   const RAW_KEY = /\b(live|team|weekly|common|submit)\.[a-zA-Z_]+/;
   const finished = { status: 'finished' as const, current_half: 2, half_closed_at: iso(-100), finished_at: iso(-100) };
@@ -681,6 +866,11 @@ describe('LIVE in both languages and both themes', () => {
     ['rest', () => makeState(logging({ half_closed_at: iso(-5000) }), FOUR, { results: fullResults.slice(0, 2) })],
     ['final', () => makeState(finished, FOUR, { results: fullResults })],
     ['ended', () => makeState({ status: 'abandoned' }, FOUR)],
+    ['solo lobby', () => soloState({}, THREE)],
+    ['solo running', () => soloState(running({ side_count: 3 }), THREE)],
+    ['solo logging', () => soloState(logging({ side_count: 3 }), THREE, { logged: ['u2'] })],
+    ['solo rest', () => soloState(logging({ side_count: 3, half_closed_at: iso(-5000) }), THREE, { results: [result(1, 'me', 1, 280), result(1, 'u2', 2, 120)] }, HALVES)],
+    ['solo final', () => soloState({ ...finished, side_count: 3, current_half: 1 }, THREE, { results: [result(1, 'me', 1, 280), result(1, 'u2', 2, 120), result(1, 'u3', 3, 50)] })],
   ];
 
   for (const lang of ['en', 'ar'] as const) {

@@ -11,7 +11,7 @@ import { KitButton, KitIcon, WorldPage, WorldSheet, YouBadge, kt } from '../../c
 import { getWeeklyTokens, WeeklyTokens } from '../../components/weekly/weeklyTokens';
 import { Label, SquareButton, StatusPill, StepButton } from '../../components/weekly/WeeklyParts';
 import {
-  HalfExercises, HalvesList, LiveChallengeCard, LivePodium, OnlineDot, formatPts, playerName, sideLabel,
+  HalfExercises, HalvesList, LiveChallengeCard, LivePodium, OnlineDot, formatPts, halfLabel, playerName, roomSideNames, sideLabel,
 } from '../../components/live/LiveParts';
 import { LiveCelebration } from '../../components/live/LiveCelebration';
 import { GlobalErrorBoundary } from '../../components/GlobalErrorBoundary';
@@ -20,7 +20,7 @@ import { LiveTournamentError, LiveTournamentService } from '../../services/LiveT
 import {
   LiveHalf, LivePlayer, LiveRoomState, bumpTally, canStartNextHalf, clampReps, closedAtMs, countdownLeft, halfPoints,
   halfSecondsLeft, livePhase, lobbyStatus, logSecondsLeft, offlinePlayers, restSecondsLeft, sideHasRoom, sideNameOf,
-  sideStandings, HOST_FALLBACK_SEC, SIDE_NAME_MAX,
+  sideStandings, canHostLogForSolo, isSolo, HOST_FALLBACK_SEC, SIDE_NAME_MAX, SOLO_MAX_PLAYERS,
 } from '../../lib/liveTournament';
 import { formatClock } from '../../lib/weeklyChallenge';
 import { setOpenLiveRoom } from '../../lib/liveRoomFocus';
@@ -241,7 +241,7 @@ export function LiveRoomScreen({ roomId, review = false }: Props) {
     const at = (iso: string | null, offsetSec = 0) => (iso ? (Date.parse(iso) - now) / 1000 + offsetSec : -1);
     const alerts = [];
     if (phase === 'countdown') {
-      alerts.push({ inSeconds: at(r.half_started_at), title: tr('live.alertGoTitle', { n }), body: tr('live.alertGoBody') });
+      alerts.push({ inSeconds: at(r.half_started_at), title: halfCount === 1 ? tr('live.alertGoTitleMatch') : tr('live.alertGoTitle', { n }), body: tr('live.alertGoBody') });
     }
     if (phase === 'countdown' || phase === 'running') {
       alerts.push({ inSeconds: at(r.half_ends_at), title: tr('live.alertTimeUpTitle'), body: tr('live.alertTimeUpBody') });
@@ -257,7 +257,7 @@ export function LiveRoomScreen({ roomId, review = false }: Props) {
     // A past match reopened from history isn't a new finish.
     if (state?.room.status === 'finished' && !finishedTracked.current && !review) {
       finishedTracked.current = true;
-      track('live_match_finished', { halves: state.room.current_half, sides: state.room.side_count, players: state.players.length });
+      track('live_match_finished', { format: state.challenge.format, halves: state.room.current_half, sides: state.room.side_count, players: state.players.length });
     }
   }, [state?.room.status]);
 
@@ -284,7 +284,7 @@ export function LiveRoomScreen({ roomId, review = false }: Props) {
     const go = () => run(async () => {
       const res = await LiveTournamentService.startHalf(roomId);
       clock.sync(res);
-      track('live_half_started', { half: res.data.half, sides: room.side_count, players: players.length });
+      track('live_half_started', { format: challenge.format, half: res.data.half, sides: room.side_count, players: players.length });
       // Best effort: the half has started either way.
       void LiveTournamentService.sendHalfStartedPush(roomId);
     });
@@ -352,7 +352,7 @@ export function LiveRoomScreen({ roomId, review = false }: Props) {
       <SquareButton tokens={t} icon="back" label={tr('common.close')} onPress={() => router.back()} />
       <View style={{ flex: 1, minWidth: 0 }}>
         <Text style={kt('medium', 11, t.textMuted, 2.4)}>
-          {room.status === 'playing' ? tr('live.halfOf', { n: room.current_half, total: halfCount }) : tr('live.roomKicker')}
+          {room.status === 'playing' ? halfLabel(room.current_half, halfCount) : isSolo(challenge) ? tr('live.kickerSolo') : tr('live.roomKicker')}
         </Text>
         <Text style={[kt('bold', 22, t.text, 1, 26), { marginTop: 2 }]} numberOfLines={1} adjustsFontSizeToFit>
           {challenge.title.toUpperCase()}
@@ -422,7 +422,8 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSid
   const { room, challenge, players, side_names: names } = state;
   const real = players.filter(p => p.user_id);
   const me = real.find(p => p.user_id === myId);
-  const status = lobbyStatus(players, room.side_count, names);
+  const solo = isSolo(challenge);
+  const status = lobbyStatus(players, room.side_count, names, challenge.format);
 
   // Team name sheet (your own side only).
   const [naming, setNaming] = useState(false);
@@ -467,10 +468,33 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSid
             {room.code}
           </Text>
           <KitButton tokens={t} variant="outline" label={tr('live.shareCode')} onPress={share} height={48} fontSize={14} />
-          <Text style={[kt('light', 12.5, t.textMuted, 0, 18), { textAlign: 'center' }]}>{tr('live.inviteHint')}</Text>
+          <Text style={[kt('light', 12.5, t.textMuted, 0, 18), { textAlign: 'center' }]}>{solo ? tr('live.inviteHintSolo') : tr('live.inviteHint')}</Text>
         </View>
 
-        {Array.from({ length: room.side_count }, (_, i) => i + 1).map(side => {
+        {solo ? (
+          <View style={{ paddingTop: 20, gap: 8 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+              <Label tokens={t} size={11}>{tr('live.players')}</Label>
+              <Text style={kt('medium', 11, t.textMuted, 1.2)}>{ltr(`${real.length}/${SOLO_MAX_PLAYERS}`)}</Text>
+            </View>
+            {real.map(p => (
+              <PlayerRow
+                key={p.user_id!}
+                tokens={t}
+                player={p}
+                isMe={p.user_id === myId}
+                showReady
+                canRemove={isHost && p.user_id !== myId}
+                onRemove={() => onRemove(p)}
+              />
+            ))}
+            {real.length < SOLO_MAX_PLAYERS && (
+              <View style={{ minHeight: 48, borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: t.borderStrong, justifyContent: 'center', paddingHorizontal: 14 }}>
+                <Text style={kt('light', 13.5, t.textFaint)}>{tr('live.spotsLeft', { n: SOLO_MAX_PLAYERS - real.length })}</Text>
+              </View>
+            )}
+          </View>
+        ) : Array.from({ length: room.side_count }, (_, i) => i + 1).map(side => {
           const onSide = real.filter(p => p.side === side);
           const mine = me?.side === side;
           const canJoin = !!me && !mine && sideHasRoom(players, side, challenge.team_size, myId);
@@ -571,7 +595,7 @@ function LobbyView({ tokens: t, state, myId, isHost, busy, onPickSide, onNameSid
         {isHost ? (
           <KitButton
             tokens={t}
-            label={status.blocker ? tr(`live.blocker_${status.blocker}`) : tr('live.startHalf', { n: 1 })}
+            label={status.blocker ? tr(`live.blocker_${status.blocker}`) : challenge.halves.length === 1 ? tr('live.startMatch') : tr('live.startHalf', { n: 1 })}
             icon={status.blocker ? undefined : 'play'}
             onPress={onStart}
             disabled={!!status.blocker || busy}
@@ -736,7 +760,7 @@ function PlayView({ tokens: t, state, now, myId }: { tokens: WeeklyTokens; state
       {half && playing ? (
         <View style={{ paddingTop: 20, gap: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-            <Label tokens={t} size={11} color={t.accentText}>{tr('live.halfOf', { n, total: challenge.halves.length })}</Label>
+            <Label tokens={t} size={11} color={t.accentText}>{halfLabel(n, challenge.halves.length)}</Label>
             <Text style={kt('semibold', 14, t.text)}>{formatPts(halfPoints(half.movements, tally))}</Text>
           </View>
           {half.movements.map((m, i) => (
@@ -900,6 +924,8 @@ function LogView({ tokens: t, state, now, myId, isHost, online, onLogged }: {
   const [editing, setEditing] = useState(false);
   const [entryFor, setEntryFor] = useState<LivePlayer | null>(null);
   const loggedSet = new Set(logged);
+  const solo = isSolo(challenge);
+  const names = roomSideNames(state);
 
   if (!half) return null;
 
@@ -941,9 +967,10 @@ function LogView({ tokens: t, state, now, myId, isHost, online, onLogged }: {
 
       <View style={{ paddingTop: 24, gap: 8 }}>
         <Label tokens={t} size={11}>{tr('live.players')}</Label>
+        {solo && isHost && <Text style={kt('light', 12.5, t.textMuted, 0, 18)}>{tr('live.hostLogHintSolo')}</Text>}
         {players.filter(p => p.user_id && p.side != null).map(p => {
           const done = loggedSet.has(p.user_id);
-          const canLogFor = isHost && !done && p.user_id !== myId;
+          const canLogFor = isHost && !done && p.user_id !== myId && (!solo || canHostLogForSolo(room, p, now));
           return (
             <View key={p.user_id!} style={{
               flexDirection: 'row', alignItems: 'center', gap: 10, minHeight: 48, paddingHorizontal: 12,
@@ -951,7 +978,7 @@ function LogView({ tokens: t, state, now, myId, isHost, online, onLogged }: {
             }}>
               <OnlineDot tokens={t} online={p.online} />
               <Text style={[kt('medium', 14, t.text), { flex: 1 }]} numberOfLines={1}>{playerName(p)}</Text>
-              <Text style={[kt('medium', 10.5, t.textFaint, 1.2), { maxWidth: 110 }]} numberOfLines={1}>{sideLabel(p.side!, state.side_names)}</Text>
+              {!solo && <Text style={[kt('medium', 10.5, t.textFaint, 1.2), { maxWidth: 110 }]} numberOfLines={1}>{sideLabel(p.side!, names)}</Text>}
               {done ? (
                 <Text style={kt('bold', 10.5, t.green, 1.4)}>{tr('live.logged')}</Text>
               ) : canLogFor ? (
@@ -1001,7 +1028,7 @@ function RestView({ tokens: t, state, now, myId, busy, canStart, onStart }: {
         )}
         <View style={{ paddingTop: 20, gap: 10 }}>
           <Label tokens={t} size={11}>{tr('live.standingsAfter', { n })}</Label>
-          <LivePodium tokens={t} rows={standings} mySide={me?.side} names={state.side_names} players={players} />
+          <LivePodium tokens={t} rows={standings} mySide={me?.side} names={roomSideNames(state)} players={isSolo(challenge) ? [] : players} />
         </View>
         {next && (
           <View style={{ paddingTop: 24, gap: 10 }}>

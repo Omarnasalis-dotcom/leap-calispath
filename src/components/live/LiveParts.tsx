@@ -6,7 +6,7 @@ import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
 import { formatClock } from '../../lib/weeklyChallenge';
 import { initials } from '../../lib/worldStanding';
-import { LiveChallenge, LiveHalf, LivePlayer, SideStanding, sideLetter, sideNameOf } from '../../lib/liveTournament';
+import { isSolo, LiveChallenge, LiveHalf, LivePlayer, LiveRoomState, SideStanding, sideLetter, sideNameOf, SOLO_MAX_PLAYERS } from '../../lib/liveTournament';
 import { ltr, t as tr } from '../../i18n';
 
 export function playerName(p: Pick<LivePlayer, 'display_name'>): string {
@@ -21,6 +21,21 @@ export function sidePlayers(players: Pick<LivePlayer, 'display_name' | 'side'>[]
 /** The team name, or "SIDE A" while it has none (the letter stays Latin in both languages). */
 export const sideLabel = (side: number, names?: Record<string, string> | null) =>
   sideNameOf(names, side) ?? tr('live.side', { letter: sideLetter(side) });
+
+/**
+ * What a room calls its sides: the team names, or in a Solo Battle each
+ * player's own name (every player is a side of one).
+ */
+export function roomSideNames(state: Pick<LiveRoomState, 'challenge' | 'players' | 'side_names'>): Record<string, string> {
+  if (!isSolo(state.challenge)) return state.side_names;
+  const names: Record<string, string> = {};
+  for (const p of state.players) if (p.side != null) names[String(p.side)] = playerName(p);
+  return names;
+}
+
+/** "HALF 1 OF 2", or "MATCH" when the whole match is one half. */
+export const halfLabel = (n: number, total: number) =>
+  total === 1 ? tr('live.match') : tr('live.halfOf', { n, total });
 
 /** Points: whole numbers stay whole, halves (1.5 pts per rep) keep one decimal. */
 export function formatPts(points: number): string {
@@ -42,21 +57,22 @@ function Chip({ tokens: t, text, filled }: { tokens: WeeklyTokens; text: string;
 /** Hero card: halves, players per side, rest, title, how it works, description. */
 export function LiveChallengeCard({ tokens: t, challenge: c, closesIn }: {
   tokens: WeeklyTokens;
-  challenge: Pick<LiveChallenge, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
+  challenge: Pick<LiveChallenge, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size' | 'format'>;
   closesIn?: string;
 }) {
+  const solo = isSolo(c);
   return (
     <View style={{ marginTop: 16, borderRadius: 20, padding: 14, backgroundColor: t.liveBg, borderWidth: 1, borderColor: t.liveBorder, gap: 8 }}>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
-        <Chip tokens={t} text={tr('live.kicker')} filled />
+        <Chip tokens={t} text={solo ? tr('live.kickerSolo') : tr('live.kicker')} filled />
         <Chip tokens={t} text={tr('live.chipHalves', { count: c.halves.length })} />
-        <Chip tokens={t} text={tr('live.chipPerSide', { count: c.team_size })} />
-        {c.rest_sec > 0 && <Chip tokens={t} text={tr('live.chipRest', { sec: c.rest_sec })} />}
+        <Chip tokens={t} text={solo ? tr('live.chipSoloPlayers', { count: SOLO_MAX_PLAYERS }) : tr('live.chipPerSide', { count: c.team_size })} />
+        {c.rest_sec > 0 && c.halves.length > 1 && <Chip tokens={t} text={tr('live.chipRest', { sec: c.rest_sec })} />}
       </View>
       <Text style={kt('bold', 24, t.text, 1, 28)} numberOfLines={2} adjustsFontSizeToFit minimumFontScale={0.6}>
         {c.title.toUpperCase()}
       </Text>
-      <Text style={kt('light', 13, t.textSecondary, 0, 19)}>{tr('live.howItWorks')}</Text>
+      <Text style={kt('light', 13, t.textSecondary, 0, 19)}>{solo ? tr('live.howItWorksSolo') : tr('live.howItWorks')}</Text>
       {c.description ? <Text style={kt('light', 13, t.textMuted, 0, 19)}>{c.description}</Text> : null}
       {closesIn ? (
         <View style={{ alignSelf: 'flex-start', paddingVertical: 3, paddingHorizontal: 9, borderRadius: 7, backgroundColor: t.accentChip }}>
@@ -74,7 +90,7 @@ export function HalfExercises({ tokens: t, half, n, total, highlight }: {
   return (
     <View style={{ gap: 8 }}>
       <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' }}>
-        <Label tokens={t} size={11} color={highlight ? t.accentText : undefined}>{tr('live.halfOf', { n, total })}</Label>
+        <Label tokens={t} size={11} color={highlight ? t.accentText : undefined}>{halfLabel(n, total)}</Label>
         <Text style={kt('medium', 12, t.textSecondary, 1.4)}>{ltr(formatClock(half.duration_sec))}</Text>
       </View>
       {half.movements.map((m, i) => (

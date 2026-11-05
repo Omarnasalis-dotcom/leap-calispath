@@ -6,10 +6,10 @@ import { router } from 'expo-router';
 import { KitButton, KitIcon, kt } from '../worlds/kit';
 import { WeeklyTokens } from '../weekly/weeklyTokens';
 import { Label } from '../weekly/WeeklyParts';
-import { LivePodium, SideStandings, formatPts, playerName, sideLabel, sidePlayers } from './LiveParts';
+import { LivePodium, SideStandings, formatPts, playerName, roomSideNames, sideLabel, sidePlayers } from './LiveParts';
 import { LeaderboardShareCard } from '../leaderboard/LeaderboardShareCard';
 import { clamp01, easeOutBack, easeOutCubic } from '../../lib/prCelebration';
-import { LiveRoomState, bestPlayer, celebrationTimes, playerTotals, sideStandings } from '../../lib/liveTournament';
+import { LiveRoomState, bestPlayer, celebrationTimes, isSolo, playerTotals, sideStandings } from '../../lib/liveTournament';
 import { SoundServiceInstance as SoundService } from '../../lib/SoundService';
 import { t as tr } from '../../i18n';
 
@@ -77,32 +77,40 @@ function Pop({ clock, start, children }: { clock: SharedValue<number>; start: nu
 
 /**
  * The end of a Live Tournament match: sides land from last place to first,
- * then the winner pops with confetti, then the best player. Tap to skip.
+ * then the winner pops with confetti, then the best player. Tap to skip. In a
+ * Solo Battle each side is a player, so the winner is the best player and
+ * there's no separate card, team line or per-player table.
  */
 export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false }: {
   tokens: WeeklyTokens; state: LiveRoomState; myId: string | undefined;
   /** Reopened from Live history: show the final frame at once, without the bell. */
   settledAtStart?: boolean;
 }) {
-  const { room, challenge, players, results, side_names: names } = state;
+  const { room, challenge, players, results } = state;
+  const solo = isSolo(challenge);
+  const names = useMemo(() => roomSideNames(state), [state]);
+  // Who's listed under each side's name (nobody: the name already is the player).
+  const members = solo ? [] : players;
   const halfCount = challenge.halves.length;
   const me = players.find(p => p.user_id === myId);
   const standings = useMemo(() => sideStandings(results, room.side_count, halfCount), [results, room.side_count, halfCount]);
-  const best = bestPlayer(results);
+  const best = solo ? null : bestPlayer(results);
   const totals = playerTotals(results);
   const bestRow = best ? players.find(p => p.user_id === best.user_id) : undefined;
   const winners = standings.filter(s => s.place === 1);
   const iWon = winners.some(w => w.side === me?.side);
-  const times = useMemo(() => celebrationTimes(room.side_count), [room.side_count]);
+  const times = useMemo(() => celebrationTimes(room.side_count, !solo), [room.side_count, solo]);
   const [shareOpen, setShareOpen] = useState(false);
   // Every side with its players (display names only) for the share image.
   const shareRows = useMemo(() => standings.map(s => ({
-    user_id: `side-${s.side}`, username: sideLabel(s.side, names), score: s.total, sub: sidePlayers(players, s.side) || undefined, place: s.place,
-  })), [standings, names, players]);
+    user_id: `side-${s.side}`, username: sideLabel(s.side, names), score: s.total, sub: sidePlayers(members, s.side) || undefined, place: s.place,
+  })), [standings, names, players, solo]);
   const perSide = players.filter(p => p.side === 1).length;
   const shareSub = [
     tr('live.chipHalves', { count: Math.min(room.current_half, halfCount) || halfCount }),
-    Array.from({ length: room.side_count }, () => perSide).join(` ${tr('leaderboardShare.vs')} `),
+    solo
+      ? tr('live.chipPlayers', { count: room.side_count })
+      : Array.from({ length: room.side_count }, () => perSide).join(` ${tr('leaderboardShare.vs')} `),
   ].join(' · ');
 
   const clock = useSharedValue(0);
@@ -138,7 +146,7 @@ export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false
       clock.value = withTiming(CLOCK_END, { duration: CLOCK_END * 1000, easing: Easing.linear });
       timers.current = [
         setTimeout(fireWin, times.win * 1000),
-        setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}), times.best * 1000),
+        ...(best ? [setTimeout(() => Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {}), times.best * 1000)] : []),
         setTimeout(() => setSettled(true), times.end * 1000),
       ];
     };
@@ -168,7 +176,7 @@ export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false
             tokens={t}
             rows={standings}
             names={names}
-            players={players}
+            players={members}
             mySide={me?.side}
             wrap={(i, node) => <FadeUp clock={clock} start={times.rowAt(i)} dy={40}>{node}</FadeUp>}
           />
@@ -207,10 +215,10 @@ export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false
             {halfCount > 1 && (
               <View style={{ gap: 8, paddingTop: 6 }}>
                 <Label tokens={t}>{tr('live.byHalf')}</Label>
-                <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} names={names} players={players} />
+                <SideStandings tokens={t} rows={standings} halfCount={halfCount} mySide={me?.side} names={names} players={members} />
               </View>
             )}
-            <View style={{ gap: 8, paddingTop: 6 }}>
+            {!solo && <View style={{ gap: 8, paddingTop: 6 }}>
               <Label tokens={t}>{tr('live.byPlayer')}</Label>
               {players.filter(p => p.user_id && p.side != null)
                 .map(p => ({ p, total: totals.find(x => x.user_id === p.user_id)?.total ?? 0 }))
@@ -228,7 +236,7 @@ export function LiveCelebration({ tokens: t, state, myId, settledAtStart = false
                     </View>
                   );
                 })}
-            </View>
+            </View>}
             <KitButton tokens={t} variant="outline" icon="share" label={tr('live.shareResult')} onPress={() => setShareOpen(true)} style={{ marginTop: 8 }} />
             <KitButton tokens={t} label={tr('live.done')} onPress={() => router.back()} />
           </>

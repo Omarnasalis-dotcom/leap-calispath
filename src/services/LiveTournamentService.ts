@@ -74,23 +74,9 @@ const firstRow = <T>(rows: T[] | null): T => {
 
 export class LiveTournamentService {
   /** Live challenges open right now, newest first (normally this week's 1–2). */
+  /** Both formats. Direct table reads only return teams challenges (they're what older apps use). */
   static async getOpenChallenges(): Promise<LiveChallenge[]> {
-    const now = new Date().toISOString();
-    try {
-      return await withNetworkRetry(async () => {
-        const { data, error } = await supabase
-          .from('live_challenges')
-          .select('id, title, description, halves, rest_sec, team_size, starts_at, ends_at, is_active')
-          .eq('is_active', true)
-          .lte('starts_at', now)
-          .gt('ends_at', now)
-          .order('starts_at', { ascending: false });
-        if (error) throw error;
-        return (data ?? []) as LiveChallenge[];
-      });
-    } catch (error) {
-      throw new LiveTournamentError(error);
-    }
+    return (await rpc<LiveChallenge[] | null>('get_open_live_challenges')) ?? [];
   }
 
   /**
@@ -110,7 +96,7 @@ export class LiveTournamentService {
 
   /** Returns the room id (also when you're already in it). */
   static async joinRoom(code: string): Promise<string> {
-    return rpc<string>('join_live_room', { p_code: normalizeInviteCode(code) });
+    return rpc<string>('join_live_room', { p_code: normalizeInviteCode(code), p_supports_solo: true });
   }
 
   /** `side` null = back to no side. Always clears Ready. */

@@ -21,6 +21,8 @@ import {
   maxHalfPoints,
   bumpTally,
   celebrationTimes,
+  canHostLogForSolo,
+  isSolo,
   sideNameOf,
   offlinePlayers,
   playersNotLogged,
@@ -252,6 +254,68 @@ describe('lobby', () => {
     expect(c.best).toBeLessThan(c.end);
     expect(celebrationTimes(2).end).toBeLessThan(6);
   });
+
+  it('keeps 2-4 sides on the same pace and caps a 12-player reveal', () => {
+    expect(celebrationTimes(4).rowAt(3)).toBeCloseTo(0.4);
+    expect(celebrationTimes(4).rowAt(0)).toBeCloseTo(0.4 + 3 * 0.65);
+    const twelve = celebrationTimes(12, false);
+    expect(twelve.win).toBeLessThan(4);
+    expect(twelve.rowAt(11)).toBeLessThan(twelve.rowAt(0));
+  });
+
+  it('has no best-player beat in a Solo Battle', () => {
+    const c = celebrationTimes(5, false);
+    expect(c.best).toBe(c.win);
+    expect(c.end).toBeCloseTo(c.win + 0.9);
+  });
+});
+
+describe('Solo Battle', () => {
+  const soloPlayer = (id: string, side: number | null, ready = true): LivePlayer => ({
+    user_id: id, display_name: id, side, is_ready: ready, is_host: false, joined_at: '2026-11-06T10:00:00Z',
+  });
+
+  it('tells the formats apart', () => {
+    expect(isSolo({ format: 'solo' })).toBe(true);
+    expect(isSolo({ format: 'teams' })).toBe(false);
+  });
+
+  it('starts with 2 ready players, no even sides or team names needed', () => {
+    const three = [soloPlayer('a', 1), soloPlayer('b', 2), soloPlayer('c', 3)];
+    expect(lobbyStatus(three, 12, {}, 'solo').blocker).toBeNull();
+    expect(lobbyStatus(three.slice(0, 2), 12, {}, 'solo').blocker).toBeNull();
+  });
+
+  it('still needs 2 players, all ready', () => {
+    expect(lobbyStatus([soloPlayer('a', 1)], 12, {}, 'solo').blocker).toBe('need_two_players');
+    expect(lobbyStatus([soloPlayer('a', 1), soloPlayer('b', 2, false)], 12, {}, 'solo').blocker).toBe('not_ready');
+  });
+
+  it('keeps the team rules for teams', () => {
+    expect(lobbyStatus([soloPlayer('a', 1), soloPlayer('b', 2)], 2, {}).blocker).toBe('unnamed');
+  });
+
+  describe('host logging for a player', () => {
+    const end = Date.parse('2026-11-06T10:10:00Z');
+    const room = { half_ends_at: new Date(end).toISOString() };
+    const seenAgo = (sec: number, at: number) => ({ last_seen_at: new Date(at - sec * 1000).toISOString() });
+
+    it('waits 30 s after time is up', () => {
+      const at = end + 29_000;
+      expect(canHostLogForSolo(room, seenAgo(120, at), at)).toBe(false);
+      expect(canHostLogForSolo(room, seenAgo(120, end + 30_000), end + 30_000)).toBe(true);
+    });
+
+    it('needs the player offline for 30 s', () => {
+      const at = end + 60_000;
+      expect(canHostLogForSolo(room, seenAgo(29, at), at)).toBe(false);
+      expect(canHostLogForSolo(room, seenAgo(30, at), at)).toBe(true);
+    });
+
+    it('counts a player never seen as offline', () => {
+      expect(canHostLogForSolo(room, { last_seen_at: null }, end + 30_000)).toBe(true);
+    });
+  });
 });
 
 describe('standings', () => {
@@ -342,7 +406,7 @@ describe('errors', () => {
   });
 
   it('every code the migration raises is listed and translated in EN and AR', () => {
-    const sql = ['20261022120000_add_live_tournament.sql', '20261023120000_live_side_names.sql']
+    const sql = ['20261022120000_add_live_tournament.sql', '20261023120000_live_side_names.sql', '20261106120000_add_solo_battle.sql']
       .map(f => fs.readFileSync(path.join(__dirname, '../../../supabase/migrations', f), 'utf8'))
       .join('\n');
     const raised = [...new Set([...sql.matchAll(/RAISE EXCEPTION '([A-Z_]+)'/g)].map(m => m[1]))].sort();

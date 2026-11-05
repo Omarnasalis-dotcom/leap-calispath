@@ -11,14 +11,18 @@ export interface LiveHalf {
   movements: ChallengeMovement[];
 }
 
+/** 'solo' = Solo Battle: every player is a side of one, no team names. */
+export type LiveFormat = 'teams' | 'solo';
+
 export interface LiveChallenge {
   id: string;
   title: string;
   description: string;
   halves: LiveHalf[];
   rest_sec: number;
-  /** Max players per side. */
+  /** Max players per side (always 1 in a Solo Battle). */
   team_size: number;
+  format: LiveFormat;
   starts_at: string;
   ends_at: string;
   is_active: boolean;
@@ -70,7 +74,7 @@ export interface LiveResult {
 export interface LiveRoomState {
   server_now: string;
   room: LiveRoom;
-  challenge: Pick<LiveChallenge, 'id' | 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
+  challenge: Pick<LiveChallenge, 'id' | 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size' | 'format'>;
   players: LivePlayer[];
   /** Team name per side, keyed "1".."4" (sides without one are missing). */
   side_names: Record<string, string>;
@@ -96,6 +100,7 @@ export interface LiveHistoryRow {
   is_best_player: boolean;
   player_count: number;
   my_side_name: string | null;
+  format: LiveFormat;
 }
 
 /** get_live_player_board: each player's best total in a full room of the challenge. */
@@ -142,6 +147,12 @@ export const MIN_SIDES = 2;
 export const MAX_SIDES = 4;
 export const ROOM_CODE_LENGTH = 6;
 export const SIDE_NAME_MAX = 24;
+/** A Solo Battle room holds up to this many players (and can start with 2). */
+export const SOLO_MAX_PLAYERS = 12;
+/** Solo Battle: the host can log for a player this long after time is up, if they've been offline this long. */
+export const HOST_LOG_OFFLINE_SEC = 30;
+
+export const isSolo = (c: Pick<LiveChallenge, 'format'>) => c.format === 'solo';
 
 /** Side 1..4 → A..D (the same letter in English and Arabic screens). */
 export const sideLetter = (side: number) => String.fromCharCode(64 + side);
@@ -268,16 +279,41 @@ export interface LobbyStatus {
   blocker: LobbyBlocker | null;
 }
 
-export function lobbyStatus(players: LivePlayer[], sideCount: number, sideNames: Record<string, string> = {}): LobbyStatus {
+export function lobbyStatus(
+  players: LivePlayer[],
+  sideCount: number,
+  sideNames: Record<string, string> = {},
+  format: LiveFormat = 'teams',
+): LobbyStatus {
   const real = players.filter(p => p.user_id != null);
   const sideCounts = Array.from({ length: sideCount }, (_, i) => real.filter(p => p.side === i + 1).length);
   let blocker: LobbyBlocker | null = null;
   if (real.length < 2) blocker = 'need_two_players';
   else if (real.some(p => p.side == null)) blocker = 'no_side';
   else if (real.some(p => !p.is_ready)) blocker = 'not_ready';
+  // A Solo Battle has no even-sides or team-name rule: 2 to 12 ready players can start.
+  else if (format === 'solo') blocker = null;
   else if (sideCounts.some(n => n === 0 || n !== sideCounts[0])) blocker = 'uneven';
   else if (sideCounts.some((_, i) => sideNameOf(sideNames, i + 1) == null)) blocker = 'unnamed';
   return { sideCounts, blocker };
+}
+
+/**
+ * True when the host may log for `player` in a Solo Battle (mirrors
+ * submit_live_reps): HOST_LOG_OFFLINE_SEC after time is up, and only while the
+ * player has been offline that long. Teams keep their rule: the host can log
+ * for anyone.
+ */
+export function canHostLogForSolo(
+  room: Pick<LiveRoom, 'half_ends_at'>,
+  player: Pick<LivePlayer, 'last_seen_at'>,
+  nowMs: number,
+): boolean {
+  const windowMs = HOST_LOG_OFFLINE_SEC * 1000;
+  const timeUp = Date.parse(room.half_ends_at ?? '');
+  if (!(nowMs >= timeUp + windowMs)) return false;
+  const seen = player.last_seen_at ? Date.parse(player.last_seen_at) : null;
+  return seen == null || nowMs >= seen + windowMs;
 }
 
 /** True when `side` (1-based) has room for one more (yourself excluded). */
@@ -361,12 +397,14 @@ export interface CelebrationTimes {
   end: number;
 }
 
-export function celebrationTimes(sideCount: number): CelebrationTimes {
+export function celebrationTimes(sideCount: number, hasBestCard = true): CelebrationTimes {
   const ROW_START = 0.4;
-  const ROW_GAP = 0.65;
+  // Rows share ROWS_MAX seconds, so 12 players don't wait 8 s for the winner.
+  const ROWS_MAX = 2.6;
+  const ROW_GAP = Math.min(0.65, ROWS_MAX / Math.max(1, sideCount - 1));
   const rowAt = (index: number) => ROW_START + (sideCount - 1 - index) * ROW_GAP;
   const win = ROW_START + (sideCount - 1) * ROW_GAP + 0.75;
-  const best = win + 1.4;
+  const best = hasBestCard ? win + 1.4 : win;
   return { rowAt, win, best, end: best + 0.9 };
 }
 
@@ -412,6 +450,10 @@ export const LIVE_ERROR_CODES = [
   'INVALID_NAME',
   'NAME_TAKEN',
   'SIDES_UNNAMED',
+  'INVALID_FORMAT',
+  'APP_UPDATE_REQUIRED',
+  'NOT_ENOUGH_PLAYERS',
+  'CANT_LOG_FOR_PLAYER',
 ] as const;
 
 export type LiveErrorCode = (typeof LIVE_ERROR_CODES)[number];
