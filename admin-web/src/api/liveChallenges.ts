@@ -12,6 +12,9 @@ export interface LiveHalf {
   movements: ChallengeMovement[];
 }
 
+/** 'solo' = Solo Battle: 2–12 players, each for themselves. */
+export type LiveFormat = 'teams' | 'solo';
+
 export interface AdminLiveChallenge {
   id: string;
   title: string;
@@ -19,6 +22,7 @@ export interface AdminLiveChallenge {
   halves: LiveHalf[];
   rest_sec: number;
   team_size: number;
+  format: LiveFormat;
   starts_at: string;
   ends_at: string;
   is_active: boolean;
@@ -53,6 +57,7 @@ export interface LiveChallengeInput {
   halves: LiveHalf[];
   rest_sec: number;
   team_size: number;
+  format: LiveFormat;
   starts_at: string;
   ends_at: string;
   is_active: boolean;
@@ -63,12 +68,13 @@ const ADMIN_ERRORS: Record<string, string> = {
   FORBIDDEN: 'Only admins can do that.',
   NOT_FOUND: 'That challenge no longer exists.',
   INVALID_HALVES:
-    'Add 2 or 3 halves. Each needs 1–30 minutes and 1–8 exercises, each with a name, a max of 1–500 reps and 0–1000 points per rep.',
+    'Add 1 to 3 halves. Each needs 1–30 minutes and 1–8 exercises, each with a name, a max of 1–500 reps and 0–1000 points per rep.',
+  INVALID_FORMAT: 'Pick Teams or Solo Battle.',
   INVALID_TEAM_SIZE: 'Players per side must be 1–6.',
   INVALID_REST: 'Rest must be 0–600 seconds.',
   INVALID_DATES: 'End date must be after the start date.',
   CHALLENGE_LOCKED:
-    'Rooms have already played this challenge, so its halves and players per side can no longer change. Title, description, rest, dates and visibility still can.',
+    'Rooms have already played this challenge, so its format, halves and players per side can no longer change. Title, description, rest, dates and visibility still can.',
   CHALLENGE_HAS_ROOMS:
     'Rooms have already used this challenge. Delete it together with its rooms, or hide it instead.',
   ROOM_NOT_ACTIVE: 'That room has already ended.',
@@ -110,6 +116,7 @@ export async function saveLiveChallenge(input: LiveChallengeInput): Promise<stri
     p_starts_at: input.starts_at,
     p_ends_at: input.ends_at,
     p_is_active: input.is_active,
+    p_format: input.format,
   });
   if (error) throw toError(error);
   return data as string;
@@ -138,6 +145,7 @@ export interface LiveChallengeTemplate {
   halves: LiveHalf[];
   rest_sec: number;
   team_size: number;
+  format: LiveFormat;
   created_at: string;
 }
 

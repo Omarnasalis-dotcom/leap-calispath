@@ -40,7 +40,11 @@ export function TemplatesPage() {
         </span>
       ),
     },
-    { key: 'size', header: 'Per side', render: (t) => <span className="dim">up to {t.team_size}</span> },
+    {
+      key: 'size',
+      header: 'Per side',
+      render: (t) => <span className="dim">{t.format === 'solo' ? 'Solo Battle' : `up to ${t.team_size}`}</span>,
+    },
     {
       key: 'movements',
       header: 'Exercises',

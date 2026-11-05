@@ -11,6 +11,7 @@ import {
   type AdminLiveChallenge,
   type AdminLiveRoom,
   type LiveChallengeTemplate,
+  type LiveFormat,
   type LiveRoomStatus,
 } from '@/api/liveChallenges';
 import { fetchTemplates, type ChallengeMovement } from '@/api/challenges';
@@ -31,6 +32,7 @@ interface Form {
   halves: HalfForm[];
   rest_sec: string;
   team_size: number;
+  format: LiveFormat;
   start_date: string; // yyyy-mm-dd, UTC midnight
   end_date: string;
   is_active: boolean;
@@ -47,6 +49,7 @@ function emptyForm(): Form {
     halves: [emptyHalf(), emptyHalf()],
     rest_sec: '60',
     team_size: 2,
+    format: 'teams',
     start_date: start,
     end_date: shiftWeekStart(start, 1),
     is_active: true,
@@ -54,7 +57,7 @@ function emptyForm(): Form {
 }
 
 /** The parts a duplicate or template carries over; dates and visibility are set each time. */
-type Setup = Pick<LiveChallengeTemplate, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size'>;
+type Setup = Pick<LiveChallengeTemplate, 'title' | 'description' | 'halves' | 'rest_sec' | 'team_size' | 'format'>;
 
 const setupFields = (s: Setup) => ({
   title: s.title,
@@ -62,6 +65,7 @@ const setupFields = (s: Setup) => ({
   halves: s.halves.map((h) => ({ minutes: String(h.duration_sec / 60), movements: h.movements })),
   rest_sec: String(s.rest_sec),
   team_size: s.team_size,
+  format: s.format,
 });
 
 function formFrom(c: AdminLiveChallenge): Form {
@@ -86,7 +90,7 @@ const cleanMovements = (movements: ChallengeMovement[]) =>
 function validateSetup(f: Form): string | null {
   const title = f.title.trim();
   if (title.length < 1 || title.length > 80) return 'Title must be 1–80 characters.';
-  if (f.halves.length < 2 || f.halves.length > 3) return 'A live challenge has 2 or 3 halves.';
+  if (f.halves.length < 1 || f.halves.length > 3) return 'A live challenge has 1 to 3 halves.';
   for (const [i, h] of f.halves.entries()) {
     const n = i + 1;
     const seconds = Math.round(Number(h.minutes) * 60);
@@ -180,6 +184,7 @@ export function LiveChallengesPage() {
         halves: toHalves(f),
         rest_sec: Number(f.rest_sec),
         team_size: f.team_size,
+        format: f.format,
         starts_at: utcMidnight(f.start_date),
         ends_at: utcMidnight(f.end_date),
         is_active: f.is_active,
@@ -261,6 +266,7 @@ export function LiveChallengesPage() {
       halves: toHalves(form),
       rest_sec: Number(form.rest_sec),
       team_size: form.team_size,
+      format: form.format,
     });
   }
 
@@ -282,7 +288,8 @@ export function LiveChallengesPage() {
   const challengeColumns: Column<AdminLiveChallenge>[] = [
     { key: 'title', header: 'Challenge', render: (c) => <strong>{c.title}</strong> },
     { key: 'halves', header: 'Halves', render: halvesSummary },
-    { key: 'size', header: 'Per side', render: (c) => `up to ${c.team_size}` },
+    { key: 'format', header: 'Format', render: (c) => (c.format === 'solo' ? 'Solo Battle' : 'Teams') },
+    { key: 'size', header: 'Per side', render: (c) => (c.format === 'solo' ? 'up to 12 players' : `up to ${c.team_size}`) },
     {
       key: 'window',
       header: 'Window (UTC)',
@@ -315,8 +322,9 @@ export function LiveChallengesPage() {
     { key: 'host', header: 'Host', render: (r) => r.host_name ?? '—' },
     {
       key: 'players',
-      header: 'Sides',
+      header: selected?.format === 'solo' ? 'Players' : 'Sides',
       render: (r) =>
+        selected?.format === 'solo' ? r.players.map((p) => p.display_name ?? 'Deleted user').join(', ') || '—' :
         Array.from({ length: r.side_count }, (_, i) => {
           const names = r.players.filter((p) => p.side === i + 1).map((p) => p.display_name ?? 'Deleted user');
           const team = r.side_names?.[String(i + 1)];
@@ -438,7 +446,7 @@ export function LiveChallengesPage() {
             {liveTemplatesQ.error && <ErrorNote error={liveTemplatesQ.error} />}
             {playLocked && (
               <div className="sub">
-                Rooms have played this challenge, so the halves and players per side can no longer change.
+                Rooms have played this challenge, so the format, halves and players per side can no longer change.
               </div>
             )}
             <input
@@ -460,20 +468,37 @@ export function LiveChallengesPage() {
 
             <div className="row">
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                <span className="label">Players per side (max)</span>
+                <span className="label">Format</span>
                 <select
                   className="field"
-                  value={form.team_size}
+                  value={form.format}
                   disabled={playLocked}
-                  onChange={(e) => patch({ team_size: Number(e.target.value) })}
+                  onChange={(e) => {
+                    const format = e.target.value as LiveFormat;
+                    patch({ format, team_size: format === 'solo' ? 1 : 2 });
+                  }}
                 >
-                  {[1, 2, 3, 4, 5, 6].map((n) => (
-                    <option key={n} value={n}>
-                      {n} {n === 1 ? 'player' : 'players'}
-                    </option>
-                  ))}
+                  <option value="teams">Teams</option>
+                  <option value="solo">Solo Battle</option>
                 </select>
               </label>
+              {form.format === 'teams' && (
+                <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+                  <span className="label">Players per side (max)</span>
+                  <select
+                    className="field"
+                    value={form.team_size}
+                    disabled={playLocked}
+                    onChange={(e) => patch({ team_size: Number(e.target.value) })}
+                  >
+                    {[1, 2, 3, 4, 5, 6].map((n) => (
+                      <option key={n} value={n}>
+                        {n} {n === 1 ? 'player' : 'players'}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
               <label style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
                 <span className="label">Rest between halves (s)</span>
                 <input
@@ -525,8 +550,10 @@ export function LiveChallengesPage() {
               </div>
             </div>
             <div className="sub">
-              Rooms can have 2–4 sides (the host picks). Every side must have the same number of players to start,
-              up to this max. Rest is the cool-down shown between halves; the host can start the next half earlier.
+              {form.format === 'solo'
+                ? 'Each room holds up to 12 players and can start with 2. Everyone plays for themselves; the host can only log for a player who has been offline for 30 seconds.'
+                : 'Rooms can have 2–4 sides (the host picks). Every side must have the same number of players to start, up to this max.'}{' '}
+              Rest is the cool-down shown between halves; the host can start the next half earlier. One half means a single match with no rest.
             </div>
 
             <fieldset disabled={playLocked} style={{ border: 0, padding: 0, margin: 0, display: 'flex', flexDirection: 'column', gap: 12 }}>
@@ -552,7 +579,7 @@ export function LiveChallengesPage() {
                       />
                     </label>
                     <div style={{ flex: 1 }} />
-                    {form.halves.length > 2 && (
+                    {form.halves.length > 1 && (
                       <button
                         className="btn small"
                         type="button"
@@ -599,7 +626,7 @@ export function LiveChallengesPage() {
                   style={{ alignSelf: 'flex-start' }}
                   onClick={() => patch({ halves: [...form.halves, emptyHalf()] })}
                 >
-                  + Add half 3
+                  + Add half {form.halves.length + 1}
                 </button>
               )}
             </fieldset>
