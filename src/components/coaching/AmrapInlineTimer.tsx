@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -6,6 +6,7 @@ import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 
 export interface AmrapExercise {
@@ -34,7 +35,6 @@ interface AmrapInlineTimerProps {
   // Reports whether this timer currently holds unsaved progress (running,
   // paused-at-time-up, or rounds already counted) — the parent block card
   // uses this to decide whether collapsing needs a confirm.
-  onActiveChange?: (active: boolean) => void;
 }
 
 export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
@@ -47,7 +47,6 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
   hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
-  onActiveChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
@@ -62,15 +61,13 @@ export const AmrapInlineTimer: React.FC<AmrapInlineTimerProps> = ({
 
   // Counted from its end time, so it keeps going while the app is in the
   // background (see useAnchoredCountdown).
+  const timeEnded = useBlockTimer('amrap', timerRunning, timeLeft);
   useAnchoredCountdown(timerRunning, timeLeft, setTimeLeft, () => {
     setTimerRunning(false);
     setFinished(true);
     SoundServiceInstance.playDigitalBuzzer(4);
+    timeEnded();
   });
-
-  useEffect(() => {
-    onActiveChange?.(timerRunning || roundsCompleted > 0 || finished);
-  }, [timerRunning, roundsCompleted, finished]);
 
   // AMRAP ends while the app is in the background: notify.
   useBackgroundTimerAlerts(() =>

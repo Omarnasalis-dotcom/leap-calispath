@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert, TextInput } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -6,6 +6,7 @@ import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
 import { useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 
 export interface ForTimeExercise {
@@ -40,7 +41,6 @@ interface ForTimeInlineTimerProps {
   // Reports whether this timer currently holds unsaved progress (started,
   // rounds counted, or a manual time typed in) — the parent block card uses
   // this to decide whether collapsing needs a confirm.
-  onActiveChange?: (active: boolean) => void;
 }
 
 // A finish under this is almost certainly a mis-tap rather than a real
@@ -58,7 +58,6 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
   hideLogButton,
   activeVideoExerciseId,
   onToggleVideo,
-  onActiveChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
@@ -85,15 +84,13 @@ export const ForTimeInlineTimer: React.FC<ForTimeInlineTimerProps> = ({
 
   // Counted from its start time, so it keeps going while the app is in the
   // background (see useAnchoredStopwatch).
+  const capEnded = useBlockTimer('fortime', timerRunning, elapsedTime, true);
   useAnchoredStopwatch(timerRunning, elapsedTime, setElapsedTime, timeCapSeconds, () => {
     setTimerRunning(false);
     setCapped(true);
     SoundServiceInstance.playDigitalBuzzer(4);
+    capEnded();
   });
-
-  useEffect(() => {
-    onActiveChange?.(hasStarted || roundsCompleted > 0 || manualMins !== '' || manualSecs !== '');
-  }, [hasStarted, roundsCompleted, manualMins, manualSecs]);
 
   // Time cap reached while the app is in the background: notify.
   useBackgroundTimerAlerts(() =>

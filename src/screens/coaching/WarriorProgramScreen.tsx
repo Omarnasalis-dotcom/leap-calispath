@@ -13,7 +13,9 @@ import { View,
   Keyboard,
   KeyboardAvoidingView,
   BackHandler,
-  Alert } from 'react-native';
+  Alert,
+  Dimensions,
+  Vibration } from 'react-native';
 import { track } from '../../lib/analytics';
 import { UndoToast } from '../../components/UndoToast';
 import { useTheme } from '../../contexts/ThemeContext';
@@ -32,6 +34,10 @@ import { LogBlockSheet, SheetCard, SheetKind } from '../../components/coaching/L
 import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
+import { BlockTimerBanner, BlockTimerBannerData } from '../../components/coaching/BlockTimerBanner';
+import { BlockRestOffer, BlockRestPill } from '../../components/coaching/BlockRestTimer';
+import { BlockTimerKind } from '../../hooks/useBlockTimer';
+import { stopActiveRest } from '../../hooks/useExclusiveRest';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
 import { selectLibraryTemplate } from '../../lib/templateLibrary';
@@ -52,13 +58,13 @@ import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warri
 import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { fetchDayChoiceForWeek } from '../../lib/journeyLane';
 import { indexLastTimeLogs, lastTimeFor } from '../../lib/lastTimeLog';
+import { asksExerciseRpe, averageRpe, ExerciseRpe, ratingsFor } from '../../lib/exerciseRpe';
 import { DayCardList } from '../../components/coaching/DayCardList';
 import { t, FLIP_X } from '../../i18n';
 import { localizedErrorText } from '../../lib/asyncErrorHandler';
 import { offerRoute } from '../../lib/offerStore';
 
 function getStartOfIsoWeek(date: Date): Date {
-import { asksExerciseRpe, averageRpe, ExerciseRpe, ratingsFor } from '../../lib/exerciseRpe';
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as week start
@@ -384,13 +390,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         repsLabel: e.reps !== null ? t('logSheet.repsShort', { n: e.reps }) : null,
         weighted: !!e.ex.is_weighted && e.hold === null,
         hold: e.hold !== null,
+        askRpe: asksExerciseRpe(kind, isRounds, exercises.length),
       }));
     }
     // Ladder: one card, one tile per rung (e.g. 10 · 8 · 6 · 4). Default =
     // the rung tapped in the logger, or the full ladder if none was.
     const rungs = kind === 'ladder' ? BlockConceptParser.getLadderRungs(meta) : [];
     if (kind === 'ladder' && rungs.length > 0) {
-        askRpe: asksExerciseRpe(kind, isRounds, exercises.length),
       cards = [{
         id: 'ladder',
         name: (block?.exercises || []).map(ex => ex.name).join(' · '),
@@ -488,14 +494,14 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     blockId != null && String(blockId) === String(pendingTimerBlockId) ? pendingTabataRounds : null;
   const [logFeel, setLogFeel] = useState<Feel | null>(null);
   const [logRpe, setLogRpe] = useState<number | null>(null);
+  // Straight sets with 2+ exercises: RPE per exercise, by exercise id.
+  const [logExerciseRpe, setLogExerciseRpe] = useState<ExerciseRpe>({});
   const [logMissedReason, setLogMissedReason] = useState<MissedReason | null>(null);
   const [logMissedDetail, setLogMissedDetail] = useState('');
   // This program's latest workout_logs row per block_id — marks the block
   // done on any later day (not just the day it was logged) and lets
   // "EDIT LOG" pre-fill the modal with what was actually saved instead of
   // opening blank and forcing the warrior to redo the whole entry.
-  // Straight sets with 2+ exercises: RPE per exercise, by exercise id.
-  const [logExerciseRpe, setLogExerciseRpe] = useState<ExerciseRpe>({});
   // first_logged_at is the block's oldest log, so a re-log replaces it.
   const [loggedDetails, setLoggedDetails] = useState<Record<string, {
     notes: string; feel: string | null; rpe: number | null; exercise_rpe: ExerciseRpe | null;
@@ -801,6 +807,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // re-collapse whatever the athlete has open after every log), only when
   // the phase/day itself changes.
   useEffect(() => {
+    setRestOffer(null);
     if (screenPhase !== 'running' || !activeDay) return;
     setExpandedBlocks({});
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -913,6 +920,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           notes: l.notes || '',
           feel: l.feel,
           rpe: l.rpe,
+          exercise_rpe: l.exercise_rpe ?? null,
           missed_reason: l.missed_reason,
           missed_detail: l.missed_detail,
           first_logged_at: firstLoggedAt.get(l.block_id) ?? l.completed_at,
@@ -920,7 +928,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             // Hold-time rows have no exercise and no reps; they can't be
             // put back on a set row.
             if (!s.block_exercise_id || s.reps_completed == null) return acc;
-          exercise_rpe: l.exercise_rpe ?? null,
             const key = String(s.block_exercise_id);
             (acc[key] = acc[key] || []).push({
               setIndex: s.set_index,
@@ -1366,6 +1373,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (isBlockLocked(blockId) && initialStatus !== 'missed') return;
     setActiveLogBlockId(blockId);
     setLogRating(5);
+    setLogExerciseRpe(loggedDetails[blockId]?.exercise_rpe ?? {});
 
     const existing = loggedDetails[blockId];
     if (existing) {
@@ -1373,7 +1381,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setLogStatus(isMissed ? 'missed' : 'completed');
       setLogFeel((existing.feel as Feel) ?? null);
       setLogRpe(existing.rpe ?? null);
-    setLogExerciseRpe(loggedDetails[blockId]?.exercise_rpe ?? {});
       setLogMissedReason((existing.missed_reason as MissedReason) ?? null);
       setLogMissedDetail(existing.missed_detail || '');
       if (isMissed) {
@@ -1637,6 +1644,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     const blockId = activeLogBlockId;
     const done = logStatus === 'completed';
     const m = sheetModel(blockId);
+    // Rated exercises that were done; the block's RPE is their average.
+    const countOf = (c: SheetCard) => sheetCounts[c.id] ?? (c.ticked > 0 ? c.ticked : c.plan);
+    const exerciseRpe = done
+      ? ratingsFor(logExerciseRpe, m.cards.filter(c => c.askRpe && countOf(c) > 0).map(c => c.id))
+      : {};
+    const blockRpe = averageRpe(exerciseRpe) ?? logRpe;
 
     setLogLoading(true);
     setSheetPhase('saving');
@@ -1644,12 +1657,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     try {
       // Notes keep the "[LOG] …" lines that coach views and re-opening
       // read back (parseLoggedNotes); the sheet's inputs are numbers now.
-    // Rated exercises that were done; the block's RPE is their average.
-    const countOf = (c: SheetCard) => sheetCounts[c.id] ?? (c.ticked > 0 ? c.ticked : c.plan);
-    const exerciseRpe = done
-      ? ratingsFor(logExerciseRpe, m.cards.filter(c => c.askRpe && countOf(c) > 0).map(c => c.id))
-      : {};
-    const blockRpe = averageRpe(exerciseRpe) ?? logRpe;
       let finalNotes = '';
       if (done && m.kind === 'amrap') {
         const v = sheetAmrap.reps > 0 ? `${sheetAmrap.rounds} + ${sheetAmrap.reps}` : `${sheetAmrap.rounds}`;
@@ -1744,6 +1751,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setSheetSummary(parts.join(' · '));
       setSheetPhase('saved');
 
+      // A logged block ends whatever rest was running.
+      stopActiveRest();
+
       setBlockSetProgress(prev => {
         const next = { ...prev };
         delete next[blockId];
@@ -1773,7 +1783,13 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       });
 
       // Saved state shows briefly, then the sheet closes on its own.
-      setTimeout(() => setLogModalVisible(false), 1200);
+      const offerRest = done
+        && m.block?.completedStatus === 'none'
+        && !!activeDay?.blocks.some(b => b.id !== blockId && b.completedStatus === 'none');
+      setTimeout(() => {
+        setLogModalVisible(false);
+        if (offerRest) setRestOffer({ id: Date.now(), afterBlockId: blockId });
+      }, 1200);
     } catch (err: any) {
       // Keep the sheet open with everything entered; retry from the button.
       setSheetError(localizedErrorText(err, t('logSheet.saveFailed')));
@@ -1916,6 +1932,39 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     setExpandedBlocks(prev => (prev[blockId] ? {} : { [blockId]: true }));
   };
 
+  // A timer ended on a block that isn't open: its own sound already played.
+  const [timerBanner, setTimerBanner] = useState<BlockTimerBannerData | null>(null);
+  const handleClosedTimerEnded = (block: ProgramBlock, kind: BlockTimerKind) => {
+    Vibration.vibrate([0, 500, 200, 500]);
+    setTimerBanner({ blockId: block.id, blockName: block.name, kind, id: Date.now() });
+  };
+
+  // Rest between blocks: offered under a block logged for the first time,
+  // when another block is still open. Ending points the banner at the next one.
+  const [restOffer, setRestOffer] = useState<{ id: number; afterBlockId: string | number } | null>(null);
+  const [blockRest, setBlockRest] = useState<{ id: number; seconds: number } | null>(null);
+  const runnerScroll = useRef<ScrollView>(null);
+  const runnerScrollY = useRef(0);
+  // A touch inside the offer reaches it first; any other one closes it.
+  const touchInOffer = useRef(false);
+  const handleRunnerTouchEnd = () => {
+    if (touchInOffer.current) touchInOffer.current = false;
+    else if (restOffer) setRestOffer(null);
+  };
+  // Keep the offer on screen, clear of the header and the footer.
+  const showRestOffer = (y: number, height: number) => {
+    const top = 90;
+    const bottom = Dimensions.get('window').height - 130;
+    const by = y < top ? y - top : y + height > bottom ? y + height - bottom : 0;
+    if (by !== 0) runnerScroll.current?.scrollTo({ y: Math.max(0, runnerScrollY.current + by), animated: true });
+  };
+  const handleBlockRestEnded = () => {
+    setBlockRest(null);
+    Vibration.vibrate([0, 500, 200, 500]);
+    const next = activeDay?.blocks.find(b => b.completedStatus === 'none');
+    if (next) setTimerBanner({ blockId: next.id, blockName: next.name, kind: 'rest', id: Date.now() });
+  };
+
   const handleToggleVideo = (exerciseId: string | number, url: string) => {
     if (!url) return;
     setActiveVideoExerciseId(prev => (prev === exerciseId ? null : exerciseId));
@@ -1950,8 +1999,15 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       enabled={Platform.OS !== 'web'}
     >
       {screenPhase === 'running' && activeDay ? (
-        <View style={{ flex: 1, backgroundColor: theme.background.primary }}>
-        <ScrollView contentContainerStyle={[styles.scrollContainer, { paddingBottom: 140 }]} keyboardShouldPersistTaps="never" onScrollBeginDrag={Keyboard.dismiss}>
+        <View style={{ flex: 1, backgroundColor: theme.background.primary }} onTouchEnd={handleRunnerTouchEnd}>
+        <ScrollView
+          ref={runnerScroll}
+          contentContainerStyle={[styles.scrollContainer, { paddingBottom: 140 }]}
+          keyboardShouldPersistTaps="never"
+          onScrollBeginDrag={Keyboard.dismiss}
+          scrollEventThrottle={32}
+          onScroll={(e) => { runnerScrollY.current = e.nativeEvent.contentOffset.y; }}
+        >
           {/* Day Blocks header (design handoff §1.1): back chevron, title,
               a progress-derived state badge, meta line, percent, and a
               per-block tick bar — never hardcoded, all read from the same
@@ -2000,8 +2056,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               // still-unaddressed blocks before finishing instead.
               const isLocked = false;
               return (
+                <React.Fragment key={block.id}>
                 <WarriorBlockCard
-                  key={block.id}
                   block={block}
                   index={index}
                   isExpanded={!!expandedBlocks[block.id]}
@@ -2025,7 +2081,18 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   onLadderFinalize={handleLadderFinalize}
                   onAmrapFinalize={handleAmrapFinalize}
                   onForTimeFinalize={handleForTimeFinalize}
+                  onClosedTimerEnded={handleClosedTimerEnded}
                 />
+                {restOffer?.afterBlockId === block.id && (
+                  <BlockRestOffer
+                    key={restOffer.id}
+                    onStart={(seconds) => setBlockRest(prev => ({ id: (prev?.id ?? 0) + 1, seconds }))}
+                    onClose={() => setRestOffer(null)}
+                    onTouchInside={() => { touchInOffer.current = true; }}
+                    onShown={showRestOffer}
+                  />
+                )}
+                </React.Fragment>
               );
             })}
 
@@ -2418,6 +2485,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             setFeel={(f) => setLogFeel(f as Feel)}
             rpe={logRpe}
             setRpe={(n) => setLogRpe(n as number)}
+            exerciseRpe={logExerciseRpe}
+            setExerciseRpe={(id, n) => setLogExerciseRpe(prev => {
+              const { [id]: _old, ...rest } = prev;
+              return n == null ? rest : { ...rest, [id]: n };
+            })}
             reason={logMissedReason}
             setReason={setLogMissedReason}
             note={logNotes}
@@ -2484,12 +2556,20 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         />
       )}
 
+      {blockRest && (
+        <BlockRestPill
+          key={blockRest.id}
+          seconds={blockRest.seconds}
+          onStop={() => setBlockRest(null)}
+          onEnded={handleBlockRestEnded}
+        />
+      )}
+      <BlockTimerBanner
+        banner={screenPhase === 'running' ? timerBanner : null}
+        onOpen={(blockId) => setExpandedBlocks({ [blockId]: true })}
+        onDismiss={() => setTimerBanner(null)}
+      />
     </KeyboardAvoidingView>
-            exerciseRpe={logExerciseRpe}
-            setExerciseRpe={(id, n) => setLogExerciseRpe(prev => {
-              const { [id]: _old, ...rest } = prev;
-              return n == null ? rest : { ...rest, [id]: n };
-            })}
     </GlobalErrorBoundary>
   );
 }

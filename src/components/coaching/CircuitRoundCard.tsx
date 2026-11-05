@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
@@ -7,6 +7,8 @@ import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 import { useExerciseHoldTimer } from '../../hooks/useExerciseHoldTimer';
 import { parseKg } from '../../lib/parseKg';
@@ -43,7 +45,6 @@ interface CircuitRoundCardProps {
   // Reports whether this round currently holds unsaved progress (a running
   // rest timer, or reps edited away from the target defaults) — the parent
   // block card uses this to decide whether collapsing needs a confirm.
-  onActiveChange?: (roundNumber: number, active: boolean) => void;
 }
 
 export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
@@ -58,7 +59,6 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   onRoundComplete,
   activeVideoExerciseId,
   onToggleVideo,
-  onActiveChange,
 }) => {
   const isHold = (ex: CircuitExercise) => !!ex.holdSeconds && ex.holdSeconds > 0;
   // The stepper's planned value: seconds for a hold, reps otherwise.
@@ -85,19 +85,16 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
 
   // Counted from its end time, so rest keeps going while the app is in the
   // background (see useAnchoredCountdown).
+  const restEnded = useBlockTimer('rest', restActive, restTimeLeft);
+  useExclusiveRest(restActive, () => {
+    setRestActive(false);
+    setRestTimeLeft(0);
+  });
   useAnchoredCountdown(restActive, restTimeLeft, setRestTimeLeft, () => {
     setRestActive(false);
     SoundServiceInstance.playDigitalBuzzer(2);
+    restEnded();
   });
-
-  useEffect(() => {
-    if (completed) {
-      onActiveChange?.(roundNumber, false);
-      return;
-    }
-    const repsEdited = exercises.some(ex => (repsByExercise[ex.id] ?? 0) !== target(ex));
-    onActiveChange?.(roundNumber, restActive || repsEdited);
-  }, [restActive, repsByExercise, completed]);
 
   // Rest over while the app is in the background: notify.
   useBackgroundTimerAlerts(() =>

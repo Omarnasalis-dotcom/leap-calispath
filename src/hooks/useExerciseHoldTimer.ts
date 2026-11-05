@@ -3,6 +3,7 @@ import { AppState } from 'react-native';
 import { SoundServiceInstance } from '../lib/SoundService';
 import { t } from '../i18n';
 import { useBackgroundTimerAlerts } from './useBackgroundTimerAlerts';
+import { useBlockTimer } from './useBlockTimer';
 
 /** Get-ready countdown before a hold timer starts. */
 export const HOLD_READY_SECONDS = 5;
@@ -76,17 +77,24 @@ export function useExerciseHoldTimer(holdSecs: number) {
         holdEndRef.current = null;
         setPhase('done');
         SoundServiceInstance.playDigitalBuzzer(3);
+        holdEndedRef.current();
       }
     }
   };
 
   const holdRunning = holdPhase === 'ready' || holdPhase === 'holding';
+  // Read when the get-ready starts, so it covers the get-ready and the hold.
+  const holdEnded = useBlockTimer('hold', holdRunning, HOLD_READY_SECONDS + runSecsRef.current);
   useEffect(() => {
     if (!holdRunning) return;
     clearInterval(holdIntervalRef.current);
     holdIntervalRef.current = setInterval(tickHold, 250);
     return () => clearInterval(holdIntervalRef.current);
   }, [holdRunning]);
+
+  // tickHold runs from an interval set when the hold started.
+  const holdEndedRef = useRef(holdEnded);
+  holdEndedRef.current = holdEnded;
 
   // Catch up straight away when the app returns to the foreground.
   useEffect(() => {

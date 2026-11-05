@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, Alert } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SoundServiceInstance } from '../../lib/SoundService';
@@ -6,6 +6,8 @@ import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 import { useAnchoredCountdown, useAnchoredStopwatch } from '../../hooks/useAnchoredTimer';
 
 export interface LadderExercise {
@@ -51,7 +53,6 @@ interface LadderRungPickerProps {
   // rest/timer, or a rung already selected) — the parent block card uses
   // this to decide whether collapsing needs a confirm. Only meaningful in
   // inline mode.
-  onActiveChange?: (active: boolean) => void;
 }
 
 export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
@@ -68,7 +69,6 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   exercises,
   activeVideoExerciseId,
   onToggleVideo,
-  onActiveChange,
 }) => {
   const [lastOpenId, setLastOpenId] = useState<string | number | null>(null);
   const lastOpen = (exercises || []).find(e => e.id === lastOpenId);
@@ -92,9 +92,8 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
 
   // Counted from the clock (end time for a countdown, start time when
   // counting up), so it keeps going while the app is in the background.
-  const finishRest = () => {
-    setRestActive(false);
-    SoundServiceInstance.playDigitalBuzzer(2);
+  const restEnded = useBlockTimer(countUp ? 'fortime' : isRestMode ? 'rest' : 'amrap', restActive, restTimeLeft, countUp);
+  const toNextRung = () => {
     if (!countUp && isRestMode) {
       setCurrentRoundIndex(idx => {
         const nextIdx = Math.min(sequence.length - 1, idx + 1);
@@ -103,6 +102,17 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
         return nextIdx;
       });
     }
+  };
+  // Only the rest between rungs: AMRAP and For Time ladders are the work.
+  useExclusiveRest(restActive && isRestMode, () => {
+    setRestActive(false);
+    toNextRung();
+  });
+  const finishRest = () => {
+    setRestActive(false);
+    SoundServiceInstance.playDigitalBuzzer(2);
+    restEnded();
+    toNextRung();
   };
   useAnchoredCountdown(restActive && !countUp, restTimeLeft, setRestTimeLeft, finishRest);
   useAnchoredStopwatch(restActive && countUp, restTimeLeft, setRestTimeLeft, restSeconds ?? 0, finishRest);
@@ -123,10 +133,6 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
         }]
       : [];
   });
-
-  useEffect(() => {
-    if (isInline) onActiveChange?.(restActive || selectedIndex !== null);
-  }, [isInline, restActive, selectedIndex]);
 
   const formatRest = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 

@@ -6,6 +6,8 @@ import { BlockConceptParser } from '../../lib/BlockConceptParser';
 import { SoundServiceInstance } from '../../lib/SoundService';
 import { t } from '../../i18n';
 import { useBackgroundTimerAlerts, TimerAlert } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 import { useExerciseHoldTimer } from '../../hooks/useExerciseHoldTimer';
 import { LastTimeLog } from '../../lib/lastTimeLog';
 import { LastTimeButton, LastTimePanel } from './LastTime';
@@ -54,6 +56,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
   // whole suspended duration and the displayed rest time under-counts. Same
   // approach as ArenaWorkoutScreen's trial timer.
   const restEndTimeRef = useRef<number | null>(null);
+  const restEnded = useBlockTimer('rest', restActive, restTimeLeft);
 
   const restSecs = parseInt(String(exercise.rest_seconds || '0'), 10);
 
@@ -71,6 +74,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
     setRestActive(false);
     setRestTimeLeft(0);
   };
+  useExclusiveRest(restActive, cancelRest);
 
   useEffect(() => {
     if (restActive && restTimeLeft > 0) {
@@ -85,6 +89,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
           setRestActive(false);
           setRestCompleted(true);
           SoundServiceInstance.playDigitalBuzzer(3);
+          restEnded();
         }
       }, 1000);
     } else {
@@ -104,6 +109,7 @@ export const WarriorExerciseRow: React.FC<WarriorExerciseRowProps> = ({
           setRestActive(false);
           setRestCompleted(true);
           SoundServiceInstance.playDigitalBuzzer(3);
+          restEnded();
         }
       }
     });

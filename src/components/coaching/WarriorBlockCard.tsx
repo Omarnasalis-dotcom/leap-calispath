@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Alert, Animated, Easing, AccessibilityInfo } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,8 @@ import { LadderRungPicker } from './LadderRungPicker';
 import { AmrapInlineTimer } from './AmrapInlineTimer';
 import { ForTimeInlineTimer, ForTimeResult } from './ForTimeInlineTimer';
 import { InlineVideoPlayer } from './InlineVideoPlayer';
+import { BlockTimerChip } from './BlockTimerChip';
+import { BlockTimerContext, BlockTimerKind, BlockTimerReporter, LiveBlockTimer, nextBlockTimer } from '../../hooks/useBlockTimer';
 import { SlideToCompleteButton } from './SlideToCompleteButton';
 import { t } from '../../i18n';
 
@@ -141,6 +143,8 @@ interface WarriorBlockCardProps {
   onLadderFinalize?: (blockId: string | number, summary: string, rungIndex: number | null, extraReps: number) => void;
   onAmrapFinalize?: (blockId: string | number, roundsCompleted: number) => void;
   onForTimeFinalize?: (blockId: string | number, result: ForTimeResult) => void;
+  /** A timer in this block reached its end while the card was closed. */
+  onClosedTimerEnded?: (block: ProgramBlock, kind: BlockTimerKind) => void;
 }
 
 export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
@@ -167,6 +171,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   onLadderFinalize,
   onAmrapFinalize,
   onForTimeFinalize,
+  onClosedTimerEnded,
 }) => {
   const db = DB_COLORS[mode];
   // theme.card.border is 5% black in light mode — invisible against this
@@ -190,26 +195,35 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const isLadder = (isSetBased && structure === 'ladder') || isAmrapLadder || isForTimeLadder;
   const isAmrap = (timingSystem === 'amrap' || block.metadata?.type === 'amrap') && !isLadder;
   const isForTime = (timingSystem === 'fortime' || block.metadata?.type === 'fortime') && !isLadder;
-  const isActiveForSetLogging = isExpanded && !isLocked && isPureStraightSet && block.completedStatus === 'none';
-  const isActiveForCircuitLogging = isExpanded && !isLocked && isCircuitOrSuperset && block.completedStatus === 'none';
-  const isActiveForLadderLogging = isExpanded && !isLocked && isLadder && block.completedStatus === 'none';
-  const isActiveForAmrapLogging = isExpanded && !isLocked && isAmrap && block.completedStatus === 'none';
-  const isActiveForForTimeLogging = isExpanded && !isLocked && isForTime && block.completedStatus === 'none';
-  // These four hold elapsed time / rounds / rung / reps only in local component
-  // state (no lifted state, nothing persisted mid-session) — collapsing the
-  // block unmounts that subtree and silently destroys it. Each child reports
-  // via onActiveChange whether it actually has unsaved progress right now
-  // (a running timer, a counted round, a selected rung) — merely being
-  // expanded on one of these block types isn't enough to warrant a confirm.
-  const [amrapActive, setAmrapActive] = useState(false);
-  const [forTimeActive, setForTimeActive] = useState(false);
-  const [ladderActive, setLadderActive] = useState(false);
-  const [activeCircuitRounds, setActiveCircuitRounds] = useState<Record<number, boolean>>({});
-  const handleCircuitActiveChange = useCallback((roundNumber: number, active: boolean) => {
-    setActiveCircuitRounds(prev => (prev[roundNumber] === active ? prev : { ...prev, [roundNumber]: active }));
-  }, []);
-  const hasActiveTimedSession =
-    amrapActive || forTimeActive || ladderActive || Object.values(activeCircuitRounds).some(Boolean);
+  // Rest, AMRAP, For Time, ladder and hold timers, and the rounds, rungs and
+  // reps around them, live in the components below. So once a block has been
+  // opened its content stays mounted, hidden while the card is closed:
+  // opening another block must not stop a timer or lose that progress.
+  const everOpened = useRef(isExpanded);
+  if (isExpanded) everOpened.current = true;
+  const contentMounted = everOpened.current;
+  const isActiveForSetLogging = contentMounted && !isLocked && isPureStraightSet && block.completedStatus === 'none';
+  const isActiveForCircuitLogging = contentMounted && !isLocked && isCircuitOrSuperset && block.completedStatus === 'none';
+  const isActiveForLadderLogging = contentMounted && !isLocked && isLadder && block.completedStatus === 'none';
+  const isActiveForAmrapLogging = contentMounted && !isLocked && isAmrap && block.completedStatus === 'none';
+  const isActiveForForTimeLogging = contentMounted && !isLocked && isForTime && block.completedStatus === 'none';
+
+  // Timers report here: the closed card shows the running one, and the
+  // screen is told when one ends out of sight.
+  const [liveTimers, setLiveTimers] = useState<{ owner: object; timer: LiveBlockTimer }[]>([]);
+  const closedTimerEnded = useRef({ isExpanded, block, onClosedTimerEnded });
+  closedTimerEnded.current = { isExpanded, block, onClosedTimerEnded };
+  const timerReporter = useMemo<BlockTimerReporter>(() => ({
+    report: (owner, timer) => setLiveTimers(prev => {
+      const others = prev.filter(x => x.owner !== owner);
+      return timer ? [...others, { owner, timer }] : others;
+    }),
+    ended: (kind) => {
+      const { isExpanded: open, block: b, onClosedTimerEnded: notify } = closedTimerEnded.current;
+      if (!open) notify?.(b, kind);
+    },
+  }), []);
+  const closedCardTimer = isExpanded ? null : nextBlockTimer(liveTimers.map(x => x.timer));
   const amrapTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10) || 10) * 60;
   const forTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || '15'), 10) || 15) * 60;
   const totalRounds = parseInt(String(block.metadata?.rounds || '1'), 10) || 1;
@@ -407,20 +421,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {/* Collapsible Block Header */}
           <TouchableOpacity
             style={styles.dbHeaderRow}
-            onPress={() => {
-              if (isExpanded && hasActiveTimedSession) {
-                Alert.alert(
-                  t('blocks.collapseTitle'),
-                  t('blocks.collapseBody'),
-                  [
-                    { text: t('blocks.cancel'), style: 'cancel' },
-                    { text: t('blocks.collapseAnyway'), style: 'destructive', onPress: () => toggleBlockExpanded(block.id) },
-                  ],
-                );
-                return;
-              }
-              toggleBlockExpanded(block.id);
-            }}
+            onPress={() => toggleBlockExpanded(block.id)}
           >
             {/* Index plate — a read-only status badge (design handoff §3.1):
                 shows the block number, a check once done, a dash once
@@ -499,6 +500,15 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
             </View>
           )}
 
+          {closedCardTimer && (
+            <BlockTimerChip
+              timer={closedCardTimer}
+              color={accent.color}
+              background={hex(accent.color, 0.14)}
+              textColor={db.textPrimary}
+            />
+          )}
+
           {/* Collapsed: action row sits right under the pills. Expanded: it
               moves to the end of the block, after the exercises/timers
               (rendered below, design handoff request: "shows at the end of
@@ -508,8 +518,9 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
           {/* Block Content (Expandable) — dbHeaderRow above supplies its own
               padding (13/17 left), this needs the matching horizontal inset
               itself since the old shared blockCard padding wrapper is gone. */}
-          {isExpanded && (
-            <View style={{ paddingTop: 2, paddingHorizontal: 13, paddingBottom: 13 }}>
+          {contentMounted && (
+            <BlockTimerContext.Provider value={timerReporter}>
+            <View style={{ paddingTop: 2, paddingHorizontal: 13, paddingBottom: 13, display: isExpanded ? 'flex' : 'none' }}>
               {/* Structure Badge */}
               <View style={{ backgroundColor: db.washSoft, paddingVertical: 6, paddingHorizontal: 12, borderRadius: 6, alignSelf: 'flex-start', marginBottom: 12 }}>
                 <Text style={{ color: theme.text.secondary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 12, letterSpacing: 1 }}>
@@ -617,7 +628,6 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                           }}
                           activeVideoExerciseId={activeVideoExerciseId}
                           onToggleVideo={onToggleVideo}
-                          onActiveChange={handleCircuitActiveChange}
                         />
                       );
                     })}
@@ -640,7 +650,6 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       exercises={block.exercises.map(ex => ({ id: ex.id, name: ex.name, youtube_url: ex.youtube_url, lastTime: ex.last_time }))}
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
-                      onActiveChange={setLadderActive}
                     />
                   </View>
                 )}
@@ -657,7 +666,6 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       hideLogButton
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
-                      onActiveChange={setAmrapActive}
                     />
                   </View>
                 )}
@@ -674,7 +682,6 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                       hideLogButton
                       activeVideoExerciseId={activeVideoExerciseId}
                       onToggleVideo={onToggleVideo}
-                      onActiveChange={setForTimeActive}
                     />
                   </View>
                 )}
@@ -717,6 +724,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
                 </View>
               )}
             </View>
+            </BlockTimerContext.Provider>
           )}
           {isExpanded && actionRow}
         </Animated.View>

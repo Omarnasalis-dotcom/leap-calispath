@@ -6,6 +6,8 @@ import { t } from '../../i18n';
 import { parseKg } from '../../lib/parseKg';
 import { WeightStepper } from './WeightStepper';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
+import { useBlockTimer } from '../../hooks/useBlockTimer';
+import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 
 export interface SetLogEntry {
   setIndex: number;
@@ -66,6 +68,13 @@ export const SetRow: React.FC<SetRowProps> = ({
   // whole suspended duration and the displayed rest time under-counts. Same
   // approach as ArenaWorkoutScreen's trial timer.
   const restEndTimeRef = useRef<number | null>(null);
+  const restEnded = useBlockTimer('rest', restActive, restTimeLeft);
+  useExclusiveRest(restActive, () => {
+    clearInterval(intervalRef.current);
+    restEndTimeRef.current = null;
+    setRestActive(false);
+    setRestTimeLeft(0);
+  });
 
   useEffect(() => {
     if (restActive && restTimeLeft > 0) {
@@ -79,6 +88,7 @@ export const SetRow: React.FC<SetRowProps> = ({
           clearInterval(intervalRef.current);
           setRestActive(false);
           SoundServiceInstance.playDigitalBuzzer(2);
+          restEnded();
         }
       }, 1000);
     } else {
@@ -97,6 +107,7 @@ export const SetRow: React.FC<SetRowProps> = ({
         if (remaining <= 0) {
           setRestActive(false);
           SoundServiceInstance.playDigitalBuzzer(2);
+          restEnded();
         }
       }
     });
