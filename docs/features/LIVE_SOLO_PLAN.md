@@ -1,6 +1,6 @@
 # Solo Battle
 
-Status (2026-11-05): built on branch `solo-battle`. Migration `20261106120000_add_solo_battle.sql` is not on prod. No device test yet.
+Status (2026-11-05): migration `20261106120000_add_solo_battle.sql` on prod; code on main; owner tested and confirmed everything works. Ships in the build after 1.2.17.
 
 A free-for-all match in the LIVE tab, built on the Live Tournament engine (`LIVE_TOURNAMENT_PLAN.md`). Each player is a side of one, so timers, logging, hidden numbers, host fallback, presence, push, history and the PLAYERS board are the same code.
 
