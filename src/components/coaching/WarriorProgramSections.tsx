@@ -3,6 +3,7 @@ import { View, Text, TouchableOpacity, StyleSheet, Animated, Easing, Accessibili
 import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
+import { deriveDayStates } from '../../lib/warriorProgramDays';
 import { t } from '../../i18n';
 
 const bronzeGold = '#C8A040';
@@ -221,8 +222,10 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek }: WeekNavig
         {Object.keys(weeksData).map(weekStr => {
           const wNum = parseInt(weekStr, 10);
           const isActive = wNum === activeWeek;
-          const weekBlocks = weeksData[wNum].flatMap((d: any) => d.blocks);
-          const allCompleted = weekBlocks.length > 0 && weekBlocks.every((b: any) => b.completedStatus === 'completed');
+          // Same rule as the day cards and ADD NEW WEEK: every block logged,
+          // completed or skipped alike.
+          const weekDays = weeksData[wNum];
+          const weekDone = weekDays.length > 0 && deriveDayStates(weekDays).every(d => d.status === 'done');
           return (
             <TouchableOpacity
               key={wNum}
@@ -237,7 +240,7 @@ export function WeekNavigator({ weeksData, activeWeek, onSelectWeek }: WeekNavig
               }}
             >
               <Text style={{ fontFamily: 'BarlowCondensed-Bold', fontSize: 13, letterSpacing: 0.8, color: isActive ? PD_BRAND.coral : pd.weekChipText }}>
-                {t('programDays.week', { week: wNum })} {allCompleted ? '✓' : ''}
+                {t('programDays.week', { week: wNum })} {weekDone ? '✓' : ''}
               </Text>
             </TouchableOpacity>
           );
