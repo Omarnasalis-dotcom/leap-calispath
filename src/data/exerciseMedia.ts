@@ -11,36 +11,40 @@ export interface ExerciseMediaEntry {
 
 export const EXERCISE_MEDIA: Record<string, ExerciseMediaEntry> = {
   strict_pullup: {
-    video: require('../../assets/exercises/strict_pullup.mov'),
-    videoLight: require('../../assets/exercises/strict_pullup_light.mov'),
+    video: require('../../assets/exercises/v2/strict_pullup.mov'),
+    videoLight: require('../../assets/exercises/v2/strict_pullup_light.mov'),
+  },
+  inverted_row: {
+    video: require('../../assets/exercises/v2/inverted_row.mov'),
+    videoLight: require('../../assets/exercises/v2/inverted_row_light.mov'),
   },
   standard_dip: {
-    video: require('../../assets/exercises/Dips.mov'),
-    videoLight: require('../../assets/exercises/Dips_light.mov'),
+    video: require('../../assets/exercises/v2/Dips.mov'),
+    videoLight: require('../../assets/exercises/v2/Dips_light.mov'),
   },
   bench_dip: {
-    video: require('../../assets/exercises/Dips.mov'),
-    videoLight: require('../../assets/exercises/Dips_light.mov'),
+    video: require('../../assets/exercises/v2/bench_dip.mov'),
+    videoLight: require('../../assets/exercises/v2/bench_dip_light.mov'),
   },
   standard_pushup: {
-    video: require('../../assets/exercises/PushUps.mov'),
-    videoLight: require('../../assets/exercises/PushUps_light.mov'),
+    video: require('../../assets/exercises/v2/PushUps.mov'),
+    videoLight: require('../../assets/exercises/v2/PushUps_light.mov'),
   },
   knee_pushup: {
-    video: require('../../assets/exercises/PushUps.mov'),
-    videoLight: require('../../assets/exercises/PushUps_light.mov'),
+    video: require('../../assets/exercises/v2/knee_pushup.mov'),
+    videoLight: require('../../assets/exercises/v2/knee_pushup_light.mov'),
   },
   strict_mu: {
-    video: require('../../assets/exercises/Muscleup.mov'),
-    videoLight: require('../../assets/exercises/Muscleup_light.mov'),
+    video: require('../../assets/exercises/v2/Muscleup.mov'),
+    videoLight: require('../../assets/exercises/v2/Muscleup_light.mov'),
   },
   banded_mu: {
-    video: require('../../assets/exercises/Muscleup.mov'),
-    videoLight: require('../../assets/exercises/Muscleup_light.mov'),
+    video: require('../../assets/exercises/v2/Muscleup.mov'),
+    videoLight: require('../../assets/exercises/v2/Muscleup_light.mov'),
   },
   jumping_mu: {
-    video: require('../../assets/exercises/Muscleup.mov'),
-    videoLight: require('../../assets/exercises/Muscleup_light.mov'),
+    video: require('../../assets/exercises/v2/Muscleup.mov'),
+    videoLight: require('../../assets/exercises/v2/Muscleup_light.mov'),
   },
 };
 

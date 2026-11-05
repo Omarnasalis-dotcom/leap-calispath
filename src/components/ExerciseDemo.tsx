@@ -74,6 +74,9 @@ export function ExerciseDemo({ movementId, label }: ExerciseDemoProps) {
 const styles = StyleSheet.create({
   container: {
     width: '100%',
+    // The clips are 2.4:1 — without maxWidth a tablet's wider box crops off
+    // the top and bottom of the movement.
+    maxWidth: 384,
     aspectRatio: 16 / 9,
     maxHeight: 160,
     alignSelf: 'center',
