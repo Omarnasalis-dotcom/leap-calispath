@@ -49,6 +49,7 @@ interface WorkoutLogHistory {
   status: 'completed' | 'missed';
   feel: string | null;
   rpe: number | null;
+  exerciseRpe: Record<string, number> | null;
   missedReason: string | null;
   missedDetail: string | null;
   sessionSeconds: number | null;
@@ -287,6 +288,7 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
         status: l.status,
         feel: l.feel,
         rpe: l.rpe,
+        exerciseRpe: l.exercise_rpe ?? null,
         missedReason: l.missed_reason,
         missedDetail: l.missed_detail,
         sessionSeconds: l.session_seconds,
@@ -872,6 +874,11 @@ export function ProgressTrackingScreen({ coachId, isAdmin = false, onClose, warr
                                 </Text>
                               )}
                             </View>
+                            {!!log.exerciseRpe && (
+                              <Text style={{ color: theme.text.secondary, fontSize: 11, fontFamily: 'BarlowCondensed-Bold', marginTop: 4 }}>
+                                {Object.entries(log.exerciseRpe).map(([name, rpe]) => `${name} · RPE ${rpe}`).join('\n')}
+                              </Text>
+                            )}
 
                             {/* AMRAP rounds / FOR TIME duration / ladder rung reached have no
                                 per-set rows — the warrior client only writes them as '[LOG] ...'

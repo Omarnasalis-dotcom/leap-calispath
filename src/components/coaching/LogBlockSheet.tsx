@@ -129,6 +129,8 @@ export interface SheetCard {
   defaultCount?: number;
   /** Tabata: the status line reads "All done" / "3 of 6", never "untouched". */
   roundsStatus?: boolean;
+  /** Rates this exercise on its own, instead of the block's one RPE. */
+  askRpe?: boolean;
 }
 
 const RPE_WORDS = ['rpe1', 'rpe2', 'rpe3', 'rpe4', 'rpe5', 'rpe6', 'rpe7', 'rpe8', 'rpe9', 'rpe10'] as const;
@@ -164,6 +166,9 @@ export interface LogBlockSheetProps {
   setFeel: (f: Feel | null) => void;
   rpe: number | null;
   setRpe: (n: number | null) => void;
+  /** Per-exercise ratings, by card id (cards with askRpe). */
+  exerciseRpe: Record<string, number>;
+  setExerciseRpe: (id: string, n: number | null) => void;
   reason: MissedReason | null;
   setReason: (r: MissedReason) => void;
   note: string;
@@ -363,6 +368,8 @@ function SetsCard({
   setTopKg,
   holdSecs,
   setHoldSecs,
+  exerciseRpe,
+  setExerciseRpe,
 }: { card: SheetCard } & LogBlockSheetProps) {
   const { C, s } = useSheetTheme();
   const count = counts[card.id] ?? (card.ticked > 0 ? card.ticked : card.defaultCount ?? card.plan);
@@ -462,6 +469,11 @@ function SetsCard({
           </View>
         </View>
       )}
+      {card.askRpe && count > 0 && (
+        <View style={s.cardRpe}>
+          <RpeScale value={exerciseRpe[card.id] ?? null} onChange={(n) => setExerciseRpe(card.id, n)} />
+        </View>
+      )}
     </View>
   );
 }
@@ -521,8 +533,8 @@ function ForTime({ forTime, setForTime }: LogBlockSheetProps) {
   );
 }
 
-function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
-  const { C, s } = useSheetTheme();
+function FeelRpe({ feel, setFeel, rpe, setRpe, cards }: LogBlockSheetProps) {
+  const { s, C } = useSheetTheme();
   return (
     <View style={{ gap: 8 }}>
       <SectionLabel label={t('logSheet.feel')} helper={t('logSheet.optional')} />
@@ -544,24 +556,37 @@ function FeelRpe({ feel, setFeel, rpe, setRpe }: LogBlockSheetProps) {
           );
         })}
       </View>
-      <View style={[s.labelRow, { marginTop: 2 }]}>
+      {!cards.some(c => c.askRpe) && (
+        <View style={{ marginTop: 2 }}>
+          <RpeScale value={rpe} onChange={setRpe} />
+        </View>
+      )}
+    </View>
+  );
+}
+
+function RpeScale({ value, onChange }: { value: number | null; onChange: (n: number | null) => void }) {
+  const { C, s } = useSheetTheme();
+  return (
+    <View style={{ gap: 8 }}>
+      <View style={s.labelRow}>
         <Text style={s.label}>{t('logSheet.rpe')}</Text>
-        <Text style={[s.rpeWord, { color: rpe ? C.coralLight : C.faint }]}>
-          {rpe ? `${rpe} · ${t(`logSheet.${RPE_WORDS[rpe - 1]}`)}` : t('logSheet.optional')}
+        <Text style={[s.rpeWord, { color: value ? C.coralLight : C.faint }]}>
+          {value ? `${value} · ${t(`logSheet.${RPE_WORDS[value - 1]}`)}` : t('logSheet.optional')}
         </Text>
       </View>
       {/* The effort scale reads 1 → 10 left-to-right in every language. */}
       <View style={{ flexDirection: 'row', direction: 'ltr', gap: 3 }}>
         {Array.from({ length: 10 }, (_, i) => {
           const v = i + 1;
-          const lit = rpe != null && v <= rpe;
+          const lit = value != null && v <= value;
           return (
             <TouchableOpacity
               key={v}
               accessibilityRole="button"
               accessibilityLabel={`RPE ${v}`}
-              accessibilityState={{ selected: rpe === v }}
-              onPress={() => setRpe(rpe === v ? null : v)}
+              accessibilityState={{ selected: value === v }}
+              onPress={() => onChange(value === v ? null : v)}
               style={[
                 s.rpeCell,
                 i === 0 && { borderTopLeftRadius: 12, borderBottomLeftRadius: 12 },
@@ -683,6 +708,7 @@ const makeStyles = (C: Palette) => StyleSheet.create({
   },
   feelText: { fontFamily: COND_700, fontSize: 14, letterSpacing: 0.8, color: C.secondary },
   rpeWord: { fontFamily: BODY, fontSize: 13, fontWeight: '600' },
+  cardRpe: { paddingHorizontal: 12, paddingBottom: 12 },
   rpeCell: { flex: 1, height: 38, borderRadius: 4, alignItems: 'center', justifyContent: 'center' },
   rpeNum: { fontFamily: COND_700, fontSize: 14 },
 

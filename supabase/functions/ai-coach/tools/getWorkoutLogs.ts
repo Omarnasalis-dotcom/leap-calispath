@@ -16,7 +16,8 @@ export function judgedByBlockResult(blockNotes: string | null | undefined): bool
 
 // One logged exercise against what its block prescribes. Holds are compared
 // like reps. Facts only (2026-10-30, owner): the coach decides what they
-// mean (system-prompt.ts §12). rpe is the block's logged RPE, 1–10.
+// mean (system-prompt.ts §12). rpe is the exercise's own RPE when it was
+// rated per exercise, else the block's, 1–10.
 export function compareToPrescription(sets: LoggedSet[], prescribed: Prescribed | undefined, rpe: number | null | undefined) {
   const repsLogged = sets.map((s) => s.reps_completed).filter((r): r is number => r !== null && r !== undefined);
   const holdsLogged = sets.map((s) => s.hold_seconds).filter((h): h is number => h !== null && h !== undefined);
@@ -64,6 +65,7 @@ type RawLog = {
   rating?: number | null;
   feel?: string | null;
   rpe?: number | null;
+  exercise_rpe?: Record<string, number> | null; // exercise name -> RPE; rpe is then their average
   missed_reason?: string | null;
   missed_detail?: string | null;
   session_seconds?: number | null;
@@ -135,9 +137,14 @@ export function shapeWorkoutLogs(
       byExercise.get(key)!.push(s);
     }
     const judgeByResult = !!log.block_id && byResult.has(log.block_id);
+    const ownRpeByName = new Map(Object.entries(log.exercise_rpe ?? {}).map(([name, rpe]) => [name.toLowerCase(), rpe]));
     const rows = [...byExercise.entries()].map(([nameLower, sets]) => {
       const prescribed = log.block_id ? prescribedByKey.get(`${log.block_id}::${nameLower}`) : undefined;
-      const row = compareToPrescription(sets, prescribed, log.rpe);
+      const ownRpe = log.exercise_rpe ? (ownRpeByName.get(nameLower) ?? null) : null;
+      const row = {
+        ...compareToPrescription(sets, prescribed, log.exercise_rpe ? ownRpe : log.rpe),
+        ...(ownRpe !== null ? { rpe: ownRpe } : {}),
+      };
       return judgeByResult ? { ...row, under_prescribed: false, over_prescribed: false, rpe_mismatch: false } : row;
     });
     return { judgeByResult, rows };

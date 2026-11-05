@@ -1,7 +1,7 @@
 // "Last time" for an exercise in the workout runner (2026-10-30, owner
 // decisions): the most recent earlier week this exercise was logged in the
-// active program, on any day — its sets (reps / weight / hold), the block's
-// RPE and feel, its result lines and the athlete's own note. Matched by the
+// active program, on any day — its sets (reps / weight / hold), its own RPE
+// (or the block's when it wasn't rated per exercise), the block's feel, its result lines and the athlete's own note. Matched by the
 // set's exercise_id, since program edits recreate block_exercises.
 
 export interface LastTimeSet {
@@ -35,6 +35,7 @@ export interface LastTimeSourceLog {
   notes: string | null;
   feel: string | null;
   rpe: number | null;
+  exercise_rpe?: Record<string, number> | null;
   completed_at: string;
   workout_set_logs?: Array<{
     block_exercise_id: string | null;
@@ -90,9 +91,13 @@ export function indexLastTimeLogs(
     const info = blockInfo.get(String(log.block_id));
     if (!info) continue;
     const byExercise = new Map<string, LastTimeSet[]>();
+    const ownRpe = new Map<string, number | null>();
     for (const s of log.workout_set_logs || []) {
       const exId = s.exercise_id ?? (s.block_exercise_id ? exerciseIdByBlockExercise.get(String(s.block_exercise_id)) : undefined);
       if (!exId) continue;
+      if (log.exercise_rpe && s.block_exercise_id) {
+        ownRpe.set(exId, log.exercise_rpe[String(s.block_exercise_id)] ?? null);
+      }
       const list = byExercise.get(exId) ?? [];
       list.push({
         setIndex: s.set_index,
@@ -116,7 +121,7 @@ export function indexLastTimeLogs(
         completedAt: log.completed_at,
         sets: notDone ? [] : sets,
         notDone,
-        rpe: log.rpe,
+        rpe: log.exercise_rpe ? ownRpe.get(exId) ?? null : log.rpe,
         feel: log.feel,
         results: results.filter(r => r.kind !== 'weight' || !hasSetWeight),
         note,

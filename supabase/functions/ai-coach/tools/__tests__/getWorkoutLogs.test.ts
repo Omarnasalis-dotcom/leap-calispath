@@ -54,6 +54,43 @@ describe("judgedByBlockResult", () => {
   });
 });
 
+describe("per-exercise RPE (2026-11-06)", () => {
+  const set = (name: string, r: number) => ({ set_index: 1, exercise_name: name, reps_completed: r, weight_used: null, hold_seconds: null });
+  const log = (extra: object) => ({
+    block_id: "b1", block_name: "PUSH | Strength", week_number: 1, status: "completed", rpe: 8, feel: "good", notes: "",
+    sets: [set("Dips", 12), set("Rows", 12)],
+    ...extra,
+  });
+  const be = [
+    { block_id: "b1", sets: 1, reps: 10, hold_seconds: null, exercise_library: { name: "Dips" } },
+    { block_id: "b1", sets: 1, reps: 10, hold_seconds: null, exercise_library: { name: "Rows" } },
+  ];
+  const pb = [{ id: "b1", notes: `[CONCEPT:${JSON.stringify({ timing_system: "straight_set", structure: "single" })}]` }];
+  const rows = (l: object) => shapeWorkoutLogs({ logs: [log(l)] }, be, pb).logs[0].exercises_vs_prescribed as any[];
+
+  it("judges each exercise by its own rating, not the block average", () => {
+    const [dips, row] = rows({ exercise_rpe: { Dips: 10, Rows: 6 } });
+    expect(dips).toMatchObject({ exercise_name: "Dips", rpe: 10, over_prescribed: true, rpe_mismatch: true });
+    expect(row).toMatchObject({ exercise_name: "Rows", rpe: 6, over_prescribed: true, rpe_mismatch: false });
+  });
+
+  it("matches names whatever the case", () => {
+    expect(rows({ exercise_rpe: { DIPS: 9 } })[0]).toMatchObject({ rpe: 9, rpe_mismatch: true });
+  });
+
+  it("an unrated exercise gets no rating of its own and no mismatch", () => {
+    const [, row] = rows({ exercise_rpe: { Dips: 10 } });
+    expect(row).not.toHaveProperty("rpe");
+    expect(row.rpe_mismatch).toBe(false);
+  });
+
+  it("logs without it stay exactly as before", () => {
+    const [dips] = rows({ rpe: 10 });
+    expect(dips).not.toHaveProperty("rpe");
+    expect(dips.rpe_mismatch).toBe(true);
+  });
+});
+
 describe("shapeWorkoutLogs (fix #8, 2026-10-30)", () => {
   const concept = (m: object) => `[CONCEPT:${JSON.stringify(m)}]`;
   const log = (week: number, extra: object = {}) => ({

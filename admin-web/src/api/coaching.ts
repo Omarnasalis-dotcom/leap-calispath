@@ -697,6 +697,8 @@ export interface WarriorProgressLog {
   rating: number | null;
   feel: string | null;
   rpe: number | null;
+  /** Straight sets rated per exercise: exercise name → RPE. rpe is then their average. */
+  exercise_rpe?: Record<string, number> | null;
   missed_reason: string | null;
   missed_detail: string | null;
   session_seconds: number | null;

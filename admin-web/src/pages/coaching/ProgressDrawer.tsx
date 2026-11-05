@@ -130,6 +130,12 @@ function LogRow({ log, label }: { log: WarriorProgressLog; label: string }) {
         <div className="row" style={{ gap: 10, marginTop: 4, fontSize: 12 }}>
           {log.feel && <span>{FEEL_LABELS[log.feel] ?? log.feel}</span>}
           {log.rpe !== null && <span className="dim">RPE {log.rpe}</span>}
+          {log.exercise_rpe &&
+            Object.entries(log.exercise_rpe).map(([name, rpe]) => (
+              <span key={name} className="dim">
+                {name} · RPE {rpe}
+              </span>
+            ))}
         </div>
       )}
       {expanded && hasSets && (

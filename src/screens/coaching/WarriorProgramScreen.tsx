@@ -58,6 +58,7 @@ import { localizedErrorText } from '../../lib/asyncErrorHandler';
 import { offerRoute } from '../../lib/offerStore';
 
 function getStartOfIsoWeek(date: Date): Date {
+import { asksExerciseRpe, averageRpe, ExerciseRpe, ratingsFor } from '../../lib/exerciseRpe';
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // Monday as week start
@@ -389,6 +390,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     // the rung tapped in the logger, or the full ladder if none was.
     const rungs = kind === 'ladder' ? BlockConceptParser.getLadderRungs(meta) : [];
     if (kind === 'ladder' && rungs.length > 0) {
+        askRpe: asksExerciseRpe(kind, isRounds, exercises.length),
       cards = [{
         id: 'ladder',
         name: (block?.exercises || []).map(ex => ex.name).join(' · '),
@@ -492,9 +494,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // done on any later day (not just the day it was logged) and lets
   // "EDIT LOG" pre-fill the modal with what was actually saved instead of
   // opening blank and forcing the warrior to redo the whole entry.
+  // Straight sets with 2+ exercises: RPE per exercise, by exercise id.
+  const [logExerciseRpe, setLogExerciseRpe] = useState<ExerciseRpe>({});
   // first_logged_at is the block's oldest log, so a re-log replaces it.
   const [loggedDetails, setLoggedDetails] = useState<Record<string, {
-    notes: string; feel: string | null; rpe: number | null;
+    notes: string; feel: string | null; rpe: number | null; exercise_rpe: ExerciseRpe | null;
     missed_reason: string | null; missed_detail: string | null;
     first_logged_at: string;
     // The latest log's per-set rows, by block_exercise_id. Re-saving a log
@@ -847,7 +851,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         // known yet), oldest first so the latest log per block wins.
         supabase
           .from('workout_logs')
-          .select('block_id, warrior_program_id, notes, feel, rpe, missed_reason, missed_detail, completed_at, workout_set_logs(block_exercise_id, exercise_id, set_index, reps_completed, weight_used, hold_seconds, source)')
+          .select('block_id, warrior_program_id, notes, feel, rpe, exercise_rpe, missed_reason, missed_detail, completed_at, workout_set_logs(block_exercise_id, exercise_id, set_index, reps_completed, weight_used, hold_seconds, source)')
           .eq('warrior_id', warriorId)
           .order('completed_at', { ascending: true }),
       ]);
@@ -916,6 +920,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
             // Hold-time rows have no exercise and no reps; they can't be
             // put back on a set row.
             if (!s.block_exercise_id || s.reps_completed == null) return acc;
+          exercise_rpe: l.exercise_rpe ?? null,
             const key = String(s.block_exercise_id);
             (acc[key] = acc[key] || []).push({
               setIndex: s.set_index,
@@ -1368,6 +1373,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       setLogStatus(isMissed ? 'missed' : 'completed');
       setLogFeel((existing.feel as Feel) ?? null);
       setLogRpe(existing.rpe ?? null);
+    setLogExerciseRpe(loggedDetails[blockId]?.exercise_rpe ?? {});
       setLogMissedReason((existing.missed_reason as MissedReason) ?? null);
       setLogMissedDetail(existing.missed_detail || '');
       if (isMissed) {
@@ -1638,6 +1644,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     try {
       // Notes keep the "[LOG] …" lines that coach views and re-opening
       // read back (parseLoggedNotes); the sheet's inputs are numbers now.
+    // Rated exercises that were done; the block's RPE is their average.
+    const countOf = (c: SheetCard) => sheetCounts[c.id] ?? (c.ticked > 0 ? c.ticked : c.plan);
+    const exerciseRpe = done
+      ? ratingsFor(logExerciseRpe, m.cards.filter(c => c.askRpe && countOf(c) > 0).map(c => c.id))
+      : {};
+    const blockRpe = averageRpe(exerciseRpe) ?? logRpe;
       let finalNotes = '';
       if (done && m.kind === 'amrap') {
         const v = sheetAmrap.reps > 0 ? `${sheetAmrap.rounds} + ${sheetAmrap.reps}` : `${sheetAmrap.rounds}`;
@@ -1681,7 +1693,8 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         p_block_id: blockId,
         p_status: logStatus,
         p_feel: done ? logFeel : null,
-        p_rpe: done ? logRpe : null,
+        p_rpe: done ? blockRpe : null,
+        p_exercise_rpe: Object.keys(exerciseRpe).length > 0 ? exerciseRpe : null,
         p_missed_reason: done ? null : logMissedReason,
         // The sheet has one note; for a skip it's the missed detail.
         p_missed_detail: done ? null : logNotes.trim() || null,
@@ -1724,7 +1737,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
           );
         }
         if (logFeel) parts.push(t(`logModal.feel_${logFeel}`));
-        if (logRpe) parts.push(`RPE ${logRpe}`);
+        if (blockRpe) parts.push(`RPE ${blockRpe}`);
       } else if (logMissedReason) {
         parts.push(t('logSheet.summaryMissed', { reason: t(`logModal.missed_${logMissedReason}`) }));
       }
@@ -2472,6 +2485,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       )}
 
     </KeyboardAvoidingView>
+            exerciseRpe={logExerciseRpe}
+            setExerciseRpe={(id, n) => setLogExerciseRpe(prev => {
+              const { [id]: _old, ...rest } = prev;
+              return n == null ? rest : { ...rest, [id]: n };
+            })}
     </GlobalErrorBoundary>
   );
 }
