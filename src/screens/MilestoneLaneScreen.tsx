@@ -184,8 +184,10 @@ function hashString(s: string): number {
 
 // Deterministic per `seed`, not Math.random() -- a re-rolled random pick
 // would visibly flicker the photo on every re-render otherwise.
-function pickFromPool(pool: ImageSourcePropType[], seed: string): ImageSourcePropType {
-  return pool[hashString(seed) % pool.length];
+// `avoid` is the card above's photo: a match moves on to the pool's next one.
+function pickFromPool(pool: ImageSourcePropType[], seed: string, avoid?: ImageSourcePropType): ImageSourcePropType {
+  const index = hashString(seed) % pool.length;
+  return pool[index] === avoid ? pool[(index + 1) % pool.length] : pool[index];
 }
 
 // Training-day photo picked from what the day is actually made of, not a
@@ -199,14 +201,30 @@ const PUSH_KEYWORDS = /push[\s-]?up|\bpush\b|\bdip\b|\bpress\b/i;
 const LOWER_BODY_KEYWORDS = /\bsquat|\blunge|\bpistol|\blegs?\b|lower[\s-]?body|\bquads?\b|hamstring|\bdeadlift|\bcalf|\bcalves\b|\bglute|\bnordic|step[\s-]?up/i;
 const PULL_KEYWORDS = /pull[\s-]?up|\bpull\b|\brow\b|chin[\s-]?up|\blat\b|muscle[\s-]?up/i;
 
-function pickDayCardImage(day: ProgramDay, seed: string, images: CardImageSet): ImageSourcePropType {
+function pickDayCardImage(day: ProgramDay, seed: string, images: CardImageSet, avoid?: ImageSourcePropType): ImageSourcePropType {
   // The day's own name too ("LEGS", "Lower Body") -- the Journey lane loads
   // block names only (exercises: []), so for most days it's the only signal.
   const text = `${day.name} ${day.blocks.map((b) => `${b.name} ${b.exercises.map((e) => e.name).join(' ')}`).join(' ')}`;
-  if (PUSH_KEYWORDS.test(text)) return pickFromPool(images.push, seed);
-  if (LOWER_BODY_KEYWORDS.test(text)) return pickFromPool(images.legs, seed);
-  if (PULL_KEYWORDS.test(text)) return pickFromPool(images.pull, seed);
-  return pickFromPool(images.random, seed);
+  if (PUSH_KEYWORDS.test(text)) return pickFromPool(images.push, seed, avoid);
+  if (LOWER_BODY_KEYWORDS.test(text)) return pickFromPool(images.legs, seed, avoid);
+  if (PULL_KEYWORDS.test(text)) return pickFromPool(images.pull, seed, avoid);
+  return pickFromPool(images.random, seed, avoid);
+}
+
+// Every day card's photo, in lane order so no two neighbours match, across
+// week boundaries too. lastPhoto is for the Strength Trial card below them.
+function assignDayCardImages(weeks: JourneyWeekData[], images: CardImageSet) {
+  const photos = new Map<string, ImageSourcePropType>();
+  let lastPhoto: ImageSourcePropType | undefined;
+  weeks.forEach((week) => {
+    week.days.forEach((d) => {
+      // Program index, not lane position -- a switched day keeps its photo
+      // unless its new neighbour has the same one.
+      lastPhoto = pickDayCardImage(d.day, `w${week.weekNumber}-d${d.index}-${d.day.name}`, images, lastPhoto);
+      photos.set(`${week.weekNumber}-${d.index}`, lastPhoto);
+    });
+  });
+  return { photos, lastPhoto };
 }
 
 // Design tokens per assets/design_handoff_milestone_lane — with the color/font
@@ -603,7 +621,7 @@ function JourneyCardBody({
             milestoneCardImage below uses this exact technique already. */}
         {!!image && (
           <View style={styles.finishedCardThumbWrap}>
-            <Image source={image} style={styles.finishedCardThumb} resizeMode="cover" />
+            <Image source={image} style={[styles.finishedCardThumb, isRTL && mirrorPhotoInRTL && FLIP_X]} resizeMode="cover" />
             {/* Fades the photo's left edge into the card's own background
                 instead of a hard vertical cut where it meets the text. */}
             <LinearGradient
@@ -613,13 +631,22 @@ function JourneyCardBody({
               // Arabic the thumb sits on the left, so the text-facing edge
               // is its right one.
               start={{ x: isRTL ? 1 : 0, y: 0.5 }}
-              end={{ x: 0.5, y: 0.5 }}
+              // Shorter in light mode, so the white doesn't cover the athlete.
+              end={{ x: isLight ? (isRTL ? 0.7 : 0.3) : 0.5, y: 0.5 }}
               style={StyleSheet.absoluteFill}
             />
             <View style={styles.finishedCardThumbBadge}>
               <MaterialCommunityIcons name="check" size={11} color="#FFFFFF" />
             </View>
           </View>
+        )}
+        {isLight && (
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)']}
+            locations={[0.68, 1]}
+            style={StyleSheet.absoluteFill}
+          />
         )}
         <View pointerEvents="none" style={styles.finishedCardBorder} />
       </View>
@@ -944,7 +971,7 @@ function ProgramChoiceCard({ icon, title, desc, onPress, showProBadge, showFreeB
   );
 }
 
-function DayNode({ number, state, title, day, seed, isLast, containerRef, onPress, onSwitchDay, attachedQuest, doneTodayPoints, glowSignal }: {
+function DayNode({ number, state, title, image, isLast, containerRef, onPress, onSwitchDay, attachedQuest, doneTodayPoints, glowSignal }: {
   number: number;
   // 'complete' (already resolved, kept visible as history), 'active' (the
   // one current pointer position — the only one actually startable), or
@@ -953,14 +980,8 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   // applies, only visibility changed per direct request).
   state: NodeState;
   title: string;
-  // Real block/exercise data for this day, used to pick a push/pull/lower-
-  // body photo (see pickDayCardImage) and the stat pills (duration/movement
-  // count) -- not just for display.
-  day: ProgramDay;
-  // Distinguishes this day from others sharing the same day.name across
-  // different weeks (e.g. every week's "DAY 1"), so they don't all land on
-  // the same pool index -- see pickFromPool.
-  seed: string;
+  // From assignDayCardImages, so it can differ from the card above it.
+  image?: ImageSourcePropType;
   isLast: boolean;
   containerRef?: React.Ref<View>;
   onPress: () => void;
@@ -975,7 +996,6 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
   // afterDayIndex. Rendered below the card by NodeRow.
   attachedQuest?: AttachedQuestData;
 }) {
-  const cardImages = useCardImages();
   return (
     <TouchableOpacity ref={containerRef} activeOpacity={0.7} onPress={onPress} disabled={state === 'locked'}>
       <NodeRow
@@ -992,7 +1012,7 @@ function DayNode({ number, state, title, day, seed, isLast, containerRef, onPres
             : t('journey.dayLocked')
         }
         glowSignal={glowSignal}
-        image={pickDayCardImage(day, seed, cardImages)}
+        image={image}
         ctaLabel={state === 'active' ? t('journey.startNow') : undefined}
         onPressCta={state === 'active' ? onPress : undefined}
         onPressSwitch={state === 'active' ? onSwitchDay : undefined}
@@ -2180,6 +2200,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
   // Trial/side-quest gating and the week-complete banner only ever look at
   // the latest (current) week — earlier weeks in the path are already done.
   const latestWeek = journeyData ? journeyData.weeks[journeyData.weeks.length - 1] ?? null : null;
+  const dayCardImages = journeyData ? assignDayCardImages(journeyData.weeks, cardImages) : null;
   // Strength Trial: every 2 weeks, starting from week 1 -- odd weeks (1, 3,
   // 5...) are trial weeks, per direct spec.
   const isTrialWeek = !!journeyData && journeyData.currentWeek % 2 === 1;
@@ -2996,9 +3017,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                           number={startNumber + i + 1}
                           state={dayState}
                           title={d.day.name.toUpperCase()}
-                          day={d.day}
-                          // Program index, not lane position -- a switched day keeps its photo.
-                          seed={`w${week.weekNumber}-d${d.index}-${d.day.name}`}
+                          image={dayCardImages?.photos.get(`${week.weekNumber}-${d.index}`)}
                           isLast={false}
                           containerRef={isDayPointer ? activeStepRef : undefined}
                           onPress={() =>
@@ -3080,7 +3099,7 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         : eternityDone ? t('trialSteps.eternityReplayReady') : t('journey.trialReady'))
                       : t('journey.trialLocked')
                   }
-                  image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`)}
+                  image={pickFromPool(cardImages.random, `strength-trial-${journeyData.currentWeek}`, dayCardImages?.lastPhoto)}
                   ctaLabel={climbProgressPending && !trialResolved
                     ? (stepProgressFailed ? t('trialSteps.retryLoad') : undefined)
                     : t('journey.start')}
