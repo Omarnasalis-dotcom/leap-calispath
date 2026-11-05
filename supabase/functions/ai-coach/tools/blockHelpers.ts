@@ -1378,10 +1378,9 @@ export async function fetchLoggedWeights(userClient: { from: (t: string) => any 
 // import-free and Jest-testable without Deno.
 //
 // Fetches the athlete's real numbers itself (assessmentRaw + recent
-// workout_set_logs) rather than trusting whatever the model reports in the
-// brief — same principle as resolveExerciseIds not trusting a model-typed
-// exercise id. A hallucinated "10 pull-ups" in the brief cannot become a
-// false pass here; only what's actually in assessment_raw can.
+// workout_set_logs). The one thing it takes from the brief is the strict
+// maxes the athlete confirmed for this build (see newerMax), which is the
+// owner's rule: the athlete's newer word wins over the assessment.
 // Which strict max the safety check uses (2026-11-04, owner): the numbers
 // confirmed for this build, then the athlete's saved current_maxes when
 // they are newer than the assessment, then the onboarding assessment. The

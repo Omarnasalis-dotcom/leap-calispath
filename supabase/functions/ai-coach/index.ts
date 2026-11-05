@@ -758,6 +758,7 @@ serve(async (req: Request) => {
     // action below. correctionAttempted bounds the self-correction nudge to
     // once per request so a model that fails it twice doesn't loop forever.
     const calledWriteTools = new Set<string>();
+    let athleteUpdateSaved = false;
     let correctionAttempted = false;
     let cardClaimChecked = false;
 
@@ -917,7 +918,7 @@ serve(async (req: Request) => {
         // have had its own real tool call attached (that's what stop_reason
         // "tool_use" means) and joining would dilute the signal. Only fires
         // when no write tool has run anywhere in this request yet.
-        const looksUnacted = calledWriteTools.size === 0 && detectUnactedClaim(turnText);
+        const looksUnacted = calledWriteTools.size === 0 && detectUnactedClaim(turnText, athleteUpdateSaved);
         if (looksUnacted && !correctionAttempted) {
           correctionAttempted = true;
           turnLog.unacted = true;
@@ -999,6 +1000,7 @@ serve(async (req: Request) => {
           console.log(`[ai-coach]   tool ${block.name} ${Date.now() - toolStart}ms`);
           turnLog.tools.push(traceTool(block.name, block.input, Date.now() - toolStart, { result }));
           if (WRITE_TOOL_NAMES.has(block.name)) calledWriteTools.add(block.name);
+          if (block.name === "save_athlete_update") athleteUpdateSaved = true;
           if (block.name === "recommend_test") recommendations.push(result);
           if (block.name === "attach_stat_bars" || block.name === "attach_steps") blocks.push(result);
           if (block.name === "suggest_replies") suggestedReplies = (result as { replies: string[] }).replies;

@@ -26,19 +26,34 @@ const CLAIM_PATTERNS: RegExp[] = [
   // through. Safe to widen — index.ts only runs this guard when no write
   // tool was called in the request, so an honest post-tool reply never trips it.
   /\bI('ve| have)\s+(built|created|started|ended|deleted|removed|added|adjusted|updated|swapped|replaced)\s+((your|the|that|this)\s+)?(program|week|day|block|exercise)\b/i,
+  // Arabic: "برنامجك جاهز" (your program is ready)
+  /برنامجك\s*(جاهز|جاهزة|اتعمل|إتعمل)/,
+];
+
+// These don't say WHAT was added or changed, so they also fit an honest reply
+// after save_athlete_update ("**rings** added.", "تم تعديل معداتك").
+const GENERIC_CLAIM_PATTERNS: RegExp[] = [
   // The app's own confirmation shape, "**PUSH DAY** added." — copied by the
   // model live on 2026-11-04 with no tool call (see appNotes.ts).
   /\*\*[^*\n]{1,60}\*\*\s*(added|updated)\s*[.!]/i,
   /(تمت\s*إضافة|تم\s*تحديث)\s*\*\*/,
-  // Arabic: "تم بناء/إضافة/حذف/تعديل" (was built/added/deleted/adjusted), "برنامجك جاهز" (your program is ready)
+  // Arabic: "تم بناء/إضافة/حذف/تعديل" (was built/added/deleted/adjusted)
   /تم\s*(بناء|إضاف|حذف|تعديل|إنشاء|إنهاء)/,
-  /برنامجك\s*(جاهز|جاهزة|اتعمل|إتعمل)/,
 ];
 
-export function detectUnactedClaim(text: string): boolean {
+const ABOUT_TRAINING = /\b(programs?|weeks?|days?|blocks?|workouts?|sessions?|exercises?)\b|برنامج|أسبوع|اسبوع|يوم|بلوك|تمرين|تمارين/i;
+
+// athleteUpdateSaved: save_athlete_update ran in this request, so a generic
+// "added/updated" is only a claim when its sentence is about training. It
+// isn't a write tool (it changes no program), so every other claim still counts.
+export function detectUnactedClaim(text: string, athleteUpdateSaved = false): boolean {
   const trimmed = text.trim();
   if (!trimmed) return false;
-  return CLAIM_PATTERNS.some((re) => re.test(trimmed));
+  if (CLAIM_PATTERNS.some((re) => re.test(trimmed))) return true;
+  if (!athleteUpdateSaved) return GENERIC_CLAIM_PATTERNS.some((re) => re.test(trimmed));
+  return trimmed
+    .split(/(?<=[.!?؟])\s+|\n+/)
+    .some((sentence) => ABOUT_TRAINING.test(sentence) && GENERIC_CLAIM_PATTERNS.some((re) => re.test(sentence)));
 }
 
 // Second check, for a request that DID show a card (2026-10-30, owner's

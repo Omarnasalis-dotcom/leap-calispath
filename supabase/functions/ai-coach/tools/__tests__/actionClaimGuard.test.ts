@@ -89,3 +89,33 @@ describe("detectPendingCardClaim (2026-10-30, owner's add-a-day chat)", () => {
     expect(detectPendingCardClaim("الكارت جاهز، دوس عليه عشان تضيف اليوم.")).toBe(false);
   });
 });
+
+// Live rule: the coach says it'll remember, but "**rings** added." is a fair
+// thing to say right after save_athlete_update really saved it.
+describe("detectUnactedClaim — after save_athlete_update ran in this request", () => {
+  it.each([
+    "Got it, **rings** added.",
+    "Noted, **15 pull-ups** updated.",
+    "تمت إضافة **الحلقات** لمعداتك.",
+    "تم تعديل معداتك، هفتكرها.",
+    "تم تحديث **أرقامك**.",
+  ])("an honest save reply passes: %s", (text) => {
+    expect(detectUnactedClaim(text, true)).toBe(false);
+    expect(detectUnactedClaim(text)).toBe(true); // still caught with no save
+  });
+
+  it.each([
+    "Noted your rings. Week 2 is built, go log it!",
+    "Your program is live now.",
+    "I've added the day you asked for.",
+    "**PUSH DAY** added.",
+    "Rings saved. **Week 3 program** updated.",
+    "تم بناء الأسبوع التاني",
+    "تم إضافة يوم جديد",
+    "تم تعديل البرنامج",
+    "تمت إضافة **يوم الدفع**.",
+    "برنامجك جاهز يا بطل",
+  ])("a claim about training is still caught: %s", (text) => {
+    expect(detectUnactedClaim(text, true)).toBe(true);
+  });
+});
