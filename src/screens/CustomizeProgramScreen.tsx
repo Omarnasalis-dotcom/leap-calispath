@@ -168,7 +168,9 @@ function WorkoutCardVisual({
           </View>
         ) : (
           <View style={styles.addBadge}>
-            <MaterialCommunityIcons name="plus" size={14} color={c.coral} />
+            {/* Black on solid coral, like the Day badge it turns into: a see-through
+                circle went grey over the white covers and hid the coral plus. */}
+            <MaterialCommunityIcons name="plus" size={20} color="#000" />
           </View>
         )}
         <View style={styles.topRightBadges}>
@@ -1312,10 +1314,7 @@ const getStyles = (c: TCPalette) => StyleSheet.create({
   dayBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: c.coral, borderRadius: 20, paddingHorizontal: 9, paddingVertical: 5 },
   dayBadgeText: { color: '#000', fontFamily: 'BarlowCondensed-Bold', fontSize: 10.5, letterSpacing: 0.5 },
   lockBadge: { width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)', alignItems: 'center', justifyContent: 'center' },
-  addBadge: {
-    width: 26, height: 26, borderRadius: 13, backgroundColor: 'rgba(0,0,0,0.55)',
-    borderWidth: 1.5, borderColor: c.coral, alignItems: 'center', justifyContent: 'center',
-  },
+  addBadge: { width: 30, height: 30, borderRadius: 15, backgroundColor: c.coral, alignItems: 'center', justifyContent: 'center' },
   topRightBadges: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   categoryBadge: { backgroundColor: 'rgba(0,0,0,0.5)', borderRadius: 6, paddingHorizontal: 8, paddingVertical: 4, maxWidth: 140 },
   // Always light — badge sits on the workout's cover photo/gradient, not the page bg.
