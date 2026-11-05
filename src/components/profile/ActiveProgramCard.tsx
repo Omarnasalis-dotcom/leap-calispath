@@ -4,7 +4,7 @@ import { t } from '../../i18n';
 import { useTheme } from '../../contexts/ThemeContext';
 
 const COVER_DARK = require('../../../assets/Milestone Cards/random/handstand.jpg');
-const COVER_LIGHT = require('../../../assets/Milestone Cards/light/push/incline-pushup.jpeg');
+const COVER_LIGHT = require('../../../assets/Milestone Cards/light-v2/pull/pull-up.jpeg');
 
 interface ActiveProgramCardProps {
   hasActiveProgram: boolean;
@@ -28,11 +28,11 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
   // While the lookup runs: the card's frame at its final height, no text —
   // so nothing below it jumps and no wrong CTA flashes.
   if (loading) {
-    return <PhotoActionCard photo={COVER} eyebrow="" title="" cta="" onPress={() => {}} loading />;
+    return <PhotoActionCard photo={COVER} nudgePhotoDown={isLight} shiftPhoto={isLight} eyebrow="" title="" cta="" onPress={() => {}} loading />;
   }
   return hasActiveProgram ? (
     <PhotoActionCard
-      photo={COVER}
+      photo={COVER} nudgePhotoDown={isLight} shiftPhoto={isLight}
      
       eyebrow={t('profile.activeUpNext')}
       title={(nextUpDayName || t('profile.weekComplete')).toUpperCase()}
@@ -41,7 +41,7 @@ export function ActiveProgramCard({ hasActiveProgram, nextUpDayName, onContinue,
     />
   ) : (
     <PhotoActionCard
-      photo={COVER}
+      photo={COVER} nudgePhotoDown={isLight} shiftPhoto={isLight}
      
       eyebrow={t('profile.noActiveProgram')}
       title={t('profile.startTraining')}

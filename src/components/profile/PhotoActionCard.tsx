@@ -28,6 +28,10 @@ interface PhotoActionCardProps {
   loading?: boolean;
   /** Photo opacity over the card's base (#0F0F0F dark, white light) — defaults to 0.7 dark, 1 light. */
   photoOpacity?: number;
+  /** Moves the photo's centered crop down 23% of the card's height. */
+  nudgePhotoDown?: boolean;
+  /** Moves the photo away from the text, for a white-background photo: the gap it leaves matches the card. */
+  shiftPhoto?: boolean;
 }
 
 function ChevronRight({ color }: { color: string }) {
@@ -43,25 +47,44 @@ function ChevronRight({ color }: { color: string }) {
  * Challenge): dimmed photo, coral stripe, eyebrow + title header, and a
  * full-width CTA.
  */
-export function PhotoActionCard({ photo, eyebrow, title, cta, onPress, loading, photoOpacity }: PhotoActionCardProps) {
+export function PhotoActionCard({ photo, eyebrow, title, cta, onPress, loading, photoOpacity, nudgePhotoDown, shiftPhoto }: PhotoActionCardProps) {
   const isLight = useTheme().mode === 'light';
   const opacity = photoOpacity ?? (isLight ? 1 : undefined);
   return (
     <View style={[styles.card, isLight && styles.cardLight]}>
       {/* Mirrored in Arabic (FLIP_X) along with the rest of the card, so the
           photo keeps the same composition against the stripe and text. */}
-      <Image source={photo} resizeMode="cover" style={[styles.bgPhoto, opacity != null && { opacity }, FLIP_X]} />
-      {isLight && (
-        // White wash from the text side (right in Arabic -- gradient
-        // coordinates aren't layout-mirrored), photo bright on the far side.
+      <Image source={photo} resizeMode="cover" style={[styles.bgPhoto, nudgePhotoDown && styles.bgPhotoNudged, shiftPhoto && styles.bgPhotoShifted, opacity != null && { opacity }, FLIP_X]} />
+      {shiftPhoto && (
         <LinearGradient
           pointerEvents="none"
-          colors={['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
-          locations={[0, 0.35, 0.68]}
+          colors={['#FFFFFF', 'rgba(255,255,255,0)']}
+          // Physical, not layout-mirrored: in Arabic this edge faces right.
           start={{ x: isRTL ? 1 : 0, y: 0.5 }}
           end={{ x: isRTL ? 0 : 1, y: 0.5 }}
-          style={StyleSheet.absoluteFill}
+          style={styles.bgPhotoEdgeFade}
         />
+      )}
+      {isLight && (
+        // White wash from the text side (right in Arabic -- gradient
+        // coordinates aren't layout-mirrored), photo bright on the far side,
+        // plus the Journey cards' slight shadow along the bottom edge.
+        <>
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(255,255,255,0.8)', 'rgba(255,255,255,0.55)', 'rgba(255,255,255,0)']}
+            locations={[0, 0.35, 0.68]}
+            start={{ x: isRTL ? 1 : 0, y: 0.5 }}
+            end={{ x: isRTL ? 0 : 1, y: 0.5 }}
+            style={StyleSheet.absoluteFill}
+          />
+          <LinearGradient
+            pointerEvents="none"
+            colors={['rgba(0,0,0,0)', 'rgba(0,0,0,0.3)']}
+            locations={[0.68, 1]}
+            style={StyleSheet.absoluteFill}
+          />
+        </>
       )}
       <View style={styles.stripe} />
 
@@ -103,6 +126,24 @@ const styles = StyleSheet.create({
     width: undefined,
     height: undefined,
     opacity: 0.7,
+  },
+  // Taller, not moved: the crop's center drops by half of this, with no gap
+  // at the top of the card.
+  bgPhotoNudged: {
+    bottom: '-46%',
+  },
+  // left flips in Arabic, so the photo moves away from the text there too.
+  bgPhotoShifted: {
+    left: '24%',
+    right: '-24%',
+  },
+  // Hides the seam between the photo's near-white background and the card.
+  bgPhotoEdgeFade: {
+    position: 'absolute',
+    top: 0,
+    bottom: 0,
+    left: '24%',
+    width: 28,
   },
   stripe: {
     position: 'absolute',
