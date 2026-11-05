@@ -110,7 +110,7 @@ export interface LivePlayerBoardRow {
   is_mine: boolean;
 }
 
-/** get_live_team_board: each group of players' best side, scored as points per player. */
+/** get_live_team_board: each group of players' best side, ranked by points per player (the app shows `total`). */
 export interface LiveTeamBoardRow {
   rank: number;
   room_id: string;

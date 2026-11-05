@@ -335,7 +335,8 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
         key: `${r.room_id}-${r.side}`,
         place: r.rank,
         name: r.team_name || sideLabel(r.side),
-        score: formatPts(r.points_per_player),
+        // Ranked by points per player on the server; the team's sum is what people read.
+        score: formatPts(r.total),
         mine: r.is_mine,
         sub: r.members.map(m => m.display_name || tr('team.deletedUser')).join(' · '),
       }));
@@ -346,11 +347,13 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
         user_id: r.user_id, username: r.display_name || tr('team.deletedUser'), score: r.points, sub: r.team_name ?? undefined, place: r.rank,
       }))
     : (teams ?? []).map(r => ({
-        user_id: `${r.room_id}-${r.side}`, username: r.team_name || sideLabel(r.side), score: r.points_per_player,
+        user_id: `${r.room_id}-${r.side}`, username: r.team_name || sideLabel(r.side), score: r.total,
         sub: r.members.map(m => m.display_name || tr('team.deletedUser')).join(' · '), place: r.rank,
       }));
   const myTeam = teams?.find(r => r.is_mine);
   const myShareId = kind === 'players' ? players?.find(r => r.is_mine)?.user_id : myTeam && `${myTeam.room_id}-${myTeam.side}`;
+  // A 3-player total minus a 2-player total isn't a real gap to first place.
+  const mixedSizeGap = kind === 'teams' && !!myTeam && !!teams?.length && myTeam.player_count !== teams[0].player_count;
 
   return (
     <View style={{ paddingTop: 28, gap: 12 }}>
@@ -394,6 +397,7 @@ function LiveBoards({ tokens: t, challengeId, challengeTitle }: { tokens: Weekly
         rows={shareRows}
         myId={myShareId}
         myName={kind === 'players' ? profile?.display_name || tr('weekly.warrior') : tr('leaderboardShare.yourTeam')}
+        hideGap={mixedSizeGap}
       />
     </View>
   );

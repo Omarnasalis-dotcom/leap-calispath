@@ -40,7 +40,7 @@ Players in the same place play a live match against each other, in sides, over 2
 - **Rep counter during a half:** −1 / +1 / +5 / +10 per exercise, capped at the max, private to the phone (saved in AsyncStorage), and it pre-fills the log when time is up.
 - **Final celebration:** sides land from last to first, then the winner pops with confetti, a haptic and the bell, then the best player card; tap to skip; reduce motion jumps to the end. One Reanimated clock (no mixed drivers).
 
-- **Public leaderboard per challenge** *(replaces "no global leaderboard in v1")*: in the LIVE tab under the challenge, with PLAYERS and TEAMS tabs on the podium layout. Only rooms that played every half count. Players: each player's best total; "hide me from leaderboards" is honoured. Teams: each side scored as points per player (fair across 2 v 2 / 3 v 3); the same group of players keeps only its best entry. Top 100 + your own row. Migration `20261023130000_live_challenge_boards.sql`.
+- **Public leaderboard per challenge** *(replaces "no global leaderboard in v1")*: in the LIVE tab under the challenge, with PLAYERS and TEAMS tabs on the podium layout. Only rooms that played every half count. Players: each player's best total; "hide me from leaderboards" is honoured. Teams: each side ranked by points per player (fair across 2 v 2 / 3 v 3) but shown as the team's total only (owner, 2026-11-05); the same group of players keeps only its best entry. Top 100 + your own row. Migration `20261023130000_live_challenge_boards.sql`.
 
 ## 2b. Lost connection, locked phone, leaving the app *(owner, 2026-10-22)*
 

@@ -211,7 +211,7 @@ export class LiveTournamentService {
     return (rows ?? []).map(r => ({ ...r, rank: Number(r.rank), points: Number(r.points) }));
   }
 
-  /** Public board: each group of players' best side, as points per player. */
+  /** Public board: each group of players' best side, ranked by points per player. */
   static async getTeamBoard(challengeId: string): Promise<LiveTeamBoardRow[]> {
     const rows = await rpc<LiveTeamBoardRow[]>('get_live_team_board', { p_challenge_id: challengeId });
     return (rows ?? []).map(r => ({

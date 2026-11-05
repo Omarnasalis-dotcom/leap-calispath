@@ -565,9 +565,10 @@ describe('LiveHub', () => {
     const teamsTab = r.root.findAll(n => n.props.accessibilityRole === 'tab' && texts(n.children as any).join('').includes('TEAMS'))[0];
     await act(async () => { teamsTab.props.onPress(); });
     text = allText(r);
-    expect(text).toContain('Scored as points per player');
+    expect(text).toContain('Ranked by points per player');
     expect(text).toContain('Iron Wolves');
-    expect(text).toContain('305 PTS');
+    expect(text).toContain('610 PTS'); // the team's sum is the score
+    expect(text).not.toContain('305');
     expect(text).toContain('Omar · Sara'); // players under the top-3 team
   });
 
@@ -630,9 +631,39 @@ describe('LiveHub', () => {
     await act(async () => { teamsTab.props.onPress(); });
     await act(async () => { shareIcon().props.onPress(); });
     text = allText(r);
-    expect(text).toContain('TEAMS · POINTS PER PLAYER');
-    expect(text).toContain('305.5');
+    expect(text).toContain('TEAMS · TOTAL POINTS');
+    expect(text).toContain('611');
+    expect(text).not.toContain('305.5');
     expect(text.split('Omar · Sara').length - 1).toBe(2); // board + card podium
+  });
+
+  it('team board share: the gap to first is the sum difference, and hidden across team sizes', async () => {
+    const team = (rank: number, side: number, name: string, ids: string[], total: number, mine: boolean) => ({
+      rank, room_id: 'r1', side, team_name: name, members: ids.map(id => ({ user_id: id, display_name: id })),
+      player_count: ids.length, total, points_per_player: total / ids.length, achieved_at: iso(-1), is_mine: mine,
+    });
+    mockService.getOpenChallenges.mockResolvedValue([CHALLENGE]);
+    mockService.getMyRoom.mockResolvedValue(null);
+    mockService.getHistory.mockResolvedValue([]);
+    mockService.getPlayerBoard.mockResolvedValue([]);
+
+    const openTeamShare = async () => {
+      const r = await render(<LiveHub tokens={t} onBack={() => {}} modeSlot={null} />);
+      const tab = r.root.findAll(n => n.props.accessibilityRole === 'tab' && texts(n.children as any).join('').includes('TEAMS'))[0];
+      await act(async () => { tab.props.onPress(); });
+      await act(async () => { r.root.findAll(n => n.props.accessibilityLabel === 'Share leaderboard' && n.props.onPress)[0].props.onPress(); });
+      return allText(r);
+    };
+
+    // Same size: a real gap.
+    mockService.getTeamBoard.mockResolvedValue([team(1, 1, 'Lions', ['a', 'b'], 700, false), team(2, 2, 'Wolves', ['me', 'c'], 600, true)]);
+    expect(await openTeamShare()).toContain('−100 PTS | TO #1');
+
+    // A 3-player team ranked 2nd with the higher total: no made-up gap.
+    mockService.getTeamBoard.mockResolvedValue([team(1, 1, 'Lions', ['a', 'b'], 700, false), team(2, 2, 'Wolves', ['me', 'c', 'd'], 900, true)]);
+    const text = await openTeamShare();
+    expect(text).toContain('900');
+    expect(text).not.toContain('TO #1');
   });
 });
 

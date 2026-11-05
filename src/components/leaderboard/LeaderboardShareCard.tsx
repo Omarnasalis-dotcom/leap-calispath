@@ -38,6 +38,8 @@ export interface LeaderboardShareCardProps {
   myName: string;
   /** Live only: shown instead of the YOU row, under sides 4+ (rows past the podium). */
   match?: LiveShareMatch;
+  /** The scores can't be subtracted (Live Teams, different team sizes): no "TO 1ST" line. */
+  hideGap?: boolean;
 }
 
 export interface LiveShareMatch {
@@ -434,7 +436,7 @@ export function LeaderboardShareCard(props: LeaderboardShareCardProps) {
  * One Reanimated clock drives the whole timeline.
  */
 function LeaderboardShareModal({
-  onClose, variant, title, subLine, live = true, communityScoped, scoreType, rows, myId, myName, match,
+  onClose, variant, title, subLine, live = true, communityScoped, scoreType, rows, myId, myName, match, hideGap,
 }: LeaderboardShareCardProps) {
   const { mode } = useTheme();
   const tk = useMemo(() => getLBTokens(variant, mode), [variant, mode]);
@@ -660,10 +662,12 @@ function LeaderboardShareModal({
                     {ranked && !!unit && <Text style={kt('medium', 9, tk.t4, 1.2)}>{unit}</Text>}
                   </View>
                 </View>
-                <View style={{ marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: tk.youDivider, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-                  {!!gapNum && <Text style={[kt('semibold', 11, gapColor, 1), { fontVariant: ['tabular-nums'] }]}>{ltr(gapNum)}</Text>}
-                  <Text style={kt('semibold', isArabic ? 12 : 11, gapColor, 1.8)}>{gapLabel}</Text>
-                </View>
+                {!(hideGap && ranked && you.rank! > 1) && (
+                  <View style={{ marginTop: 10, paddingTop: 9, borderTopWidth: 1, borderTopColor: tk.youDivider, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                    {!!gapNum && <Text style={[kt('semibold', 11, gapColor, 1), { fontVariant: ['tabular-nums'] }]}>{ltr(gapNum)}</Text>}
+                    <Text style={kt('semibold', isArabic ? 12 : 11, gapColor, 1.8)}>{gapLabel}</Text>
+                  </View>
+                )}
               </Animated.View>
               )}
 
