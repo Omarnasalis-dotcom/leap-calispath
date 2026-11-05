@@ -60,12 +60,35 @@ describe('pollForResult', () => {
     expect(c.now() - start).toBeLessThan(20_000);
   });
 
-  it('gives up quickly while offline too', async () => {
+  it('stops waiting quickly while offline, but says so: the answer may be on the server', async () => {
     const c = clock();
     const start = c.now();
     const r = await pollForResult(start, { fetchRow: async () => { throw new Error('Network request failed'); }, sleep: c.sleep, now: c.now });
-    expect(r).toEqual({ kind: 'unknown' });
+    expect(r).toEqual({ kind: 'offline' });
     expect(c.now() - start).toBeLessThan(20_000);
+  });
+
+  it('reports no row, not offline, when the signal came back and the server has nothing', async () => {
+    const c = clock();
+    let calls = 0;
+    const fetchRow = async (): Promise<StoredRow> => { calls += 1; if (calls < 3) throw new Error('offline'); return null; };
+    expect(await pollForResult(c.now(), { fetchRow, sleep: c.sleep, now: c.now })).toEqual({ kind: 'unknown' });
+  });
+
+  it('does not call a turn failed when the signal is gone at the time limit', async () => {
+    const c = clock();
+    const start = c.now();
+    const rows: StoredRow[] = [{ status: 'running', payload: null }];
+    const fetchRow = async (): Promise<StoredRow> => { if (rows.length) return rows.shift()!; throw new Error('offline'); };
+    expect(await pollForResult(start, { fetchRow, sleep: c.sleep, now: c.now })).toEqual({ kind: 'offline' });
+    expect(c.now() - start).toBeGreaterThanOrEqual(RESULT_WAIT_MS);
+  });
+
+  it('stays offline, after one ask, when reopened long after with still no signal', async () => {
+    const c = clock();
+    const fetchRow = jest.fn(async (): Promise<StoredRow> => { throw new Error('offline'); });
+    expect(await pollForResult(c.now() - 30 * 60 * 1000, { fetchRow, sleep: c.sleep, now: c.now })).toEqual({ kind: 'offline' });
+    expect(fetchRow).toHaveBeenCalledTimes(1);
   });
 
   it('keeps waiting while the server is still building, then gives up after the platform limit', async () => {
@@ -135,6 +158,21 @@ describe('deliverWithRecovery', () => {
     const err = new Error('Network request failed');
     s.call.reject(err);
     await expect(s.p).rejects.toBe(err);
+  });
+
+  it('shows the original error when the lookups ran out offline', async () => {
+    const s = setup({ recover: async () => ({ kind: 'offline' }) });
+    const err = new Error('Network request failed');
+    s.call.reject(err);
+    await expect(s.p).rejects.toBe(err);
+  });
+
+  it('keeps waiting for the stream when a wake finds no signal', async () => {
+    const s = setup({ recover: async () => ({ kind: 'offline' }) });
+    s.wake();
+    await flush();
+    s.call.resolve('streamed');
+    await expect(s.p).resolves.toBe('streamed');
   });
 
   it('does not wait on the store for an error the server itself answered', async () => {

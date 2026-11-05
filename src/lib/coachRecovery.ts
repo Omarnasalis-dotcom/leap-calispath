@@ -33,7 +33,10 @@ export type Recovery =
   // The server says the turn failed, or it can no longer be running.
   | { kind: 'failed' }
   // No row ever seen: the message may never have reached the server.
-  | { kind: 'unknown' };
+  | { kind: 'unknown' }
+  // Stopped waiting with no signal: the server may well have the answer, so
+  // the caller keeps the in-flight marker and the next chat open collects it.
+  | { kind: 'offline' };
 
 export interface PollDeps {
   fetchRow: () => Promise<StoredRow>;
@@ -49,20 +52,26 @@ export interface PollDeps {
 export async function pollForResult(startedAt: number, deps: PollDeps): Promise<Recovery> {
   const pollStart = deps.now();
   let seenRow = false;
+  let lookupFailed = false;
   for (;;) {
     if (deps.isCancelled?.()) return { kind: 'unknown' };
     let row: StoredRow = null;
     try {
       row = await deps.fetchRow();
+      lookupFailed = false;
     } catch {
-      // Still offline: treated like "no row yet".
+      // Still offline: no answer from the server, so nothing can be concluded.
+      lookupFailed = true;
     }
     if (row?.status === 'done') return { kind: 'done', payload: row.payload };
     if (row?.status === 'failed') return { kind: 'failed' };
     if (row) seenRow = true;
     const now = deps.now();
-    if (now - startedAt >= RESULT_WAIT_MS) return seenRow ? { kind: 'failed' } : { kind: 'unknown' };
-    if (!seenRow && now - pollStart >= NO_ROW_GIVE_UP_MS) return { kind: 'unknown' };
+    if (now - startedAt >= RESULT_WAIT_MS) {
+      if (lookupFailed) return { kind: 'offline' };
+      return seenRow ? { kind: 'failed' } : { kind: 'unknown' };
+    }
+    if (!seenRow && now - pollStart >= NO_ROW_GIVE_UP_MS) return lookupFailed ? { kind: 'offline' } : { kind: 'unknown' };
     await deps.sleep(POLL_INTERVAL_MS);
   }
 }

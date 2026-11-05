@@ -392,9 +392,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     activeRequestRef.current = found.id;
     setLoading(true);
     setStages([RECOVERING_STAGE]);
+    let stillOffline = false;
     try {
       const r = await collectAnswer(found.id, found.startedAt);
       if (activeRequestRef.current !== found.id) return;
+      stillOffline = r.kind === 'offline';
       if (r.kind === 'done') {
         const msg = applyResult(toStreamResult(r.payload), 'Something went wrong on my end and that came back empty — ask me again and I\'ll pick it up.');
         setMessages((prev) => {
@@ -411,7 +413,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     } finally {
       if (mountedRef.current && activeRequestRef.current === found.id) {
         activeRequestRef.current = null;
-        saveInflight(null);
+        if (!stillOffline) saveInflight(null);
       }
       setLoading(false);
       setStages([]);
@@ -648,11 +650,17 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     const startedAt = Date.now();
     activeRequestRef.current = requestId;
     await saveInflight({ id: requestId, startedAt, userMessage: finalInput });
+    let lookupOffline = false;
+    let keepInflight = false;
 
     try {
       const result = await deliverWithRecovery<StreamResult | null>({
         call: () => callAiCoach(newMsgs, (s) => setStages((prev) => [...prev, s]), requestId),
-        recover: () => collectAnswer(requestId, startedAt),
+        recover: async () => {
+          const r = await collectAnswer(requestId, startedAt);
+          lookupOffline = r.kind === 'offline';
+          return r;
+        },
         toResult: toStreamResult,
         onWake: (wake) => {
           // iOS can pass through 'inactive' on the way back, so remember the
@@ -680,17 +688,19 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       // never show it.
       console.error('Coach Send Error:', error);
       setConnectionStatus('offline');
+      keepInflight = lookupOffline;
       // Same reasoning as the reworded startSession fallback above.
       setMessages((prev) => [...prev, {
         role: 'assistant',
         content: t('coach.errReach'),
       }]);
     } finally {
-      // Left in place when the screen closed first: the answer was never
-      // saved to this chat, so the next open collects it.
+      // Left in place when the screen closed first, or when the wait ended
+      // with no signal: the answer was never saved to this chat, so the next
+      // open collects it (and replaces the error bubble).
       if (mountedRef.current && activeRequestRef.current === requestId) {
         activeRequestRef.current = null;
-        saveInflight(null);
+        if (!keepInflight) saveInflight(null);
       }
       sendingRef.current = false;
       setLoading(false);
