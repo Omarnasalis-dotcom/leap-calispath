@@ -49,6 +49,7 @@ import { needsCoachSetup } from '../lib/coachSetup';
 import { coachUsageWarning, rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
 import { useCoachUsage } from '../hooks/useCoachUsage';
 import { CoachUsageRing } from '../components/coach/CoachUsageRing';
+import { CoachLoadingLabel } from '../components/coach/CoachLoadingTime';
 import {
   coachServerError,
   deliverWithRecovery,
@@ -281,6 +282,11 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // Display only: never in the history sent to the AI Coach, and it can only
   // lift the lock below, never set it. The server judges every message.
   const usage = useCoachUsage(!!profile && !showSetup, loading);
+  // When this wait began, for the seconds counter. Survives the switch from
+  // the loader to the real steps, so the count covers the whole wait.
+  const loadingSinceRef = useRef<number | null>(null);
+  if (!loading) loadingSinceRef.current = null;
+  else if (loadingSinceRef.current === null) loadingSinceRef.current = Date.now();
   // A limit that has reset opens the chat without leaving the screen. Runs
   // only when the numbers change, so a refusal just received isn't undone by
   // the numbers from before it.
@@ -1061,10 +1067,10 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                   </View>
                 )}
                 {stages.length > 0 ? (
-                  <ActivityBubble stages={stages} accent={theme.accent} colors={c} />
+                  <ActivityBubble stages={stages} accent={theme.accent} colors={c} since={loadingSinceRef.current ?? Date.now()} />
                 ) : (
                   <View style={[styles.bubble, styles.assistantBubble, { backgroundColor: c.bubbleBg, borderColor: c.bubbleBorder }]}>
-                    <WaveLoadingIndicator accent={theme.accent} colors={c} />
+                    <WaveLoadingIndicator accent={theme.accent} colors={c} since={loadingSinceRef.current ?? Date.now()} />
                   </View>
                 )}
               </View>
@@ -1352,7 +1358,7 @@ const avatarStyles = StyleSheet.create({
 // family per the design handoff) — recolored from white to the accent
 // color since this sits on the bubble's neutral background, not on a
 // solid coral fill.
-function WaveLoadingIndicator({ accent, colors }: { accent: string; colors: CoachPalette }) {
+function WaveLoadingIndicator({ accent, colors, since }: { accent: string; colors: CoachPalette; since: number }) {
   const wave = useRef([0, 1, 2, 3].map(() => new Animated.Value(0))).current;
   useEffect(() => {
     const loops = wave.map((v, i) =>
@@ -1375,7 +1381,7 @@ function WaveLoadingIndicator({ accent, colors }: { accent: string; colors: Coac
           style={[waveStyles.bar, { backgroundColor: accent, height: v.interpolate({ inputRange: [0, 1], outputRange: [6, 16] }) }]}
         />
       ))}
-      <Text style={[waveStyles.label, { color: colors.secondaryText }]}>{t('coach.leaping')}</Text>
+      <CoachLoadingLabel since={since} color={colors.secondaryText} />
     </View>
   );
 }
@@ -1383,7 +1389,6 @@ function WaveLoadingIndicator({ accent, colors }: { accent: string; colors: Coac
 const waveStyles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingVertical: 2 },
   bar: { width: 3, borderRadius: 2 },
-  label: { fontSize: 11, fontWeight: '600', letterSpacing: 1.2, marginLeft: 8 },
 });
 
 const styles = StyleSheet.create({

@@ -17,6 +17,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, StyleSheet, Animated, Easing, AccessibilityInfo } from 'react-native';
 import { CoachPalette } from './coachTokens';
+import { CoachElapsed } from './CoachLoadingTime';
 import { t } from '../../i18n';
 
 export interface Stage {
@@ -60,7 +61,7 @@ export function stageVerb(verb: string): string {
   return t(`coachStages.${verb}` as 'coachStages.READING', { defaultValue: verb });
 }
 
-export function ActivityBubble({ stages, accent, colors }: { stages: Stage[]; accent: string; colors: CoachPalette }) {
+export function ActivityBubble({ stages, accent, colors, since }: { stages: Stage[]; accent: string; colors: CoachPalette; since: number }) {
   const [reduceMotion, setReduceMotion] = useState(false);
   const spin = useRef(new Animated.Value(0)).current;
   const scan = useRef(new Animated.Value(0)).current;
@@ -120,6 +121,7 @@ export function ActivityBubble({ stages, accent, colors }: { stages: Stage[]; ac
           )}
         </View>
         <Text style={[styles.verb, { color: accent }]}>{current.verb}</Text>
+        <CoachElapsed since={since} style={[styles.elapsed, { color: colors.secondaryText }]} />
       </View>
 
       {reduceMotion ? (
@@ -196,6 +198,7 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textTransform: 'uppercase',
   },
+  elapsed: { marginStart: 'auto' },
   label: {
     fontSize: 13.5,
     fontWeight: '300',

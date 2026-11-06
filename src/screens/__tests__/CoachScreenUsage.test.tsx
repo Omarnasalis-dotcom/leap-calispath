@@ -172,6 +172,20 @@ describe('AI Coach usage line', () => {
     expect(ring().props.accessibilityLabel).toContain('6 of 10 left today');
   });
 
+  it('shows Thinking with a counter while waiting, not Leaping, and clears on reply', async () => {
+    await open();
+    let finish: (v: unknown) => void = () => {};
+    mockInvoke.mockReturnValue(new Promise(r => { finish = r; }));
+    await send('Hello');
+    expect(texts()).toContain('THINKING');
+    expect(texts()).toContain('0s');
+    expect(texts()).not.toContain('LEAPING');
+    await act(async () => { finish({ data: REPLY, error: null }); });
+    await flush();
+    expect(texts()).not.toContain('THINKING');
+    expect(texts()).toContain('Great session.');
+  });
+
   it('still sends when the numbers say blocked: only the server refuses', async () => {
     mockRpc.mockImplementation(async (name: string) => (name === 'get_ai_coach_usage' ? usageAnswer({ messages_left: 0 }) : { data: null, error: null }));
     await open();

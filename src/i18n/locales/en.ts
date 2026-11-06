@@ -2622,7 +2622,9 @@ const en = {
     ask: 'Ask your coach',
     send: 'Send message',
     disclaimer: 'Leap Coach can make mistakes. Check important info.',
-    leaping: 'LEAPING',
+    thinking: 'THINKING',
+    building: 'BUILDING',
+    elapsedSeconds: '{{seconds}}s',
   },
   coachStages: {
     READING: 'READING',

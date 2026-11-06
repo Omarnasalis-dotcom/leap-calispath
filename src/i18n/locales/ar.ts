@@ -2783,7 +2783,9 @@ const ar: Translations = {
     ask: 'اسأل مدربك',
     send: 'إرسال الرسالة',
     disclaimer: 'قد يخطئ Leap Coach. تحقق من المعلومات المهمة.',
-    leaping: 'جارٍ العمل',
+    thinking: 'جارٍ التفكير',
+    building: 'جارٍ البناء',
+    elapsedSeconds: '{{seconds}} ث',
   },
   coachStages: {
     READING: 'يقرأ',
