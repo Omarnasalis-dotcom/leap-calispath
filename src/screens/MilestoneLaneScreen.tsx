@@ -48,6 +48,7 @@ import {
 import { ProgramDay, ProgramBlock } from '../types/warriorProgram';
 import { isPowerWorldUnlocked } from '../lib/powerLogic';
 import { canAccessPro, canAccessCustomizeProgram } from '../lib/entitlement';
+import { ProgramReviewPanel } from '../components/coaching/ProgramReviewPanel';
 import { offerRoute } from '../lib/offerStore';
 import { UpgradeToSaveModal } from '../components/workoutLibrary/SharedWorkoutModals';
 
@@ -3069,6 +3070,14 @@ export function MilestoneLaneScreen({ mode }: MilestoneLaneScreenProps) {
                         {t('journey.weekLabel', { name: journeyData.programName.toUpperCase(), week: week.weekNumber })}
                         {!isLatestWeek ? t('journey.weekDoneSuffix') : ''}
                       </Text>
+                      {isLatestWeek && journeyData.isAiCoachProgram && canAccessPro(profile, paywallEnabled) && (
+                        <ProgramReviewPanel
+                          warriorProgramId={journeyData.warriorProgramId}
+                          week={week.weekNumber}
+                          weekDone={weekComplete}
+                          onReverted={loadJourneyProgram}
+                        />
+                      )}
                       {rows}
                     </View>
                   );

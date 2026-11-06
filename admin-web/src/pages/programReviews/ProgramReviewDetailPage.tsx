@@ -68,7 +68,7 @@ function RoundsEditor({ reviewId, block, locked }: { reviewId: string; block: Re
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10 }}>
       <label className="label">
-        Rounds
+        Rounds: the set count for this whole block
         <input className="field" type="number" min={1} max={20} value={rounds} onChange={(e) => setRounds(e.target.value)} disabled={locked} style={{ maxWidth: 120 }} />
       </label>
       {rounds !== (block.rounds ?? '') && (
