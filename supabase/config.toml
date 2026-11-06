@@ -66,6 +66,14 @@ verify_jwt = false
 import_map = "./functions/send-client-attention-alerts/deno.json"
 entrypoint = "./functions/send-client-attention-alerts/index.ts"
 
+# Called by the app and admin with a user login, and hourly by pg_cron with the
+# shared secret, so it checks both itself.
+[functions.notify-program-review]
+enabled = true
+verify_jwt = false
+import_map = "./functions/notify-program-review/deno.json"
+entrypoint = "./functions/notify-program-review/index.ts"
+
 # Not user-triggered — invoked by RevenueCat's server, authenticated by a
 # fixed Authorization header shared secret instead (see index.ts).
 [functions.revenuecat-webhook]
