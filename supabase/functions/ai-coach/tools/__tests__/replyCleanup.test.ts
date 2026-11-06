@@ -2,7 +2,7 @@
 // imports, no Deno/DB needed. Server-side backstop for system-prompt.ts §1
 // ("ACT, DON'T NARRATE") and §3 (no em dash) — see that file's own header
 // comment for why this exists on top of the prompt rule.
-import { sanitizeReply } from "../replyCleanup";
+import { sanitizeReply, isNarrationRound } from "../replyCleanup";
 
 describe("sanitizeReply — em dash removal", () => {
   it("replaces a mid-sentence em dash with a comma", () => {
@@ -112,5 +112,32 @@ describe("sanitizeReply — combined and edge cases", () => {
 
   it("trims leading/trailing whitespace left behind by stripped lines", () => {
     expect(sanitizeReply("Let me check that.\nAll set.\n")).toBe("All set.");
+  });
+});
+
+describe("working-out-loud text beside a tool", () => {
+  it("is held back beside lookups and day builds", () => {
+    expect(isNarrationRound(["search_exercises"])).toBe(true);
+    expect(isNarrationRound(["get_user_context"])).toBe(true);
+    expect(isNarrationRound(["propose_add_day"])).toBe(true);
+    expect(isNarrationRound(["match_workout_for_day", "search_exercises"])).toBe(true);
+  });
+
+  it("is kept beside tools that can carry the real answer", () => {
+    expect(isNarrationRound(["suggest_replies"])).toBe(false);
+    expect(isNarrationRound(["attach_stat_bars"])).toBe(false);
+    expect(isNarrationRound(["recommend_test"])).toBe(false);
+    expect(isNarrationRound(["get_workout_logs"])).toBe(false);
+    expect(isNarrationRound(["adjust_program"])).toBe(false);
+    expect(isNarrationRound(["save_athlete_update"])).toBe(false);
+    expect(isNarrationRound(["propose_append_week"])).toBe(false);
+  });
+
+  it("keeps the text if any tool in the round isn't a lookup", () => {
+    expect(isNarrationRound(["search_exercises", "suggest_replies"])).toBe(false);
+  });
+
+  it("keeps a turn with no tools", () => {
+    expect(isNarrationRound([])).toBe(false);
   });
 });

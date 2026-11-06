@@ -17,6 +17,18 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("(Banded High Pull Up)");
   });
 
+  it("uses the exercise and tab names athletes really have (2026-11-06)", () => {
+    expect(SYSTEM_PROMPT).toContain("V- Ups");
+    expect(SYSTEM_PROMPT).not.toContain("V-Ups");
+    expect(SYSTEM_PROMPT).not.toContain("Training Center");
+    expect(SYSTEM_PROMPT).toContain("Their program is in the Train tab and on their Journey");
+  });
+
+  it("keeps lasting facts and internal words where they belong (2026-11-06)", () => {
+    expect(SYSTEM_PROMPT).toContain("**Lasting facts are worth keeping.**");
+    expect(SYSTEM_PROMPT).toContain('Say "we don\'t have that exercise", never "library"');
+  });
+
   it("names library exercises the server can resolve", () => {
     expect(SYSTEM_PROMPT).toContain("`Muscle Up band-assisted`");
     expect(SYSTEM_PROMPT).not.toContain('There is no "Banded Muscle Up" entry');

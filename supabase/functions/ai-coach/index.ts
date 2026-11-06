@@ -6,7 +6,8 @@ import { computeDayPosition, getBlockParts } from "./tools/blockHelpers.ts";
 import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing.ts";
 import { detectPendingCardClaim, detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
-import { sanitizeReply } from "./tools/replyCleanup.ts";
+import { isNarrationRound, sanitizeReply } from "./tools/replyCleanup.ts";
+import { isAutoOpener } from "./tools/chatOpener.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
 import { neutralizeAppNotes } from "./tools/appNotes.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
@@ -561,6 +562,17 @@ serve(async (req: Request) => {
   }
   const chatRequestId = (chatLogResult as { request_id?: string } | null)?.request_id;
 
+  // The app's automatic opener isn't the athlete's message, so it doesn't use
+  // one up on a paid plan. Any failure here only means it counts, as before.
+  if (serviceClient && chatRequestId && (chatLogResult as { tier?: string } | null)?.tier !== "free" && isAutoOpener(body.messages)) {
+    try {
+      const { error } = await serviceClient.rpc("ai_coach_mark_opener", { p_request_id: chatRequestId, p_user_id: user.id });
+      if (error) throw new Error(error.message);
+    } catch (err) {
+      console.error("[ai-coach] Marking the opener failed:", err instanceof Error ? err.message : err);
+    }
+  }
+
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!ANTHROPIC_API_KEY) {
     console.error("[ai-coach] Missing ANTHROPIC_API_KEY");
@@ -818,6 +830,8 @@ serve(async (req: Request) => {
     // §1 already forbids narrating ("checking your profile...") separately
     // from real content, so concatenating turns in order is safe.
     const replyParts: string[] = [];
+    // Working-out-loud text (isNarrationRound), used only if nothing else came.
+    const heldParts: string[] = [];
     // See WRITE_TOOL_NAMES/actionClaimGuard.ts above — populated as write
     // tools actually run, checked against a terminal turn's own claimed
     // action below. correctionAttempted bounds the self-correction nudge to
@@ -930,10 +944,15 @@ serve(async (req: Request) => {
         .filter((block: { type: string }) => block.type === "text")
         .map((block: { text: string }) => block.text)
         .join("");
-      if (turnText.trim()) replyParts.push(turnText.trim());
+      const turnTools = (claudeResponse.content ?? [])
+        .filter((block: { type: string }) => block.type === "tool_use")
+        .map((block: { name: string }) => block.name);
+      if (turnText.trim()) {
+        (claudeResponse.stop_reason === "tool_use" && isNarrationRound(turnTools) ? heldParts : replyParts).push(turnText.trim());
+      }
 
       if (claudeResponse.stop_reason !== "tool_use") {
-        const text = replyParts.join("\n\n");
+        const text = (replyParts.length > 0 ? replyParts : heldParts).join("\n\n");
 
         // stop_reason "max_tokens" means the response was cut mid-generation.
         // If it was cut inside a tool_use block, that block is incomplete and

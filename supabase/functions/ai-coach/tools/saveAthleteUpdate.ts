@@ -11,7 +11,7 @@ import { ToolDefinition } from "./types.ts";
 export const saveAthleteUpdate: ToolDefinition = {
   name: "save_athlete_update",
   description:
-    "Save what the athlete just confirmed about themselves so every later chat starts from it: their equipment now and/or their current strict max reps. Call it in the same turn they confirm a change, then say once, in plain words, that you'll remember it. equipment replaces the saved list, so send everything they have now. current_maxes merges: send only the numbers they gave you. Never save a guess or something they didn't confirm.",
+    "Save what the athlete just confirmed about themselves so every later chat starts from it: their equipment now, their current strict max reps, and/or lasting training facts. Call it in the same turn they confirm a change, then say once, in plain words, that you'll remember it. equipment replaces the saved list, so send everything they have now. current_maxes merges: send only the numbers they gave you. Never save a guess or something they didn't confirm.",
   input_schema: {
     type: "object",
     properties: {
@@ -19,6 +19,11 @@ export const saveAthleteUpdate: ToolDefinition = {
         type: "array",
         items: { type: "string", enum: ["pull_up_bar", "dip_bar", "rings", "resistance_bands", "low_parallettes", "weight_belt", "free_weights"] },
         description: "Everything they have now (an empty array means no equipment). Omit to leave equipment unchanged.",
+      },
+      training_notes: {
+        type: "array",
+        items: { type: "string" },
+        description: "Lasting facts that should shape every future program, in short plain sentences: a sport that covers their legs, what their rings can't do, days they can't train. Up to 10, under 200 characters each. This replaces the saved list, so send every note still true, and drop any that no longer is. Omit to leave them unchanged.",
       },
       current_maxes: {
         type: "object",
@@ -35,14 +40,26 @@ export const saveAthleteUpdate: ToolDefinition = {
   handler: async (userClient, input) => {
     const equipment = Array.isArray(input.equipment) ? input.equipment : null;
     const maxes = input.current_maxes && typeof input.current_maxes === "object" && !Array.isArray(input.current_maxes) ? input.current_maxes : null;
-    if (!equipment && !maxes) {
-      throw new Error("Nothing to save: send equipment, current_maxes, or both.");
+    const notes = Array.isArray(input.training_notes)
+      ? input.training_notes.filter((n): n is string => typeof n === "string")
+      : null;
+    if (!equipment && !maxes && !notes) {
+      throw new Error("Nothing to save: send equipment, current_maxes, training_notes, or any of them.");
     }
-    const { data, error } = await userClient.rpc("ai_coach_save_athlete_update", {
-      p_equipment: equipment,
-      p_current_maxes: maxes,
-    });
-    if (error) throw new Error(error.message);
-    return { saved: true, ...(data as Record<string, unknown>) };
+    let saved: Record<string, unknown> = {};
+    if (equipment || maxes) {
+      const { data, error } = await userClient.rpc("ai_coach_save_athlete_update", {
+        p_equipment: equipment,
+        p_current_maxes: maxes,
+      });
+      if (error) throw new Error(error.message);
+      saved = data as Record<string, unknown>;
+    }
+    if (notes) {
+      const { data, error } = await userClient.rpc("ai_coach_save_training_notes", { p_notes: notes });
+      if (error) throw new Error(error.message);
+      saved = { ...saved, training_notes: data };
+    }
+    return { saved: true, ...saved };
   },
 };
