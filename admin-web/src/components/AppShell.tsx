@@ -4,6 +4,7 @@ import { useAuth } from '@/auth/AuthProvider';
 import { ThemeToggle } from '@/components/bits';
 import { fetchUnreadCount } from '@/api/notifications';
 import { fetchFairPlayCounts } from '@/api/fairPlay';
+import { fetchProgramReviews } from '@/api/programReviews';
 import { UpdateNotice } from './UpdateNotice';
 
 const ADMIN_NAV: Array<
@@ -16,6 +17,7 @@ const ADMIN_NAV: Array<
   { to: '/leaderboards', label: 'Leaderboards' },
   { to: '/ai-coach-chats', label: 'AI Coach chats' },
   { to: '/ai-coach-reports', label: 'AI Coach reports' },
+  { to: '/program-reviews', label: 'Program reviews' },
   { to: '/promo-codes', label: 'Promo codes' },
   { section: 'Fair Play' },
   { to: '/fair-play', label: 'Flags', end: true },
@@ -74,8 +76,15 @@ export function AppShell() {
     refetchInterval: 45_000,
     enabled: isAdmin,
   });
+  const reviewsQ = useQuery({
+    queryKey: ['program-reviews', 'open'],
+    queryFn: () => fetchProgramReviews('open'),
+    refetchInterval: 45_000,
+    enabled: isAdmin,
+  });
   const badgeFor = (to: string) =>
     to === '/notifications' ? unreadCount
+    : to === '/program-reviews' ? reviewsQ.data?.length ?? 0
     : to === '/fair-play/appeals' ? fairPlayQ.data?.appeals ?? 0
     : to === '/fair-play' ? fairPlayQ.data?.flags ?? 0
     : 0;

@@ -17,6 +17,8 @@ import { InactivePage } from '@/pages/fairPlay/InactivePage';
 import { LimitsPage } from '@/pages/fairPlay/LimitsPage';
 import { AthleteFairPlayPage } from '@/pages/fairPlay/AthleteFairPlayPage';
 import { AiCoachReportsPage } from '@/pages/aiCoachReports/AiCoachReportsPage';
+import { ProgramReviewsPage } from '@/pages/programReviews/ProgramReviewsPage';
+import { ProgramReviewDetailPage } from '@/pages/programReviews/ProgramReviewDetailPage';
 import { AiCoachChatsPage } from '@/pages/aiCoachChats/AiCoachChatsPage';
 import { CoachFlagsPage } from '@/pages/aiCoachChats/CoachFlagsPage';
 import { GrowthPage } from '@/pages/growth/GrowthPage';
@@ -114,6 +116,8 @@ export function App() {
                 <Route path="tournaments" element={<TournamentsPage />} />
                 <Route path="growth" element={<GrowthPage />} />
                 <Route path="ai-coach-reports" element={<AiCoachReportsPage />} />
+                <Route path="program-reviews" element={<ProgramReviewsPage />} />
+                <Route path="program-reviews/:id" element={<ProgramReviewDetailPage />} />
                 <Route path="ai-coach-chats" element={<AiCoachChatsPage />} />
                 <Route path="ai-coach-chats/flags" element={<CoachFlagsPage />} />
                 <Route path="ai-coach-chats/:userId" element={<AiCoachChatsPage />} />

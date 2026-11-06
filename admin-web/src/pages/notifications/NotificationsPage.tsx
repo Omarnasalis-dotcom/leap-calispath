@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useNavigate } from 'react-router-dom';
 import { fetchNotifications, markAllRead, markRead, type NotificationRow } from '@/api/notifications';
 import { ErrorNote } from '@/components/bits';
 import { formatDateTime } from '@/shared/constants';
@@ -21,6 +22,8 @@ const TONE_BY_TYPE: Record<string, 'accent' | 'ok' | 'warn'> = {
   client_needs_attention: 'warn',
   new_signup: 'accent',
   new_subscription: 'ok',
+  program_review_request: 'accent',
+  program_review_overdue: 'warn',
 };
 
 const ICON_BY_TYPE: Record<string, string> = {
@@ -32,6 +35,8 @@ const ICON_BY_TYPE: Record<string, string> = {
   client_program_update: '📦',
   new_signup: '👋',
   new_subscription: '💳',
+  program_review_request: '🛡️',
+  program_review_overdue: '⏰',
 };
 
 function NotificationIcon({ type }: { type: string }) {
@@ -47,12 +52,15 @@ function NotificationItem({
   onRead: (id: string) => void;
 }) {
   const unread = !notification.read_at;
+  const navigate = useNavigate();
+  const reviewId = notification.data?.review_id;
   return (
     <button
       type="button"
       className={`notif-row${unread ? ' unread' : ''}`}
       onClick={() => {
         if (unread) onRead(notification.id);
+        if (typeof reviewId === 'string') navigate(`/program-reviews/${reviewId}`);
       }}
     >
       <NotificationIcon type={notification.type} />
