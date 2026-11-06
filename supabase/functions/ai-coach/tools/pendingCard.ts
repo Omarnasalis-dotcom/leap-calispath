@@ -70,6 +70,10 @@ export function proposedCardFrom(toolName: string, input: Record<string, unknown
   return { tool: toolName, fields };
 }
 
+// Stored when a newer card is not a day card (a week card, say): the saved
+// day card is out of date then, and asPendingCard treats this as no card.
+export const NO_PENDING_CARD = { tool: "none" };
+
 export function pendingCardToStore(proposed: ProposedCard | null, reply: string | null): PendingCard | null {
   const replyStart = (reply ?? "").trim().slice(0, REPLY_START_CHARS);
   if (!proposed || replyStart === "") return null;

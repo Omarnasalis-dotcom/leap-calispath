@@ -16,6 +16,7 @@ import {
   addPendingCardNote,
   asPendingCard,
   cardReplyIsInChat,
+  NO_PENDING_CARD,
   PENDING_CARD_LOOKUP_TIMEOUT_MS,
   pendingCardEnabled,
   pendingCardNote,
@@ -718,11 +719,13 @@ serve(async (req: Request) => {
   // here just means no note, which is how the coach always worked.
   const pendingCardOn = pendingCardEnabled(Deno.env.get("AI_COACH_PENDING_CARD"), user.id);
   let proposedCard: ProposedCard | null = null;
+  // Set for every card, day card or not: the newest card replaces the saved
+  // one, so an older day card can't be described as the current card.
   let proposedAt: string | null = null;
 
   const readPendingCardNote = async (): Promise<string | null> => {
-    // Fewer than 3 messages can't hold a reply the athlete is answering.
-    if (!pendingCardOn || !serviceClient || initialMessages.length < 3) return null;
+    // One message can't hold a card's reply: it's the athlete's own.
+    if (!pendingCardOn || !serviceClient || initialMessages.length < 2) return null;
     try {
       const lookup = await withinLimit(
         serviceClient.rpc("ai_coach_get_pending_card", { p_user_id: user.id }),
@@ -742,9 +745,9 @@ serve(async (req: Request) => {
   };
 
   const savePendingCard = async (reply: string | null) => {
-    if (!pendingCardOn || !serviceClient) return;
-    const card = pendingCardToStore(proposedCard, reply);
-    if (!card) return;
+    // No reply means the turn failed and the phone got no new card.
+    if (!pendingCardOn || !serviceClient || !proposedAt || !reply) return;
+    const card = pendingCardToStore(proposedCard, reply) ?? NO_PENDING_CARD;
     try {
       const { error } = await serviceClient.rpc("ai_coach_store_pending_card", {
         p_user_id: user.id,

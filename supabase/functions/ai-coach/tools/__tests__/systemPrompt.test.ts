@@ -12,6 +12,11 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT.trimEnd().endsWith("The best program is the one the athlete actually completes.")).toBe(true);
   });
 
+  it("keeps a harder version of a tested movement below that max (owner rule 2026-11-06)", () => {
+    expect(SYSTEM_PROMPT).toContain("with 5 strict pull-ups, 6 bodyweight High Pull Ups is wrong");
+    expect(SYSTEM_PROMPT).toContain("(Banded High Pull Up)");
+  });
+
   it("names library exercises the server can resolve", () => {
     expect(SYSTEM_PROMPT).toContain("`Muscle Up band-assisted`");
     expect(SYSTEM_PROMPT).not.toContain('There is no "Banded Muscle Up" entry');
