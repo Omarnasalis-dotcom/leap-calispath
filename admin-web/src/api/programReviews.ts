@@ -34,8 +34,9 @@ export interface ReviewBlock {
   block_id: string;
   name: string;
   structure: string | null;
-  rounds: string | null;
   timing: string | null;
+  /** What this block type can change, with a missing one as null. */
+  settings: Record<string, string | number | null>;
   logged: boolean;
   exercises: ReviewExercise[];
 }
@@ -73,7 +74,7 @@ export interface ProgramReviewDetail {
   week: ReviewBlock[];
   changes: Array<{
     id: string;
-    kind: 'exercise' | 'rounds';
+    kind: 'exercise' | 'settings';
     block_exercise_id: string;
     block_name: string | null;
     exercise_before: string | null;
@@ -99,7 +100,8 @@ const ERRORS: Record<string, string> = {
   STALE: 'The athlete or AI Coach changed this since you opened it. The page has been refreshed: check it and try again.',
   BLOCK_LOGGED: 'This block is logged, so it stays as it is.',
   ROUND_BLOCK_SETS: 'Sets stay as they are in a superset, circuit or ladder: rounds belong to the block.',
-  NOT_ROUND_BLOCK: 'Rounds can only change on a straight-set superset or circuit.',
+  NO_BLOCK_SETTINGS: 'This block has no settings of its own to change.',
+  LADDER_TOO_LONG: 'A ladder going down would reach 0 reps: lower the rounds or the step, or raise the start.',
   REASON_REQUIRED: 'Choose or write a reason.',
   INVALID_VALUES: 'One of the numbers is out of range.',
   REVIEW_CLOSED: 'This review is already closed.',
@@ -145,12 +147,17 @@ export async function updateReviewExercise(reviewId: string, exercise: ReviewExe
   if (error) throw friendly(error.message);
 }
 
-export async function updateReviewRounds(reviewId: string, block: ReviewBlock, rounds: number, reason: string): Promise<void> {
-  const { error } = await supabase.rpc('admin_update_review_rounds', {
+export async function updateReviewBlock(
+  reviewId: string,
+  block: ReviewBlock,
+  settings: Record<string, string>,
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('admin_update_review_block', {
     p_review_id: reviewId,
     p_block_id: block.block_id,
-    p_expected: block.rounds,
-    p_rounds: rounds,
+    p_expected: block.settings,
+    p_settings: settings,
     p_reason: reason,
   });
   if (error) throw friendly(error.message);

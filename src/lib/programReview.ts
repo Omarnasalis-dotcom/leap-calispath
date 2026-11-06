@@ -11,18 +11,24 @@ export interface ReviewRowValues {
   rest_seconds?: number | null;
   hold_seconds?: number | null;
   notes?: string | null;
-  /** A superset or circuit's rounds, as text like the block's own. */
-  rounds?: string;
 }
+
+/** A block's own settings: rounds, rest between rounds, caps, Tabata, ladder. */
+type BlockSettingValues = { [K in (typeof BLOCK_SETTINGS)[number]]?: string | number | null };
+
+const BLOCK_SETTINGS = [
+  'rounds', 'rest_after_round', 'time_cap_min', 'tabata_work_seconds', 'tabata_rest_seconds',
+  'tabata_rounds', 'ladder_start', 'ladder_sub', 'ladder_direction',
+] as const;
 
 export interface ProgramReviewChange {
   /** Absent means one exercise. */
-  kind?: 'exercise' | 'rounds';
+  kind?: 'exercise' | 'settings';
   block_name: string | null;
   exercise_before: string | null;
   exercise_after: string | null;
-  before: ReviewRowValues;
-  after: ReviewRowValues;
+  before: ReviewRowValues & BlockSettingValues;
+  after: ReviewRowValues & BlockSettingValues;
   reason: string;
 }
 
@@ -88,8 +94,13 @@ const dose = (v: ReviewRowValues) => {
 /** One line, like "Pull Ups 5×8 → 4×6" or "Pull Ups 5×8 → Ring Rows 4×6". */
 export function reviewChangeLine(change: ProgramReviewChange): string {
   const { before, after, exercise_before: from, exercise_after: to } = change;
-  if (change.kind === 'rounds') {
-    return t('programReview.rounds', { block: ltr(change.block_name ?? ''), from: before.rounds, to: after.rounds });
+  if (change.kind && change.kind !== 'exercise') {
+    const shown = (v: string | number | null | undefined) =>
+      v === 'up' || v === 'down' ? t(`programReview.dir_${v}`) : v ?? t('programReview.none');
+    const parts = BLOCK_SETTINGS
+      .filter(key => String(before[key] ?? '') !== String(after[key] ?? ''))
+      .map(key => t(`programReview.set_${key}`, { from: shown(before[key]), to: shown(after[key]) }));
+    return `${ltr(change.block_name ?? '')}: ${parts.join(' · ')}`;
   }
   const swapped = from !== to;
   const doseChanged = dose(before) !== dose(after);

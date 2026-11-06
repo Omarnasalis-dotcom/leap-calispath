@@ -34,12 +34,27 @@ describe("teamReviewFact", () => {
     expect(fact?.note).not.toContain("rest_seconds");
   });
 
-  it("lists a change to a block's rounds", () => {
+  it("lists only the block settings that changed", () => {
     const fact = teamReviewFact([{
       ...base,
-      changes: [{ kind: "rounds", block_name: "Strength", before: { rounds: "3" }, after: { rounds: "2" } }],
+      changes: [{
+        kind: "settings",
+        block_name: "Strength",
+        before: { rounds: "3", rest_after_round: 60 },
+        after: { rounds: "2", rest_after_round: 60 },
+      }],
     }]);
     expect(fact?.note).toContain("Strength: rounds 3 -> 2");
+    expect(fact?.note).not.toContain("rest_after_round");
+  });
+
+  it("treats 90 and \"90\" as the same value", () => {
+    const fact = teamReviewFact([{
+      ...base,
+      changes: [{ kind: "settings", block_name: "Finisher", before: { time_cap_min: "10", x: 90 }, after: { time_cap_min: 8, x: "90" } }],
+    }]);
+    expect(fact?.note).toContain("Finisher: time_cap_min 10 -> 8");
+    expect(fact?.note).not.toContain("x 90");
   });
 
   it("tells it the athlete went back, and what stayed", () => {

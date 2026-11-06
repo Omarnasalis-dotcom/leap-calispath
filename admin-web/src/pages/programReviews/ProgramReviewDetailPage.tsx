@@ -5,7 +5,7 @@ import {
   closeProgramReview,
   fetchProgramReview,
   updateReviewExercise,
-  updateReviewRounds,
+  updateReviewBlock,
   type ProgramReviewDetail,
   type ReviewBlock,
   type ReviewExercise,
@@ -29,11 +29,19 @@ const ROUND_STRUCTURES = new Set(['superset', 'circuit', 'ladder']);
 
 const numberOrNull = (value: string) => (value.trim() === '' ? null : Number(value));
 
-/** The server's rule: a straight-set superset or circuit repeats by rounds. */
-const hasEditableRounds = (block: ReviewBlock) =>
-  (block.structure === 'superset' || block.structure === 'circuit')
-  && (block.timing ?? 'straight_set') === 'straight_set'
-  && block.rounds != null;
+const SETTING_LABELS: Record<string, string> = {
+  rounds: 'Rounds (the set count for this whole block)',
+  rest_after_round: 'Rest between rounds (s)',
+  time_cap_min: 'Time cap (min)',
+  tabata_work_seconds: 'Work (s)',
+  tabata_rest_seconds: 'Rest (s)',
+  tabata_rounds: 'Tabata rounds',
+  ladder_start: 'Ladder start (reps)',
+  ladder_sub: 'Ladder step (reps)',
+  ladder_direction: 'Ladder direction',
+};
+
+const asText = (value: string | number | null | undefined) => (value == null ? '' : String(value));
 
 function ReasonPicker({ reason, customReason, onReason, onCustomReason }: {
   reason: string;
@@ -55,31 +63,54 @@ function ReasonPicker({ reason, customReason, onReason, onCustomReason }: {
   );
 }
 
-function RoundsEditor({ reviewId, block, locked }: { reviewId: string; block: ReviewBlock; locked: boolean }) {
+function BlockSettingsEditor({ reviewId, block, locked }: { reviewId: string; block: ReviewBlock; locked: boolean }) {
   const queryClient = useQueryClient();
-  const [rounds, setRounds] = useState(block.rounds ?? '');
+  const keys = Object.keys(SETTING_LABELS).filter((key) => key in block.settings);
+  const [values, setValues] = useState<Record<string, string>>(
+    Object.fromEntries(keys.map((key) => [key, asText(block.settings[key])])),
+  );
   const [reason, setReason] = useState('');
   const [customReason, setCustomReason] = useState('');
+  const dirty = keys.some((key) => values[key] !== asText(block.settings[key]));
+
   const save = useMutation({
-    mutationFn: () => updateReviewRounds(reviewId, block, Number(rounds), reason === 'custom' ? customReason : reason),
+    mutationFn: () => updateReviewBlock(reviewId, block, values, reason === 'custom' ? customReason : reason),
     onSettled: () => void queryClient.invalidateQueries({ queryKey: ['program-review', reviewId] }),
   });
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 6, paddingBottom: 10 }}>
-      <label className="label">
-        Rounds: the set count for this whole block
-        <input className="field" type="number" min={1} max={20} value={rounds} onChange={(e) => setRounds(e.target.value)} disabled={locked} style={{ maxWidth: 120 }} />
-      </label>
-      {rounds !== (block.rounds ?? '') && (
+      <div className="row" style={{ gap: 6 }}>
+        {keys.map((key) => (
+          <label key={key} className="label">
+            {SETTING_LABELS[key]}
+            {key === 'ladder_direction' ? (
+              <select className="field" value={values[key]} onChange={(e) => setValues({ ...values, [key]: e.target.value })} disabled={locked}>
+                <option value="down">Down</option>
+                <option value="up">Up</option>
+              </select>
+            ) : (
+              <input
+                className="field"
+                type="number"
+                min={0}
+                value={values[key]}
+                onChange={(e) => setValues({ ...values, [key]: e.target.value })}
+                disabled={locked}
+              />
+            )}
+          </label>
+        ))}
+      </div>
+      {dirty && (
         <div className="row" style={{ gap: 6 }}>
           <ReasonPicker reason={reason} customReason={customReason} onReason={setReason} onCustomReason={setCustomReason} />
           <button
             className="btn small"
-            disabled={save.isPending || !reason || (reason === 'custom' && !customReason.trim()) || !rounds}
+            disabled={save.isPending || !reason || (reason === 'custom' && !customReason.trim())}
             onClick={() => save.mutate()}
           >
-            Save rounds
+            Save block settings
           </button>
         </div>
       )}
@@ -264,13 +295,19 @@ export function ProgramReviewDetailPage() {
             <div className="row">
               <span className="label">{block.name}</span>
               {block.structure && <Badge>{block.structure}</Badge>}
-              {block.rounds != null && <span className="dim" style={{ fontSize: 12 }}>{block.rounds} round(s)</span>}
+              {block.timing && block.timing !== 'straight_set' && <Badge>{block.timing}</Badge>}
               {block.logged && <Badge tone="ok">logged, locked</Badge>}
             </div>
           </div>
           <div className="panel-body">
-            {hasEditableRounds(block) && (
-              <RoundsEditor key={block.rounds} reviewId={review.id} block={block} locked={!editable || block.logged} />
+            {Object.keys(block.settings).length > 0 && (
+              <BlockSettingsEditor
+                // A saved or refreshed block starts from what's really there.
+                key={JSON.stringify(block.settings)}
+                reviewId={review.id}
+                block={block}
+                locked={!editable || block.logged}
+              />
             )}
             {block.exercises.map((exercise) => (
               <ExerciseEditor
@@ -292,8 +329,11 @@ export function ProgramReviewDetailPage() {
           <div className="panel-body" style={{ fontSize: 13 }}>
             {review.changes.map((change) => (
               <div key={change.id}>
-                {change.kind === 'rounds' ? (
-                  `${change.block_name}: ${change.before.rounds} rounds → ${change.after.rounds}`
+                {change.kind !== 'exercise' ? (
+                  `${change.block_name}: ${Object.keys(change.after)
+                    .filter((key) => asText(change.before[key] as string) !== asText(change.after[key] as string))
+                    .map((key) => `${SETTING_LABELS[key] ?? key} ${asText(change.before[key] as string) || 'none'} → ${asText(change.after[key] as string) || 'none'}`)
+                    .join(', ')}`
                 ) : (
                   <>
                     {change.block_name}: {change.exercise_before}

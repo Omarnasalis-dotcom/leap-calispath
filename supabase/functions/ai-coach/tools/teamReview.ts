@@ -26,8 +26,11 @@ const FIELDS = ["sets", "reps", "hold_seconds", "rest_seconds"] as const;
 function describe(change: NonNullable<ProgramReviewRow["changes"]>[number]): string {
   const before = change.before ?? {};
   const after = change.after ?? {};
-  if (change.kind === "rounds") {
-    return `${change.block_name}: rounds ${before.rounds} -> ${after.rounds}`;
+  if (change.kind && change.kind !== "exercise") {
+    const settings = Object.keys(after)
+      .filter((key) => String(before[key] ?? "") !== String(after[key] ?? ""))
+      .map((key) => `${key} ${before[key] ?? "none"} -> ${after[key] ?? "none"}`);
+    return `${change.block_name}: ${settings.join(", ")}`;
   }
   const parts = FIELDS
     .filter((f) => before[f] !== after[f])

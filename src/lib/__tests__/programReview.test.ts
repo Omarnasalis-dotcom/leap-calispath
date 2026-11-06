@@ -36,15 +36,36 @@ describe('reviewChangeLine', () => {
   });
 });
 
-describe('a change to rounds', () => {
-  it('names the block and the rounds', () => {
-    const line = reviewChangeLine(change({
-      kind: 'rounds', block_name: 'Strength', exercise_before: null, exercise_after: null,
-      before: { rounds: '3' }, after: { rounds: '2' },
-    }));
+describe('a change to block settings', () => {
+  const settings = (before: object, after: object) => reviewChangeLine(change({
+    kind: 'settings', block_name: 'Strength', exercise_before: null, exercise_after: null, before, after,
+  }));
+
+  it('names the block and only what changed', () => {
+    const line = settings({ rounds: '3', rest_after_round: 60 }, { rounds: '2', rest_after_round: 60 });
     expect(line).toContain('Strength');
     expect(line).toContain('3 rounds → 2');
+    expect(line).not.toContain('rest');
     expect(line).not.toContain('null');
+  });
+
+  it('shows every kind of setting', () => {
+    expect(settings({ rest_after_round: 60 }, { rest_after_round: 90 })).toContain('rest between rounds 60s → 90s');
+    expect(settings({ time_cap_min: 10 }, { time_cap_min: 8 })).toContain('time cap 10 min → 8 min');
+    expect(settings({ tabata_work_seconds: 20 }, { tabata_work_seconds: 30 })).toContain('work 20s → 30s');
+    expect(settings({ tabata_rest_seconds: 10 }, { tabata_rest_seconds: 15 })).toContain('rest 10s → 15s');
+    expect(settings({ tabata_rounds: 8 }, { tabata_rounds: 6 })).toContain('8 rounds → 6');
+    expect(settings({ ladder_start: 10 }, { ladder_start: 8 })).toContain('starts at 10 → 8');
+    expect(settings({ ladder_sub: 2 }, { ladder_sub: 1 })).toContain('step 2 → 1');
+    expect(settings({ ladder_direction: 'down' }, { ladder_direction: 'up' })).toContain('down → up');
+  });
+
+  it('reads a setting added or removed', () => {
+    expect(settings({ rest_after_round: null }, { rest_after_round: 60 })).toContain('none');
+  });
+
+  it('counts 90 and "90" as the same', () => {
+    expect(settings({ rest_after_round: 90, rounds: '3' }, { rest_after_round: '90', rounds: '2' })).not.toContain('between rounds');
   });
 });
 
