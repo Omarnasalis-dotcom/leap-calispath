@@ -2,6 +2,7 @@ import {
   addPendingCardNote,
   asPendingCard,
   cardReplyIsInChat,
+  NO_PENDING_CARD,
   PENDING_CARD_MAX_CHARS,
   pendingCardEnabled,
   pendingCardNote,
@@ -105,6 +106,10 @@ describe("reading a stored card back", () => {
     for (const raw of [null, undefined, "text", 3, {}, { tool: "propose_add_day" }, { tool: "other", fields: {}, reply_start: "x" }]) {
       expect(asPendingCard(raw)).toBeNull();
     }
+  });
+
+  it("reads the marker for a newer non-day card as no card", () => {
+    expect(asPendingCard(NO_PENDING_CARD)).toBeNull();
   });
 });
 

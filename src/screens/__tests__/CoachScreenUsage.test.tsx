@@ -1,8 +1,9 @@
 import React from 'react';
-import { Alert, AppState, TextInput, TouchableOpacity } from 'react-native';
+import { Alert, AppState, Text, TextInput, TouchableOpacity } from 'react-native';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { CoachScreen } from '../CoachScreen';
 import { t } from '../../i18n';
+import { FunctionsHttpError } from '@supabase/functions-js';
 
 // What matters here is what this feature must never do: change what reaches
 // the AI Coach, or stop a message the server would allow.
@@ -48,6 +49,7 @@ const mockProfile = {
   access_expires_at: new Date(Date.now() + 20 * 86400000).toISOString(),
   coach_goal: 'strength',
   coach_setup_completed_at: '2026-01-01',
+  onboarding_completed_at: '2026-01-01',
 };
 jest.mock('../../contexts/AuthContext', () => ({
   useAuth: () => ({ profile: mockProfile, refreshProfile: async () => {}, paywallEnabled: true }),
@@ -239,5 +241,229 @@ describe('AI Coach usage line', () => {
     await flush();
     expect(inputEditable()).toBe(true);
     expect(ring().props.accessibilityLabel).toContain('10 of 10 left today');
+  });
+});
+
+describe('AI Coach day card while the coach is working', () => {
+  let clock: jest.SpyInstance;
+  const card = (dayName: string, reason: string) => ({
+    type: 'add_day',
+    reason,
+    dayNumber: 2,
+    displayDayNumber: 2,
+    totalDays: 3,
+    payload: { dayName, blocks: [] },
+    weekNumber: 1,
+    warriorProgramId: 'w1',
+    replacing: false,
+    preview: null,
+  });
+  const showCard = async () => {
+    mockInvoke.mockResolvedValueOnce({ data: { ...REPLY, reply: 'Day 2 is ready.', programAction: card('PUSH DAY', 'First version') }, error: null });
+    await open();
+    await send('Build day 2');
+    expect(texts()).toContain(t('coach.changeDay'));
+  };
+  const sendAndHold = async (text: string) => {
+    let finish: (v: unknown) => void = () => {};
+    let fail: (e: unknown) => void = () => {};
+    mockInvoke.mockReturnValue(new Promise((ok, no) => { finish = ok; fail = no; }));
+    // Past the screen's 5-second slow-down guard.
+    const later = Date.now() + 6000;
+    clock = jest.spyOn(Date, 'now').mockReturnValue(later);
+    await send(text);
+    clock.mockRestore();
+    return { finish, fail };
+  };
+
+  it('hides the card so the new message and loading show, then brings it back', async () => {
+    await showCard();
+    const { finish } = await sendAndHold('Why this exercise?');
+    expect(texts()).toContain('Why this exercise?');
+    expect(texts()).not.toContain(t('coach.changeDay'));
+    await act(async () => { finish({ data: { ...REPLY, reply: 'It builds pressing strength.' }, error: null }); });
+    await flush();
+    expect(texts()).toContain('It builds pressing strength.');
+    expect(texts()).toContain(t('coach.changeDay'));
+    expect(texts()).toContain('First version');
+  });
+
+  it('shows the new card when the reply brings one', async () => {
+    await showCard();
+    const { finish } = await sendAndHold('Swap the push-ups');
+    await act(async () => { finish({ data: { ...REPLY, reply: 'Updated.', programAction: card('PUSH DAY', 'Second version') }, error: null }); });
+    await flush();
+    expect(texts()).toContain('Second version');
+    expect(texts()).not.toContain('First version');
+  });
+
+  it('brings the card back straight away after a server error', async () => {
+    await showCard();
+    const { finish } = await sendAndHold('Swap the push-ups');
+    expect(texts()).not.toContain(t('coach.changeDay'));
+    const error = new FunctionsHttpError({ status: 500, json: async () => ({}) } as unknown as Response);
+    await act(async () => { finish({ data: null, error }); });
+    await flush();
+    expect(texts()).toContain(t('coach.errReach'));
+    expect(texts()).toContain(t('coach.changeDay'));
+    expect(texts()).toContain('First version');
+  });
+
+  it('brings the card back when the signal is lost and no answer can be collected', async () => {
+    await showCard();
+    const { fail } = await sendAndHold('Swap the push-ups');
+    jest.useFakeTimers();
+    await act(async () => { fail(new Error('Network request failed')); });
+    for (let i = 0; i < 8; i++) {
+      await act(async () => { jest.advanceTimersByTime(3000); });
+      await flush();
+    }
+    jest.useRealTimers();
+    await flush();
+    expect(texts()).toContain(t('coach.errReach'));
+    expect(texts()).toContain(t('coach.changeDay'));
+    expect(texts()).toContain('First version');
+  });
+});
+
+describe('AI Coach after a day card is added', () => {
+  const storage = jest.requireMock('@react-native-async-storage/async-storage').default;
+  const realStorage = { ...storage };
+  let saved: Record<string, string>;
+  let clock: jest.SpyInstance | undefined;
+
+  const dayCard = (type: string, dayNumber: number, totalDays: number, over: Record<string, unknown> = {}) => ({
+    type,
+    reason: 'Ready',
+    dayNumber,
+    displayDayNumber: dayNumber,
+    totalDays,
+    payload: { name: 'Muscle Plan', dayName: `DAY ${dayNumber}`, blocks: [{}] },
+    weekNumber: 1,
+    warriorProgramId: 'w1',
+    replacing: false,
+    preview: null,
+    ...over,
+  });
+  const reply = (programAction: unknown) => ({ data: { ...REPLY, reply: 'Card ready.', programAction }, error: null });
+  const press = async (label: string) => {
+    const button = tree!.root.findAllByType(TouchableOpacity).find(n => n.findAllByType(Text).some(x => x.props.children === label));
+    if (!button) throw new Error(`no button: ${label}`);
+    await act(async () => { button.props.onPress(); });
+    await flush();
+  };
+  const pastSlowDown = () => {
+    const later = Date.now() + 6000;
+    clock?.mockRestore();
+    clock = jest.spyOn(Date, 'now').mockReturnValue(later);
+  };
+  const getCard = async (action: unknown) => {
+    mockInvoke.mockResolvedValueOnce(reply(action));
+    await send('Build it');
+  };
+  const addButton = (n: number) => t('coach.dayButton', { verb: t('coach.add').toUpperCase(), n });
+
+  beforeEach(() => {
+    saved = {};
+    storage.getItem = async (k: string) => saved[k] ?? null;
+    storage.setItem = async (k: string, v: string) => { saved[k] = v; };
+    storage.removeItem = async (k: string) => { delete saved[k]; };
+  });
+  afterEach(() => {
+    Object.assign(storage, realStorage);
+    clock?.mockRestore();
+    clock = undefined;
+  });
+
+  it('offers the next day after adding a day, and sends it as a normal message', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    expect(texts()).not.toContain('Build Day 2');
+    await press(addButton(1));
+    expect(mockRpc).toHaveBeenCalledWith('ai_coach_create_program', expect.anything());
+    expect(texts()).toContain('Build Day 2');
+    const sentBefore = mockInvoke.mock.calls.length;
+    pastSlowDown();
+    mockInvoke.mockResolvedValueOnce({ data: REPLY, error: null });
+    await press('Build Day 2');
+    expect(mockInvoke.mock.calls.length).toBe(sentBefore + 1);
+    expect(mockInvoke.mock.calls.at(-1)![1].body.messages.at(-1)).toEqual({ role: 'user', content: 'Build Day 2' });
+    expect(texts()).not.toContain('Build Day 2</');
+    expect(saved['coach_next_day_v1_u1']).toBeUndefined();
+  });
+
+  it('adds nothing to the chat history, so the coach never reads it', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    await press(addButton(1));
+    expect(JSON.stringify(mockInvoke.mock.calls)).not.toContain('Build Day');
+    expect(saved['coach_chat_v1_u1'] ?? '').not.toContain('Build Day');
+  });
+
+  it('keeps the next-day button after leaving the chat', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    await press(addButton(1));
+    act(() => tree?.unmount());
+    await open();
+    expect(texts()).toContain('Build Day 2');
+  });
+
+  it('shows the start card with the name when the chat stayed open', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 2));
+    await press(addButton(1));
+    pastSlowDown();
+    await getCard(dayCard('add_day', 2, 2));
+    await press(addButton(2));
+    expect(texts()).toContain('Muscle Plan');
+    expect(texts()).toContain(' is ready');
+    expect(texts()).toContain(t('coach.goToProgram'));
+    expect(texts()).not.toContain('Build Day 3');
+  });
+
+  it('still shows the start card when the chat was closed between days', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 2));
+    await press(addButton(1));
+    act(() => tree?.unmount());
+    await open();
+    pastSlowDown();
+    await getCard(dayCard('add_day', 2, 2));
+    await press(addButton(2));
+    expect(texts()).toContain(t('coach.programReady'));
+    expect(texts()).toContain(t('coach.goToProgram'));
+    expect(texts()).not.toContain('undefined');
+    expect(texts()).not.toContain('"null"');
+  });
+
+  it('shows no start card after redoing a day that was already added', async () => {
+    await open();
+    await getCard(dayCard('add_day', 2, 2, { replacing: true }));
+    await press(t('coach.dayButton', { verb: t('coach.redo').toUpperCase(), n: 2 }));
+    expect(mockRpc).toHaveBeenCalledWith('ai_coach_replace_day_in_week', expect.anything());
+    expect(texts()).not.toContain(t('coach.goToProgram'));
+    expect(texts()).not.toContain('Build Day');
+  });
+
+  it('shows no next-day button or start card after ending a program', async () => {
+    await open();
+    await getCard({ type: 'end', reason: 'Done', warriorProgramId: 'w1' });
+    await press(t('coach.endProgram'));
+    expect(texts()).not.toContain('Build Day');
+    expect(texts()).not.toContain(t('coach.goToProgram'));
+  });
+
+  it('clears the next-day button when the chat is reset', async () => {
+    await open();
+    await getCard(dayCard('create', 1, 3));
+    await press(addButton(1));
+    expect(saved['coach_next_day_v1_u1']).toBe('2');
+    alertSpy.mockImplementation((_t, _m, buttons) => { buttons?.find((b: { style?: string }) => b.style === 'destructive')?.onPress?.(); });
+    const trash = tree!.root.findAllByType(TouchableOpacity).find(n => n.props.accessibilityLabel === t('coach.clearChat'))!;
+    await act(async () => { trash.props.onPress(); });
+    await flush();
+    expect(saved['coach_next_day_v1_u1']).toBeUndefined();
+    expect(texts()).not.toContain('Build Day 2');
   });
 });

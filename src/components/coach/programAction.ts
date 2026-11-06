@@ -81,6 +81,16 @@ export function getChangeDayMessage(action: ProgramAction | null): string | null
 // with no day-by-day concept at all (no dayNumber/totalDays ever set on
 // it), so it keeps celebrating immediately, same as before this change.
 // end/delete_week never did and still don't.
+// The day to build next once this card is added, or null when nothing is
+// left to build. dayNumber counts the days already in the week (a redo adds
+// none), so the next new day is always one past it, even after redoing an
+// earlier day. Only the two day cards have one.
+export function nextDayToBuild(action: ProgramAction): number | null {
+  if (action.type !== 'create' && action.type !== 'add_day') return null;
+  if (action.dayNumber == null || action.totalDays == null) return null;
+  return action.dayNumber < action.totalDays ? action.dayNumber + 1 : null;
+}
+
 export function isLastConfirmedDay(action: ProgramAction): boolean {
   if (action.type === 'create_from_workouts') return true;
   if (action.type !== 'create' && action.type !== 'add_day') return false;

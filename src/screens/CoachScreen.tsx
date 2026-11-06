@@ -36,7 +36,7 @@ import { GlobalErrorBoundary } from '../components/GlobalErrorBoundary';
 import { ActivityBubble, Stage } from '../components/coach/ActivityBubble';
 import { ResponseBlockView, ResponseBlock } from '../components/coach/RichBlocks';
 import { COACH_COLORS, CoachPalette } from '../components/coach/coachTokens';
-import { ProgramAction, getChangeDayMessage, isLastConfirmedDay } from '../components/coach/programAction';
+import { ProgramAction, getChangeDayMessage, isLastConfirmedDay, nextDayToBuild } from '../components/coach/programAction';
 import { DayPreviewList } from '../components/coach/DayPreview';
 
 import { supabase } from '../lib/supabase';
@@ -210,7 +210,17 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // hasLoadedFromStorageRef-guarded load/save pattern that fixed
   // pendingProgramAction's mount-race also closes the only real way this
   // could otherwise reappear after being dismissed.
-  const [justStartedProgram, setJustStartedProgram] = useState<{ name: string } | null>(null);
+  // name is null when the last day was added after the chat screen closed
+  // and reopened mid-build: builtProgramNameRef below doesn't survive that,
+  // and losing the name used to lose the whole card (found 2026-11-06).
+  const [justStartedProgram, setJustStartedProgram] = useState<{ name: string | null } | null>(null);
+  // The next day of a build, offered as a button once a day is added: Add
+  // only saves the day, so nothing used to say what comes next (2026-11-06).
+  // A button rather than a chat message, because the model reads chat
+  // messages and once copied the app's own lines as its own. Free until
+  // tapped, then it is a normal message. Saved like the cards, so it is
+  // still there after leaving the chat.
+  const [nextDayNumber, setNextDayNumber] = useState<number | null>(null);
   // Day-by-day build (2026-09-18): day 1's 'create' confirm knows the
   // program name; a later day's 'add_day' confirm doesn't (its payload only
   // ever carries a day name). Remembered here purely so the celebration
@@ -256,6 +266,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   // messages already are.
   const PROGRAM_ACTION_STORAGE_KEY = `coach_pending_action_v1_${profile?.id}`;
   const JUST_STARTED_STORAGE_KEY = `coach_just_started_v1_${profile?.id}`;
+  const NEXT_DAY_STORAGE_KEY = `coach_next_day_v1_${profile?.id}`;
   // The message still waiting for its answer (src/lib/coachRecovery.ts), so
   // an answer that finished while the app was closed or the chat was left
   // is collected the next time the chat opens.
@@ -340,6 +351,14 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         if (savedJustStarted) setJustStartedProgram(JSON.parse(savedJustStarted));
       } catch (e: any) {
         console.warn('Failed to load saved just-started program:', e.message);
+      }
+
+      try {
+        const savedNextDay = await AsyncStorage.getItem(NEXT_DAY_STORAGE_KEY);
+        const day = savedNextDay ? Number(savedNextDay) : NaN;
+        if (Number.isInteger(day) && day > 1) setNextDayNumber(day);
+      } catch (e: any) {
+        console.warn('Failed to load saved next day:', e.message);
       }
 
       // Set by CoachFab when a starter prompt chip is tapped — sends it as
@@ -431,6 +450,15 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       AsyncStorage.removeItem(JUST_STARTED_STORAGE_KEY);
     }
   }, [justStartedProgram]);
+
+  useEffect(() => {
+    if (!hasLoadedFromStorageRef.current) return;
+    if (nextDayNumber) {
+      AsyncStorage.setItem(NEXT_DAY_STORAGE_KEY, String(nextDayNumber));
+    } else {
+      AsyncStorage.removeItem(NEXT_DAY_STORAGE_KEY);
+    }
+  }, [nextDayNumber]);
 
   // Sends the running message history to ai-coach and applies whatever
   // comes back. The function now streams over SSE — event: stage fires as
@@ -621,6 +649,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
     setRecommendations([]);
     setSuggestedReplies([]);
     setJustStartedProgram(null);
+    setNextDayNumber(null);
     setStages([]);
     // Deliberately NOT clearing pendingProgramAction here. Sending a message
     // is not the same as dismissing a proposal — asking "what's in day 3?"
@@ -857,13 +886,16 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           : pendingProgramAction.type === 'add_day'
           ? builtProgramNameRef.current
           : null;
+      const nextDay = nextDayToBuild(pendingProgramAction);
+      setNextDayNumber(nextDay);
+      if (nextDay) setSuggestedReplies([]);
       setPendingProgramAction(null);
       await refreshProfile();
       if (buildComplete && !profile?.onboarding_completed_at) {
         requestAnimationFrame(() => {
           router.replace({ pathname: '/onboarding-journey', params: { programReady: '1' } });
         });
-      } else if (buildComplete && programName) {
+      } else if (buildComplete && (programName || (pendingProgramAction.type === 'add_day' && !pendingProgramAction.replacing))) {
         setJustStartedProgram({ name: programName });
       }
     } catch (error: any) {
@@ -900,6 +932,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
       setSuggestedReplies([]);
       setPendingProgramAction(null);
       setJustStartedProgram(null);
+      setNextDayNumber(null);
       activeRequestRef.current = null;
       await AsyncStorage.removeItem(STORAGE_KEY);
       await saveInflight(null);
@@ -1092,7 +1125,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               </TouchableOpacity>
             ))}
 
-            {pendingProgramAction && (() => {
+            {/* Hidden only while the coach is working: the card sits below the
+                messages, so a tall one covered the athlete's new message and
+                the loading indicator, and it looked like nothing was sent
+                (2026-11-06). The card stays in state and comes back with the
+                reply, or is replaced if the reply brings a new one. */}
+            {pendingProgramAction && !loading && (() => {
               // Day-by-day build (2026-09-17): 'create' (day 1) and
               // 'add_day' (day 2+) share one card treatment — "Add Day N"
               // (or "Redo Day N" when index.ts's trusted `replacing` check
@@ -1225,7 +1263,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               <View style={[styles.actionCard, { borderColor: c.cardBorder, backgroundColor: c.cardBg }]}>
                 <View style={styles.actionCardHeader}>
                   <MaterialCommunityIcons name="check-circle-outline" size={18} color={theme.accent} />
-                  <Text style={[styles.actionCardTitle, { color: c.bodyText }]}>{t('coach.programIsReady', { name: justStartedProgram.name })}</Text>
+                  <Text style={[styles.actionCardTitle, { color: c.bodyText }]}>{justStartedProgram.name ? t('coach.programIsReady', { name: justStartedProgram.name }) : t('coach.programReady')}</Text>
                 </View>
                 <Text style={[styles.actionCardReason, { color: c.secondaryText }]}>{t('coach.keepChatting')}</Text>
                 <ProgramReviewAsk userId={profile.id} color={theme.accentText} mutedColor={c.secondaryText} />
@@ -1257,7 +1295,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.chipsScroll}
               >
-                {(suggestedReplies.length > 0 ? suggestedReplies : []).map((q, i) => (
+                {(nextDayNumber ? [t('coach.buildNextDay', { day: nextDayNumber })] : suggestedReplies).map((q, i) => (
                   <TouchableOpacity
                     key={i}
                     style={[styles.chip, { borderColor: c.chipBorder }]}
