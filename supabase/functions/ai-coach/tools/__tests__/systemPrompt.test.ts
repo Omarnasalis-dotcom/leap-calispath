@@ -24,6 +24,14 @@ describe("system prompt", () => {
     expect(SYSTEM_PROMPT).toContain("Their program is in the Train tab and on their Journey");
   });
 
+  it("knows the Leap team, and looks before answering about it (2026-11-07)", () => {
+    // Found on TestFlight: with no tool called, the coach told an athlete
+    // holding a review result that no Leap team exists and the edits were its own.
+    expect(SYSTEM_PROMPT).toContain("**The Leap team is real.**");
+    expect(SYSTEM_PROMPT).toContain("call get_user_context first and answer from active_program.team_review");
+    expect(SYSTEM_PROMPT).toContain("never claim their edits as your own");
+  });
+
   it("keeps lasting facts and internal words where they belong (2026-11-06)", () => {
     expect(SYSTEM_PROMPT).toContain("**Lasting facts are worth keeping.**");
     expect(SYSTEM_PROMPT).toContain('Say "we don\'t have that exercise", never "library"');
