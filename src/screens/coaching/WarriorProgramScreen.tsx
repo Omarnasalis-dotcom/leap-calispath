@@ -1991,12 +1991,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   const [restOffer, setRestOffer] = useState<{ id: number; afterBlockId: string | number } | null>(null);
   const runnerScroll = useRef<ScrollView>(null);
   const runnerScrollY = useRef(0);
-  // A touch inside the offer reaches it first; any other one closes it.
-  const touchInOffer = useRef(false);
-  const handleRunnerTouchEnd = () => {
-    if (touchInOffer.current) touchInOffer.current = false;
-    else if (restOffer) setRestOffer(null);
-  };
   // Going back to the day list ends what's in the blocks, so a running rest
   // carries on as the side countdown.
   const leaveBlockList = () => {
@@ -2085,7 +2079,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       enabled={Platform.OS !== 'web'}
     >
       {screenPhase === 'running' && activeDay ? (
-        <View style={{ flex: 1, backgroundColor: theme.background.primary }} onTouchEnd={handleRunnerTouchEnd}>
+        <View style={{ flex: 1, backgroundColor: theme.background.primary }}>
         <ScrollView
           ref={runnerScroll}
           contentContainerStyle={[styles.scrollContainer, { paddingBottom: 140 }]}
@@ -2176,7 +2170,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                     key={restOffer.id}
                     onStart={(seconds) => startSideRest(seconds, activeDay?.blocks.find(b => b.completedStatus === 'none')?.id)}
                     onClose={() => setRestOffer(null)}
-                    onTouchInside={() => { touchInOffer.current = true; }}
                     onShown={showRestOffer}
                   />
                 )}

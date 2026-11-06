@@ -58,7 +58,6 @@ function Screen({ onEnded }: { onEnded: () => void }) {
           key={offer}
           onStart={(seconds) => setRest(prev => ({ id: (prev?.id ?? 0) + 1, seconds }))}
           onClose={() => setOffer(null)}
-          onTouchInside={jest.fn()}
         />
       )}
       {rest && (
@@ -133,15 +132,6 @@ describe('rest between blocks', () => {
     expect(pillShown(r)).toBe(true);
     advance(95_000);
     expect(onEnded).toHaveBeenCalledTimes(1);
-  });
-
-  it('touches inside the card are reported, so they do not close it', async () => {
-    const onTouchInside = jest.fn();
-    let r!: ReactTestRenderer;
-    await act(async () => { r = create(<BlockRestOffer onStart={jest.fn()} onClose={jest.fn()} onTouchInside={onTouchInside} />); });
-    mounted.push(r);
-    act(() => { r.root.findAll(n => typeof n.props.onTouchEnd === 'function')[0].props.onTouchEnd(); });
-    expect(onTouchInside).toHaveBeenCalledTimes(1);
   });
 
   it('−15 / +15 change the time and restart the 5 seconds', async () => {

@@ -27,14 +27,13 @@ const clock = (s: number) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2,
 /**
  * Rest between blocks (owner, 2026-11-06), part 1: a card in the block list,
  * under the block just logged, so the rest of the screen stays usable.
- * −15 / +15, then Start. Closes after 5 seconds, on ✕, or on a tap elsewhere
- * (the screen handles that one; `onTouchInside` tells it apart). No timer
- * runs unless Start is tapped. Start keeps the length for next time.
+ * −15 / +15, then Start. Closes after 5 seconds or on ✕, and scrolling or
+ * tapping elsewhere leaves it alone. No timer runs unless Start is tapped.
+ * Start keeps the length for next time.
  */
-export function BlockRestOffer({ onStart, onClose, onTouchInside, onShown }: {
+export function BlockRestOffer({ onStart, onClose, onShown }: {
   onStart: (seconds: number) => void;
   onClose: () => void;
-  onTouchInside: () => void;
   /** Where it landed on screen, so the list can scroll it into view. */
   onShown?: (y: number, height: number) => void;
 }) {
@@ -121,7 +120,6 @@ export function BlockRestOffer({ onStart, onClose, onTouchInside, onShown }: {
     <Animated.View
       ref={card as never}
       accessibilityLiveRegion="polite"
-      onTouchEnd={onTouchInside}
       onLayout={() => card.current?.measureInWindow?.((_x, y, _w, height) => onShown?.(y, height))}
       style={[
         styles.offer,
