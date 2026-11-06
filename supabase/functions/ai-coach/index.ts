@@ -7,6 +7,7 @@ import { addUsage, usageCostUsd, AccumulatedUsage, ClaudeUsage } from "./pricing
 import { detectPendingCardClaim, detectUnactedClaim } from "./tools/actionClaimGuard.ts";
 import { detectSafetyFlags } from "./tools/safetyGuard.ts";
 import { isNarrationRound, sanitizeReply } from "./tools/replyCleanup.ts";
+import { isAutoOpener } from "./tools/chatOpener.ts";
 import { neutralizeUsageNotices } from "./tools/usageNotices.ts";
 import { neutralizeAppNotes } from "./tools/appNotes.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
@@ -560,6 +561,17 @@ serve(async (req: Request) => {
     );
   }
   const chatRequestId = (chatLogResult as { request_id?: string } | null)?.request_id;
+
+  // The app's automatic opener isn't the athlete's message, so it doesn't use
+  // one up on a paid plan. Any failure here only means it counts, as before.
+  if (serviceClient && chatRequestId && (chatLogResult as { tier?: string } | null)?.tier !== "free" && isAutoOpener(body.messages)) {
+    try {
+      const { error } = await serviceClient.rpc("ai_coach_mark_opener", { p_request_id: chatRequestId, p_user_id: user.id });
+      if (error) throw new Error(error.message);
+    } catch (err) {
+      console.error("[ai-coach] Marking the opener failed:", err instanceof Error ? err.message : err);
+    }
+  }
 
   const ANTHROPIC_API_KEY = Deno.env.get("ANTHROPIC_API_KEY");
   if (!ANTHROPIC_API_KEY) {
