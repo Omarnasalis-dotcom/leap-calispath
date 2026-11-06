@@ -46,6 +46,9 @@ import { track } from '../lib/analytics';
 import { CoachSetup } from '../components/coach/CoachSetup';
 import { CoachMessageText } from '../components/coach/CoachMessageText';
 import { needsCoachSetup } from '../lib/coachSetup';
+import { rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
+import { useCoachUsage } from '../hooks/useCoachUsage';
+import { CoachUsageLine } from '../components/coach/CoachUsageLine';
 import {
   coachServerError,
   deliverWithRecovery,
@@ -86,41 +89,6 @@ const RECOMMENDATION_LABELS: Record<Recommendation['world'], string> = {
   static: t('coach.recStatic'),
   one_min_max: t('coach.recOneMin'),
 };
-
-// ai_coach_log_chat_request (supabase/migrations) raises one of these
-// RATE_LIMIT:<REASON> prefixes depending on which cap was hit — soft "come
-// back later" copy, no upsell nudge, per the tier system's confirmed UX
-// (2026-08-29). DAY1/DAILY/WEEKLY are genuinely tier-blind ("today"/"this
-// week" reads the same regardless of tier), so only BUDGET/CAP get their
-// own copy; everything else falls back to the pre-existing generic string.
-function rateLimitCopy(message: string | undefined): string {
-  if (message?.startsWith('RATE_LIMIT:BUDGET')) {
-    return t('coach.quotaBudget');
-  }
-  if (message?.startsWith('RATE_LIMIT:CAP')) {
-    return t('coach.quotaCap');
-  }
-  if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
-    return t('coach.quotaWeekly');
-  }
-  if (message?.startsWith('RATE_LIMIT:DAY1') || message?.startsWith('RATE_LIMIT:DAILY')) {
-    return t('coach.quotaDaily');
-  }
-  return t('coach.quotaDefault');
-}
-
-// Short-form variant of rateLimitCopy() for the input-area banner (replaces
-// "🏛️ Daily sessions exhausted — resets at midnight", which was wrong for
-// anything but the daily cap once BUDGET/WEEKLY/CAP became real reasons).
-function rateLimitBannerCopy(message: string | undefined): string {
-  if (message?.startsWith('RATE_LIMIT:BUDGET') || message?.startsWith('RATE_LIMIT:CAP')) {
-    return t('coach.bannerBudget');
-  }
-  if (message?.startsWith('RATE_LIMIT:WEEKLY')) {
-    return t('coach.bannerWeekly');
-  }
-  return t('coach.bannerDaily');
-}
 
 // Real, verified RAISE EXCEPTION text from every RPC handleConfirmProgramAction
 // calls (ai_coach_create_program, ai_coach_create_program_from_workouts,
@@ -309,6 +277,18 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
   const [setupDone, setSetupDone] = useState(false);
   const isPro = canAccessPro(profile, paywallEnabled);
   const showSetup = !isPro || (!setupDone && needsCoachSetup(profile));
+
+  // Display only: never in the history sent to the AI Coach, and it can only
+  // lift the lock below, never set it. The server judges every message.
+  const usage = useCoachUsage(!!profile && !showSetup, loading);
+  // A limit that has reset opens the chat without leaving the screen. Runs
+  // only when the numbers change, so a refusal just received isn't undone by
+  // the numbers from before it.
+  useEffect(() => {
+    if (!usage || usage.blocked) return;
+    setRateLimited(false);
+    setRateLimitReason(undefined);
+  }, [usage]);
   const handleSetupComplete = () => {
     setSetupDone(true);
     if (initialPrompt && messages.length === 0) sendMessage(initialPrompt);
@@ -495,7 +475,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
         setRateLimited(true);
         setRateLimitReason(rateLimitMessage);
         return {
-          reply: rateLimitCopy(rateLimitMessage),
+          reply: rateLimitCopy(rateLimitMessage, profile?.access_expires_at),
           recommendations: [], programAction: null, blocks: [], suggestedReplies: [],
         };
       }
@@ -1283,7 +1263,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
           ) : (
             <View style={[styles.quotaExhausted, { backgroundColor: c.cardBg, borderTopColor: c.headerDivider }]}>
               <Text style={[styles.quotaExhaustedText, { color: c.secondaryText }]}>
-                {rateLimitBannerCopy(rateLimitReason)}
+                {rateLimitBannerCopy(rateLimitReason, usage, profile?.access_expires_at)}
               </Text>
               {/* Every plan below Max has higher limits to move up to. */}
               {planTier !== 'max' && (
@@ -1297,6 +1277,8 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
               )}
             </View>
           )}
+
+          {!rateLimited && usage && <CoachUsageLine usage={usage} color={c.mutedLabel} lowColor={theme.accentText} />}
 
           <View style={[styles.inputContainer, { borderTopColor: c.headerDivider }]}>
             <TextInput
