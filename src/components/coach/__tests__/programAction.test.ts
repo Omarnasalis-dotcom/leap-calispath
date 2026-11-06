@@ -3,7 +3,7 @@
 // without CoachScreen.tsx's full import chain (AsyncStorage, expo-router,
 // expo-blur, AuthContext, ThemeContext, the Supabase client), none of which
 // resolve under a plain Jest run outside a rendered app.
-import { getChangeDayMessage, isLastConfirmedDay, ProgramAction } from "../programAction";
+import { getChangeDayMessage, isLastConfirmedDay, nextDayToBuild, ProgramAction } from "../programAction";
 
 function makeAction(overrides: Partial<ProgramAction>): ProgramAction {
   return {
@@ -104,5 +104,35 @@ describe("\"Change this day\" makes no server call (added 2026-09-17)", () => {
     // outside what's mocked.
     const src = getChangeDayMessage.toString();
     expect(src).not.toMatch(/\.rpc\(|fetch\(|await\s/);
+  });
+});
+
+describe('nextDayToBuild', () => {
+  const action = (over: Record<string, unknown>) => ({ type: 'add_day', ...over }) as unknown as ProgramAction;
+
+  it('offers the next day while days are left', () => {
+    expect(nextDayToBuild(action({ type: 'create', dayNumber: 1, totalDays: 3 }))).toBe(2);
+    expect(nextDayToBuild(action({ dayNumber: 2, totalDays: 3 }))).toBe(3);
+  });
+
+  it('offers nothing on the last day', () => {
+    expect(nextDayToBuild(action({ dayNumber: 3, totalDays: 3 }))).toBeNull();
+    expect(nextDayToBuild(action({ type: 'create', dayNumber: 1, totalDays: 1 }))).toBeNull();
+  });
+
+  it('offers the first missing day after redoing an earlier one', () => {
+    // Day 1 redone with two days built: dayNumber is the running total.
+    expect(nextDayToBuild(action({ dayNumber: 2, displayDayNumber: 1, totalDays: 3, replacing: true }))).toBe(3);
+  });
+
+  it('offers nothing when the numbers are missing', () => {
+    expect(nextDayToBuild(action({ dayNumber: null, totalDays: 3 }))).toBeNull();
+    expect(nextDayToBuild(action({ dayNumber: 1, totalDays: null }))).toBeNull();
+  });
+
+  it('never applies to other cards', () => {
+    for (const type of ['create_from_workouts', 'end', 'delete_week', 'append_week']) {
+      expect(nextDayToBuild(action({ type, dayNumber: 1, totalDays: 3 }))).toBeNull();
+    }
   });
 });

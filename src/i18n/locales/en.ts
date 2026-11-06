@@ -2555,6 +2555,8 @@ const en = {
     dayAdded: '**{{name}}** added.',
     dayUpdated: '**{{name}}** updated.',
     programIsReady: '"{{name}}" is ready',
+    programReady: 'Your program is ready',
+    buildNextDay: 'Build Day {{day}}',
     day1: 'Day 1',
     weekDeleted: 'Week {{week}} has been deleted.',
     weekName: 'Week {{week}}',

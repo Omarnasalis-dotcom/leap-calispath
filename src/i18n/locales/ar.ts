@@ -2708,6 +2708,8 @@ const ar: Translations = {
     dayAdded: 'تمت إضافة **{{name}}**.',
     dayUpdated: 'تم تحديث **{{name}}**.',
     programIsReady: '"{{name}}" جاهز',
+    programReady: 'برنامجك جاهز',
+    buildNextDay: 'ابنِ اليوم {{day}}',
     day1: 'اليوم 1',
     weekDeleted: 'تم حذف الأسبوع {{week}}.',
     weekName: 'الأسبوع {{week}}',
