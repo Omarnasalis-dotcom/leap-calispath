@@ -12,6 +12,7 @@
 // that's the actual behavior at risk of a silent regression, not the
 // network call around it.
 import {
+  BUILD_BRIEF_SCHEMA,
   validateBlockStructure,
   validateExerciseList,
   warnSplitCoverage,
@@ -947,7 +948,6 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
     days_per_week: 4,
     split_days: ["PULL", "LEGS", "PUSH", "FULL_BODY"],
     equipment: ["bar", "rings"],
-    pacing: "day_by_day" as const,
   });
 
   it("rejects a missing brief entirely, naming what's required", () => {
@@ -956,7 +956,7 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
 
   it("names every missing top-level field at once", () => {
     expect(() => validateBuildBrief({ goal: "strength" })).toThrow(
-      /skills, trial_focus, days_per_week, split_days, equipment, pacing/
+      /skills, trial_focus, days_per_week, split_days, equipment/
     );
   });
 
@@ -1025,10 +1025,9 @@ describe("validateBuildBrief (added 2026-09-16, direct build — this is the rea
     expect(() => validateBuildBrief(brief)).toThrow(/split_days must be a non-empty array/);
   });
 
-  it("rejects an invalid pacing value", () => {
-    const brief = validBrief() as unknown as Record<string, unknown>;
-    brief.pacing = "sometimes";
-    expect(() => validateBuildBrief(brief)).toThrow(/pacing must be "day_by_day" or "direct"/);
+  it("never needs pacing: a build is always one day at a time, so nothing to ask", () => {
+    expect(() => validateBuildBrief(validBrief())).not.toThrow();
+    expect(JSON.stringify(BUILD_BRIEF_SCHEMA)).not.toContain("pacing");
   });
 
   it("rejects days_per_week out of the 1-7 range", () => {
@@ -1793,7 +1792,6 @@ describe("INTEGRATION (2026-09-16): the full validation pipeline against the exa
       days_per_week: 4,
       split_days: ["PULL", "LEGS", "PUSH", "PULL"],
       equipment: ["bar", "rings", "bands", "weights"],
-      pacing: "direct" as const,
     };
     expect(() => validateBuildBrief(brief)).not.toThrow();
   });

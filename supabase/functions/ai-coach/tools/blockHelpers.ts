@@ -1615,7 +1615,6 @@ export interface BuildBrief {
   days_per_week: number;
   split_days: string[];
   equipment: string[];
-  pacing: "day_by_day" | "direct";
   current_maxes?: CurrentMaxes;
 }
 
@@ -1643,7 +1642,6 @@ export const BUILD_BRIEF_SCHEMA = {
     days_per_week: { type: "integer", description: "Confirmed training days per week." },
     split_days: { type: "array", items: { type: "string" }, description: 'The real category per day, in order, e.g. ["PULL", "LEGS", "PUSH", "FULL_BODY"] — system-prompt.ts §15.' },
     equipment: { type: "array", items: { type: "string" }, description: 'Confirmed equipment, e.g. ["bar", "rings", "bands"].' },
-    pacing: { type: "string", enum: ["day_by_day", "direct"], description: "Which pacing the athlete chose (system-prompt.ts §11)." },
     current_maxes: {
       type: "object",
       description: "Optional. Strict max reps the athlete gave you in this chat that are newer than assessment_raw (system-prompt.ts §10). The safety check uses these instead of the onboarding assessment.",
@@ -1655,7 +1653,7 @@ export const BUILD_BRIEF_SCHEMA = {
       },
     },
   },
-  required: ["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment", "pacing"],
+  required: ["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment"],
 };
 
 // Manual, runtime enforcement of BUILD_BRIEF_SCHEMA's `required` list.
@@ -1667,11 +1665,11 @@ export const BUILD_BRIEF_SCHEMA = {
 export function validateBuildBrief(brief: unknown): BuildBrief {
   if (!brief || typeof brief !== "object" || Array.isArray(brief)) {
     throw new Error(
-      `Missing "brief" — propose_new_program requires the full build brief (goal, skills, trial_focus, days_per_week, split_days, equipment, pacing) before it will build anything. See system-prompt.ts §11.`
+      `Missing "brief" — propose_new_program requires the full build brief (goal, skills, trial_focus, days_per_week, split_days, equipment) before it will build anything. See system-prompt.ts §11.`
     );
   }
   const b = brief as Record<string, unknown>;
-  const missing = (["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment", "pacing"] as const).filter(
+  const missing = (["goal", "skills", "trial_focus", "days_per_week", "split_days", "equipment"] as const).filter(
     (field) => b[field] === undefined || b[field] === null
   );
   if (missing.length > 0) {
@@ -1720,9 +1718,6 @@ export function validateBuildBrief(brief: unknown): BuildBrief {
   }
   if (!Array.isArray(b.equipment)) {
     throw new Error(`brief.equipment must be an array (can be empty for bodyweight-only).`);
-  }
-  if (b.pacing !== "day_by_day" && b.pacing !== "direct") {
-    throw new Error(`brief.pacing must be "day_by_day" or "direct" — whichever the athlete actually chose (system-prompt.ts §11).`);
   }
   if (typeof b.days_per_week !== "number" || b.days_per_week < 1 || b.days_per_week > 7) {
     throw new Error(`brief.days_per_week must be a real number between 1 and 7.`);

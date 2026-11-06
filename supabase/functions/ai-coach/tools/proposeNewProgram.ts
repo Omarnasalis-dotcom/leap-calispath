@@ -24,7 +24,7 @@ import {
 // Day-by-day build (2026-09-17): proposes DAY 1 ONLY of a brand-new
 // program — never a whole week. `blocks` always carries exactly one day's
 // worth of blocks; `brief` still carries the FULL planned split (goal,
-// skills, days_per_week, split_days, equipment, pacing) so warnSplitCoverage
+// skills, days_per_week, split_days, equipment) so warnSplitCoverage
 // can sanity-check the declared plan and the athlete's confirmed intent
 // survives to append_week/weekly-review later. Day 2 onward goes through
 // propose_add_day instead, once this call's confirm has created the program
@@ -39,7 +39,7 @@ import {
 export const proposeNewProgram: ToolDefinition = {
   name: "propose_new_program",
   description:
-    "Propose DAY 1 of a brand-new training program — this does NOT create anything until the athlete taps the card. `blocks` is exactly one day's blocks (the first day of the confirmed week structure); every day after this one goes through propose_add_day instead, once this day is added. Don't write Warm-Up, Mobility or Cool-Down blocks: pick 3-5 warm-up exercise names for this athlete and day in `warm_up_exercises` (the server sets rounds and reps by level and builds the block), add `mobility_exercises` only when they need mobility, and the server builds the Cool-Down. `brief` carries the FULL confirmed plan (goal, skills, days_per_week, the real split_days in order, equipment, pacing), even though blocks here is just day 1 — the rest of the plan is what propose_add_day's later days build toward. Requires every brief field to already be a real, athlete-confirmed answer, never a guess. Checks this day against the athlete's own real numbers (assessment_raw, logged weights) before proposing — some issues (a hold or reps at/above their confirmed max, a band cue they no longer need, a missing checkpoint) are hard errors naming exactly what to fix; others (reps that look low for their level, a split-structure mismatch) come back as non-fatal `warnings` in the result — read those and use judgment, they don't block the card.",
+    "Propose DAY 1 of a brand-new training program — this does NOT create anything until the athlete taps the card. `blocks` is exactly one day's blocks (the first day of the confirmed week structure); every day after this one goes through propose_add_day instead, once this day is added. Don't write Warm-Up, Mobility or Cool-Down blocks: pick 3-5 warm-up exercise names for this athlete and day in `warm_up_exercises` (the server sets rounds and reps by level and builds the block), add `mobility_exercises` only when they need mobility, and the server builds the Cool-Down. `brief` carries the FULL confirmed plan (goal, skills, days_per_week, the real split_days in order, equipment), even though blocks here is just day 1 — the rest of the plan is what propose_add_day's later days build toward. Requires every brief field to already be a real, athlete-confirmed answer, never a guess. Checks this day against the athlete's own real numbers (assessment_raw, logged weights) before proposing — some issues (a hold or reps at/above their confirmed max, a band cue they no longer need, a missing checkpoint) are hard errors naming exactly what to fix; others (reps that look low for their level, a split-structure mismatch) come back as non-fatal `warnings` in the result — read those and use judgment, they don't block the card.",
   input_schema: {
     type: "object",
     properties: {
