@@ -77,6 +77,9 @@ export const getUserContext: ToolDefinition = {
         // (save_athlete_update), with updated_at. Newer than assessed_at →
         // these are their numbers now (system-prompt.ts §10).
         current_maxes: (profile as { current_maxes?: unknown } | null)?.current_maxes ?? null,
+        // Lasting facts from earlier chats (save_athlete_update), which
+        // survive clearing the chat. A failed read just means none.
+        training_notes: await readTrainingNotes(userClient),
         // From the onboarding Goals & Equipment step (Milestone Lane) --
         // raw id arrays, same convention as static_pbs below (no label-
         // resolution layer). goal folds in the legacy single-value
@@ -173,4 +176,15 @@ export async function isCurrentWeekComplete(
   const loggedBlockIds = new Set((loggedRows ?? []).map((r: { block_id: string }) => r.block_id));
 
   return realBlockIds.every((id: string) => loggedBlockIds.has(id));
+}
+
+async function readTrainingNotes(userClient: SupabaseClient): Promise<string[]> {
+  try {
+    const { data, error } = await userClient.rpc("ai_coach_get_training_notes");
+    if (error) throw new Error(error.message);
+    return Array.isArray(data) ? (data as string[]) : [];
+  } catch (err) {
+    console.error("[ai-coach] Training notes read failed:", err instanceof Error ? err.message : err);
+    return [];
+  }
 }

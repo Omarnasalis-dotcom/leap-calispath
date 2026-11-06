@@ -43,3 +43,22 @@ export function sanitizeReply(text: string): string {
 
   return cleaned;
 }
+
+// Text the model writes beside these tools is working out loud: name checks
+// ("Good, Inverted Row exists exactly"), retries ("I'll use that and fix the
+// two other names") and "Building Day 1 now" before a build that then fails.
+// Found live 2026-11-06. It is held back and used only if the turn ends with
+// nothing else to say. Tools that show the athlete something (suggest_replies,
+// attach_*) or follow real analysis (logs, adjustments) are not on this list,
+// because prose beside those can be the answer itself.
+const NARRATION_ONLY_TOOLS = new Set([
+  "get_user_context",
+  "search_exercises",
+  "match_workout_for_day",
+  "propose_new_program",
+  "propose_add_day",
+]);
+
+export function isNarrationRound(toolNames: string[]): boolean {
+  return toolNames.length > 0 && toolNames.every((name) => NARRATION_ONLY_TOOLS.has(name));
+}
