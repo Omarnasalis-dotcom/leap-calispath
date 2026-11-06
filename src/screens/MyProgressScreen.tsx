@@ -28,6 +28,8 @@ import {
   movementWeeks,
   signed,
   weightedView,
+  worldRows,
+  WorldRow,
   worldSeries,
   allMovementsSummary,
   toggleWeekPick,
@@ -789,6 +791,15 @@ function LiftsCard({
 
 // ---------- World points ----------
 
+/** "30s · 120 pts", "25 reps · 80 pts", "+20 kg". */
+function worldRowText(r: WorldRow): string {
+  if (r.kind === 'load') return `${r.added ? '+' : ''}${fmtNum(r.value)} ${t('progress.kg')}`;
+  const result = r.kind === 'seconds'
+    ? t('progress.secondsShort', { n: fmtNum(r.value) })
+    : t('logSheet.repsShort', { n: fmtNum(r.value) });
+  return `${result} · ${fmtNum(r.points)} ${t('progress.pts')}`;
+}
+
 function WorldsCard({
   data,
   c,
@@ -807,8 +818,10 @@ function WorldsCard({
       { key: 'power', name: t('progress.worldPower'), color: c.power },
     ] as const
   )
-    .map((w) => ({ ...w, series: worldSeries(data.worlds, w.key) }))
+    .map((w) => ({ ...w, series: worldSeries(data.worlds, w.key), rows: worldRows(w.key, data.world_bests) }))
     .filter((w) => w.series.length > 0);
+  // Each world opens its own list.
+  const [openWorlds, setOpenWorlds] = useState<Record<string, boolean>>({});
 
   return (
     <Card title={t('progress.worlds')} sub={t('progress.worldsSub')} styles={styles}>
@@ -846,6 +859,32 @@ function WorldsCard({
                   series={[{ key: w.key, color: w.color, values: v }]}
                   colors={{ ...chartColors, surface: hexA(w.color, 0.1) }}
                 />
+                {w.rows.length > 0 && (
+                  <>
+                    <TouchableOpacity
+                      accessibilityRole="button"
+                      accessibilityLabel={`${w.name}: ${t(openWorlds[w.key] ? 'progress.worldMovesHide' : 'progress.worldMovesShow')}`}
+                      accessibilityState={{ expanded: !!openWorlds[w.key] }}
+                      onPress={() => setOpenWorlds((open) => ({ ...open, [w.key]: !open[w.key] }))}
+                      style={[styles.worldMovesToggle, { borderTopColor: hexA(w.color, 0.25) }]}
+                    >
+                      <Text style={[styles.worldMovesToggleText, { color: w.color }]} numberOfLines={1}>
+                        {t(openWorlds[w.key] ? 'progress.worldMovesHide' : 'progress.worldMovesShow')}
+                      </Text>
+                      <MaterialCommunityIcons name={openWorlds[w.key] ? 'chevron-up' : 'chevron-down'} size={18} color={w.color} />
+                    </TouchableOpacity>
+                    {openWorlds[w.key] && (
+                      <View style={styles.worldMoves}>
+                        {w.rows.map((r) => (
+                          <View key={r.name}>
+                            <Text style={styles.worldMove}>{r.name}</Text>
+                            <Text style={styles.worldMoveValue}>{worldRowText(r)}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    )}
+                  </>
+                )}
               </View>
             );
           })}
@@ -1059,11 +1098,25 @@ const getStyles = (c: TCPalette) =>
     dot8: { width: 8, height: 8, borderRadius: 4 },
     note: { color: c.textMuted, fontSize: 11 },
 
-    worlds: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
+    // Tiles keep their own height: opening one leaves its neighbour as it is.
+    worlds: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', gap: 10 },
     world: { flexGrow: 1, flexBasis: 140, borderRadius: 14, paddingHorizontal: 12, paddingTop: 12, paddingBottom: 6, gap: 4 },
     worldTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 6 },
     worldName: { flexShrink: 1, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 11, letterSpacing: 1.8 },
     worldDelta: { fontSize: 11, fontWeight: '600' },
+    worldMovesToggle: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 4,
+      marginTop: 8,
+      minHeight: 40,
+      borderTopWidth: 1,
+    },
+    worldMovesToggleText: { flexShrink: 1, fontSize: 12.5, fontWeight: '600' },
+    worldMoves: { gap: 8, paddingBottom: 4 },
+    worldMove: { color: c.textPrimary, fontSize: 12.5, fontWeight: '600' },
+    worldMoveValue: { color: c.textSecondary, fontSize: 12, marginTop: 1 },
     worldValue: { color: c.textPrimary, fontFamily: 'BarlowCondensed-ExtraBold', fontSize: 34, lineHeight: 38 },
 
     mvReadout: { minHeight: 16, marginTop: -6 },

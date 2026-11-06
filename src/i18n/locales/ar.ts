@@ -2230,6 +2230,8 @@ const ar: Translations = {
     worlds: 'نقاط العوالم',
     worldsSub: 'النتيجة في نهاية كل أسبوع',
     thisWeek: '{{delta}} هذا الأسبوع',
+    worldMovesShow: 'عرض الحركات',
+    worldMovesHide: 'إخفاء الحركات',
     worldStatic: 'الثبات',
     worldOnemm: 'الدقيقة القصوى',
     worldPower: 'القوة',

@@ -93,3 +93,50 @@ it('Skill holds → All: seconds and hold counts', async () => {
   expect(text).toContain('135');
   expect(text).toContain('held in W1 · 5 holds');
 });
+
+describe('World points: each world has its own drop-down', () => {
+  const week = (w: number, staticPts: number, power = 0) => ({ week_start: `2026-10-0${w}`, static: staticPts, onemm: 0, power });
+  const open = async (extra: object) => {
+    Object.assign(mockPerformance, extra);
+    let screen!: ReactTestRenderer;
+    await act(async () => { screen = create(<MyProgressScreen />); });
+    return screen;
+  };
+  afterEach(() => {
+    mockPerformance.worlds = [];
+    delete (mockPerformance as any).world_bests;
+  });
+  const bests = {
+    static: [{ movement: 'tuck_front_lever', seconds: 30, points: 120 }],
+    onemm: [],
+    power: { pullup: 17.5, dip: null, squat: 100, muscleup: null },
+  };
+  const toggle = async (screen: ReactTestRenderer, label: string) => {
+    const row = screen.root.findAll(x => x.props.accessibilityLabel === label && typeof x.props.onPress === 'function')[0];
+    await act(async () => { row.props.onPress(); });
+  };
+
+  it('closed by default; one world opens without opening the other', async () => {
+    const screen = await open({ worlds: [week(1, 100, 50), week(2, 120, 50)], world_bests: bests });
+    expect(allText(screen)).not.toContain('Tuck Front Lever');
+
+    await toggle(screen, 'STATIC: See movements');
+    // +17.5 is the Power list's pull-up; the name is also in Main movements.
+    expect(allText(screen)).toContain('Tuck Front Lever');
+    expect(allText(screen)).not.toContain('+17.5');
+
+    await toggle(screen, 'POWER: See movements');
+    expect(allText(screen)).toContain('+17.5');
+
+    await toggle(screen, 'STATIC: Hide movements');
+    expect(allText(screen)).not.toContain('Tuck Front Lever');
+    expect(allText(screen)).toContain('+17.5');
+    act(() => screen.unmount());
+  });
+
+  it('a world with no results behind it has no drop-down', async () => {
+    const screen = await open({ worlds: [week(1, 100)] });
+    expect(allText(screen)).not.toContain('See movements');
+    act(() => screen.unmount());
+  });
+});

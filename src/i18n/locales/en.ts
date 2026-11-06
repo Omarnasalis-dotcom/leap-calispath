@@ -2095,6 +2095,8 @@ const en = {
     worlds: 'WORLD POINTS',
     worldsSub: 'Score at the end of each week',
     thisWeek: '{{delta}} this week',
+    worldMovesShow: 'See movements',
+    worldMovesHide: 'Hide movements',
     worldStatic: 'STATIC',
     worldOnemm: 'ONE-MIN-MAX',
     worldPower: 'POWER',

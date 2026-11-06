@@ -1,3 +1,5 @@
+import { ONEMM_MOVEMENTS } from './oneMMLogic';
+import { STATIC_MOVEMENTS } from './staticLogic';
 import { supabase } from './supabase';
 
 // The athlete's own Performance data ("My progress", Train tab). Same shape
@@ -88,6 +90,60 @@ export interface Performance {
   bodyweight: { date: string; weight_kg: number }[];
   completion: CompletionProgram[];
   worlds: { week_start: string; static: number; onemm: number; power: number }[];
+  world_bests?: WorldBests;
+}
+
+/** The results behind each world's score (_world_bests_for). */
+export interface WorldBests {
+  static: { movement: string; seconds: number; points: number }[];
+  onemm: { movement: string; reps: number; points: number }[];
+  power: { pullup: number | null; dip: number | null; squat: number | null; muscleup: number | null } | null;
+}
+
+/** One movement in a world tile. Names are English, as on the World screens. */
+export type WorldRow =
+  | { name: string; kind: 'seconds' | 'reps'; value: number; points: number }
+  | { name: string; kind: 'load'; value: number; added: boolean };
+
+/** 'adv_tuck_front_lever' → 'Adv tuck front lever'. */
+const prettyId = (id: string) => {
+  const s = id.replace(/_/g, ' ').trim();
+  return s.charAt(0).toUpperCase() + s.slice(1);
+};
+
+/** The movements behind a world's score, with the result that counts. Same
+ * rows as the admin panel's World points (PerformancePanel worldRows). */
+export function worldRows(key: 'static' | 'onemm' | 'power', bests?: WorldBests): WorldRow[] {
+  if (!bests) return [];
+  if (key === 'static') {
+    return bests.static.map((b) => ({
+      name: STATIC_MOVEMENTS.find((m) => m.id === b.movement)?.name ?? prettyId(b.movement),
+      kind: 'seconds',
+      value: Number(b.seconds),
+      points: Number(b.points),
+    }));
+  }
+  if (key === 'onemm') {
+    return bests.onemm.map((b) => ({
+      name: ONEMM_MOVEMENTS.find((m) => m.id === b.movement)?.name ?? prettyId(b.movement),
+      kind: 'reps',
+      value: Number(b.reps),
+      points: Number(b.points),
+    }));
+  }
+  const p = bests.power;
+  if (!p) return [];
+  return (
+    [
+      ['Pull-up', p.pullup],
+      ['Dip', p.dip],
+      ['Squat', p.squat],
+      ['Muscle-up', p.muscleup],
+    ] as const
+  )
+    .filter(([, kg]) => kg != null && Number(kg) > 0)
+    // Squat is a barbell load; the others are weight added to bodyweight.
+    .map(([name, kg]) => ({ name, kind: 'load' as const, value: Number(kg), added: name !== 'Squat' }));
 }
 
 export async function getMyPerformance(): Promise<Performance> {
