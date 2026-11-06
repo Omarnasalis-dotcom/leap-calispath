@@ -12,6 +12,18 @@ import { neutralizeAppNotes } from "./tools/appNotes.ts";
 import { lastUserText, traceTool, ToolTrace, TurnOutcome } from "./tools/turnLog.ts";
 import { createEventSink, finalRow, parseClientRequestId } from "./tools/resultRecovery.ts";
 import { buildDayPreview, exerciseIds, PreviewBlock } from "./tools/dayPreview.ts";
+import {
+  addPendingCardNote,
+  asPendingCard,
+  cardReplyIsInChat,
+  PENDING_CARD_LOOKUP_TIMEOUT_MS,
+  pendingCardEnabled,
+  pendingCardNote,
+  pendingCardToStore,
+  ProposedCard,
+  proposedCardFrom,
+  withinLimit,
+} from "./tools/pendingCard.ts";
 
 // Every tool whose call IS the write/propose action — system-prompt §1's
 // list, exactly. If a terminal (non-tool-use) turn's text claims one of
@@ -700,6 +712,51 @@ serve(async (req: Request) => {
     usage: null as AccumulatedUsage | null,
   };
 
+  // The last day card this request proposed, and the day card waiting from
+  // an earlier one (tools/pendingCard.ts). Off unless AI_COACH_PENDING_CARD
+  // allows this user. Neither can fail the athlete's message: any problem
+  // here just means no note, which is how the coach always worked.
+  const pendingCardOn = pendingCardEnabled(Deno.env.get("AI_COACH_PENDING_CARD"), user.id);
+  let proposedCard: ProposedCard | null = null;
+  let proposedAt: string | null = null;
+
+  const readPendingCardNote = async (): Promise<string | null> => {
+    // Fewer than 3 messages can't hold a reply the athlete is answering.
+    if (!pendingCardOn || !serviceClient || initialMessages.length < 3) return null;
+    try {
+      const lookup = await withinLimit(
+        serviceClient.rpc("ai_coach_get_pending_card", { p_user_id: user.id }),
+        PENDING_CARD_LOOKUP_TIMEOUT_MS,
+      );
+      if (!lookup) {
+        console.warn("[ai-coach] Pending card lookup hit its time limit; continuing without it.");
+        return null;
+      }
+      if (lookup.error) throw new Error(lookup.error.message);
+      const card = asPendingCard(lookup.data);
+      return card && cardReplyIsInChat(card, initialMessages) ? pendingCardNote(card) : null;
+    } catch (err) {
+      console.error("[ai-coach] Pending card lookup failed:", err instanceof Error ? err.message : err);
+      return null;
+    }
+  };
+
+  const savePendingCard = async (reply: string | null) => {
+    if (!pendingCardOn || !serviceClient) return;
+    const card = pendingCardToStore(proposedCard, reply);
+    if (!card) return;
+    try {
+      const { error } = await serviceClient.rpc("ai_coach_store_pending_card", {
+        p_user_id: user.id,
+        p_card: card,
+        p_proposed_at: proposedAt,
+      });
+      if (error) throw new Error(error.message);
+    } catch (err) {
+      console.error("[ai-coach] Pending card save failed:", err instanceof Error ? err.message : err);
+    }
+  };
+
   const saveTurnForReview = async (reply: string | null, error: unknown) => {
     // Chat review row (migration 20261030120000). Off until the privacy
     // policy naming it is live: set the AI_COACH_CHAT_LOG secret to "on".
@@ -734,7 +791,12 @@ serve(async (req: Request) => {
   };
 
   return sseResponse(async (send) => {
-    const messages: unknown[] = [...initialMessages];
+    const pendingLookupStart = Date.now();
+    const pendingNote = await readPendingCardNote();
+    if (pendingNote) {
+      turnLog.tools.push(traceTool("pending_card_note", {}, Date.now() - pendingLookupStart, { result: "added" }));
+    }
+    const messages: unknown[] = pendingNote ? addPendingCardNote(initialMessages, pendingNote) : [...initialMessages];
     const recommendations: unknown[] = [];
     let programAction: unknown = null;
     // Design handoff rich blocks (attach_stat_bars/attach_steps) and
@@ -1014,6 +1076,8 @@ serve(async (req: Request) => {
           ) {
             programAction = await buildProgramAction(userClient, user.id, block.name, block.input ?? {}, result as Record<string, unknown>);
             turnLog.programAction = block.name;
+            proposedCard = proposedCardFrom(block.name, (block.input ?? {}) as Record<string, unknown>);
+            proposedAt = new Date().toISOString();
           }
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: JSON.stringify(result) });
         } catch (err) {
@@ -1054,6 +1118,6 @@ serve(async (req: Request) => {
     });
   }, async (reply, error, finalPayload) => {
     const row = finalRow(finalPayload);
-    await Promise.all([storeResult(row.status, row.payload), saveTurnForReview(reply, error)]);
+    await Promise.all([storeResult(row.status, row.payload), saveTurnForReview(reply, error), savePendingCard(reply)]);
   });
 });
