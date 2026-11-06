@@ -12,9 +12,14 @@ export interface LiveBlockTimer {
 }
 
 export interface BlockTimerReporter {
+  blockId?: string | number;
   report: (owner: object, timer: LiveBlockTimer | null) => void;
   ended: (kind: BlockTimerKind) => void;
 }
+
+/** Running AMRAP and For Time timers, which end if the block list is left. */
+const workRunning = new Set<object>();
+export const workTimerRunning = () => workRunning.size > 0;
 
 /** Provided by WarriorBlockCard. Without it (log sheet, tests) reports go nowhere. */
 export const BlockTimerContext = createContext<BlockTimerReporter | null>(null);
@@ -36,7 +41,12 @@ export function useBlockTimer(kind: BlockTimerKind, running: boolean, seconds: n
     if (!running || !reporter) return;
     const ms = secondsRef.current * 1000;
     reporter.report(owner, { kind, at: countUp ? Date.now() - ms : Date.now() + ms, countUp });
-    return () => reporter.report(owner, null);
+    const isWork = kind === 'amrap' || kind === 'fortime';
+    if (isWork) workRunning.add(owner);
+    return () => {
+      if (isWork) workRunning.delete(owner);
+      reporter.report(owner, null);
+    };
   }, [running, reporter, owner, kind, countUp]);
 
   return useCallback(() => reporter?.ended(kind), [reporter, kind]);

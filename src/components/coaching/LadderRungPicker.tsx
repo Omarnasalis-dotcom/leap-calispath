@@ -107,7 +107,7 @@ export const LadderRungPicker: React.FC<LadderRungPickerProps> = ({
   useExclusiveRest(restActive && isRestMode, () => {
     setRestActive(false);
     toNextRung();
-  });
+  }, () => restTimeLeft);
   const finishRest = () => {
     setRestActive(false);
     SoundServiceInstance.playDigitalBuzzer(2);

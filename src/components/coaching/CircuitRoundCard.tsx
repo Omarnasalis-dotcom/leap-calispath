@@ -89,7 +89,7 @@ export const CircuitRoundCard: React.FC<CircuitRoundCardProps> = ({
   useExclusiveRest(restActive, () => {
     setRestActive(false);
     setRestTimeLeft(0);
-  });
+  }, () => restTimeLeft);
   useAnchoredCountdown(restActive, restTimeLeft, setRestTimeLeft, () => {
     setRestActive(false);
     SoundServiceInstance.playDigitalBuzzer(2);

@@ -1,5 +1,6 @@
 import { asksExerciseRpe, averageRpe, ratingsFor } from '../exerciseRpe';
 import { indexLastTimeLogs } from '../lastTimeLog';
+import { findBlockDay } from '../warriorProgramDays';
 
 describe('asksExerciseRpe', () => {
   it('straight sets with 2+ exercises only', () => {
@@ -52,5 +53,20 @@ describe('Last Time with per-exercise RPE', () => {
     const index = indexLastTimeLogs([log], blockInfo, exIds);
     expect(index.get('dips')![0].rpe).toBe(7);
     expect(index.get('rows')![0].rpe).toBe(7);
+  });
+});
+
+describe('findBlockDay', () => {
+  const day = (...ids: (string | number)[]): any => ({ blocks: ids.map(id => ({ id })) });
+  const weeks = { 1: [day('a'), day('b', 'c')], 2: [day('d')] };
+
+  it('finds the week and day, whatever the id type', () => {
+    expect(findBlockDay(weeks, 'c')).toEqual({ week: 1, dayIndex: 1 });
+    expect(findBlockDay(weeks, 'd')).toEqual({ week: 2, dayIndex: 0 });
+    expect(findBlockDay({ 3: [day(5)] }, '5')).toEqual({ week: 3, dayIndex: 0 });
+  });
+
+  it('null when the block is no longer in the program', () => {
+    expect(findBlockDay(weeks, 'z')).toBeNull();
   });
 });

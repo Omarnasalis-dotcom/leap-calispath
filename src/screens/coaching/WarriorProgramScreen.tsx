@@ -35,9 +35,10 @@ import { useWarriorTimer, TabataHold } from '../../hooks/useWarriorTimer';
 import { useKeepAwakeWhile } from '../../hooks/useKeepAwakeWhile';
 import { WarriorTimerModal } from '../../components/coaching/WarriorTimerModal';
 import { BlockTimerBanner, BlockTimerBannerData } from '../../components/coaching/BlockTimerBanner';
-import { BlockRestOffer, BlockRestPill } from '../../components/coaching/BlockRestTimer';
-import { BlockTimerKind } from '../../hooks/useBlockTimer';
-import { stopActiveRest } from '../../hooks/useExclusiveRest';
+import { BlockRestOffer } from '../../components/coaching/BlockRestTimer';
+import { BlockTimerKind, workTimerRunning } from '../../hooks/useBlockTimer';
+import { stopActiveRest, takeRestForSide } from '../../hooks/useExclusiveRest';
+import { setSideRestEndedHandler, startSideRest } from '../../lib/sideRest';
 import { ProgramIdentityCard, ProgramLoadPanel, WeekNavigator } from '../../components/coaching/WarriorProgramSections';
 import { UpgradeToSaveModal } from '../../components/workoutLibrary/SharedWorkoutModals';
 import { selectLibraryTemplate } from '../../lib/templateLibrary';
@@ -55,7 +56,7 @@ import { ForTimeResult } from '../../components/coaching/ForTimeInlineTimer';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { DayBlocksProgressRing } from '../../components/coaching/DayBlocksProgressRing';
 import type { ExerciseDetail, ProgramBlock, ProgramDay } from '../../types/warriorProgram';
-import { parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
+import { findBlockDay, parseBlockName, deriveDayStates, estimateSessionMinutes, countMovements, inferBlockAccent, deriveNextDayIndex, summarizeWeekSessions } from '../../lib/warriorProgramDays';
 import { fetchDayChoiceForWeek } from '../../lib/journeyLane';
 import { indexLastTimeLogs, lastTimeFor } from '../../lib/lastTimeLog';
 import { asksExerciseRpe, averageRpe, ExerciseRpe, ratingsFor } from '../../lib/exerciseRpe';
@@ -82,6 +83,10 @@ interface WarriorProgramScreenProps {
   // one current_week resolves to), since that's the only week whose
   // active/locked states the lane's day cards can actually reflect.
   autoStartDayIndex?: number;
+  /** Opens this block, from the rest-over notification. A new request each
+   * time, as the same block can come back. */
+  openBlockId?: string;
+  openBlockRequest?: string;
   // Also from the lane: overrides what SessionCompleteScreen's own "DONE"
   // does. Default behavior (screen entered normally) is to drop back to
   // this screen's own day list; entered from the journey route, DONE
@@ -143,7 +148,7 @@ const DBR_COLORS: { dark: DBRPalette; light: DBRPalette } = {
   },
 };
 
-export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, onSessionDone }: WarriorProgramScreenProps) {
+export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, onSessionDone, openBlockId, openBlockRequest }: WarriorProgramScreenProps) {
   const { theme, mode } = useTheme();
   const { profile, paywallEnabled, refreshProfile } = useAuth();
   const bronzeGold = '#C8A040';
@@ -794,11 +799,47 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   useEffect(() => {
     if (screenPhase === 'list') return;
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
-      setScreenPhase('list');
+      backToDayList();
       return true;
     });
     return () => sub.remove();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [screenPhase]);
+
+  // A rest keeps going after this screen closes, at the side.
+  const onSideRestEnded = useRef(() => {});
+  useEffect(() => {
+    setSideRestEndedHandler(() => onSideRestEnded.current());
+    return () => {
+      setSideRestEndedHandler(null);
+      const left = takeRestForSide();
+      if (left) startSideRest(left.seconds, left.blockId);
+    };
+  }, []);
+
+  // From the rest-over notification. The loader applies it too, as it would
+  // otherwise reset the day straight after: it reads these refs, not props.
+  const loadRunning = useRef(false);
+  const openRequest = useRef({ id: openBlockId, request: openBlockRequest });
+  openRequest.current = { id: openBlockId, request: openBlockRequest };
+  const openRequestDone = useRef<string | null>(null);
+  const [openTick, setOpenTick] = useState(0);
+  const applyOpenRequest = (weeks: Record<number, ProgramDay[]>) => {
+    const { id, request } = openRequest.current;
+    if (!id || openRequestDone.current === `${id}:${request}`) return;
+    openRequestDone.current = `${id}:${request}`;
+    const found = findBlockDay(weeks, id);
+    if (!found) return;
+    openAfterDayList.current = id;
+    setActiveWeek(found.week);
+    setActiveDayIndex(found.dayIndex);
+    setScreenPhase('running');
+    setOpenTick(n => n + 1);
+  };
+  useEffect(() => {
+    if (!loadRunning.current) applyOpenRequest(weeksData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openBlockId, openBlockRequest]);
 
   // Day Blocks design: every block starts collapsed when the athlete enters
   // 'running' for a given day — they choose which one to open (via
@@ -809,13 +850,17 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   useEffect(() => {
     setRestOffer(null);
     if (screenPhase !== 'running' || !activeDay) return;
-    setExpandedBlocks({});
+    const fromBanner = openAfterDayList.current;
+    openAfterDayList.current = null;
+    setExpandedBlocks(fromBanner == null ? {} : { [fromBanner]: true });
+    if (fromBanner != null) scrollToBlock(fromBanner);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [screenPhase, activeDayIndex, activeWeek]);
+  }, [screenPhase, activeDayIndex, activeWeek, openTick]);
 
 
   // Main loader for assigned program and completion state
   async function loadWarriorProgram() {
+    loadRunning.current = true;
     setLoading(true);
     setErrorMsg(null);
     try {
@@ -1139,10 +1184,12 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
       } else if (autoStartDayIndex == null) {
         setActiveDayIndex(0);
       }
+      applyOpenRequest(newWeeksMap);
 
     } catch (err: any) {
       setErrorMsg(localizedErrorText(err, t('workout.loadFailed')));
     } finally {
+      loadRunning.current = false;
       setLoading(false);
     }
   }
@@ -1942,7 +1989,6 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
   // Rest between blocks: offered under a block logged for the first time,
   // when another block is still open. Ending points the banner at the next one.
   const [restOffer, setRestOffer] = useState<{ id: number; afterBlockId: string | number } | null>(null);
-  const [blockRest, setBlockRest] = useState<{ id: number; seconds: number } | null>(null);
   const runnerScroll = useRef<ScrollView>(null);
   const runnerScrollY = useRef(0);
   // A touch inside the offer reaches it first; any other one closes it.
@@ -1951,6 +1997,48 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     if (touchInOffer.current) touchInOffer.current = false;
     else if (restOffer) setRestOffer(null);
   };
+  // Going back to the day list ends what's in the blocks, so a running rest
+  // carries on as the side countdown.
+  const leaveBlockList = () => {
+    const left = takeRestForSide();
+    if (left) startSideRest(left.seconds, left.blockId);
+    setScreenPhase('list');
+  };
+  // A running AMRAP or For Time can't carry on, so it asks first.
+  const backToDayList = () => {
+    if (!workTimerRunning()) {
+      leaveBlockList();
+    } else if (Platform.OS === 'web') {
+      if (window.confirm(t('workout.leaveTimerBody'))) leaveBlockList();
+    } else {
+      Alert.alert(t('workout.leaveTimerTitle'), t('workout.leaveTimerBody'), [
+        { text: t('workout.stay'), style: 'cancel' },
+        { text: t('workout.leave'), style: 'destructive', onPress: leaveBlockList },
+      ]);
+    }
+  };
+  const blockViews = useRef<Record<string, View | null>>({});
+  const scrollToBlock = (blockId: string | number) => {
+    // After the block has opened and the one before it has closed.
+    setTimeout(() => {
+      blockViews.current[String(blockId)]?.measureInWindow((_x, y) => {
+        const top = 90;
+        if (y >= top && y <= Dimensions.get('window').height - 260) return;
+        runnerScroll.current?.scrollTo({ y: Math.max(0, runnerScrollY.current + y - top), animated: true });
+      });
+    }, 150);
+  };
+  // A banner tapped on the day list: the block to open once the day is back.
+  const openAfterDayList = useRef<string | number | null>(null);
+  const openBlockFromBanner = (blockId: string | number) => {
+    if (screenPhase === 'running') {
+      setExpandedBlocks({ [blockId]: true });
+      scrollToBlock(blockId);
+    } else {
+      openAfterDayList.current = blockId;
+      setScreenPhase('running');
+    }
+  };
   // Keep the offer on screen, clear of the header and the footer.
   const showRestOffer = (y: number, height: number) => {
     const top = 90;
@@ -1958,9 +2046,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
     const by = y < top ? y - top : y + height > bottom ? y + height - bottom : 0;
     if (by !== 0) runnerScroll.current?.scrollTo({ y: Math.max(0, runnerScrollY.current + by), animated: true });
   };
-  const handleBlockRestEnded = () => {
-    setBlockRest(null);
-    Vibration.vibrate([0, 500, 200, 500]);
+  onSideRestEnded.current = () => {
     const next = activeDay?.blocks.find(b => b.completedStatus === 'none');
     if (next) setTimerBanner({ blockId: next.id, blockName: next.name, kind: 'rest', id: Date.now() });
   };
@@ -2014,7 +2100,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               progress source as the day-list view. */}
           <View style={{ paddingTop: Platform.OS === 'ios' ? 54 : 20, paddingBottom: 14 }}>
             <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('workout.back')} onPress={() => setScreenPhase('list')} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={t('workout.back')} onPress={backToDayList} style={dbRunnerStyles.backBtn} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
                 <MaterialCommunityIcons name="chevron-left" size={18} color={dbr.title} style={FLIP_X} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
@@ -2057,6 +2143,7 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
               const isLocked = false;
               return (
                 <React.Fragment key={block.id}>
+                <View ref={(view) => { blockViews.current[String(block.id)] = view; }} collapsable={false}>
                 <WarriorBlockCard
                   block={block}
                   index={index}
@@ -2083,10 +2170,11 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
                   onForTimeFinalize={handleForTimeFinalize}
                   onClosedTimerEnded={handleClosedTimerEnded}
                 />
+                </View>
                 {restOffer?.afterBlockId === block.id && (
                   <BlockRestOffer
                     key={restOffer.id}
-                    onStart={(seconds) => setBlockRest(prev => ({ id: (prev?.id ?? 0) + 1, seconds }))}
+                    onStart={(seconds) => startSideRest(seconds, activeDay?.blocks.find(b => b.completedStatus === 'none')?.id)}
                     onClose={() => setRestOffer(null)}
                     onTouchInside={() => { touchInOffer.current = true; }}
                     onShown={showRestOffer}
@@ -2556,17 +2644,9 @@ export function WarriorProgramScreen({ warriorId, onClose, autoStartDayIndex, on
         />
       )}
 
-      {blockRest && (
-        <BlockRestPill
-          key={blockRest.id}
-          seconds={blockRest.seconds}
-          onStop={() => setBlockRest(null)}
-          onEnded={handleBlockRestEnded}
-        />
-      )}
       <BlockTimerBanner
-        banner={screenPhase === 'running' ? timerBanner : null}
-        onOpen={(blockId) => setExpandedBlocks({ [blockId]: true })}
+        banner={timerBanner}
+        onOpen={openBlockFromBanner}
         onDismiss={() => setTimerBanner(null)}
       />
     </KeyboardAvoidingView>

@@ -84,6 +84,15 @@ export function deriveDayStates(days: ProgramDay[]): DayStateEntry[] {
   });
 }
 
+/** The week and day a block is in, or null (say, the program has changed). */
+export function findBlockDay(weeks: Record<number, ProgramDay[]>, blockId: string | number): { week: number; dayIndex: number } | null {
+  for (const [week, days] of Object.entries(weeks)) {
+    const dayIndex = days.findIndex(d => d.blocks.some(b => String(b.id) === String(blockId)));
+    if (dayIndex >= 0) return { week: Number(week), dayIndex };
+  }
+  return null;
+}
+
 const ASSUMED_SECONDS_PER_SET = 40;
 
 /**

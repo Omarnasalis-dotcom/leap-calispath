@@ -128,6 +128,7 @@ import { TutorialOverlay } from '../src/components/tutorial/TutorialOverlay';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { GlobalErrorBoundary } from '../src/components/GlobalErrorBoundary';
+import { SideRestHost } from '../src/components/coaching/BlockRestTimer';
 import { ForceUpdateScreen } from '../src/components/ForceUpdateScreen';
 import { checkForceUpdate, ForceUpdateStatus } from '../src/lib/appVersion';
 import { syncLanguageDirection } from '../src/i18n/language';
@@ -444,7 +445,10 @@ function RootLayout() {
         }
       }
       const queryString = query.toString();
-      router.push(`/${screen}${queryString ? `?${queryString}` : ''}` as never);
+      const route = `/${screen}${queryString ? `?${queryString}` : ''}` as never;
+      // Rest over: if the workout is already on screen, reuse it.
+      if (screen === 'warrior-program') router.navigate(route);
+      else router.push(route);
     }
 
     // Cold start: the app was launched by tapping a notification. The
@@ -498,6 +502,7 @@ function RootLayout() {
                       </Stack>
                     </AuthGuard>
                     <TutorialOverlay />
+                    <SideRestHost />
                   </View>
                 </TutorialProvider>
               </AuthProvider>

@@ -7,6 +7,8 @@ export interface TimerAlert {
   inSeconds: number;
   title: string;
   body: string;
+  /** Where tapping it goes (see the notification handler in app/_layout.tsx). */
+  data?: Record<string, string>;
 }
 
 /** Marks timer alerts so the foreground handler (app/_layout.tsx) can keep
@@ -49,7 +51,7 @@ export function useBackgroundTimerAlerts(getAlerts: () => TimerAlert[]) {
       for (const a of alerts.filter(x => x.inSeconds >= 1).slice(0, MAX_ALERTS)) {
         try {
           const id = await Notifications.scheduleNotificationAsync({
-            content: { title: a.title, body: a.body, sound: true, data: TIMER_ALERT_DATA },
+            content: { title: a.title, body: a.body, sound: true, data: { ...TIMER_ALERT_DATA, ...a.data } },
             trigger: {
               type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
               seconds: Math.round(a.inSeconds),

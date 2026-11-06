@@ -598,6 +598,8 @@ const ar: Translations = {
     stateNotStarted: 'لم يبدأ',
     startWorkout: 'ابدأ التمرين',
     resumeBlock: 'تابع القسم {{n}}',
+    leaveTimerTitle: 'سيتوقف المؤقت',
+    leaveTimerBody: 'المغادرة الآن ستوقف هذا المؤقت وتفقد تقدمه. هل تريد المغادرة؟',
     blockRestTitle: 'راحة قبل القسم التالي',
     blockRestLess: 'أنقص 15 ثانية',
     blockRestMore: 'أضف 15 ثانية',

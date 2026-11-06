@@ -6,7 +6,7 @@ import { useReturnTo } from '../src/hooks/useReturnTo';
 export default function WarriorProgramRoute() {
   const { user } = useAuth();
   const { returnTo, goBackOrReturnTo } = useReturnTo();
-  const { startDay } = useLocalSearchParams<{ startDay?: string }>();
+  const { startDay, openBlock, at } = useLocalSearchParams<{ startDay?: string; openBlock?: string; at?: string }>();
   const router = useRouter();
 
   if (!user) return null;
@@ -16,6 +16,8 @@ export default function WarriorProgramRoute() {
       warriorId={user.id}
       onClose={() => goBackOrReturnTo('/')}
       autoStartDayIndex={startDay !== undefined ? Number(startDay) : undefined}
+      openBlockId={openBlock}
+      openBlockRequest={at}
       // "Done" after finishing a workout started from the Journey lane
       // returns there, same as closing the whole screen would -- otherwise
       // it just drops back to this screen's own day list, unchanged.

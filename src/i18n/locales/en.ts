@@ -539,6 +539,8 @@ const en = {
     stateNotStarted: 'NOT STARTED',
     startWorkout: 'START WORKOUT',
     resumeBlock: 'RESUME BLOCK {{n}}',
+    leaveTimerTitle: 'Your timer will stop',
+    leaveTimerBody: 'Leaving now stops this timer and loses its progress. Leave anyway?',
     blockRestTitle: 'REST BEFORE THE NEXT BLOCK',
     blockRestLess: 'Remove 15 seconds',
     blockRestMore: 'Add 15 seconds',

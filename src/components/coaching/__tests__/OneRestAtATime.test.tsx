@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { act, create, ReactTestRenderer } from 'react-test-renderer';
 import { TouchableOpacity } from 'react-native';
 
@@ -6,19 +6,25 @@ jest.mock('@react-native-async-storage/async-storage', () => require('@react-nat
 jest.mock('../../../lib/SoundService', () => ({
   SoundServiceInstance: { playTick: jest.fn(), playBoxingBell: jest.fn(), playDigitalBuzzer: jest.fn() },
 }));
+const mockSchedule = jest.fn().mockResolvedValue('reminder-id');
+const mockCancel = jest.fn().mockResolvedValue(undefined);
 jest.mock('expo-notifications', () => ({
-  scheduleNotificationAsync: jest.fn().mockResolvedValue('id'),
-  cancelScheduledNotificationAsync: jest.fn().mockResolvedValue(undefined),
+  scheduleNotificationAsync: (...a: unknown[]) => mockSchedule(...a),
+  cancelScheduledNotificationAsync: (...a: unknown[]) => mockCancel(...a),
+  SchedulableTriggerInputTypes: { TIME_INTERVAL: 'timeInterval' },
 }));
 jest.mock('react-native-webview', () => ({ WebView: () => null }));
 jest.mock('react-native-safe-area-context', () => ({ useSafeAreaInsets: () => ({ top: 20, bottom: 0, left: 0, right: 0 }) }));
 const mockThemeValue = { card: { background: '#111', border: '#333' }, text: { primary: '#fff', secondary: '#aaa', tertiary: '#777' }, background: { primary: '#000' } };
 jest.mock('../../../contexts/ThemeContext', () => ({ useTheme: () => ({ mode: 'dark', theme: mockThemeValue }) }));
 
+import i18n from '../../../i18n';
 import { SoundServiceInstance } from '../../../lib/SoundService';
-import { stopActiveRest } from '../../../hooks/useExclusiveRest';
+import { workTimerRunning } from '../../../hooks/useBlockTimer';
+import { stopActiveRest, takeRestForSide } from '../../../hooks/useExclusiveRest';
+import { restOverRoute, setSideRestEndedHandler, startSideRest, stopSideRest } from '../../../lib/sideRest';
 import { WarriorBlockCard } from '../WarriorBlockCard';
-import { BlockRestPill } from '../BlockRestTimer';
+import { BlockRestPill, SideRestHost } from '../BlockRestTimer';
 import { BlockTimerChip } from '../BlockTimerChip';
 import { SetRow } from '../SetRow';
 import { CircuitRoundCard } from '../CircuitRoundCard';
@@ -67,6 +73,148 @@ beforeEach(() => { jest.useFakeTimers(); jest.clearAllMocks(); });
 afterEach(() => {
   act(() => { mounted.splice(0).forEach(r => r.unmount()); });
   jest.useRealTimers();
+});
+
+describe('a rest outlives the block list', () => {
+  it('going back moves a set rest to the side with its time left, and no alarm', () => {
+    const r = mount(<Card block={blockOf('a', straight)} />);
+    tapSet(r, 0);
+    advance(20_000);
+    let left: unknown = null;
+    act(() => { left = takeRestForSide(); });
+    expect(left).toEqual({ seconds: 40, blockId: 'a' });
+    expect(rows(r)[0]).toContain('✓');
+    advance(61_000);
+    expect(buzzes()).toBe(0);
+  });
+
+  it('nothing to move: no rest, or the rest is already at the side', () => {
+    expect(takeRestForSide()).toBeNull();
+    const pill = mount(<BlockRestPill seconds={90} onStop={jest.fn()} onEnded={jest.fn()} />);
+    expect(takeRestForSide()).toBeNull();
+    expect(pill.root.findAllByType(BlockRestPill).length).toBe(1);
+  });
+
+  describe('at the app root', () => {
+    afterEach(() => {
+      act(() => stopSideRest());
+      setSideRestEndedHandler(null);
+    });
+    const hostShown = (r: ReactTestRenderer) => r.root.findAllByType(BlockRestPill).length > 0;
+
+    it('a rest keeps counting after the workout screen closes', () => {
+      const host = mount(<SideRestHost />);
+      function Workout() {
+        useEffect(() => () => {
+          const left = takeRestForSide();
+          if (left) startSideRest(left.seconds, left.blockId);
+        }, []);
+        return <Card block={blockOf('a', straight)} />;
+      }
+      const workout = mount(<Workout />);
+      tapSet(workout, 0);
+      advance(20_000);
+      act(() => { workout.unmount(); mounted.splice(mounted.indexOf(workout), 1); });
+
+      expect(hostShown(host)).toBe(true);
+      advance(1_000);
+      expect(texts(host.toJSON()).join(' ')).toContain('0:39');
+      advance(40_000);
+      expect(hostShown(host)).toBe(false);
+      expect(buzzes()).toBe(1);
+    });
+
+    it('ending away from the workout screen shows an ordinary notification', () => {
+      const host = mount(<SideRestHost />);
+      act(() => startSideRest(30, 'block-1'));
+      advance(31_000);
+      expect(hostShown(host)).toBe(false);
+      expect(mockSchedule).toHaveBeenCalledTimes(1);
+      const [{ content, trigger }] = mockSchedule.mock.calls[0];
+      expect(content.title).toBe('Rest over');
+      // Goes back to the block, and isn't a timer alert (those are silent while the app is open).
+      expect(content.data).toMatchObject({ screen: 'warrior-program', openBlock: 'block-1' });
+      expect(content.data.timerAlert).toBeUndefined();
+      expect(trigger).toBeNull();
+    });
+
+    it('with no block to go to, it just tells them', () => {
+      expect(restOverRoute({ endsAt: 1 })).toBeUndefined();
+      expect(restOverRoute({ endsAt: 1, blockId: 7 })).toEqual({ screen: 'warrior-program', openBlock: '7', at: '1' });
+    });
+
+    it('with the workout screen open, the screen handles the end', () => {
+      const ended = jest.fn();
+      mount(<SideRestHost />);
+      setSideRestEndedHandler(ended);
+      act(() => startSideRest(30));
+      advance(31_000);
+      expect(ended).toHaveBeenCalledTimes(1);
+      expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
+    it('a late ending on return adds no second notification', () => {
+      mount(<SideRestHost />);
+      act(() => startSideRest(30));
+      // The app was away: the clock jumps with no ticks, then it catches up.
+      jest.setSystemTime(Date.now() + 120_000);
+      advance(300);
+      expect(buzzes()).toBe(1);
+      expect(mockSchedule).not.toHaveBeenCalled();
+    });
+
+    it('the ✕ and a new rest both work from the root', () => {
+      const host = mount(<SideRestHost />);
+      act(() => startSideRest(30));
+      act(() => { host.root.findAll(n => n.props.accessibilityLabel === 'Stop rest' && typeof n.props.onPress === 'function')[0].props.onPress(); });
+      expect(hostShown(host)).toBe(false);
+      act(() => startSideRest(60));
+      const r = mount(<Card block={blockOf('a', straight)} />);
+      tapSet(r, 0);
+      expect(hostShown(host)).toBe(false);
+    });
+  });
+});
+
+describe('leaving during timed work', () => {
+  const tapStart = (r: ReactTestRenderer) => act(() => {
+    r.root.findAll(n => typeof n.props.onPress === 'function' && texts(n.children as any).some(x => x.startsWith('START')))[0].props.onPress();
+  });
+
+  it.each([
+    ['AMRAP', { timing_system: 'amrap', time_cap_min: 2 }],
+    ['For Time', { timing_system: 'fortime', time_cap_min: 2 }],
+    ['For Time ladder', { structure: 'ladder', timing_system: 'fortime', time_cap_min: 1, rounds: 3, ladder_start: 5, ladder_sub: 1 }],
+  ])('%s running: counts as work, until it ends', (_name, metadata) => {
+    const r = mount(<Card block={blockOf('m', metadata)} />);
+    expect(workTimerRunning()).toBe(false);
+    tapStart(r);
+    expect(workTimerRunning()).toBe(true);
+    advance(125_000);
+    expect(workTimerRunning()).toBe(false);
+  });
+
+  it('a block closed while it runs still counts; its screen going away clears it', () => {
+    const r = mount(<Card block={blockOf('m', { timing_system: 'amrap', time_cap_min: 2 })} />);
+    tapStart(r);
+    act(() => { r.update(<Card block={blockOf('m', { timing_system: 'amrap', time_cap_min: 2 })} isExpanded={false} />); });
+    expect(workTimerRunning()).toBe(true);
+    act(() => { mounted.splice(0).forEach(x => x.unmount()); });
+    expect(workTimerRunning()).toBe(false);
+  });
+
+  it('a rest is not work: it moves to the side instead of asking', () => {
+    const r = mount(<Card block={blockOf('a', straight)} />);
+    tapSet(r, 0);
+    expect(workTimerRunning()).toBe(false);
+  });
+
+  it('the warning reads in both languages', () => {
+    i18n.changeLanguage('ar');
+    expect(i18n.t('workout.leaveTimerTitle')).toBe('سيتوقف المؤقت');
+    i18n.changeLanguage('en');
+    expect(i18n.t('workout.leaveTimerTitle')).toBe('Your timer will stop');
+  });
 });
 
 describe('one rest at a time', () => {

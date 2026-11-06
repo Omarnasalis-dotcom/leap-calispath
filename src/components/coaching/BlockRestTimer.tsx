@@ -8,6 +8,7 @@ import { useAnchoredCountdown } from '../../hooks/useAnchoredTimer';
 import { useBackgroundTimerAlerts } from '../../hooks/useBackgroundTimerAlerts';
 import { useExclusiveRest } from '../../hooks/useExclusiveRest';
 import { isRTL, t } from '../../i18n';
+import { restOverRoute, sideRestEnded, SideRest, stopSideRest, useSideRest } from '../../lib/sideRest';
 import { SoundServiceInstance } from '../../lib/SoundService';
 
 /** How long the offer waits for the athlete. Any change restarts it. */
@@ -176,9 +177,14 @@ export function BlockRestOffer({ onStart, onClose, onTouchInside, onShown }: {
  * Part 2: the small countdown at the side. Rings when it ends, notifies if
  * the app is in the background, and is the one rest at a time
  * (useExclusiveRest). Give it a new key for each Start, so it starts clean.
- * Render it last inside the screen root.
  */
-export function BlockRestPill({ seconds, onStop, onEnded }: { seconds: number; onStop: () => void; onEnded: () => void }) {
+export function BlockRestPill({ seconds, onStop, onEnded, rest }: {
+  seconds: number;
+  onStop: () => void;
+  onEnded: () => void;
+  /** Where tapping the notification goes. */
+  rest?: SideRest;
+}) {
   const { theme } = useTheme();
   const insets = useSafeAreaInsets();
   const [left, setLeft] = useState(seconds);
@@ -189,14 +195,14 @@ export function BlockRestPill({ seconds, onStop, onEnded }: { seconds: number; o
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  useExclusiveRest(true, onStop);
+  useExclusiveRest(true, onStop, () => left, true);
   useAnchoredCountdown(true, left, setLeft, () => {
     SoundServiceInstance.playDigitalBuzzer(4);
     onEnded();
   });
   useBackgroundTimerAlerts(() =>
     left > 0
-      ? [{ inSeconds: left, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody') }]
+      ? [{ inSeconds: left, title: t('timerAlerts.restOver'), body: t('timerAlerts.restOverBody'), data: rest && restOverRoute(rest) }]
       : []
   );
 
@@ -220,6 +226,13 @@ export function BlockRestPill({ seconds, onStop, onEnded }: { seconds: number; o
       </TouchableOpacity>
     </Animated.View>
   );
+}
+
+/** Keeps the side countdown on every screen. Goes once, in the app root. */
+export function SideRestHost() {
+  const rest = useSideRest();
+  if (!rest) return null;
+  return <BlockRestPill key={rest.id} seconds={rest.seconds} rest={rest} onStop={stopSideRest} onEnded={sideRestEnded} />;
 }
 
 const styles = StyleSheet.create({

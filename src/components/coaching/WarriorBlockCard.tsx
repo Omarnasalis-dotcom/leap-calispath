@@ -214,6 +214,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
   const closedTimerEnded = useRef({ isExpanded, block, onClosedTimerEnded });
   closedTimerEnded.current = { isExpanded, block, onClosedTimerEnded };
   const timerReporter = useMemo<BlockTimerReporter>(() => ({
+    blockId: block.id,
     report: (owner, timer) => setLiveTimers(prev => {
       const others = prev.filter(x => x.owner !== owner);
       return timer ? [...others, { owner, timer }] : others;
@@ -222,7 +223,7 @@ export const WarriorBlockCard: React.FC<WarriorBlockCardProps> = ({
       const { isExpanded: open, block: b, onClosedTimerEnded: notify } = closedTimerEnded.current;
       if (!open) notify?.(b, kind);
     },
-  }), []);
+  }), [block.id]);
   const closedCardTimer = isExpanded ? null : nextBlockTimer(liveTimers.map(x => x.timer));
   const amrapTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || block.metadata?.timer_seconds || '10'), 10) || 10) * 60;
   const forTimeCapSeconds = (parseInt(String(block.metadata?.time_cap_min || '15'), 10) || 15) * 60;

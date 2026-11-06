@@ -74,7 +74,7 @@ export const SetRow: React.FC<SetRowProps> = ({
     restEndTimeRef.current = null;
     setRestActive(false);
     setRestTimeLeft(0);
-  });
+  }, () => (restEndTimeRef.current === null ? 0 : Math.max(0, Math.ceil((restEndTimeRef.current - Date.now()) / 1000))));
 
   useEffect(() => {
     if (restActive && restTimeLeft > 0) {
