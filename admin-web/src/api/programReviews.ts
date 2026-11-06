@@ -28,6 +28,7 @@ export interface ReviewExercise {
   rest_seconds: number | null;
   hold_seconds: number | null;
   notes: string | null;
+  is_weighted: boolean;
 }
 
 export interface ReviewBlock {
@@ -37,6 +38,9 @@ export interface ReviewBlock {
   timing: string | null;
   /** What this block type can change, with a missing one as null. */
   settings: Record<string, string | number | null>;
+  /** Sent back with a change, so a newer one is never overwritten. */
+  fingerprint: string;
+  note: string;
   logged: boolean;
   exercises: ReviewExercise[];
 }
@@ -74,13 +78,14 @@ export interface ProgramReviewDetail {
   week: ReviewBlock[];
   changes: Array<{
     id: string;
-    kind: 'exercise' | 'settings';
+    kind: 'exercise' | 'settings' | 'structure';
+    detail: { op: string; exercise?: string; to?: string; timing?: string; structure?: string; weighted?: boolean } | null;
     block_exercise_id: string;
     block_name: string | null;
     exercise_before: string | null;
     exercise_after: string | null;
-    before: Record<string, unknown>;
-    after: Record<string, unknown>;
+    before: Record<string, unknown> | null;
+    after: Record<string, unknown> | null;
     reason: string;
   }>;
 }
@@ -101,6 +106,7 @@ const ERRORS: Record<string, string> = {
   BLOCK_LOGGED: 'This block is logged, so it stays as it is.',
   ROUND_BLOCK_SETS: 'Sets stay as they are in a superset, circuit or ladder: rounds belong to the block.',
   NO_BLOCK_SETTINGS: 'This block has no settings of its own to change.',
+  LAST_EXERCISE: "A block needs at least one exercise. Delete the block instead.",
   LADDER_TOO_LONG: 'A ladder going down would reach 0 reps: lower the rounds or the step, or raise the start.',
   REASON_REQUIRED: 'Choose or write a reason.',
   INVALID_VALUES: 'One of the numbers is out of range.',
@@ -158,6 +164,29 @@ export async function updateReviewBlock(
     p_block_id: block.block_id,
     p_expected: block.settings,
     p_settings: settings,
+    p_reason: reason,
+  });
+  if (error) throw friendly(error.message);
+}
+
+export type ReviewBlockOp =
+  | 'add_exercise' | 'remove_exercise' | 'move_exercise' | 'set_weighted'
+  | 'rename_block' | 'set_block_note' | 'change_type'
+  | 'move_block' | 'delete_block' | 'add_block';
+
+export async function reviewBlockOp(
+  reviewId: string,
+  block: ReviewBlock,
+  op: ReviewBlockOp,
+  args: Record<string, unknown>,
+  reason: string,
+): Promise<void> {
+  const { error } = await supabase.rpc('admin_review_block_op', {
+    p_review_id: reviewId,
+    p_block_id: block.block_id,
+    p_fingerprint: block.fingerprint,
+    p_op: op,
+    p_args: args,
     p_reason: reason,
   });
   if (error) throw friendly(error.message);

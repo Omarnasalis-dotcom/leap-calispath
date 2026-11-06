@@ -48,6 +48,20 @@ describe("teamReviewFact", () => {
     expect(fact?.note).not.toContain("rest_after_round");
   });
 
+  it("lists structural changes in words", () => {
+    const fact = teamReviewFact([{
+      ...base,
+      changes: [
+        { kind: "structure", block_name: "DAY 1 | Strength", detail: { op: "remove_exercise", exercise: "Dips" } },
+        { kind: "structure", block_name: "DAY 1 | Finisher", detail: { op: "delete_block" } },
+        { kind: "structure", block_name: "DAY 1 | Skills", detail: { op: "change_type", timing: "amrap", structure: "circuit" } },
+      ],
+    }]);
+    expect(fact?.note).toContain("DAY 1 | Strength: removed Dips");
+    expect(fact?.note).toContain("DAY 1 | Finisher: block deleted");
+    expect(fact?.note).toContain("changed to amrap / circuit");
+  });
+
   it("treats 90 and \"90\" as the same value", () => {
     const fact = teamReviewFact([{
       ...base,

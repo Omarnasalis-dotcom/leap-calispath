@@ -23,12 +23,14 @@ const BLOCK_SETTINGS = [
 
 export interface ProgramReviewChange {
   /** Absent means one exercise. */
-  kind?: 'exercise' | 'settings';
+  kind?: 'exercise' | 'settings' | 'structure';
   block_name: string | null;
   exercise_before: string | null;
   exercise_after: string | null;
-  before: ReviewRowValues & BlockSettingValues;
-  after: ReviewRowValues & BlockSettingValues;
+  before: (ReviewRowValues & BlockSettingValues) | null;
+  after: (ReviewRowValues & BlockSettingValues) | null;
+  /** What was done, for a change to the block's shape. */
+  detail?: { op: string; exercise?: string; to?: string; timing?: string; structure?: string; weighted?: boolean } | null;
   reason: string;
 }
 
@@ -91,9 +93,34 @@ const dose = (v: ReviewRowValues) => {
   return `${v.sets ?? 1}×${v.reps ?? 0}`;
 };
 
+const blockType = (timing?: string, structure?: string) =>
+  t(`programReview.type_${timing && timing !== 'straight_set' ? timing : structure ?? 'single'}` as 'programReview.type_single');
+
+function structureLine(change: ProgramReviewChange): string {
+  const d = change.detail;
+  const block = ltr(change.block_name ?? '');
+  const exercise = ltr(d?.exercise ?? '');
+  switch (d?.op) {
+    case 'add_exercise': return t('programReview.op_add_exercise', { block, exercise });
+    case 'remove_exercise': return t('programReview.op_remove_exercise', { block, exercise });
+    case 'move_exercise': return t('programReview.op_move_exercise', { block, exercise });
+    case 'set_weighted': return t(d.weighted ? 'programReview.op_weighted_on' : 'programReview.op_weighted_off', { block, exercise });
+    case 'rename_block': return t('programReview.op_rename_block', { block, to: ltr(d.to ?? '') });
+    case 'set_block_note': return t('programReview.op_set_block_note', { block });
+    case 'change_type': return t('programReview.op_change_type', { block, type: blockType(d.timing, d.structure) });
+    case 'move_block': return t('programReview.op_move_block', { block });
+    case 'delete_block': return t('programReview.op_delete_block', { block });
+    case 'add_block': return t('programReview.op_add_block', { block, exercise });
+    default: return block;
+  }
+}
+
 /** One line, like "Pull Ups 5×8 → 4×6" or "Pull Ups 5×8 → Ring Rows 4×6". */
 export function reviewChangeLine(change: ProgramReviewChange): string {
-  const { before, after, exercise_before: from, exercise_after: to } = change;
+  if (change.kind === 'structure') return structureLine(change);
+  const before = change.before ?? {};
+  const after = change.after ?? {};
+  const { exercise_before: from, exercise_after: to } = change;
   if (change.kind && change.kind !== 'exercise') {
     const shown = (v: string | number | null | undefined) =>
       v === 'up' || v === 'down' ? t(`programReview.dir_${v}`) : v ?? t('programReview.none');

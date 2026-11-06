@@ -69,6 +69,32 @@ describe('a change to block settings', () => {
   });
 });
 
+describe('a change to a block\'s shape', () => {
+  const shape = (detail: object, block_name = 'Strength') => reviewChangeLine(change({
+    kind: 'structure', block_name, before: null, after: null, exercise_before: null, exercise_after: null, detail,
+  }));
+
+  it('says what happened to every kind', () => {
+    expect(shape({ op: 'add_exercise', exercise: 'Dips' })).toContain('added Dips');
+    expect(shape({ op: 'remove_exercise', exercise: 'Dips' })).toContain('removed Dips');
+    expect(shape({ op: 'move_exercise', exercise: 'Dips' })).toContain('moved Dips');
+    expect(shape({ op: 'set_weighted', exercise: 'Dips', weighted: true })).toContain('Dips is now weighted');
+    expect(shape({ op: 'set_weighted', exercise: 'Dips', weighted: false })).toContain('Dips is no longer weighted');
+    expect(shape({ op: 'rename_block', to: 'Main Lift' })).toContain('renamed to Main Lift');
+    expect(shape({ op: 'set_block_note' })).toContain('note updated');
+    expect(shape({ op: 'change_type', timing: 'amrap', structure: 'circuit' })).toContain('AMRAP');
+    expect(shape({ op: 'change_type', timing: 'straight_set', structure: 'superset' })).toContain('superset');
+    expect(shape({ op: 'move_block' })).toContain('moved');
+    expect(shape({ op: 'delete_block' })).toContain('removed');
+    expect(shape({ op: 'add_block', exercise: 'Dips' })).toContain('added with Dips');
+  });
+
+  it('never prints a key or a null', () => {
+    const line = shape({ op: 'change_type', timing: 'tabata', structure: 'circuit' });
+    expect(line).not.toMatch(/programReview|null|undefined/);
+  });
+});
+
 describe('reviewReasonText', () => {
   it('translates a preset and keeps a written reason', () => {
     expect(reviewReasonText('too_hard')).toBe('It looked too hard for your current max.');

@@ -4,9 +4,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   closeProgramReview,
   fetchProgramReview,
+  reviewBlockOp,
   updateReviewExercise,
   updateReviewBlock,
   type ProgramReviewDetail,
+  type ReviewBlockOp,
   type ReviewBlock,
   type ReviewExercise,
 } from '@/api/programReviews';
@@ -119,11 +121,111 @@ function BlockSettingsEditor({ reviewId, block, locked }: { reviewId: string; bl
   );
 }
 
-function ExerciseEditor({ reviewId, block, exercise, exercises }: {
+interface PendingOp {
+  op: ReviewBlockOp;
+  label: string;
+  args?: Record<string, unknown>;
+}
+
+const TIMINGS: Array<[string, string]> = [['straight_set', 'Straight sets'], ['amrap', 'AMRAP'], ['fortime', 'For Time'], ['tabata', 'Tabata']];
+const STRUCTURES: Array<[string, string]> = [['single', 'Single'], ['superset', 'Superset'], ['circuit', 'Circuit'], ['ladder', 'Ladder']];
+
+// The block's name after "DAY | ", which is all a reviewer can change.
+const blockTitle = (name: string) => name.split(' | ').slice(1).join(' | ') || name;
+
+/** Anything that changes the block's shape: fields for the action, a reason, Apply. */
+function BlockOpForm({ reviewId, block, pending, exercises, onDone }: {
+  reviewId: string;
+  block: ReviewBlock;
+  pending: PendingOp;
+  exercises: Exercise[];
+  onDone: () => void;
+}) {
+  const queryClient = useQueryClient();
+  const { op } = pending;
+  const [form, setForm] = useState<Record<string, string>>({
+    name: op === 'rename_block' ? blockTitle(block.name) : '',
+    note: block.note ?? '',
+    timing_system: block.timing ?? 'straight_set',
+    structure: block.structure ?? 'single',
+  });
+  const [reason, setReason] = useState('');
+  const [customReason, setCustomReason] = useState('');
+  const set = (key: string, value: string) => setForm({ ...form, [key]: value });
+
+  const apply = useMutation({
+    mutationFn: () => {
+      const numbers = Object.fromEntries(
+        ['sets', 'reps', 'hold_seconds', 'rest_seconds']
+          .filter((key) => form[key]?.trim())
+          .map((key) => [key, Number(form[key])]),
+      );
+      const args: Record<string, unknown> = { ...pending.args, ...numbers };
+      if (op === 'rename_block' || op === 'add_block') args.name = form.name;
+      if (op === 'set_block_note') args.note = form.note;
+      if (op === 'change_type') {
+        args.timing_system = form.timing_system;
+        args.structure = form.structure;
+      }
+      if (op === 'add_exercise' || op === 'add_block') args.exercise_id = form.exercise_id;
+      return reviewBlockOp(reviewId, block, op, args, reason === 'custom' ? customReason : reason);
+    },
+    onSuccess: onDone,
+    onSettled: () => void queryClient.invalidateQueries({ queryKey: ['program-review', reviewId] }),
+  });
+
+  const addsExercise = op === 'add_exercise' || op === 'add_block';
+  const named = op === 'rename_block' || op === 'add_block';
+  const ready = !!reason
+    && (reason !== 'custom' || !!customReason.trim())
+    && (!addsExercise || !!form.exercise_id)
+    && (!named || !!form.name?.trim());
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '10px 0', borderTop: '1px solid var(--hairline)' }}>
+      <span className="label">{pending.label}</span>
+      {named && <input className="field" maxLength={60} placeholder="Block name" value={form.name} onChange={(e) => set('name', e.target.value)} />}
+      {op === 'set_block_note' && <textarea className="field" rows={2} maxLength={500} value={form.note} onChange={(e) => set('note', e.target.value)} />}
+      {op === 'change_type' && (
+        <div className="row" style={{ gap: 6 }}>
+          <select className="field" aria-label="Timing" value={form.timing_system} onChange={(e) => set('timing_system', e.target.value)}>
+            {TIMINGS.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          <select className="field" aria-label="Structure" value={form.structure} onChange={(e) => set('structure', e.target.value)}>
+            {STRUCTURES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+          </select>
+          <span className="dim" style={{ fontSize: 12 }}>You can fine-tune its settings after saving.</span>
+        </div>
+      )}
+      {addsExercise && (
+        <>
+          <select className="field" aria-label="Exercise" value={form.exercise_id ?? ''} onChange={(e) => set('exercise_id', e.target.value)}>
+            <option value="">Choose an exercise…</option>
+            {exercises.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}
+          </select>
+          <div className="row" style={{ gap: 6 }}>
+            {[['sets', 'Sets'], ['reps', 'Reps'], ['hold_seconds', 'Hold (s)'], ['rest_seconds', 'Rest (s)']].map(([key, label]) => (
+              <label key={key} className="label">{label}<input className="field" type="number" min={0} value={form[key] ?? ''} onChange={(e) => set(key, e.target.value)} /></label>
+            ))}
+          </div>
+        </>
+      )}
+      <div className="row" style={{ gap: 6 }}>
+        <ReasonPicker reason={reason} customReason={customReason} onReason={setReason} onCustomReason={setCustomReason} />
+        <button className="btn small" disabled={!ready || apply.isPending} onClick={() => apply.mutate()}>Apply</button>
+        <button className="btn small ghost" onClick={onDone}>Cancel</button>
+      </div>
+      {apply.error && <ErrorNote error={apply.error} />}
+    </div>
+  );
+}
+
+function ExerciseEditor({ reviewId, block, exercise, exercises, onOp }: {
   reviewId: string;
   block: ReviewBlock;
   exercise: ReviewExercise;
   exercises: Exercise[];
+  onOp: (pending: PendingOp) => void;
 }) {
   const queryClient = useQueryClient();
   const [exerciseId, setExerciseId] = useState(exercise.exercise_id);
@@ -170,6 +272,25 @@ function ExerciseEditor({ reviewId, block, exercise, exercises }: {
         <label className="label">Rest (s)<input className="field" type="number" min={0} value={rest} onChange={(e) => setRest(e.target.value)} disabled={block.logged} /></label>
       </div>
       <input className="field" aria-label="Notes" placeholder="Notes" value={notes} onChange={(e) => setNotes(e.target.value)} disabled={block.logged} />
+      {!block.logged && (
+        <div className="row" style={{ gap: 6 }}>
+          <label className="row" style={{ gap: 4, fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={exercise.is_weighted}
+              onChange={(e) => onOp({
+                op: 'set_weighted',
+                label: `${e.target.checked ? 'Set' : 'Unset'} weighted: ${exercise.name}`,
+                args: { block_exercise_id: exercise.block_exercise_id, is_weighted: e.target.checked },
+              })}
+            />
+            Weighted
+          </label>
+          <button className="btn small ghost" onClick={() => onOp({ op: 'move_exercise', label: `Move up: ${exercise.name}`, args: { block_exercise_id: exercise.block_exercise_id, direction: 'up' } })}>Up</button>
+          <button className="btn small ghost" onClick={() => onOp({ op: 'move_exercise', label: `Move down: ${exercise.name}`, args: { block_exercise_id: exercise.block_exercise_id, direction: 'down' } })}>Down</button>
+          <button className="btn small ghost" onClick={() => onOp({ op: 'remove_exercise', label: `Remove: ${exercise.name}`, args: { block_exercise_id: exercise.block_exercise_id } })}>Remove</button>
+        </div>
+      )}
       {dirty && (
         <div className="row" style={{ gap: 6 }}>
           <ReasonPicker reason={reason} customReason={customReason} onReason={setReason} onCustomReason={setCustomReason} />
@@ -184,6 +305,79 @@ function ExerciseEditor({ reviewId, block, exercise, exercises }: {
       )}
       {save.error && <ErrorNote error={save.error} />}
     </div>
+  );
+}
+
+function BlockCard({ reviewId, block, editable, exercises }: {
+  reviewId: string;
+  block: ReviewBlock;
+  editable: boolean;
+  exercises: Exercise[];
+}) {
+  const [pending, setPending] = useState<PendingOp | null>(null);
+  const shown = editable ? block : { ...block, logged: true };
+  const canEdit = editable && !block.logged;
+  const tools: Array<[string, PendingOp]> = [
+    ['Rename', { op: 'rename_block', label: 'Rename this block' }],
+    ['Block note', { op: 'set_block_note', label: 'Block note' }],
+    ['Change type', { op: 'change_type', label: 'Change the block type' }],
+    ['Add exercise', { op: 'add_exercise', label: 'Add an exercise' }],
+    ['Add block after', { op: 'add_block', label: 'Add a block after this one, in the same day' }],
+    ['Move up', { op: 'move_block', label: 'Move this block up', args: { direction: 'up' } }],
+    ['Move down', { op: 'move_block', label: 'Move this block down', args: { direction: 'down' } }],
+    ['Delete', { op: 'delete_block', label: 'Delete this block and its exercises. Revert brings it back.' }],
+  ];
+
+  return (
+    <section className="panel">
+      <div className="panel-head">
+        <div className="row">
+          <span className="label">{block.name}</span>
+          {block.structure && <Badge>{block.structure}</Badge>}
+          {block.timing && block.timing !== 'straight_set' && <Badge>{block.timing}</Badge>}
+          {block.logged && <Badge tone="ok">logged, locked</Badge>}
+        </div>
+      </div>
+      <div className="panel-body">
+        {canEdit && (
+          <div className="row" style={{ gap: 6, paddingBottom: 10 }}>
+            {tools.map(([label, op]) => (
+              <button key={label} className="btn small ghost" onClick={() => setPending(op)}>{label}</button>
+            ))}
+          </div>
+        )}
+        {pending && (
+          <BlockOpForm
+            key={`${pending.op}${JSON.stringify(pending.args)}`}
+            reviewId={reviewId}
+            block={block}
+            pending={pending}
+            exercises={exercises}
+            onDone={() => setPending(null)}
+          />
+        )}
+        {block.note && <div className="dim" style={{ fontSize: 13, paddingBottom: 8 }}>{block.note}</div>}
+        {Object.keys(block.settings).length > 0 && (
+          <BlockSettingsEditor
+            // A saved or refreshed block starts from what's really there.
+            key={JSON.stringify(block.settings)}
+            reviewId={reviewId}
+            block={block}
+            locked={!canEdit}
+          />
+        )}
+        {block.exercises.map((exercise) => (
+          <ExerciseEditor
+            key={JSON.stringify(exercise)}
+            reviewId={reviewId}
+            block={shown}
+            exercise={exercise}
+            exercises={exercises}
+            onOp={setPending}
+          />
+        ))}
+      </div>
+    </section>
   );
 }
 
@@ -290,37 +484,7 @@ export function ProgramReviewDetailPage() {
       </section>
 
       {review.week.map((block) => (
-        <section key={block.block_id} className="panel">
-          <div className="panel-head">
-            <div className="row">
-              <span className="label">{block.name}</span>
-              {block.structure && <Badge>{block.structure}</Badge>}
-              {block.timing && block.timing !== 'straight_set' && <Badge>{block.timing}</Badge>}
-              {block.logged && <Badge tone="ok">logged, locked</Badge>}
-            </div>
-          </div>
-          <div className="panel-body">
-            {Object.keys(block.settings).length > 0 && (
-              <BlockSettingsEditor
-                // A saved or refreshed block starts from what's really there.
-                key={JSON.stringify(block.settings)}
-                reviewId={review.id}
-                block={block}
-                locked={!editable || block.logged}
-              />
-            )}
-            {block.exercises.map((exercise) => (
-              <ExerciseEditor
-                // A saved or refreshed row starts from what's really there.
-                key={JSON.stringify(exercise)}
-                reviewId={review.id}
-                block={editable ? block : { ...block, logged: true }}
-                exercise={exercise}
-                exercises={exercisesQ.data}
-              />
-            ))}
-          </div>
-        </section>
+        <BlockCard key={block.block_id} reviewId={review.id} block={block} editable={editable} exercises={exercisesQ.data} />
       ))}
 
       {review.changes.length > 0 && (
@@ -329,16 +493,18 @@ export function ProgramReviewDetailPage() {
           <div className="panel-body" style={{ fontSize: 13 }}>
             {review.changes.map((change) => (
               <div key={change.id}>
-                {change.kind !== 'exercise' ? (
-                  `${change.block_name}: ${Object.keys(change.after)
-                    .filter((key) => asText(change.before[key] as string) !== asText(change.after[key] as string))
-                    .map((key) => `${SETTING_LABELS[key] ?? key} ${asText(change.before[key] as string) || 'none'} → ${asText(change.after[key] as string) || 'none'}`)
+                {change.kind === 'structure' ? (
+                  `${change.block_name}: ${change.detail?.op?.replace(/_/g, ' ') ?? 'moved'}${change.detail?.exercise ? ` ${change.detail.exercise}` : ''}${change.detail?.to ? ` to ${change.detail.to}` : ''}`
+                ) : change.kind !== 'exercise' ? (
+                  `${change.block_name}: ${Object.keys(change.after ?? {})
+                    .filter((key) => asText(change.before?.[key] as string) !== asText(change.after?.[key] as string))
+                    .map((key) => `${SETTING_LABELS[key] ?? key} ${asText(change.before?.[key] as string) || 'none'} → ${asText(change.after?.[key] as string) || 'none'}`)
                     .join(', ')}`
                 ) : (
                   <>
                     {change.block_name}: {change.exercise_before}
                     {change.exercise_after !== change.exercise_before ? ` → ${change.exercise_after}` : ''}
-                    {` ${change.before.sets}×${change.before.reps ?? change.before.hold_seconds} → ${change.after.sets}×${change.after.reps ?? change.after.hold_seconds}`}
+                    {` ${change.before?.sets}×${change.before?.reps ?? change.before?.hold_seconds} → ${change.after?.sets}×${change.after?.reps ?? change.after?.hold_seconds}`}
                   </>
                 )}
                 <span className="dim"> ({change.reason})</span>

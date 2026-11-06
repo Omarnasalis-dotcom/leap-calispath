@@ -13,6 +13,7 @@ export interface ProgramReviewRow {
   changes?: Array<{
     kind?: string | null;
     block_name?: string | null;
+    detail?: { op?: string; exercise?: string; to?: string; timing?: string; structure?: string; weighted?: boolean } | null;
     exercise_before?: string | null;
     exercise_after?: string | null;
     before?: Record<string, unknown>;
@@ -26,6 +27,22 @@ const FIELDS = ["sets", "reps", "hold_seconds", "rest_seconds"] as const;
 function describe(change: NonNullable<ProgramReviewRow["changes"]>[number]): string {
   const before = change.before ?? {};
   const after = change.after ?? {};
+  if (change.kind === "structure") {
+    const d = change.detail ?? {};
+    const what: Record<string, string> = {
+      add_exercise: `added ${d.exercise}`,
+      remove_exercise: `removed ${d.exercise}`,
+      move_exercise: `moved ${d.exercise}`,
+      set_weighted: `${d.exercise} set to ${d.weighted ? "weighted" : "not weighted"}`,
+      rename_block: `renamed to ${d.to}`,
+      set_block_note: "note changed",
+      change_type: `changed to ${d.timing} / ${d.structure}`,
+      move_block: "moved within the day",
+      delete_block: "block deleted",
+      add_block: `block added with ${d.exercise}`,
+    };
+    return `${change.block_name}: ${what[d.op ?? ""] ?? "updated"}`;
+  }
   if (change.kind && change.kind !== "exercise") {
     const settings = Object.keys(after)
       .filter((key) => String(before[key] ?? "") !== String(after[key] ?? ""))
