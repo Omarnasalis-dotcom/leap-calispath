@@ -1,7 +1,10 @@
 import { isUsageNotice } from '../../../supabase/functions/ai-coach/tools/usageNotices';
 import {
   CoachUsage,
+  coachUsageLeft,
+  coachUsageNear,
   coachUsageText,
+  coachUsageWarning,
   nextDayReset,
   nextWeekReset,
   parseCoachUsage,
@@ -84,9 +87,9 @@ describe('the chat line', () => {
     expect(coachUsageText(usage({ window: 'week', messages_left: 3, messages_limit: 50 }))!.messages).toMatch(/^3 left this week · Resets /);
   });
 
-  it('warns at 10% and below only', () => {
-    expect(coachUsageText(usage({ budget_left_pct: 11 }))!.budgetLow).toBe(false);
-    expect(coachUsageText(usage({ budget_left_pct: 10 }))!.budgetLow).toBe(true);
+  it('marks the budget at 25% and below only', () => {
+    expect(coachUsageText(usage({ budget_left_pct: 26 }))!.budgetLow).toBe(false);
+    expect(coachUsageText(usage({ budget_left_pct: 25 }))!.budgetLow).toBe(true);
     expect(coachUsageText(usage({ budget_left_pct: 0 }))!.budgetLow).toBe(true);
   });
 
@@ -98,6 +101,38 @@ describe('the chat line', () => {
 
   it('never shows dollars', () => {
     expect(JSON.stringify(coachUsageText(usage()))).not.toContain('$');
+  });
+});
+
+describe('close to a limit', () => {
+  it('stays silent with room left', () => {
+    expect(coachUsageNear(usage({ messages_left: 4, budget_left_pct: 26 }))).toBe(false);
+    expect(coachUsageWarning(usage({ messages_left: 4, budget_left_pct: 26 }))).toBeNull();
+  });
+
+  it('warns at 3 messages, in the window that applies', () => {
+    expect(coachUsageWarning(usage({ messages_left: 3 }))).toBe('Messages left today: 3');
+    expect(coachUsageWarning(usage({ window: 'week', messages_left: 2, messages_limit: 50 }))).toBe('Messages left this week: 2');
+    expect(coachUsageWarning(usage({ tier: 'first', window: 'period', messages_left: 1, messages_limit: 20 }))).toBe('Messages left: 1');
+  });
+
+  it('warns at 25% budget', () => {
+    expect(coachUsageWarning(usage({ budget_left_pct: 25 }))).toBe('Budget left: 25%');
+  });
+
+  it('shows both when both are close', () => {
+    expect(coachUsageWarning(usage({ messages_left: 2, budget_left_pct: 7 }))).toBe('Messages left today: 2 · Budget left: 7%');
+  });
+
+  it('never warns free accounts', () => {
+    expect(coachUsageWarning(usage({ tier: 'free', window: 'lifetime', messages_left: 1, messages_limit: 8, budget_left_pct: null }))).toBeNull();
+  });
+
+  it('fills the ring by the tighter of the two', () => {
+    expect(coachUsageLeft(usage({ messages_left: 5, messages_limit: 10, budget_left_pct: 72 }))).toBe(0.5);
+    expect(coachUsageLeft(usage({ messages_left: 9, messages_limit: 10, budget_left_pct: 20 }))).toBe(0.2);
+    expect(coachUsageLeft(usage({ messages_left: 0, budget_left_pct: 100 }))).toBe(0);
+    expect(coachUsageLeft(usage({ messages_left: 0, messages_limit: 0 }))).toBe(0);
   });
 });
 

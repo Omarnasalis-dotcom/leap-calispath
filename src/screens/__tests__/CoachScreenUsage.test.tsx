@@ -69,7 +69,8 @@ const REPLY = { reply: 'Great session.', recommendations: [], programAction: nul
 let tree: ReactTestRenderer | undefined;
 let alertSpy: jest.SpyInstance;
 const flush = async () => { for (let i = 0; i < 12; i++) await act(async () => { await Promise.resolve(); }); };
-const texts = () => JSON.stringify(tree!.toJSON());
+// What's on screen: the ring's screen-reader label holds the details too.
+const texts = () => JSON.stringify(tree!.toJSON(), (key, value) => (key === 'accessibilityLabel' ? undefined : value));
 const open = async () => {
   await act(async () => { tree = create(<CoachScreen onBack={() => {}} />); });
   await flush();
@@ -97,10 +98,52 @@ afterEach(() => {
 });
 
 describe('AI Coach usage line', () => {
-  it('shows the line', async () => {
+  const ring = () => tree!.root.findAll(n => n.props.accessibilityState?.expanded !== undefined && !!n.props.onPress)[0];
+  const tapRing = async () => {
+    await act(async () => { ring().props.onPress(); });
+    await flush();
+  };
+
+  it('shows only the ring with room left: no text until tapped', async () => {
     await open();
+    expect(ring().props.accessibilityLabel).toContain('7 of 10 left today');
+    expect(texts()).toContain('Usage');
+    expect(texts()).not.toContain('left today');
+    expect(texts()).not.toContain('Budget');
+  });
+
+  it('shows the details on tap, and hides them on the next tap', async () => {
+    await open();
+    await tapRing();
     expect(texts()).toContain('7 of 10 left today');
     expect(texts()).toContain('Budget 72%');
+    await tapRing();
+    expect(texts()).not.toContain('Budget 72%');
+  });
+
+  it('hides the details by itself', async () => {
+    await open();
+    jest.useFakeTimers();
+    await act(async () => { ring().props.onPress(); });
+    expect(texts()).toContain('Budget 72%');
+    await act(async () => { jest.advanceTimersByTime(7900); });
+    expect(texts()).toContain('Budget 72%');
+    await act(async () => { jest.advanceTimersByTime(200); });
+    expect(texts()).not.toContain('Budget 72%');
+    jest.useRealTimers();
+  });
+
+  it('warns by itself only when close to a limit', async () => {
+    mockRpc.mockImplementation(async (name: string) => (name === 'get_ai_coach_usage' ? usageAnswer({ messages_left: 3 }) : { data: null, error: null }));
+    await open();
+    expect(texts()).toContain('Messages left today: 3');
+    expect(texts()).not.toContain('Budget left');
+  });
+
+  it('warns about the budget at 25%', async () => {
+    mockRpc.mockImplementation(async (name: string) => (name === 'get_ai_coach_usage' ? usageAnswer({ budget_left_pct: 25 }) : { data: null, error: null }));
+    await open();
+    expect(texts()).toContain('Budget left: 25%');
   });
 
   it('sends the AI Coach exactly what it sent before: no usage anywhere', async () => {
@@ -126,7 +169,7 @@ describe('AI Coach usage line', () => {
     await act(async () => { finish({ data: REPLY, error: null }); });
     await flush();
     expect(mockRpc.mock.calls.filter(c => c[0] === 'get_ai_coach_usage').length).toBe(before + 1);
-    expect(texts()).toContain('6 of 10 left today');
+    expect(ring().props.accessibilityLabel).toContain('6 of 10 left today');
   });
 
   it('still sends when the numbers say blocked: only the server refuses', async () => {
@@ -140,7 +183,7 @@ describe('AI Coach usage line', () => {
   it('still chats normally when the numbers fail to load', async () => {
     mockRpc.mockImplementation(async () => { throw new Error('offline'); });
     await open();
-    expect(texts()).not.toContain('Budget');
+    expect(tree!.root.findAll(n => n.props.accessibilityState?.expanded !== undefined).length).toBe(0);
     await send('Hello');
     expect(mockInvoke).toHaveBeenCalledTimes(1);
     expect(texts()).toContain('Great session.');
@@ -174,13 +217,13 @@ describe('AI Coach usage line', () => {
     });
     await send('Hello');
     expect(texts()).toContain('Daily sessions exhausted');
-    expect(texts()).not.toContain('left today');
+    expect(texts()).not.toContain('Messages left today');
     expect(inputEditable()).toBe(false);
 
     usage = usageAnswer({ messages_left: 10 });
     await act(async () => { listeners.forEach(cb => cb('active')); });
     await flush();
     expect(inputEditable()).toBe(true);
-    expect(texts()).toContain('10 of 10 left today');
+    expect(ring().props.accessibilityLabel).toContain('10 of 10 left today');
   });
 });

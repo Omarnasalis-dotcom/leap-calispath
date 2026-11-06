@@ -20,7 +20,9 @@ export interface CoachUsage {
 }
 
 const WINDOWS: CoachUsageWindow[] = ['lifetime', 'period', 'day', 'week'];
-export const LOW_BUDGET_PCT = 10;
+/** From here the ring turns red and a warning shows above the message box. */
+export const NEAR_BUDGET_PCT = 25;
+export const NEAR_MESSAGES = 3;
 
 const isDate = (v: unknown): v is string => typeof v === 'string' && !Number.isNaN(Date.parse(v));
 
@@ -71,7 +73,33 @@ export interface CoachUsageText {
   budgetLow: boolean;
 }
 
-/** The chat line. Null for free accounts, which never reach the chat box. */
+/** Close to being refused. Free accounts never reach the chat box. */
+export function coachUsageNear(usage: CoachUsage): boolean {
+  if (usage.window === 'lifetime') return false;
+  return usage.messagesLeft <= NEAR_MESSAGES || (usage.budgetLeftPct != null && usage.budgetLeftPct <= NEAR_BUDGET_PCT);
+}
+
+/** How full the ring is, 0 to 1: whichever of messages and budget is tighter. */
+export function coachUsageLeft(usage: CoachUsage): number {
+  const messages = usage.messagesLimit > 0 ? usage.messagesLeft / usage.messagesLimit : 0;
+  return usage.budgetLeftPct == null ? messages : Math.min(messages, usage.budgetLeftPct / 100);
+}
+
+/** The short warning above the message box, only when close to a limit. */
+export function coachUsageWarning(usage: CoachUsage): string | null {
+  if (!coachUsageNear(usage)) return null;
+  const parts: string[] = [];
+  if (usage.messagesLeft <= NEAR_MESSAGES) {
+    const key = usage.window === 'day' ? 'coach.warnDay' : usage.window === 'week' ? 'coach.warnWeek' : 'coach.warnPeriod';
+    parts.push(t(key, { left: usage.messagesLeft }));
+  }
+  if (usage.budgetLeftPct != null && usage.budgetLeftPct <= NEAR_BUDGET_PCT) {
+    parts.push(t('coach.warnBudget', { pct: usage.budgetLeftPct }));
+  }
+  return parts.join(' · ');
+}
+
+/** The details behind the ring. Null for free accounts. */
 export function coachUsageText(usage: CoachUsage): CoachUsageText | null {
   if (usage.window === 'lifetime') return null;
   const { messagesLeft: left, messagesLimit: limit, resetsAt } = usage;
@@ -90,7 +118,7 @@ export function coachUsageText(usage: CoachUsage): CoachUsageText | null {
   if (pct == null) return { messages, budget: null, budgetLow: false };
   let budget = t('coach.usageBudget', { pct });
   if (budgetUntil) budget += ` · ${t('coach.usageUntil', { date: formatUntilDate(budgetUntil) })}`;
-  return { messages, budget, budgetLow: pct <= LOW_BUDGET_PCT };
+  return { messages, budget, budgetLow: pct <= NEAR_BUDGET_PCT };
 }
 
 const withUntil = (text: string, key: 'coach.periodUntil' | 'coach.usageUntil', separator: string, expiresAt?: string | null) => {

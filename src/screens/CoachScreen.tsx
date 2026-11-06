@@ -46,9 +46,9 @@ import { track } from '../lib/analytics';
 import { CoachSetup } from '../components/coach/CoachSetup';
 import { CoachMessageText } from '../components/coach/CoachMessageText';
 import { needsCoachSetup } from '../lib/coachSetup';
-import { rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
+import { coachUsageWarning, rateLimitBannerCopy, rateLimitCopy } from '../lib/coachUsage';
 import { useCoachUsage } from '../hooks/useCoachUsage';
-import { CoachUsageLine } from '../components/coach/CoachUsageLine';
+import { CoachUsageRing } from '../components/coach/CoachUsageRing';
 import {
   coachServerError,
   deliverWithRecovery,
@@ -947,6 +947,7 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
 
   if (!profile) return null;
 
+  const usageWarning = usage && coachUsageWarning(usage);
   const statusLine = connectionStatus === 'offline' ? t('coach.offline')
     : connectionStatus === 'reconnecting' ? t('coach.reconnecting')
     : loading && stages.length > 0 ? `${t('coach.online')} · ${stageVerb(stages[stages.length - 1].verb)}`
@@ -1278,9 +1279,12 @@ export function CoachScreen({ onBack, initialPrompt }: { onBack: () => void; ini
             </View>
           )}
 
-          {!rateLimited && usage && <CoachUsageLine usage={usage} color={c.mutedLabel} lowColor={theme.accentText} />}
+          {!rateLimited && usageWarning && (
+            <Text accessibilityLiveRegion="polite" style={[styles.usageWarning, { color: theme.accentText }]}>{usageWarning}</Text>
+          )}
 
           <View style={[styles.inputContainer, { borderTopColor: c.headerDivider }]}>
+            {usage && <CoachUsageRing usage={usage} c={c} accent={theme.accent} accentText={theme.accentText} />}
             <TextInput
               style={[styles.input, { color: c.bodyText, backgroundColor: c.inputBg, borderColor: c.inputBorder }]}
               value={inputText}
@@ -1405,7 +1409,7 @@ const styles = StyleSheet.create({
   // size (hex contrast was fine on paper, thin system-font strokes weren't
   // legible in practice) — bumped to a normal weight for real legibility.
   messageText: { fontSize: 15.5, lineHeight: 23, fontWeight: '500' },
-  inputContainer: { flexDirection: 'row', padding: 16, alignItems: 'flex-end', borderTopWidth: 1, gap: 10 },
+  inputContainer: { zIndex: 2, flexDirection: 'row', padding: 16, alignItems: 'flex-end', borderTopWidth: 1, gap: 10 },
   // Static, always-visible note — never per-message, never dismissible.
   // Sits in normal flow (not absolutely positioned) right after
   // inputContainer, so it can never overlap the input or send button, and
@@ -1417,6 +1421,7 @@ const styles = StyleSheet.create({
   headerCenter: { alignItems: 'center', flex: 1 },
   headerTitle: { fontSize: 15, fontWeight: '600', letterSpacing: 2.4 },
   headerSub: { fontSize: 9.5, fontWeight: '500', letterSpacing: 1.6, marginTop: 2, textTransform: 'uppercase' },
+  usageWarning: { fontSize: 12, fontWeight: '600', textAlign: 'center', paddingHorizontal: 16, paddingBottom: 8 },
   welcomeContainer: { alignItems: 'center', marginTop: 40, paddingHorizontal: 20 },
   welcomeTitle: { fontSize: 22, fontWeight: '900', marginTop: 16 },
   welcomeSub: { fontSize: 14, textAlign: 'center', marginTop: 8, marginBottom: 24 },
